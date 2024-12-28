@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0070f3" />
+    
+    <!-- Primary Meta Tags -->
+    <title>GymJams - Premium Fitness </title>
+    <meta name="title" content="GymShop - Premium Fitness Equipment" />
+    <meta name="description" content="Shop premium gym equipment, fitness accessories, and workout gear. Quality products for your home gym or commercial facility." />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://gymshop.com/" />
+    <meta property="og:title" content="GymShop - Premium Fitness Equipment" />
+    <meta property="og:description" content="Shop premium gym equipment, fitness accessories, and workout gear. Quality products for your home gym or commercial facility." />
+    <meta property="og:image" content="/og-image.jpg" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://gymshop.com/" />
+    <meta property="twitter:title" content="GymShop - Premium Fitness Equipment" />
+    <meta property="twitter:description" content="Shop premium gym equipment, fitness accessories, and workout gear. Quality products for your home gym or commercial facility." />
+    <meta property="twitter:image" content="/og-image.jpg" />
+
+    <!-- Preload fonts -->
+    <link 
+      rel="preload" 
+      href="/fonts/inter-var.woff2" 
+      as="font" 
+      type="font/woff2" 
+      crossorigin="anonymous"
+    />
+
+    <!-- Manifest and icons -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="180x180" href="/logo.png" />
+  
+
+    <!-- Preconnect to API domain -->
+    <link rel="preconnect" href="%VITE_API_URL%" />
+    
+    <!-- Stripe script (only on checkout pages) -->
+    <script async src="https://js.stripe.com/v3/"></script>
+
+    <!-- Application styles -->
+    <link rel="stylesheet" href="/src/index.css" />
+  </head>
+  <body>
+    <noscript>
+      <div style="padding: 20px; text-align: center;">
+        GymShop requires JavaScript to be enabled. Please enable JavaScript to continue.
+      </div>
+    </noscript>
+    
+    <div id="root"></div>
+
+    <!-- App entry point -->
+    <script type="module" src="/src/main.jsx"></script>
+
+    <script>
+      window.addEventListener('error', function(e) {
+        console.error('Global error:', e);
+        // Add your error tracking service here
+      });
+    </script>
+  </body>
+</html>
