@@ -1,23 +1,154 @@
-// server.js
-const express = require('express');
-const cors = require('cors');
+// app.js
+import express from 'express';
+import cors from 'cors';
+import morgan from 'morgan';
+import helmet from 'helmet';
+import compression from 'compression';
+import path from 'path';
+import 'dotenv/config';
 
+// Import configurations
+import connectDB from './config/database.js';
+import passport from './config/passport.js';
+import corsOptions from './config/cors.js';
+import { initStripe } from './config/stripe.js';
+
+// Import routes
+import routes from './routes/index.js';
+
+// Import middleware
+import { handleError, handleNotFound } from './middleware/error.middleware.js';
+import { rateLimiter } from './middleware/auth.middleware.js';
+
+// Import logger
+import logger from './utils/logger.js';
+
+// Initialize express app
 const app = express();
 
-// CORS Configuration
-app.use(cors({
-  origin: [
-    'https://frontend.gymjams.ca',
-    'https://gymjams.ca',
-    'http://localhost:3000' // For development
-  ]
-}));
+// Connect to MongoDB
+connectDB();
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/products', productRoutes);
+// Initialize Stripe
+initStripe();
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Security Middleware
+app.use(helmet());
+app.use(cors(corsOptions));
+app.use(rateLimiter);
+
+// Body parsing Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Stripe webhook handling (must be before body parser)
+app.post(
+  '/api/webhook',
+  express.raw({ type: 'application/json' }),
+  async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    try {
+      const event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+      await handleStripeWebhook(event);
+      res.json({ received: true });
+    } catch (err) {
+      logger.error('Webhook Error:', err.message);
+      res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+  }
+);
+
+// Request logging
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+} else {
+  app.use(morgan('combined'));
+}
+
+// Compress responses
+app.use(compression());
+
+// Initialize passport
+app.use(passport.initialize());
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static('uploads'));
+
+// API Documentation
+if (process.env.NODE_ENV === 'development') {
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+}
+
+// Mount routes
+app.use('/api', routes);
+
+// Handle production setup
+if (process.env.NODE_ENV === 'production') {
+  // Serve static files from the React app
+  const clientBuildPath = path.join(__dirname, '../../client/dist');
+  app.use(express.static(clientBuildPath));
+
+  // Handle React routing, return all requests to React app
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(clientBuildPath, 'index.html'));
+  });
+}
+
+// Error Handling
+app.use(handleNotFound);
+app.use(handleError);
+
+// Start server
+const PORT = process.env.PORT || 5000;
+
+let server;
+try {
+  server = app.listen(PORT, () => {
+    logger.info(`Server is running on port ${PORT}`);
+    logger.info(`Environment: ${process.env.NODE_ENV}`);
+  });
+} catch (error) {
+  logger.error('Failed to start server:', error);
+  process.exit(1);
+}
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+  logger.error('Unhandled Promise Rejection:', err);
+  // Close server & exit process
+  if (server) {
+    server.close(() => process.exit(1));
+  } else {
+    process.exit(1);
+  }
 });
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception:', err);
+  // Close server & exit process
+  if (server) {
+    server.close(() => process.exit(1));
+  } else {
+    process.exit(1);
+  }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM received. Shutting down gracefully...');
+  if (server) {
+    server.close(() => {
+      logger.info('Process terminated.');
+      process.exit(0);
+    });
+  } else {
+    process.exit(0);
+  }
+});
+
+export default app;
