@@ -1,10 +1,12 @@
-// app.js
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import helmet from 'helmet';
 import compression from 'compression';
 import path from 'path';
+import swaggerUi from 'swagger-ui-express';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import 'dotenv/config';
 
 // Import configurations
@@ -12,6 +14,7 @@ import connectDB from './config/database.js';
 import passport from './config/passport.js';
 import corsOptions from './config/cors.js';
 import { initStripe } from './config/stripe.js';
+import swaggerDocument from '../swagger.json' assert { type: "json" };
 
 // Import routes
 import routes from './routes/index.js';
@@ -22,6 +25,10 @@ import { rateLimiter } from './middleware/auth.middleware.js';
 
 // Import logger
 import logger from './utils/logger.js';
+
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Initialize express app
 const app = express();
@@ -78,9 +85,13 @@ app.use(passport.initialize());
 // Serve static files from uploads directory
 app.use('/uploads', express.static('uploads'));
 
-// API Documentation
+// API Documentation - only in development
 if (process.env.NODE_ENV === 'development') {
-  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+  app.use(
+    '/api-docs',
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerDocument, { explorer: true })
+  );
 }
 
 // Mount routes
@@ -110,6 +121,9 @@ try {
   server = app.listen(PORT, () => {
     logger.info(`Server is running on port ${PORT}`);
     logger.info(`Environment: ${process.env.NODE_ENV}`);
+    if (process.env.NODE_ENV === 'development') {
+      logger.info(`API Documentation available at http://localhost:${PORT}/api-docs`);
+    }
   });
 } catch (error) {
   logger.error('Failed to start server:', error);

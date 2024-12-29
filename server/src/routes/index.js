@@ -1,19 +1,16 @@
 import express from 'express';
-import apiRoutes from './api.routes.js';
+import authRoutes from './auth.routes.js';
+// Import other route files here
 
 const router = express.Router();
 
-// Mount API routes
-router.use('/api', apiRoutes);
+// Mount routes
+router.use('/auth', authRoutes);
+// Mount other routes here
 
-// Base route
-router.get('/', (req, res) => {
-  res.json({ message: 'Welcome to GymShop API' });
-});
-
-// 404 handler
-router.use((req, res) => {
-  res.status(404).json({ message: 'Route not found' });
+// Health check endpoint
+router.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
 });
 
 export default router;

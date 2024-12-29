@@ -3,41 +3,68 @@ import logger from '../utils/logger.js';
 
 if (!process.env.STRIPE_SECRET_KEY) {
   logger.error('STRIPE_SECRET_KEY is not defined in environment variables');
-  process.exit(1);
+  throw new Error('STRIPE_SECRET_KEY is required');
 }
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2024-02-29', // Use the latest API version
-  appInfo: {
-    name: 'GymShop',
-    version: '1.0.0'
-  }
+  apiVersion: '2023-10-16',
+  maxNetworkRetries: 3,
+  timeout: 10000,
 });
 
-// Test the Stripe connection
-const testStripeConnection = async () => {
+export const createCustomer = async ({ email, name, metadata = {} }) => {
   try {
-    await stripe.paymentIntents.list({ limit: 1 });
-    logger.info('Stripe connection successful');
+    const customer = await stripe.customers.create({
+      email,
+      name,
+      metadata
+    });
+    return customer;
   } catch (error) {
-    logger.error('Stripe connection error:', error);
-    process.exit(1);
+    logger.error('Error creating Stripe customer:', error);
+    throw error;
   }
 };
 
-export const initStripe = () => {
-  testStripeConnection();
+export const initStripe = async () => {
+  try {
+    // Test the connection with a simple operation
+    await stripe.paymentMethods.list({
+      limit: 1,
+      type: 'card'
+    });
+    logger.info('Stripe connection successful');
+    return true;
+  } catch (error) {
+    if (error.type === 'StripeAuthenticationError') {
+      logger.error('Stripe authentication failed. Please check your API key.');
+    } else {
+      logger.error('Stripe connection error:', error);
+    }
+    return false;
+  }
 };
 
-// Stripe webhook handling
-export const handleStripeWebhook = async (requestBody, signature) => {
+// Additional helper functions
+export const createPaymentIntent = async ({ amount, metadata = {} }) => {
   try {
-    const event = stripe.webhooks.constructEvent(
-      requestBody,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(amount * 100), // Convert to cents
+      currency: 'usd',
+      metadata,
+      automatic_payment_methods: {
+        enabled: true,
+      },
+    });
+    return paymentIntent;
+  } catch (error) {
+    logger.error('Error creating payment intent:', error);
+    throw error;
+  }
+};
 
+export const handleStripeWebhook = async (event) => {
+  try {
     switch (event.type) {
       case 'payment_intent.succeeded':
         await handlePaymentSuccess(event.data.object);
@@ -48,66 +75,20 @@ export const handleStripeWebhook = async (requestBody, signature) => {
       default:
         logger.info(`Unhandled event type ${event.type}`);
     }
-
-    return { success: true };
   } catch (error) {
-    logger.error('Stripe webhook error:', error);
+    logger.error('Error handling stripe webhook:', error);
     throw error;
   }
 };
 
-// Helper functions for Stripe operations
-export const createPaymentIntent = async ({
-  amount,
-  currency = 'usd',
-  customer = null,
-  metadata = {}
-}) => {
-  try {
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Convert to cents
-      currency,
-      customer,
-      metadata,
-      automatic_payment_methods: {
-        enabled: true,
-      },
-    });
-
-    return paymentIntent;
-  } catch (error) {
-    logger.error('Error creating payment intent:', error);
-    throw error;
-  }
+const handlePaymentSuccess = async (paymentIntent) => {
+  // Implement payment success logic
+  logger.info(`Payment succeeded for intent: ${paymentIntent.id}`);
 };
 
-export const createCustomer = async ({ email, name, metadata = {} }) => {
-  try {
-    const customer = await stripe.customers.create({
-      email,
-      name,
-      metadata
-    });
-
-    return customer;
-  } catch (error) {
-    logger.error('Error creating Stripe customer:', error);
-    throw error;
-  }
-};
-
-export const createRefund = async (paymentIntentId, amount = null) => {
-  try {
-    const refund = await stripe.refunds.create({
-      payment_intent: paymentIntentId,
-      amount: amount ? Math.round(amount * 100) : undefined
-    });
-
-    return refund;
-  } catch (error) {
-    logger.error('Error creating refund:', error);
-    throw error;
-  }
+const handlePaymentFailure = async (paymentIntent) => {
+  // Implement payment failure logic
+  logger.error(`Payment failed for intent: ${paymentIntent.id}`);
 };
 
 export default stripe;

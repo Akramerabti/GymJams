@@ -96,3 +96,29 @@ export const login = async (req, res) => {
     res.status(500).json({ message: 'Error logging in' });
   }
 };
+
+export const getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+    res.json(user);
+  } catch (error) {
+    logger.error('Error fetching profile:', error);
+    res.status(500).json({ message: 'Error fetching profile' });
+  }
+};
+
+export const updateProfile = async (req, res) => {
+  try {
+    const { firstName, lastName, phone } = req.body;
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { firstName, lastName, phone },
+      { new: true }
+    ).select('-password');
+
+    res.json(user);
+  } catch (error) {
+    logger.error('Error updating profile:', error);
+    res.status(500).json({ message: 'Error updating profile' });
+  }
+};
