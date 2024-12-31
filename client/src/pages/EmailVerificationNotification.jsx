@@ -1,56 +1,88 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import authService from '../services/auth.service'; // Correct import
+import React, { useState, useEffect } from 'react';
+import { Mail } from 'lucide-react';
+import api from '../services/api';
 
 const EmailVerificationNotification = () => {
-  const [email, setEmail] = useState('');
-  const [message, setMessage] = useState('');
+  const [cooldown, setCooldown] = useState(0);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const email = localStorage.getItem('verificationEmail');
+
+  useEffect(() => {
+    if (cooldown > 0) {
+      const timer = setInterval(() => {
+        setCooldown(current => current - 1);
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [cooldown]);
 
   const handleResendEmail = async () => {
     try {
-      await authService.resendVerificationEmail(email); // Use the function
-      setMessage('Verification email resent successfully!');
-    } catch (error) {
-      setMessage('Failed to resend verification email. Please try again.');
+      setError('');
+      setSuccess(false);
+      
+      // Call the resend verification endpoint
+      await api.post('/auth/resend-verification', { email });
+      
+      // Start cooldown and show success message
+      setCooldown(30);
+      setSuccess(true);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to resend verification email');
     }
   };
 
+  if (!email) {
+    window.location.href = '/register';
+    return null;
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Verify Your Email Address
+      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow-md">
+        <div className="text-center">
+          <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+            <Mail className="h-6 w-6 text-blue-600" />
+          </div>
+          <h2 className="text-3xl font-extrabold text-gray-900 mb-4">
+            Check your email
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            A verification email has been sent to your email address. Please check your inbox and click the link to verify your account.
+          <p className="text-sm text-gray-600 mb-6">
+            We sent a verification link to
+            <span className="font-medium text-gray-900 block mt-1">{email}</span>
+          </p>
+          <p className="text-sm text-gray-500 mb-8">
+            Click the link in the email to verify your account. If you don't see it, check your spam folder.
           </p>
         </div>
-        <div className="flex justify-center">
-          <input
-            type="email"
-            placeholder="Enter your email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-          />
-        </div>
-        <div className="flex justify-center">
-          <button
-            onClick={handleResendEmail}
-            className="font-medium text-blue-600 hover:text-blue-500"
-          >
-            Resend Verification Email
-          </button>
-        </div>
-        {message && (
-          <p className="mt-2 text-center text-sm text-green-600">{message}</p>
+
+        {error && (
+          <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm mb-4">
+            {error}
+          </div>
         )}
-        <div className="text-center">
-          <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
-            Back to Login
-          </Link>
-        </div>
+
+        {success && (
+          <div className="bg-green-50 text-green-500 p-3 rounded-md text-sm mb-4">
+            Verification email sent successfully!
+          </div>
+        )}
+
+        <button
+          onClick={handleResendEmail}
+          disabled={cooldown > 0}
+          className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+        >
+          {cooldown > 0 
+            ? `Resend email (${cooldown}s)` 
+            : 'Resend verification email'
+          }
+        </button>
+
+        <p className="mt-4 text-center text-sm text-gray-500">
+          Having trouble? Contact our support team.
+        </p>
       </div>
     </div>
   );

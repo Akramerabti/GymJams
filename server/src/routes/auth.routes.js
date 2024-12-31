@@ -10,7 +10,7 @@ router.post('/register', validateRegistration, register);
 router.post('/login', validateLogin, login);
 router.get('/verify-email/:token', verifyEmail);
 router.get('/validate', authenticate, validateToken); 
-router.post('/resend-verification-email', resendVerificationEmail);
+router.post('/resend-verification', resendVerificationEmail);
 
 // Protected routes
 router.get('/profile', authenticate, getProfile);

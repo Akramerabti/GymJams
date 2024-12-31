@@ -7,8 +7,30 @@ const authService = {
   },
 
   async register(userData) {
-    const response = await api.post('/auth/register', userData);
-    return response.data;
+    try {
+      console.log('Auth service sending registration request with:', userData);
+      const response = await api.post('/auth/register', userData);
+      console.log('Auth service received response:', response);
+      
+      // Check if we have the expected data structure
+      if (!response.data) {
+        throw new Error('Invalid response from server');
+      }
+
+      return {
+        success: true,
+        data: response.data,
+        requiresVerification: true
+      };
+    } catch (error) {
+      console.error('Auth service registration error:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        error: error
+      });
+      throw error;
+    }
   },
 
   async logout() {
@@ -39,8 +61,7 @@ const authService = {
       newPassword 
     });
     return response.data;
-  },
-
+  }
 };
 
 export default authService;
