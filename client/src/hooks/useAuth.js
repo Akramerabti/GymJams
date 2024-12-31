@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import authService from '../services/auth.service';
+import api from '../services/api';
 
 const useAuthStore = create(
   persist(
@@ -17,8 +18,16 @@ const useAuthStore = create(
     }),
     {
       name: 'auth-storage',
-    }
-  )
+    },
+    {verifyEmail: async (token) => {
+      try {
+        const response = await api.get(`/auth/verify-email/${token}`);
+        return response.data;
+      } catch (error) {
+        throw error;
+      }
+    },
+  })
 );
 
 export const useAuth = () => {
@@ -99,5 +108,6 @@ export const useAuth = () => {
     logout,
     updateProfile,
     checkAuth,
+    verifyEmail: store.verifyEmail,
   };
 };
