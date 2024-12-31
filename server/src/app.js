@@ -6,7 +6,7 @@ import compression from 'compression';
 import path from 'path';
 import swaggerUi from 'swagger-ui-express';
 import { fileURLToPath } from 'url';
-
+import fs from 'fs';
 import 'dotenv/config';
 
 
@@ -27,17 +27,15 @@ import { rateLimiter } from './middleware/auth.middleware.js';
 // Import logger
 import logger from './utils/logger.js';
 
-const loadSwaggerDocument = async () => {
-  const swagger = await import('./swagger.json', {
-    assert: { type: 'json' }
-  });
-  return swagger.default;
-};
-
-const swaggerDocument = await loadSwaggerDocument();
-
 // Get __dirname equivalent in ES modules
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Load Swagger documentation
+const swaggerDocument = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, 'swagger.json'), 'utf8')
+);
+
+
 
 // Initialize express app
 const app = express();
