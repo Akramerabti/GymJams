@@ -30,25 +30,58 @@ const LoginForm = () => {
     try {
       setError('');
       console.log('Sending login request:', data);
-  
+
       const response = await api.post('/auth/login', {
         email: data.email.toLowerCase().trim(),
-        password: data.password.trim()
+        password: data.password.trim(),
       });
-  
+
       console.log('Login successful:', response.data);
-  
+
       // Update auth context with response data
-      await login(response.data.token, response.data.user);
-  
-      navigate('/profile');
+      await login(data.email, data.password); // Pass email and password here
+
+      // Redirect to home page
+      navigate('/');
     } catch (err) {
       console.error('Login error:', err);
-  
-      // Improved error handling
-      const errorMessage =
-        err.response?.data?.message || 'An unexpected error occurred';
+
+      // Handle specific error cases with unique messages
+      let errorMessage;
+      if (err.response) {
+        switch (err.response.status) {
+          case 400:
+            errorMessage = 'Email and password are required.';
+            break;
+          case 401:
+            errorMessage = 'Invalid email or password. Please check your credentials.';
+            break;
+          case 403:
+            errorMessage = 'Your email is not verified. Please check your inbox.';
+            break;
+          case 404:
+            errorMessage = 'User not found. Please check your email address.';
+            break;
+          case 429:
+            errorMessage = 'Too many login attempts. Please try again later.';
+            break;
+          case 500:
+            errorMessage = 'Server error. Please try again later.';
+            break;
+          default:
+            errorMessage = 'Something went wrong. Please try again.';
+        }
+      } else if (err.request) {
+        // Handle network errors (e.g., no response from the server)
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      } else {
+        // Handle other errors (e.g., code errors)
+        errorMessage = 'An unexpected error occurred. Please try again.';
+      }
+
+      // Set the error message and display a toast notification
       setError(errorMessage);
+      toast.error('Login failed', { description: errorMessage });
     }
   };
   

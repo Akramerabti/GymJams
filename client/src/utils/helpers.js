@@ -1,4 +1,3 @@
-// utils/helpers.js
 
 // Performance Utilities
 export const debounce = (func, wait = 300) => {

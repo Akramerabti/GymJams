@@ -39,7 +39,8 @@ const authService = {
       newPassword 
     });
     return response.data;
-  }
+  },
+
 };
 
 export default authService;

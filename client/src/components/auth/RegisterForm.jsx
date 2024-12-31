@@ -38,13 +38,16 @@ const RegisterForm = () => {
   const onSubmit = async (data) => {
     try {
       setError('');
-      await registerUser(data);
-      navigate('/login');
+      console.log('Registering user:', data); // Log the user data
+      const response = await registerUser(data); // Register the user
+      console.log('Registration successful:', response); // Log the response
+      navigate('/email-verification-notification'); // Redirect to the notification page
+      console.log('Redirecting to email verification page...'); // Log the redirection
     } catch (err) {
+      console.error('Registration error:', err); // Log the error
       setError(err.response?.data?.message || 'Failed to create account');
     }
   };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">

@@ -8,12 +8,21 @@ const ProtectedRoute = ({ children }) => {
   const location = useLocation();
 
   useEffect(() => {
+    let isMounted = true; // Track if the component is still mounted
+
     const verify = async () => {
       await checkAuth();
-      setIsChecking(false);
+      if (isMounted) {
+        setIsChecking(false);
+      }
     };
+
     verify();
-  }, [checkAuth]);
+
+    return () => {
+      isMounted = false; // Cleanup function to prevent state updates on unmounted component
+    };
+  }, []); // Empty dependency array to run only once
 
   if (isChecking || loading) {
     return (
