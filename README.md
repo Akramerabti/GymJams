@@ -14,3 +14,12 @@ Backend: Node.js + Express
 Database: MongoDB Atlas
 Hosting: Vercel (Frontend), Render (Backend)
 Authentication: Firebase or custom JWT
+
+
+
+Key Changes for Production in .env:
+
+NODE_ENV: Set to production. Set to development for change
+
+CLIENT_URL: Set to https://gymjams.ca.
+

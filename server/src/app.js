@@ -6,8 +6,9 @@ import compression from 'compression';
 import path from 'path';
 import swaggerUi from 'swagger-ui-express';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+
 import 'dotenv/config';
+
 
 // Import configurations
 import connectDB from './config/database.js';
@@ -15,7 +16,6 @@ import passport from './config/passport.js';
 import corsOptions from './config/cors.js';
 import authRoutes from './routes/auth.routes.js';
 import { initStripe } from './config/stripe.js';
-import swaggerDocument from '../swagger.json' assert { type: "json" };
 
 // Import routes
 import routes from './routes/index.js';
@@ -27,9 +27,17 @@ import { rateLimiter } from './middleware/auth.middleware.js';
 // Import logger
 import logger from './utils/logger.js';
 
+const loadSwaggerDocument = async () => {
+  const swagger = await import('./swagger.json', {
+    assert: { type: 'json' }
+  });
+  return swagger.default;
+};
+
+const swaggerDocument = await loadSwaggerDocument();
+
 // Get __dirname equivalent in ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Initialize express app
 const app = express();
@@ -101,13 +109,9 @@ app.use('/api/auth', authRoutes);
 
 // Handle production setup
 if (process.env.NODE_ENV === 'production') {
-  // Serve static files from the React app
-  const clientBuildPath = path.join(__dirname, '../../client/dist');
-  app.use(express.static(clientBuildPath));
-
-  // Handle React routing, return all requests to React app
+  // Redirect all requests to the client
   app.get('*', (req, res) => {
-    res.sendFile(path.join(clientBuildPath, 'index.html'));
+    res.redirect('https://gymjams.ca');
   });
 }
 
