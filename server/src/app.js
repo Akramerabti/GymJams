@@ -13,6 +13,7 @@ import 'dotenv/config';
 import connectDB from './config/database.js';
 import passport from './config/passport.js';
 import corsOptions from './config/cors.js';
+import authRoutes from './routes/auth.routes.js';
 import { initStripe } from './config/stripe.js';
 import swaggerDocument from '../swagger.json' assert { type: "json" };
 
@@ -96,6 +97,7 @@ if (process.env.NODE_ENV === 'development') {
 
 // Mount routes
 app.use('/api', routes);
+app.use('/api/auth', authRoutes);
 
 // Handle production setup
 if (process.env.NODE_ENV === 'production') {

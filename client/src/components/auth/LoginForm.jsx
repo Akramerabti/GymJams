@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import api from '../../lib/axios';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -28,13 +29,31 @@ const LoginForm = () => {
   const onSubmit = async (data) => {
     try {
       setError('');
-      await login(data.email, data.password);
+      console.log('Sending login request:', data);
+  
+      const response = await api.post('/auth/login', {
+        email: data.email.toLowerCase().trim(),
+        password: data.password.trim()
+      });
+  
+      console.log('Login successful:', response.data);
+  
+      // Update auth context with response data
+      await login(response.data.token, response.data.user);
+  
       navigate('/profile');
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to log in');
+      console.error('Login error:', err);
+  
+      // Improved error handling
+      const errorMessage =
+        err.response?.data?.message || 'An unexpected error occurred';
+      setError(errorMessage);
     }
   };
+  
 
+  // Rest of component remains the same
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">

@@ -1,3 +1,4 @@
+// VerifyEmail.jsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,24 +14,23 @@ const VerifyEmail = () => {
 
   useEffect(() => {
     const verifyEmail = async () => {
-      if (!token) {
-        setStatus('error');
-        return;
-      }
-
-      try {
-        // Make sure the URL matches your backend route exactly
-        await api.get(`/api/auth/verify-email/${token}`);
-        setStatus('success');
-      } catch (error) {
-        console.error('Verification error:', error);
-        setStatus('error');
-      }
-    };
+        if (!token) {
+          setStatus('error');
+          return;
+        }
+      
+        try {
+          await api.get(`/auth/verify-email/${token}`); // Remove /api prefix
+          setStatus('success');
+        } catch (error) {
+          console.error('Verification error:', error);
+          setStatus('error');
+        }
+      };
 
     verifyEmail();
   }, [token]);
-  
+
   const renderContent = () => {
     switch (status) {
       case 'verifying':

@@ -10,10 +10,14 @@ export const register = async (req, res) => {
   try {
     const { email, password, firstName, lastName, phone } = req.body;
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists' });
     }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    console.log('Registration - Hashed Password:', hashedPassword);
 
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -24,11 +28,8 @@ export const register = async (req, res) => {
       metadata: { userId: email }
     });
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
     const user = await User.create({
-      email,
+      email: email.toLowerCase(),
       password: hashedPassword,
       firstName,
       lastName,
@@ -67,16 +68,34 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email });
+    // Ensure email and password are provided
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    console.log('Login attempt for email:', email);
+
+    // Find user
+    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
     if (!user) {
+      console.log('User not found');
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    console.log('Stored hashed password:', user.password);
+
+    // Compare password
     const isMatch = await bcrypt.compare(password, user.password);
+    console.log('Password match result:', isMatch);
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    // Update last login
+    user.lastLogin = new Date();
+    await user.save();
+
+    // Create JWT
     const token = jwt.sign(
       { id: user._id },
       process.env.JWT_SECRET,
@@ -99,6 +118,7 @@ export const login = async (req, res) => {
     res.status(500).json({ message: 'Error logging in' });
   }
 };
+
 
 export const getProfile = async (req, res) => {
   try {
@@ -136,13 +156,24 @@ export const updateProfile = async (req, res) => {
 export const verifyEmail = async (req, res) => {
   try {
     const { token } = req.params;
-    const user = await User.findOne({
-      verificationToken: token,
-      verificationTokenExpires: { $gt: Date.now() }
+    
+    const user = await User.findOne({ 
+      $or: [
+        { verificationToken: token },
+        { isEmailVerified: true }
+      ]
     });
 
     if (!user) {
-      return res.status(400).json({ message: 'Invalid or expired verification token' });
+      return res.status(400).json({ message: 'Invalid verification token' });
+    }
+
+    if (user.isEmailVerified) {
+      return res.json({ message: 'Email is already verified' });
+    }
+
+    if (user.verificationTokenExpires < Date.now()) {
+      return res.status(400).json({ message: 'Verification token has expired' });
     }
 
     user.isEmailVerified = true;
