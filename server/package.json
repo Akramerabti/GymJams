@@ -8,7 +8,6 @@
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
     "test": "jest",
-    "build": "tsc",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

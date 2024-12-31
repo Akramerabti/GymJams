@@ -1,4 +1,3 @@
-// stores/authStore.js
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { jwtDecode } from 'jwt-decode';
@@ -9,7 +8,7 @@ const initialState = {
   token: null,
   loading: false,
   error: null,
-  isAuthenticated: false
+  isAuthenticated: false,
 };
 
 const useAuthStore = create(
@@ -21,7 +20,6 @@ const useAuthStore = create(
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       setToken: (token) => {
         if (token) {
-          // Set token in axios headers
           api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
           set({ token, isAuthenticated: true });
         } else {
@@ -41,10 +39,8 @@ const useAuthStore = create(
         try {
           const response = await api.post('/auth/login', { email, password });
           const { user, token } = response.data;
-          
           setToken(token);
           setUser(user);
-          
           return response.data;
         } catch (error) {
           const message = error.response?.data?.message || 'Login failed';
@@ -72,11 +68,51 @@ const useAuthStore = create(
         }
       },
 
+      verifyEmail: async (token) => {
+        const { setLoading, setError, setUser, setToken } = get();
+        setLoading(true);
+        setError(null);
+
+        try {
+          const response = await api.get(`/auth/verify-email/${token}`);
+          const { user, token: authToken } = response.data;
+          setToken(authToken);
+          setUser(user);
+          return response.data;
+        } catch (error) {
+          const message = error.response?.data?.message || 'Email verification failed';
+          setError(message);
+          throw error;
+        } finally {
+          setLoading(false);
+        }
+      },
+
+      resendVerificationEmail: async (email) => {
+        const { setLoading, setError } = get();
+        setLoading(true);
+        setError(null);
+
+        try {
+          const response = await api.post('/auth/resend-verification-email', { email });
+          return response.data;
+        } catch (error) {
+          const message = error.response?.data?.message || 'Failed to resend verification email';
+          setError(message);
+          throw error;
+        } finally {
+          setLoading(false);
+        }
+      },
+
       logout: () => {
-        const { setUser, setToken } = get();
+        const { setUser, setToken, clearCart } = get();
         setUser(null);
         setToken(null);
-        // Clean up any other auth-related state
+        clearCart();
+      },
+
+      clearCart: () => {
         localStorage.removeItem('cart');
       },
 
@@ -85,18 +121,17 @@ const useAuthStore = create(
         if (!token) return false;
 
         try {
-          // Verify token expiration
           const decoded = jwtDecode(token);
           if (decoded.exp * 1000 < Date.now()) {
             logout();
             return false;
           }
 
-          // Validate token with backend
           const response = await api.get('/auth/validate');
           setUser(response.data);
           return true;
         } catch (error) {
+          console.error('Token validation failed:', error);
           logout();
           return false;
         }
@@ -137,7 +172,43 @@ const useAuthStore = create(
         }
       },
 
-      // Utility methods
+      getUser: async () => {
+        const { setLoading, setError, setUser } = get();
+        setLoading(true);
+        setError(null);
+
+        try {
+          const response = await api.get('/auth/user');
+          setUser(response.data);
+          return response.data;
+        } catch (error) {
+          const message = error.response?.data?.message || 'Failed to fetch user data';
+          setError(message);
+          throw error;
+        } finally {
+          setLoading(false);
+        }
+      },
+
+      refreshToken: async () => {
+        const { setLoading, setError, setToken } = get();
+        setLoading(true);
+        setError(null);
+
+        try {
+          const response = await api.post('/auth/refresh-token');
+          const { token } = response.data;
+          setToken(token);
+          return token;
+        } catch (error) {
+          const message = error.response?.data?.message || 'Failed to refresh token';
+          setError(message);
+          throw error;
+        } finally {
+          setLoading(false);
+        }
+      },
+
       isTokenValid: () => {
         const { token } = get();
         if (!token) return false;
@@ -150,8 +221,7 @@ const useAuthStore = create(
         }
       },
 
-      // Reset store to initial state
-      reset: () => set(initialState)
+      reset: () => set(initialState),
     }),
     {
       name: 'auth-storage',
@@ -159,6 +229,7 @@ const useAuthStore = create(
       partialize: (state) => ({
         token: state.token,
         user: state.user,
+        isAuthenticated: state.isAuthenticated,
       }),
     }
   )

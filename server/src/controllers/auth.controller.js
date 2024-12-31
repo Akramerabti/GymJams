@@ -215,9 +215,9 @@ export const resendVerificationEmail = async (req, res) => {
 export const verifyEmail = async (req, res) => {
   try {
     const { token } = req.params;
-    
+
     // Find the user by verification token
-    const user = await User.findOne({ 
+    const user = await User.findOne({
       $or: [
         { verificationToken: token },
         { isEmailVerified: true }
@@ -244,7 +244,26 @@ export const verifyEmail = async (req, res) => {
     user.verificationTokenExpires = undefined;
     await user.save();
 
-    res.json({ message: 'Email verified successfully' });
+    // Generate a JWT token for the user
+    const authToken = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Return the user and token
+    res.json({
+      message: 'Email verified successfully',
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        isEmailVerified: user.isEmailVerified
+      },
+      token: authToken
+    });
   } catch (error) {
     logger.error('Verification error:', error);
     res.status(500).json({ message: 'Error verifying email' });

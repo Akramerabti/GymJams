@@ -1,12 +1,19 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Dumbbell, Shield, Truck } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useProducts } from '../hooks/useProducts';
+import useAuthStore from '../stores/authStore'; // Import the auth store
 
 const Home = () => {
   const navigate = useNavigate();
   const { featuredProducts } = useProducts();
+  const { user, isAuthenticated, checkAuth } = useAuthStore(); // Get user, isAuthenticated, and checkAuth
+
+  // Check authentication state when the component mounts
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   const features = [
     {
@@ -39,14 +46,20 @@ const Home = () => {
               Premium gym equipment for your home or commercial gym.
               Professional grade quality at competitive prices.
             </p>
-            <Button 
-              size="lg" 
-              onClick={() => navigate('/shop')}
-              className="group"
-            >
-              Shop Now
-              <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
-            </Button>
+            {isAuthenticated ? (
+              <p className="text-lg lg:text-xl mb-8">
+                Welcome back, {user.firstName}! 🎉
+              </p>
+            ) : (
+              <Button 
+                size="lg" 
+                onClick={() => navigate('/shop')}
+                className="group"
+              >
+                Shop Now
+                <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            )}
           </div>
         </div>
       </section>
