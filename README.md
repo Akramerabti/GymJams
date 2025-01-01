@@ -17,7 +17,8 @@ Authentication: Firebase or custom JWT
 
 
 
-Key Changes for Production in .env:
+Key Changes for Production in .env: CHANGE TO DEVELOPMENT FOR LOCALHOST, PRODUCTION FOR REAL CLIENT
+
 
 NODE_ENV: Set to production. Set to development for change
 
