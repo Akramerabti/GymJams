@@ -1,16 +1,33 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Dumbbell, Shield, Truck } from 'lucide-react';
-import { Button } from '../components/ui/button';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { useProducts } from '../hooks/useProducts';
-import useAuthStore from '../stores/authStore'; // Import the auth store
+import useAuthStore from '../stores/authStore';
+
+const ProductCard = ({ product }) => (
+  <Card>
+    <CardContent className="p-4">
+      <div className="aspect-square overflow-hidden rounded-lg mb-4">
+        <img
+          src={product.imageUrl}
+          alt={product.name}
+          className="w-full h-full object-cover"
+        />
+      </div>
+      <h3 className="font-semibold mb-2">{product.name}</h3>
+      <p className="text-gray-600">${product.price.toFixed(2)}</p>
+    </CardContent>
+  </Card>
+);
 
 const Home = () => {
   const navigate = useNavigate();
   const { featuredProducts } = useProducts();
-  const { user, isAuthenticated, checkAuth } = useAuthStore(); // Get user, isAuthenticated, and checkAuth
+  const { user, isAuthenticated, checkAuth, loading } = useAuthStore();
+  const [products, setProducts] = useState([]);
 
-  // Check authentication state when the component mounts
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
@@ -33,6 +50,14 @@ const Home = () => {
     }
   ];
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
@@ -46,7 +71,7 @@ const Home = () => {
               Premium gym equipment for your home or commercial gym.
               Professional grade quality at competitive prices.
             </p>
-            {isAuthenticated ? (
+            {isAuthenticated && user ? (
               <p className="text-lg lg:text-xl mb-8">
                 Welcome back, {user.firstName}! 🎉
               </p>
