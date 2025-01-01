@@ -117,6 +117,11 @@ if (process.env.NODE_ENV === 'production') {
 app.use(handleNotFound);
 app.use(handleError);
 
+app.get('/', (req, res) => {
+  res.send('API server running'); 
+});
+
+
 // Start server
 const PORT = process.env.PORT || 5000;
 
