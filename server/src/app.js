@@ -46,9 +46,10 @@ connectDB();
 // Initialize Stripe
 initStripe();
 
+app.use(cors(corsOptions));
+
 // Security Middleware
 app.use(helmet());
-app.use(cors(corsOptions));
 app.use(rateLimiter);
 
 // Body parsing Middleware
