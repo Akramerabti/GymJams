@@ -4,10 +4,18 @@ import bcrypt from 'bcryptjs';
 const userSchema = new mongoose.Schema({
   email: {
     type: String,
-    required: true,
+    required: [true, 'Email is required'],
     unique: true,
     trim: true,
-    lowercase: true
+    lowercase: true,
+    validate: {
+      validator: async function(email) {
+        if (!this.isModified('email')) return true;
+        const user = await this.constructor.findOne({ email });
+        return !user;
+      },
+      message: 'This email is already registered'
+    }
   },
   password: {
     type: String,
@@ -27,7 +35,18 @@ const userSchema = new mongoose.Schema({
   },
   phone: {
     type: String,
-    trim: true
+    required: [true, 'Phone number is required'],
+    unique: true,
+    trim: true,
+    sparse: true,
+    validate: {
+      validator: async function(phone) {
+        if (!this.isModified('phone')) return true;
+        const user = await this.constructor.findOne({ phone });
+        return !user;
+      },
+      message: 'This phone number is already registered'
+    }
   },
   stripeCustomerId: {
     type: String,
@@ -80,6 +99,16 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 userSchema.virtual('fullName').get(function() {
   return `${this.firstName} ${this.lastName}`;
 });
+
+userSchema.post('save', function(error, doc, next) {
+  if (error.name === 'MongoServerError' && error.code === 11000) {
+    const field = Object.keys(error.keyPattern)[0];
+    next(new Error(`This ${field} is already registered`));
+  } else {
+    next(error);
+  }
+});
+
 
 const User = mongoose.model('User', userSchema);
 export default User;

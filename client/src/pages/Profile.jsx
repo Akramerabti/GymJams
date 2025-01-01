@@ -1,22 +1,40 @@
-import React, { useState } from 'react';
-import { useAuth } from '../hooks/useAuth';
+import React, { useState, useEffect } from 'react';
+import useAuthStore from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
-import { Input } from '../components/ui/input';
-import { Button } from '../components/ui/button';
-import { User, Package, CreditCard, LogOut } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { User, Package, CreditCard, LogOut, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const Profile = () => {
-  const { user, updateProfile, logout } = useAuth();
+  const { user, updateProfile, logout, getUser } = useAuthStore();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [profileData, setProfileData] = useState({
-    firstName: user?.firstName || '',
-    lastName: user?.lastName || '',
-    email: user?.email || '',
-    phone: user?.phone || '',
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
   });
+
+  // Fetch user data when the component mounts
+  useEffect(() => {
+    getUser();
+  }, [getUser]);
+
+  // Initialize profileData when user is loaded
+  useEffect(() => {
+    if (user) {
+      setProfileData({
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        email: user.email || '',
+        phone: user.phone || '',
+      });
+    }
+  }, [user]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -24,17 +42,26 @@ const Profile = () => {
     try {
       await updateProfile(profileData);
       setEditing(false);
+      toast.success('Profile updated successfully');
     } catch (error) {
-      console.error('Failed to update profile:', error);
+      toast.error(error.response?.data?.message || "Failed to update profile");
     } finally {
       setLoading(false);
     }
   };
 
   const handleLogout = async () => {
-    await logout();
-    navigate('/login');
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      toast.error("Failed to logout. Please try again.");
+    }
   };
+
+  if (!user) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -54,55 +81,68 @@ const Profile = () => {
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">First Name</label>
+                      <Input
+                        value={profileData.firstName}
+                        onChange={(e) => setProfileData(prev => ({
+                          ...prev,
+                          firstName: e.target.value
+                        }))}
+                        disabled={!editing}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Last Name</label>
+                      <Input
+                        value={profileData.lastName}
+                        onChange={(e) => setProfileData(prev => ({
+                          ...prev,
+                          lastName: e.target.value
+                        }))}
+                        disabled={!editing}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Email</label>
                     <Input
-                      label="First Name"
-                      value={profileData.firstName}
+                      type="email"
+                      value={profileData.email}
                       onChange={(e) => setProfileData(prev => ({
                         ...prev,
-                        firstName: e.target.value
+                        email: e.target.value
                       }))}
-                      disabled={!editing}
-                    />
-                    <Input
-                      label="Last Name"
-                      value={profileData.lastName}
-                      onChange={(e) => setProfileData(prev => ({
-                        ...prev,
-                        lastName: e.target.value
-                      }))}
-                      disabled={!editing}
+                      disabled={true}
+                      className="w-full"
                     />
                   </div>
 
-                  <Input
-                    label="Email"
-                    type="email"
-                    value={profileData.email}
-                    onChange={(e) => setProfileData(prev => ({
-                      ...prev,
-                      email: e.target.value
-                    }))}
-                    disabled={!editing}
-                  />
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Phone</label>
+                    <Input
+                      type="tel"
+                      value={profileData.phone}
+                      onChange={(e) => setProfileData(prev => ({
+                        ...prev,
+                        phone: e.target.value
+                      }))}
+                      disabled={!editing}
+                      className="w-full"
+                    />
+                  </div>
 
-                  <Input
-                    label="Phone"
-                    type="tel"
-                    value={profileData.phone}
-                    onChange={(e) => setProfileData(prev => ({
-                      ...prev,
-                      phone: e.target.value
-                    }))}
-                    disabled={!editing}
-                  />
-
-                  <div className="flex justify-end space-x-4">
+                  <div className="flex justify-end space-x-4 pt-4">
                     {editing ? (
                       <>
                         <Button
                           type="button"
                           variant="outline"
                           onClick={() => setEditing(false)}
+                          disabled={loading}
                         >
                           Cancel
                         </Button>
@@ -110,6 +150,7 @@ const Profile = () => {
                           type="submit"
                           disabled={loading}
                         >
+                          {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                           {loading ? 'Saving...' : 'Save Changes'}
                         </Button>
                       </>
@@ -157,19 +198,6 @@ const Profile = () => {
             </Button>
           </div>
         </div>
-
-        {/* Order History */}
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle>Recent Orders</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* Order history table or list would go here */}
-            <div className="text-center text-gray-500 py-8">
-              No recent orders found.
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

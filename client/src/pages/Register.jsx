@@ -38,6 +38,13 @@ const Register = () => {
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Invalid email format';
     }
+
+    if (!formData.phone || !formData.phone.trim()) {
+      newErrors.phone = 'Phone number is required';
+    } else if (!/^\+?[\d\s-]{10,}$/.test(formData.phone)) {
+      newErrors.phone = 'Invalid phone number format';
+    }
+    
     
     if (!formData.password) {
       newErrors.password = 'Password is required';
@@ -161,7 +168,7 @@ const Register = () => {
               <Input
                 icon={<Phone className="w-5 h-5" />}
                 name="phone"
-                placeholder="Phone Number (optional)"
+                placeholder="Phone Number"
                 value={formData.phone}
                 onChange={handleChange}
                 error={errors.phone}

@@ -11,16 +11,26 @@ export const register = async (req, res) => {
     const { email, password, firstName, lastName, phone } = req.body;
 
     // Check if all required fields are provided
-    if (!email || !password || !firstName || !lastName) {
+    if (!email || !password || !firstName || !lastName || !phone) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
-    if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
-    }
+    const existingUser = await User.findOne({ 
+      $or: [
+        { email: email.toLowerCase() },
+        { phone: phone }
+      ]
+    });
 
+    if (existingUser) {
+      if (existingUser.email === email.toLowerCase()) {
+        return res.status(400).json({ message: 'This email is already registered' });
+      }
+      if (existingUser.phone === phone) {
+        return res.status(400).json({ message: 'This phone number is already registered' });
+      }
+    }
     // Hash the password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);

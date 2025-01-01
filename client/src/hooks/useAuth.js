@@ -59,6 +59,16 @@ export const useAuth = () => {
     }
   };
 
+
+  const logout = async () => {
+      try {
+      await authService.logout();
+      } finally {
+      store.reset();
+      }
+    };
+
+
   const register = async (userData) => {
     store.setLoading(true);
     store.setError(null);
@@ -82,13 +92,7 @@ export const useAuth = () => {
       store.setLoading(false);
     }
   };
-  const logout = async () => {
-    try {
-      await authService.logout();
-    } finally {
-      store.reset();
-    }
-  };
+  
 
   const updateProfile = async (profileData) => {
     store.setLoading(true);
@@ -105,6 +109,7 @@ export const useAuth = () => {
     }
   };
 
+  
   const checkAuth = useCallback(async () => {
   if (!store.token) return false;
   try {
