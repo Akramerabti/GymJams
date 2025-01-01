@@ -1,7 +1,7 @@
 // stores/cartStore.js
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import api from '../lib/axios';
+import api from '../services/api';
 
 const calculateTotals = (items) => {
   const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);

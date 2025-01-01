@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import * as z from 'zod';
-import api from '../../lib/axios';
+import api from '../../services/api';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email'),

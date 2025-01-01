@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle } from 'lucide-react';
-import api from '../lib/axios';
+import api from '../services/api';
 import useAuthStore from '../stores/authStore';
 
 const VerifyEmail = () => {

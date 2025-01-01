@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { jwtDecode } from 'jwt-decode';
-import api from '../lib/axios';
+import api from '../services/api';
 
 const initialState = {
   user: null,
