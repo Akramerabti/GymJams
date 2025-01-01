@@ -1,8 +1,8 @@
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
-    ? 'https://gymjams.ca' // Allow only the production client
-    : ['http://localhost:3000', 'http://localhost:5173'], // Allow local development clients
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // Include OPTIONS for preflight requests
+    ? ['https://gymjams.ca', 'https://saas-pl33-git-main-akramerabtis-projects.vercel.app', 'https://saas-pl33-izz8roaoz-akramerabtis-projects.vercel.app']
+    : ['http://localhost:3000', 'http://localhost:5173'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: [
     'Content-Type', 
     'Authorization',
@@ -10,8 +10,8 @@ const corsOptions = {
     'X-App-Version'
   ],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
-  credentials: true, // Allow cookies and credentials
-  maxAge: 600 // Cache preflight results for 10 minutes
-};
-
-export default corsOptions;
+  credentials: true,
+  maxAge: 600
+ };
+ 
+ export default corsOptions;
