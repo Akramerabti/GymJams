@@ -38,6 +38,16 @@ const authService = {
     return response.data;
   },
 
+  async validatePhone(phone) {
+    try {
+      const response = await api.post('/auth/validate-phone', phone );
+      return response.data;
+    } catch (error) {
+      console.error('Phone validation error:', error);
+      throw error;
+    }
+  },
+
   async validateToken(token) {
     const response = await api.get('/auth/validate', {
       headers: { Authorization: `Bearer ${token}` }

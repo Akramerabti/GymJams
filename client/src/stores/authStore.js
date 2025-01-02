@@ -20,26 +20,10 @@ const useAuthStore = create(
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       setToken: (token) => {
         if (token) {
-          try {
-            // Verify the token is valid
-            const decoded = jwtDecode(token);
-            if (decoded.exp * 1000 < Date.now()) {
-              console.error('Token expired');
-              set({ token: null, isAuthenticated: false });
-              return;
-            }
-            // Set the token in the Axios headers
-            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-            // Update the state
-            set({ token, isAuthenticated: true });
-          } catch (error) {
-            console.error('Invalid token:', error);
-            set({ token: null, isAuthenticated: false });
-          }
+          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          set({ token, isAuthenticated: true });
         } else {
-          // Remove the token from Axios headers
           delete api.defaults.headers.common['Authorization'];
-          // Update the state
           set({ token: null, isAuthenticated: false });
         }
       },
@@ -154,12 +138,19 @@ const useAuthStore = create(
       },
 
       updateProfile: async (profileData) => {
-        const { setLoading, setError, setUser } = get();
+        const { token, setLoading, setError, setUser } = get();
         setLoading(true);
         setError(null);
-
+      
         try {
-          const response = await api.put('/auth/profile', profileData);
+          const response = await api.put(
+            '/auth/profile',
+            profileData,
+            {
+              headers: { Authorization: `Bearer ${token}` }
+            }
+          );
+      
           setUser(response.data);
           return response.data;
         } catch (error) {
@@ -189,22 +180,12 @@ const useAuthStore = create(
       },
 
       getUser: async () => {
-        const { setLoading, setError, setUser, token } = get();
+        const { setLoading, setError, setUser } = get();
         setLoading(true);
         setError(null);
-      
-        if (!token) {
-          setError('No token found');
-          setLoading(false);
-          throw new Error('No token found');
-        }
-      
+
         try {
-          const response = await api.get('/auth/profile', {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
+          const response = await api.get('/auth/user');
           setUser(response.data);
           return response.data;
         } catch (error) {
@@ -248,6 +229,19 @@ const useAuthStore = create(
       },
 
       reset: () => set(initialState),
+
+      validatePhone: async (phone) => {
+        const { user } = get();
+        try {
+          const response = await api.post('/auth/validate-phone', { 
+            phone, 
+            userId: user.id 
+          });
+          return response.data.isValid;
+        } catch (error) {
+          throw error;
+        }
+      },
     }),
     {
       name: 'auth-storage',

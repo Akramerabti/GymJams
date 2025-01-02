@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import useAuthStore from '../stores/authStore';
+import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { User, Package, CreditCard, LogOut, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { usePoints } from '../hooks/usePoints';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Button } from '../components/ui/button';
+import { User, Package, CreditCard, LogOut, Loader2, Coins } from 'lucide-react';
 
 const Profile = () => {
-  const { user, updateProfile, logout, getUser } = useAuthStore();
+  const { user, updateProfile, logout, validatePhone } = useAuth();
   const navigate = useNavigate();
+  const { balance } = usePoints();
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [profileData, setProfileData] = useState({
@@ -19,19 +20,19 @@ const Profile = () => {
     phone: '',
   });
 
-  // Fetch user data when the component mounts
+  // Debugging: Log the user object
   useEffect(() => {
-    getUser();
-  }, [getUser]);
+    console.log('User:', user);
+  }, [user]);
 
-  // Initialize profileData when user is loaded
+  // Initialize profileData with user data
   useEffect(() => {
     if (user) {
       setProfileData({
-        firstName: user.firstName || '',
-        lastName: user.lastName || '',
-        email: user.email || '',
-        phone: user.phone || '',
+        firstName: user.user.firstName || '',
+        lastName: user.user.lastName || '',
+        email: user.user.email || '',
+        phone: user.user.phone || '',
       });
     }
   }, [user]);
@@ -40,39 +41,51 @@ const Profile = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await updateProfile(profileData);
+      const isPhoneValid = await validatePhone({
+        phone: profileData.phone,
+      });
+  
+      if (!isPhoneValid) {
+        throw new Error('Phone number already in use');
+      }
+
+      const updatedUser = await updateProfile(profileData);
+      setProfileData({
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        email: updatedUser.email,
+        phone: updatedUser.phone,
+      });
+
       setEditing(false);
-      toast.success('Profile updated successfully');
+      window.location.reload(); // Add this line
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to update profile");
+      console.error('Failed to update profile:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const handleLogout = async () => {
-    try {
-      await logout();
-      navigate('/login');
-    } catch (error) {
-      toast.error("Failed to logout. Please try again.");
-    }
+    await logout();
+    navigate('/login');
   };
-
-  if (!user) {
-    return <div>Loading...</div>;
-  }
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8 flex items-center">
-          <User className="w-8 h-8 mr-2" />
-          My Profile
-        </h1>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold flex items-center">
+            <User className="w-8 h-8 mr-2" />
+            My Profile
+          </h1>
+          <div className="flex items-center space-x-2 bg-blue-50 p-3 rounded-lg">
+            <Coins className="w-6 h-6 text-blue-600" />
+            <span className="text-lg font-semibold text-blue-600">{balance} points</span>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Profile Information */}
           <div className="md:col-span-2">
             <Card>
               <CardHeader>
@@ -168,34 +181,39 @@ const Profile = () => {
             </Card>
           </div>
 
-          {/* Quick Actions */}
           <div className="space-y-4">
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => navigate('/orders')}
-            >
-              <Package className="w-5 h-5 mr-2" />
-              My Orders
-            </Button>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => navigate('/orders')}
+                  >
+                    <Package className="w-5 h-5 mr-2" />
+                    My Orders
+                  </Button>
 
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => navigate('/payment-methods')}
-            >
-              <CreditCard className="w-5 h-5 mr-2" />
-              Payment Methods
-            </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => navigate('/payment-methods')}
+                  >
+                    <CreditCard className="w-5 h-5 mr-2" />
+                    Payment Methods
+                  </Button>
 
-            <Button
-              variant="destructive"
-              className="w-full justify-start"
-              onClick={handleLogout}
-            >
-              <LogOut className="w-5 h-5 mr-2" />
-              Logout
-            </Button>
+                  <Button
+                    variant="destructive"
+                    className="w-full justify-start"
+                    onClick={handleLogout}
+                  >
+                    <LogOut className="w-5 h-5 mr-2" />
+                    Logout
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>

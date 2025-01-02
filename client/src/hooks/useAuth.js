@@ -1,9 +1,11 @@
-import React, { useCallback } from 'react'; // Add useCallback to the import
+import React, { useCallback } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import authService from '../services/auth.service';
 import api from '../services/api';
+import { usePoints } from './usePoints';
 
+// Create the auth store
 const useAuthStore = create(
   persist(
     (set) => ({
@@ -11,24 +13,14 @@ const useAuthStore = create(
       token: null,
       loading: false,
       error: null,
-      setUser: (user) => set({ user }),
+      setUser: (user) => set({ user: { ...user } }), // Ensure a new object is created
       setToken: (token) => set({ token }),
       setLoading: (loading) => set({ loading }),
       setError: (error) => set({ error }),
       reset: () => set({ user: null, token: null, error: null }),
     }),
     {
-      name: 'auth-storage',
-    },
-    {
-      verifyEmail: async (token) => {
-        try {
-          const response = await api.get(`/auth/verify-email/${token}`);
-          return response.data;
-        } catch (error) {
-          throw error;
-        }
-      },
+      name: 'auth-storage', // Name for persisted storage
     }
   )
 );
@@ -36,6 +28,7 @@ const useAuthStore = create(
 export const useAuth = () => {
   const store = useAuthStore();
 
+  // Login function
   const login = async (email, password) => {
     store.setLoading(true);
     store.setError(null);
@@ -46,12 +39,21 @@ export const useAuth = () => {
       if (!response.user.isEmailVerified) {
         throw new Error('Please verify your email before logging in.');
       }
-      
+
+
+      localStorage.setItem('token', response.token);
+
       store.setUser(response.user);
       store.setToken(response.token);
+
+      
+
+      // Update points balance
+      usePoints.getState().setBalance(response.user.points || 0);
+
       return response;
     } catch (error) {
-      console.error('Login failed:', error);  // Log error if login fails
+      console.error('Login failed:', error);
       store.setError(error.message);
       throw error;
     } finally {
@@ -59,16 +61,16 @@ export const useAuth = () => {
     }
   };
 
-
+  // Logout function
   const logout = async () => {
-      try {
+    try {
       await authService.logout();
-      } finally {
+    } finally {
       store.reset();
-      }
-    };
+    }
+  };
 
-
+  // Register function
   const register = async (userData) => {
     store.setLoading(true);
     store.setError(null);
@@ -79,27 +81,39 @@ export const useAuth = () => {
       }
       return response;
     } catch (error) {
-  
       // Extract the most useful error message
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.data || 
-                          error.message || 
-                          'Registration failed';
-                          
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data ||
+        error.message ||
+        'Registration failed';
+
       store.setError(errorMessage);
       throw error;
     } finally {
       store.setLoading(false);
     }
   };
-  
 
+  const validatePhone = async (phone) => {
+    try {
+      return await authService.validatePhone(phone);
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  // Update profile function
   const updateProfile = async (profileData) => {
     store.setLoading(true);
     store.setError(null);
     try {
       const updatedUser = await authService.updateProfile(profileData);
-      store.setUser(updatedUser);
+      console.log('Updated User:', updatedUser); // Debugging
+  
+      // Update the user object in the store
+      store.setUser({ ...store.user, ...updatedUser });
+  
       return updatedUser;
     } catch (error) {
       store.setError(error.message);
@@ -109,18 +123,38 @@ export const useAuth = () => {
     }
   };
 
-  
+  // Check authentication function
   const checkAuth = useCallback(async () => {
-  if (!store.token) return false;
-  try {
-    const user = await authService.validateToken(store.token);
-    store.setUser(user);
-    return true;
-  } catch (error) {
-    store.reset();
-    return false;
-  }
-}, [store]);
+    if (!store.token) {
+      store.setLoading(false);
+      return false;
+    }
+
+    store.setLoading(true);
+    store.setError(null);
+
+    try {
+      const user = await authService.validateToken(store.token);
+      store.setUser(user);
+      return true;
+    } catch (error) {
+      store.reset();
+      store.setError(error.message);
+      return false;
+    } finally {
+      store.setLoading(false);
+    }
+  }, [store.token]); // Only depend on store.token
+
+  // Verify email function
+  const verifyEmail = async (token) => {
+    try {
+      const response = await api.get(`/auth/verify-email/${token}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  };
 
   return {
     user: store.user,
@@ -132,6 +166,7 @@ export const useAuth = () => {
     logout,
     updateProfile,
     checkAuth,
-    verifyEmail: store.verifyEmail,
+    verifyEmail,
+    validatePhone,
   };
 };

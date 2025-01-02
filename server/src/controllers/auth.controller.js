@@ -132,6 +132,7 @@ export const login = async (req, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         phone: user.phone,
+        points: user.points,
         isEmailVerified: user.isEmailVerified
       }
     });
@@ -143,9 +144,22 @@ export const login = async (req, res) => {
 
 export const validateToken = async (req, res) => {
   try {
-    const user = req.user; // User is attached to the request by the `authenticate` middleware
-    res.status(200).json({ user });
+    console.log('Validating token...');
+    console.log('req.user:', req.user);
+
+    if (!req.user) {
+      console.error('User not found in request');
+      return res.status(401).json({ message: 'User not found' });
+    }
+
+    // Disable caching
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    res.status(200).json({ user: req.user });
   } catch (error) {
+    console.error('Token validation failed:', error);
     res.status(500).json({ message: 'Token validation failed' });
   }
 };
@@ -165,20 +179,32 @@ export const getProfile = async (req, res) => {
 
 export const updateProfile = async (req, res) => {
   try {
+    console.log('Updating profile...');
+    console.log('Request body:', req.body); // Log the request body
+    console.log('User ID:', req.user.id); // Log the user ID from the request
+
     const { firstName, lastName, phone } = req.body;
+
+    console.log('Updating user with data:', { firstName, lastName, phone }); // Log the update data
+
     const user = await User.findByIdAndUpdate(
       req.user.id,
       { firstName, lastName, phone },
       { new: true }
     ).select('-password');
-    
+
+    console.log('Updated user:', user); // Log the updated user
+
     if (!user) {
+      console.error('User not found'); // Log if user is not found
       return res.status(404).json({ message: 'User not found' });
     }
-    
+
+    console.log('Profile updated successfully'); // Log success
     res.json(user);
   } catch (error) {
-    logger.error('Error updating profile:', error);
+    console.error('Error updating profile:', error); // Log the error
+    logger.error('Error updating profile:', error); // Log the error using the logger
     res.status(500).json({ message: 'Error updating profile' });
   }
 };
@@ -277,5 +303,27 @@ export const verifyEmail = async (req, res) => {
   } catch (error) {
     logger.error('Verification error:', error);
     res.status(500).json({ message: 'Error verifying email' });
+  }
+};
+
+export const validatePhone = async (req, res) => {
+  try {
+    const { phone } = req.body;
+
+    console.log('Validating phone:', phone);
+
+    // Check if the phone number is provided
+    if (!phone) {
+      return res.status(400).json({ message: 'Phone number is required' });
+    }
+
+    // Check if a user with the given phone number already exists
+    const existingUser = await User.findOne({ phone });
+
+    // If no user exists with this phone number, it's valid
+    res.json({ isValid: !existingUser });
+  } catch (error) {
+    console.error('Error validating phone number:', error);
+    res.status(500).json({ message: 'Error validating phone number' });
   }
 };

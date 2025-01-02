@@ -9,11 +9,16 @@ const api = axios.create({
   withCredentials: true // Enable CORS credentials
 });
 
-
-// Add request interceptor for debugging
-api.interceptors.request.use(request => {
-  console.log('Request:', request.url);
-  return request;
+// Add request interceptor to include the token in every request
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('token'); // Get the token from localStorage
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  console.log('Request:', config.url); // Debugging: Log the request URL
+  return config;
+}, error => {
+  return Promise.reject(error);
 });
 
 // Add response interceptor to handle successful registration
