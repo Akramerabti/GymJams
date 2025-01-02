@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card'
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { User, Package, CreditCard, LogOut, Loader2, Coins } from 'lucide-react';
+import { toast } from 'sonner'; // Import Sonner toast
 
 const Profile = () => {
   const { user, updateProfile, logout, validatePhone } = useAuth();
@@ -44,7 +45,7 @@ const Profile = () => {
       const isPhoneValid = await validatePhone({
         phone: profileData.phone,
       });
-  
+
       if (!isPhoneValid) {
         throw new Error('Phone number already in use');
       }
@@ -58,9 +59,14 @@ const Profile = () => {
       });
 
       setEditing(false);
-      window.location.reload(); // Add this line
+
+      // Show success toast
+      toast.success('Profile updated successfully!');
     } catch (error) {
       console.error('Failed to update profile:', error);
+
+      // Show error toast
+      toast.error(error.message || 'Failed to update profile. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -70,7 +76,7 @@ const Profile = () => {
     await logout();
     navigate('/login');
   };
-
+  
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
