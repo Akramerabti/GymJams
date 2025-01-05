@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
+import Card from '../components/ui/card.jsx';
+import Button from '../components/ui/button.jsx';
+import Input from '../components/ui/input.jsx';
+import Checkbox from '../components/ui/checkbox.jsx';
 import { toast } from 'sonner';
 
 const FitnessQuestionnaire = () => {
@@ -165,18 +165,15 @@ const FitnessQuestionnaire = () => {
 
       if (!response.ok) throw new Error('Failed to submit questionnaire');
 
+      const data = await response.json();
       navigate('/subscription/checkout', {
         state: {
           plan: location.state.plan,
-          questionnaireId: await response.json()
+          questionnaireId: data.id
         }
       });
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to submit questionnaire. Please try again.",
-        variant: "destructive"
-      });
+      toast.error("Failed to submit questionnaire. Please try again.");
     }
   };
 
@@ -195,7 +192,7 @@ const FitnessQuestionnaire = () => {
   return (
     <div className="container mx-auto px-4 py-8 max-w-2xl">
       <Card className="p-6">
-      <div className="mb-8">
+        <div className="mb-8">
           <div className="flex justify-between mb-4">
             {steps.map((step, index) => (
               <div
