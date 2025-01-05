@@ -4,7 +4,7 @@ import User from '../models/User.js';
 import { createCustomer } from '../config/stripe.js';
 import logger from '../utils/logger.js';
 import crypto from 'crypto';
-import { sendVerificationEmail } from '../services/email.service.js';
+import { sendVerificationEmail, sendPasswordResetEmail  } from '../services/email.service.js';
 
 export const register = async (req, res) => {
   try {
@@ -325,5 +325,77 @@ export const validatePhone = async (req, res) => {
   } catch (error) {
     console.error('Error validating phone number:', error);
     res.status(500).json({ message: 'Error validating phone number' });
+  }
+};
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Find user by email
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      // For security reasons, still return success even if email doesn't exist
+      return res.status(200).json({ 
+        message: 'If your email exists in our system, you will receive a password reset link.' 
+      });
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpires = new Date(Date.now() + 3600000); // 1 hour
+
+    // Save reset token to user
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = resetTokenExpires;
+    await user.save();
+
+    // Send reset email
+    await sendPasswordResetEmail(user, resetToken);
+
+    res.status(200).json({ 
+      message: 'If your email exists in our system, you will receive a password reset link.' 
+    });
+  } catch (error) {
+    logger.error('Forgot password error:', error);
+    res.status(500).json({ message: 'Error processing password reset request' });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    // Find user by reset token and check if token is still valid
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ 
+        message: 'Password reset token is invalid or has expired' 
+      });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Update user's password and clear reset token
+    user.password = hashedPassword;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    // You might want to invalidate all existing sessions here
+    // depending on your security requirements
+
+    res.status(200).json({ 
+      message: 'Password has been reset successfully' 
+    });
+  } catch (error) {
+    logger.error('Reset password error:', error);
+    res.status(500).json({ message: 'Error resetting password' });
   }
 };

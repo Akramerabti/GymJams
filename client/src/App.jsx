@@ -17,6 +17,8 @@ import Register from './pages/Register';
 import Profile from './pages/Profile';
 import VerifyEmail from './pages/VerifyEmail';
 import EmailVerificationNotification from './pages/EmailVerificationNotification';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 const App = () => {
   const { checkAuth } = useAuth();
@@ -36,10 +38,9 @@ const App = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
-          <Route 
-            path="/email-verification-notification" 
-            element={<EmailVerificationNotification />} 
-          />
+          <Route path="/email-verification-notification" element={<EmailVerificationNotification />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Protected Routes */}
           <Route path="/checkout" element={

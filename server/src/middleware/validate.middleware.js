@@ -111,13 +111,20 @@ export const validateProfileUpdate = validate([
     .withMessage('Please enter a valid phone number')
 ]);
 
-// Password change validation
-export const validatePasswordChange = validate([
-  body('currentPassword')
+export const validatePasswordReset = validate([
+  body('token')
     .notEmpty()
-    .withMessage('Current password is required'),
-  body('newPassword')
+    .withMessage('Reset token is required'),
+  body('password')
     .isLength({ min: 8 })
-    .withMessage('New password must be at least 8 characters')
-    .custom(isValidPassword)
+    .withMessage('Password must be at least 8 characters')
+    .matches(/[A-Z]/)
+    .withMessage('Password must contain at least one uppercase letter')
+    .matches(/[a-z]/)
+    .withMessage('Password must contain at least one lowercase letter')
+    .matches(/[0-9]/)
+    .withMessage('Password must contain at least one number')
+    .matches(/[!@#$%^&*]/)
+    .withMessage('Password must contain at least one special character (!@#$%^&*)')
 ]);
+
