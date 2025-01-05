@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Award, Calendar, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '../hooks/useAuth'; // Import useAuth to check authentication status
 
 const CoachingHome = () => {
   const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
+  const { user } = useAuth(); // Get the user's authentication status
 
   const features = [
     {
@@ -72,10 +74,9 @@ const CoachingHome = () => {
   ];
 
   const handleSelectPlan = (plan) => {
-    const isLoggedIn = false; // Replace with actual authentication check
-    if (!isLoggedIn) {
+    if (!user) { // Check if the user is not logged in
       setSelectedPlan(plan);
-      setIsModalOpen(true);
+      setIsModalOpen(true); // Show the modal
     } else {
       navigate('/subscription-checkout', { 
         state: { 
@@ -203,42 +204,62 @@ const CoachingHome = () => {
         </div>
       </section>
 
-      {/* Custom Modal for Unauthenticated Users */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full relative">
+      {/* Custom Modal for Unauthenticated Users (only show if user is not logged in) */}
+      {!user && isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full relative transform transition-all duration-300 ease-in-out scale-95 hover:scale-100">
+            {/* Close Button */}
             <button
               onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 transition-colors"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
-            <h2 className="text-xl font-bold mb-4">
+            
+            {/* Modal Title */}
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
               You're Not Logged In
             </h2>
-            <p className="text-gray-600 mb-4">
-              By logging in, you can earn Gymjammer points, which can get you discounts and make future purchases cheaper.
+            
+            {/* Modal Description */}
+            <p className="text-gray-600 mb-6">
+              By logging in, you can earn <strong>Gymjammer points</strong>, which can get you discounts and make future purchases cheaper.
             </p>
+            
+            {/* Learn More Link */}
             <a
               href="/about-gymjammer-points"
-              className="text-blue-600 hover:underline mb-4 block"
+              className="text-blue-600 hover:text-blue-700 underline transition-colors mb-6 block"
             >
               Learn more about Gymjammer points
             </a>
+            
+            {/* Action Buttons */}
             <div className="flex space-x-4">
               <button
                 onClick={handleLogin}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
               >
-                Log In
+                <span>Log In</span>
               </button>
               <button
                 onClick={handleContinueWithoutLogin}
-                className="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900"
+                className="flex-1 bg-gray-800 text-white px-6 py-3 rounded-lg hover:bg-gray-900 transition-colors flex items-center justify-center"
               >
-                Continue Anyway
+                <span>Continue Anyway</span>
               </button>
             </div>
           </div>

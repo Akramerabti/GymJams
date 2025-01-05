@@ -164,6 +164,7 @@ const SubscriptionCheckout = () => {
   const navigate = useNavigate();
   const [paymentStatus, setPaymentStatus] = useState(null);
   const { plan } = location.state || {};
+  const { user } = useAuth(); // Get the user's authentication status
 
   // If plan is not available, show an error message
   if (!plan || !plan.features) {
@@ -261,15 +262,17 @@ const SubscriptionCheckout = () => {
                       </ul>
                     </div>
 
-                    {/* Points Highlight */}
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-blue-600 mb-2">Monthly Points:</span>
-                        <span className="text-blue-600 font-bold">
-                          {plan.pointsPerMonth} points
-                        </span>
+                    {/* Monthly Points Highlight (only show if user is logged in) */}
+                    {user && (
+                      <div className="bg-blue-50 p-4 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-blue-600 mb-2">Monthly Points:</span>
+                          <span className="text-blue-600 font-bold">
+                            {plan.pointsPerMonth} points
+                          </span>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Upgrade Button (only show if not Elite plan) */}
                     {plan.id !== 'elite' && (

@@ -9,12 +9,11 @@ const Navbar = () => {
   const navigationItems = [
     { name: 'Home', path: '/' },
     { name: 'Shop', path: '/shop' },
-    { name: 'Coaching', path: '/coaching' },  // New coaching link
+    { name: 'Coaching', path: '/coaching' },
     { name: 'About', path: '/about' },
     { name: 'Contact', path: '/contact' },
   ];
 
-  // Rest of the Navbar component remains the same
   const [isOpen, setIsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const { user, logout } = useAuth();
@@ -23,12 +22,22 @@ const Navbar = () => {
   const userMenuRef = useRef(null);
   const location = useLocation();
 
-  // ... rest of the component code ...
+  // Close the user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   return (
-    <nav className="bg-white shadow-lg relative z-10">
+    <nav className="bg-white shadow-lg sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
+          {/* Logo Section */}
           <div className="flex items-center">
             <Link to="/" className="flex-shrink-0 flex items-center space-x-2">
               <Dumbbell className="h-8 w-8 text-blue-600" />
@@ -36,19 +45,24 @@ const Navbar = () => {
             </Link>
           </div>
 
+          {/* Desktop Navigation Links */}
           <div className="hidden md:flex items-center space-x-8">
             {navigationItems.map((item) => (
               <Link
                 key={item.name}
                 to={item.path}
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                className={`text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  location.pathname === item.path ? 'text-blue-600 font-semibold' : ''
+                }`}
               >
                 {item.name}
               </Link>
             ))}
           </div>
 
+          {/* Right Section (Points, Cart, User Menu, Mobile Toggle) */}
           <div className="flex items-center space-x-4">
+            {/* Points Balance (Logged-in Users Only) */}
             {user && (
               <div className="flex items-center space-x-2 border-r pr-4">
                 <Coins className="h-5 w-5 text-yellow-500" />
@@ -56,7 +70,11 @@ const Navbar = () => {
               </div>
             )}
 
-            <Link to="/cart" className="relative text-gray-600 hover:text-gray-900">
+            {/* Cart Icon */}
+            <Link
+              to="/cart"
+              className="relative text-gray-600 hover:text-blue-600 transition-colors"
+            >
               <ShoppingCart className="h-6 w-6" />
               {cartItems.length > 0 && (
                 <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
@@ -65,26 +83,27 @@ const Navbar = () => {
               )}
             </Link>
 
+            {/* User Menu (Logged-in Users) or Login Link */}
             {user ? (
               <div className="relative" ref={userMenuRef}>
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  className="text-gray-600 hover:text-gray-900"
+                  className="text-gray-600 hover:text-blue-600 transition-colors"
                 >
                   <User className="h-6 w-6" />
                 </button>
                 {isUserMenuOpen && (
-                  <div className="absolute right-0 w-48 mt-2 py-2 bg-white rounded-md shadow-lg z-20">
+                  <div className="absolute right-0 w-48 mt-2 py-2 bg-white rounded-md shadow-lg z-20 border border-gray-100">
                     <Link
                       to="/profile"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                       onClick={() => setIsUserMenuOpen(false)}
                     >
                       Profile
                     </Link>
                     <Link
                       to="/orders"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                       onClick={() => setIsUserMenuOpen(false)}
                     >
                       Orders
@@ -94,7 +113,7 @@ const Navbar = () => {
                         logout();
                         setIsUserMenuOpen(false);
                       }}
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                     >
                       Logout
                     </button>
@@ -104,16 +123,17 @@ const Navbar = () => {
             ) : (
               <Link
                 to="/login"
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                className="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
               >
                 Login
               </Link>
             )}
 
+            {/* Mobile Menu Toggle */}
             <div className="md:hidden">
               <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="text-gray-600 hover:text-gray-900"
+                className="text-gray-600 hover:text-blue-600 transition-colors"
               >
                 {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </button>
@@ -121,6 +141,7 @@ const Navbar = () => {
           </div>
         </div>
 
+        {/* Mobile Navigation Links */}
         {isOpen && (
           <div className="md:hidden">
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
@@ -128,7 +149,9 @@ const Navbar = () => {
                 <Link
                   key={item.name}
                   to={item.path}
-                  className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                  className={`block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-50 transition-colors ${
+                    location.pathname === item.path ? 'text-blue-600 font-semibold' : ''
+                  }`}
                   onClick={() => setIsOpen(false)}
                 >
                   {item.name}
