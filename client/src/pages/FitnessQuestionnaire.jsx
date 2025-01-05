@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Card from '../components/ui/card.jsx';
 import Button from '../components/ui/button.jsx';
 import Input from '../components/ui/input.jsx';
-import Checkbox from '../components/ui/checkbox.jsx';
+import Checkbox from '../components/ui/Checkbox.jsx';
 import { toast } from 'sonner';
 
 const FitnessQuestionnaire = () => {
