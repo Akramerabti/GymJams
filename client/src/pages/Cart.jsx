@@ -1,13 +1,13 @@
 import React from 'react';
 import { useCart } from '../hooks/useCart';
-import  CartItem from '../components/cart/CartItem';
-import  CartSummary from '../components/cart/CartSummary';
+import CartItem from '../components/cart/CartItem';
+import CartSummary from '../components/cart/CartSummary';
 import { Button } from '../components/ui/button';
 import { ShoppingBag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Cart = () => {
-  const { items, isEmpty } = useCart();
+  const { items, isEmpty, total } = useCart();
   const navigate = useNavigate();
 
   if (isEmpty) {
@@ -28,6 +28,10 @@ const Cart = () => {
     );
   }
 
+  const handleCheckout = () => {
+    navigate('/shop-checkout');
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">Shopping Cart</h1>
@@ -45,6 +49,13 @@ const Cart = () => {
         {/* Cart Summary */}
         <div className="lg:w-96">
           <CartSummary />
+          <Button 
+            size="lg" 
+            className="w-full mt-4"
+            onClick={handleCheckout}
+          >
+            Proceed to Checkout
+          </Button>
         </div>
       </div>
     </div>

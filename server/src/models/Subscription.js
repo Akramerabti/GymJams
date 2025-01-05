@@ -5,20 +5,23 @@ const subscriptionSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
-    enum: ['Basic', 'Premium', 'Elite']
+    enum: ['Basic', 'Premium', 'Elite'],
   },
   price: {
     type: Number,
-    required: true
+    required: true,
+  },
+  stripePriceId: {
+    type: String,
+    required: true,
   },
   description: String,
   features: [String],
   pointsPerMonth: {
     type: Number,
-    required: true
-  }
+    required: true,
+  },
 });
-
 // models/UserSubscription.js
 const userSubscriptionSchema = new mongoose.Schema({
   user: {

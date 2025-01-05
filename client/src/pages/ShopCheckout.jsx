@@ -1,15 +1,7 @@
-// Checkout.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
-import { useAuth } from '../hooks/useAuth';
-import { 
-  Card, 
-  CardHeader, 
-  CardTitle, 
-  CardContent, 
-  CardFooter 
-} from '../components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { loadStripe } from '@stripe/stripe-js';
@@ -18,18 +10,17 @@ import { ArrowRight, Truck, MapPin, CreditCard } from 'lucide-react';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
-const CheckoutPage = () => {
-  const { user } = useAuth();
+const ShopCheckout = () => {
   const { items, total, clearCart } = useCart();
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     shipping: {
-      firstName: user?.firstName || '',
-      lastName: user?.lastName || '',
-      email: user?.email || '',
-      phone: user?.phone || '',
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
       address: '',
       apartment: '',
       city: '',
@@ -53,7 +44,6 @@ const CheckoutPage = () => {
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    // Redirect to cart if no items
     if (items.length === 0) {
       navigate('/cart');
     }
@@ -72,17 +62,14 @@ const CheckoutPage = () => {
       }
     });
 
-    // Email validation
     if (!/\S+@\S+\.\S+/.test(formData.shipping.email)) {
       newErrors['shipping.email'] = 'Please enter a valid email';
     }
 
-    // Phone validation
     if (!/^\+?[\d\s-]{10,}$/.test(formData.shipping.phone)) {
       newErrors['shipping.phone'] = 'Please enter a valid phone number';
     }
 
-    // ZIP code validation
     if (!/^\d{5}(-\d{4})?$/.test(formData.shipping.zipCode)) {
       newErrors['shipping.zipCode'] = 'Please enter a valid ZIP code';
     }
@@ -100,7 +87,6 @@ const CheckoutPage = () => {
       }
     }));
 
-    // Clear error when user types
     if (errors[`${section}.${field}`]) {
       setErrors(prev => {
         const newErrors = { ...prev };
@@ -135,7 +121,6 @@ const CheckoutPage = () => {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      // Create order
       const orderData = {
         items,
         total,
@@ -155,7 +140,6 @@ const CheckoutPage = () => {
 
       const { orderId } = await orderResponse.json();
 
-      // Process payment
       const paymentResponse = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -170,7 +154,6 @@ const CheckoutPage = () => {
         throw new Error('Payment failed');
       }
 
-      // Success! Clear cart and redirect
       clearCart();
       navigate(`/order-confirmation/${orderId}`);
     } catch (error) {
@@ -185,7 +168,6 @@ const CheckoutPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Progress Steps */}
       <div className="mb-8">
         <div className="flex items-center justify-center space-x-4">
           <div className={`flex items-center ${currentStep >= 1 ? 'text-blue-600' : 'text-gray-400'}`}>
@@ -205,7 +187,6 @@ const CheckoutPage = () => {
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8">
-        {/* Main Form */}
         <div className="flex-1">
           {currentStep === 1 ? (
             <Card>
@@ -312,7 +293,6 @@ const CheckoutPage = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {/* Stripe Elements will go here */}
                   <div className="mb-6">
                     <label className="flex items-center mb-4">
                       <input
@@ -349,7 +329,6 @@ const CheckoutPage = () => {
           )}
         </div>
 
-        {/* Order Summary */}
         <div className="lg:w-96">
           <Card>
             <CardHeader>
@@ -401,4 +380,4 @@ const CheckoutPage = () => {
   );
 };
 
-export default CheckoutPage;
+export default ShopCheckout;

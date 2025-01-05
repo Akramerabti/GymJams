@@ -4,12 +4,12 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 
 const FitnessQuestionnaire = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { toast } = useToast();
+
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
     fitnessGoals: [],
@@ -195,7 +195,7 @@ const FitnessQuestionnaire = () => {
   return (
     <div className="container mx-auto px-4 py-8 max-w-2xl">
       <Card className="p-6">
-        <div className="mb-8">
+      <div className="mb-8">
           <div className="flex justify-between mb-4">
             {steps.map((step, index) => (
               <div
@@ -204,14 +204,17 @@ const FitnessQuestionnaire = () => {
                   index === currentStep ? 'text-blue-600' : 'text-gray-400'
                 }`}
               >
-                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${
-                  index === currentStep ? 'border-blue-600' : 'border-gray-200'}`}
-              >
-                <span>{index + 1}</span>
+                <div 
+                  className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${
+                    index === currentStep ? 'border-blue-600' : 'border-gray-200'
+                  }`}
+                >
+                  <span>{index + 1}</span>
+                </div>
+                <span className="ml-2">{step.title}</span>
               </div>
-              <span className="ml-2">{step.title}</span>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         <div className="mb-8">

@@ -113,6 +113,5 @@ userSchema.post('save', function(error, doc, next) {
   }
 });
 
-
 const User = mongoose.model('User', userSchema);
 export default User;

@@ -1,11 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, ShoppingCart, User, Coins } from 'lucide-react';
+import { Menu, X, ShoppingCart, User, Coins, Dumbbell } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useCart } from '../../hooks/useCart';
 import { usePoints } from '../../hooks/usePoints';
 
 const Navbar = () => {
+  const navigationItems = [
+    { name: 'Home', path: '/' },
+    { name: 'Shop', path: '/shop' },
+    { name: 'Coaching', path: '/coaching' },  // New coaching link
+    { name: 'About', path: '/about' },
+    { name: 'Contact', path: '/contact' },
+  ];
+
+  // Rest of the Navbar component remains the same
   const [isOpen, setIsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const { user, logout } = useAuth();
@@ -14,34 +23,15 @@ const Navbar = () => {
   const userMenuRef = useRef(null);
   const location = useLocation();
 
-  const navigationItems = [
-    { name: 'Home', path: '/' },
-    { name: 'Shop', path: '/shop' },
-    { name: 'About', path: '/about' },
-    { name: 'Contact', path: '/contact' },
-  ];
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
-        setIsUserMenuOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    setIsUserMenuOpen(false);
-  }, [location]);
+  // ... rest of the component code ...
 
   return (
     <nav className="bg-white shadow-lg relative z-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
-            <Link to="/" className="flex-shrink-0">
+            <Link to="/" className="flex-shrink-0 flex items-center space-x-2">
+              <Dumbbell className="h-8 w-8 text-blue-600" />
               <span className="text-2xl font-bold text-gray-800">GymJams</span>
             </Link>
           </div>

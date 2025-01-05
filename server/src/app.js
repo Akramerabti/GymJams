@@ -35,8 +35,6 @@ const swaggerDocument = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, 'swagger.json'), 'utf8')
 );
 
-
-
 // Initialize express app
 const app = express();
 
