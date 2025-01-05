@@ -21,7 +21,6 @@ import VerifyEmail from './pages/VerifyEmail';
 import EmailVerificationNotification from './pages/EmailVerificationNotification';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
-import FitnessQuestionnaire from './pages/FitnessQuestionnaire';
 
 const App = () => {
   const { checkAuth } = useAuth();
@@ -52,11 +51,6 @@ const App = () => {
           <Route path="/profile" element={
             <ProtectedRoute>
               <Profile />
-            </ProtectedRoute>
-          } />
-          <Route path="/questionnaire" element={
-            <ProtectedRoute>
-              <FitnessQuestionnaire />
             </ProtectedRoute>
           } />
         </Routes>
