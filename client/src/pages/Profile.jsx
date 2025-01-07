@@ -6,7 +6,8 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card'
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { User, Package, CreditCard, LogOut, Loader2, Coins } from 'lucide-react';
-import { toast } from 'sonner'; // Import Sonner toast
+import { toast } from 'sonner';
+import paymentService from '../services/payment.service';
 
 const Profile = () => {
   const { user, updateProfile, logout, validatePhone } = useAuth();
@@ -20,13 +21,8 @@ const Profile = () => {
     email: '',
     phone: '',
   });
+  const [paymentMethods, setPaymentMethods] = useState([]);
 
-  // Debugging: Log the user object
-  useEffect(() => {
-    console.log('User:', user);
-  }, [user]);
-
-  // Initialize profileData with user data
   useEffect(() => {
     if (user) {
       setProfileData({
@@ -35,8 +31,27 @@ const Profile = () => {
         email: user.user.email || '',
         phone: user.user.phone || '',
       });
+      fetchPaymentMethods();
     }
   }, [user]);
+
+  const fetchPaymentMethods = async () => {
+    try {
+      const methods = await paymentService.getPaymentMethods(user.user._id);
+  
+      // Sort payment methods so that the default method appears first
+      const sortedMethods = methods.sort((a, b) => {
+        if (a.isDefault) return -1; // Default method comes first
+        if (b.isDefault) return 1;  // Default method comes first
+        return 0; // Maintain order for non-default methods
+      });
+  
+      setPaymentMethods(sortedMethods);
+    } catch (error) {
+      console.error('Failed to fetch payment methods:', error);
+      toast.error('Failed to fetch payment methods. Please try again.');
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -76,7 +91,18 @@ const Profile = () => {
     await logout();
     navigate('/login');
   };
-  
+
+  const handleDeletePaymentMethod = async (methodId) => {
+    try {
+      await paymentService.deletePaymentMethod(user.user._id, methodId);
+      toast.success('Payment method deleted successfully!');
+      fetchPaymentMethods(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to delete payment method:', error);
+      toast.error('Failed to delete payment method. Please try again.');
+    }
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
@@ -183,6 +209,46 @@ const Profile = () => {
                     )}
                   </div>
                 </form>
+              </CardContent>
+            </Card>
+
+            {/* Payment Methods Section */}
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>Payment Methods</CardTitle>
+              </CardHeader>
+              <CardContent>
+               {paymentMethods.length > 0 ? (
+  paymentMethods.map((method) => (
+    <div key={method._id} className="flex justify-between items-center p-4 border-b">
+      <div>
+        <p className="font-medium">{method.type}</p>
+        {method.type === 'credit_card' && (
+          <p>**** **** **** {method.cardNumber.slice(-4)}</p>
+        )}
+        {method.type === 'paypal' && (
+          <p>{method.paypalEmail}</p>
+        )}
+        {method.type === 'bank_transfer' && (
+          <p>Bank Account: {method.bankAccount.accountNumber}</p>
+        )}
+        {method.isDefault && (
+          <span className="bg-green-100 text-green-800 text-sm font-medium px-2 py-1 rounded">
+            Default
+          </span>
+        )}
+      </div>
+      <Button
+        variant="destructive"
+        onClick={() => handleDeletePaymentMethod(method._id)}
+      >
+        Delete
+      </Button>
+    </div>
+  ))
+) : (
+  <p>No payment methods found.</p>
+)}
               </CardContent>
             </Card>
           </div>

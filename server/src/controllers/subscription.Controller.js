@@ -9,30 +9,25 @@ import logger from '../utils/logger.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+// subscription.Controller.js
 export const createSubscription = async (req, res) => {
-  const { 
-    planId, 
-    paymentMethodId, 
-    email, 
-    firstName, 
-    lastName, 
-    phone 
-  } = req.body;
+  const { planId, paymentMethodId, email, firstName, lastName, phone } = req.body;
 
   try {
     // Validate input
     if (!planId || !paymentMethodId || !email) {
-      return res.status(400).json({ 
-        error: 'Missing required fields' 
-      });
+      return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Fetch the plan
+    // Check if the user is authenticated
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Fetch the plan using the ObjectId
     const plan = await Subscription.findById(planId);
     if (!plan) {
-      return res.status(404).json({ 
-        error: 'Plan not found' 
-      });
+      return res.status(404).json({ error: 'Plan not found' });
     }
 
     // Get or create user
@@ -111,12 +106,11 @@ export const createSubscription = async (req, res) => {
       subscriptionId: subscription.id,
       clientSecret: subscription.latest_invoice.payment_intent.client_secret,
     });
-
   } catch (error) {
     logger.error('Subscription creation failed:', error);
     res.status(500).json({
       error: 'Subscription creation failed',
-      message: error.message
+      message: error.message,
     });
   }
 };

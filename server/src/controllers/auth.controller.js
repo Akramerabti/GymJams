@@ -142,6 +142,7 @@ export const login = async (req, res) => {
   }
 };
 
+// auth.controller.js
 export const validateToken = async (req, res) => {
   try {
     console.log('Validating token...');
@@ -150,6 +151,16 @@ export const validateToken = async (req, res) => {
     if (!req.user) {
       console.error('User not found in request');
       return res.status(401).json({ message: 'User not found' });
+    }
+
+    // Check if the token is expired
+    const token = req.headers.authorization?.split(' ')[1];
+    if (token) {
+      const decoded = jwt.decode(token);
+      if (decoded.exp && decoded.exp < Date.now() / 1000) {
+        console.error('Token has expired');
+        return res.status(401).json({ message: 'Token has expired' });
+      }
     }
 
     // Disable caching
@@ -163,7 +174,6 @@ export const validateToken = async (req, res) => {
     res.status(500).json({ message: 'Token validation failed' });
   }
 };
-
 export const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
@@ -399,3 +409,4 @@ export const resetPassword = async (req, res) => {
     res.status(500).json({ message: 'Error resetting password' });
   }
 };
+

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -22,7 +22,7 @@ const planHierarchy = {
 const getPlanById = (planId) => {
   const plans = {
     basic: {
-      id: 'basic',
+      id: '65f4c5f8e4b0a1a2b3c4d5e6',
       name: 'Basic',
       price: 29.99,
       pointsPerMonth: 100,
@@ -34,7 +34,7 @@ const getPlanById = (planId) => {
       ],
     },
     premium: {
-      id: 'premium',
+      id: '65f4c5f8e4b0a1a2b3c4d5e7',
       name: 'Premium',
       price: 49.99,
       pointsPerMonth: 200,
@@ -47,7 +47,7 @@ const getPlanById = (planId) => {
       ],
     },
     elite: {
-      id: 'elite',
+      id: '65f4c5f8e4b0a1a2b3c4d5e8',
       name: 'Elite',
       price: 99.99,
       pointsPerMonth: 500,
@@ -63,15 +63,14 @@ const getPlanById = (planId) => {
   return plans[planId];
 };
 
-const PaymentForm = ({ plan, onSuccess, onError }) => {
+const PaymentForm = ({ plan, onSuccess, onError, userDetails }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
-  const { user } = useAuth();
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    
+
     if (!stripe || !elements) {
       onError('Payment system not available');
       return;
@@ -94,11 +93,13 @@ const PaymentForm = ({ plan, onSuccess, onError }) => {
       const subscriptionData = {
         planId: plan.id,
         paymentMethodId: paymentMethod.id,
-        email: user?.email || '',
-        firstName: user?.firstName || '',
-        lastName: user?.lastName || '',
-        phone: user?.phone || ''
+        email: userDetails.email,
+        firstName: userDetails.firstName,
+        lastName: userDetails.lastName,
+        phone: userDetails.phone,
       };
+
+      console.log('Subscription Data Sent:', subscriptionData); // Debug: Log the subscription data
 
       const result = await subscriptionService.createSubscription(subscriptionData);
       onSuccess(result);
@@ -165,6 +166,12 @@ const SubscriptionCheckout = () => {
   const [paymentStatus, setPaymentStatus] = useState(null);
   const { plan } = location.state || {};
   const { user } = useAuth(); // Get the user's authentication status
+  const [userDetails, setUserDetails] = useState({
+    email: '',
+    firstName: '',
+    lastName: '',
+    phone: '',
+  });
 
   // If plan is not available, show an error message
   if (!plan || !plan.features) {
@@ -214,6 +221,16 @@ const SubscriptionCheckout = () => {
     }
   };
 
+  // Handle input change for user details
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    console.log(`Updating ${name} to:`, value); // Debug: Log the input change
+    setUserDetails((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
@@ -226,10 +243,53 @@ const SubscriptionCheckout = () => {
                   <CardTitle>Complete Purchase</CardTitle>
                 </CardHeader>
                 <CardContent>
+                  {/* Show user details form if user is not logged in */}
+                  {!user && (
+                    <div className="space-y-4 mb-6">
+                      <h3 className="text-lg font-semibold">Enter Your Details</h3>
+                      <input
+                        type="email"
+                        name="email"
+                        placeholder="Email"
+                        value={userDetails.email}
+                        onChange={handleInputChange}
+                        className="w-full p-2 border border-gray-300 rounded-lg"
+                        required
+                      />
+                      <input
+                        type="text"
+                        name="firstName"
+                        placeholder="First Name"
+                        value={userDetails.firstName}
+                        onChange={handleInputChange}
+                        className="w-full p-2 border border-gray-300 rounded-lg"
+                        required
+                      />
+                      <input
+                        type="text"
+                        name="lastName"
+                        placeholder="Last Name"
+                        value={userDetails.lastName}
+                        onChange={handleInputChange}
+                        className="w-full p-2 border border-gray-300 rounded-lg"
+                        required
+                      />
+                      <input
+                        type="text"
+                        name="phone"
+                        placeholder="Phone"
+                        value={userDetails.phone}
+                        onChange={handleInputChange}
+                        className="w-full p-2 border border-gray-300 rounded-lg"
+                        required
+                      />
+                    </div>
+                  )}
                   <PaymentForm
                     plan={plan}
                     onSuccess={handlePaymentSuccess}
                     onError={handlePaymentError}
+                    userDetails={user ? { email: user.email, firstName: user.firstName, lastName: user.lastName, phone: user.phone } : userDetails}
                   />
                 </CardContent>
               </Card>

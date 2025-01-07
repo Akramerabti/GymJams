@@ -1,3 +1,4 @@
+// App.jsx
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
@@ -21,6 +22,8 @@ import VerifyEmail from './pages/VerifyEmail';
 import EmailVerificationNotification from './pages/EmailVerificationNotification';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import Orders from './pages/Orders';
+import PaymentMethods from './pages/PaymentMethods';
 
 const App = () => {
   const { checkAuth } = useAuth();
@@ -38,8 +41,8 @@ const App = () => {
           <Route path="/coaching" element={<CoachingHome />} />
           <Route path="/shop" element={<Shop />} />
           <Route path="/cart" element={<Cart />} />
-          <Route path="/shop-checkout" element={<ShopCheckout />} /> 
-          <Route path="/subscription-checkout" element={<SubscriptionCheckout />} /> 
+          <Route path="/shop-checkout" element={<ShopCheckout />} />
+          <Route path="/subscription-checkout" element={<SubscriptionCheckout />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
@@ -51,6 +54,16 @@ const App = () => {
           <Route path="/profile" element={
             <ProtectedRoute>
               <Profile />
+            </ProtectedRoute>
+          } />
+          <Route path="/orders" element={
+            <ProtectedRoute>
+              <Orders />
+            </ProtectedRoute>
+          } />
+          <Route path="/payment-methods" element={
+            <ProtectedRoute>
+              <PaymentMethods />
             </ProtectedRoute>
           } />
         </Routes>

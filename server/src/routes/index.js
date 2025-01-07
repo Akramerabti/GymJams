@@ -1,12 +1,14 @@
 import express from 'express';
 import authRoutes from './auth.routes.js';
-// Import other route files here
+import paymentRoutes from './payment.routes.js'; // Add this
+import orderRoutes from './order.routes.js'; // Add this
 
 const router = express.Router();
 
 // Mount routes
 router.use('/auth', authRoutes);
-// Mount other routes here
+router.use('/payment', paymentRoutes); // Add this
+router.use('/orders', orderRoutes); // Add this
 
 // Health check endpoint
 router.get('/health', (req, res) => {

@@ -15,6 +15,7 @@ import connectDB from './config/database.js';
 import passport from './config/passport.js';
 import corsOptions from './config/cors.js';
 import authRoutes from './routes/auth.routes.js';
+import paymentRoutes from './routes/payment.routes.js'; // Add this line
 import { initStripe } from './config/stripe.js';
 
 // Import routes
@@ -101,8 +102,9 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Mount routes
-app.use('/api', routes);
-app.use('/api/auth', authRoutes);
+app.use('/api', routes); // Mount other routes under /api
+app.use('/api/auth', authRoutes); // Mount auth routes under /api/auth
+app.use('/api/payment', paymentRoutes); // Mount payment routes under /api/payment
 
 // Handle production setup
 if (process.env.NODE_ENV === 'production') {

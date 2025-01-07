@@ -1,19 +1,14 @@
 import express from 'express';
+import { authenticate } from '../middleware/auth.middleware.js';
 import {
-  createOrder,
   getOrders,
-  getOrder,
+  getOrderDetails
 } from '../controllers/order.controller.js';
-import { authenticateJWT } from '../config/passport.js';
-import { validateOrder } from '../middleware/validate.middleware.js';
 
 const router = express.Router();
 
-// All order routes are protected
-router.use(authenticateJWT);
-
-router.post('/', validateOrder, createOrder);
-router.get('/', getOrders);
-router.get('/:id', getOrder);
+// Protected routes
+router.get('/orders', authenticate, getOrders);
+router.get('/orders/:id', authenticate, getOrderDetails);
 
 export default router;

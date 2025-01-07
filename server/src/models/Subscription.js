@@ -15,13 +15,12 @@ const subscriptionSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  description: String,
-  features: [String],
   pointsPerMonth: {
     type: Number,
     required: true,
   },
 });
+
 // models/UserSubscription.js
 const userSubscriptionSchema = new mongoose.Schema({
   user: {
