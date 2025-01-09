@@ -5,7 +5,7 @@ import {
   createSubscriptionIntent,
   handleSubscriptionSuccess,
   cancelSubscription
-} from '../controllers/subscription.controller.js';
+} from '../controllers/subscription.Controller.js';
 
 const router = express.Router();
 
