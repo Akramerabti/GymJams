@@ -3,7 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import paymentService from '../services/payment.service';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { CreditCard, Plus, Edit, Trash, ArrowLeft } from 'lucide-react'; // Import ArrowLeft
+import { CreditCard, Plus, Edit, Trash, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,7 +23,7 @@ const PaymentMethods = () => {
     },
     isDefault: false,
   });
-  const [expirationDateError, setExpirationDateError] = useState(''); // State for expiration date error
+  const [expirationDateError, setExpirationDateError] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -34,18 +34,75 @@ const PaymentMethods = () => {
   const fetchPaymentMethods = async () => {
     try {
       const methods = await paymentService.getPaymentMethods(user.user._id);
-  
-      // Sort payment methods so that the default method appears first
       const sortedMethods = methods.sort((a, b) => {
-        if (a.isDefault) return -1; // Default method comes first
-        if (b.isDefault) return 1;  // Default method comes first
-        return 0; // Maintain order for non-default methods
+        if (a.isDefault) return -1;
+        if (b.isDefault) return 1;
+        return 0;
       });
-  
       setPaymentMethods(sortedMethods);
     } catch (error) {
       console.error('Failed to fetch payment methods:', error);
       toast.error('Failed to fetch payment methods. Please try again.');
+    }
+  };
+
+  // Function to initiate the Payment Request API
+  const initiatePaymentRequest = async () => {
+    if (!window.PaymentRequest) {
+      toast.error('Your browser does not support the Payment Request API.');
+      return;
+    }
+
+    const supportedPaymentMethods = [
+      {
+        supportedMethods: 'https://google.com/pay',
+        data: {
+          allowedPaymentMethods: ['CARD', 'TOKENIZED_CARD'],
+          apiVersion: 2,
+          apiVersionMinor: 0,
+          merchantInfo: {
+            merchantId: '5527712297', // Replace with your Google Pay merchant ID
+            merchantName: 'GymJams',
+          },
+        },
+      },
+      {
+        supportedMethods: 'https://apple.com/apple-pay',
+        data: {
+          merchantIdentifier: 'merchant.com.yourdomain', // Replace with your Apple Pay merchant ID
+          supportedNetworks: ['visa', 'mastercard'],
+          countryCode: 'US',
+        },
+      },
+      {
+        supportedMethods: 'basic-card', // For credit/debit cards
+      },
+    ];
+
+    const paymentDetails = {
+      total: {
+        label: 'Autofill Payment Details',
+        amount: { currency: 'USD', value: '0' }, // No actual payment is being made
+      },
+    };
+
+    const paymentRequest = new PaymentRequest(supportedPaymentMethods, paymentDetails);
+
+    try {
+      const paymentResponse = await paymentRequest.show();
+      const { cardNumber, cardholderName, expiryMonth, expiryYear } = paymentResponse.details;
+
+      // Populate form data
+      setFormData({
+        ...formData,
+        cardNumber: cardNumber.replace(/\D/g, ''), // Remove non-numeric characters
+        expirationDate: `${expiryMonth}/${String(expiryYear).slice(-2)}`, // Format as MM/YY
+      });
+
+      await paymentResponse.complete('success'); // Close the payment request UI
+    } catch (error) {
+      console.error('Payment Request failed:', error);
+      toast.error('Failed to retrieve payment details. Please try again.');
     }
   };
 
@@ -72,13 +129,13 @@ const PaymentMethods = () => {
         ...formData,
         cardNumber: formData.cardNumber.replace(/\D/g, ''), // Remove non-numeric characters
       };
-  
+
       // Validate credit card number length
       if (formattedData.type === 'credit_card' && formattedData.cardNumber.length !== 16) {
         toast.error('Invalid credit card number. Please enter 16 digits.');
         return;
       }
-  
+
       // Validate expiration date format (MM/YY)
       if (formattedData.type === 'credit_card') {
         const expirationDate = formattedData.expirationDate.replace(/\D/g, '');
@@ -86,13 +143,13 @@ const PaymentMethods = () => {
           toast.error('Invalid expiration date. Please use MM/YY format.');
           return;
         }
-  
+
         // Validate expiration date is not in the past
         if (!validateExpirationDate(formattedData.expirationDate)) {
           return; // Stop if the expiration date is invalid
         }
       }
-  
+
       // If the new payment method is set as default, remove the default flag from all other methods
       if (formattedData.isDefault) {
         const updatedMethods = paymentMethods.map((method) => ({
@@ -101,7 +158,7 @@ const PaymentMethods = () => {
         }));
         setPaymentMethods(updatedMethods);
       }
-  
+
       // Call the payment service
       await paymentService.addPaymentMethod(user.user._id, formattedData);
       toast.success('Payment method added successfully!');
@@ -120,64 +177,6 @@ const PaymentMethods = () => {
     } catch (error) {
       console.error('Failed to add payment method:', error);
       toast.error('Failed to add payment method. Please try again.');
-    }
-  };
-
-  const handleEditPaymentMethod = async (methodId) => {
-    try {
-      // Format the credit card number by removing non-numeric characters
-      const formattedData = {
-        ...formData,
-        cardNumber: formData.cardNumber.replace(/\D/g, ''), // Remove non-numeric characters
-      };
-  
-      // Validate credit card number length
-      if (formattedData.type === 'credit_card' && formattedData.cardNumber.length !== 16) {
-        toast.error('Invalid credit card number. Please enter 16 digits.');
-        return;
-      }
-  
-      // Validate expiration date format (MM/YY)
-      if (formattedData.type === 'credit_card') {
-        const expirationDate = formattedData.expirationDate.replace(/\D/g, '');
-        if (expirationDate.length !== 4 || !/^\d{2}\/\d{2}$/.test(formattedData.expirationDate)) {
-          toast.error('Invalid expiration date. Please use MM/YY format.');
-          return;
-        }
-  
-        // Validate expiration date is not in the past
-        if (!validateExpirationDate(formattedData.expirationDate)) {
-          return; // Stop if the expiration date is invalid
-        }
-      }
-  
-      // If the edited payment method is set as default, remove the default flag from all other methods
-      if (formattedData.isDefault) {
-        const updatedMethods = paymentMethods.map((method) => ({
-          ...method,
-          isDefault: method._id === methodId ? true : false, // Set only the current method as default
-        }));
-        setPaymentMethods(updatedMethods);
-      }
-  
-      await paymentService.updatePaymentMethod(user.user._id, methodId, formattedData);
-      toast.success('Payment method updated successfully!');
-      fetchPaymentMethods(); // Refresh the list
-      setEditingMethodId(null); // Exit edit mode
-      setFormData({
-        type: 'credit_card',
-        cardNumber: '',
-        expirationDate: '',
-        paypalEmail: '',
-        bankAccount: {
-          accountNumber: '',
-          routingNumber: '',
-        },
-        isDefault: false,
-      });
-    } catch (error) {
-      console.error('Failed to update payment method:', error);
-      toast.error('Failed to update payment method. Please try again.');
     }
   };
 
@@ -249,33 +248,36 @@ const PaymentMethods = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
-      <div className="flex items-center mb-8">
+        <div className="flex items-center mb-8">
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate('/profile')} // Navigate to /profile
+            onClick={() => navigate('/profile')}
             className="mr-2"
           >
-            <ArrowLeft className="w-5 h-5" /> {/* Small arrow icon */}
+            <ArrowLeft className="w-5 h-5" />
           </Button>
           <h1 className="text-3xl font-bold">Payment Methods</h1>
         </div>
 
-
         {/* Add/Edit Payment Method Form */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>
-              {editingMethodId ? 'Edit Payment Method' : 'Add Payment Method'}
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>
+                {editingMethodId ? 'Edit Payment Method' : 'Add Payment Method'}
+              </CardTitle>
+              {/* Button to initiate Payment Request */}
+              <Button onClick={initiatePaymentRequest} variant="outline">
+                Autofill from Wallet (Apple Pay/Google Pay)
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <select
                 value={formData.type}
-                onChange={(e) =>
-                  setFormData({ ...formData, type: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                 className="w-full p-2 border rounded"
                 style={{ color: 'black' }}
               >
@@ -392,44 +394,44 @@ const PaymentMethods = () => {
 
         {/* Display Payment Methods */}
         {paymentMethods.map((method) => (
-  <Card key={method._id} className="mb-4">
-    <CardHeader>
-      <CardTitle className="flex items-center justify-between">
-        <span>{method.type}</span>
-        {method.isDefault && (
-          <span className="bg-green-100 text-green-800 text-sm font-medium px-2 py-1 rounded">
-            Default
-          </span>
-        )}
-      </CardTitle>
-    </CardHeader>
-    <CardContent>
-      {method.type === 'credit_card' && (
-        <p>**** **** **** {method.cardNumber.slice(-4)}</p>
-      )}
-      {method.type === 'paypal' && <p>{method.paypalEmail}</p>}
-      {method.type === 'bank_transfer' && (
-        <p>Bank Account: {method.bankAccount.accountNumber}</p>
-      )}
-      <div className="flex space-x-4 mt-4">
-        <Button
-          variant="outline"
-          onClick={() => handleEditClick(method)}
-        >
-          <Edit className="w-4 h-4 mr-2" />
-          Edit
-        </Button>
-        <Button
-          variant="destructive"
-          onClick={() => handleDeletePaymentMethod(method._id)}
-        >
-          <Trash className="w-4 h-4 mr-2" />
-          Delete
-        </Button>
-      </div>
-    </CardContent>
-  </Card>
-))}
+          <Card key={method._id} className="mb-4">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>{method.type}</span>
+                {method.isDefault && (
+                  <span className="bg-green-100 text-green-800 text-sm font-medium px-2 py-1 rounded">
+                    Default
+                  </span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {method.type === 'credit_card' && (
+                <p>**** **** **** {method.cardNumber.slice(-4)}</p>
+              )}
+              {method.type === 'paypal' && <p>{method.paypalEmail}</p>}
+              {method.type === 'bank_transfer' && (
+                <p>Bank Account: {method.bankAccount.accountNumber}</p>
+              )}
+              <div className="flex space-x-4 mt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => handleEditClick(method)}
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => handleDeletePaymentMethod(method._id)}
+                >
+                  <Trash className="w-4 h-4 mr-2" />
+                  Delete
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
     </div>
   );

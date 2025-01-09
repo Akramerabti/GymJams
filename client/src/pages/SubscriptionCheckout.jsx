@@ -1,21 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { Elements, useStripe, useElements } from '@stripe/react-stripe-js';
 import { CreditCard, Check, Shield, Loader } from 'lucide-react';
 import subscriptionService from '../services/subscription.service';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'sonner';
+import paymentService from '../services/payment.service';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
 // Define the hierarchy of plans
 const planHierarchy = {
-  basic: 'premium',
-  premium: 'elite',
-  elite: null, // No upgrade available for Elite
+  Basic: 'premium',
+  Premium: 'elite',
+  Elite: null,
 };
 
 // Helper function to get the plan details by ID
@@ -63,10 +64,11 @@ const getPlanById = (planId) => {
   return plans[planId];
 };
 
-const PaymentForm = ({ plan, onSuccess, onError, userDetails }) => {
+const PaymentForm = ({ plan, onSuccess, onError, paymentMethods }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -79,32 +81,39 @@ const PaymentForm = ({ plan, onSuccess, onError, userDetails }) => {
     setIsProcessing(true);
 
     try {
-      // Create payment method
-      const { error: elementError, paymentMethod } = await stripe.createPaymentMethod({
-        type: 'card',
-        card: elements.getElement(CardElement),
-      });
+      // If the user selects Apple Pay or Google Pay, use the Payment Request API
+      if (selectedPaymentMethod === 'wallet') {
+        const paymentRequest = stripe.paymentRequest({
+          country: 'US',
+          currency: 'usd',
+          total: {
+            label: plan.name,
+            amount: Math.round(plan.price * 100), // Amount in cents
+          },
+          requestPayerName: true,
+          requestPayerEmail: true,
+        });
 
-      if (elementError) {
-        throw new Error(elementError.message);
+        const paymentResponse = await paymentRequest.show();
+        const { paymentIntent } = await stripe.confirmPaymentIntent(paymentResponse.paymentIntent.id, {
+          payment_method: paymentResponse.paymentMethod.id,
+        });
+
+        if (paymentIntent.status === 'succeeded') {
+          onSuccess(paymentIntent);
+        } else {
+          throw new Error('Payment failed');
+        }
+      } else {
+        // Use the selected saved payment method
+        const result = await subscriptionService.createSubscription({
+          planId: plan.id,
+          paymentMethodId: selectedPaymentMethod,
+        });
+        onSuccess(result);
       }
-
-      // Create subscription
-      const subscriptionData = {
-        planId: plan.id,
-        paymentMethodId: paymentMethod.id,
-        email: userDetails.email,
-        firstName: userDetails.firstName,
-        lastName: userDetails.lastName,
-        phone: userDetails.phone,
-      };
-
-      console.log('Subscription Data Sent:', subscriptionData); // Debug: Log the subscription data
-
-      const result = await subscriptionService.createSubscription(subscriptionData);
-      onSuccess(result);
     } catch (error) {
-      console.error('Subscription error:', error);
+      console.error('Payment error:', error);
       onError(error.message || 'Failed to process payment');
     } finally {
       setIsProcessing(false);
@@ -122,29 +131,35 @@ const PaymentForm = ({ plan, onSuccess, onError, userDetails }) => {
           </div>
         </div>
 
-        <div className="p-4 bg-gray-50 rounded-lg">
-          <CardElement
-            options={{
-              style: {
-                base: {
-                  fontSize: '16px',
-                  color: '#424770',
-                  '::placeholder': {
-                    color: '#aab7c4',
-                  },
-                },
-                invalid: {
-                  color: '#9e2146',
-                },
-              },
-            }}
-          />
+        {/* Dropdown for saved payment methods */}
+        <div className="space-y-4">
+          <label className="block text-sm font-medium text-gray-700">Select Payment Method</label>
+          <select
+            value={selectedPaymentMethod || ''}
+            onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-lg"
+            required
+          >
+            <option value="" disabled>
+              Choose a payment method
+            </option>
+            {paymentMethods.map((method) => (
+              <option key={method._id} value={method._id}>
+                {method.type === 'credit_card'
+                  ? `Credit Card (**** **** **** ${method.cardNumber.slice(-4)})`
+                  : method.type === 'paypal'
+                  ? `PayPal (${method.paypalEmail})`
+                  : `Bank Transfer (${method.bankAccount.accountNumber})`}
+              </option>
+            ))}
+            <option value="wallet">Pay with Apple Pay or Google Pay</option>
+          </select>
         </div>
       </div>
 
       <Button
         type="submit"
-        disabled={!stripe || isProcessing}
+        disabled={!stripe || isProcessing || !selectedPaymentMethod}
         className="w-full"
       >
         {isProcessing ? (
@@ -165,13 +180,27 @@ const SubscriptionCheckout = () => {
   const navigate = useNavigate();
   const [paymentStatus, setPaymentStatus] = useState(null);
   const { plan } = location.state || {};
-  const { user } = useAuth(); // Get the user's authentication status
+  const { user } = useAuth();
+  const [paymentMethods, setPaymentMethods] = useState([]);
   const [userDetails, setUserDetails] = useState({
     email: '',
     firstName: '',
     lastName: '',
     phone: '',
   });
+
+  // Fetch the user's saved payment methods
+  useEffect(() => {
+    if (user) {
+      paymentService
+        .getPaymentMethods(user.user._id)
+        .then((methods) => setPaymentMethods(methods))
+        .catch((error) => {
+          console.error('Failed to fetch payment methods:', error);
+          toast.error('Failed to fetch payment methods. Please try again.');
+        });
+    }
+  }, [user]);
 
   // If plan is not available, show an error message
   if (!plan || !plan.features) {
@@ -186,7 +215,7 @@ const SubscriptionCheckout = () => {
               No subscription plan selected. Please choose a plan to continue.
             </p>
             <Button
-              onClick={() => navigate('/')} // Redirect to the home page or another appropriate route
+              onClick={() => navigate('/')}
               className="w-full mt-4"
             >
               Go Back
@@ -212,9 +241,10 @@ const SubscriptionCheckout = () => {
 
   // Function to handle upgrade to the next plan
   const handleUpgrade = () => {
-    const nextPlanId = planHierarchy[plan.id]; // Get the next plan ID
-    if (nextPlanId) {
-      const nextPlan = getPlanById(nextPlanId); // Get the next plan details
+    const nextPlanName = planHierarchy[plan.name]; // Get the next plan name (e.g., 'premium')
+  
+    if (nextPlanName) {
+      const nextPlan = getPlanById(nextPlanName); // Get the next plan details
       navigate('/subscription-checkout', { state: { plan: nextPlan } }); // Redirect to the next plan
     } else {
       toast.info('You are already on the highest plan.');
@@ -289,7 +319,7 @@ const SubscriptionCheckout = () => {
                     plan={plan}
                     onSuccess={handlePaymentSuccess}
                     onError={handlePaymentError}
-                    userDetails={user ? { email: user.email, firstName: user.firstName, lastName: user.lastName, phone: user.phone } : userDetails}
+                    paymentMethods={paymentMethods}
                   />
                 </CardContent>
               </Card>
@@ -335,14 +365,16 @@ const SubscriptionCheckout = () => {
                     )}
 
                     {/* Upgrade Button (only show if not Elite plan) */}
-                    {plan.id !== 'elite' && (
-                      <Button
-                        onClick={handleUpgrade}
-                        className="w-full bg-green-600 hover:bg-green-700"
-                      >
-                        Upgrade to {planHierarchy[plan.id] === 'elite' ? 'Elite' : 'Premium'} Plan
-                      </Button>
-                    )}
+                    {plan.id !== '65f4c5f8e4b0a1a2b3c4d5e8' && (
+                        <Button
+                          onClick={handleUpgrade}
+                          className="w-full bg-green-600 hover:bg-green-700"
+                        >
+                          {plan.name === 'Basic' && 'Upgrade to Premium Plan'}
+                          {plan.name === 'Premium' && 'Upgrade to Elite Plan'}
+                          {plan.name === 'Elite' && 'You are on the highest plan'}
+                        </Button>
+                      )}
                   </div>
                 </CardContent>
               </Card>
