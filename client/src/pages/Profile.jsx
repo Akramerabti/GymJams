@@ -5,19 +5,17 @@ import { usePoints } from '../hooks/usePoints';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
-import { User, Package, CreditCard, LogOut, Loader2, Coins } from 'lucide-react';
+import { User, Package, LogOut, Loader2, Coins, Crown } from 'lucide-react';
 import { toast } from 'sonner';
-import subscriptionService from '../services/subscription.service';
-import { loadStripe } from '@stripe/stripe-js';
-
-const stripePromise = loadStripe('your-publishable-key-here');
+import api from '../services/api';
 
 const Profile = () => {
   const { user, updateProfile, logout, validatePhone } = useAuth();
   const navigate = useNavigate();
-  const { balance } = usePoints();
+  const { balance, fetchPoints } = usePoints();
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [subscriptionDetails, setSubscriptionDetails] = useState(null);
   const [profileData, setProfileData] = useState({
     firstName: '',
     lastName: '',
@@ -26,15 +24,41 @@ const Profile = () => {
   });
 
   useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const [profileResponse, subscriptionResponse] = await Promise.all([
+          api.get('/auth/profile'),
+          api.get('/subscription/current')
+        ]);
+
+        const userData = profileResponse.data;
+        setProfileData({
+          firstName: userData.firstName || '',
+          lastName: userData.lastName || '',
+          email: userData.email || '',
+          phone: userData.phone || '',
+        });
+
+        if (subscriptionResponse.data) {
+          setSubscriptionDetails(subscriptionResponse.data);
+        }
+
+        fetchPoints();
+        
+      } catch (error) {
+        if (error.response?.status === 404 && error.response?.config.url.includes('/subscription/current')) {
+          console.log('No active subscription found');
+        } else {
+          console.error('Error fetching user data:', error);
+          toast.error('Failed to load profile data');
+        }
+      }
+    };
+
     if (user) {
-      setProfileData({
-        firstName: user.user.firstName || '',
-        lastName: user.user.lastName || '',
-        email: user.user.email || '',
-        phone: user.user.phone || '',
-      });
+      fetchUserData();
     }
-  }, [user]);
+  }, [user, fetchPoints]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -57,13 +81,9 @@ const Profile = () => {
       });
 
       setEditing(false);
-
-      // Show success toast
       toast.success('Profile updated successfully!');
     } catch (error) {
       console.error('Failed to update profile:', error);
-
-      // Show error toast
       toast.error(error.message || 'Failed to update profile. Please try again.');
     } finally {
       setLoading(false);
@@ -75,21 +95,19 @@ const Profile = () => {
     navigate('/login');
   };
 
-  const handleSubscribe = async (priceId) => {
-    try {
-      const stripe = await stripePromise;
-      const { sessionId } = await subscriptionService.createSubscription(user.user._id, priceId);
+  // Format subscription type for display
+  const formatSubscriptionType = (type) => {
+    return type.charAt(0).toUpperCase() + type.slice(1);
+  };
 
-      const { error } = await stripe.redirectToCheckout({ sessionId });
-
-      if (error) {
-        console.error('Stripe checkout error:', error);
-        toast.error('Failed to redirect to checkout. Please try again.');
-      }
-    } catch (error) {
-      console.error('Failed to create subscription:', error);
-      toast.error('Failed to create subscription. Please try again.');
-    }
+  // Get color scheme based on subscription status
+  const getStatusColor = (status) => {
+    const colors = {
+      active: 'bg-green-50 text-green-700',
+      cancelled: 'bg-yellow-50 text-yellow-700',
+      expired: 'bg-red-50 text-red-700'
+    };
+    return colors[status] || 'bg-gray-50 text-gray-700';
   };
 
   return (
@@ -108,6 +126,7 @@ const Profile = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-2">
+            {/* Personal Information Card */}
             <Card>
               <CardHeader>
                 <CardTitle>Personal Information</CardTitle>
@@ -201,23 +220,60 @@ const Profile = () => {
               </CardContent>
             </Card>
 
-            {/* Subscription Section */}
+            {/* Subscription Status Card */}
             <Card className="mt-6">
               <CardHeader>
-                <CardTitle>Subscriptions</CardTitle>
+                <CardTitle className="flex items-center">
+                  <Crown className="w-6 h-6 mr-2 text-yellow-500" />
+                  Membership Status
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <Button
-                  variant="primary"
-                  className="w-full"
-                  onClick={() => handleSubscribe('price_12345')} // Replace with your actual price ID
-                >
-                  Subscribe to Premium
-                </Button>
+                {subscriptionDetails ? (
+                  <div className="space-y-4">
+                    <div className={`p-4 rounded-lg ${getStatusColor(subscriptionDetails.status)}`}>
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-lg font-semibold">
+                          {formatSubscriptionType(subscriptionDetails.subscription)} Plan
+                        </h3>
+                        <span className="px-3 py-1 rounded-full bg-opacity-25 capitalize">
+                          {subscriptionDetails.status}
+                        </span>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <p>Start Date: {new Date(subscriptionDetails.startDate).toLocaleDateString()}</p>
+                        {subscriptionDetails.endDate && (
+                          <p>End Date: {new Date(subscriptionDetails.endDate).toLocaleDateString()}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <p className="text-gray-600 mb-4">
+                        Unlock exclusive features with our coaching plans:
+                        <ul className="list-disc list-inside mt-2 space-y-1">
+                          <li>Personalized workout plans</li>
+                          <li>Nutrition guidance</li>
+                          <li>Expert coaching support</li>
+                          <li>Premium features access</li>
+                        </ul>
+                      </p>
+                      <Button
+                        className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+                        onClick={() => navigate('/coaching')}
+                      >
+                        Explore Coaching Plans
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
 
+          {/* Side Menu */}
           <div className="space-y-4">
             <Card>
               <CardContent className="pt-6">

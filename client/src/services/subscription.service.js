@@ -45,17 +45,6 @@ const subscriptionService = {
     }
   },
 
-  // Get current subscription
-  async getCurrentSubscription() {
-    try {
-      const response = await api.get('/subscription/current');
-      return response.data;
-    } catch (error) {
-      console.error('Failed to get current subscription:', error);
-      throw error;
-    }
-  },
-
   // Cancel subscription
   async cancelSubscription(subscriptionId) {
     try {
