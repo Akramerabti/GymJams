@@ -68,7 +68,7 @@ export const getCurrentSubscription = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).populate('subscription');
     if (!user.subscription) {
-      return res.status(404).json({ message: 'No active subscription found' });
+      return res.status(200).json(null); // Return null instead of 404
     }
     res.json(user.subscription);
   } catch (error) {
@@ -109,6 +109,7 @@ export const updateSubscription = async (req, res) => {
 
     // Update user points
     const pointsDiff = PLANS[newPlanType].points - PLANS[subscription.subscription].points;
+    console.log(`Updating points for user ${req.user.id}: Adding ${pointsDiff} points`); // Log points change
     await User.findByIdAndUpdate(req.user.id, {
       $inc: { points: pointsDiff }
     });
@@ -120,28 +121,50 @@ export const updateSubscription = async (req, res) => {
   }
 };
 
-// Cancel subscription
 export const cancelSubscription = async (req, res) => {
   try {
     const { subscriptionId } = req.params;
-    
+
+    // Find the subscription in the database
     const subscription = await Subscription.findById(subscriptionId);
-    if (!subscription || subscription.user.toString() !== req.user.id) {
+    if (!subscription) {
       return res.status(404).json({ error: 'Subscription not found' });
     }
 
-    // Cancel in Stripe
-    await stripe.subscriptions.del(subscription.stripeSubscriptionId);
+    // Check if the subscription belongs to the logged-in user (if user is logged in)
+    if (req.user && subscription.user?.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'You do not have permission to cancel this subscription' });
+    }
 
-    // Update in DB
+    // Cancel the subscription in Stripe
+    await stripe.subscriptions.cancel(subscription.stripeSubscriptionId);
+
+    // Update the subscription in the database
     subscription.status = 'cancelled';
     subscription.endDate = new Date();
     await subscription.save();
 
-    // Remove subscription from user
-    await User.findByIdAndUpdate(req.user.id, {
-      $unset: { subscription: 1 }
-    });
+    // Handle points removal for logged-in users within the first 10 days
+    if (req.user && subscription.user) {
+      const daysSinceStart = (new Date() - subscription.startDate) / (1000 * 60 * 60 * 24);
+
+      if (daysSinceStart <= 10) {
+        // Remove the points awarded for this subscription
+        const pointsToRemove = PLANS[subscription.subscription].points;
+        console.log(`Removing ${pointsToRemove} points from user ${req.user.id} (within 10 days of subscription)`); // Log points removal
+        await User.findByIdAndUpdate(subscription.user, {
+          $inc: { points: -pointsToRemove },
+        });
+      }
+    }
+
+    // Remove the subscription reference from the user (if logged in)
+    if (req.user && subscription.user) {
+      console.log(`Removing subscription reference from user ${req.user.id}`); // Log subscription removal
+      await User.findByIdAndUpdate(req.user.id, {
+        $unset: { subscription: 1 },
+      });
+    }
 
     res.json({ message: 'Subscription cancelled successfully' });
   } catch (error) {
@@ -150,12 +173,9 @@ export const cancelSubscription = async (req, res) => {
   }
 };
 
-// controllers/subscription.controller.js
 export const handleSubscriptionSuccess = async (req, res) => {
   try {
     const { planType, paymentIntentId, email } = req.body;
-
-    // Retrieve the payment intent from Stripe to confirm the payment
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
     if (paymentIntent.status !== 'succeeded') {
@@ -164,20 +184,46 @@ export const handleSubscriptionSuccess = async (req, res) => {
 
     let user = null;
 
-    // If the user is authenticated, use the authenticated user
-    if (req.user) {
+    if (req.user) { // If the user is authenticated, use the authenticated user
       user = req.user;
     } else {
-      // If the user is not authenticated, search for the user by email
-      user = await User.findOne({ email });
+      user = await User.findOne({ email }); // If the user is not authenticated, search for the user by email
     }
 
-    // Create or update the subscription in the database
+    let stripeCustomerId = user?.stripeCustomerId; // Ensure the user has a stripeCustomerId
+
+    if (!stripeCustomerId) {
+      const customer = await stripe.customers.create({  // If the user doesn't have a stripeCustomerId, create a new customer in Stripe
+        email: email, // Use the provided email to create the customer
+      });
+      stripeCustomerId = customer.id;
+
+      if (user) {  // Update the user's stripeCustomerId in the database
+        await User.findByIdAndUpdate(user.id, { stripeCustomerId });
+      }
+    }
+
+    // Create a subscription in Stripe
+    const subscription = await stripe.subscriptions.create({
+      customer: stripeCustomerId,
+      items: [
+        {
+          price: PLANS[planType].stripePriceId, // Use the price ID from your PLANS configuration
+        },
+      ],
+      payment_behavior: 'default_incomplete', // Ensure the subscription is created even if the payment is not yet complete
+      expand: ['latest_invoice.payment_intent'],
+    });
+
+    // Prepare subscription data for the database
     const subscriptionData = {
       subscription: planType,
-      stripeSubscriptionId: paymentIntent.id,
+      stripeSubscriptionId: subscription.id, // Use the Subscription ID from Stripe
+      stripeCustomerId: stripeCustomerId,
       status: 'active',
       startDate: new Date(),
+      currentPeriodStart: new Date(subscription.current_period_start * 1000),
+      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
     };
 
     if (user) {
@@ -193,12 +239,13 @@ export const handleSubscriptionSuccess = async (req, res) => {
 
     // If the user is logged in, update their subscription and points
     if (user) {
-      // Update the user's subscription and points
+      const pointsToAdd = PLANS[planType].points;
+      console.log(`Adding ${pointsToAdd} points to user ${user.id} for ${planType} subscription`); // Log points addition
       await User.findByIdAndUpdate(
         user.id,
         {
           $set: { subscription: newSubscription._id }, // Add the subscription reference
-          $inc: { points: PLANS[planType].points }, // Add points based on the plan
+          $inc: { points: pointsToAdd }, // Add points based on the plan
         },
         { new: true }
       );
