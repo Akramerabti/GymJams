@@ -7,7 +7,10 @@ import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { User, Package, CreditCard, LogOut, Loader2, Coins } from 'lucide-react';
 import { toast } from 'sonner';
-import paymentService from '../services/payment.service';
+import subscriptionService from '../services/subscription.service';
+import { loadStripe } from '@stripe/stripe-js';
+
+const stripePromise = loadStripe('your-publishable-key-here');
 
 const Profile = () => {
   const { user, updateProfile, logout, validatePhone } = useAuth();
@@ -21,7 +24,6 @@ const Profile = () => {
     email: '',
     phone: '',
   });
-  const [paymentMethods, setPaymentMethods] = useState([]);
 
   useEffect(() => {
     if (user) {
@@ -31,27 +33,8 @@ const Profile = () => {
         email: user.user.email || '',
         phone: user.user.phone || '',
       });
-      fetchPaymentMethods();
     }
   }, [user]);
-
-  const fetchPaymentMethods = async () => {
-    try {
-      const methods = await paymentService.getPaymentMethods(user.user._id);
-  
-      // Sort payment methods so that the default method appears first
-      const sortedMethods = methods.sort((a, b) => {
-        if (a.isDefault) return -1; // Default method comes first
-        if (b.isDefault) return 1;  // Default method comes first
-        return 0; // Maintain order for non-default methods
-      });
-  
-      setPaymentMethods(sortedMethods);
-    } catch (error) {
-      console.error('Failed to fetch payment methods:', error);
-      toast.error('Failed to fetch payment methods. Please try again.');
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -92,14 +75,20 @@ const Profile = () => {
     navigate('/login');
   };
 
-  const handleDeletePaymentMethod = async (methodId) => {
+  const handleSubscribe = async (priceId) => {
     try {
-      await paymentService.deletePaymentMethod(user.user._id, methodId);
-      toast.success('Payment method deleted successfully!');
-      fetchPaymentMethods(); // Refresh the list
+      const stripe = await stripePromise;
+      const { sessionId } = await subscriptionService.createSubscription(user.user._id, priceId);
+
+      const { error } = await stripe.redirectToCheckout({ sessionId });
+
+      if (error) {
+        console.error('Stripe checkout error:', error);
+        toast.error('Failed to redirect to checkout. Please try again.');
+      }
     } catch (error) {
-      console.error('Failed to delete payment method:', error);
-      toast.error('Failed to delete payment method. Please try again.');
+      console.error('Failed to create subscription:', error);
+      toast.error('Failed to create subscription. Please try again.');
     }
   };
 
@@ -212,43 +201,19 @@ const Profile = () => {
               </CardContent>
             </Card>
 
-            {/* Payment Methods Section */}
+            {/* Subscription Section */}
             <Card className="mt-6">
               <CardHeader>
-                <CardTitle>Payment Methods</CardTitle>
+                <CardTitle>Subscriptions</CardTitle>
               </CardHeader>
               <CardContent>
-               {paymentMethods.length > 0 ? (
-  paymentMethods.map((method) => (
-    <div key={method._id} className="flex justify-between items-center p-4 border-b">
-      <div>
-        <p className="font-medium">{method.type}</p>
-        {method.type === 'credit_card' && (
-          <p>**** **** **** {method.cardNumber.slice(-4)}</p>
-        )}
-        {method.type === 'paypal' && (
-          <p>{method.paypalEmail}</p>
-        )}
-        {method.type === 'bank_transfer' && (
-          <p>Bank Account: {method.bankAccount.accountNumber}</p>
-        )}
-        {method.isDefault && (
-          <span className="bg-green-100 text-green-800 text-sm font-medium px-2 py-1 rounded">
-            Default
-          </span>
-        )}
-      </div>
-      <Button
-        variant="destructive"
-        onClick={() => handleDeletePaymentMethod(method._id)}
-      >
-        Delete
-      </Button>
-    </div>
-  ))
-) : (
-  <p>No payment methods found.</p>
-)}
+                <Button
+                  variant="primary"
+                  className="w-full"
+                  onClick={() => handleSubscribe('price_12345')} // Replace with your actual price ID
+                >
+                  Subscribe to Premium
+                </Button>
               </CardContent>
             </Card>
           </div>
@@ -264,15 +229,6 @@ const Profile = () => {
                   >
                     <Package className="w-5 h-5 mr-2" />
                     My Orders
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() => navigate('/payment-methods')}
-                  >
-                    <CreditCard className="w-5 h-5 mr-2" />
-                    Payment Methods
                   </Button>
 
                   <Button

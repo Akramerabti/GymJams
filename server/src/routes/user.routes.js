@@ -7,7 +7,7 @@ import {
 import { authenticateJWT } from '../config/passport.js';
 import {
   validateProfileUpdate,
-  validatePasswordChange,
+  validatePasswordReset,
 } from '../middleware/validate.middleware.js';
 
 const router = express.Router();
@@ -17,6 +17,6 @@ router.use(authenticateJWT);
 
 router.get('/profile', getProfile);
 router.put('/profile', validateProfileUpdate, updateProfile);
-router.post('/change-password', validatePasswordChange, changePassword);
+router.post('/change-password',  validatePasswordReset, changePassword);
 
 export default router;

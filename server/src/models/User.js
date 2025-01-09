@@ -79,34 +79,20 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  paymentMethods: [{
-    type: {
-      type: String,
-      enum: ['credit_card', 'paypal', 'bank_transfer'],
-      required: true
-    },
-    cardNumber: String, // Last 4 digits for credit cards
-    expirationDate: String, // MM/YY format
-    paypalEmail: String, // For PayPal
-    bankAccount: { // For bank transfers
-      accountNumber: String,
-      routingNumber: String
-    },
-    isDefault: {
-      type: Boolean,
-      default: false
-    }
-  }],
   verificationToken: String,
   verificationTokenExpires: Date,
   lastLogin: Date,
   resetPasswordToken: String,
-  resetPasswordExpires: Date
+  resetPasswordExpires: Date,
+  // Add subscription field to reference the Subscription model
+  subscription: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Subscription',
+    default: null
+  }
 }, {
   timestamps: true
 });
-
-
 
 // Password comparison method
 userSchema.methods.comparePassword = async function(candidatePassword) {

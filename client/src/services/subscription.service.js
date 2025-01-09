@@ -1,42 +1,84 @@
+// services/subscription.service.js
 import api from './api';
 
 const subscriptionService = {
-  async createSubscription(subscriptionData) {
+  // Create payment intent for subscription
+  async createPaymentIntent(planData) {
     try {
-      // Map the planId to the correct format expected by the backend
-      const planMapping = {
-        basic: '65f4c5f8e4b0a1a2b3c4d5e6', // Replace with actual ObjectId for Basic plan
-        premium: '65f4c5f8e4b0a1a2b3c4d5e7', // Replace with actual ObjectId for Premium plan
-        elite: '65f4c5f8e4b0a1a2b3c4d5e8', // Replace with actual ObjectId for Elite plan
-      };
-
-      // Replace the planId with the corresponding ObjectId
-      const updatedSubscriptionData = {
-        ...subscriptionData,
-        planId: planMapping[subscriptionData.planId] || subscriptionData.planId,
-      };
-
-      console.log('Sending POST request to:', '/auth/subscription'); // Log the endpoint
-      console.log('Request Payload:', updatedSubscriptionData); // Log the payload
-
-      const response = await api.post('/auth/subscription', updatedSubscriptionData);
+      console.log('Creating payment intent for plan:', planData);
+      const response = await api.post('/subscription/create-intent', {
+        planType: planData.id, // Changed from subscription to planType to match backend
+      });
       return response.data;
     } catch (error) {
-      console.error('API Error:', error.response ? error.response.data : error.message); // Log the error
+      console.error('Failed to create payment intent:', error);
       throw error;
     }
   },
 
-  async getSubscriptionStatus(subscriptionId) {
+  // Start subscription with payment method
+  async startSubscription(paymentMethodId, planType) {
     try {
-      console.log('Sending GET request to:', `/auth/subscription/${subscriptionId}`); // Log the endpoint
-      const response = await api.get(`/auth/subscription/${subscriptionId}`);
+      const response = await api.post('/subscription', {
+        paymentMethodId,
+        planType, // Changed from subscription to planType
+      });
       return response.data;
     } catch (error) {
-      console.error('API Error:', error.response ? error.response.data : error.message); // Log the error
+      console.error('Failed to start subscription:', error);
       throw error;
     }
-  }
+  },
+
+  // Handle subscription success
+  async handleSubscriptionSuccess(planType, paymentIntentId, email) {
+    try {
+      const response = await api.post('/subscription/handle-success', {
+        planType,
+        paymentIntentId,
+        email, // Pass the email (user's email or guest email)
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to handle subscription success:', error);
+      throw error;
+    }
+  },
+
+  // Get current subscription
+  async getCurrentSubscription() {
+    try {
+      const response = await api.get('/subscription/current');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get current subscription:', error);
+      throw error;
+    }
+  },
+
+  // Cancel subscription
+  async cancelSubscription(subscriptionId) {
+    try {
+      const response = await api.delete(`/subscription/${subscriptionId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to cancel subscription:', error);
+      throw error;
+    }
+  },
+
+  // Update subscription plan
+  async updateSubscription(subscriptionId, newPlanType) {
+    try {
+      const response = await api.put(`/subscription/${subscriptionId}`, {
+        newPlanType, // Changed from subscription to newPlanType
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update subscription:', error);
+      throw error;
+    }
+  },
 };
 
 export default subscriptionService;

@@ -15,7 +15,6 @@ import connectDB from './config/database.js';
 import passport from './config/passport.js';
 import corsOptions from './config/cors.js';
 import authRoutes from './routes/auth.routes.js';
-import paymentRoutes from './routes/payment.routes.js'; // Add this line
 import { initStripe } from './config/stripe.js';
 
 // Import routes
@@ -89,6 +88,11 @@ app.use(compression());
 // Initialize passport
 app.use(passport.initialize());
 
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
+
 // Serve static files from uploads directory
 app.use('/uploads', express.static('uploads'));
 
@@ -104,7 +108,6 @@ if (process.env.NODE_ENV === 'development') {
 // Mount routes
 app.use('/api', routes); // Mount other routes under /api
 app.use('/api/auth', authRoutes); // Mount auth routes under /api/auth
-app.use('/api/payment', paymentRoutes); // Mount payment routes under /api/payment
 
 // Handle production setup
 if (process.env.NODE_ENV === 'production') {
