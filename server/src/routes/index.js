@@ -13,6 +13,6 @@ router.use('/auth', authRoutes);
 router.use('/subscription', subscriptionRoutes);  // Add this line
 router.use('/products', productRoutes);
 router.use('/orders', orderRoutes);
-router.use('/users', userRoutes);
+router.use('/user', userRoutes);
 
 export default router;

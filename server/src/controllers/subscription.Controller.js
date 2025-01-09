@@ -64,59 +64,16 @@ export const createSubscriptionIntent = async (req, res) => {
   }
 };
 
-// Create new subscription
-export const createSubscription = async (req, res) => {
+export const getCurrentSubscription = async (req, res) => {
   try {
-    const { planType, paymentMethodId } = req.body;
-    const user = req.user;
-
-    console.log('Creating subscription:', PLANS[planType]);
-
-    if (!PLANS[planType]) {
-      return res.status(400).json({ error: 'Invalid subscription plan' });
+    const user = await User.findById(req.user.id).populate('subscription');
+    if (!user.subscription) {
+      return res.status(404).json({ message: 'No active subscription found' });
     }
-
-    // Create or get Stripe customer
-    if (!user.stripeCustomerId) {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        payment_method: paymentMethodId,
-        metadata: {
-          userId: user.id
-        }
-      });
-      user.stripeCustomerId = customer.id;
-      await user.save();
-    }
-
-    // Create subscription in Stripe
-    const subscription = await stripe.subscriptions.create({
-      customer: user.stripeCustomerId,
-      items: [{ price: PLANS[planType].stripePriceId }],
-      default_payment_method: paymentMethodId,
-      expand: ['latest_invoice.payment_intent']
-    });
-
-    // Create subscription in DB
-    const newSubscription = await Subscription.create({
-      user: user.id,
-      subscription: planType,
-      stripeSubscriptionId: subscription.id,
-      status: subscription.status
-    });
-
-    // Update user
-    user.subscription = newSubscription._id;
-    user.points += PLANS[planType].points;
-    await user.save();
-
-    res.json({
-      subscription: newSubscription,
-      clientSecret: subscription.latest_invoice.payment_intent.client_secret
-    });
+    res.json(user.subscription);
   } catch (error) {
-    logger.error('Failed to create subscription:', error);
-    res.status(500).json({ error: 'Failed to create subscription' });
+    logger.error('Error fetching current subscription:', error);
+    res.status(500).json({ message: 'Error fetching current subscription' });
   }
 };
 

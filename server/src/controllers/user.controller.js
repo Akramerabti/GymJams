@@ -12,6 +12,16 @@ export const getProfile = async (req, res) => {
   }
 };
 
+export const getPoints = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('points');
+    res.json({ balance: user.points });
+  } catch (error) {
+    console.error('Failed to fetch points:', error);
+    res.status(500).json({ error: 'Failed to fetch points' });
+  }
+};
+
 export const updateProfile = async (req, res) => {
   try {
     const { firstName, lastName, phone } = req.body;

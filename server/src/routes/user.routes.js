@@ -3,6 +3,7 @@ import {
   getProfile,
   updateProfile,
   changePassword,
+  getPoints,
 } from '../controllers/user.controller.js';
 import { authenticateJWT } from '../config/passport.js';
 import {
@@ -16,6 +17,7 @@ const router = express.Router();
 router.use(authenticateJWT);
 
 router.get('/profile', getProfile);
+router.get('/points', getPoints);
 router.put('/profile', validateProfileUpdate, updateProfile);
 router.post('/change-password',  validatePasswordReset, changePassword);
 
