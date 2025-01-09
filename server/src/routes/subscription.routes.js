@@ -10,7 +10,7 @@ import {
 const router = express.Router();
 
 router.get('/current', authenticate, getCurrentSubscription);
-router.post('/create-intent', authenticate, createSubscriptionIntent);
+router.post('/create-intent', createSubscriptionIntent);
 
 router.post('/handle-success', (req, res, next) => {
   authenticate(req, res, (err) => {
@@ -22,6 +22,7 @@ router.post('/handle-success', (req, res, next) => {
     }
   });
 }, handleSubscriptionSuccess);
+
 router.delete('/:subscriptionId', authenticate, cancelSubscription);
 
 export default router;
