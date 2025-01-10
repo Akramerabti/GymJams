@@ -1,14 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Add useEffect to imports
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Award, Calendar, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuth } from '../hooks/useAuth'; // Import useAuth to check authentication status
+import { useAuth } from '../hooks/useAuth';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import api from '../services/api';
 
 const CoachingHome = () => {
   const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const { user } = useAuth(); // Get the user's authentication status
+  const { user } = useAuth();
+  
+  const [showAccessForm, setShowAccessForm] = useState(false);
+  const [accessToken, setAccessToken] = useState('');
+  const [accessError, setAccessError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const checkSubscription = async () => {
+      try {
+        if (user) {
+          const response = await api.get('/subscription/current');
+          if (response.data && response.data.status === 'active') {
+            navigate('/dashboard');
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking subscription:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkSubscription();
+  }, [user, navigate]);
 
   const features = [
     {
@@ -74,14 +102,14 @@ const CoachingHome = () => {
   ];
 
   const handleSelectPlan = (plan) => {
-    if (!user) { // Check if the user is not logged in
+    if (!user) {
       setSelectedPlan(plan);
-      setIsModalOpen(true); // Show the modal
+      setIsModalOpen(true);
     } else {
       navigate('/subscription-checkout', { 
         state: { 
           plan,
-          returnUrl: '/questionnaire' // This will be used after successful payment
+          returnUrl: '/questionnaire'
         }
       });
     }
@@ -91,16 +119,40 @@ const CoachingHome = () => {
     navigate('/subscription-checkout', { 
       state: { 
         plan: selectedPlan,
-        returnUrl: '/questionnaire' // This will be used after successful payment
+        returnUrl: '/questionnaire'
       }
     });
     setIsModalOpen(false);
+  };
+
+  const handleSubscriptionAccess = async (e) => {
+    e.preventDefault();
+    setAccessError('');
+  
+    try {
+      const response = await api.post('/subscription/access', { token: accessToken });
+      if (response.data.success) {
+        navigate('/dashboard');
+        toast.success('Successfully accessed subscription!');
+      }
+    } catch (error) {
+      setAccessError('Invalid or expired access token');
+      toast.error('Failed to access subscription');
+    }
   };
 
   const handleLogin = () => {
     navigate('/login');
     setIsModalOpen(false);
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
@@ -121,6 +173,40 @@ const CoachingHome = () => {
               View Plans
               <ArrowRight className="ml-2 w-5 h-5" />
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Subscription Access Section */}
+      <section className="bg-blue-50 py-12">
+        <div className="container mx-auto px-4">
+          <div className="max-w-xl mx-auto text-center">
+            <button
+              onClick={() => setShowAccessForm(!showAccessForm)}
+              className="text-blue-600 hover:text-blue-700 underline mb-4"
+            >
+              Already have a subscription? Access it here
+            </button>
+
+            {showAccessForm && (
+              <form onSubmit={handleSubscriptionAccess} className="space-y-4">
+                <div>
+                  <Input
+                    type="text"
+                    placeholder="Enter your subscription access token"
+                    value={accessToken}
+                    onChange={(e) => setAccessToken(e.target.value)}
+                    className={accessError ? 'border-red-500' : ''}
+                  />
+                  {accessError && (
+                    <p className="text-red-500 text-sm mt-1">{accessError}</p>
+                  )}
+                </div>
+                <Button type="submit">
+                  Access Subscription
+                </Button>
+              </form>
+            )}
           </div>
         </div>
       </section>
@@ -204,11 +290,10 @@ const CoachingHome = () => {
         </div>
       </section>
 
-      {/* Custom Modal for Unauthenticated Users (only show if user is not logged in) */}
+      {/* Modal for non-logged-in users */}
       {!user && isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full relative transform transition-all duration-300 ease-in-out scale-95 hover:scale-100">
-            {/* Close Button */}
             <button
               onClick={() => setIsModalOpen(false)}
               className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 transition-colors"
@@ -229,17 +314,14 @@ const CoachingHome = () => {
               </svg>
             </button>
             
-            {/* Modal Title */}
             <h2 className="text-2xl font-bold text-gray-900 mb-4">
               You're Not Logged In
             </h2>
             
-            {/* Modal Description */}
             <p className="text-gray-600 mb-6">
               By logging in, you can earn <strong>Gymjammer points</strong>, which can get you discounts and make future purchases cheaper.
             </p>
             
-            {/* Learn More Link */}
             <a
               href="/about-gymjammer-points"
               className="text-blue-600 hover:text-blue-700 underline transition-colors mb-6 block"
@@ -247,7 +329,6 @@ const CoachingHome = () => {
               Learn more about Gymjammer points
             </a>
             
-            {/* Action Buttons */}
             <div className="flex space-x-4">
               <button
                 onClick={handleLogin}

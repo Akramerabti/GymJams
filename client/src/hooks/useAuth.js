@@ -1,9 +1,12 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import authService from '../services/auth.service';
 import api from '../services/api';
 import { usePoints } from './usePoints';
+
+// Constants
+const VALIDATION_INTERVAL = 60000;
 
 // Create the auth store
 const useAuthStore = create(
@@ -13,11 +16,15 @@ const useAuthStore = create(
       token: null,
       loading: false,
       error: null,
+      isValidating: false, // Add isValidating state
+      lastValidation: 0, // Add lastValidation state
       setUser: (user) => set({ user: { ...user } }), // Ensure a new object is created
       setToken: (token) => set({ token }),
       setLoading: (loading) => set({ loading }),
       setError: (error) => set({ error }),
-      reset: () => set({ user: null, token: null, error: null }),
+      setIsValidating: (isValidating) => set({ isValidating }), // Add setIsValidating
+      setLastValidation: (lastValidation) => set({ lastValidation }), // Add setLastValidation
+      reset: () => set({ user: null, token: null, error: null, isValidating: false, lastValidation: 0 }),
     }),
     {
       name: 'auth-storage', // Name for persisted storage
@@ -40,13 +47,10 @@ export const useAuth = () => {
         throw new Error('Please verify your email before logging in.');
       }
 
-
       localStorage.setItem('token', response.token);
 
       store.setUser(response.user);
       store.setToken(response.token);
-
-      
 
       // Update points balance
       usePoints.getState().setBalance(response.user.points || 0);
@@ -110,10 +114,10 @@ export const useAuth = () => {
     try {
       const updatedUser = await authService.updateProfile(profileData);
       console.log('Updated User:', updatedUser); // Debugging
-  
+
       // Update the user object in the store
       store.setUser({ ...store.user, ...updatedUser });
-  
+
       return updatedUser;
     } catch (error) {
       store.setError(error.message);
@@ -123,28 +127,35 @@ export const useAuth = () => {
     }
   };
 
-  // Check authentication function
-  const checkAuth = useCallback(async () => {
+  const checkAuth = async () => {
     if (!store.token) {
       store.setLoading(false);
       return false;
     }
 
+    const now = Date.now();
+    if (store.isValidating || (now - store.lastValidation < VALIDATION_INTERVAL)) {
+      return !!store.user;
+    }
+
+    store.setIsValidating(true);
     store.setLoading(true);
     store.setError(null);
 
     try {
       const user = await authService.validateToken(store.token);
       store.setUser(user);
+      store.setLastValidation(now);
       return true;
     } catch (error) {
       store.reset();
       store.setError(error.message);
       return false;
     } finally {
+      store.setIsValidating(false);
       store.setLoading(false);
     }
-  }, [store.token]); // Only depend on store.token
+  };
 
   // Verify email function
   const verifyEmail = async (token) => {

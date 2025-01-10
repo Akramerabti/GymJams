@@ -42,4 +42,19 @@ api.interceptors.response.use(
   }
 );
 
+api.interceptors.response.use(
+  response => response,
+  async error => {
+    if (error.response?.status === 429) {
+      const retryAfter = error.response.headers['retry-after'] || 60;
+      toast.error(`Rate limit exceeded. Please wait ${retryAfter} seconds before trying again.`);
+      return Promise.reject({
+        ...error,
+        message: 'Too many requests. Please try again later.'
+      });
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;
