@@ -4,7 +4,8 @@ import {
   getCurrentSubscription,
   createSubscriptionIntent,
   handleSubscriptionSuccess,
-  cancelSubscription
+  cancelSubscription,
+  accessSubscription
 } from '../controllers/subscription.Controller.js';
 
 const router = express.Router();
@@ -14,5 +15,6 @@ router.delete('/:subscriptionId', authenticate, cancelSubscription);
 
 router.post('/create-intent', createSubscriptionIntent);
 router.post('/handle-success', optionalAuthenticate, handleSubscriptionSuccess);
+router.post('/access', accessSubscription); //
 
 export default router;

@@ -22,7 +22,7 @@ import routes from './routes/index.js';
 
 // Import middleware
 import { handleError, handleNotFound } from './middleware/error.middleware.js';
-import { rateLimiter } from './middleware/auth.middleware.js';
+import { authRateLimiter, apiRateLimiter } from './middleware/auth.middleware.js';
 
 // Import logger
 import logger from './utils/logger.js';
@@ -48,7 +48,10 @@ app.use(cors(corsOptions));
 
 // Security Middleware
 app.use(helmet());
-app.use(rateLimiter);
+app.use('/api/auth/login', authRateLimiter);
+app.use('/api/auth/register', authRateLimiter);
+app.use('/api/auth', apiRateLimiter);
+app.use('/api', apiRateLimiter);
 
 // Body parsing Middleware
 app.use(express.json());

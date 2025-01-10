@@ -3,6 +3,8 @@ import Stripe from 'stripe';
 import User from '../models/User.js';
 import Subscription from '../models/Subscription.js';
 import logger from '../utils/logger.js';
+import { sendSubscriptionReceipt } from '../services/email.service.js';
+import crypto from 'crypto';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -176,9 +178,14 @@ export const cancelSubscription = async (req, res) => {
 export const handleSubscriptionSuccess = async (req, res) => {
   try {
     console.log('Handling subscription success...');
-    console.log('req.user:', req.user); // Log the user object
+    console.log('req.user:', req.user);
 
     const { planType, paymentIntentId, email } = req.body;
+
+    if (!planType || !paymentIntentId || !email) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
     if (paymentIntent.status !== 'succeeded') {
@@ -195,7 +202,7 @@ export const handleSubscriptionSuccess = async (req, res) => {
     } else {
       console.log('User is a guest, creating new Stripe customer...');
       const customer = await stripe.customers.create({
-        email: email, // Use the provided email to create the customer
+        email: email,
       });
       stripeCustomerId = customer.id;
     }
@@ -205,22 +212,26 @@ export const handleSubscriptionSuccess = async (req, res) => {
       customer: stripeCustomerId,
       items: [
         {
-          price: PLANS[planType].stripePriceId, // Use the price ID from your PLANS configuration
+          price: PLANS[planType].stripePriceId,
         },
       ],
-      payment_behavior: 'default_incomplete', // Ensure the subscription is created even if the payment is not yet complete
+      payment_behavior: 'default_incomplete',
       expand: ['latest_invoice.payment_intent'],
     });
+
+    // Generate access token
+    const accessToken = crypto.randomBytes(32).toString('hex');
 
     // Prepare subscription data for the database
     const subscriptionData = {
       subscription: planType,
-      stripeSubscriptionId: subscription.id, // Use the Subscription ID from Stripe
+      stripeSubscriptionId: subscription.id,
       stripeCustomerId: stripeCustomerId,
       status: 'active',
       startDate: new Date(),
       currentPeriodStart: new Date(subscription.current_period_start * 1000),
       currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      accessToken,
     };
 
     if (user) {
@@ -241,16 +252,101 @@ export const handleSubscriptionSuccess = async (req, res) => {
       await User.findByIdAndUpdate(
         user.id,
         {
-          $set: { subscription: newSubscription._id }, // Add the subscription reference
-          $inc: { points: pointsToAdd }, // Add points based on the plan
+          $set: { subscription: newSubscription._id },
+          $inc: { points: pointsToAdd },
         },
         { new: true }
       );
     }
 
-    res.json({ success: true, subscription: newSubscription });
+    await sendSubscriptionReceipt({
+      ...newSubscription.toObject(),
+      price: PLANS[planType].price,
+      pointsAwarded: PLANS[planType].points,
+      accessToken,
+      features: PLANS[planType].features 
+    }, user ? user.email : email, !user); 
+
+    res.json({ 
+      success: true, 
+      subscription: newSubscription,
+      accessToken: accessToken
+    });
+
   } catch (error) {
     console.error('Failed to handle subscription success:', error);
-    res.status(500).json({ error: 'Failed to handle subscription success' });
+    
+    // If we've created a subscription but email failed, attempt to clean up
+    if (error.message?.includes('email') && res.locals.newSubscription) {
+      try {
+        await Subscription.findByIdAndDelete(res.locals.newSubscription._id);
+        if (req.user) {
+          await User.findByIdAndUpdate(req.user.id, {
+            $unset: { subscription: 1 },
+            $inc: { points: -PLANS[planType].points }
+          });
+        }
+        await stripe.subscriptions.del(res.locals.newSubscription.stripeSubscriptionId);
+      } catch (cleanupError) {
+        console.error('Failed to clean up after email error:', cleanupError);
+      }
+    }
+
+    res.status(500).json({ 
+      error: 'Failed to complete subscription process',
+      details: error.message
+    });
+  }
+};
+
+export const accessSubscription = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Access token is required' });
+    }
+
+    // Find subscription by access token
+    const subscription = await Subscription.findOne({ accessToken: token });
+
+    if (!subscription) {
+      return res.status(404).json({ error: 'Invalid or expired access token' });
+    }
+
+    // Check if subscription is still active
+    if (subscription.status !== 'active') {
+      return res.status(403).json({ error: 'This subscription is no longer active' });
+    }
+
+    // Check if subscription is within its valid period
+    const now = new Date();
+    if (now > subscription.currentPeriodEnd) {
+      return res.status(403).json({ error: 'This subscription period has expired' });
+    }
+
+    // Return subscription details along with access information
+    const subscriptionDetails = {
+      type: subscription.subscription,
+      status: subscription.status,
+      startDate: subscription.startDate,
+      currentPeriodEnd: subscription.currentPeriodEnd,
+      features: PLANS[subscription.subscription].features,
+      pointsAwarded: PLANS[subscription.subscription].points
+    };
+
+    // Store access token in session if you want to maintain access
+    if (req.session) {
+      req.session.subscriptionAccess = token;
+    }
+
+    res.json({ 
+      success: true,
+      subscription: subscriptionDetails,
+      message: 'Subscription access granted successfully'
+    });
+  } catch (error) {
+    console.error('Subscription access error:', error);
+    res.status(500).json({ error: 'Failed to access subscription' });
   }
 };

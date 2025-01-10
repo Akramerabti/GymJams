@@ -54,7 +54,12 @@ const subscriptionSchema = new mongoose.Schema({
   pointsAwarded: {
     type: Number,
     default: 0
-  }
+  },
+  accessToken: {
+    type: String,
+    unique: true,
+    sparse: true // Allows null values while maintaining uniqueness
+  },
 }, {
   timestamps: true
 });
