@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Menu, X, ShoppingCart, User, Coins, Dumbbell } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useCart } from '../../hooks/useCart';
-import { usePoints } from '../../hooks/usePoints';
+import { usePoints } from '../../hooks/usePoints'; // Import the usePoints hook
 
 const Navbar = () => {
   const navigationItems = [
@@ -18,9 +18,28 @@ const Navbar = () => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const { cartItems = [] } = useCart();
-  const { balance = 0 } = usePoints();
+  const { balance, fetchPoints } = usePoints(); // Use the usePoints hook
   const userMenuRef = useRef(null);
   const location = useLocation();
+
+  // Debounce the fetchPoints function
+  useEffect(() => {
+    let debounceTimeout;
+
+    const debouncedFetchPoints = () => {
+      if (user) {
+        clearTimeout(debounceTimeout); // Clear any existing timeout
+        debounceTimeout = setTimeout(() => {
+          fetchPoints(); // Fetch points after a delay
+        }, 500); // 500ms delay
+      }
+    };
+
+    debouncedFetchPoints(); // Call the debounced function
+
+    // Cleanup the timeout if the component unmounts or the user changes
+    return () => clearTimeout(debounceTimeout);
+  }, [user, fetchPoints]); // Re-run when the user changes
 
   // Close the user menu when clicking outside
   useEffect(() => {

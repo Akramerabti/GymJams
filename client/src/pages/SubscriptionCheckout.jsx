@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '../hooks/useAuth.js';
 import PaymentForm from './PaymentForm.jsx';
 import subscriptionService from '../services/subscription.service.js';
-import { FaArrowLeft } from 'react-icons/fa'; // Import the left arrow icon
+import { FaArrowLeft } from 'react-icons/fa';
 import { toast } from 'sonner';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
@@ -69,7 +69,7 @@ const SubscriptionCheckout = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentPlan, setCurrentPlan] = useState(
-    location.state?.plan || PLANS[0] // Default to the first plan (Basic)
+    location.state?.plan || PLANS[0]
   );
 
   useEffect(() => {
@@ -124,7 +124,6 @@ const SubscriptionCheckout = () => {
     return null;
   }
 
-  // Function to determine the next plan
   const getNextPlan = () => {
     const currentPlanIndex = PLANS.findIndex((plan) => plan.id === currentPlan.id);
     const nextPlanIndex = (currentPlanIndex + 1) % PLANS.length;
@@ -133,15 +132,13 @@ const SubscriptionCheckout = () => {
 
   const nextPlan = getNextPlan();
 
-  // Function to handle plan upgrade
   const handleUpgradePlan = () => {
-    setCurrentPlan(nextPlan); // Update the current plan
+    setCurrentPlan(nextPlan);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
-        {/* Back Button */}
         <Button
           onClick={() => navigate('/coaching')}
           className="mb-4 flex items-center text-sm text-gray-600 hover:text-gray-800"
@@ -158,15 +155,12 @@ const SubscriptionCheckout = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {/* Grid Container */}
-            <div className="grid grid-cols-3 gap-6 sm:gap-4">
-              {/* Order Summary (2/3 width) */}
+            <div className="flex flex-col md:grid md:grid-cols-3 gap-6 sm:gap-4">
               <div className="col-span-2 bg-gray-800 p-6 rounded-lg border border-gray-700 sm:p-4">
                 <h2 className="text-2xl font-bold text-white mb-6 sm:text-xl sm:mb-4">
                   Order Summary
                 </h2>
                 <div className="space-y-6 sm:space-y-4">
-                  {/* Plan Details */}
                   <div className="bg-gray-700 p-6 rounded-lg border border-gray-600 sm:p-4">
                     <h3 className="font-semibold text-xl mb-4 text-white sm:text-lg sm:mb-3">
                       {currentPlan.name} Plan
@@ -184,7 +178,6 @@ const SubscriptionCheckout = () => {
                     </ul>
                   </div>
 
-                  {/* Billing Summary */}
                   <div className="bg-gray-700 p-6 rounded-lg border border-gray-600 sm:p-4">
                     <div className="flex justify-between mb-3 sm:mb-2">
                       <span className="text-gray-200 sm:text-sm">Subtotal</span>
@@ -204,7 +197,6 @@ const SubscriptionCheckout = () => {
                     </div>
                   </div>
 
-                  {/* Upgrade Plan Button (Hidden for Elite Plan) */}
                   {currentPlan.id !== 'elite' && (
                     <div className="bg-gray-700 p-6 rounded-lg border border-gray-600 sm:p-4">
                       <Button
@@ -216,16 +208,14 @@ const SubscriptionCheckout = () => {
                     </div>
                   )}
 
-                  {/* Money-back Guarantee */}
                   <div className="bg-blue-900 p-6 rounded-lg border border-blue-800 sm:p-4">
                     <p className="text-blue-200 text-sm sm:text-xs">
-                      🛡️ 30-day money-back guarantee. Cancel anytime.
+                      🛡️ 10-day money-back guarantee. Cancel anytime.
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Payment Form (1/3 width) */}
               <div className="col-span-1">
                 {clientSecret && (
                   <Elements
@@ -241,15 +231,16 @@ const SubscriptionCheckout = () => {
                     }}
                   >
                     <PaymentForm
-                      plan={currentPlan}
-                      clientSecret={clientSecret}
-                      onSuccess={() => {
-                        toast.success('Subscription activated!');
-                        navigate('/dashboard'); // Redirect to the dashboard or success page
-                      }}
-                      onError={(error) => {
-                        toast.error(error || 'Payment failed');
-                      }}
+                     plan={currentPlan}
+                     clientSecret={clientSecret}
+                     onSuccess={() => {
+                       toast.success('Subscription activated!');
+                       navigate('/dashboard'); // Navigate to the dashboard
+                       window.location.reload(); // Refresh the page to update the UI
+                     }}
+                     onError={(error) => {
+                       toast.error(error || 'Payment failed');
+                     }}
                     />
                   </Elements>
                 )}

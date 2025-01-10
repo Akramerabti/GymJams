@@ -34,8 +34,20 @@ const authService = {
   },
 
   async logout() {
-    const response = await api.post('/auth/logout');
-    return response.data;
+    try {
+      const response = await api.post('/auth/logout');
+      
+      // Clear any auth headers
+      delete api.defaults.headers.common['Authorization'];
+      
+      // Clear local storage
+      localStorage.removeItem('token');
+      
+      return response.data;
+    } catch (error) {
+      console.error('Logout error:', error);
+      throw error;
+    }
   },
 
   async validatePhone(phone) {

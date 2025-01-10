@@ -6,6 +6,33 @@ import logger from '../utils/logger.js';
 import crypto from 'crypto';
 import { sendVerificationEmail, sendPasswordResetEmail  } from '../services/email.service.js';
 
+export const logout = async (req, res) => {
+  try {
+    // Get the user from the request (added by authenticate middleware)
+    const userId = req.user?.id;
+
+    if (userId) {
+      // Optional: Update last logout timestamp
+      await User.findByIdAndUpdate(userId, {
+        lastLogout: new Date()
+      });
+
+      // Optional: Invalidate any refresh tokens
+      // await Token.deleteMany({ userId });
+    }
+
+    // Clear any server-side session data if using sessions
+    if (req.session) {
+      req.session.destroy();
+    }
+
+    res.status(200).json({ message: 'Successfully logged out' });
+  } catch (error) {
+    logger.error('Logout error:', error);
+    res.status(500).json({ message: 'Error during logout' });
+  }
+};
+
 export const register = async (req, res) => {
   try {
     const { email, password, firstName, lastName, phone } = req.body;

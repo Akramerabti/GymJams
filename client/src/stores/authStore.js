@@ -105,12 +105,38 @@ const useAuthStore = create(
         }
       },
 
-      logout: () => {
-        const { setUser, setToken, clearCart } = get();
-        setUser(null);
-        setToken(null);
-        clearCart();
+      logout: async () => {
+        const { setLoading, setError, reset } = get();
+        setLoading(true);
+        
+        try {
+          // Call the logout endpoint
+          await api.post('/auth/logout');
+          
+          // Clear auth token from axios headers
+          delete api.defaults.headers.common['Authorization'];
+          
+          // Clear local storage items
+          localStorage.removeItem('token');
+          localStorage.removeItem('cart-storage');
+          localStorage.removeItem('persist:auth-storage');
+          
+          // Reset store state
+          reset();
+          
+          // Optional: Clear other stores
+          if (window.resetStores) {
+            window.resetStores();
+          }
+          
+        } catch (error) {
+          setError('Logout failed');
+          console.error('Logout error:', error);
+        } finally {
+          setLoading(false);
+        }
       },
+
 
       clearCart: () => {
         localStorage.removeItem('cart');
@@ -242,6 +268,14 @@ const useAuthStore = create(
           throw error;
         }
       },
+
+      registerResetCallback: (callback) => {
+        if (!window.resetStores) {
+          window.resetStores = [];
+        }
+        window.resetStores.push(callback);
+      },
+      
     }),
     {
       name: 'auth-storage',

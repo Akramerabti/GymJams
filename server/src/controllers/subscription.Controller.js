@@ -175,6 +175,9 @@ export const cancelSubscription = async (req, res) => {
 
 export const handleSubscriptionSuccess = async (req, res) => {
   try {
+    console.log('Handling subscription success...');
+    console.log('req.user:', req.user); // Log the user object
+
     const { planType, paymentIntentId, email } = req.body;
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
@@ -183,24 +186,18 @@ export const handleSubscriptionSuccess = async (req, res) => {
     }
 
     let user = null;
+    let stripeCustomerId = null;
 
-    if (req.user) { // If the user is authenticated, use the authenticated user
+    if (req.user) {
+      console.log('User is logged in:', req.user.id);
       user = req.user;
+      stripeCustomerId = user.stripeCustomerId;
     } else {
-      user = await User.findOne({ email }); // If the user is not authenticated, search for the user by email
-    }
-
-    let stripeCustomerId = user?.stripeCustomerId; // Ensure the user has a stripeCustomerId
-
-    if (!stripeCustomerId) {
-      const customer = await stripe.customers.create({  // If the user doesn't have a stripeCustomerId, create a new customer in Stripe
+      console.log('User is a guest, creating new Stripe customer...');
+      const customer = await stripe.customers.create({
         email: email, // Use the provided email to create the customer
       });
       stripeCustomerId = customer.id;
-
-      if (user) {  // Update the user's stripeCustomerId in the database
-        await User.findByIdAndUpdate(user.id, { stripeCustomerId });
-      }
     }
 
     // Create a subscription in Stripe
@@ -227,10 +224,10 @@ export const handleSubscriptionSuccess = async (req, res) => {
     };
 
     if (user) {
-      // If the user is logged in, associate the subscription with the user
+      console.log('Associating subscription with user:', user.id);
       subscriptionData.user = user.id;
     } else {
-      // If it's a guest, associate the subscription with the guest email
+      console.log('Associating subscription with guest email:', email);
       subscriptionData.guestEmail = email;
     }
 
@@ -240,7 +237,7 @@ export const handleSubscriptionSuccess = async (req, res) => {
     // If the user is logged in, update their subscription and points
     if (user) {
       const pointsToAdd = PLANS[planType].points;
-      console.log(`Adding ${pointsToAdd} points to user ${user.id} for ${planType} subscription`); // Log points addition
+      console.log(`Adding ${pointsToAdd} points to user ${user.id} for ${planType} subscription`);
       await User.findByIdAndUpdate(
         user.id,
         {
@@ -253,7 +250,7 @@ export const handleSubscriptionSuccess = async (req, res) => {
 
     res.json({ success: true, subscription: newSubscription });
   } catch (error) {
-    logger.error('Failed to handle subscription success:', error);
+    console.error('Failed to handle subscription success:', error);
     res.status(500).json({ error: 'Failed to handle subscription success' });
   }
 };

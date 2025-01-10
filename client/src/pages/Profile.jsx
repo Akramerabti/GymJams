@@ -5,7 +5,7 @@ import { usePoints } from '../hooks/usePoints';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
-import { User, Package, LogOut, Loader2, Coins, Crown } from 'lucide-react';
+import { User, Package, LogOut, Loader2, Coins, Crown, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../services/api';
 
@@ -23,6 +23,22 @@ const Profile = () => {
     phone: '',
   });
 
+  const fetchSubscriptionDetails = async () => {
+    try {
+      const response = await api.get('/subscription/current');
+      if (response.data) {
+        setSubscriptionDetails(response.data);
+      }
+    } catch (error) {
+      if (error.response?.status === 404) {
+        console.log('No active subscription found');
+      } else {
+        console.error('Error fetching subscription details:', error);
+        toast.error('Failed to load subscription details');
+      }
+    }
+  };
+
   useEffect(() => {
     const fetchUserData = async () => {
       try {
@@ -30,7 +46,7 @@ const Profile = () => {
           api.get('/auth/profile'),
           api.get('/subscription/current')
         ]);
-
+  
         const userData = profileResponse.data;
         setProfileData({
           firstName: userData.firstName || '',
@@ -38,11 +54,12 @@ const Profile = () => {
           email: userData.email || '',
           phone: userData.phone || '',
         });
-
+  
         if (subscriptionResponse.data) {
+          console.log('Subscription Details:', subscriptionResponse.data); // Debugging
           setSubscriptionDetails(subscriptionResponse.data);
         }
-
+  
         fetchPoints();
         
       } catch (error) {
@@ -54,7 +71,7 @@ const Profile = () => {
         }
       }
     };
-
+  
     if (user) {
       fetchUserData();
     }
@@ -95,12 +112,10 @@ const Profile = () => {
     navigate('/login');
   };
 
-  // Format subscription type for display
   const formatSubscriptionType = (type) => {
     return type.charAt(0).toUpperCase() + type.slice(1);
   };
 
-  // Get color scheme based on subscription status
   const getStatusColor = (status) => {
     const colors = {
       active: 'bg-green-50 text-green-700',
@@ -126,7 +141,6 @@ const Profile = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-2">
-            {/* Personal Information Card */}
             <Card>
               <CardHeader>
                 <CardTitle>Personal Information</CardTitle>
@@ -220,7 +234,6 @@ const Profile = () => {
               </CardContent>
             </Card>
 
-            {/* Subscription Status Card */}
             <Card className="mt-6">
               <CardHeader>
                 <CardTitle className="flex items-center">
@@ -247,6 +260,15 @@ const Profile = () => {
                         )}
                       </div>
                     </div>
+
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => navigate('/subscription-management')}
+                    >
+                      <Settings className="w-5 h-5 mr-2" />
+                      Manage Membership
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -273,7 +295,6 @@ const Profile = () => {
             </Card>
           </div>
 
-          {/* Side Menu */}
           <div className="space-y-4">
             <Card>
               <CardContent className="pt-6">

@@ -23,6 +23,7 @@ import EmailVerificationNotification from './pages/EmailVerificationNotification
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Orders from './pages/Orders';
+import SubscriptionManagement from './pages/SubscriptionManagement';
 
 const App = () => {
   const { checkAuth } = useAuth();
@@ -58,6 +59,11 @@ const App = () => {
           <Route path="/orders" element={
             <ProtectedRoute>
               <Orders />
+            </ProtectedRoute>
+          } />
+          <Route path="/subscription-management" element={
+            <ProtectedRoute>
+              <SubscriptionManagement />
             </ProtectedRoute>
           } />
         </Routes>

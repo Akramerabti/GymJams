@@ -36,6 +36,32 @@ export const authenticate = async (req, res, next) => {
   }
 };
 
+export const optionalAuthenticate = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+
+    if (!token) {
+      req.user = null;
+      return next();
+    }
+
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const user = await User.findById(decoded.id).select('-password');
+      req.user = user || null;
+    } catch (error) {
+      req.user = null;
+      logger.warn('Optional auth token invalid:', error);
+    }
+
+    next();
+  } catch (error) {
+    req.user = null;
+    logger.error('Optional authentication error:', error);
+    next();
+  }
+};
+
 export const isAdmin = (req, res, next) => {
   if (req.user?.role !== 'admin') {
     return res.status(403).json({ message: 'Admin access required' });

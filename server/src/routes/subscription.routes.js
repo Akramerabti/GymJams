@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
 import {
   getCurrentSubscription,
   createSubscriptionIntent,
@@ -10,19 +10,9 @@ import {
 const router = express.Router();
 
 router.get('/current', authenticate, getCurrentSubscription);
-router.post('/create-intent', createSubscriptionIntent);
-
-router.post('/handle-success', (req, res, next) => {
-  authenticate(req, res, (err) => {
-    if (err) {
-      req.user = null;
-      next();
-    } else {
-      next();
-    }
-  });
-}, handleSubscriptionSuccess);
-
 router.delete('/:subscriptionId', authenticate, cancelSubscription);
+
+router.post('/create-intent', createSubscriptionIntent);
+router.post('/handle-success', optionalAuthenticate, handleSubscriptionSuccess);
 
 export default router;

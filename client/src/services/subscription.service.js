@@ -1,4 +1,3 @@
-// services/subscription.service.js
 import api from './api';
 
 const subscriptionService = {
@@ -45,6 +44,17 @@ const subscriptionService = {
     }
   },
 
+  // Get current subscription details
+  async getCurrentSubscription() {
+    try {
+      const response = await api.get('/subscription/current');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch current subscription:', error);
+      throw error;
+    }
+  },
+
   // Cancel subscription
   async cancelSubscription(subscriptionId) {
     try {
@@ -52,6 +62,17 @@ const subscriptionService = {
       return response.data;
     } catch (error) {
       console.error('Failed to cancel subscription:', error);
+      throw error;
+    }
+  },
+
+  // Finish current month (remove recurring payment)
+  async finishCurrentMonth(subscriptionId) {
+    try {
+      const response = await api.post(`/subscription/${subscriptionId}/finish-month`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to finish current month:', error);
       throw error;
     }
   },
