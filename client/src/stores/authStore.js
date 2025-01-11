@@ -353,3 +353,5 @@ export const useAuth = () => {
     validatePhone: store.validatePhone,
   };
 };
+
+export default useAuthStore;
