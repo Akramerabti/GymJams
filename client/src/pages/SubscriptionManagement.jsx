@@ -33,7 +33,6 @@ const SubscriptionManagement = () => {
     fetchSubscriptionDetails();
   }, []);
 
-  // Handle subscription cancellation
   const handleCancelSubscription = async () => {
     if (!confirmAction) {
       setConfirmAction(true); // Show double-check confirmation
@@ -44,10 +43,9 @@ const SubscriptionManagement = () => {
     try {
       await subscriptionService.cancelSubscription(subscriptionDetails._id); // Ensure subscriptionDetails._id is correct
       toast.success('Subscription cancelled successfully. You will lose access to premium services and any points gained from this subscription.');
-      
-      // Redirect to /profile and refresh the page
+  
+      // Redirect to /profile without forcing a page reload
       navigate('/profile');
-      window.location.reload(); // Force a page refresh to update the UI
     } catch (error) {
       console.error('Failed to cancel subscription:', error);
       toast.error(error.response?.data?.message || 'Failed to cancel subscription');
