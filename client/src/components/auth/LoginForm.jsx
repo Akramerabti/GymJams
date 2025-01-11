@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import * as z from 'zod';
 import api from '../../services/api';
-import { useAuth } from '../stores/authStore'; // Replace useAuth with useAuthStore
+import { useAuth } from '../../stores/authStore'; // Replace useAuth with useAuthStore
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email'),

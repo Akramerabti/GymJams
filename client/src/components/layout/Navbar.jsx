@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X, ShoppingCart, User, Coins, Dumbbell } from 'lucide-react';
-import { useAuth } from '../stores/authStore';
+import { useAuth } from '../../stores/authStore';
 import { useCart } from '../../hooks/useCart';
 import { usePoints } from '../../hooks/usePoints'; // Import the usePoints hook
 
