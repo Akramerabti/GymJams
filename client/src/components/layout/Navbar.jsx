@@ -16,11 +16,18 @@ const Navbar = () => {
 
   const [isOpen, setIsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout, isTokenValid } = useAuth(); // Add isTokenValid from useAuth
   const { cartItems = [] } = useCart();
   const { balance, fetchPoints } = usePoints(); // Use the usePoints hook
   const userMenuRef = useRef(null);
   const location = useLocation();
+
+  // Check token validity on mount and when user changes
+  useEffect(() => {
+    if (user && !isTokenValid()) {
+      logout(); // Log the user out if the token is invalid
+    }
+  }, [user, isTokenValid, logout]);
 
   // Debounce the fetchPoints function
   useEffect(() => {
@@ -82,7 +89,7 @@ const Navbar = () => {
           {/* Right Section (Points, Cart, User Menu, Mobile Toggle) */}
           <div className="flex items-center space-x-4">
             {/* Points Balance (Logged-in Users Only) */}
-            {user && (
+            {user && isTokenValid() && ( // Only show points if the token is valid
               <div className="flex items-center space-x-2 border-r pr-4">
                 <Coins className="h-5 w-5 text-yellow-500" />
                 <span className="font-medium text-gray-700">{balance} points</span>
@@ -103,7 +110,7 @@ const Navbar = () => {
             </Link>
 
             {/* User Menu (Logged-in Users) or Login Link */}
-            {user ? (
+            {user && isTokenValid() ? ( // Only show user menu if the token is valid
               <div className="relative" ref={userMenuRef}>
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
