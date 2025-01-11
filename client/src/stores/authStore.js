@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { jwtDecode } from 'jwt-decode';
 import api from '../services/api';
-import { usePoints } from './usePoints'; // Import the usePoints hook
+import { usePoints } from '../hooks/usePoints'; // Import the usePoints hook
 
 const initialState = {
   user: null,
