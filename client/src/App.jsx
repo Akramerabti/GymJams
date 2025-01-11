@@ -30,7 +30,7 @@ const App = () => {
 
   useEffect(() => {
     checkAuth();
-  }, []);
+  }, [checkAuth]);
 
   return (
     <Router>
