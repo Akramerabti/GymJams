@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import authService from '../services/auth.service';
@@ -127,35 +127,53 @@ export const useAuth = () => {
     }
   };
 
-  const checkAuth = async () => {
-    if (!store.token) {
+  const checkAuth = useCallback(async () => {
+    // First, check if there's a token
+    const token = localStorage.getItem('token');
+    if (!token) {
+      store.reset();
       store.setLoading(false);
       return false;
     }
-
-    const now = Date.now();
-    if (store.isValidating || (now - store.lastValidation < VALIDATION_INTERVAL)) {
-      return !!store.user;
-    }
-
-    store.setIsValidating(true);
-    store.setLoading(true);
-    store.setError(null);
-
+  
+    // Check if token is expired
     try {
-      const user = await authService.validateToken(store.token);
-      store.setUser(user);
-      store.setLastValidation(now);
-      return true;
+      const decodedToken = jwt_decode(token);
+      const currentTime = Date.now() / 1000;
+      
+      if (decodedToken.exp < currentTime) {
+        // Token is expired, clean up
+        localStorage.removeItem('token');
+        store.reset();
+        store.setLoading(false);
+        return false;
+      }
+  
+      // Token exists and isn't expired, validate with server
+      store.setLoading(true);
+      store.setError(null);
+  
+      try {
+        const response = await authService.validateToken(token);
+        store.setUser(response.data.user);
+        return true;
+      } catch (error) {
+        // If validation fails, clean up
+        localStorage.removeItem('token');
+        store.reset();
+        store.setError(error.message);
+        return false;
+      }
     } catch (error) {
+      // If token decoding fails, clean up
+      localStorage.removeItem('token');
       store.reset();
-      store.setError(error.message);
+      store.setError('Invalid token');
       return false;
     } finally {
-      store.setIsValidating(false);
       store.setLoading(false);
     }
-  };
+  }, []);
 
   // Verify email function
   const verifyEmail = async (token) => {

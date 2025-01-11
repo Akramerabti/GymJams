@@ -29,7 +29,17 @@ const App = () => {
   const { checkAuth } = useAuth();
 
   useEffect(() => {
-    checkAuth();
+    // Check auth status on initial load
+    const initializeAuth = async () => {
+      const isAuthenticated = await checkAuth();
+      if (!isAuthenticated) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        // Any other auth-related cleanup
+      }
+    };
+  
+    initializeAuth();
   }, []);
 
   return (
