@@ -1,9 +1,32 @@
 import api from './api';
 
 const authService = {
+  // auth.service.js - update the login method
   async login(email, password) {
-    const response = await api.post('/auth/login', { email, password });
-    return response.data;
+    try {
+      const response = await api.post('/auth/login', { 
+        email: email.toLowerCase().trim(), 
+        password: password.trim() 
+      });
+    
+      const { token, user } = response.data;
+      
+      if (!user.isEmailVerified) {
+        throw {
+          message: 'Please verify your email before logging in',
+          statusCode: 403
+        };
+      }
+    
+      return { token, user };
+    } catch (error) {
+      // Throw a standardized error object
+      throw {
+        message: error.message || 'Login failed',
+        statusCode: error.statusCode || 500,
+        data: error.data
+      };
+    }
   },
 
   async register(userData) {
