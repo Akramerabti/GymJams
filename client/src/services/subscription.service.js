@@ -66,9 +66,9 @@ const subscriptionService = {
     }
   },
 
-  // Finish current month (remove recurring payment)
   async finishCurrentMonth(subscriptionId) {
     try {
+      console.log('Calling finishCurrentMonth with subscriptionId:', subscriptionId); // Debugging
       const response = await api.post(`/subscription/${subscriptionId}/finish-month`);
       return response.data;
     } catch (error) {

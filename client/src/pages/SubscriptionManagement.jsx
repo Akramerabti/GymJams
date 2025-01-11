@@ -58,20 +58,21 @@ const SubscriptionManagement = () => {
     }
   };
 
-  // Handle finish current month
   const handleFinishMonth = async () => {
     if (!confirmAction) {
-      setConfirmAction(true); // Show double-check confirmation
+      setConfirmAction(true);
       return;
     }
-
+  
     setLoading(true);
     try {
-      await subscriptionService.finishCurrentMonth(subscriptionDetails.id); // Use service function
-      toast.success('Recurring payment removed. You will retain access until the end of the current billing period.');
-      setSubscriptionDetails({ ...subscriptionDetails, status: 'cancelled' });
+      // Ensure subscriptionDetails._id is being passed
+      console.log('Subscription ID:', subscriptionDetails._id); // Debugging
+      await subscriptionService.finishCurrentMonth(subscriptionDetails._id);
+      toast.success('Recurring payments cancelled. You will retain access until the end of the current billing period.');
+      setSubscriptionDetails({ ...subscriptionDetails, cancelAtPeriodEnd: true });
       setShowFinishMonthModal(false);
-      setConfirmAction(false); // Reset double-check
+      setConfirmAction(false);
     } catch (error) {
       console.error('Failed to finish month:', error);
       toast.error(error.response?.data?.message || 'Failed to finish month');

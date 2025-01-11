@@ -79,47 +79,34 @@ export const getCurrentSubscription = async (req, res) => {
   }
 };
 
-// Update subscription
-export const updateSubscription = async (req, res) => {
+export const finishCurrentMonth = async (req, res) => {
   try {
     const { subscriptionId } = req.params;
-    const { newPlanType } = req.body;
-    
+
+    // Find the subscription in the database
     const subscription = await Subscription.findById(subscriptionId);
-    if (!subscription || subscription.user.toString() !== req.user.id) {
+    if (!subscription) {
       return res.status(404).json({ error: 'Subscription not found' });
     }
 
-    if (!PLANS[newPlanType]) {
-      return res.status(400).json({ error: 'Invalid plan type' });
+    // Check if the subscription belongs to the logged-in user
+    if (req.user && subscription.user?.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'You do not have permission to modify this subscription' });
     }
 
-    // Update in Stripe
-    const updatedSubscription = await stripe.subscriptions.update(
-      subscription.stripeSubscriptionId,
-      {
-        items: [{
-          price: PLANS[newPlanType].stripePriceId
-        }],
-        proration_behavior: 'always_invoice'
-      }
-    );
-
-    // Update in DB
-    subscription.subscription = newPlanType;
-    await subscription.save();
-
-    // Update user points
-    const pointsDiff = PLANS[newPlanType].points - PLANS[subscription.subscription].points;
-    console.log(`Updating points for user ${req.user.id}: Adding ${pointsDiff} points`); // Log points change
-    await User.findByIdAndUpdate(req.user.id, {
-      $inc: { points: pointsDiff }
+    // Cancel the subscription in Stripe but allow it to run until the end of the current period
+    await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+      cancel_at_period_end: true, // This will cancel the subscription at the end of the current period
     });
 
-    res.json({ subscription: updatedSubscription });
+    // Update the subscription in the database
+    subscription.cancelAtPeriodEnd = true;
+    await subscription.save();
+
+    res.json({ message: 'Recurring payments have been cancelled. You will retain access until the end of the current billing period.' });
   } catch (error) {
-    logger.error('Failed to update subscription:', error);
-    res.status(500).json({ error: 'Failed to update subscription' });
+    logger.error('Failed to finish current month:', error);
+    res.status(500).json({ error: 'Failed to finish current month' });
   }
 };
 

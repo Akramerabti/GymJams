@@ -27,29 +27,30 @@ const LoginForm = () => {
     resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit = async (data) => {
+  const onSubmit = async (data, retryCount = 0) => {
     try {
       setError('');
       console.log('Sending login request:', data);
-
+  
       const response = await api.post('/auth/login', {
         email: data.email.toLowerCase().trim(),
         password: data.password.trim(),
       });
-
+  
       console.log('Login successful:', response.data);
-
+  
       // Update auth context with response data
-      await login(data.email, data.password); // Pass email and password here
-
+      await login(data.email, data.password);
+  
       // Redirect to home page
       navigate('/');
     } catch (err) {
       console.error('Login error:', err);
-
-      let errorMessage;
+  
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+  
       if (err.code === 'ECONNABORTED') {
-        errorMessage = 'Request timed out. Please try again.';
+        errorMessage = 'Request timed out. Please check your internet connection and try again.';
       } else if (err.response) {
         // Handle specific error cases
         switch (err.response.status) {
@@ -75,13 +76,21 @@ const LoginForm = () => {
             errorMessage = 'Something went wrong. Please try again.';
         }
       } else if (err.request) {
+        // Handle network errors (e.g., no response from the server)
         errorMessage = 'Network error. Please check your internet connection and try again.';
-      } else {
-        errorMessage = 'An unexpected error occurred. Please try again.';
       }
-
+  
+      // Set the error message and display a toast notification
       setError(errorMessage);
       toast.error('Login failed', { description: errorMessage });
+  
+      // Retry the login after a delay (max 3 retries)
+      if (retryCount < 3) {
+        setTimeout(() => {
+          setError('');
+          onSubmit(data, retryCount + 1); // Retry the login
+        }, 5000); // Retry after 5 seconds
+      }
     }
   };
 
