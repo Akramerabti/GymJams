@@ -3,6 +3,8 @@ import { useStripe, useElements, PaymentElement } from '@stripe/react-stripe-js'
 import { toast } from 'sonner';
 import { useAuth } from '../hooks/useAuth';
 import subscriptionService from '../services/subscription.service';
+import { useNavigate } from 'react-router-dom';
+
 
 const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
   const stripe = useStripe();
@@ -12,40 +14,75 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
   const [isChecked, setIsChecked] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [guestEmail, setGuestEmail] = useState('');
-
+  const navigate = useNavigate(); // Initialize useNavigate
+  
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (!stripe || !elements || !isChecked) {
+    // Prevent duplicate submissions
+    if (isLoading || !stripe || !elements || !isChecked) {
       return;
     }
 
-    setIsLoading(true);
+    setIsLoading(true); // Set loading state
 
     try {
-      const { error, paymentIntent } = await stripe.confirmPayment({
+      // Submit the form to create the SetupIntent
+      const { error: submitError } = await elements.submit();
+      if (submitError) {
+        onError(submitError.message);
+        return;
+      }
+
+      // Confirm the SetupIntent
+      const { error: setupError, setupIntent } = await stripe.confirmSetup({
         elements,
         confirmParams: {
-          return_url: window.location.origin + '/success',
+          return_url: window.location.origin + '/dashboard', // Redirect to /dashboard
+          payment_method_data: {
+            billing_details: {
+              email: user ? user.user.email : guestEmail, // Ensure email is passed
+            },
+          },
         },
         redirect: 'if_required',
       });
 
-      if (error) {
-        onError(error.message);
-      } else if (paymentIntent.status === 'succeeded') {
+      if (setupError) {
+        onError(setupError.message);
+      } else if (setupIntent.status === 'succeeded') {
+        // Ensure all required fields are passed to the backend
+        const paymentMethodId = setupIntent.payment_method;
+        const email = user ? user.user.email : guestEmail;
+
+        if (!email) {
+          onError('Email is required');
+          return;
+        }
+
+        console.log('Calling handleSubscriptionSuccess with:', {
+          planType: plan.id,
+          setupIntentId: setupIntent.id,
+          paymentMethodId,
+          email,
+        });
+
         await subscriptionService.handleSubscriptionSuccess(
-          plan.id,
-          paymentIntent.id,
-          user ? user.user.email : guestEmail
+          plan.id, // planType
+          setupIntent.id, // setupIntentId
+          paymentMethodId, // paymentMethodId
+          email // email
         );
 
-        onSuccess();
+        // Call onSuccess and redirect to /dashboard
+        onSuccess(setupIntent.id, paymentMethodId); // Pass setupIntent.id and paymentMethodId to onSuccess
+        navigate('/dashboard'); // Redirect to /dashboard
       }
     } catch (err) {
+      console.error('Setup error:', err);
       onError('An unexpected error occurred. Please try again.');
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Reset loading state
     }
   };
 

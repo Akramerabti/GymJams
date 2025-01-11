@@ -30,39 +30,21 @@ const PLANS = {
   }
 };
 
-// Create subscription payment intent
-export const createSubscriptionIntent = async (req, res) => {
+export const createSetupIntent = async (req, res) => {
   try {
-    const { planType } = req.body;
-
-    console.log('Creating subscription:', PLANS[planType]);
-
-    if (!PLANS[planType]) {
-      return res.status(400).json({ error: 'Invalid subscription plan' });
-    }
-
-    const plan = PLANS[planType];
-
-    // Create payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(plan.price * 100),
-      currency: 'usd',
-      automatic_payment_methods: {
-        enabled: true,
-      },
-      metadata: {
-        planType,
-        userId: req.user?.id || 'guest'
-      }
+    // Create a SetupIntent for saving payment method
+    const setupIntent = await stripe.setupIntents.create({
+      payment_method_types: ['card'],
+      usage: 'off_session', // Important for recurring payments
     });
 
     res.json({ 
-      clientSecret: paymentIntent.client_secret,
-      plan
+      clientSecret: setupIntent.client_secret,
+      plan: PLANS[req.body.planType]
     });
   } catch (error) {
-    logger.error('Failed to create payment intent:', error);
-    res.status(500).json({ error: 'Failed to start subscription process' });
+    logger.error('Failed to create setup intent:', error);
+    res.status(500).json({ error: 'Failed to initialize setup' });
   }
 };
 
@@ -164,19 +146,25 @@ export const cancelSubscription = async (req, res) => {
 
 export const handleSubscriptionSuccess = async (req, res) => {
   try {
-    console.log('Handling subscription success...');
-    console.log('req.user:', req.user);
+    const { planType, setupIntentId, email, paymentMethodId } = req.body;
 
-    const { planType, paymentIntentId, email } = req.body;
-
-    if (!planType || !paymentIntentId || !email) {
+    if (!planType || !setupIntentId || !email || !paymentMethodId) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    // Check if the user already has an active subscription
+    if (req.user) {
+      const existingSubscription = await Subscription.findOne({ user: req.user.id, status: 'active' });
+      if (existingSubscription) {
+        return res.status(400).json({ error: 'User already has an active subscription' });
+      }
+    }
 
-    if (paymentIntent.status !== 'succeeded') {
-      return res.status(400).json({ error: 'Payment not successful' });
+    // Retrieve the SetupIntent
+    const setupIntent = await stripe.setupIntents.retrieve(setupIntentId);
+
+    if (setupIntent.status !== 'succeeded') {
+      return res.status(400).json({ error: 'SetupIntent not successful' });
     }
 
     let user = null;
@@ -194,16 +182,31 @@ export const handleSubscriptionSuccess = async (req, res) => {
       stripeCustomerId = customer.id;
     }
 
-    // Create a subscription in Stripe
+    // Attach the payment method to the customer
+    await stripe.paymentMethods.attach(paymentMethodId, {
+      customer: stripeCustomerId,
+    });
+
+    // Set the payment method as the default for the customer
+    await stripe.customers.update(stripeCustomerId, {
+      invoice_settings: {
+        default_payment_method: paymentMethodId,
+      },
+    });
+
+    // Create a subscription in Stripe with recurring billing
     const subscription = await stripe.subscriptions.create({
       customer: stripeCustomerId,
-      items: [
-        {
-          price: PLANS[planType].stripePriceId,
-        },
-      ],
+      items: [{ price: PLANS[planType].stripePriceId }],
+      payment_settings: {
+        payment_method_types: ['card'],
+        save_default_payment_method: 'on_subscription',
+      },
       payment_behavior: 'default_incomplete',
       expand: ['latest_invoice.payment_intent'],
+      metadata: {
+        planType,
+      },
     });
 
     // Generate access token
@@ -251,18 +254,17 @@ export const handleSubscriptionSuccess = async (req, res) => {
       price: PLANS[planType].price,
       pointsAwarded: PLANS[planType].points,
       accessToken,
-      features: PLANS[planType].features 
-    }, user ? user.email : email, !user); 
+      features: PLANS[planType].features,
+    }, user ? user.email : email, !user);
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       subscription: newSubscription,
-      accessToken: accessToken
+      accessToken: accessToken,
     });
-
   } catch (error) {
     console.error('Failed to handle subscription success:', error);
-    
+
     // If we've created a subscription but email failed, attempt to clean up
     if (error.message?.includes('email') && res.locals.newSubscription) {
       try {
@@ -270,7 +272,7 @@ export const handleSubscriptionSuccess = async (req, res) => {
         if (req.user) {
           await User.findByIdAndUpdate(req.user.id, {
             $unset: { subscription: 1 },
-            $inc: { points: -PLANS[planType].points }
+            $inc: { points: -PLANS[planType].points },
           });
         }
         await stripe.subscriptions.del(res.locals.newSubscription.stripeSubscriptionId);
@@ -279,9 +281,9 @@ export const handleSubscriptionSuccess = async (req, res) => {
       }
     }
 
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to complete subscription process',
-      details: error.message
+      details: error.message,
     });
   }
 };
@@ -336,4 +338,35 @@ export const accessSubscription = async (req, res) => {
     console.error('Subscription access error:', error);
     res.status(500).json({ error: 'Failed to access subscription' });
   }
+};
+
+
+
+export const handleWebhook = async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
+  } catch (err) {
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  switch (event.type) {
+    case 'invoice.payment_succeeded':
+      await handleSuccessfulPayment(event.data.object);
+      break;
+    case 'invoice.payment_failed':
+      await handleFailedPayment(event.data.object);
+      break;
+    case 'customer.subscription.updated':
+      await handleSubscriptionUpdate(event.data.object);
+      break;
+  }
+
+  res.json({ received: true });
 };

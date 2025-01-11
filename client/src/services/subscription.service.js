@@ -29,13 +29,14 @@ const subscriptionService = {
     }
   },
 
-  // Handle subscription success
-  async handleSubscriptionSuccess(planType, paymentIntentId, email) {
+  async handleSubscriptionSuccess(planType, setupIntentId, paymentMethodId, email) {
     try {
+      console.log('Handling subscription success:', { planType, setupIntentId, paymentMethodId, email });
       const response = await api.post('/subscription/handle-success', {
         planType,
-        paymentIntentId,
-        email, // Pass the email (user's email or guest email)
+        setupIntentId,
+        paymentMethodId,
+        email,
       });
       return response.data;
     } catch (error) {
@@ -44,6 +45,7 @@ const subscriptionService = {
     }
   },
 
+  
   // Get current subscription details
   async getCurrentSubscription() {
     try {
@@ -66,9 +68,9 @@ const subscriptionService = {
     }
   },
 
+  // Finish current month (remove recurring payment)
   async finishCurrentMonth(subscriptionId) {
     try {
-      console.log('Calling finishCurrentMonth with subscriptionId:', subscriptionId); // Debugging
       const response = await api.post(`/subscription/${subscriptionId}/finish-month`);
       return response.data;
     } catch (error) {

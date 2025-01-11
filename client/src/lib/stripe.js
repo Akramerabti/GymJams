@@ -5,7 +5,6 @@ import { handleApiError } from '../utils/helpers';
 // Initialize Stripe with public key
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
-// Payment processing helper
 export const processPayment = async ({ amount, currency = 'USD', paymentMethod, orderId }) => {
   try {
     const stripe = await stripePromise;
@@ -23,11 +22,19 @@ export const processPayment = async ({ amount, currency = 'USD', paymentMethod, 
         amount,
         currency,
         orderId,
-        paymentMethod
+        paymentMethod,
       }),
     });
 
+    if (!response.ok) {
+      throw new Error('Failed to create payment intent');
+    }
+
     const { clientSecret } = await response.json();
+
+    if (!clientSecret) {
+      throw new Error('Client secret is missing');
+    }
 
     // Confirm payment
     const { paymentIntent, error } = await stripe.confirmCardPayment(clientSecret, {
@@ -46,15 +53,14 @@ export const processPayment = async ({ amount, currency = 'USD', paymentMethod, 
   } catch (error) {
     return {
       success: false,
-      error: handleApiError(error)
+      error: handleApiError(error),
     };
   }
 };
 
-// Payment element configuration
-export const stripeElementsConfig = {
+export const stripeElementsConfig = (theme = 'stripe') => ({
   appearance: {
-    theme: 'stripe',
+    theme,
     variables: {
       colorPrimary: '#0070f3',
       colorBackground: '#ffffff',
@@ -66,7 +72,7 @@ export const stripeElementsConfig = {
     },
   },
   loader: 'auto',
-};
+});
 
 // Payment method types configuration
 export const paymentMethodTypes = {
