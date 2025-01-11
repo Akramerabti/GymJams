@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { jwtDecode } from 'jwt-decode';
 import api from '../services/api';
+import { usePoints } from './usePoints'; // Import the usePoints hook
 
 const initialState = {
   user: null,
@@ -17,7 +18,14 @@ const useAuthStore = create(
       ...initialState,
 
       // Action Creators
-      setUser: (user) => set({ user, isAuthenticated: !!user }),
+      setUser: (user) => {
+        set({ user, isAuthenticated: !!user });
+
+        // Update points balance when user is set
+        if (user?.points !== undefined) {
+          usePoints.getState().setBalance(user.points);
+        }
+      },
       setToken: (token) => {
         if (token) {
           api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -39,8 +47,16 @@ const useAuthStore = create(
         try {
           const response = await api.post('/auth/login', { email, password });
           const { user, token } = response.data;
+
+          // Set user and token in the store
           setToken(token);
           setUser(user);
+
+          // Update points balance
+          if (user.points !== undefined) {
+            usePoints.getState().setBalance(user.points);
+          }
+
           return response.data;
         } catch (error) {
           const message = error.response?.data?.message || 'Login failed';
@@ -76,8 +92,16 @@ const useAuthStore = create(
         try {
           const response = await api.get(`/auth/verify-email/${token}`);
           const { user, token: authToken } = response.data;
+
+          // Set user and token in the store
           setToken(authToken);
           setUser(user);
+
+          // Update points balance
+          if (user.points !== undefined) {
+            usePoints.getState().setBalance(user.points);
+          }
+
           return response.data;
         } catch (error) {
           const message = error.response?.data?.message || 'Email verification failed';
@@ -108,27 +132,29 @@ const useAuthStore = create(
       logout: async () => {
         const { setLoading, setError, reset } = get();
         setLoading(true);
-        
+
         try {
           // Call the logout endpoint
           await api.post('/auth/logout');
-          
+
           // Clear auth token from axios headers
           delete api.defaults.headers.common['Authorization'];
-          
+
           // Clear local storage items
           localStorage.removeItem('token');
           localStorage.removeItem('cart-storage');
           localStorage.removeItem('persist:auth-storage');
-          
+
           // Reset store state
           reset();
-          
+
+          // Reset points balance
+          usePoints.getState().setBalance(0);
+
           // Optional: Clear other stores
           if (window.resetStores) {
             window.resetStores();
           }
-          
         } catch (error) {
           setError('Logout failed');
           console.error('Logout error:', error);
@@ -136,7 +162,6 @@ const useAuthStore = create(
           setLoading(false);
         }
       },
-
 
       clearCart: () => {
         localStorage.removeItem('cart');
@@ -155,6 +180,12 @@ const useAuthStore = create(
 
           const response = await api.get('/auth/validate');
           setUser(response.data);
+
+          // Update points balance
+          if (response.data.points !== undefined) {
+            usePoints.getState().setBalance(response.data.points);
+          }
+
           return true;
         } catch (error) {
           console.error('Token validation failed:', error);
@@ -167,7 +198,7 @@ const useAuthStore = create(
         const { token, setLoading, setError, setUser } = get();
         setLoading(true);
         setError(null);
-      
+
         try {
           const response = await api.put(
             '/auth/profile',
@@ -176,8 +207,15 @@ const useAuthStore = create(
               headers: { Authorization: `Bearer ${token}` }
             }
           );
-      
+
+          // Update user in the store
           setUser(response.data);
+
+          // Update points balance
+          if (response.data.points !== undefined) {
+            usePoints.getState().setBalance(response.data.points);
+          }
+
           return response.data;
         } catch (error) {
           const message = error.response?.data?.message || 'Profile update failed';
@@ -213,6 +251,12 @@ const useAuthStore = create(
         try {
           const response = await api.get('/auth/user');
           setUser(response.data);
+
+          // Update points balance
+          if (response.data.points !== undefined) {
+            usePoints.getState().setBalance(response.data.points);
+          }
+
           return response.data;
         } catch (error) {
           const message = error.response?.data?.message || 'Failed to fetch user data';
@@ -254,14 +298,17 @@ const useAuthStore = create(
         }
       },
 
-      reset: () => set(initialState),
+      reset: () => {
+        set(initialState);
+        usePoints.getState().setBalance(0); // Reset points balance on logout
+      },
 
       validatePhone: async (phone) => {
         const { user } = get();
         try {
-          const response = await api.post('/auth/validate-phone', { 
-            phone, 
-            userId: user.id 
+          const response = await api.post('/auth/validate-phone', {
+            phone,
+            userId: user.id
           });
           return response.data.isValid;
         } catch (error) {
@@ -275,7 +322,6 @@ const useAuthStore = create(
         }
         window.resetStores.push(callback);
       },
-      
     }),
     {
       name: 'auth-storage',
@@ -289,4 +335,21 @@ const useAuthStore = create(
   )
 );
 
-export default useAuthStore;
+// Export the hook with the same interface as useAuth
+export const useAuth = () => {
+  const store = useAuthStore();
+
+  return {
+    user: store.user,
+    token: store.token,
+    loading: store.loading,
+    error: store.error,
+    login: store.login,
+    register: store.register,
+    logout: store.logout,
+    updateProfile: store.updateProfile,
+    checkAuth: store.checkAuth,
+    verifyEmail: store.verifyEmail,
+    validatePhone: store.validatePhone,
+  };
+};

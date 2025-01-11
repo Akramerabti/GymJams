@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'; // Add useEffect to imports
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Award, Calendar, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../stores/authStore';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import api from '../services/api';

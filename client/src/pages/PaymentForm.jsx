@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useStripe, useElements, PaymentElement } from '@stripe/react-stripe-js';
 import { toast } from 'sonner';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../stores/authStore';
 import subscriptionService from '../services/subscription.service';
 import { useNavigate } from 'react-router-dom';
 

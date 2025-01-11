@@ -1,7 +1,6 @@
 // App.jsx
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { useAuth } from './hooks/useAuth';
 import { Toaster } from 'sonner';
 
 // Layout Components
@@ -24,9 +23,10 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Orders from './pages/Orders';
 import SubscriptionManagement from './pages/SubscriptionManagement';
+import useAuthStore from './stores/authStore';
 
 const App = () => {
-  const { checkAuth } = useAuth();
+  const { checkAuth } = useAuthStore();
 
   useEffect(() => {
     checkAuth();

@@ -1,6 +1,6 @@
 // Orders.jsx
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../stores/authStore';
 import ordersService from '../services/order.service.js';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';

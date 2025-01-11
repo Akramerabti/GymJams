@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
-import { useAuth } from '../../hooks/useAuth';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import * as z from 'zod';
 import api from '../../services/api';
+import { useAuth } from '../stores/authStore'; // Replace useAuth with useAuthStore
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -27,95 +27,88 @@ const LoginForm = () => {
     resolver: zodResolver(loginSchema),
   });
 
-  // LoginForm.jsx
-const onSubmit = async (data, retryCount = 0) => {
-  try {
-    setError('');
-    console.log('Sending login request:', data);
-  
-    const response = await api.post('/auth/login', {
-      email: data.email.toLowerCase().trim(),
-      password: data.password.trim(),
-    });
-  
-    console.log('Login successful:', response.data);
-  
-    // Update auth context with response data
-    await login(data.email, data.password);
-  
-    // Redirect to home page
-    navigate('/');
-  } catch (err) {
-    console.error('Login error:', err);
+  const onSubmit = async (data, retryCount = 0) => {
+    try {
+      setError('');
+      console.log('Sending login request:', data);
 
-    // Maximum retry attempts
-    const MAX_RETRIES = 3;
-  
-    // If it's a timeout or network error and we haven't exceeded max retries
-    if ((err.statusCode === 408 || !err.response) && retryCount < MAX_RETRIES) {
-      // Increment retry count
-      const nextRetry = retryCount + 1;
-      
-      // Calculate delay with exponential backoff
-      const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
-      
-      // Show retry toast
-      toast.info(`Retrying login attempt ${nextRetry}/${MAX_RETRIES}...`);
-      
-      // Wait for the delay
-      await new Promise(resolve => setTimeout(resolve, delay));
-      
-      // Retry the login
-      return onSubmit(data, nextRetry);
-    }
+      // Use the login function from useAuthStore
+      await login(data.email, data.password);
 
-    // If we've exhausted retries or it's another type of error, show error message
-    let errorMessage = 'An unexpected error occurred. Please try again.';
-  
-    if (err.code === 'ECONNABORTED') {
-      errorMessage = 'Request timed out. Please check your internet connection and try again.';
-    } else if (err.response) {
-      switch (err.response.status) {
-        case 400:
-          errorMessage = 'Email and password are required.';
-          break;
-        case 401:
-          errorMessage = 'Invalid email or password. Please check your credentials.';
-          break;
-        case 403:
-          errorMessage = 'Your email is not verified. Please check your inbox.';
-          break;
-        case 404:
-          errorMessage = 'User not found. Please check your email address.';
-          break;
-        case 429:
-          errorMessage = 'Too many login attempts. Please try again later.';
-          break;
-        case 500:
-          errorMessage = 'Server error. Please try again later.';
-          break;
-        default:
-          errorMessage = 'Something went wrong. Please try again.';
+      // Redirect to home page
+      navigate('/');
+    } catch (err) {
+      console.error('Login error:', err);
+
+      // Maximum retry attempts
+      const MAX_RETRIES = 3;
+
+      // If it's a timeout or network error and we haven't exceeded max retries
+      if ((err.statusCode === 408 || !err.response) && retryCount < MAX_RETRIES) {
+        // Increment retry count
+        const nextRetry = retryCount + 1;
+
+        // Calculate delay with exponential backoff
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+
+        // Show retry toast
+        toast.info(`Retrying login attempt ${nextRetry}/${MAX_RETRIES}...`);
+
+        // Wait for the delay
+        await new Promise(resolve => setTimeout(resolve, delay));
+
+        // Retry the login
+        return onSubmit(data, nextRetry);
       }
-    } else if (err.request) {
-      errorMessage = 'Network error. Please check your internet connection and try again.';
-    }
-  
-    // Set the error message and display a toast notification
-    setError(errorMessage);
-    toast.error('Login failed', { description: errorMessage });
 
-    // If all retries failed, automatically refresh the page after a delay
-    if (retryCount >= MAX_RETRIES) {
-      toast.info('Refreshing page...', {
-        duration: 2000,
-      });
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      // If we've exhausted retries or it's another type of error, show error message
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+
+      if (err.code === 'ECONNABORTED') {
+        errorMessage = 'Request timed out. Please check your internet connection and try again.';
+      } else if (err.response) {
+        switch (err.response.status) {
+          case 400:
+            errorMessage = 'Email and password are required.';
+            break;
+          case 401:
+            errorMessage = 'Invalid email or password. Please check your credentials.';
+            break;
+          case 403:
+            errorMessage = 'Your email is not verified. Please check your inbox.';
+            break;
+          case 404:
+            errorMessage = 'User not found. Please check your email address.';
+            break;
+          case 429:
+            errorMessage = 'Too many login attempts. Please try again later.';
+            break;
+          case 500:
+            errorMessage = 'Server error. Please try again later.';
+            break;
+          default:
+            errorMessage = 'Something went wrong. Please try again.';
+        }
+      } else if (err.request) {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      }
+
+      // Set the error message and display a toast notification
+      setError(errorMessage);
+      toast.error('Login failed', { description: errorMessage });
+
+      // If all retries failed, automatically refresh the page after a delay
+      if (retryCount >= MAX_RETRIES) {
+        toast.info('Refreshing page...', {
+          duration: 2000,
+        });
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      }
     }
-  }
-};
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">

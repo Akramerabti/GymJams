@@ -9,7 +9,7 @@ import {
   CardContent,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '../hooks/useAuth.js';
+import { useAuth } from '../stores/authStore';
 import PaymentForm from './PaymentForm.jsx';
 import subscriptionService from '../services/subscription.service.js';
 import { FaArrowLeft } from 'react-icons/fa';
