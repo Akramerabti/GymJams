@@ -6,7 +6,11 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json'
   },
-  withCredentials: true // Enable CORS credentials
+  withCredentials: true, // Enable CORS credentials
+  retry: 3,
+  retryDelay: (retryCount) => {
+    return retryCount * 1000; // time interval between retries
+  }
 });
 
 // Add request interceptor to include the token in every request
@@ -21,48 +25,52 @@ api.interceptors.request.use(config => {
   return Promise.reject(error);
 });
 
-// Response interceptor
+// Add response interceptor to handle successful registration
 api.interceptors.response.use(
   response => {
-    if (response.config.url === '/auth/login' && response.status === 200) {
-      const { token, user } = response.data;
-      if (token) {
-        localStorage.setItem('token', token);
-      }
+    // Check if this is a successful registration response
+    if (response.config.url === '/auth/register' && response.status === 201) {
+      console.log('Registration successful, redirecting...');
+      localStorage.setItem('verificationEmail', response.data.user.email);
+      window.location.href = '/email-verification-notification';
     }
     return response;
   },
   error => {
-    // Handle request timeout
-    if (error.code === 'ECONNABORTED') {
-      return Promise.reject({
-        message: 'Request timed out. Please check your connection and try again.',
-        statusCode: 408
-      });
-    }
-
-    // Handle network errors
-    if (!error.response) {
-      return Promise.reject({
-        message: 'Network error. Please check your internet connection.',
-        statusCode: 0
-      });
-    }
-
-    // Handle server errors
-    const errorResponse = {
-      message: error.response?.data?.message || 'An unexpected error occurred',
-      statusCode: error.response?.status,
-      data: error.response?.data
-    };
-
     console.error('API Error:', {
       url: error.config?.url,
       status: error.response?.status,
       data: error.response?.data
     });
+    return Promise.reject(error);
+  }
+);
 
-    return Promise.reject(errorResponse);
+api.interceptors.response.use(
+  response => response,
+  async error => {
+    if (error.response?.status === 429) {
+      const retryAfter = error.response.headers['retry-after'] || 60;
+      toast.error(`Rate limit exceeded. Please wait ${retryAfter} seconds before trying again.`);
+      return Promise.reject({
+        ...error,
+        message: 'Too many requests. Please try again later.'
+      });
+    }
+    return Promise.reject(error);
+  }
+);
+
+api.interceptors.response.use(
+  response => response,
+  async error => {
+    if (error.response?.status === 401) {
+      // Token is invalid or expired
+      console.error('Unauthorized access, redirecting to login...');
+      localStorage.removeItem('token'); // Clear the invalid token
+      window.location.href = '/login'; // Redirect to login page
+    }
+    return Promise.reject(error);
   }
 );
 

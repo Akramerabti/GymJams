@@ -27,73 +27,95 @@ const LoginForm = () => {
     resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit = async (data, retryCount = 0) => {
-    try {
-      setError('');
-      console.log('Sending login request:', data);
+  // LoginForm.jsx
+const onSubmit = async (data, retryCount = 0) => {
+  try {
+    setError('');
+    console.log('Sending login request:', data);
   
-      const response = await api.post('/auth/login', {
-        email: data.email.toLowerCase().trim(),
-        password: data.password.trim(),
-      });
+    const response = await api.post('/auth/login', {
+      email: data.email.toLowerCase().trim(),
+      password: data.password.trim(),
+    });
   
-      console.log('Login successful:', response.data);
+    console.log('Login successful:', response.data);
   
-      // Update auth context with response data
-      await login(data.email, data.password);
+    // Update auth context with response data
+    await login(data.email, data.password);
   
-      // Redirect to home page
-      navigate('/');
-    } catch (err) {
-      console.error('Login error:', err);
-  
-      let errorMessage = 'An unexpected error occurred. Please try again.';
-  
-      if (err.code === 'ECONNABORTED') {
-        errorMessage = 'Request timed out. Please check your internet connection and try again.';
-      } else if (err.response) {
-        // Handle specific error cases
-        switch (err.response.status) {
-          case 400:
-            errorMessage = 'Email and password are required.';
-            break;
-          case 401:
-            errorMessage = 'Invalid email or password. Please check your credentials.';
-            break;
-          case 403:
-            errorMessage = 'Your email is not verified. Please check your inbox.';
-            break;
-          case 404:
-            errorMessage = 'User not found. Please check your email address.';
-            break;
-          case 429:
-            errorMessage = 'Too many login attempts. Please try again later.';
-            break;
-          case 500:
-            errorMessage = 'Server error. Please try again later.';
-            break;
-          default:
-            errorMessage = 'Something went wrong. Please try again.';
-        }
-      } else if (err.request) {
-        // Handle network errors (e.g., no response from the server)
-        errorMessage = 'Network error. Please check your internet connection and try again.';
-      }
-  
-      // Set the error message and display a toast notification
-      setError(errorMessage);
-      toast.error('Login failed', { description: errorMessage });
-  
-      // Retry the login after a delay (max 3 retries)
-      if (retryCount < 3) {
-        setTimeout(() => {
-          setError('');
-          onSubmit(data, retryCount + 1); // Retry the login
-        }, 5000); // Retry after 5 seconds
-      }
-    }
-  };
+    // Redirect to home page
+    navigate('/');
+  } catch (err) {
+    console.error('Login error:', err);
 
+    // Maximum retry attempts
+    const MAX_RETRIES = 3;
+  
+    // If it's a timeout or network error and we haven't exceeded max retries
+    if ((err.statusCode === 408 || !err.response) && retryCount < MAX_RETRIES) {
+      // Increment retry count
+      const nextRetry = retryCount + 1;
+      
+      // Calculate delay with exponential backoff
+      const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+      
+      // Show retry toast
+      toast.info(`Retrying login attempt ${nextRetry}/${MAX_RETRIES}...`);
+      
+      // Wait for the delay
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      // Retry the login
+      return onSubmit(data, nextRetry);
+    }
+
+    // If we've exhausted retries or it's another type of error, show error message
+    let errorMessage = 'An unexpected error occurred. Please try again.';
+  
+    if (err.code === 'ECONNABORTED') {
+      errorMessage = 'Request timed out. Please check your internet connection and try again.';
+    } else if (err.response) {
+      switch (err.response.status) {
+        case 400:
+          errorMessage = 'Email and password are required.';
+          break;
+        case 401:
+          errorMessage = 'Invalid email or password. Please check your credentials.';
+          break;
+        case 403:
+          errorMessage = 'Your email is not verified. Please check your inbox.';
+          break;
+        case 404:
+          errorMessage = 'User not found. Please check your email address.';
+          break;
+        case 429:
+          errorMessage = 'Too many login attempts. Please try again later.';
+          break;
+        case 500:
+          errorMessage = 'Server error. Please try again later.';
+          break;
+        default:
+          errorMessage = 'Something went wrong. Please try again.';
+      }
+    } else if (err.request) {
+      errorMessage = 'Network error. Please check your internet connection and try again.';
+    }
+  
+    // Set the error message and display a toast notification
+    setError(errorMessage);
+    toast.error('Login failed', { description: errorMessage });
+
+    // If all retries failed, automatically refresh the page after a delay
+    if (retryCount >= MAX_RETRIES) {
+      toast.info('Refreshing page...', {
+        duration: 2000,
+      });
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    }
+  }
+};
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
