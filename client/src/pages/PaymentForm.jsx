@@ -18,74 +18,82 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
   
   const handleSubmit = async (event) => {
     event.preventDefault();
-
-    // Prevent duplicate submissions
+  
     if (isLoading || !stripe || !elements || !isChecked) {
       return;
     }
-
-    setIsLoading(true); // Set loading state
-
+  
+    setIsLoading(true);
+  
     try {
-      // Submit the form to create the SetupIntent
       const { error: submitError } = await elements.submit();
       if (submitError) {
         onError(submitError.message);
         return;
       }
-
+  
       // Confirm the SetupIntent
       const { error: setupError, setupIntent } = await stripe.confirmSetup({
         elements,
         confirmParams: {
-          return_url: window.location.origin + '/dashboard', // Redirect to /dashboard
+          return_url: window.location.origin + '/dashboard',
           payment_method_data: {
             billing_details: {
-              email: user ? user.user.email : guestEmail, // Ensure email is passed
+              email: user ? user.user.email : guestEmail,
             },
           },
         },
         redirect: 'if_required',
       });
-
+  
       if (setupError) {
         onError(setupError.message);
-      } else if (setupIntent.status === 'succeeded') {
-        // Ensure all required fields are passed to the backend
+        return;
+      }
+  
+      // Handle 3D Secure or other actions
+      if (setupIntent.status === 'requires_action') {
+        const { error: actionError } = await stripe.confirmPayment({
+          clientSecret: setupIntent.client_secret,
+          elements,
+          confirmParams: {
+            return_url: window.location.origin + '/dashboard',
+          },
+        });
+  
+        if (actionError) {
+          onError(actionError.message);
+          return;
+        }
+      }
+  
+      // If the SetupIntent is successful, proceed with subscription creation
+      if (setupIntent.status === 'succeeded') {
         const paymentMethodId = setupIntent.payment_method;
         const email = user ? user.user.email : guestEmail;
-
+  
         if (!email) {
           onError('Email is required');
           return;
         }
-
-        console.log('Calling handleSubscriptionSuccess with:', {
-          planType: plan.id,
-          setupIntentId: setupIntent.id,
-          paymentMethodId,
-          email,
-        });
-
+  
         await subscriptionService.handleSubscriptionSuccess(
-          plan.id, // planType
-          setupIntent.id, // setupIntentId
-          paymentMethodId, // paymentMethodId
-          email // email
+          plan.id,
+          setupIntent.id,
+          paymentMethodId,
+          email
         );
-
-        // Call onSuccess and redirect to /dashboard
-        onSuccess(setupIntent.id, paymentMethodId); // Pass setupIntent.id and paymentMethodId to onSuccess
-        navigate('/dashboard'); // Redirect to /dashboard
+  
+        onSuccess(setupIntent.id, paymentMethodId);
+        navigate('/dashboard');
       }
     } catch (err) {
       console.error('Setup error:', err);
       onError('An unexpected error occurred. Please try again.');
     } finally {
-      setIsLoading(false); // Reset loading state
+      setIsLoading(false);
     }
   };
-
   return (
     <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
       <div className="bg-white p-2 sm:p-4 rounded-lg shadow-sm border border-gray-100">

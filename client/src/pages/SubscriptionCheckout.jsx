@@ -231,16 +231,26 @@ const SubscriptionCheckout = () => {
                     }}
                   >
                     <PaymentForm
-                     plan={currentPlan}
-                     clientSecret={clientSecret}
-                     onSuccess={() => {
-                       toast.success('Subscription activated!');
-                       navigate('/dashboard'); // Navigate to the dashboard
-                       window.location.reload(); // Refresh the page to update the UI
-                     }}
-                     onError={(error) => {
-                       toast.error(error || 'Payment failed');
-                     }}
+                      plan={currentPlan}
+                      clientSecret={clientSecret}
+                      onSuccess={async (setupIntentId, paymentMethodId) => {
+                        try {
+                          await subscriptionService.handleSubscriptionSuccess(
+                            currentPlan.id,
+                            setupIntentId,
+                            paymentMethodId,
+                            user ? user.email : undefined
+                          );
+                          toast.success('Subscription activated!');
+                          navigate('/dashboard');
+                          window.location.reload();
+                        } catch (error) {
+                          toast.error(error.message || 'Failed to activate subscription');
+                        }
+                      }}
+                      onError={(error) => {
+                        toast.error(error || 'Payment failed');
+                      }}
                     />
                   </Elements>
                 )}

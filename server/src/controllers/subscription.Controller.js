@@ -146,107 +146,81 @@ export const cancelSubscription = async (req, res) => {
 
 export const handleSubscriptionSuccess = async (req, res) => {
   try {
-    const { planType, setupIntentId, email, paymentMethodId } = req.body;
+    const { planType, paymentMethodId, email } = req.body;
 
-    if (!planType || !setupIntentId || !email || !paymentMethodId) {
+    if (!planType || !paymentMethodId || !email) {
       return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    // Check if the user already has an active subscription
-    if (req.user) {
-      const existingSubscription = await Subscription.findOne({ user: req.user.id, status: 'active' });
-      if (existingSubscription) {
-        return res.status(400).json({ error: 'User already has an active subscription' });
-      }
-    }
-
-    // Retrieve the SetupIntent
-    const setupIntent = await stripe.setupIntents.retrieve(setupIntentId);
-
-    if (setupIntent.status !== 'succeeded') {
-      return res.status(400).json({ error: 'SetupIntent not successful' });
     }
 
     let user = null;
     let stripeCustomerId = null;
 
+    // 1. Get or create customer
     if (req.user) {
-      console.log('User is logged in:', req.user.id);
       user = req.user;
       stripeCustomerId = user.stripeCustomerId;
     } else {
-      console.log('User is a guest, creating new Stripe customer...');
       const customer = await stripe.customers.create({
-        email: email,
+        email,
       });
       stripeCustomerId = customer.id;
     }
 
-    // Attach the payment method to the customer
+    // 2. Attach payment method to customer
     await stripe.paymentMethods.attach(paymentMethodId, {
       customer: stripeCustomerId,
     });
 
-    // Set the payment method as the default for the customer
+    // 3. Set as default payment method
     await stripe.customers.update(stripeCustomerId, {
       invoice_settings: {
         default_payment_method: paymentMethodId,
       },
     });
 
-    // Create a subscription in Stripe with recurring billing
+    // 4. Create the subscription
     const subscription = await stripe.subscriptions.create({
       customer: stripeCustomerId,
       items: [{ price: PLANS[planType].stripePriceId }],
-      payment_settings: {
-        payment_method_types: ['card'],
-        save_default_payment_method: 'on_subscription',
-      },
-      payment_behavior: 'default_incomplete',
+      payment_behavior: 'error_if_incomplete',
       expand: ['latest_invoice.payment_intent'],
-      metadata: {
-        planType,
-      },
+      metadata: { planType },
     });
 
-    // Generate access token
-    const accessToken = crypto.randomBytes(32).toString('hex');
-
-    // Prepare subscription data for the database
+    // 5. Create subscription in database
     const subscriptionData = {
       subscription: planType,
       stripeSubscriptionId: subscription.id,
       stripeCustomerId: stripeCustomerId,
-      status: 'active',
+      status: subscription.status,
       startDate: new Date(),
       currentPeriodStart: new Date(subscription.current_period_start * 1000),
       currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      accessToken,
     };
 
     if (user) {
-      console.log('Associating subscription with user:', user.id);
       subscriptionData.user = user.id;
     } else {
-      console.log('Associating subscription with guest email:', email);
       subscriptionData.guestEmail = email;
     }
 
-    // Create the subscription in the database
     const newSubscription = await Subscription.create(subscriptionData);
 
-    // If the user is logged in, update their subscription and points
+    // 6. Update user if logged in
     if (user) {
-      const pointsToAdd = PLANS[planType].points;
-      console.log(`Adding ${pointsToAdd} points to user ${user.id} for ${planType} subscription`);
-      await User.findByIdAndUpdate(
-        user.id,
-        {
-          $set: { subscription: newSubscription._id },
-          $inc: { points: pointsToAdd },
-        },
-        { new: true }
-      );
+      await User.findByIdAndUpdate(user.id, {
+        $set: { subscription: newSubscription._id },
+        $inc: { points: PLANS[planType].points },
+      });
+    }
+
+    // 7. Handle response
+    if (subscription.latest_invoice.payment_intent) {
+      return res.json({
+        subscription: newSubscription,
+        clientSecret: subscription.latest_invoice.payment_intent.client_secret,
+        status: subscription.latest_invoice.payment_intent.status,
+      });
     }
 
     await sendSubscriptionReceipt({
@@ -258,33 +232,13 @@ export const handleSubscriptionSuccess = async (req, res) => {
     }, user ? user.email : email, !user);
 
     res.json({
-      success: true,
       subscription: newSubscription,
-      accessToken: accessToken,
+      status: 'succeeded'
     });
+
   } catch (error) {
     console.error('Failed to handle subscription success:', error);
-
-    // If we've created a subscription but email failed, attempt to clean up
-    if (error.message?.includes('email') && res.locals.newSubscription) {
-      try {
-        await Subscription.findByIdAndDelete(res.locals.newSubscription._id);
-        if (req.user) {
-          await User.findByIdAndUpdate(req.user.id, {
-            $unset: { subscription: 1 },
-            $inc: { points: -PLANS[planType].points },
-          });
-        }
-        await stripe.subscriptions.del(res.locals.newSubscription.stripeSubscriptionId);
-      } catch (cleanupError) {
-        console.error('Failed to clean up after email error:', cleanupError);
-      }
-    }
-
-    res.status(500).json({
-      error: 'Failed to complete subscription process',
-      details: error.message,
-    });
+    res.status(500).json({ error: 'Failed to complete subscription process' });
   }
 };
 
@@ -340,33 +294,68 @@ export const accessSubscription = async (req, res) => {
   }
 };
 
-
-
-export const handleWebhook = async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  let event;
-
-  try {
-    event = stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
-  } catch (err) {
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
+export const handleWebhook = async (event) => {
+  let subscription;
 
   switch (event.type) {
-    case 'invoice.payment_succeeded':
-      await handleSuccessfulPayment(event.data.object);
+    case 'invoice.paid':
+      // Just update subscription status and period
+      invoice = event.data.object;
+      subscription = await Subscription.findOne({ 
+        stripeSubscriptionId: invoice.subscription 
+      });
+
+      if (subscription) {
+        subscription.status = 'active';
+        subscription.currentPeriodEnd = new Date(invoice.period_end * 1000);
+        subscription.currentPeriodStart = new Date(invoice.period_start * 1000);
+        await subscription.save();
+      }
       break;
+
     case 'invoice.payment_failed':
-      await handleFailedPayment(event.data.object);
+      // Just mark subscription as past due
+      invoice = event.data.object;
+      subscription = await Subscription.findOne({ 
+        stripeSubscriptionId: invoice.subscription 
+      });
+
+      if (subscription) {
+        subscription.status = 'past_due';
+        await subscription.save();
+      }
       break;
+
     case 'customer.subscription.updated':
-      await handleSubscriptionUpdate(event.data.object);
+      // Sync any subscription updates from Stripe
+      const stripeSubscription = event.data.object;
+      subscription = await Subscription.findOne({ 
+        stripeSubscriptionId: stripeSubscription.id 
+      });
+
+      if (subscription) {
+        subscription.status = stripeSubscription.status;
+        subscription.currentPeriodEnd = new Date(stripeSubscription.current_period_end * 1000);
+        subscription.currentPeriodStart = new Date(stripeSubscription.current_period_start * 1000);
+        subscription.cancelAtPeriodEnd = stripeSubscription.cancel_at_period_end;
+        await subscription.save();
+      }
+      break;
+
+    case 'customer.subscription.deleted':
+      // Just mark subscription as cancelled in our database
+      subscription = event.data.object;
+      const dbSubscription = await Subscription.findOne({ 
+        stripeSubscriptionId: subscription.id 
+      });
+
+      if (dbSubscription) {
+        dbSubscription.status = 'cancelled';
+        dbSubscription.endDate = new Date();
+        await dbSubscription.save();
+      }
       break;
   }
 
-  res.json({ received: true });
+  return { received: true };
 };
