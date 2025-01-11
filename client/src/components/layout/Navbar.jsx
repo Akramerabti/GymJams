@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X, ShoppingCart, User, Coins, Dumbbell } from 'lucide-react';
-import useAuthStore, { useAuth } from '../../stores/authStore';
+import { useAuth } from '../../stores/authStore';
 import { useCart } from '../../hooks/useCart';
-import { usePoints } from '../../hooks/usePoints'; // Import the usePoints hook
+import { usePoints } from '../../hooks/usePoints';
 
 const Navbar = () => {
   const navigationItems = [
@@ -16,40 +16,38 @@ const Navbar = () => {
 
   const [isOpen, setIsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const { user, logout} = useAuth(); // Add isTokenValid from useAuth
-  const { isTokenValid } = useAuthStore(); // Use the isTokenValid function
+  const { user, logout, isTokenValid } = useAuth();
   const { cartItems = [] } = useCart();
-  const { balance, fetchPoints } = usePoints(); // Use the usePoints hook
+  const { balance, fetchPoints } = usePoints();
   const userMenuRef = useRef(null);
   const location = useLocation();
 
-  // Check token validity on mount and when user changes
+  // Check token validity on mount
   useEffect(() => {
     if (user && !isTokenValid()) {
-      logout(); // Log the user out if the token is invalid
+      logout();
     }
   }, [user, isTokenValid, logout]);
 
-  // Debounce the fetchPoints function
+  // Debounce fetchPoints
   useEffect(() => {
     let debounceTimeout;
 
     const debouncedFetchPoints = () => {
       if (user) {
-        clearTimeout(debounceTimeout); // Clear any existing timeout
+        clearTimeout(debounceTimeout);
         debounceTimeout = setTimeout(() => {
-          fetchPoints(); // Fetch points after a delay
-        }, 500); // 500ms delay
+          fetchPoints();
+        }, 500);
       }
     };
 
-    debouncedFetchPoints(); // Call the debounced function
+    debouncedFetchPoints();
 
-    // Cleanup the timeout if the component unmounts or the user changes
     return () => clearTimeout(debounceTimeout);
-  }, [user, fetchPoints]); // Re-run when the user changes
+  }, [user, fetchPoints]);
 
-  // Close the user menu when clicking outside
+  // Close user menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
@@ -90,7 +88,7 @@ const Navbar = () => {
           {/* Right Section (Points, Cart, User Menu, Mobile Toggle) */}
           <div className="flex items-center space-x-4">
             {/* Points Balance (Logged-in Users Only) */}
-            {user && isTokenValid() && ( // Only show points if the token is valid
+            {user && isTokenValid() && (
               <div className="flex items-center space-x-2 border-r pr-4">
                 <Coins className="h-5 w-5 text-yellow-500" />
                 <span className="font-medium text-gray-700">{balance} points</span>
@@ -111,7 +109,7 @@ const Navbar = () => {
             </Link>
 
             {/* User Menu (Logged-in Users) or Login Link */}
-            {user && isTokenValid() ? ( // Only show user menu if the token is valid
+            {user && isTokenValid() ? (
               <div className="relative" ref={userMenuRef}>
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}

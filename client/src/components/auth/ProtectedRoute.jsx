@@ -1,28 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../stores/authStore';
+import useAuthStore, { useAuth } from '../../stores/authStore';
 
 const ProtectedRoute = ({ children }) => {
   const { user, checkAuth, loading } = useAuth();
+  const { logout, isTokenValid } = useAuthStore();
   const [isChecking, setIsChecking] = useState(true);
   const location = useLocation();
 
   useEffect(() => {
-    let isMounted = true; // Track if the component is still mounted
-
-    const verify = async () => {
-      await checkAuth();
-      if (isMounted) {
-        setIsChecking(false);
-      }
-    };
-
-    verify();
-
-    return () => {
-      isMounted = false; // Cleanup function to prevent state updates on unmounted component
-    };
-  }, []); // Empty dependency array to run only once
+    if (!user || !isTokenValid()) {
+      logout();
+      navigate('/login');
+    }
+  }, [user, isTokenValid, logout, navigate]);
 
   if (isChecking || loading) {
     return (
