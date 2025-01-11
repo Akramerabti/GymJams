@@ -26,12 +26,21 @@ import SubscriptionManagement from './pages/SubscriptionManagement';
 import useAuthStore from './stores/authStore';
 
 const App = () => {
-  const { checkAuth } = useAuthStore();
+  const { checkAuth, logout } = useAuthStore();
 
   useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
-
+    const validateTokenOnLoad = async () => {
+      try {
+        await checkAuth(); // Validate token on app load
+      } catch (error) {
+        console.error('Token validation failed:', error);
+        logout(); // Log the user out if the token is invalid
+      }
+    };
+  
+    validateTokenOnLoad();
+  }, [checkAuth, logout]);
+  
   return (
     <Router>
       <Layout>

@@ -56,14 +56,16 @@ const Profile = () => {
         });
   
         if (subscriptionResponse.data) {
-          console.log('Subscription Details:', subscriptionResponse.data); // Debugging
           setSubscriptionDetails(subscriptionResponse.data);
         }
   
         fetchPoints();
-        
       } catch (error) {
-        if (error.response?.status === 404 && error.response?.config.url.includes('/subscription/current')) {
+        if (error.response?.status === 401) { // Unauthorized (invalid token)
+          localStorage.removeItem('token'); // Clear invalid token
+          setUser(null); // Update global state to logged-out
+          navigate('/login'); // Redirect to login
+        } else if (error.response?.status === 404 && error.response?.config.url.includes('/subscription/current')) {
           console.log('No active subscription found');
         } else {
           console.error('Error fetching user data:', error);

@@ -79,38 +79,4 @@ api.interceptors.response.use(
   }
 );
 
-const MAX_RETRIES = 3;
-
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-
-    // Check if the request should be retried
-    if (
-      error.code === 'ERR_NETWORK' || // Network error
-      error.response?.status >= 500 || // Server error
-      error.response?.status === 429 // Rate limiting
-    ) {
-      if (!originalRequest._retryCount) {
-        originalRequest._retryCount = 0;
-      }
-
-      if (originalRequest._retryCount < MAX_RETRIES) {
-        originalRequest._retryCount++;
-        console.log(`Retrying request (${originalRequest._retryCount}/${MAX_RETRIES})...`);
-
-        // Wait for a delay before retrying
-        await new Promise((resolve) =>
-          setTimeout(resolve, originalRequest._retryCount * 1000)
-        );
-
-        return api(originalRequest); // Retry the request
-      }
-    }
-
-    return Promise.reject(error);
-  }
-);
-
 export default api;
