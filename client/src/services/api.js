@@ -25,15 +25,10 @@ api.interceptors.request.use(
   }
 );
 
-// Add response interceptor to handle successful registration
+// Add response interceptor to handle errors
 api.interceptors.response.use(
   (response) => {
-    // Check if this is a successful registration response
-    if (response.config.url === '/auth/register' && response.status === 201) {
-      console.log('Registration successful, redirecting...');
-      localStorage.setItem('verificationEmail', response.data.user.email);
-      window.location.href = '/email-verification-notification';
-    }
+    // Handle successful responses
     return response;
   },
   async (error) => {
@@ -58,9 +53,9 @@ api.interceptors.response.use(
 
     // Handle unauthorized access (401 Unauthorized)
     if (error.response?.status === 401) {
-      console.error('Unauthorized access, redirecting to login...');
+      console.error('Unauthorized access.');
       localStorage.removeItem('token'); // Clear the invalid token
-      window.location.href = '/login'; // Redirect to login page
+      toast.error('Your session has expired. Please log in again.');
       return Promise.reject(error);
     }
 
