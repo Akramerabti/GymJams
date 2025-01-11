@@ -8,7 +8,6 @@ import { toast } from 'sonner';
 import * as z from 'zod';
 import api from '../../services/api';
 
-
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
@@ -48,9 +47,11 @@ const LoginForm = () => {
     } catch (err) {
       console.error('Login error:', err);
 
-      // Handle specific error cases with unique messages
       let errorMessage;
-      if (err.response) {
+      if (err.code === 'ECONNABORTED') {
+        errorMessage = 'Request timed out. Please try again.';
+      } else if (err.response) {
+        // Handle specific error cases
         switch (err.response.status) {
           case 400:
             errorMessage = 'Email and password are required.';
@@ -74,21 +75,16 @@ const LoginForm = () => {
             errorMessage = 'Something went wrong. Please try again.';
         }
       } else if (err.request) {
-        // Handle network errors (e.g., no response from the server)
         errorMessage = 'Network error. Please check your internet connection and try again.';
       } else {
-        // Handle other errors (e.g., code errors)
         errorMessage = 'An unexpected error occurred. Please try again.';
       }
 
-      // Set the error message and display a toast notification
       setError(errorMessage);
       toast.error('Login failed', { description: errorMessage });
     }
   };
-  
 
-  // Rest of component remains the same
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
