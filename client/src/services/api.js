@@ -57,4 +57,17 @@ api.interceptors.response.use(
   }
 );
 
+api.interceptors.response.use(
+  response => response,
+  async error => {
+    if (error.response?.status === 401) {
+      // Token is invalid or expired
+      console.error('Unauthorized access, redirecting to login...');
+      localStorage.removeItem('token'); // Clear the invalid token
+      window.location.href = '/login'; // Redirect to login page
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;

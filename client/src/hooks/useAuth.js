@@ -5,9 +5,6 @@ import authService from '../services/auth.service';
 import api from '../services/api';
 import { usePoints } from './usePoints';
 
-// Constants
-const VALIDATION_INTERVAL = 60000;
-
 // Create the auth store
 const useAuthStore = create(
   persist(
@@ -16,15 +13,11 @@ const useAuthStore = create(
       token: null,
       loading: false,
       error: null,
-      isValidating: false, // Add isValidating state
-      lastValidation: 0, // Add lastValidation state
       setUser: (user) => set({ user: { ...user } }), // Ensure a new object is created
       setToken: (token) => set({ token }),
       setLoading: (loading) => set({ loading }),
       setError: (error) => set({ error }),
-      setIsValidating: (isValidating) => set({ isValidating }), // Add setIsValidating
-      setLastValidation: (lastValidation) => set({ lastValidation }), // Add setLastValidation
-      reset: () => set({ user: null, token: null, error: null, isValidating: false, lastValidation: 0 }),
+      reset: () => set({ user: null, token: null, error: null }),
     }),
     {
       name: 'auth-storage', // Name for persisted storage
@@ -71,8 +64,41 @@ export const useAuth = () => {
       await authService.logout();
     } finally {
       store.reset();
+      localStorage.removeItem('token'); // Clear the token from localStorage
+      console.log('Logged out and cleared token');
     }
   };
+
+  // Check authentication function
+  const checkAuth = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    console.log('Checking auth, token:', token);
+
+    if (!token) {
+      console.log('No token found, resetting store');
+      store.reset();
+      return false;
+    }
+
+    store.setLoading(true);
+    store.setError(null);
+
+    try {
+      console.log('Validating token with server...');
+      const user = await authService.validateToken(token);
+      console.log('Token validation successful, user:', user);
+      store.setUser(user);
+      store.setToken(token);
+      return true;
+    } catch (error) {
+      console.error('Token validation failed:', error);
+      store.reset();
+      localStorage.removeItem('token');
+      return false;
+    } finally {
+      store.setLoading(false);
+    }
+  }, [store.token]);
 
   // Register function
   const register = async (userData) => {
@@ -114,10 +140,10 @@ export const useAuth = () => {
     try {
       const updatedUser = await authService.updateProfile(profileData);
       console.log('Updated User:', updatedUser); // Debugging
-
+  
       // Update the user object in the store
       store.setUser({ ...store.user, ...updatedUser });
-
+  
       return updatedUser;
     } catch (error) {
       store.setError(error.message);
@@ -127,55 +153,6 @@ export const useAuth = () => {
     }
   };
 
-  const checkAuth = useCallback(async () => {
-    // First, check if there's a token
-    const token = localStorage.getItem('token');
-    if (!token) {
-      store.reset();
-      store.setLoading(false);
-      return false;
-    }
-  
-    // Check if token is expired
-    try {
-      const decodedToken = jwt_decode(token);
-      const currentTime = Date.now() / 1000;
-      
-      if (decodedToken.exp < currentTime) {
-        // Token is expired, clean up
-        localStorage.removeItem('token');
-        store.reset();
-        store.setLoading(false);
-        return false;
-      }
-  
-      // Token exists and isn't expired, validate with server
-      store.setLoading(true);
-      store.setError(null);
-  
-      try {
-        const response = await authService.validateToken(token);
-        store.setUser(response.data.user);
-        return true;
-      } catch (error) {
-        // If validation fails, clean up
-        localStorage.removeItem('token');
-        store.reset();
-        store.setError(error.message);
-        return false;
-      }
-    } catch (error) {
-      // If token decoding fails, clean up
-      localStorage.removeItem('token');
-      store.reset();
-      store.setError('Invalid token');
-      return false;
-    } finally {
-      store.setLoading(false);
-    }
-  }, []);
-
-  // Verify email function
   const verifyEmail = async (token) => {
     try {
       const response = await api.get(`/auth/verify-email/${token}`);
