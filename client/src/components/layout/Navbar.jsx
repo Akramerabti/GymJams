@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X, ShoppingCart, User, Coins, Dumbbell } from 'lucide-react';
-import { useAuth } from '../../stores/authStore';
+import useAuthStore, { useAuth } from '../../stores/authStore';
 import { useCart } from '../../hooks/useCart';
 import { usePoints } from '../../hooks/usePoints'; // Import the usePoints hook
 
@@ -16,7 +16,8 @@ const Navbar = () => {
 
   const [isOpen, setIsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const { user, logout, isTokenValid } = useAuth(); // Add isTokenValid from useAuth
+  const { user, logout} = useAuth(); // Add isTokenValid from useAuth
+  const { isTokenValid } = useAuthStore(); // Use the isTokenValid function
   const { cartItems = [] } = useCart();
   const { balance, fetchPoints } = usePoints(); // Use the usePoints hook
   const userMenuRef = useRef(null);
