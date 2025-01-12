@@ -26,6 +26,13 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
     setIsLoading(true);
   
     try {
+      const email = user?.user?.email || guestEmail;
+      console.log('Using email:', email);
+
+      if (!email) {
+        throw new Error('Email is required');
+      }
+
       const { error: submitError } = await elements.submit();
       if (submitError) {
         onError(submitError.message);
@@ -39,7 +46,7 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
           return_url: window.location.origin + '/dashboard',
           payment_method_data: {
             billing_details: {
-              email: user ? user.user.email : guestEmail,
+              email: email,
             },
           },
         },
@@ -51,7 +58,6 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
         return;
       }
   
-      // Handle 3D Secure or other actions
       if (setupIntent.status === 'requires_action') {
         const { error: actionError } = await stripe.confirmPayment({
           clientSecret: setupIntent.client_secret,
@@ -67,14 +73,13 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
         }
       }
   
-      // If the SetupIntent is successful, call parent's onSuccess
       if (setupIntent.status === 'succeeded') {
-        // Only call onSuccess and let parent handle the subscription
-        onSuccess(setupIntent.id, setupIntent.payment_method);
+        // Pass both setupIntent data and email to parent
+        onSuccess(setupIntent.id, setupIntent.payment_method, email);
       }
     } catch (err) {
       console.error('Setup error:', err);
-      onError('An unexpected error occurred. Please try again.');
+      onError(err.message || 'An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }

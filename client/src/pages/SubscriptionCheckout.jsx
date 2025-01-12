@@ -233,22 +233,33 @@ const SubscriptionCheckout = () => {
                     <PaymentForm
                       plan={currentPlan}
                       clientSecret={clientSecret}
-                      onSuccess={async (setupIntentId, paymentMethodId) => {
+                      onSuccess={async (setupIntentId, paymentMethodId, email) => {
                         try {
+                          // Get email correctly from user object
+                          const userEmail = email || undefined;
+                          console.log('Handling subscription with:', {
+                            planType: currentPlan.id,
+                            setupIntentId,
+                            paymentMethodId,
+                            email: userEmail
+                          });
+                          
                           await subscriptionService.handleSubscriptionSuccess(
                             currentPlan.id,
                             setupIntentId,
                             paymentMethodId,
-                            user ? user.email : undefined
+                            userEmail
                           );
                           toast.success('Subscription activated!');
                           navigate('/dashboard');
                           window.location.reload();
                         } catch (error) {
+                          console.error('Subscription error:', error);
                           toast.error(error.message || 'Failed to activate subscription');
                         }
                       }}
                       onError={(error) => {
+                        console.error('Payment error:', error);
                         toast.error(error || 'Payment failed');
                       }}
                     />

@@ -187,6 +187,8 @@ export const handleSubscriptionSuccess = async (req, res) => {
       metadata: { planType },
     });
 
+    const accessToken = !user ? crypto.randomBytes(32).toString('hex') : null;
+
     // 5. Create subscription in database
     const subscriptionData = {
       subscription: planType,
@@ -196,6 +198,7 @@ export const handleSubscriptionSuccess = async (req, res) => {
       startDate: new Date(),
       currentPeriodStart: new Date(subscription.current_period_start * 1000),
       currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      accessToken, // Add access token for guests
     };
 
     if (user) {
@@ -214,7 +217,32 @@ export const handleSubscriptionSuccess = async (req, res) => {
       });
     }
 
-    // 7. Handle response
+    console.log('Preparing to send receipt email with data:', {
+      subscription: planType,
+      price: PLANS[planType].price,
+      pointsAwarded: PLANS[planType].points,
+      features: PLANS[planType].features,
+      startDate: subscriptionData.startDate,
+      accessToken: accessToken
+    });
+
+    // 7. Send receipt email
+    try {
+      await sendSubscriptionReceipt({
+        subscription: planType,
+        price: PLANS[planType].price,
+        pointsAwarded: PLANS[planType].points,
+        features: PLANS[planType].features,
+        startDate: subscriptionData.startDate,
+        accessToken: accessToken
+      }, email, !user);
+      console.log('Receipt email sent successfully');
+    } catch (emailError) {
+      console.error('Failed to send receipt email:', emailError);
+      // Don't throw error, continue with response
+    }
+
+    // 8. Handle response
     if (subscription.latest_invoice.payment_intent) {
       return res.json({
         subscription: newSubscription,
@@ -222,14 +250,6 @@ export const handleSubscriptionSuccess = async (req, res) => {
         status: subscription.latest_invoice.payment_intent.status,
       });
     }
-
-    await sendSubscriptionReceipt({
-      ...newSubscription.toObject(),
-      price: PLANS[planType].price,
-      pointsAwarded: PLANS[planType].points,
-      accessToken,
-      features: PLANS[planType].features,
-    }, user ? user.email : email, !user);
 
     res.json({
       subscription: newSubscription,
