@@ -4,6 +4,8 @@ import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
 
+
+
 const options = {
   jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
   secretOrKey: process.env.JWT_SECRET,
