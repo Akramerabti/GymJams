@@ -50,15 +50,7 @@ api.interceptors.response.use(
         message: 'Too many requests. Please try again later.',
       });
     }
-
-    // Handle unauthorized access (401 Unauthorized)
-    if (error.response?.status === 401) {
-      console.error('Unauthorized access.');
-      localStorage.removeItem('token'); // Clear the invalid token
-      toast.error('Your session has expired. Please log in again.');
-      return Promise.reject(error);
-    }
-
+    
     // Handle network errors (e.g., CORS issues)
     if (error.code === 'ERR_NETWORK') {
       toast.error('Network error. Please check your internet connection.');

@@ -67,25 +67,10 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
         }
       }
   
-      // If the SetupIntent is successful, proceed with subscription creation
+      // If the SetupIntent is successful, call parent's onSuccess
       if (setupIntent.status === 'succeeded') {
-        const paymentMethodId = setupIntent.payment_method;
-        const email = user ? user.user.email : guestEmail;
-  
-        if (!email) {
-          onError('Email is required');
-          return;
-        }
-  
-        await subscriptionService.handleSubscriptionSuccess(
-          plan.id,
-          setupIntent.id,
-          paymentMethodId,
-          email
-        );
-  
-        onSuccess(setupIntent.id, paymentMethodId);
-        navigate('/dashboard');
+        // Only call onSuccess and let parent handle the subscription
+        onSuccess(setupIntent.id, setupIntent.payment_method);
       }
     } catch (err) {
       console.error('Setup error:', err);
@@ -94,6 +79,7 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
       setIsLoading(false);
     }
   };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
       <div className="bg-white p-2 sm:p-4 rounded-lg shadow-sm border border-gray-100">
