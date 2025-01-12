@@ -25,6 +25,9 @@ const Navbar = () => {
 
   // Check token validity on mount
   useEffect(() => {
+    console.log('Navbar useEffect checkAuth');
+    console.log('Navbar useEffect checkAuth user', user);
+    console.log('Navbar useEffect checkAuth isTokenValid', isTokenValid());
     if (user && !isTokenValid()) {
       logout();
     }

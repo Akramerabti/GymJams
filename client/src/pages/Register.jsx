@@ -22,17 +22,31 @@ const Register = () => {
   });
   const [errors, setErrors] = useState({});
 
+  // Utility function to format phone number
+  const formatPhoneNumber = (value) => {
+    if (!value) return value;
+
+    const phoneNumber = value.replace(/[^\d]/g, ''); // Remove all non-digits
+    const phoneNumberLength = phoneNumber.length;
+
+    if (phoneNumberLength < 4) return phoneNumber;
+    if (phoneNumberLength < 7) {
+      return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3)}`;
+    }
+    return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
+  };
+
   const validateForm = () => {
     const newErrors = {};
-    
+
     if (!formData.firstName.trim()) {
       newErrors.firstName = 'First name is required';
     }
-    
+
     if (!formData.lastName.trim()) {
       newErrors.lastName = 'Last name is required';
     }
-    
+
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
@@ -41,11 +55,10 @@ const Register = () => {
 
     if (!formData.phone || !formData.phone.trim()) {
       newErrors.phone = 'Phone number is required';
-    } else if (!/^\+?[\d\s-]{10,}$/.test(formData.phone)) {
-      newErrors.phone = 'Invalid phone number format';
+    } else if (!/^\d{3}-\d{3}-\d{4}$/.test(formData.phone)) {
+      newErrors.phone = 'Invalid phone number format (XXX-XXX-XXXX)';
     }
-    
-    
+
     if (!formData.password) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 8) {
@@ -53,13 +66,9 @@ const Register = () => {
     } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
       newErrors.password = 'Password must contain uppercase, lowercase, and number';
     }
-    
+
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
-    }
-    
-    if (formData.phone && !/^\+?[\d\s-]{10,}$/.test(formData.phone)) {
-      newErrors.phone = 'Invalid phone number format';
     }
 
     setErrors(newErrors);
@@ -68,10 +77,15 @@ const Register = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    // Format phone number if the field is 'phone'
+    const formattedValue = name === 'phone' ? formatPhoneNumber(value) : value;
+
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: formattedValue
     }));
+
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
@@ -83,35 +97,66 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('Starting registration process');
     
     if (!validateForm()) {
+      console.log('Form validation failed');
       return;
     }
   
     setLoading(true);
     try {
-      // Destructure and clean form data
       const { confirmPassword, ...registrationData } = formData;
       
-      const response = await register(registrationData);
+      // Clean phone number before sending
+      registrationData.phone = registrationData.phone.replace(/-/g, '');
       
-      // Check if response is successful
-      if (response) {
+      console.log('Cleaned registration data:', registrationData);
+      
+      // Store email in localStorage
+      localStorage.setItem('verificationEmail', registrationData.email);
+      console.log('Email stored in localStorage:', registrationData.email);
+      
+      const response = await register(registrationData);
+      console.log('Registration response:', response);
+      
+      // Check if we have either a token or user object
+      if (response && (response.token || response.user)) {
+        console.log('Registration successful, preparing for redirect');
+        
         toast.success("Registration successful!", {
           description: "Please check your email to verify your account."
         });
-        navigate('/login');
-      } else {
-        throw new Error('Registration unsuccessful');
+
+        console.log('Navigating to verification page');
+        navigate('/email-verification-notification', { 
+          replace: true,
+          state: { email: registrationData.email } 
+        });
+        
+        return;
       }
+      
+      // If we got here, something went wrong
+      console.log('Invalid registration response format:', response);
+      localStorage.removeItem('verificationEmail');
+      throw new Error('Registration unsuccessful');
+      
     } catch (error) {
-      console.error('Registration error:', error);
+      console.error('Registration error details:', {
+        error,
+        response: error.response,
+        data: error.response?.data
+      });
+      
+      localStorage.removeItem('verificationEmail');
       
       const errorMessage = 
         error.response?.data?.message || 
         error.message || 
         'Registration failed';
       
+      console.log('Setting error message:', errorMessage);
       toast.error("Registration failed", {
         description: errorMessage
       });
@@ -119,7 +164,7 @@ const Register = () => {
       setLoading(false);
     }
   };
-
+  
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -129,7 +174,7 @@ const Register = () => {
               Create your account
             </CardTitle>
           </CardHeader>
-          
+
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
@@ -168,7 +213,7 @@ const Register = () => {
               <Input
                 icon={<Phone className="w-5 h-5" />}
                 name="phone"
-                placeholder="Phone Number"
+                placeholder="Phone Number (XXX-XXX-XXXX)"
                 value={formData.phone}
                 onChange={handleChange}
                 error={errors.phone}
@@ -230,6 +275,5 @@ const Register = () => {
     </div>
   );
 };
-
 
 export default Register;

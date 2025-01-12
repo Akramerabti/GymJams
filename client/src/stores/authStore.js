@@ -16,8 +16,6 @@ const useAuthStore = create(
   persist(
     (set, get) => ({
       ...initialState,
-
-      // Action Creators
       setUser: (user) => {
         set({ user, isAuthenticated: !!user });
 
@@ -38,6 +36,12 @@ const useAuthStore = create(
       setLoading: (loading) => set({ loading }),
       setError: (error) => set({ error }),
 
+      // Reset function
+      reset: () => {
+        set(initialState); // Reset to initial state
+        delete api.defaults.headers.common['Authorization']; // Clear auth token from axios headers
+      },
+
       // Token Validation
       isTokenValid: () => {
         const token = get().token;
@@ -48,6 +52,122 @@ const useAuthStore = create(
           return decoded.exp * 1000 > Date.now(); // Check if token is expired
         } catch {
           return false;
+        }
+      },
+
+      validatePhone: async (phone) => {
+        const { user } = get();
+        console.log('Validating phone:', phone); // Log the phone number
+        try {
+          const response = await api.post('/auth/validate-phone', {
+            phone: phone,
+            userId: user.id
+          });
+          return response.data.isValid;
+        } catch (error) {
+          console.error('Error validating phone:', error); // Log any errors
+          throw error;
+        }
+      },
+
+      updateProfile: async (profileData) => {
+        const { token, setLoading, setError, setUser } = get();
+        setLoading(true);
+        setError(null);
+
+        try {
+          const response = await api.put(
+            '/auth/profile',
+            profileData,
+            {
+              headers: { Authorization: `Bearer ${token}` }
+            }
+          );
+
+          // Update user in the store
+          setUser(response.data);
+
+          // Update points balance
+          if (response.data.points !== undefined) {
+            usePoints.getState().setBalance(response.data.points);
+          }
+
+          return response.data;
+        } catch (error) {
+          const message = error.response?.data?.message || 'Profile update failed';
+          setError(message);
+          throw error;
+        } finally {
+          setLoading(false);
+        }
+      },
+
+      register: async (userData) => {
+        const { setLoading, setError } = get();
+        setLoading(true);
+        setError(null);
+
+        try {
+          const response = await api.post('/auth/register', userData);
+          return response.data;
+        } catch (error) {
+          const message = error.response?.data?.message || 'Registration failed';
+          setError(message);
+          throw error;
+        } finally {
+          setLoading(false);
+        }
+      },
+
+      registerResetCallback: (callback) => {
+        if (!window.resetStores) {
+          window.resetStores = [];
+        }
+        window.resetStores.push(callback);
+      },
+  
+      verifyEmail: async (token) => {
+        const { setLoading, setError, setUser, setToken } = get();
+        setLoading(true);
+        setError(null);
+
+        try {
+          const response = await api.get(`/auth/verify-email/${token}`);
+          const { user, token: authToken } = response.data;
+
+          // Set user and token in the store
+          setToken(authToken);
+          setUser(user);
+
+          // Update points balance
+          if (user.points !== undefined) {
+            usePoints.getState().setBalance(user.points);
+          }
+
+          return response.data;
+        } catch (error) {
+          const message = error.response?.data?.message || 'Email verification failed';
+          setError(message);
+          throw error;
+        } finally {
+          setLoading(false);
+        }
+      },
+
+      resendVerificationEmail: async (email) => {
+        const { setLoading, setError } = get();
+        setLoading(true);
+        setError(null);
+
+        try {
+          const response = await api.post('/auth/resend-verification-email', { email });
+          return response.data;
+        } catch (error) {
+          const message = error.response?.data?.message || 'Failed to resend verification email';
+          setError(message);
+          throw error;
+        } finally {
+          setLoading(false);
         }
       },
 
@@ -85,9 +205,13 @@ const useAuthStore = create(
         setLoading(true);
 
         try {
-          // Call the logout endpoint
-          await api.post('/auth/logout');
-
+          // Attempt to call the logout endpoint (only if the token is valid)
+          if (get().isTokenValid()) {
+            await api.post('/auth/logout');
+          }
+        } catch (error) {
+          console.error('Logout error:', error);
+        } finally {
           // Clear auth token from axios headers
           delete api.defaults.headers.common['Authorization'];
 
@@ -106,16 +230,15 @@ const useAuthStore = create(
           if (window.resetStores) {
             window.resetStores();
           }
-        } catch (error) {
-          setError('Logout failed');
-          console.error('Logout error:', error);
-        } finally {
+
           setLoading(false);
         }
       },
 
       checkAuth: async () => {
         const { token, setUser, logout, isTokenValid } = get();
+
+        // If no token or token is invalid, logout immediately
         if (!token || !isTokenValid()) {
           logout();
           return false;
@@ -133,7 +256,7 @@ const useAuthStore = create(
           return true;
         } catch (error) {
           console.error('Token validation failed:', error);
-          logout();
+          logout(); // Logout if token validation fails
           return false;
         }
       },
@@ -163,6 +286,12 @@ export const useAuth = () => {
     login: store.login,
     logout: store.logout,
     checkAuth: store.checkAuth,
+    validatePhone: store.validatePhone,
+    updateProfile: store.updateProfile,
+    register: store.register,
+    verifyEmail: store.verifyEmail,
+    resendVerificationEmail: store.resendVerificationEmail,
+    registerResetCallback: store.registerResetCallback,
   };
 };
 

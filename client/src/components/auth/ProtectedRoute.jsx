@@ -1,18 +1,25 @@
 import React, { useEffect, useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../stores/authStore';
 
 const ProtectedRoute = ({ children }) => {
   const { user, checkAuth, loading, logout, isTokenValid } = useAuth();
   const [isChecking, setIsChecking] = useState(true);
   const location = useLocation();
+  const navigate = useNavigate(); // Add this line to use the navigate function
 
   useEffect(() => {
-    if (!user || !isTokenValid()) {
-      logout();
-      navigate('/login');
-    }
-  }, [user, isTokenValid, logout, navigate]);
+    const validateAuth = async () => {
+      if (!user || !isTokenValid()) {
+        await logout();
+        navigate('/login', { state: { from: location }, replace: true });
+      } else {
+        setIsChecking(false);
+      }
+    };
+
+    validateAuth();
+  }, [user, isTokenValid, logout, navigate, location]);
 
   if (isChecking || loading) {
     return (

@@ -5,11 +5,16 @@ import { useAuth } from '../../stores/authStore';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import PhoneInput from './PhoneInput';
 
 const registerSchema = z.object({
   firstName: z.string().min(2, 'First name must be at least 2 characters'),
   lastName: z.string().min(2, 'Last name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email'),
+  phone: z.string()
+    .min(10, 'Phone number must be 10 digits')
+    .max(10, 'Phone number must be 10 digits')
+    .regex(/^\d+$/, 'Phone number must contain only digits'),
   password: z.string()
     .min(8, 'Password must be at least 8 characters')
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
@@ -30,6 +35,7 @@ const RegisterForm = () => {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(registerSchema),
@@ -38,9 +44,46 @@ const RegisterForm = () => {
   const onSubmit = async (data) => {
     try {
       setError('');
-      await registerUser(data); // Register the use
-    } catch (err) { 
-      setError(err.response?.data?.message || 'Failed to create account');
+      
+      // Store email first, before making the API call
+      localStorage.setItem('verificationEmail', data.email);
+      console.log('Stored email in localStorage:', data.email);
+      
+      const response = await registerUser(data);
+      console.log('Registration API response:', response);
+
+      // Check if API call was successful
+      if (response?.data?.user || response?.success) {
+        console.log('Registration successful, redirecting to verification page');
+        
+        // Immediate navigation without setTimeout
+        navigate('/email-verification-notification', {
+          replace: true,
+          state: { email: data.email }
+        });
+        
+        return;
+      }
+
+      // If we get here without a proper response, throw an error
+      throw new Error('Registration was not successful');
+      
+    } catch (err) {
+      console.error('Registration error:', err);
+      
+      // Remove email from localStorage if registration failed
+      localStorage.removeItem('verificationEmail');
+      
+      // Determine the error message
+      const errorMessage = 
+        err.response?.data?.message || 
+        err.message || 
+        'Failed to create account';
+      
+      setError(errorMessage);
+      toast?.error('Registration failed', {
+        description: errorMessage
+      });
     }
   };
   
@@ -113,6 +156,12 @@ const RegisterForm = () => {
                 <p className="mt-1 text-sm text-red-500">{errors.email.message}</p>
               )}
             </div>
+
+            <PhoneInput
+              value={register('phone').value}
+              onChange={(value) => setValue('phone', value)}
+              error={errors.phone?.message}
+            />
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
