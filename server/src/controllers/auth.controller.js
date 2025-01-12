@@ -346,16 +346,16 @@ export const verifyEmail = async (req, res) => {
 export const validatePhone = async (req, res) => {
   try {
     const { phone } = req.body;
-
-    console.log('Validating phone:', phone);
+    
+    const number = phone.phone;
 
     // Check if the phone number is provided
-    if (!phone) {
+    if (!number) {
       return res.status(400).json({ message: 'Phone number is required' });
     }
 
     // Check if a user with the given phone number already exists
-    const existingUser = await User.findOne({ phone });
+    const existingUser = await User.findOne({ number });
 
     // If no user exists with this phone number, it's valid
     res.json({ isValid: !existingUser });
