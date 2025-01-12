@@ -12,7 +12,7 @@ import {
 
 const router = express.Router();
 
-router.get('/current', authenticate, getCurrentSubscription);
+router.get('/current', optionalAuthenticate, getCurrentSubscription);
 router.delete('/:subscriptionId', authenticate, cancelSubscription);
 router.post('/:subscriptionId/finish-month', authenticate, finishCurrentMonth);
 router.post('/create-intent', createSetupIntent);

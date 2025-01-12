@@ -24,6 +24,8 @@ import ResetPassword from './pages/ResetPassword';
 import Orders from './pages/Orders';
 import SubscriptionManagement from './pages/SubscriptionManagement';
 import useAuthStore from './stores/authStore';
+import Dashboard from './pages/Dashboard';
+import Questionnaire from './pages/Questionnaire';
 
 const App = () => {
   const { checkAuth, logout } = useAuthStore();
@@ -58,6 +60,8 @@ const App = () => {
           <Route path="/email-verification-notification" element={<EmailVerificationNotification />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/questionnaire" element={<Questionnaire />} />
 
           {/* Protected Routes */}
           <Route path="/profile" element={
