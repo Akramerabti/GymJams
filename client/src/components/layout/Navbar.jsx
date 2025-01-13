@@ -4,6 +4,7 @@ import { Menu, X, ShoppingCart, User, Coins, Dumbbell } from 'lucide-react';
 import { useAuth } from '../../stores/authStore';
 import { useCart } from '../../hooks/useCart';
 import { usePoints } from '../../hooks/usePoints';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Navbar = () => {
   const navigationItems = [
@@ -25,9 +26,6 @@ const Navbar = () => {
 
   // Check token validity on mount
   useEffect(() => {
-    console.log('Navbar useEffect checkAuth');
-    console.log('Navbar useEffect checkAuth user', user);
-    console.log('Navbar useEffect checkAuth isTokenValid', isTokenValid());
     if (user && !isTokenValid()) {
       logout();
     }
@@ -121,33 +119,41 @@ const Navbar = () => {
                 >
                   <User className="h-6 w-6" />
                 </button>
-                {isUserMenuOpen && (
-                  <div className="absolute right-0 w-48 mt-2 py-2 bg-white rounded-md shadow-lg z-20 border border-gray-100">
-                    <Link
-                      to="/profile"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                      onClick={() => setIsUserMenuOpen(false)}
+                <AnimatePresence>
+                  {isUserMenuOpen && (
+                    <motion.div
+                      className="absolute right-0 w-48 mt-2 py-2 bg-white rounded-md shadow-lg z-20 border border-gray-100"
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2 }}
                     >
-                      Profile
-                    </Link>
-                    <Link
-                      to="/orders"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                      onClick={() => setIsUserMenuOpen(false)}
-                    >
-                      Orders
-                    </Link>
-                    <button
-                      onClick={() => {
-                        logout();
-                        setIsUserMenuOpen(false);
-                      }}
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      Logout
-                    </button>
-                  </div>
-                )}
+                      <Link
+                        to="/profile"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        Profile
+                      </Link>
+                      <Link
+                        to="/orders"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        Orders
+                      </Link>
+                      <button
+                        onClick={() => {
+                          logout();
+                          setIsUserMenuOpen(false);
+                        }}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        Logout
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             ) : (
               <Link
@@ -171,24 +177,32 @@ const Navbar = () => {
         </div>
 
         {/* Mobile Navigation Links */}
-        {isOpen && (
-          <div className="md:hidden">
-            <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-              {navigationItems.map((item) => (
-                <Link
-                  key={item.name}
-                  to={item.path}
-                  className={`block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-50 transition-colors ${
-                    location.pathname === item.path ? 'text-blue-600 font-semibold' : ''
-                  }`}
-                  onClick={() => setIsOpen(false)}
-                >
-                  {item.name}
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              className="md:hidden"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.2 }}
+            >
+              <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                {navigationItems.map((item) => (
+                  <Link
+                    key={item.name}
+                    to={item.path}
+                    className={`block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-50 transition-colors ${
+                      location.pathname === item.path ? 'text-blue-600 font-semibold' : ''
+                    }`}
+                    onClick={() => setIsOpen(false)}
+                  >
+                    {item.name}
+                  </Link>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </nav>
   );
