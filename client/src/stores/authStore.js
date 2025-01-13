@@ -24,15 +24,20 @@ const useAuthStore = create(
           usePoints.getState().setBalance(user.points);
         }
       },
+
       setToken: (token) => {
-        if (token) {
-          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-          set({ token, isAuthenticated: true });
-        } else {
-          delete api.defaults.headers.common['Authorization'];
-          set({ token: null, isAuthenticated: false });
-        }
-      },
+       if (token) {
+         localStorage.setItem('token', token); // Ensure token is saved to localStorage
+         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+         set({ token, isAuthenticated: true });
+       } else {
+         localStorage.removeItem('token'); // Ensure token is removed on logout
+         delete api.defaults.headers.common['Authorization'];
+         set({ token: null, isAuthenticated: false });
+       }
+},
+
+
       setLoading: (loading) => set({ loading }),
       setError: (error) => set({ error }),
 

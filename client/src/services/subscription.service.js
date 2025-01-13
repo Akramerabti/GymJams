@@ -1,31 +1,13 @@
 import api from './api';
 
 const subscriptionService = {
-  // Helper function to get headers with the Authorization token
-  getHeaders(token) {
-    if (!token) {
-      console.error('No token provided');
-      throw new Error('Authentication required');
-    }
-
-    return {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    };
-  },
-
   // Create payment intent for subscription
-  async createPaymentIntent(planData, token) {
+  async createPaymentIntent(planData) {
     try {
       console.log('Creating payment intent for plan:', planData);
-      const response = await api.post(
-        '/subscription/create-intent',
-        {
-          planType: planData.id,
-        },
-        this.getHeaders(token) // Pass the token to getHeaders
-      );
+      const response = await api.post('/subscription/create-intent', {
+        planType: planData.id, // Changed from subscription to planType to match backend
+      });
       return response.data;
     } catch (error) {
       console.error('Failed to create payment intent:', error);
@@ -34,16 +16,12 @@ const subscriptionService = {
   },
 
   // Start subscription with payment method
-  async startSubscription(paymentMethodId, planType, token) {
+  async startSubscription(paymentMethodId, planType) {
     try {
-      const response = await api.post(
-        '/subscription',
-        {
-          paymentMethodId,
-          planType,
-        },
-        this.getHeaders(token) // Pass the token to getHeaders
-      );
+      const response = await api.post('/subscription', {
+        paymentMethodId,
+        planType, // Changed from subscription to planType
+      });
       return response.data;
     } catch (error) {
       console.error('Failed to start subscription:', error);
@@ -51,16 +29,11 @@ const subscriptionService = {
     }
   },
 
-  // Check if the user has completed the initial questionnaire
-  async checkQuestionnaireStatus(userIdOrEmail, token) {
+  async checkQuestionnaireStatus(userIdOrEmail) {
     try {
-      const response = await api.get(
-        '/subscription/questionnaire-status',
-        {
-          params: { userIdOrEmail },
-          ...this.getHeaders(token), // Pass the token to getHeaders
-        }
-      );
+      const response = await api.get('/subscription/questionnaire-status', {
+        params: { userIdOrEmail },
+      });
       return response.data;
     } catch (error) {
       console.error('Error checking questionnaire status:', error);
@@ -69,13 +42,9 @@ const subscriptionService = {
   },
 
   // Submit the initial questionnaire
-  async submitQuestionnaire(answers, token) {
+  async submitQuestionnaire(answers) {
     try {
-      const response = await api.post(
-        '/subscription/submit-questionnaire',
-        answers,
-        this.getHeaders(token) // Pass the token to getHeaders
-      );
+      const response = await api.post('/subscription/submit-questionnaire', answers);
       return response.data;
     } catch (error) {
       console.error('Error submitting questionnaire:', error);
@@ -83,31 +52,26 @@ const subscriptionService = {
     }
   },
 
-  // Handle subscription success
-  async handleSubscriptionSuccess(planType, setupIntentId, paymentMethodId, email, token) {
+  async handleSubscriptionSuccess(planType, setupIntentId, paymentMethodId, email) {
     try {
       console.log('Handling subscription success:', { planType, setupIntentId, paymentMethodId, email });
-      const response = await api.post(
-        '/subscription/handle-success',
-        {
-          planType,
-          setupIntentId,
-          paymentMethodId,
-          email,
-        },
-        this.getHeaders(token) // Pass the token to getHeaders
-      );
+      const response = await api.post('/subscription/handle-success', {
+        planType,
+        setupIntentId,
+        paymentMethodId,
+        email,
+      });
       return response.data;
     } catch (error) {
       console.error('Failed to handle subscription success:', error);
       throw error;
     }
   },
-
+  
   // Get current subscription details
-  async getCurrentSubscription(token) {
+  async getCurrentSubscription() {
     try {
-      const response = await api.get('/subscription/current', this.getHeaders(token)); // Pass the token to getHeaders
+      const response = await api.get('/subscription/current');
       console.log('Current subscription:', response.data);
       return response.data;
     } catch (error) {
@@ -117,12 +81,9 @@ const subscriptionService = {
   },
 
   // Cancel subscription
-  async cancelSubscription(subscriptionId, token) {
+  async cancelSubscription(subscriptionId) {
     try {
-      const response = await api.delete(
-        `/subscription/${subscriptionId}`,
-        this.getHeaders(token) // Pass the token to getHeaders
-      );
+      const response = await api.delete(`/subscription/${subscriptionId}`);
       return response.data;
     } catch (error) {
       console.error('Failed to cancel subscription:', error);
@@ -131,13 +92,9 @@ const subscriptionService = {
   },
 
   // Finish current month (remove recurring payment)
-  async finishCurrentMonth(subscriptionId, token) {
+  async finishCurrentMonth(subscriptionId) {
     try {
-      const response = await api.post(
-        `/subscription/${subscriptionId}/finish-month`,
-        {},
-        this.getHeaders(token) // Pass the token to getHeaders
-      );
+      const response = await api.post(`/subscription/${subscriptionId}/finish-month`);
       return response.data;
     } catch (error) {
       console.error('Failed to finish current month:', error);
@@ -146,15 +103,11 @@ const subscriptionService = {
   },
 
   // Update subscription plan
-  async updateSubscription(subscriptionId, newPlanType, token) {
+  async updateSubscription(subscriptionId, newPlanType) {
     try {
-      const response = await api.put(
-        `/subscription/${subscriptionId}`,
-        {
-          newPlanType,
-        },
-        this.getHeaders(token) // Pass the token to getHeaders
-      );
+      const response = await api.put(`/subscription/${subscriptionId}`, {
+        newPlanType, // Changed from subscription to newPlanType
+      });
       return response.data;
     } catch (error) {
       console.error('Failed to update subscription:', error);
