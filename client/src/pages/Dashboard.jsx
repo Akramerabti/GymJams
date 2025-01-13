@@ -36,6 +36,7 @@ const Dashboard = () => {
           return;
         }
 
+        console.log('Current subscription:', currentSubscription);
         if (currentSubscription && currentSubscription.status === 'active') {
           setSubscription(currentSubscription);
           

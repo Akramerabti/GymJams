@@ -117,22 +117,32 @@ export const getQuestionnaireStatus = async (req, res) => {
   try {
     let subscription;
 
+    console.log('Checking questionnaire status for user:', req.user);
+
     if (req.user) {
-      // For logged-in users
-      subscription = await Subscription.findOne({ user: req.user.id });
+      // For logged-in users: Find an ACTIVE subscription for the user
+      subscription = await Subscription.findOne({ 
+        user: req.user.id, 
+        status: 'active' // Ensure the subscription is active
+      });
     } else {
-      // For guest users
+      // For guest users: Find an ACTIVE subscription using the access token
       const { accessToken } = req.query;
       if (!accessToken) {
         return res.status(400).json({ error: 'Access token required for guest users' });
       }
-      subscription = await Subscription.findOne({ accessToken });
+      subscription = await Subscription.findOne({ 
+        accessToken, 
+        status: 'active' // Ensure the subscription is active
+      });
     }
 
+    // If no ACTIVE subscription is found, return an error
     if (!subscription) {
       return res.status(404).json({ error: 'No active subscription found' });
     }
 
+    console.log('Active subscription found:', subscription);
     res.json({
       completed: subscription.hasCompletedQuestionnaire,
       completedAt: subscription.questionnaireCompletedAt,
