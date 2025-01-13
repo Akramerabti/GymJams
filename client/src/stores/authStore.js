@@ -208,7 +208,7 @@ const useAuthStore = create(
       logout: async () => {
         const { setLoading, setError, reset } = get();
         setLoading(true);
-
+      
         try {
           // Attempt to call the logout endpoint (only if the token is valid)
           if (get().isTokenValid()) {
@@ -219,33 +219,36 @@ const useAuthStore = create(
         } finally {
           // Clear auth token from axios headers
           delete api.defaults.headers.common['Authorization'];
-
+      
           // Clear local storage items
           localStorage.removeItem('token');
           localStorage.removeItem('cart-storage');
           localStorage.removeItem('persist:auth-storage');
-
+          localStorage.removeItem('accessToken'); // Also clear any guest access token
+      
           // Reset store state
           reset();
-
+      
           // Reset points balance
           usePoints.getState().setBalance(0);
-
+      
           // Optional: Clear other stores
           if (window.resetStores) {
             window.resetStores();
           }
-
+      
           setLoading(false);
+      
+          // Refresh the page to ensure clean state
+          window.location.href = window.location.origin;
         }
       },
 
       checkAuth: async () => {
-        const { token, setUser, logout, isTokenValid } = get();
+        const { token, setUser, isTokenValid } = get();
 
         // If no token or token is invalid, logout immediately
         if (!token || !isTokenValid()) {
-          logout();
           return false;
         }
 
@@ -261,7 +264,6 @@ const useAuthStore = create(
           return true;
         } catch (error) {
           console.error('Token validation failed:', error);
-          logout(); // Logout if token validation fails
           return false;
         }
       },

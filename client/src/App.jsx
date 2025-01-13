@@ -30,19 +30,29 @@ import Questionnaire from './pages/Questionnaire';
 const App = () => {
   const { checkAuth, logout } = useAuthStore();
 
-  useEffect(() => {
-    const validateTokenOnLoad = async () => {
-      try {
-        await checkAuth(); // Validate token on app load
-      } catch (error) {
-        console.error('Token validation failed:', error);
-        logout(); // Log the user out if the token is invalid
+  // In App.jsx
+useEffect(() => {
+  const validateTokenOnLoad = async () => {
+    try {
+      // Only attempt to validate if there's a token
+      const token = localStorage.getItem('token');
+      if (token) {
+        const isValid = await checkAuth();
+        if (!isValid) {
+          console.log('Token validation failed, logging out');
+          logout();
+        }
       }
-    };
-  
-    validateTokenOnLoad();
-  }, [checkAuth, logout]);
-  
+    } catch (error) {
+      console.error('Auth check error:', error);
+      logout();
+    }
+  };
+
+  validateTokenOnLoad();
+}, [checkAuth, logout]);
+
+
   return (
     <Router>
       <Layout>

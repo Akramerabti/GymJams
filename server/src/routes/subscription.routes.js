@@ -8,6 +8,8 @@ import {
   accessSubscription,
   finishCurrentMonth,
   handleWebhook,
+  getQuestionnaireStatus,
+  submitQuestionnaire,
 } from '../controllers/subscription.Controller.js';
 
 const router = express.Router();
@@ -17,7 +19,10 @@ router.delete('/:subscriptionId', authenticate, cancelSubscription);
 router.post('/:subscriptionId/finish-month', authenticate, finishCurrentMonth);
 router.post('/create-intent', createSetupIntent);
 router.post('/handle-success', optionalAuthenticate, handleSubscriptionSuccess);
-router.post('/access', accessSubscription);
+router.post('/access', optionalAuthenticate, accessSubscription);
+router.get('/questionnaire-status', optionalAuthenticate, getQuestionnaireStatus);
+router.post('/submit-questionnaire', optionalAuthenticate, submitQuestionnaire);
+
 router.post('/webhook', express.raw({ type: 'application/json' }),
 async (req, res) => {
   try {

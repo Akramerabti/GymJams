@@ -61,6 +61,126 @@ export const getCurrentSubscription = async (req, res) => {
   }
 };
 
+export const accessSubscription = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Access token is required' });
+    }
+
+    // Find subscription by access token
+    const subscription = await Subscription.findOne({ accessToken: token });
+
+    if (!subscription) {
+      return res.status(404).json({ error: 'Invalid or expired access token' });
+    }
+
+    // Check if subscription is still active
+    if (subscription.status !== 'active') {
+      return res.status(403).json({ error: 'This subscription is no longer active' });
+    }
+
+    // Check if subscription is within its valid period
+    const now = new Date();
+    if (now > subscription.currentPeriodEnd) {
+      return res.status(403).json({ error: 'This subscription period has expired' });
+    }
+
+    // Return subscription details along with access information
+    const subscriptionDetails = {
+      type: subscription.subscription,
+      status: subscription.status,
+      startDate: subscription.startDate,
+      currentPeriodEnd: subscription.currentPeriodEnd,
+      features: PLANS[subscription.subscription].features,
+      pointsAwarded: PLANS[subscription.subscription].points
+    };
+
+    // Store access token in session if you want to maintain access
+    if (req.session) {
+      req.session.subscriptionAccess = token;
+    }
+
+    res.json({ 
+      success: true,
+      subscription: subscriptionDetails,
+      message: 'Subscription access granted successfully'
+    });
+  } catch (error) {
+    console.error('Subscription access error:', error);
+    res.status(500).json({ error: 'Failed to access subscription' });
+  }
+};
+
+export const getQuestionnaireStatus = async (req, res) => {
+  try {
+    let subscription;
+
+    if (req.user) {
+      // For logged-in users
+      subscription = await Subscription.findOne({ user: req.user.id });
+    } else {
+      // For guest users
+      const { accessToken } = req.query;
+      if (!accessToken) {
+        return res.status(400).json({ error: 'Access token required for guest users' });
+      }
+      subscription = await Subscription.findOne({ accessToken });
+    }
+
+    if (!subscription) {
+      return res.status(404).json({ error: 'No active subscription found' });
+    }
+
+    res.json({
+      completed: subscription.hasCompletedQuestionnaire,
+      completedAt: subscription.questionnaireCompletedAt,
+      data: subscription.questionnaireData
+    });
+
+  } catch (error) {
+    logger.error('Error fetching questionnaire status:', error);
+    res.status(500).json({ error: 'Failed to fetch questionnaire status' });
+  }
+};
+
+// In subscription.controller.js
+export const submitQuestionnaire = async (req, res) => {
+  try {
+    const { answers, accessToken } = req.body;
+    let subscription;
+
+    if (req.user) {
+      // For logged-in users
+      subscription = await Subscription.findOne({ user: req.user.id });
+    } else if (accessToken) {
+      // For guest users
+      subscription = await Subscription.findOne({ accessToken });
+    } else {
+      return res.status(400).json({ error: 'Access token required for guest users' });
+    }
+
+    if (!subscription) {
+      return res.status(404).json({ error: 'No active subscription found' });
+    }
+
+    // Update questionnaire data
+    subscription.hasCompletedQuestionnaire = true;
+    subscription.questionnaireData = answers;
+    subscription.questionnaireCompletedAt = new Date();
+    await subscription.save();
+
+    res.json({
+      success: true,
+      message: 'Questionnaire completed successfully'
+    });
+  } catch (error) {
+    logger.error('Error submitting questionnaire:', error);
+    res.status(500).json({ error: 'Failed to submit questionnaire' });
+  }
+};
+
 export const finishCurrentMonth = async (req, res) => {
   try {
     const { subscriptionId } = req.params;
@@ -187,8 +307,10 @@ export const handleSubscriptionSuccess = async (req, res) => {
       metadata: { planType },
     });
 
-    const accessToken = !user ? crypto.randomBytes(32).toString('hex') : null;
-
+    // Generate access token for guests
+    // Generate access token only for guests and set to undefined for users (not null)
+    const accessToken = !user ? crypto.randomBytes(32).toString('hex') : undefined;
+    
     // 5. Create subscription in database
     const subscriptionData = {
       subscription: planType,
@@ -198,14 +320,9 @@ export const handleSubscriptionSuccess = async (req, res) => {
       startDate: new Date(),
       currentPeriodStart: new Date(subscription.current_period_start * 1000),
       currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      accessToken, // Add access token for guests
+      ...(accessToken && { accessToken }), // Only include accessToken if it exists
+      ...(user ? { user: user.id } : { guestEmail: email })
     };
-
-    if (user) {
-      subscriptionData.user = user.id;
-    } else {
-      subscriptionData.guestEmail = email;
-    }
 
     const newSubscription = await Subscription.create(subscriptionData);
 
@@ -262,57 +379,6 @@ export const handleSubscriptionSuccess = async (req, res) => {
   }
 };
 
-export const accessSubscription = async (req, res) => {
-  try {
-    const { token } = req.body;
-
-    if (!token) {
-      return res.status(400).json({ error: 'Access token is required' });
-    }
-
-    // Find subscription by access token
-    const subscription = await Subscription.findOne({ accessToken: token });
-
-    if (!subscription) {
-      return res.status(404).json({ error: 'Invalid or expired access token' });
-    }
-
-    // Check if subscription is still active
-    if (subscription.status !== 'active') {
-      return res.status(403).json({ error: 'This subscription is no longer active' });
-    }
-
-    // Check if subscription is within its valid period
-    const now = new Date();
-    if (now > subscription.currentPeriodEnd) {
-      return res.status(403).json({ error: 'This subscription period has expired' });
-    }
-
-    // Return subscription details along with access information
-    const subscriptionDetails = {
-      type: subscription.subscription,
-      status: subscription.status,
-      startDate: subscription.startDate,
-      currentPeriodEnd: subscription.currentPeriodEnd,
-      features: PLANS[subscription.subscription].features,
-      pointsAwarded: PLANS[subscription.subscription].points
-    };
-
-    // Store access token in session if you want to maintain access
-    if (req.session) {
-      req.session.subscriptionAccess = token;
-    }
-
-    res.json({ 
-      success: true,
-      subscription: subscriptionDetails,
-      message: 'Subscription access granted successfully'
-    });
-  } catch (error) {
-    console.error('Subscription access error:', error);
-    res.status(500).json({ error: 'Failed to access subscription' });
-  }
-};
 
 export const handleWebhook = async (event) => {
   let subscription;

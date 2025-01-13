@@ -67,18 +67,68 @@ const subscriptionService = {
       throw error;
     }
   },
-  
-  // Get current subscription details
-  async getCurrentSubscription() {
+
+  async getCurrentSubscription(accessToken = null) {
     try {
-      const response = await api.get('/subscription/current');
+      const response = await api.get('/subscription/current', {
+        params: accessToken ? { accessToken } : undefined
+      });
       console.log('Current subscription:', response.data);
       return response.data;
     } catch (error) {
       console.error('Failed to fetch current subscription:', error);
       throw error;
     }
-  },
+  }, 
+
+  async verifyAccessToken(token) {
+  try {
+    const response = await api.post('/subscription/access', { token });
+    console.log('Access token verification:', response.data);
+    if (response.data.success) {
+      // Store the access token in localStorage if verification successful
+      localStorage.setItem('accessToken', token);
+    }
+    return response.data;
+  } catch (error) {
+    console.error('Failed to verify access token:', error);
+    throw error;
+  }
+},
+
+async checkQuestionnaireStatus(accessToken = null) {
+  try {
+    const response = await api.get('/subscription/questionnaire-status', {
+      params: accessToken ? { accessToken } : undefined
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to check questionnaire status:', error);
+    throw error;
+  }
+},
+
+// In subscription.service.js
+async submitQuestionnaire(answers) {
+  try {
+    // Get access token for guest users
+    const accessToken = localStorage.getItem('accessToken');
+    
+    // Prepare request data
+    const requestData = {
+      answers,
+      ...(accessToken && { accessToken }) // Include access token if it exists
+    };
+
+    console.log('Submitting questionnaire with data:', requestData);
+    
+    const response = await api.post('/subscription/submit-questionnaire', requestData);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to submit questionnaire:', error);
+    throw error;
+  }
+},
 
   // Cancel subscription
   async cancelSubscription(subscriptionId) {

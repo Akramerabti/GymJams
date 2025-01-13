@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import api from '../services/api';
 import { motion, useAnimation } from 'framer-motion';
 import { useInView } from 'react-intersection-observer';
+import subscriptionService from '../services/subscription.service';
 
 const CoachingHome = () => {
   const navigate = useNavigate();
@@ -129,13 +130,11 @@ const CoachingHome = () => {
   const handleSubscriptionAccess = async (e) => {
     e.preventDefault();
     setAccessError('');
-
+  
     try {
-      const response = await api.post('/subscription/access', { token: accessToken });
-      if (response.data.success) {
-        navigate('/dashboard');
-        toast.success('Successfully accessed subscription!');
-      }
+      await subscriptionService.verifyAccessToken(accessToken);
+      navigate('/dashboard', { state: { accessToken } }); // Pass the access token in the state
+      toast.success('Successfully accessed subscription!');
     } catch (error) {
       setAccessError('Invalid or expired access token');
       toast.error('Failed to access subscription');

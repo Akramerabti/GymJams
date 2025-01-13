@@ -57,10 +57,25 @@ const subscriptionSchema = new mongoose.Schema({
   },
   accessToken: {
     type: String,
-    unique: true,
-    sparse: true // Allows null values while maintaining uniqueness
+    sparse: true, // Allow null values
+    index: {
+      unique: true,
+      partialFilterExpression: { accessToken: { $type: "string" } } // Only index non-null values
+    }
   },
-}, {
+  hasCompletedQuestionnaire: {
+    type: Boolean,
+    default: false
+  },
+  questionnaireData: {
+    type: Map,
+    of: mongoose.Schema.Types.Mixed,
+    default: new Map()
+  },
+  questionnaireCompletedAt: {
+    type: Date
+  },
+},  {
   timestamps: true
 });
 
