@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -104,11 +104,112 @@ const questions = [
   }
 ];
 
-const QuestionCard = ({ question, value, onChange, isVisible }) => {
+const QuestionCard = ({ question, value, onChange, isVisible, isEditing, existingAnswers }) => {
   const variants = {
     enter: { x: 1000, opacity: 0 },
     center: { x: 0, opacity: 1 },
     exit: { x: -1000, opacity: 0 }
+  };
+
+  const renderQuestionInput = () => {
+    switch (question.type) {
+      case 'multiSelect': {
+        const currentValue = value || (isEditing ? existingAnswers[question.id] || [] : []);
+        return (
+          <div className="grid grid-cols-2 gap-4">
+            {question.options.map((option) => (
+              <motion.button
+                key={option.id}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  const newValue = currentValue.includes(option.id)
+                    ? currentValue.filter(v => v !== option.id)
+                    : [...currentValue, option.id];
+                  onChange(newValue);
+                }}
+                className={`flex items-center p-4 rounded-lg ${
+                  currentValue.includes(option.id)
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-700 text-gray-300'
+                } transition-colors duration-200`}
+              >
+                {option.icon && <span className="mr-3">{option.icon}</span>}
+                {option.label}
+              </motion.button>
+            ))}
+          </div>
+        );
+      }
+
+      case 'select': {
+        const currentValue = value || (isEditing ? existingAnswers[question.id] : '');
+        return (
+          <select
+            value={currentValue}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full p-4 rounded-lg bg-gray-700 text-white border-none"
+          >
+            <option value="">Select an option</option>
+            {question.options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        );
+      }
+
+      case 'slider': {
+        // Ensure we always have a defined numeric value
+        const currentValue = typeof value !== 'undefined' 
+          ? value 
+          : isEditing && typeof existingAnswers[question.id] !== 'undefined'
+            ? existingAnswers[question.id]
+            : question.min;
+            
+        return (
+          <div className="space-y-4">
+            <input
+              type="range"
+              min={question.min}
+              max={question.max}
+              step={question.step}
+              value={currentValue}
+              onChange={(e) => onChange(parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            />
+            <div className="text-center text-white text-2xl font-bold">
+              {currentValue}
+            </div>
+          </div>
+        );
+      }
+
+      case 'toggle': {
+        const currentValue = value ?? (isEditing ? existingAnswers[question.id] : false);
+        return (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={() => onChange(!currentValue)}
+              className={`relative inline-flex h-12 w-24 items-center rounded-full transition-colors ${
+                currentValue ? 'bg-blue-600' : 'bg-gray-700'
+              }`}
+            >
+              <span
+                className={`inline-block h-10 w-10 transform rounded-full bg-white transition-transform ${
+                  currentValue ? 'translate-x-12' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        );
+      }
+
+      default:
+        return null;
+    }
   };
 
   return (
@@ -125,109 +226,41 @@ const QuestionCard = ({ question, value, onChange, isVisible }) => {
           <h2 className="text-2xl font-bold text-white mb-6">
             {question.title}
           </h2>
-          {renderQuestionInput(question, value, onChange)}
+          {renderQuestionInput()}
         </div>
       </Card>
     </motion.div>
   );
 };
 
-const renderQuestionInput = (question, value, onChange) => {
-  switch (question.type) {
-    case 'multiSelect':
-      return (
-        <div className="grid grid-cols-2 gap-4">
-          {question.options.map((option) => (
-            <motion.button
-              key={option.id}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => {
-                const currentValue = value || [];
-                const newValue = currentValue.includes(option.id)
-                  ? currentValue.filter(v => v !== option.id)
-                  : [...currentValue, option.id];
-                onChange(newValue);
-              }}
-              className={`flex items-center p-4 rounded-lg ${
-                (value || []).includes(option.id)
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-700 text-gray-300'
-              } transition-colors duration-200`}
-            >
-              {option.icon && <span className="mr-3">{option.icon}</span>}
-              {option.label}
-            </motion.button>
-          ))}
-        </div>
-      );
-
-    case 'select':
-      return (
-        <select
-          value={value || ''}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full p-4 rounded-lg bg-gray-700 text-white border-none"
-        >
-          <option value="">Select an option</option>
-          {question.options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      );
-
-    case 'slider':
-      return (
-        <div className="space-y-4">
-          <input
-            type="range"
-            min={question.min}
-            max={question.max}
-            step={question.step}
-            value={value || question.min}
-            onChange={(e) => onChange(parseFloat(e.target.value))}
-            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-          />
-          <div className="text-center text-white text-2xl font-bold">
-            {value || question.min}
-          </div>
-        </div>
-      );
-
-    case 'toggle':
-      return (
-        <div className="flex justify-center">
-          <button
-            type="button"
-            onClick={() => onChange(!value)}
-            className={`relative inline-flex h-12 w-24 items-center rounded-full transition-colors ${
-              value ? 'bg-blue-600' : 'bg-gray-700'
-            }`}
-          >
-            <span
-              className={`inline-block h-10 w-10 transform rounded-full bg-white transition-transform ${
-                value ? 'translate-x-12' : 'translate-x-1'
-              }`}
-            />
-          </button>
-        </div>
-      );
-
-    default:
-      return null;
-  }
-};
-
 const Questionnaire = () => {
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [answers, setAnswers] = useState({});
-  const [loading, setLoading] = useState(false);
+  const location = useLocation();
   const { user } = useAuth();
+  
+  const isEditing = location.state?.isEditing;
+  const existingAnswers = location.state?.currentAnswers || {};
+  const [currentStep, setCurrentStep] = useState(0);
+  const [loading, setLoading] = useState(false);
 
-  // Progress bar calculation
+  const [answers, setAnswers] = useState(() => {
+    // If we're editing, use existing answers; otherwise, initialize with default values
+    if (isEditing) {
+      return {
+        ...questions.reduce((acc, q) => ({
+          ...acc,
+          [q.id]: q.type === 'slider' ? q.min : q.type === 'toggle' ? false : q.type === 'multiSelect' ? [] : ''
+        }), {}),
+        ...existingAnswers
+      };
+    }
+
+    return questions.reduce((acc, q) => ({
+      ...acc,
+      [q.id]: q.type === 'slider' ? q.min : q.type === 'toggle' ? false : q.type === 'multiSelect' ? [] : ''
+    }), {});
+  });
+
   const progress = ((currentStep + 1) / questions.length) * 100;
 
   const handleAnswer = (value) => {
@@ -252,15 +285,14 @@ const Questionnaire = () => {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-  
+
       let submissionData = {
         answers
       };
-  
+
       if (user) {
         submissionData.userId = user.id;
       } else {
-
         const accessToken = localStorage.getItem('accessToken');
         if (!accessToken) {
           toast.error('Authentication required. Please log in or provide access token.');
@@ -269,23 +301,25 @@ const Questionnaire = () => {
         }
         submissionData.accessToken = accessToken;
       }
-  
+
       const response = await subscriptionService.submitQuestionnaire(
         submissionData.answers,
         submissionData.accessToken,
         submissionData.userId
       );
-  
+
       if (response.success) {
-        toast.success('Questionnaire completed successfully!', {
-          icon: '🎉',
-          style: {
-            background: '#4CAF50',
-            color: 'white',
-          },
-        });
+        toast.success(
+          isEditing ? 'Fitness profile updated successfully!' : 'Questionnaire completed successfully!',
+          {
+            icon: '🎉',
+            style: {
+              background: '#4CAF50',
+              color: 'white',
+            },
+          }
+        );
         
-        // Redirect to dashboard with appropriate auth method
         if (user) {
           navigate('/dashboard');
         } else {
@@ -313,6 +347,10 @@ const Questionnaire = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
+        <h1 className="text-3xl font-bold text-white text-center mb-8">
+          {isEditing ? 'Edit Your Fitness Profile' : 'Initial Questionnaire'}
+        </h1>
+        
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="h-2 bg-gray-700 rounded-full">
@@ -336,11 +374,23 @@ const Questionnaire = () => {
             value={answers[questions[currentStep].id]}
             onChange={handleAnswer}
             isVisible={true}
+            isEditing={isEditing}
+            existingAnswers={existingAnswers}
           />
         </AnimatePresence>
 
         {/* Navigation Buttons */}
         <div className="flex justify-between mt-8">
+          {isEditing && (
+            <Button
+              onClick={() => navigate('/dashboard')}
+              variant="outline"
+              className="px-6 py-3 bg-gray-600 text-white rounded-lg"
+            >
+              Cancel
+            </Button>
+          )}
+
           <Button
             onClick={handlePrevious}
             disabled={currentStep === 0}
@@ -355,7 +405,7 @@ const Questionnaire = () => {
               disabled={loading}
               className="px-6 py-3 bg-blue-600 text-white rounded-lg"
             >
-              {loading ? 'Submitting...' : 'Complete'}
+              {loading ? 'Submitting...' : isEditing ? 'Save Changes' : 'Complete'}
             </Button>
           ) : (
             <Button
