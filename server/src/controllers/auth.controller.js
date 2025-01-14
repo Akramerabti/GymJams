@@ -232,6 +232,36 @@ export const getProfile = async (req, res) => {
   }
 };
 
+export const getCoach = async (req, res) => {
+  try {
+    const coaches = await User.find({ role: 'coach' })
+      .select('firstName lastName profileImage bio rating socialLinks')
+      .sort({ rating: -1 }); // Sort by rating in descending order
+
+    if (!coaches.length) {
+      return res.status(404).json({ message: 'No coaches found' });
+    }
+
+    // Construct full URL for profile images
+    const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000/api';
+    const updatedCoaches = coaches.map(coach => {
+      if (coach.profileImage) {
+        const imagePath = coach.profileImage.startsWith('/api') 
+          ? coach.profileImage.replace('/api', '') 
+          : coach.profileImage;
+        coach.profileImage = `${baseUrl}${imagePath}`;
+        console.log('Updated image path:', coach.profileImage);
+      }
+      return coach;
+    });
+
+    res.json(updatedCoaches);
+  } catch (error) {
+    logger.error('Error fetching coaches:', error);
+    res.status(500).json({ message: 'Error fetching coaches' });
+  }
+};
+
 export const updateProfile = async (req, res) => {
   try {
     const { firstName, lastName, phone, bio, rating, socialLinks } = req.body;

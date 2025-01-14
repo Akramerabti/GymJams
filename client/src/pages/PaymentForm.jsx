@@ -26,7 +26,8 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
     setIsLoading(true);
   
     try {
-      const email = user?.user?.email || guestEmail;
+      const emailer = user?.user?.email || user?.email 
+      const email = emailer || guestEmail;
       console.log('Using email:', email);
 
       if (!email) {

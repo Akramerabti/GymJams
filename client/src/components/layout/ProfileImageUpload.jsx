@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
-import { Image } from 'lucide-react';
+import { Image, Camera } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../../services/api';
 
@@ -10,25 +10,13 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
 
-  // Function to ensure full URL
-  const getFullImageUrl = (path) => {
-    if (!path) return '';
-    if (path.startsWith('http')) return path;
-    return `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${path}`;
-  };
-
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        console.log("Fetching profile..."); // Debug log 1
         const response = await api.get('/auth/profile');
-        console.log("Profile response:", response.data); // Debug log 2
-        
         if (response.data.profileImage) {
-          console.log("Setting image URL to:", response.data.profileImage); // Debug log 3
+        console.log('Profile image:', response.data.profileImage);
           setImageUrl(response.data.profileImage);
-        } else {
-          console.log("No profile image found in response"); // Debug log 4
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
@@ -36,7 +24,7 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
     };
 
     fetchProfile();
-    }, []);
+  }, []);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -64,25 +52,30 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
       toast.error('Please select a file first!');
       return;
     }
-
+  
     setLoading(true);
-
+  
     try {
       const formData = new FormData();
       formData.append('profileImage', file);
-
+  
       const response = await api.put('/auth/profile', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
-
+  
       if (response.data.profileImage) {
-        const fullUrl = getFullImageUrl(response.data.profileImage);
-        setImageUrl(fullUrl);
-        onUploadSuccess(fullUrl);
+        // Construct the full URL if it's a relative path
+        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const fullImageUrl = response.data.profileImage.startsWith('http') 
+          ? response.data.profileImage 
+          : `${baseUrl}${response.data.profileImage}`;
+          
+        setImageUrl(fullImageUrl);
+        onUploadSuccess(fullImageUrl);
       }
-
+  
       setFile(null);
       setPreviewUrl('');
       toast.success('Profile image uploaded successfully!');
@@ -95,9 +88,9 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center space-x-4">
-        <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200">
+    <div className="flex flex-col items-center">
+      <div className="relative">
+        <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-lg">
           {previewUrl ? (
             <img
               src={previewUrl}
@@ -109,45 +102,40 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
               src={imageUrl}
               alt="Profile"
               className="w-full h-full object-cover"
-              crossOrigin="anonymous"  // Add this line
+              crossOrigin="anonymous"
               onError={(e) => {
                 console.error('Image load error:', imageUrl);
                 e.target.onerror = null; 
-                e.target.src = '/fallback-avatar.png'; // Add a fallback image
+                e.target.src = '/fallback-avatar.png';
               }}
             />
           ) : (
-            <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-              <Image className="w-8 h-8 text-gray-400" />
+            <div className="w-full h-full bg-blue-50 flex items-center justify-center">
+              <Image className="w-8 h-8 text-blue-300" />
             </div>
           )}
         </div>
-
-        <div>
+        
+        <label
+          htmlFor="profileImageUpload"
+          className="absolute bottom-0 right-0 bg-blue-500 rounded-full p-2 cursor-pointer hover:bg-blue-600 transition-colors shadow-md"
+        >
+          <Camera className="w-4 h-4 text-white" />
           <input
+            id="profileImageUpload"
             type="file"
             accept="image/*"
             onChange={handleFileChange}
             className="hidden"
-            id="profileImageUpload"
           />
-          <label
-            htmlFor="profileImageUpload"
-            className="cursor-pointer bg-blue-50 text-blue-600 px-4 py-2 rounded-lg hover:bg-blue-100 transition-colors"
-          >
-            <span className="flex items-center">
-              <Image className="w-4 h-4 mr-2" />
-              {file ? 'Change Image' : 'Upload Image'}
-            </span>
-          </label>
-        </div>
+        </label>
       </div>
 
       {file && (
         <Button
           onClick={handleUpload}
           disabled={loading}
-          className="w-full"
+          className="mt-4 bg-blue-500 hover:bg-blue-600 text-white"
         >
           {loading ? 'Uploading...' : 'Save Image'}
         </Button>

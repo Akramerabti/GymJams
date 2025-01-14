@@ -52,12 +52,14 @@ app.use('/api/auth/login', authRateLimiter);
 app.use('/api/auth/register', authRateLimiter);
 app.use('/api/auth', apiRateLimiter);
 app.use('/api', apiRateLimiter);
-
+app.use('/uploads', cors(corsOptions), express.static(path.join(__dirname, 'uploads')));
 app.use('/api/uploads', express.static('uploads'));
+app.options('/uploads/*', cors(corsOptions));
 
 // Body parsing Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
 
 // Stripe webhook handling (must be before body parser)
 app.post(
