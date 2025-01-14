@@ -52,7 +52,8 @@ app.use('/api/auth/login', authRateLimiter);
 app.use('/api/auth/register', authRateLimiter);
 app.use('/api/auth', apiRateLimiter);
 app.use('/api', apiRateLimiter);
-app.use('/uploads', express.static('uploads'));
+
+app.use('/api/uploads', express.static('uploads'));
 
 // Body parsing Middleware
 app.use(express.json());

@@ -7,7 +7,6 @@ import jwt from 'jsonwebtoken';
 
 export const authenticate = async (req, res, next) => {
   try {
-    console.log('Authorization header (middleware):', req.headers.authorization); // Log the Authorization header
 
     const token = req.headers.authorization?.split(' ')[1];
 
@@ -16,12 +15,11 @@ export const authenticate = async (req, res, next) => {
       return res.status(401).json({ message: 'Authentication required' });
     }
 
-    console.log('Decoding token:', token);
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     console.log('Decoded token:', decoded);
 
     const user = await User.findById(decoded.id).select('-password');
-    console.log('Found user:', user);
+
 
     if (!user) {
       console.error('User not found');

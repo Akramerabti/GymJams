@@ -61,8 +61,7 @@ const Profile = () => {
             youtube: ''
           }
         });
-
-        console.log('Profile Data:', profileData);
+        
         fetchPoints();
 
         if (user?.role === 'coach' && !isCoachProfileComplete()) {

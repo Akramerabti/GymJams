@@ -216,6 +216,15 @@ export const getProfile = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
+
+    // Construct full URL for profile image
+    if (user.profileImage) {
+      const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000/api';
+      // Remove /api if it's already in the image path
+      const imagePath = user.profileImage.replace('/api', '');
+      user.profileImage = `${baseUrl}${imagePath}`;
+    }
+
     res.json(user);
   } catch (error) {
     logger.error('Error fetching profile:', error);

@@ -19,6 +19,7 @@ router.post('/reset-password', validatePasswordReset, resetPassword);
 // Protected routes
 router.get('/profile', authenticate, getProfile);
 router.put('/profile', authenticate, upload.single('profileImage'), updateProfile);
+
 router.post('/logout', authenticate, logout); // Add the logout route
 
 export default router;
