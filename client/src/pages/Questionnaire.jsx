@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import subscriptionService from '../services/subscription.service';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Dumbbell, Target, Clock, Settings, Heart, Brain, Battery, Moon, Sun } from 'lucide-react';
+import { useAuth } from '../stores/authStore';
 
 const questions = [
   {
@@ -224,6 +225,7 @@ const Questionnaire = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
   // Progress bar calculation
   const progress = ((currentStep + 1) / questions.length) * 100;
@@ -250,31 +252,58 @@ const Questionnaire = () => {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      // Get access token if it exists (for guest users)
-      const accessToken = localStorage.getItem('accessToken');
-      
-      if (!accessToken && !user) {
-        toast.error('Access token not found');
-        navigate('/coaching');
-        return;
+  
+      let submissionData = {
+        answers
+      };
+  
+      if (user) {
+        submissionData.userId = user.id;
+      } else {
+
+        const accessToken = localStorage.getItem('accessToken');
+        if (!accessToken) {
+          toast.error('Authentication required. Please log in or provide access token.');
+          navigate('/coaching');
+          return;
+        }
+        submissionData.accessToken = accessToken;
       }
   
-      await subscriptionService.submitQuestionnaire(answers);
-      
-      toast.success('Questionnaire completed successfully!', {
-        icon: '🎉',
-        style: {
-          background: '#4CAF50',
-          color: 'white',
-        },
-      });
-      navigate('/dashboard');
+      const response = await subscriptionService.submitQuestionnaire(
+        submissionData.answers,
+        submissionData.accessToken,
+        submissionData.userId
+      );
+  
+      if (response.success) {
+        toast.success('Questionnaire completed successfully!', {
+          icon: '🎉',
+          style: {
+            background: '#4CAF50',
+            color: 'white',
+          },
+        });
+        
+        // Redirect to dashboard with appropriate auth method
+        if (user) {
+          navigate('/dashboard');
+        } else {
+          navigate('/dashboard', { 
+            state: { accessToken: submissionData.accessToken } 
+          });
+        }
+      }
     } catch (error) {
       console.error('Submission error:', error);
       if (error.response?.status === 400) {
         toast.error(error.response.data.error || 'Invalid request');
+      } else if (error.response?.status === 401) {
+        toast.error('Authentication expired. Please log in again.');
+        localStorage.removeItem('accessToken');
+        navigate('/coaching');
       } else {
-        toast.error('Failed to submit questionnaire');
+        toast.error('Failed to submit questionnaire. Please try again.');
       }
     } finally {
       setLoading(false);

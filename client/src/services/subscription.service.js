@@ -4,7 +4,6 @@ const subscriptionService = {
   // Create payment intent for subscription
   async createPaymentIntent(planData) {
     try {
-      console.log('Creating payment intent for plan:', planData);
       const response = await api.post('/subscription/create-intent', {
         planType: planData.id, // Changed from subscription to planType to match backend
       });
@@ -54,7 +53,6 @@ const subscriptionService = {
 
   async handleSubscriptionSuccess(planType, setupIntentId, paymentMethodId, email) {
     try {
-      console.log('Handling subscription success:', { planType, setupIntentId, paymentMethodId, email });
       const response = await api.post('/subscription/handle-success', {
         planType,
         setupIntentId,
@@ -84,7 +82,7 @@ const subscriptionService = {
   async verifyAccessToken(token) {
   try {
     const response = await api.post('/subscription/access', { token });
-    console.log('Access token verification:', response.data);
+
     if (response.data.success) {
       // Store the access token in localStorage if verification successful
       localStorage.setItem('accessToken', token);
@@ -101,6 +99,7 @@ async checkQuestionnaireStatus(accessToken = null) {
     const response = await api.get('/subscription/questionnaire-status', {
       params: accessToken ? { accessToken } : undefined
     });
+    
     return response.data;
   } catch (error) {
     console.error('Failed to check questionnaire status:', error);
@@ -108,19 +107,17 @@ async checkQuestionnaireStatus(accessToken = null) {
   }
 },
 
-// In subscription.service.js
-async submitQuestionnaire(answers) {
+async submitQuestionnaire(answers, accessToken = null) {
   try {
-    // Get access token for guest users
-    const accessToken = localStorage.getItem('accessToken');
+    // If no access token provided, try to get it from localStorage (for guest users)
+    const token = accessToken || localStorage.getItem('accessToken');
     
     // Prepare request data
     const requestData = {
       answers,
-      ...(accessToken && { accessToken }) // Include access token if it exists
+      // Only include accessToken for guest users (token will be undefined for logged-in users)
+      ...(token && { accessToken: token })
     };
-
-    console.log('Submitting questionnaire with data:', requestData);
     
     const response = await api.post('/subscription/submit-questionnaire', requestData);
     return response.data;

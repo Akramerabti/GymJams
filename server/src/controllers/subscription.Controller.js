@@ -48,13 +48,34 @@ export const createSetupIntent = async (req, res) => {
   }
 };
 
+// Updated getCurrentSubscription controller
 export const getCurrentSubscription = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).populate('subscription');
-    if (!user.subscription) {
-      return res.status(200).json(null); // Return null instead of 404
+    let subscription;
+
+    if (req.user) {
+      // For logged-in users
+      const user = await User.findById(req.user.id).populate('subscription');
+      subscription = user.subscription;
+    } else {
+      // For guest users with access token
+      const { accessToken } = req.query;
+      if (!accessToken) {
+        return res.status(400).json({ error: 'Access token is required for guest access' });
+      }
+
+      subscription = await Subscription.findOne({ 
+        accessToken,
+        status: 'active' // Only return active subscriptions
+      });
+
+      if (!subscription) {
+        return res.status(404).json({ error: 'No active subscription found for this access token' });
+      }
     }
-    res.json(user.subscription);
+
+    // Return subscription data (or null if none found)
+    res.json(subscription || null);
   } catch (error) {
     logger.error('Error fetching current subscription:', error);
     res.status(500).json({ message: 'Error fetching current subscription' });
@@ -117,8 +138,6 @@ export const getQuestionnaireStatus = async (req, res) => {
   try {
     let subscription;
 
-    console.log('Checking questionnaire status for user:', req.user);
-
     if (req.user) {
       // For logged-in users: Find an ACTIVE subscription for the user
       subscription = await Subscription.findOne({ 
@@ -162,11 +181,15 @@ export const submitQuestionnaire = async (req, res) => {
     let subscription;
 
     if (req.user) {
-      // For logged-in users
-      subscription = await Subscription.findOne({ user: req.user.id });
+      subscription = await Subscription.findOne({ 
+        user: req.user.id, 
+        status: 'active' // Ensure the subscription is active
+      });
     } else if (accessToken) {
-      // For guest users
-      subscription = await Subscription.findOne({ accessToken });
+      subscription = await Subscription.findOne({ 
+        accessToken, 
+        status: 'active' // Ensure the subscription is active
+      });
     } else {
       return res.status(400).json({ error: 'Access token required for guest users' });
     }
@@ -252,7 +275,6 @@ export const cancelSubscription = async (req, res) => {
       if (daysSinceStart <= 10) {
         // Remove the points awarded for this subscription
         const pointsToRemove = PLANS[subscription.subscription].points;
-        console.log(`Removing ${pointsToRemove} points from user ${req.user.id} (within 10 days of subscription)`); // Log points removal
         await User.findByIdAndUpdate(subscription.user, {
           $inc: { points: -pointsToRemove },
         });
@@ -261,7 +283,6 @@ export const cancelSubscription = async (req, res) => {
 
     // Remove the subscription reference from the user (if logged in)
     if (req.user && subscription.user) {
-      console.log(`Removing subscription reference from user ${req.user.id}`); // Log subscription removal
       await User.findByIdAndUpdate(req.user.id, {
         $unset: { subscription: 1 },
       });
@@ -344,15 +365,6 @@ export const handleSubscriptionSuccess = async (req, res) => {
       });
     }
 
-    console.log('Preparing to send receipt email with data:', {
-      subscription: planType,
-      price: PLANS[planType].price,
-      pointsAwarded: PLANS[planType].points,
-      features: PLANS[planType].features,
-      startDate: subscriptionData.startDate,
-      accessToken: accessToken
-    });
-
     // 7. Send receipt email
     try {
       await sendSubscriptionReceipt({
@@ -366,7 +378,6 @@ export const handleSubscriptionSuccess = async (req, res) => {
       console.log('Receipt email sent successfully');
     } catch (emailError) {
       console.error('Failed to send receipt email:', emailError);
-      // Don't throw error, continue with response
     }
 
     // 8. Handle response
@@ -384,7 +395,6 @@ export const handleSubscriptionSuccess = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Failed to handle subscription success:', error);
     res.status(500).json({ error: 'Failed to complete subscription process' });
   }
 };
