@@ -260,7 +260,6 @@ const useAuthStore = create(
           if (response.data.points !== undefined) {
             usePoints.getState().setBalance(response.data.points);
           }
-
           return true;
         } catch (error) {
           console.error('Token validation failed:', error);

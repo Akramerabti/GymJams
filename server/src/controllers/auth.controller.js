@@ -5,6 +5,14 @@ import { createCustomer } from '../config/stripe.js';
 import logger from '../utils/logger.js';
 import crypto from 'crypto';
 import { sendVerificationEmail, sendPasswordResetEmail  } from '../services/email.service.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url); // Get the file path
+const __dirname = path.dirname(__filename); // Get the directory name
+
+
 
 export const logout = async (req, res) => {
   try {
@@ -201,6 +209,7 @@ export const validateToken = async (req, res) => {
     res.status(500).json({ message: 'Token validation failed' });
   }
 };
+
 export const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
@@ -216,32 +225,68 @@ export const getProfile = async (req, res) => {
 
 export const updateProfile = async (req, res) => {
   try {
-    console.log('Updating profile...');
-    console.log('Request body:', req.body); // Log the request body
-    console.log('User ID:', req.user.id); // Log the user ID from the request
+    const { firstName, lastName, phone, bio, rating, socialLinks } = req.body;
 
-    const { firstName, lastName, phone } = req.body;
-
-    console.log('Updating user with data:', { firstName, lastName, phone }); // Log the update data
-
-    const user = await User.findByIdAndUpdate(
-      req.user.id,
-      { firstName, lastName, phone },
-      { new: true }
-    ).select('-password');
-
-    console.log('Updated user:', user); // Log the updated user
+    // Find the user by ID
+    const user = await User.findById(req.user.id);
 
     if (!user) {
-      console.error('User not found'); // Log if user is not found
       return res.status(404).json({ message: 'User not found' });
     }
 
-    console.log('Profile updated successfully'); // Log success
-    res.json(user);
+    // Update basic fields for all users
+    user.firstName = firstName || user.firstName;
+    user.lastName = lastName || user.lastName;
+    user.phone = phone || user.phone;
+
+    // Update profile image if a file was uploaded
+    if (req.file) {
+      // If the user already has a profile image, delete the old file
+      if (user.profileImage) {
+        const oldImageName = user.profileImage.replace('/uploads/', '');
+        const oldImagePath = path.resolve(__dirname, '../..', 'uploads', oldImageName);
+
+        console.log('Deleting old image:', oldImagePath);
+
+        // Check if the file exists before attempting to delete it
+        if (fs.existsSync(oldImagePath)) {
+          fs.unlink(oldImagePath, (err) => {
+            if (err) {
+              console.error('Failed to delete old image:', err);
+            } else {
+              console.log('Old image deleted successfully:', oldImagePath);
+            }
+          });
+        } else {
+          console.warn('Old image does not exist:', oldImagePath);
+        }
+      }
+
+      // Save the new file path
+      user.profileImage = `/uploads/${req.file.filename}`;
+    }
+
+    // Update coach-specific fields if the user is a coach
+    if (user.role === 'coach') {
+      user.bio = bio || user.bio;
+      user.rating = rating || user.rating;
+      user.socialLinks = {
+        instagram: socialLinks?.instagram || user.socialLinks?.instagram,
+        twitter: socialLinks?.twitter || user.socialLinks?.twitter,
+        youtube: socialLinks?.youtube || user.socialLinks?.youtube,
+      };
+    }
+
+    // Save the updated user
+    const updatedUser = await user.save();
+
+    // Return the updated user without the password field
+    const userResponse = updatedUser.toObject();
+    delete userResponse.password;
+
+    res.json(userResponse);
   } catch (error) {
-    console.error('Error updating profile:', error); // Log the error
-    logger.error('Error updating profile:', error); // Log the error using the logger
+    console.error('Error updating profile:', error);
     res.status(500).json({ message: 'Error updating profile' });
   }
 };

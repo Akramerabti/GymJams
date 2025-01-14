@@ -2,6 +2,7 @@ import express from 'express';
 import { verifyEmail, register, login, getProfile, updateProfile, validateToken, resendVerificationEmail, validatePhone, forgotPassword, resetPassword, logout} from '../controllers/auth.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { validateRegistration, validateLogin, validatePasswordReset } from '../middleware/validate.middleware.js';
+import upload from '../config/multer.js';
 
 const router = express.Router();
 
@@ -17,7 +18,7 @@ router.post('/reset-password', validatePasswordReset, resetPassword);
 
 // Protected routes
 router.get('/profile', authenticate, getProfile);
-router.put('/profile', authenticate, updateProfile);
+router.put('/profile', authenticate, upload.single('profileImage'), updateProfile);
 router.post('/logout', authenticate, logout); // Add the logout route
 
 export default router;

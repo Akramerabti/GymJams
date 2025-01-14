@@ -5,9 +5,10 @@ import { usePoints } from '../hooks/usePoints';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
-import { User, Package, LogOut, Loader2, Coins, Crown, Settings } from 'lucide-react';
+import { User, Package, LogOut, Loader2, Coins, Image, BookOpen, Star, Instagram, Twitter, Youtube, Crown } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../services/api';
+import ProfileImageUpload from '../components/layout/ProfileImageUpload'; // Import the new component
 
 const Profile = () => {
   const { user, updateProfile, logout, validatePhone } = useAuth();
@@ -21,59 +22,64 @@ const Profile = () => {
     lastName: '',
     email: '',
     phone: '',
+    profileImage: '',
+    bio: '',
+    rating: 0,
+    socialLinks: {
+      instagram: '',
+      twitter: '',
+      youtube: ''
+    }
   });
 
-  const fetchSubscriptionDetails = async () => {
-    try {
-      const response = await api.get('/subscription/current');
-      if (response.data) {
-        setSubscriptionDetails(response.data);
-      }
-    } catch (error) {
-      if (error.response?.status === 404) {
-        console.log('No active subscription found');
-      } else {
-        console.error('Error fetching subscription details:', error);
-        toast.error('Failed to load subscription details');
-      }
-    }
+  const isCoachProfileComplete = () => {
+    if (user?.role !== 'coach') return true; // Non-coaches are always considered complete
+    return Boolean(
+      profileData.profileImage?.trim() &&
+      profileData.bio?.trim() &&
+      Object.values(profileData.socialLinks).some(link => link?.trim())
+    );
   };
 
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const [profileResponse, subscriptionResponse] = await Promise.all([
-          api.get('/auth/profile'),
-          api.get('/subscription/current')
-        ]);
-  
+        const profileResponse = await api.get('/auth/profile');
         const userData = profileResponse.data;
+
         setProfileData({
           firstName: userData.firstName || '',
           lastName: userData.lastName || '',
           email: userData.email || '',
           phone: userData.phone || '',
+          profileImage: userData.profileImage || '',
+          bio: userData.bio || '',
+          rating: userData.rating || 0,
+          socialLinks: userData.socialLinks || {
+            instagram: '',
+            twitter: '',
+            youtube: ''
+          }
         });
-  
-        if (subscriptionResponse.data) {
-          setSubscriptionDetails(subscriptionResponse.data);
-        }
-  
+
+        console.log('Profile Data:', profileData);
         fetchPoints();
+
+        if (user?.role === 'coach' && !isCoachProfileComplete()) {
+          toast.warning('Your profile is incomplete. Your name will not be shown until all fields are filled.');
+        }
       } catch (error) {
-        if (error.response?.status === 401) { // Unauthorized (invalid token)
-          localStorage.removeItem('token'); // Clear invalid token
-          setUser(null); // Update global state to logged-out
-          navigate('/login'); // Redirect to login
-        } else if (error.response?.status === 404 && error.response?.config.url.includes('/subscription/current')) {
-          console.log('No active subscription found');
+        if (error.response?.status === 401) {
+          localStorage.removeItem('token');
+          setUser(null);
+          navigate('/login');
         } else {
           console.error('Error fetching user data:', error);
           toast.error('Failed to load profile data');
         }
       }
     };
-  
+
     if (user) {
       fetchUserData();
     }
@@ -97,10 +103,18 @@ const Profile = () => {
         lastName: updatedUser.lastName,
         email: updatedUser.email,
         phone: updatedUser.phone,
+        profileImage: updatedUser.profileImage,
+        bio: updatedUser.bio,
+        rating: updatedUser.rating,
+        socialLinks: updatedUser.socialLinks
       });
 
       setEditing(false);
       toast.success('Profile updated successfully!');
+
+      if (user?.role === 'coach' && !isCoachProfileComplete()) {
+        toast.warning('Your profile is incomplete. Your name will not be shown until all fields are filled.');
+      }
     } catch (error) {
       console.error('Failed to update profile:', error);
       toast.error(error.message || 'Failed to update profile. Please try again.');
@@ -114,17 +128,12 @@ const Profile = () => {
     navigate('/login');
   };
 
-  const formatSubscriptionType = (type) => {
-    return type.charAt(0).toUpperCase() + type.slice(1);
-  };
-
-  const getStatusColor = (status) => {
-    const colors = {
-      active: 'bg-green-50 text-green-700',
-      cancelled: 'bg-yellow-50 text-yellow-700',
-      expired: 'bg-red-50 text-red-700'
-    };
-    return colors[status] || 'bg-gray-50 text-gray-700';
+  // Handle successful image upload
+  const handleImageUploadSuccess = (imageUrl) => {
+    setProfileData((prev) => ({
+      ...prev,
+      profileImage: imageUrl,
+    }));
   };
 
   return (
@@ -204,6 +213,108 @@ const Profile = () => {
                     />
                   </div>
 
+                  { (user?.user?.role === 'coach' || user?.role === 'coach') && (
+                    <>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium flex items-center">
+                          <Image className="w-4 h-4 mr-2" />
+                          Profile Image
+                        </label>
+                        <ProfileImageUpload
+                          currentImage={profileData.profileImage} // Pass the current image URL
+                          onUploadSuccess={handleImageUploadSuccess}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium flex items-center">
+                          <BookOpen className="w-4 h-4 mr-2" />
+                          Bio
+                        </label>
+                        <Input
+                          value={profileData.bio}
+                          onChange={(e) => setProfileData(prev => ({
+                            ...prev,
+                            bio: e.target.value
+                          }))}
+                          disabled={!editing}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium flex items-center">
+                          <Star className="w-4 h-4 mr-2" />
+                          Rating
+                        </label>
+                        <Input
+                          type="number"
+                          value={profileData.rating}
+                          onChange={(e) => setProfileData(prev => ({
+                            ...prev,
+                            rating: e.target.value
+                          }))}
+                          disabled={!editing}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Social Links</label>
+                        <div className="space-y-2">
+                          <div className="flex items-center">
+                            <Instagram className="w-4 h-4 mr-2" />
+                            <Input
+                              value={profileData.socialLinks.instagram}
+                              onChange={(e) => setProfileData(prev => ({
+                                ...prev,
+                                socialLinks: {
+                                  ...prev.socialLinks,
+                                  instagram: e.target.value
+                                }
+                              }))}
+                              disabled={!editing}
+                              className="w-full"
+                              placeholder="Instagram URL"
+                            />
+                          </div>
+                          <div className="flex items-center">
+                            <Twitter className="w-4 h-4 mr-2" />
+                            <Input
+                              value={profileData.socialLinks.twitter}
+                              onChange={(e) => setProfileData(prev => ({
+                                ...prev,
+                                socialLinks: {
+                                  ...prev.socialLinks,
+                                  twitter: e.target.value
+                                }
+                              }))}
+                              disabled={!editing}
+                              className="w-full"
+                              placeholder="Twitter URL"
+                            />
+                          </div>
+                          <div className="flex items-center">
+                            <Youtube className="w-4 h-4 mr-2" />
+                            <Input
+                              value={profileData.socialLinks.youtube}
+                              onChange={(e) => setProfileData(prev => ({
+                                ...prev,
+                                socialLinks: {
+                                  ...prev.socialLinks,
+                                  youtube: e.target.value
+                                }
+                              }))}
+                              disabled={!editing}
+                              className="w-full"
+                              placeholder="YouTube URL"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
                   <div className="flex justify-end space-x-4 pt-4">
                     {editing ? (
                       <>
@@ -236,6 +347,7 @@ const Profile = () => {
               </CardContent>
             </Card>
 
+            { (user?.user?.role !== 'coach' && user?.role !== 'coach') && (
             <Card className="mt-6">
               <CardHeader>
                 <CardTitle className="flex items-center">
@@ -262,7 +374,7 @@ const Profile = () => {
                         )}
                       </div>
                     </div>
-
+                      
                     <Button
                       variant="outline"
                       className="w-full justify-start"
@@ -295,6 +407,7 @@ const Profile = () => {
                 )}
               </CardContent>
             </Card>
+          )}
           </div>
 
           <div className="space-y-4">

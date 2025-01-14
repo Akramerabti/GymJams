@@ -9,10 +9,11 @@ import subscriptionRoutes from './subscription.routes.js';
 const router = express.Router();
 
 // API Routes
+
+router.use('/user', userRoutes);
 router.use('/auth', authRoutes);
-router.use('/subscription', subscriptionRoutes);  // Add this line
+router.use('/subscription', subscriptionRoutes);
 router.use('/products', productRoutes);
 router.use('/orders', orderRoutes);
-router.use('/user', userRoutes);
 
 export default router;

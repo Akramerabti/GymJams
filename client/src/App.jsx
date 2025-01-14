@@ -42,13 +42,14 @@ useEffect(() => {
           console.log('Token validation failed, logging out');
           logout();
         }
+        
       }
     } catch (error) {
       console.error('Auth check error:', error);
       logout();
     }
   };
-
+  
   validateTokenOnLoad();
 }, [checkAuth, logout]);
 

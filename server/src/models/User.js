@@ -68,12 +68,23 @@ const userSchema = new mongoose.Schema({
   }],
   role: {
     type: String,
-    enum: ['user', 'admin'],
+    enum: ['user', 'admin', 'coach', 'affiliate'],
     default: 'user'
   },
   points: {
     type: Number,
     default: 0
+  },
+  profileImage: String,
+  bio: String,
+  rating: {
+    type: Number,
+    default: 0
+  },
+  socialLinks: {
+    instagram: String,
+    twitter: String,
+    facebook: String
   },
   isEmailVerified: {
     type: Boolean,
@@ -84,7 +95,6 @@ const userSchema = new mongoose.Schema({
   lastLogin: Date,
   resetPasswordToken: String,
   resetPasswordExpires: Date,
-  // Add subscription field to reference the Subscription model
   subscription: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Subscription',
@@ -94,7 +104,7 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Password comparison method
+// Keep existing methods
 userSchema.methods.comparePassword = async function(candidatePassword) {
   try {
     return await bcrypt.compare(candidatePassword, this.password);
@@ -103,7 +113,6 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
   }
 };
 
-// Get user's full name
 userSchema.virtual('fullName').get(function() {
   return `${this.firstName} ${this.lastName}`;
 });

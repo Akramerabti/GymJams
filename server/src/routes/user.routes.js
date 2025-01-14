@@ -4,6 +4,7 @@ import {
   updateProfile,
   changePassword,
   getPoints,
+  getCoach,
 } from '../controllers/user.controller.js';
 import { authenticateJWT } from '../config/passport.js';
 import {
@@ -13,7 +14,9 @@ import {
 
 const router = express.Router();
 
-// All user routes are protected
+router.get('/coach', getCoach); //Not protected
+
+// All user routes BELOW are protected
 router.use(authenticateJWT);
 
 router.get('/profile', getProfile);
