@@ -47,14 +47,13 @@ initStripe();
 app.use(cors(corsOptions));
 
 // Security Middleware
-app.use(helmet());
+app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
 app.use('/api/auth/login', authRateLimiter);
 app.use('/api/auth/register', authRateLimiter);
 app.use('/api/auth', apiRateLimiter);
 app.use('/api', apiRateLimiter);
-app.use('/uploads', cors(corsOptions), express.static(path.join(__dirname, 'uploads')));
 app.use('/api/uploads', express.static('uploads'));
-app.options('/uploads/*', cors(corsOptions));
+app.use('/api/auth/uploads', express.static('uploads'));
 
 // Body parsing Middleware
 app.use(express.json());
