@@ -75,6 +75,25 @@ const subscriptionSchema = new mongoose.Schema({
   questionnaireCompletedAt: {
     type: Date
   },
+  assignedCoach: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false
+  },
+  coachAssignmentStatus: {
+    type: String,
+    enum: ['pending', 'assigned', 'declined', 'changed'],
+    default: 'pending'
+  },
+  coachAssignmentDate: {
+    type: Date
+  },
+  coachPreferences: {
+    specialties: [String],
+    preferredGender: String,
+    preferredLanguages: [String],
+    timeZone: String
+  },
 },  {
   timestamps: true
 });

@@ -26,6 +26,7 @@ const CoachingHome = () => {
       try {
         if (user) {
           if (user.user.role === 'coach') {
+            console.log('User is a coach');
             navigate('/dashboard');
             return;
           }
