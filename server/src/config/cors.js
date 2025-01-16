@@ -9,6 +9,7 @@ const corsOptions = {
         'https://saas-pl33-izz8roaoz-akramerabtis-projects.vercel.app',
         'https://saas-pl33-9fzcpos92-akramerabtis-projects.vercel.app',
         'https://api.stripe.com', // Add Stripe
+        'https://hooks.stripe.com', // Add Stripe
         'https://dashboard.stripe.com' // Add Stripe Dashboard
       ]
     : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5000', 'https://api.stripe.com','https://dashboard.stripe.com'],
