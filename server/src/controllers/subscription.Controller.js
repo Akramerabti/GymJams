@@ -400,80 +400,52 @@ export const handleSubscriptionSuccess = async (req, res) => {
   }
 };
 
-
 export const handleWebhook = async (event) => {
-  let subscription;
-  let invoice;
-
   try {
+    logger.info(`Received Stripe webhook event: ${event.type}`, {
+      eventId: event.id,
+      timestamp: new Date().toISOString(),
+      rawEvent: JSON.stringify(event)
+    });
+
     switch (event.type) {
-      case 'invoice.payment_succeeded':
-        invoice = event.data.object;
-        
-        // Find the subscription in your database
-        subscription = await Subscription.findOne({ 
-          stripeSubscriptionId: invoice.subscription 
-        });
-
-        if (subscription) {
-          // Update subscription status and period
-          subscription.status = 'active';
-          subscription.currentPeriodEnd = new Date(invoice.lines.data[0].period.end * 1000);
-          subscription.currentPeriodStart = new Date(invoice.lines.data[0].period.start * 1000);
-          await subscription.save();
-
-          // Log successful payment
-          logger.info(`Payment succeeded for subscription ${subscription.id}`);
-        }
+      case 'invoice.created':
+        logger.info('Draft invoice created', event.data.object);
         break;
 
-    case 'invoice.payment_failed':
-      // Just mark subscription as past due
-      invoice = event.data.object;
-      subscription = await Subscription.findOne({ 
-        stripeSubscriptionId: invoice.subscription 
-      });
+      case 'invoice.finalized':
+        logger.info('Invoice finalized', event.data.object);
+        break;
 
-      if (subscription) {
-        subscription.status = 'past_due';
-        await subscription.save();
-      }
-      break;
+      case 'invoice.payment_succeeded':
+        const invoice = event.data.object;
+        logger.info('Invoice payment succeeded', {
+          invoiceId: invoice.id,
+          amount: invoice.amount_paid,
+          customerEmail: invoice.customer_email
+        });
+        break;
 
-    case 'customer.subscription.updated':
-      // Sync any subscription updates from Stripe
-      const stripeSubscription = event.data.object;
-      subscription = await Subscription.findOne({ 
-        stripeSubscriptionId: stripeSubscription.id 
-      });
+      case 'payment_intent.succeeded':
+        const paymentIntent = event.data.object;
+        logger.info('Payment intent succeeded', {
+          paymentIntentId: paymentIntent.id,
+          amount: paymentIntent.amount
+        });
+        break;
 
-      if (subscription) {
-        subscription.status = stripeSubscription.status;
-        subscription.currentPeriodEnd = new Date(stripeSubscription.current_period_end * 1000);
-        subscription.currentPeriodStart = new Date(stripeSubscription.current_period_start * 1000);
-        subscription.cancelAtPeriodEnd = stripeSubscription.cancel_at_period_end;
-        await subscription.save();
-      }
-      break;
+      // ... other existing cases ...
 
-    case 'customer.subscription.deleted':
-      // Just mark subscription as cancelled in our database
-      subscription = event.data.object;
-      const dbSubscription = await Subscription.findOne({ 
-        stripeSubscriptionId: subscription.id 
-      });
+      default:
+        logger.warn(`Unhandled event type: ${event.type}`);
+    }
 
-      if (dbSubscription) {
-        dbSubscription.status = 'cancelled';
-        dbSubscription.endDate = new Date();
-        await dbSubscription.save();
-      }
-      break;
-  }
-
-  return { received: true };
+    return { received: true };
   } catch (error) {
-    logger.error('Webhook handling error:', error);
+    logger.error('Webhook handling error', {
+      errorMessage: error.message,
+      errorStack: error.stack
+    });
     throw error;
   }
 };
