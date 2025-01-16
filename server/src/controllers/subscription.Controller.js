@@ -469,110 +469,137 @@ export const handleWebhook = async (event) => {
 
 
 export const assignCoach = async (req, res) => {
-  try {
-    const { coachId } = req.body;
-    let subscription;
-    let clientName;
-    let clientEmail;
+  // Maximum number of retries for transaction
+  const MAX_RETRIES = 3;
+  let retryCount = 0;
 
-    if (req.user) {
-      subscription = await Subscription.findOne({ 
-        user: req.user.id,
-        status: 'active'
-      }).populate('user', 'firstName lastName email');
-
-      clientName = `${subscription.user.firstName} ${subscription.user.lastName}`;
-      clientEmail = subscription.user.email;
-
-    } else if (req.query.accessToken) {
-      subscription = await Subscription.findOne({ 
-        accessToken: req.query.accessToken,
-        status: 'active'
-      });
-      clientName = 'Guest User';
-      clientEmail = subscription.guestEmail;
-    }
-
-    if (!subscription) {
-      return res.status(404).json({ error: 'No active subscription found' });
-    }
-
-    // Verify coach exists and is available
-    const coach = await User.findOne({ 
-      _id: coachId,
-      role: 'coach',
-      isEmailVerified: true,
-      coachStatus: { $ne: 'full' }
-    });
-
-    if (!coach) {
-      return res.status(404).json({ error: 'Coach not found or unavailable' });
-    }
-
-    // Start a transaction
+  async function attemptAssignment() {
     const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
-      // Update subscription
+      const { coachId } = req.body;
+      let subscription;
+      let clientName;
+      let clientEmail;
+
+      // Find subscription with proper locking
+      const subscriptionQuery = req.user ? 
+        { user: req.user.id, status: 'active' } : 
+        { accessToken: req.query.accessToken, status: 'active' };
+
+      session.startTransaction();
+
+      subscription = req.user ?
+        await Subscription.findOne(subscriptionQuery)
+          .populate('user', 'firstName lastName email')
+          .session(session) :
+        await Subscription.findOne(subscriptionQuery)
+          .session(session);
+
+      if (!subscription) {
+        await session.abortTransaction();
+        return res.status(404).json({ error: 'No active subscription found' });
+      }
+
+      // Set client details
+      if (req.user) {
+        clientName = `${subscription.user.firstName} ${subscription.user.lastName}`;
+        clientEmail = subscription.user.email;
+      } else {
+        clientName = 'Guest User';
+        clientEmail = subscription.guestEmail;
+      }
+
+      // Verify coach with locking
+      const coach = await User.findOne({
+        _id: coachId,
+        role: 'coach',
+        isEmailVerified: true,
+        coachStatus: { $ne: 'full' }
+      }).session(session);
+
+      if (!coach) {
+        await session.abortTransaction();
+        return res.status(404).json({ error: 'Coach not found or unavailable' });
+      }
+
+      // Handle previous coach reassignment
       if (subscription.assignedCoach) {
-        // Remove subscription from previous coach
         await User.findByIdAndUpdate(
           subscription.assignedCoach,
-          { 
+          {
             $pull: { coachingSubscriptions: subscription._id },
             $inc: { 'availability.currentClients': -1 }
           },
-          { session }
+          { session, new: true }
         );
         subscription.coachAssignmentStatus = 'changed';
       } else {
         subscription.coachAssignmentStatus = 'assigned';
       }
 
-      // Update subscription with new coach
-      subscription.assignedCoach = coachId;
-      subscription.coachAssignmentDate = new Date();
-      await subscription.save({ session });
+      // Update subscription atomically
+      const updatedSubscription = await Subscription.findByIdAndUpdate(
+        subscription._id,
+        {
+          assignedCoach: coachId,
+          coachAssignmentDate: new Date(),
+          coachAssignmentStatus: subscription.coachAssignmentStatus
+        },
+        { session, new: true }
+      );
 
-      // Update coach's client list and count
-      await User.findByIdAndUpdate(
+      // Update coach atomically
+      const updatedCoach = await User.findByIdAndUpdate(
         coachId,
-        { 
+        {
           $addToSet: { coachingSubscriptions: subscription._id },
           $inc: { 'availability.currentClients': 1 }
         },
-        { session }
+        { session, new: true }
       );
 
       // Commit transaction
       await session.commitTransaction();
 
-      // Populate coach details for response
-      await subscription.populate('assignedCoach', 'firstName lastName profileImage bio rating socialLinks specialties');
+      // Populate coach details after successful transaction
+      await updatedSubscription.populate('assignedCoach', 
+        'firstName lastName profileImage bio rating socialLinks specialties');
 
-      // Prepare detailed response
-      res.json({
+      return res.json({
         message: 'Coach assigned successfully',
-        coach: subscription.assignedCoach,
-        assignmentDate: subscription.coachAssignmentDate,
+        coach: updatedSubscription.assignedCoach,
+        assignmentDate: updatedSubscription.coachAssignmentDate,
         client: {
           name: clientName,
           email: clientEmail,
-          subscriptionType: subscription.subscription,
-          startDate: subscription.startDate
+          subscriptionType: updatedSubscription.subscription,
+          startDate: updatedSubscription.startDate
         }
       });
 
     } catch (error) {
       await session.abortTransaction();
+
+      // Retry logic for write conflicts
+      if (error.code === 112 && retryCount < MAX_RETRIES) {
+        retryCount++;
+        console.log(`Retrying transaction attempt ${retryCount}...`);
+        return attemptAssignment();
+      }
+
       throw error;
     } finally {
       session.endSession();
     }
+  }
 
+  try {
+    await attemptAssignment();
   } catch (error) {
     console.error('Coach assignment error:', error);
-    res.status(500).json({ error: 'Failed to assign coach' });
+    const errorMessage = error.code === 112 ? 
+      'Transaction conflict occurred. Please try again.' : 
+      'Failed to assign coach';
+    res.status(500).json({ error: errorMessage });
   }
 };

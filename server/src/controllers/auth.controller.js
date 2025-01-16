@@ -264,7 +264,9 @@ export const getCoach = async (req, res) => {
 
 export const updateProfile = async (req, res) => {
   try {
-    const { firstName, lastName, phone, bio, rating, socialLinks } = req.body;
+    const { firstName, lastName, phone, bio, rating, socialLinks, specialties } = req.body;
+
+    console.log('Updating profile:', req.body);
 
     // Find the user by ID
     const user = await User.findById(req.user.id);
@@ -284,8 +286,6 @@ export const updateProfile = async (req, res) => {
       if (user.profileImage) {
         const oldImageName = user.profileImage.replace('/uploads/', '');
         const oldImagePath = path.resolve(__dirname, '../..', 'uploads', oldImageName);
-
-        console.log('Deleting old image:', oldImagePath);
 
         // Check if the file exists before attempting to delete it
         if (fs.existsSync(oldImagePath)) {
@@ -314,6 +314,16 @@ export const updateProfile = async (req, res) => {
         twitter: socialLinks?.twitter || user.socialLinks?.twitter,
         youtube: socialLinks?.youtube || user.socialLinks?.youtube,
       };
+      // Update specialties if provided and valid
+      if (Array.isArray(specialties)) {
+        user.specialties = specialties;
+      } else if (specialties === null || specialties === undefined) {
+        // Retain the existing specialties if none are provided
+        user.specialties = user.specialties || [];
+      } else {
+        // Handle invalid specialties input (e.g., log a warning)
+        console.warn('Invalid specialties input:', specialties);
+      }
     }
 
     // Save the updated user

@@ -172,6 +172,7 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
   const [tempSelectedCoach, setTempSelectedCoach] = useState(null);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [selectedCoachForProfile, setSelectedCoachForProfile] = useState(null);
+
   const navigate = useNavigate();
   
   const isBasicPlan = subscription?.subscription === 'basic';
@@ -212,6 +213,7 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
             const response = await subscriptionService.assignRandomCoach();
             setSelectedCoach(response.coach);
             setAssignmentStatus('assigned');
+            await new Promise(resolve => setTimeout(resolve, 7000));
             onCoachAssigned(response.coach);
           }, 8000); 
         } else {

@@ -113,6 +113,7 @@ const DashboardUser = () => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showCoachAssignment, setShowCoachAssignment] = useState(false);
+  
 
   const mockStats = {
     workoutsCompleted: 12,

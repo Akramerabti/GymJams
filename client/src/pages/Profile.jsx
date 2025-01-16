@@ -29,7 +29,8 @@ const Profile = () => {
       instagram: '',
       twitter: '',
       youtube: ''
-    }
+    },
+    specialties: []
   });
 
   const isCoach = user?.user?.role === 'coach' || user?.role === 'coach';
@@ -56,7 +57,8 @@ const Profile = () => {
             instagram: '',
             twitter: '',
             youtube: ''
-          }
+          },
+          specialties: userData.specialties || [],
         });
 
         if (subscriptionResponse.data) {
@@ -339,29 +341,104 @@ const Profile = () => {
                 />
               </div>
             </div>
+
+            {/* Specialties */}
+            <div>
+              <label className="block text-sm font-medium mb-3 text-gray-700">Specialties</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[
+                  'Weight Training',
+                  'Cardio',
+                  'CrossFit',
+                  'Yoga',
+                  'Nutrition',
+                  'Powerlifting',
+                  'Bodybuilding',
+                  'HIIT',
+                  'Sports Performance'
+                ].map((specialty) => (
+                  <div
+                    key={specialty}
+                    className={`
+                      flex items-center space-x-3 p-4 rounded-lg transition-all
+                      ${profileData.specialties.includes(specialty)
+                        ? 'bg-blue-50 border border-blue-200 shadow-sm'
+                        : 'bg-white border border-gray-200 hover:border-blue-300 hover:shadow-md'
+                      }
+                      ${editing ? 'cursor-pointer' : 'cursor-not-allowed'}
+                    `}
+                    onClick={() => {
+                      if (editing) {
+                        setProfileData(prev => ({
+                          ...prev,
+                          specialties: profileData.specialties.includes(specialty)
+                            ? prev.specialties.filter(s => s !== specialty)
+                            : [...prev.specialties, specialty]
+                        }));
+                      }
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={profileData.specialties.includes(specialty)}
+                      onChange={(e) => {
+                        if (editing) {
+                          setProfileData(prev => ({
+                            ...prev,
+                            specialties: e.target.checked
+                              ? [...prev.specialties, specialty]
+                              : prev.specialties.filter(s => s !== specialty)
+                          }));
+                        }
+                      }}
+                      disabled={!editing}
+                      className={`
+                        w-5 h-5 rounded border-2 transition-all
+                        ${profileData.specialties.includes(specialty)
+                          ? 'border-blue-500 bg-blue-500'
+                          : 'border-gray-300 bg-white'
+                        }
+                        ${editing ? 'cursor-pointer' : 'cursor-not-allowed'}
+                      `}
+                    />
+                    <span
+                      className={`
+                        text-sm font-medium
+                        ${profileData.specialties.includes(specialty)
+                          ? 'text-blue-700'
+                          : 'text-gray-700'
+                        }
+                      `}
+                    >
+                      {specialty}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </>
       )}
     </div>
 
-    {/* Save Button (Visible Only in Edit Mode) */}
-    {editing && (
-      <div className="mt-6">
-        <Button
-          type="submit"
-          className="bg-blue-600 hover:bg-blue-700"
-          disabled={loading}
-        >
-          {loading ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            'Save Changes'
-          )}
-        </Button>
-      </div>
-    )}
-  </CardContent>
-</Card>
+                {/* Save Button (Visible Only in Edit Mode) */}
+                {editing && (
+                  <div className="mt-6">
+                    <Button
+                      type="submit"
+                      className="bg-blue-600 hover:bg-blue-700"
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        'Save Changes'
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {!isCoach && (
               <Card className="shadow-lg mb-8">
