@@ -20,7 +20,8 @@ const corsOptions = {
     'x-platform',
     'X-App-Version',
     'Origin',
-    'Accept'
+    'Accept',
+    'Stripe-Signature'
   ],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
   credentials: true,
