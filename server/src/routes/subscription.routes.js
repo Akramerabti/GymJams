@@ -12,6 +12,7 @@ import {
   submitQuestionnaire,
   assignCoach,
 } from '../controllers/subscription.Controller.js';
+import stripe from '../config/stripe.js';
 
 const router = express.Router();
 
@@ -36,7 +37,7 @@ async (req, res) => {
     );
 
     await handleWebhook(event);
-    
+
     res.json({ received: true });
   } catch (err) {
     console.error('Webhook Error:', err.message);
