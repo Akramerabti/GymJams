@@ -265,9 +265,6 @@ export const getCoach = async (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const { firstName, lastName, phone, bio, rating, socialLinks, specialties } = req.body;
-
-    console.log('Updating profile:', req.body);
-
     // Find the user by ID
     const user = await User.findById(req.user.id);
 

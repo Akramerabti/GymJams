@@ -403,22 +403,29 @@ export const handleSubscriptionSuccess = async (req, res) => {
 
 export const handleWebhook = async (event) => {
   let subscription;
+  let invoice;
 
-  switch (event.type) {
-    case 'invoice.paid':
-      // Just update subscription status and period
-      invoice = event.data.object;
-      subscription = await Subscription.findOne({ 
-        stripeSubscriptionId: invoice.subscription 
-      });
+  try {
+    switch (event.type) {
+      case 'invoice.payment_succeeded':
+        invoice = event.data.object;
+        
+        // Find the subscription in your database
+        subscription = await Subscription.findOne({ 
+          stripeSubscriptionId: invoice.subscription 
+        });
 
-      if (subscription) {
-        subscription.status = 'active';
-        subscription.currentPeriodEnd = new Date(invoice.period_end * 1000);
-        subscription.currentPeriodStart = new Date(invoice.period_start * 1000);
-        await subscription.save();
-      }
-      break;
+        if (subscription) {
+          // Update subscription status and period
+          subscription.status = 'active';
+          subscription.currentPeriodEnd = new Date(invoice.lines.data[0].period.end * 1000);
+          subscription.currentPeriodStart = new Date(invoice.lines.data[0].period.start * 1000);
+          await subscription.save();
+
+          // Log successful payment
+          logger.info(`Payment succeeded for subscription ${subscription.id}`);
+        }
+        break;
 
     case 'invoice.payment_failed':
       // Just mark subscription as past due
@@ -465,8 +472,11 @@ export const handleWebhook = async (event) => {
   }
 
   return { received: true };
+  } catch (error) {
+    logger.error('Webhook handling error:', error);
+    throw error;
+  }
 };
-
 
 export const assignCoach = async (req, res) => {
   // Maximum number of retries for transaction

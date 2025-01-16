@@ -46,6 +46,10 @@ initStripe();
 
 app.use(cors(corsOptions));
 
+app.use('/api/subscriptions/webhook',
+  express.raw({ type: 'application/json' })
+);
+
 // Security Middleware
 app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
 app.use('/api/auth/login', authRateLimiter);
@@ -58,28 +62,6 @@ app.use('/api/auth/uploads', express.static('uploads'));
 // Body parsing Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-
-// Stripe webhook handling (must be before body parser)
-app.post(
-  '/api/webhook',
-  express.raw({ type: 'application/json' }),
-  async (req, res) => {
-    const sig = req.headers['stripe-signature'];
-    try {
-      const event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-      await handleStripeWebhook(event);
-      res.json({ received: true });
-    } catch (err) {
-      logger.error('Webhook Error:', err.message);
-      res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-  }
-);
 
 // Request logging
 if (process.env.NODE_ENV === 'development') {

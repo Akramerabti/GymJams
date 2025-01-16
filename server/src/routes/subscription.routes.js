@@ -35,8 +35,9 @@ async (req, res) => {
       process.env.STRIPE_WEBHOOK_SECRET
     );
 
-    const result = await subscriptionController.handleWebhook(event);
-    res.json(result);
+    await handleWebhook(event);
+    
+    res.json({ received: true });
   } catch (err) {
     console.error('Webhook Error:', err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
