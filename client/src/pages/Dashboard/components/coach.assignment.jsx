@@ -1,11 +1,166 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Search, CheckCircle, Clock, RefreshCw } from 'lucide-react';
+import { User, Search, CheckCircle, Clock, RefreshCw, Star,Info, X } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import subscriptionService from '../../../services/subscription.service';
+
+const CoachProfileModal = ({ coach, onClose }) => {
+  // Function to render a detail row
+  const DetailRow = ({ icon: Icon, label, value }) => {
+    if (!value) return null;
+    
+    return (
+      <div className="flex items-center space-x-3 mb-2">
+        <Icon className="w-5 h-5 text-blue-600 flex-shrink-0" />
+        <div>
+          <span className="text-gray-600 font-medium mr-2">{label}:</span>
+          <span className="text-gray-800">{value}</span>
+        </div>
+      </div>
+    );
+  };
+
+  const handleBackgroundClick = (e) => {
+    // Check if the click was on the modal background
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
+  // Prepare coach details with detailed formatting
+  const renderCoachDetails = () => {
+    const details = [
+      // Personal Information
+      { 
+        section: 'Personal Information', 
+        items: [
+          { 
+            icon: User, 
+            label: 'Full Name', 
+            value: `${coach.firstName} ${coach.lastName}` 
+          },
+          { 
+            icon: Clock, 
+            label: 'Time Zone', 
+            value: coach.timeZone 
+          }
+        ]
+      },
+      // Professional Details
+      { 
+        section: 'Professional Profile', 
+        items: [
+          { 
+            icon: Star, 
+            label: 'Specialties', 
+            value: coach.specialties?.join(' • ') 
+          },
+          { 
+            icon: Star, 
+            label: 'Rating', 
+            value: coach.rating ? `${coach.rating.toFixed(1)} / 5.0` : null 
+          },
+          { 
+            icon: User, 
+            label: 'Current Clients', 
+            value: coach.availability?.currentClients || 'N/A' 
+          }
+        ]
+      }
+    ];
+
+    return details.map((detailSection, sectionIndex) => (
+      <div key={sectionIndex} className="mb-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-3 border-b pb-2">
+          {detailSection.section}
+        </h3>
+        {detailSection.items.map((item, index) => (
+          item.value && (
+            <DetailRow 
+              key={index}
+              icon={item.icon}
+              label={item.label}
+              value={item.value}
+            />
+          )
+        ))}
+      </div>
+    ));
+  };
+
+  return (
+    <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4 overflow-y-auto"
+    onClick={onClose}
+  >
+    <motion.div
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.9, opacity: 0 }}
+      className="bg-white rounded-2xl overflow-hidden max-w-2xl w-full shadow-2xl relative"
+      onClick={(e) => e.stopPropagation()}
+    >
+        {/* Close Button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-4 right-4 z-10 text-gray-600 hover:bg-gray-100"
+          onClick={onClose}
+        >
+          <X className="w-6 h-6" />
+        </Button>
+
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6">
+          <div className="flex items-center space-x-4">
+            {coach.profileImage ? (
+              <img
+                src={coach.profileImage}
+                alt={`${coach.firstName} ${coach.lastName}`}
+                className="w-24 h-24 rounded-full object-cover border-4 border-white"
+              />
+            ) : (
+              <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center">
+                <User className="w-12 h-12 text-white" />
+              </div>
+            )}
+            <div>
+              <h2 className="text-2xl font-bold text-white">
+                {coach.firstName} {coach.lastName}
+              </h2>
+              <p className="text-white/80">
+                {coach.specialties?.join(' • ') || 'Fitness Coach'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Coach Details */}
+        <div className="p-6 space-y-4">
+          {/* Bio */}
+          {coach.bio && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-3 border-b pb-2">
+                About Me
+              </h3>
+              <p className="text-gray-600">{coach.bio}</p>
+            </div>
+          )}
+
+          {/* Detailed Coach Information */}
+          {renderCoachDetails()}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
 
 const CoachAssignment = ({ subscription, onCoachAssigned }) => {
   const [loading, setLoading] = useState(true);
@@ -14,6 +169,9 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
   const [assignmentStatus, setAssignmentStatus] = useState('pending');
   const [currentPhraseIndex, setCurrentPhraseIndex] = useState(0);
   const [error, setError] = useState(null);
+  const [tempSelectedCoach, setTempSelectedCoach] = useState(null);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [selectedCoachForProfile, setSelectedCoachForProfile] = useState(null);
   const navigate = useNavigate();
   
   const isBasicPlan = subscription?.subscription === 'basic';
@@ -94,6 +252,13 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
           navigate('/'); 
         }, 3000); 
       }
+    }
+  };
+
+  const handleConfirmSelection = () => {
+    if (tempSelectedCoach) {
+      handleCoachSelect(tempSelectedCoach);
+      setShowConfirmationModal(false);
     }
   };
 
@@ -357,42 +522,78 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
   }
 
   return (
-    <Card className="w-full">
+    <Card className="w-full bg-gradient-to-br from-blue-50 to-purple-50">
       <CardHeader>
-        <CardTitle className="flex items-center">
-          <User className="w-5 h-5 mr-2" />
-          Choose Your Coach
+        <CardTitle className="flex items-center text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
+          <User className="w-6 h-6 mr-3" />
+          Choose Your Personal Coach
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {coaches.map((coach) => (
             <motion.div
               key={coach.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              whileHover={{ scale: 1.02 }}
-              className="bg-gray-50 rounded-lg p-4 cursor-pointer"
-              onClick={() => handleCoachSelect(coach)}
+              whileHover={{ 
+                scale: 1.05,
+                boxShadow: "0 10px 25px rgba(0,0,0,0.1)"
+              }}
+              transition={{ type: "spring", stiffness: 300 }}
+              className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 group relative cursor-pointer"
+              onClick={() => {
+                setTempSelectedCoach(coach);
+                setShowConfirmationModal(true);
+              }}
             >
-              <div className="flex items-center space-x-4">
+              <div className="flex flex-col items-center">
                 {coach.profileImage ? (
-                  <img 
-                    src={coach.profileImage} 
+                  <motion.img
+                    src={coach.profileImage}
                     alt={coach.firstName}
-                    className="w-16 h-16 rounded-full object-cover"
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", bounce: 0.6 }}
+                    className="w-24 h-24 rounded-full object-cover border-4 border-blue-100 group-hover:border-blue-300 transition-all"
                   />
                 ) : (
-                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-                    <User className="w-8 h-8 text-blue-600" />
-                  </div>
+                  <motion.div 
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="w-24 h-24 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center"
+                  >
+                    <User className="w-12 h-12 text-white" />
+                  </motion.div>
                 )}
-                <div>
-                  <h4 className="font-semibold text-gray-600 ">{coach.firstName} {coach.lastName}</h4>
-                  <p className="text-sm text-gray-600">{coach.specialties?.join(', ')}</p>
-                  <div className="flex items-center mt-2">
-                    <span className="text-sm text-yellow-500 mr-1">★</span>
-                    <span className="text-sm text-gray-600">{coach.rating?.toFixed(1)} ({coach.reviewCount} reviews)</span>
+
+                <div className="text-center mt-1 w-full">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-gray-500 hover:text-blue-600"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedCoachForProfile(coach);
+                  }}
+                >
+                  <Info className="w-5 h-5" />
+                </Button>
+              </div>
+                
+                <div className="text-center mt-1 w-full">
+                  <h4 className="text-xl font-bold text-gray-800 group-hover:text-blue-600 transition">
+                    {coach.firstName} {coach.lastName}
+                  </h4>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {coach.specialties?.join(' • ')}
+                  </p>
+                  
+                  <div className="flex items-center justify-center mt-2 space-x-2">
+                    <Star className="w-5 h-5 text-yellow-500" />
+                    <span className="text-sm font-semibold text-gray-700">
+                      {coach.rating?.toFixed(1)}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -400,8 +601,81 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
           ))}
         </div>
       </CardContent>
+  
+      {/* Coach Profile Modal */}
+      <AnimatePresence>
+        {selectedCoachForProfile && (
+          <CoachProfileModal 
+            coach={selectedCoachForProfile} 
+            onClose={() => setSelectedCoachForProfile(null)} 
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {showConfirmationModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl overflow-hidden max-w-md w-full shadow-2xl"
+            >
+              <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6">
+                <h2 className="text-2xl font-bold text-white">Confirm Your Coach</h2>
+              </div>
+              <div className="p-6">
+                <div className="flex items-center space-x-4 mb-4">
+                  {tempSelectedCoach?.profileImage ? (
+                    <img
+                      src={tempSelectedCoach.profileImage}
+                      alt={tempSelectedCoach.firstName}
+                      className="w-20 h-20 rounded-full object-cover border-4 border-blue-100"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center">
+                      <User className="w-10 h-10 text-blue-600" />
+                    </div>
+                  )}
+                  <div>
+                    <h3 className="text-xl font-semibold text-gray-800">
+                      {tempSelectedCoach?.firstName} {tempSelectedCoach?.lastName}
+                    </h3>
+                    <p className="text-gray-600">
+                      {tempSelectedCoach?.specialties?.join(', ')}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-gray-700 mb-6">
+                  Are you sure you want to choose {tempSelectedCoach?.firstName} as your personal coach? 
+                  This selection will help tailor your fitness journey.
+                </p>
+                <div className="flex text-red-600 justify-end space-x-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowConfirmationModal(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleConfirmSelection}
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                  >
+                    Confirm Selection
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Card>
   );
 };
-
 export default CoachAssignment;

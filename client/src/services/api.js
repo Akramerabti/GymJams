@@ -59,9 +59,6 @@ api.interceptors.response.use(
         message: 'Network error. Please check your internet connection.',
       });
     }
-
-    // Handle other errors
-    toast.error(error.response?.data?.message || 'An unexpected error occurred.');
     return Promise.reject(error);
   }
 );

@@ -163,6 +163,7 @@ const DashboardUser = () => {
         navigate('/coaching');
       } else {
         toast.error('Failed to load dashboard data');
+        navigate('/coaching');
       }
     } finally {
       setInitializing(false);
@@ -317,25 +318,34 @@ const DashboardUser = () => {
               <h2 className="text-xl font-bold">Your Fitness Profile</h2>
               <Button
                 onClick={handleEditQuestionnaire}
-                className="bg-blue-50 text-blue-600 hover:bg-blue-100"
+                className="bg-blue-50 text-white hover:bg-blue-100"
               >
-                <Edit3 className="w-4 h-4 mr-2" />
+                <Edit3 className="w-4 h-4 mr-2 " />
                 Edit Profile
               </Button>
             </div>
-            {questionnaire && (
+            {questionnaire && questionnaire.data && Object.keys(questionnaire.data).length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Object.entries(questionnaire.data).map(([key, value]) => (
-                  <div key={key} className="p-4 bg-gray-50 rounded-lg">
-                    <h3 className="text-sm font-medium text-gray-600 mb-2">
-                      {key.charAt(0).toUpperCase() + key.slice(1)}
-                    </h3>
-                    <p className="text-gray-900">
-                      {Array.isArray(value) ? value.join(', ') : value}
-                    </p>
-                  </div>
-                ))}
+                {Object.entries(questionnaire.data)
+                  .filter(([key, value]) => {
+                    // Filter out null, undefined, empty strings, and empty arrays
+                    if (value === null || value === undefined || value === '') return false;
+                    if (Array.isArray(value) && value.length === 0) return false;
+                    return true;
+                  })
+                  .map(([key, value]) => (
+                    <div key={key} className="p-4 bg-gray-50 rounded-lg">
+                      <h3 className="text-sm font-medium text-gray-600 mb-2">
+                        {key.charAt(0).toUpperCase() + key.slice(1)}
+                      </h3>
+                      <p className="text-gray-900">
+                        {Array.isArray(value) ? value.join(', ') : value}
+                      </p>
+                    </div>
+                  ))}
               </div>
+            ) : (
+              <p className="text-gray-600">No fitness profile data available.</p>
             )}
           </div>
         </DashboardCard>

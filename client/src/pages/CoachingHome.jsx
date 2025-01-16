@@ -80,12 +80,12 @@ const CoachingHome = () => {
     {
       id: 'basic',
       name: 'Basic',
-      price: 29.99,
+      price: 39.99,
       pointsPerMonth: 100,
       features: [
-        'Basic training plan',
+        'Training/Nutrition plan',
         'Monthly plan updates',
-        'Email support',
+        'Text support',
         '100 points monthly',
       ],
       color: 'bg-white',
@@ -93,7 +93,7 @@ const CoachingHome = () => {
     {
       id: 'premium',
       name: 'Premium',
-      price: 49.99,
+      price: 69.99,
       pointsPerMonth: 200,
       features: [
         'Advanced training plan',
@@ -108,13 +108,13 @@ const CoachingHome = () => {
     {
       id: 'elite',
       name: 'Elite',
-      price: 99.99,
+      price: 89.99,
       pointsPerMonth: 500,
       features: [
-        'Custom training plan',
-        'Personalized nutrition plan',
-        'Weekly video consultations',
-        '24/7 support',
+        'Custom training and nutrition plan',
+        'Weekly video/call consultations',
+        'Enhanced questionnaire',
+        'Tailored coach',
         '500 points monthly',
       ],
       color: 'bg-white',
