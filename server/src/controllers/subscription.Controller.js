@@ -19,14 +19,14 @@ const PLANS = {
   },
   premium: {
     name: 'Premium',
-    price: 49.99,
-    stripePriceId: 'price_1QfDxKFGfbnmVSqEfd4Fc5HH',
+    price: 69.99,
+    stripePriceId: 'price_1Qi0q2FGfbnmVSqEiDg7Z4cK',
     points: 200
   },
   elite: {
     name: 'Elite',
-    price: 99.99,
-    stripePriceId: 'price_1QfDxZFGfbnmVSqEUe8fCPFa',
+    price: 89.99,
+    stripePriceId: 'price_1Qi0noFGfbnmVSqEdkYZHCiM',
     points: 500
   }
 };
@@ -405,7 +405,6 @@ export const handleSubscriptionSuccess = async (req, res) => {
       console.error('Failed to send receipt email:', emailError);
     }
 
-    // 8. Handle response
     if (subscription.latest_invoice.payment_intent) {
       return res.json({
         subscription: newSubscription,
@@ -414,13 +413,18 @@ export const handleSubscriptionSuccess = async (req, res) => {
       });
     }
 
-    res.json({
+    // Default response if no payment intent is found
+    return res.json({
       subscription: newSubscription,
-      status: 'succeeded'
+      status: 'succeeded',
     });
-
   } catch (error) {
-    res.status(500).json({ error: 'Failed to complete subscription process' });
+    console.error('Error in handleSubscriptionSuccess:', error);
+
+    // Ensure no response is sent if one has already been sent
+    if (!res.headersSent) {
+      return res.status(500).json({ error: 'Failed to complete subscription process' });
+    }
   }
 };
 

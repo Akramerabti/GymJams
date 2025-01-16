@@ -11,6 +11,7 @@ const corsOptions = {
         'https://api.stripe.com', // Add Stripe
         'https://hooks.stripe.com', // Add Stripe
         'https://dashboard.stripe.com', // Add Stripe Dashboard
+        'https://gymjams.onrender.com/api/subscription/webhook',
       ]
     : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5000', 'https://api.stripe.com','https://dashboard.stripe.com'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
