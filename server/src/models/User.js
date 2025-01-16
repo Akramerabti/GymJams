@@ -99,9 +99,63 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Subscription',
     default: null
-  }
+  },
+  coachingSubscriptions: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Subscription'
+  }],
+
+  specialties: [{
+    type: String,
+    enum: ['Strength', 'Cardio', 'Nutrition', 'Flexibility', 'Weight Loss', 'Muscle Gain']
+  }],
+  
+  availability: {
+    maxClients: {
+      type: Number,
+      default: 10
+    },
+    currentClients: {
+      type: Number,
+      default: 0
+    }
+  },
+
+  coachStatus: {
+    type: String,
+    enum: ['available', 'full', 'unavailable'],
+    default: 'available'
+  },
+
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+
+// Virtual for getting active clients count
+userSchema.virtual('activeClientsCount').get(function() {
+  return this.coachingSubscriptions?.length || 0;
+});
+
+// Method to check if coach can take new clients
+userSchema.methods.canAcceptNewClients = function() {
+  return this.role === 'coach' && 
+         this.coachStatus === 'available' && 
+         this.availability.currentClients < this.availability.maxClients;
+};
+
+// Pre-save middleware to update coachStatus
+userSchema.pre('save', function(next) {
+  if (this.role === 'coach') {
+    if (this.availability.currentClients >= this.availability.maxClients) {
+      this.coachStatus = 'full';
+    } else if (this.coachStatus !== 'unavailable') {
+      this.coachStatus = 'available';
+    }
+  }
+  next();
 });
 
 // Keep existing methods

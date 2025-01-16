@@ -1,10 +1,10 @@
-// components/dashboard/components/CoachAssignment.jsx
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Search, CheckCircle, Clock } from 'lucide-react';
+import { User, Search, CheckCircle, Clock, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 import subscriptionService from '../../../services/subscription.service';
 
 const CoachAssignment = ({ subscription, onCoachAssigned }) => {
@@ -12,46 +12,215 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
   const [coaches, setCoaches] = useState([]);
   const [selectedCoach, setSelectedCoach] = useState(null);
   const [assignmentStatus, setAssignmentStatus] = useState('pending');
+  const [currentPhraseIndex, setCurrentPhraseIndex] = useState(0);
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
+  
+  const isBasicPlan = subscription?.subscription === 'basic';
 
-  const isBasicPlan = subscription?.type === 'basic';
+  const loadingPhrases = [
+    { phrase: "Analyzing your fitness goals...", duration: 1000 }, // 3 seconds
+    { phrase: "Matching with expert coaches...", duration: 500 }, // 2 seconds
+    { phrase: "Finding your perfect mentor...", duration: 2000 }, // 2 seconds
+    { phrase: "Almost there...", duration: 3500 }, // 1 second
+  ];
+  
+  useEffect(() => {
+    if (assignmentStatus === 'pending') {
+      let currentIndex = 0;
+
+      const showNextPhrase = () => {
+        setCurrentPhraseIndex(currentIndex);
+
+        if (currentIndex < loadingPhrases.length - 1) {
+          currentIndex++;
+          setTimeout(showNextPhrase, loadingPhrases[currentIndex].duration);
+        }
+      };
+
+      setTimeout(showNextPhrase, loadingPhrases[currentIndex].duration);
+
+      return () => clearTimeout(showNextPhrase);
+    }
+  }, [assignmentStatus]);
 
   useEffect(() => {
     const initializeCoachAssignment = async () => {
       try {
         setLoading(true);
         if (isBasicPlan) {
-          // For basic plan, get random coach assignment
-          const response = await subscriptionService.assignRandomCoach();
-          setSelectedCoach(response.coach);
-          setAssignmentStatus('assigned');
+          // Simulate a delay for the basic plan
+          setTimeout(async () => {
+            const response = await subscriptionService.assignRandomCoach();
+            setSelectedCoach(response.coach);
+            setAssignmentStatus('assigned');
+            onCoachAssigned(response.coach);
+          }, 8000); 
         } else {
-          // For premium/elite, fetch available coaches
-          const response = await subscriptionService.getAvailableCoaches();
+          const response = await subscriptionService.getCoaches();
           setCoaches(response.coaches);
         }
       } catch (error) {
-        console.error('Coach assignment error:', error);
-        toast.error('Failed to initialize coach assignment');
+        setError('Failed to assign coach. Please try again.');
       } finally {
         setLoading(false);
       }
     };
 
     initializeCoachAssignment();
-  }, [isBasicPlan]);
+  }, [isBasicPlan, navigate]);
 
-  const handleCoachSelect = async (coach) => {
+  const handleCoachSelect = async (coach, retryCount = 0) => {
     try {
       setAssignmentStatus('pending');
       const response = await subscriptionService.assignCoach(coach.id);
+
       setSelectedCoach(coach);
       setAssignmentStatus('assigned');
       onCoachAssigned(coach);
-      toast.success('Coach assigned successfully!');
+
     } catch (error) {
       console.error('Coach selection error:', error);
-      toast.error('Failed to assign coach');
+      if (retryCount < 3) {
+        // Retry the assignment
+        toast.info(`Retrying coach assignment... Attempt ${retryCount + 1} of ${3}`);
+        setTimeout(() => {
+          handleCoachSelect(coach, retryCount + 1);
+        }, 2000); 
+      } else {
+        setError('Failed to assign coach. Please try again.');
+        toast.error('Failed to assign coach after multiple attempts.');
+        setTimeout(() => {
+          navigate('/'); 
+        }, 3000); 
+      }
     }
+  };
+
+  const handleRetry = () => {
+    setError(null);
+    setAssignmentStatus('pending');
+    setCurrentPhraseIndex(0);
+  };
+
+
+  const CoachReveal = ({ selectedCoach }) => {
+    const [showConfetti, setShowConfetti] = useState(false);
+
+    useEffect(() => {
+      setShowConfetti(true);
+    }, []);
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.5 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="space-y-6"
+      >
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="relative"
+        >
+          {showConfetti && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="absolute inset-0 pointer-events-none"
+            >
+              {[...Array(50)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  initial={{
+                    x: "50%",
+                    y: "50%",
+                    scale: 0,
+                  }}
+                  animate={{
+                    x: `${Math.random() * 100}%`,
+                    y: `${Math.random() * 100}%`,
+                    scale: Math.random() * 0.5 + 0.5,
+                    opacity: [1, 0],
+                  }}
+                  transition={{
+                    duration: Math.random() * 2 + 1,
+                    repeat: Infinity,
+                    repeatType: "loop",
+                  }}
+                  className={`absolute w-2 h-2 rounded-full ${
+                    ['bg-blue-500', 'bg-yellow-400', 'bg-green-400', 'bg-purple-500', 'bg-pink-500'][
+                      Math.floor(Math.random() * 5)
+                    ]
+                  }`}
+                />
+              ))}
+            </motion.div>
+          )}
+
+          <motion.div
+            initial={{ y: 50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="bg-gradient-to-r from-blue-500 to-purple-600 p-8 rounded-2xl shadow-xl"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", bounce: 0.5, delay: 1 }}
+              className="bg-white p-6 rounded-xl shadow-inner"
+            >
+              <div className="flex flex-col items-center space-y-4">
+                <motion.div
+                  initial={{ rotate: 180, scale: 0 }}
+                  animate={{ rotate: 360, scale: 1 }}
+                  transition={{ type: "spring", bounce: 0.5, delay: 1.2 }}
+                  className="relative"
+                >
+                  {selectedCoach.profileImage ? (
+                    <img
+                      src={selectedCoach.profileImage}
+                      alt={selectedCoach.firstName}
+                      className="w-32 h-32 rounded-full object-cover ring-4 ring-blue-500"
+                    />
+                  ) : (
+                    <div className="w-32 h-32 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full flex items-center justify-center ring-4 ring-blue-300">
+                      <User className="w-16 h-16 text-white" />
+                    </div>
+                  )}
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 1.5 }}
+                    className="absolute -bottom-2 -right-2 bg-green-500 rounded-full p-2"
+                  >
+                    <CheckCircle className="w-6 h-6 text-white" />
+                  </motion.div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 1.7 }}
+                  className="text-center"
+                >
+                  <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">
+                    Meet Your Coach
+                  </h3>
+                  <h4 className="text-xl text-blue-600 font-semibold mt-2">
+                    {selectedCoach.firstName} {selectedCoach.lastName}
+                  </h4>
+                  {selectedCoach.specialties && (
+                    <p className="text-gray-600 mt-1">
+                      {selectedCoach.specialties.join(' • ')}
+                    </p>
+                  )}
+                </motion.div>
+              </div>
+            </motion.div>
+          </motion.div>
+        </motion.div>
+      </motion.div>
+    );
   };
 
   if (loading) {
@@ -68,6 +237,21 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
     );
   }
 
+  if (error) {
+    return (
+      <Card className="w-full">
+        <CardContent className="flex flex-col items-center justify-center p-8 space-y-4">
+          <h3 className="text-2xl font-bold text-red-600">Oops! Something went wrong.</h3>
+          <p className="text-gray-600">{error}</p>
+          <Button onClick={handleRetry} className="flex items-center">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Try Again
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (isBasicPlan) {
     return (
       <Card className="w-full">
@@ -78,45 +262,93 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center p-6">
+          <div className="p-6">
             {assignmentStatus === 'pending' ? (
-              <>
+              <motion.div className="relative">
+                {/* Animated Background */}
                 <motion.div
-                  animate={{ scale: [1, 1.1, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="mb-4"
-                >
-                  <Search className="w-12 h-12 text-blue-600 mx-auto" />
-                </motion.div>
-                <h3 className="text-lg font-semibold mb-2">Finding Your Perfect Coach Match</h3>
-                <p className="text-gray-600">Please wait while we assign you to one of our expert coaches...</p>
-              </>
-            ) : (
-              <div className="space-y-4">
-                <CheckCircle className="w-12 h-12 text-green-500 mx-auto" />
-                <h3 className="text-lg font-semibold">Coach Assigned!</h3>
-                {selectedCoach && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="flex items-center space-x-4">
-                      {selectedCoach.profileImage ? (
-                        <img 
-                          src={selectedCoach.profileImage} 
-                          alt={selectedCoach.firstName}
-                          className="w-16 h-16 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-                          <User className="w-8 h-8 text-blue-600" />
-                        </div>
-                      )}
-                      <div>
-                        <h4 className="font-semibold">{selectedCoach.firstName} {selectedCoach.lastName}</h4>
-                        <p className="text-sm text-gray-600">{selectedCoach.specialties?.join(', ')}</p>
-                      </div>
+                  className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-lg"
+                  animate={{
+                    background: [
+                      "linear-gradient(to right, rgba(59,130,246,0.1), rgba(147,51,234,0.1))",
+                      "linear-gradient(to right, rgba(147,51,234,0.1), rgba(59,130,246,0.1))",
+                    ],
+                  }}
+                  transition={{ duration: 3, repeat: Infinity, repeatType: "reverse" }}
+                />
+
+                <div className="relative z-10 flex flex-col items-center justify-center space-y-8 p-8">
+                  {/* Animated Search Icon */}
+                  <motion.div
+                    animate={{
+                      scale: [1, 1.2, 1],
+                      rotate: [0, 360],
+                    }}
+                    transition={{
+                      duration: 3,
+                      repeat: Infinity,
+                      repeatType: "reverse",
+                    }}
+                    className="relative"
+                  >
+                    <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-xl" />
+                    <div className="relative bg-gradient-to-r from-blue-500 to-purple-500 p-4 rounded-full">
+                      <Search className="w-12 h-12 text-white" />
                     </div>
+                  </motion.div>
+
+                  {/* Loading Text */}
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center space-y-4 w-full"
+                  >
+                    <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">
+                      Finding Your Perfect Coach Match
+                    </h3>
+
+                    {/* Cycling loading phrases */}
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="h-6 flex items-center justify-center w-full"
+                    >
+                      <motion.p
+                        key={currentPhraseIndex}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ duration: 0.5 }}
+                        className="text-white absolute w-full text-center"
+                      >
+                        {loadingPhrases[currentPhraseIndex].phrase}
+                      </motion.p>
+                    </motion.div>
+                  </motion.div>
+
+                  {/* Progress Dots */}
+                  <div className="flex space-x-2">
+                    {[0, 1, 2].map((i) => (
+                      <motion.div
+                        key={i}
+                        className="w-2 h-2 bg-blue-500 rounded-full"
+                        animate={{
+                          scale: [1, 1.5, 1],
+                          opacity: [0.5, 1, 0.5],
+                        }}
+                        transition={{
+                          duration: 1,
+                          repeat: Infinity,
+                          delay: i * 0.2,
+                        }}
+                      />
+                    ))}
                   </div>
-                )}
-              </div>
+                </div>
+              </motion.div>
+            ) : (
+              <CoachReveal selectedCoach={selectedCoach} />
             )}
           </div>
         </CardContent>
@@ -156,7 +388,7 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
                   </div>
                 )}
                 <div>
-                  <h4 className="font-semibold">{coach.firstName} {coach.lastName}</h4>
+                  <h4 className="font-semibold text-gray-600 ">{coach.firstName} {coach.lastName}</h4>
                   <p className="text-sm text-gray-600">{coach.specialties?.join(', ')}</p>
                   <div className="flex items-center mt-2">
                     <span className="text-sm text-yellow-500 mr-1">★</span>

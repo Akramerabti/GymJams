@@ -295,7 +295,7 @@ const Questionnaire = () => {
       } else {
         const accessToken = localStorage.getItem('accessToken');
         if (!accessToken) {
-          toast.error('Authentication required. Please log in or provide access token.');
+          toast.error('Authentication required. Please provide access token.');
           navigate('/coaching');
           return;
         }

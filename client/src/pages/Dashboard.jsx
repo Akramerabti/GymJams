@@ -1,33 +1,59 @@
-// components/dashboard/Dashboard.jsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../stores/authStore';
 import DashboardUser from './Dashboard/Dashboard.user';
 import DashboardCoach from './Dashboard/Dashboard.coach';
 import { toast } from 'sonner';
+import subscriptionService from '../services/subscription.service';
 
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [hasAccess, setHasAccess] = useState(false);
 
   useEffect(() => {
-    const validateAccess = () => {
+    const validateAccess = async () => {
       setLoading(true);
       try {
-        if (!user) {
-          toast.error('Please log in to access the dashboard');
-          navigate('/login');
+        // Check for logged-in user first
+        if (user) {
+          // Validate user has required role
+          if (!['user', 'coach'].includes(user.user?.role || user.role)) {
+            console.error('Invalid user role:', user);
+            toast.error('Invalid user role');
+            navigate('/');
+            return;
+          }
+          setHasAccess(true);
           return;
         }
-        
-        // Validate user has required role
-        if (!['user', 'coach'].includes((user.user.role || user.role))) {
-          console.error('Invalid user role:', user);
-          navigate('/');
+
+        // If no logged-in user, check for access token
+        const accessToken = localStorage.getItem('accessToken');
+        if (!accessToken) {
+          toast.error('Please log in or provide an access token');
+          navigate('/coaching');
           return;
         }
-        
+
+        // Verify access token and subscription
+        try {
+          const response = await subscriptionService.verifyAccessToken(accessToken);
+          if (response.success) {
+            setHasAccess(true);
+          } else {
+            toast.error('Invalid access token');
+            localStorage.removeItem('accessToken');
+            navigate('/coaching');
+          }
+        } catch (error) {
+          console.error('Access token verification failed:', error);
+          toast.error('Access token verification failed');
+          localStorage.removeItem('accessToken');
+          navigate('/coaching');
+        }
+
       } catch (error) {
         console.error('Dashboard access error:', error);
         toast.error('Error accessing dashboard');
@@ -48,8 +74,16 @@ const Dashboard = () => {
     );
   }
 
-  // Render appropriate dashboard based on user role
-  return (user?.user.role || user?.user.role) === 'coach' ? <DashboardCoach /> : <DashboardUser />;
+  if (!hasAccess) {
+    return null; // Let the useEffect handle redirection
+  }
+
+  if (user) {
+  return (user?.role || user?.user.role) === 'coach' ? <DashboardCoach /> : <DashboardUser />;
+  }
+
+  return <DashboardUser />;
+
 };
 
 export default Dashboard;

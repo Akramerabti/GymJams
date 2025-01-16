@@ -5,6 +5,7 @@ import Subscription from '../models/Subscription.js';
 import logger from '../utils/logger.js';
 import { sendSubscriptionReceipt } from '../services/email.service.js';
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -464,4 +465,114 @@ export const handleWebhook = async (event) => {
   }
 
   return { received: true };
+};
+
+
+export const assignCoach = async (req, res) => {
+  try {
+    const { coachId } = req.body;
+    let subscription;
+    let clientName;
+    let clientEmail;
+
+    if (req.user) {
+      subscription = await Subscription.findOne({ 
+        user: req.user.id,
+        status: 'active'
+      }).populate('user', 'firstName lastName email');
+
+      clientName = `${subscription.user.firstName} ${subscription.user.lastName}`;
+      clientEmail = subscription.user.email;
+
+    } else if (req.query.accessToken) {
+      subscription = await Subscription.findOne({ 
+        accessToken: req.query.accessToken,
+        status: 'active'
+      });
+      clientName = 'Guest User';
+      clientEmail = subscription.guestEmail;
+    }
+
+    if (!subscription) {
+      return res.status(404).json({ error: 'No active subscription found' });
+    }
+
+    // Verify coach exists and is available
+    const coach = await User.findOne({ 
+      _id: coachId,
+      role: 'coach',
+      isEmailVerified: true,
+      coachStatus: { $ne: 'full' }
+    });
+
+    if (!coach) {
+      return res.status(404).json({ error: 'Coach not found or unavailable' });
+    }
+
+    // Start a transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // Update subscription
+      if (subscription.assignedCoach) {
+        // Remove subscription from previous coach
+        await User.findByIdAndUpdate(
+          subscription.assignedCoach,
+          { 
+            $pull: { coachingSubscriptions: subscription._id },
+            $inc: { 'availability.currentClients': -1 }
+          },
+          { session }
+        );
+        subscription.coachAssignmentStatus = 'changed';
+      } else {
+        subscription.coachAssignmentStatus = 'assigned';
+      }
+
+      // Update subscription with new coach
+      subscription.assignedCoach = coachId;
+      subscription.coachAssignmentDate = new Date();
+      await subscription.save({ session });
+
+      // Update coach's client list and count
+      await User.findByIdAndUpdate(
+        coachId,
+        { 
+          $addToSet: { coachingSubscriptions: subscription._id },
+          $inc: { 'availability.currentClients': 1 }
+        },
+        { session }
+      );
+
+      // Commit transaction
+      await session.commitTransaction();
+
+      // Populate coach details for response
+      await subscription.populate('assignedCoach', 'firstName lastName profileImage bio rating socialLinks specialties');
+
+      // Prepare detailed response
+      res.json({
+        message: 'Coach assigned successfully',
+        coach: subscription.assignedCoach,
+        assignmentDate: subscription.coachAssignmentDate,
+        client: {
+          name: clientName,
+          email: clientEmail,
+          subscriptionType: subscription.subscription,
+          startDate: subscription.startDate
+        }
+      });
+
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+
+  } catch (error) {
+    console.error('Coach assignment error:', error);
+    res.status(500).json({ error: 'Failed to assign coach' });
+  }
 };

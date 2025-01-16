@@ -114,58 +114,47 @@ const DashboardUser = () => {
   const [loading, setLoading] = useState(true);
   const [showCoachAssignment, setShowCoachAssignment] = useState(false);
 
-  // Mock data for demonstration
   const mockStats = {
     workoutsCompleted: 12,
     currentStreak: 5,
     monthlyProgress: 68,
-    goalsAchieved: 3
+    goalsAchieved: 3,
   };
 
   const verifyQuestionnaireAndSubscription = async () => {
     try {
       setInitializing(true);
-
-      // Check for stored access token
       const accessToken = localStorage.getItem('accessToken');
-      
-      // Get subscription and questionnaire data
+
       const [subData, questionnaireData] = await Promise.all([
         subscriptionService.getCurrentSubscription(accessToken),
-        subscriptionService.checkQuestionnaireStatus(user?.id || accessToken)
+        subscriptionService.checkQuestionnaireStatus(user?.id || accessToken),
       ]);
 
-      // If no subscription found, redirect to coaching page
       if (!subData) {
         toast.error('No active subscription found');
         navigate('/coaching');
         return;
       }
 
-      // If questionnaire not completed, redirect to questionnaire
       if (!questionnaireData?.completed) {
         navigate('/questionnaire', {
-          state: { 
-            subscription: subData,
-            accessToken: accessToken || null
-          }
+          state: { subscription: subData, accessToken: accessToken || null },
         });
         return;
       }
 
-      if (subData.coachAssignmentStatus === 'pending') {
+      // Check coach assignment status
+      if (subData.coachAssignmentStatus === 'pending' && !subData.assignedCoach) {
         setShowCoachAssignment(true);
+      } else {
+        setShowCoachAssignment(false);
       }
 
-      // Store data and continue to dashboard
       setSubscription(subData);
       setQuestionnaire(questionnaireData);
       setLoading(false);
-
     } catch (error) {
-      console.error('Initialization error:', error);
-      
-      // Handle different error cases
       if (error.response?.status === 401) {
         toast.error('Session expired. Please log in again.');
         navigate('/login');
@@ -184,9 +173,19 @@ const DashboardUser = () => {
     verifyQuestionnaireAndSubscription();
   }, [user]);
 
+  const handleCoachAssigned = (coach) => {
+    setShowCoachAssignment(false); // Hide the CoachAssignment component
+    setSubscription((prev) => ({
+      ...prev,
+      assignedCoach: coach,
+      coachAssignmentStatus: 'assigned',
+    }));
+  };
+
   const handleUpgradeClick = () => {
-    if (!subscription || !SUBSCRIPTION_TIERS[subscription.type]?.upgrade) return;
-    setShowUpgradeModal(true);
+    navigate('/dashboard/upgrade', {
+      state: { subscription }, // Pass the current subscription data
+    });
   };
 
   const handleEditQuestionnaire = () => {
@@ -199,7 +198,8 @@ const DashboardUser = () => {
     });
   };
 
-  // Show loading state while initializing
+  const currentTier = SUBSCRIPTION_TIERS[subscription?.type || 'basic'];
+
   if (initializing || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -212,27 +212,19 @@ const DashboardUser = () => {
     );
   }
 
-  const currentTier = SUBSCRIPTION_TIERS[subscription?.type || 'basic'];
-
   if (showCoachAssignment) {
     return (
       <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl mx-auto">
-          <CoachAssignment 
+          <CoachAssignment
             subscription={subscription}
-            onCoachAssigned={(coach) => {
-              setShowCoachAssignment(false);
-              setSubscription(prev => ({
-                ...prev,
-                assignedCoach: coach,
-                coachAssignmentStatus: 'assigned'
-              }));
-            }}
+            onCoachAssigned={handleCoachAssigned}
           />
         </div>
       </div>
     );
   }
+
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -246,7 +238,7 @@ const DashboardUser = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold mb-2">
-                Welcome back{user ? `, ${user.firstName}` : ''}! 👋
+                Welcome back{user ? `, ${user.user.firstName}` : ''}! 👋
               </h1>
               <div className="flex items-center">
                 {currentTier.icon}

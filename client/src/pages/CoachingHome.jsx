@@ -57,12 +57,6 @@ const CoachingHome = () => {
     checkSubscription();
   }, [user, navigate]);
 
-  // Construct full image URL
-  const getImageUrl = (imagePath) => {
-    const backendBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    return `${backendBaseUrl}${imagePath}`;
-  };
-
 
   const features = [
     {

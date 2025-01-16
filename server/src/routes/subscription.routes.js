@@ -10,6 +10,7 @@ import {
   handleWebhook,
   getQuestionnaireStatus,
   submitQuestionnaire,
+  assignCoach,
 } from '../controllers/subscription.Controller.js';
 
 const router = express.Router();
@@ -22,6 +23,7 @@ router.post('/handle-success', optionalAuthenticate, handleSubscriptionSuccess);
 router.post('/access', optionalAuthenticate, accessSubscription);
 router.get('/questionnaire-status', optionalAuthenticate, getQuestionnaireStatus);
 router.post('/submit-questionnaire', optionalAuthenticate, submitQuestionnaire);
+router.post('/assign-coach', optionalAuthenticate, assignCoach);
 
 router.post('/webhook', express.raw({ type: 'application/json' }),
 async (req, res) => {

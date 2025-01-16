@@ -118,7 +118,6 @@ const Profile = () => {
       });
 
       setEditing(false);
-      toast.success('Profile updated successfully!');
 
       if (user?.role === 'coach' && !isCoachProfileComplete()) {
         toast.warning('Your profile is incomplete. Your name will not be shown until all fields are filled.');

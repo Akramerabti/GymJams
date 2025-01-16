@@ -161,6 +161,74 @@ async submitQuestionnaire(answers, accessToken = null) {
       throw error;
     }
   },
+
+  async getCoaches(accessToken = null) {
+    try {
+      const params = accessToken ? { accessToken } : {};
+      const response = await api.get('/auth/coach', { params });
+      console.log('Coaches:', response.data);
+      return { coaches: response.data };
+    } catch (error) {
+      console.error('Error fetching coaches:', error);
+      throw error;
+    }
+  },
+
+  // Random coach assignment with access token
+  async assignRandomCoach() {
+    try {
+      // Get access token if available
+      const accessToken = localStorage.getItem('accessToken');
+      
+      // Get all available coaches
+      const { coaches } = await this.getCoaches(accessToken);
+
+      if (!coaches || coaches.length === 0) {
+        throw new Error('No coaches available');
+      }
+
+      // Randomly select a coach
+      const randomIndex = Math.floor(Math.random() * coaches.length);
+      const selectedCoach = coaches[randomIndex];
+
+      console.log('Selected coach:', selectedCoach);
+
+      if (!selectedCoach) {
+        throw new Error('Failed to select a coach');
+      }
+
+      // Assign the selected coach with access token
+      const response = await api.post('/subscription/assign-coach', 
+        { coachId: selectedCoach._id },
+        { params: accessToken ? { accessToken } : {} }
+      );
+
+      return {
+        coach: selectedCoach,
+        assignment: response.data
+      };
+    } catch (error) {
+      console.error('Error assigning random coach:', error);
+      throw error;
+    }
+  },
+
+  // Assign specific coach with access token
+  async assignCoach(coachId) {
+    try {
+      // Get access token if available
+      const accessToken = localStorage.getItem('accessToken');
+      
+      const response = await api.post('/subscription/assign-coach', 
+        { coachId },
+        { params: accessToken ? { accessToken } : {} }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error assigning coach:', error);
+      throw error;
+    }
+  }
 };
 
 export default subscriptionService;
