@@ -46,7 +46,7 @@ initStripe();
 
 app.use(cors(corsOptions));
 
-app.use('/api/subscriptions/webhook',
+app.use('/api/subscription/webhook',
   express.raw({ type: 'application/json' })
 );
 

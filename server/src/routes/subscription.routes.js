@@ -26,25 +26,31 @@ router.get('/questionnaire-status', optionalAuthenticate, getQuestionnaireStatus
 router.post('/submit-questionnaire', optionalAuthenticate, submitQuestionnaire);
 router.post('/assign-coach', optionalAuthenticate, assignCoach);
 
-router.post('/webhook', express.raw({ type: 'application/json' }),
-async (req, res) => {
-  try {
+router.post('/webhook', 
+  express.raw({ type: 'application/json' }),
+  async (req, res) => {
     const sig = req.headers['stripe-signature'];
-    const event = stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
 
-    await handleWebhook(event);
+    try {
+      console.log('Webhook Request Headers:', req.headers);
+      console.log('Raw Webhook Body:', req.body.toString());
 
-    res.json({ received: true });
-  } catch (err) {
-    console.error('Webhook Error:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+      const event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+
+      await handleWebhook(event);
+      res.json({ received: true });
+    } catch (err) {
+      console.error('Webhook Verification Error:', {
+        message: err.message,
+        stack: err.stack
+      });
+      res.status(400).send(`Webhook Error: ${err.message}`);
+    }
   }
-}
 );
-
 
 export default router;

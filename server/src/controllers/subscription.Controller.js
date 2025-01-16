@@ -402,50 +402,23 @@ export const handleSubscriptionSuccess = async (req, res) => {
 
 export const handleWebhook = async (event) => {
   try {
-    logger.info(`Received Stripe webhook event: ${event.type}`, {
-      eventId: event.id,
-      timestamp: new Date().toISOString(),
-      rawEvent: JSON.stringify(event)
-    });
+    console.log('Raw Webhook Event:', JSON.stringify(event, null, 2));
+    console.log('Webhook Event Type:', event.type);
+    console.log('Webhook Event ID:', event.id);
+    console.log('Webhook Timestamp:', new Date().toISOString());
 
+    // Your existing switch statement for handling events
     switch (event.type) {
-      case 'invoice.created':
-        logger.info('Draft invoice created', event.data.object);
-        break;
-
-      case 'invoice.finalized':
-        logger.info('Invoice finalized', event.data.object);
-        break;
-
-      case 'invoice.payment_succeeded':
-        const invoice = event.data.object;
-        logger.info('Invoice payment succeeded', {
-          invoiceId: invoice.id,
-          amount: invoice.amount_paid,
-          customerEmail: invoice.customer_email
-        });
-        break;
-
       case 'payment_intent.succeeded':
-        const paymentIntent = event.data.object;
-        logger.info('Payment intent succeeded', {
-          paymentIntentId: paymentIntent.id,
-          amount: paymentIntent.amount
-        });
+        console.log('Payment Intent Succeeded Details:', 
+          JSON.stringify(event.data.object, null, 2));
         break;
-
-      // ... other existing cases ...
-
-      default:
-        logger.warn(`Unhandled event type: ${event.type}`);
+      // ... other cases
     }
 
     return { received: true };
   } catch (error) {
-    logger.error('Webhook handling error', {
-      errorMessage: error.message,
-      errorStack: error.stack
-    });
+    console.error('Webhook Handling Error:', error);
     throw error;
   }
 };
