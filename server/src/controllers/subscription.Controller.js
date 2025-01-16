@@ -261,6 +261,28 @@ export const cancelSubscription = async (req, res) => {
       return res.status(403).json({ error: 'You do not have permission to cancel this subscription' });
     }
 
+    // Calculate days since subscription start
+    const daysSinceStart = (new Date() - subscription.startDate) / (1000 * 60 * 60 * 24);
+
+    // Refund logic for subscriptions cancelled within 10 days
+    if (daysSinceStart <= 10) {
+      // Find the latest invoice for this subscription
+      const invoices = await stripe.invoices.list({
+        subscription: subscription.stripeSubscriptionId,
+        limit: 1
+      });
+
+      if (invoices.data.length > 0) {
+        const latestInvoice = invoices.data[0];
+        
+        // Create a refund for the invoice
+        await stripe.refunds.create({
+          charge: latestInvoice.charge,
+          reason: 'requested_by_customer'
+        });
+      }
+    }
+
     // Cancel the subscription in Stripe
     await stripe.subscriptions.cancel(subscription.stripeSubscriptionId);
 
@@ -271,8 +293,6 @@ export const cancelSubscription = async (req, res) => {
 
     // Handle points removal for logged-in users within the first 10 days
     if (req.user && subscription.user) {
-      const daysSinceStart = (new Date() - subscription.startDate) / (1000 * 60 * 60 * 24);
-
       if (daysSinceStart <= 10) {
         // Remove the points awarded for this subscription
         const pointsToRemove = PLANS[subscription.subscription].points;
@@ -289,7 +309,11 @@ export const cancelSubscription = async (req, res) => {
       });
     }
 
-    res.json({ message: 'Subscription cancelled successfully' });
+    res.json({ 
+      message: 'Subscription cancelled successfully',
+      refunded: daysSinceStart <= 10
+    });
+
   } catch (error) {
     logger.error('Failed to cancel subscription:', error);
     res.status(500).json({ error: 'Failed to cancel subscription' });

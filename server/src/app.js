@@ -46,8 +46,26 @@ initStripe();
 
 app.use(cors(corsOptions));
 
+// In app.js
 app.use('/api/subscription/webhook',
-  express.raw({ type: 'application/json' })
+  express.raw({ type: 'application/json' }),
+  (req, res, next) => {
+    // Use your existing logger instead of console.log
+    logger.info('Stripe Webhook Received', {
+      timestamp: new Date().toISOString(),
+      method: req.method,
+      headers: req.headers,
+      bodyLength: req.body ? req.body.length : 0
+    });
+
+    res.status(200).json({
+      received: true,
+      timestamp: new Date().toISOString(),
+      message: 'Webhook request successfully received'
+    });
+
+    next();
+  }
 );
 
 // Security Middleware
