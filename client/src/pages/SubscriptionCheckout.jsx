@@ -210,7 +210,7 @@ const SubscriptionCheckout = () => {
 
                   <div className="bg-blue-900 p-6 rounded-lg border border-blue-800 sm:p-4">
                     <p className="text-blue-200 text-sm sm:text-xs">
-                      🛡️ 10-day money-back guarantee. Cancel anytime.
+                      🛡️ 10-day 40% of your money-back guarantee. Cancel anytime.
                     </p>
                   </div>
                 </div>

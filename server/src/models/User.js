@@ -126,6 +126,15 @@ const userSchema = new mongoose.Schema({
     enum: ['available', 'full', 'unavailable'],
     default: 'available'
   },
+  stripeAccountId: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
+  payoutSetupComplete: {
+    type: Boolean,
+    default: false,
+  },
 
 }, {
   timestamps: true,

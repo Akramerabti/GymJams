@@ -13,7 +13,7 @@ export const sendVerificationEmail = async (user, verificationToken) => {
 
   try {
     await resend.emails.send({
-      from: 'GymJams <verification@gymjams.ca>',
+      from: 'GYMJAMS.CA <verification@gymjams.ca>',
       to: user.email,
       subject: 'Verify your GymJams account',
       html: `
@@ -41,7 +41,7 @@ export const sendPasswordResetEmail = async (user, resetToken) => {
 
   try {
     await resend.emails.send({
-      from: 'GymJams <noreply@gymjams.ca>',
+      from: 'GYMJAMS.CA <noreply@gymjams.ca>',
       to: user.email,
       subject: 'Reset your GymJams password',
       html: `
@@ -70,7 +70,7 @@ export const sendSubscriptionReceipt = async (subscriptionData, email, isGuest =
 
   try {
     await resend.emails.send({
-      from: 'GymJams <subscriptions@gymjams.ca>',
+      from: 'GYMJAMS.CA <subscriptions@gymjams.ca>',
       to: email,
       subject: 'Welcome to GymJams - Your Subscription Details',
       html: `

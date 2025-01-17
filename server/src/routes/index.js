@@ -5,6 +5,7 @@ import productRoutes from './product.routes.js';
 import orderRoutes from './order.routes.js';
 import userRoutes from './user.routes.js';
 import subscriptionRoutes from './subscription.routes.js';
+import stripeRoutes from './stripe.routes.js';
 
 const router = express.Router();
 
@@ -15,5 +16,7 @@ router.use('/auth', authRoutes);
 router.use('/subscription', subscriptionRoutes);
 router.use('/products', productRoutes);
 router.use('/orders', orderRoutes);
+router.use('/stripe', stripeRoutes);
+
 
 export default router;

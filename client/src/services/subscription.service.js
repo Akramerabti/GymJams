@@ -5,7 +5,7 @@ const subscriptionService = {
   async createPaymentIntent(planData) {
     try {
       const response = await api.post('/subscription/create-intent', {
-        planType: planData.id, // Changed from subscription to planType to match backend
+        planType: planData.id,
       });
       return response.data;
     } catch (error) {
@@ -19,7 +19,7 @@ const subscriptionService = {
     try {
       const response = await api.post('/subscription', {
         paymentMethodId,
-        planType, // Changed from subscription to planType
+        planType, 
       });
       return response.data;
     } catch (error) {
@@ -84,7 +84,6 @@ const subscriptionService = {
     const response = await api.post('/subscription/access', { token });
 
     if (response.data.success) {
-      // Store the access token in localStorage if verification successful
       localStorage.setItem('accessToken', token);
     }
     return response.data;
@@ -109,13 +108,11 @@ async checkQuestionnaireStatus(accessToken = null) {
 
 async submitQuestionnaire(answers, accessToken = null) {
   try {
-    // If no access token provided, try to get it from localStorage (for guest users)
+  
     const token = accessToken || localStorage.getItem('accessToken');
     
-    // Prepare request data
     const requestData = {
       answers,
-      // Only include accessToken for guest users (token will be undefined for logged-in users)
       ...(token && { accessToken: token })
     };
     
@@ -166,25 +163,26 @@ async submitQuestionnaire(answers, accessToken = null) {
     try {
       const params = accessToken ? { accessToken } : {};
       const response = await api.get('/auth/coach', { params });
-      console.log('Coaches:', response.data);
-      return { coaches: response.data };
+      // Filter coaches to only include those with payout setup complete
+      const coaches = response.data.filter(coach => coach.payoutSetupComplete);
+      console.log('Coaches:', coaches);
+      return { coaches };
     } catch (error) {
       console.error('Error fetching coaches:', error);
       throw error;
     }
   },
 
-  // Random coach assignment with access token
   async assignRandomCoach() {
     try {
       // Get access token if available
       const accessToken = localStorage.getItem('accessToken');
-      
-      // Get all available coaches
+
+      // Get all available coaches with payout setup complete
       const { coaches } = await this.getCoaches(accessToken);
 
       if (!coaches || coaches.length === 0) {
-        throw new Error('No coaches available');
+        throw new Error('No coaches available with payout setup complete');
       }
 
       // Randomly select a coach
@@ -198,7 +196,7 @@ async submitQuestionnaire(answers, accessToken = null) {
       }
 
       // Assign the selected coach with access token
-      const response = await api.post('/subscription/assign-coach', 
+      const response = await api.post('/subscription/assign-coach',
         { coachId: selectedCoach._id },
         { params: accessToken ? { accessToken } : {} }
       );
@@ -213,22 +211,73 @@ async submitQuestionnaire(answers, accessToken = null) {
     }
   },
 
-  // Assign specific coach with access token
+  // Assign specific coach with access token (only if payout setup is complete)
   async assignCoach(coachId) {
     try {
       // Get access token if available
       const accessToken = localStorage.getItem('accessToken');
-      
-      const response = await api.post('/subscription/assign-coach', 
+
+      // Verify that the coach has payout setup complete
+      const coachResponse = await api.get(`/auth/coach/${coachId}`);
+      const coach = coachResponse.data;
+
+      if (!coach.payoutSetupComplete) {
+        throw new Error('Coach payout setup is not complete');
+      }
+
+      // Assign the selected coach with access token
+      const response = await api.post('/subscription/assign-coach',
         { coachId },
         { params: accessToken ? { accessToken } : {} }
       );
+
       return response.data;
     } catch (error) {
       console.error('Error assigning coach:', error);
       throw error;
     }
-  }
+  },
+
+  // Create Stripe Connected Account for coach
+  async createStripeAccount(email, firstName, lastName) {
+    try {
+      const response = await api.post('/stripe/create-account', {
+        email,
+        firstName,
+        lastName,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to create Stripe account:', error);
+      throw error;
+    }
+  },
+
+  // Create Stripe Account Link for onboarding
+  async createStripeAccountLink(accountId, refreshUrl, returnUrl) {
+    try {
+      const response = await api.post('/stripe/create-account-link', {
+        accountId,
+        refreshUrl,
+        returnUrl,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to create Stripe account link:', error);
+      throw error;
+    }
+  },
+
+  // Check if coach's payout setup is complete
+  async checkPayoutSetup() {
+    try {
+      const response = await api.get('/stripe/check-payout-setup');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to check payout setup:', error);
+      throw error;
+    }
+  },
 };
 
 export default subscriptionService;

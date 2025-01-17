@@ -266,6 +266,10 @@ export const cancelSubscription = async (req, res) => {
 
     // Refund logic for subscriptions cancelled within 10 days
     if (daysSinceStart <= 10) {
+      // Calculate refund amount (40% of the subscription price)
+      const plan = PLANS[subscription.subscription];
+      const refundAmount = Math.round(plan.price * 0.4 * 100); // Convert to cents
+
       // Find the latest invoice for this subscription
       const invoices = await stripe.invoices.list({
         subscription: subscription.stripeSubscriptionId,
@@ -278,6 +282,7 @@ export const cancelSubscription = async (req, res) => {
         // Create a refund for the invoice
         await stripe.refunds.create({
           charge: latestInvoice.charge,
+          amount: refundAmount,
           reason: 'requested_by_customer'
         });
       }
@@ -428,31 +433,8 @@ export const handleSubscriptionSuccess = async (req, res) => {
   }
 };
 
-export const handleWebhook = async (event) => {
-  try {
-    console.log('Raw Webhook Event:', JSON.stringify(event, null, 2));
-    console.log('Webhook Event Type:', event.type);
-    console.log('Webhook Event ID:', event.id);
-    console.log('Webhook Timestamp:', new Date().toISOString());
-
-    // Your existing switch statement for handling events
-    switch (event.type) {
-      case 'payment_intent.succeeded':
-        console.log('Payment Intent Succeeded Details:', 
-          JSON.stringify(event.data.object, null, 2));
-        break;
-      // ... other cases
-    }
-
-    return { received: true };
-  } catch (error) {
-    console.error('Webhook Handling Error:', error);
-    throw error;
-  }
-};
 
 export const assignCoach = async (req, res) => {
-  // Maximum number of retries for transaction
   const MAX_RETRIES = 3;
   let retryCount = 0;
 
@@ -504,6 +486,25 @@ export const assignCoach = async (req, res) => {
         await session.abortTransaction();
         return res.status(404).json({ error: 'Coach not found or unavailable' });
       }
+
+      // Check if the coach's Stripe account is verified
+      const account = await stripe.accounts.retrieve(coach.stripeAccountId);
+      if (!account.charges_enabled || !account.payouts_enabled) {
+        await session.abortTransaction();
+        return res.status(400).json({ error: 'Coach has not completed payment setup' });
+      }
+
+      // Calculate coach's share (60% of the subscription price)
+      const plan = PLANS[subscription.subscription];
+      const coachShare = Math.round(plan.price * 0.6 * 100); // Convert to cents
+
+      // Create a transfer to the coach's Stripe account
+      await stripe.transfers.create({
+        amount: coachShare,
+        currency: 'usd',
+        destination: coach.stripeAccountId, // Ensure coaches have Stripe accounts
+        description: `Payment for coaching services for subscription ${subscription.stripeSubscriptionId}`,
+      });
 
       // Handle previous coach reassignment
       if (subscription.assignedCoach) {
@@ -584,5 +585,80 @@ export const assignCoach = async (req, res) => {
       'Transaction conflict occurred. Please try again.' : 
       'Failed to assign coach';
     res.status(500).json({ error: errorMessage });
+  }
+};
+
+export const handleWebhook = async (event) => {
+  try {
+    console.log('Raw Webhook Event:', JSON.stringify(event, null, 2));
+    console.log('Webhook Event Type:', event.type);
+    console.log('Webhook Event ID:', event.id);
+    console.log('Webhook Timestamp:', new Date().toISOString());
+
+    switch (event.type) {
+      case 'invoice.payment_succeeded':
+        const invoice = event.data.object;
+        const subscriptionId = invoice.subscription;
+
+        // Update subscription in database
+        const subscription = await Subscription.findOneAndUpdate(
+          { stripeSubscriptionId: subscriptionId },
+          { 
+            status: 'active',
+            currentPeriodEnd: new Date(invoice.period_end * 1000),
+          }
+        );
+
+        // Check if a coach is assigned
+        if (subscription.assignedCoach) {
+          const coach = await User.findById(subscription.assignedCoach);
+
+          // Calculate coach's share (60% of the payment)
+          const plan = PLANS[subscription.subscription];
+          const coachShare = Math.round(plan.price * 0.6 * 100); // Convert to cents
+
+          // Create a transfer to the coach's Stripe account
+          await stripe.transfers.create({
+            amount: coachShare,
+            currency: 'usd',
+            destination: coach.stripeAccountId,
+            description: `Payment for coaching services for subscription ${subscription.stripeSubscriptionId}`,
+          });
+        }
+
+        // Notify user of successful payment
+        const user = await User.findById(subscription.user);
+        await sendPaymentSuccessEmail(user.email, invoice.amount_paid);
+        break;
+
+        case 'invoice.payment_failed':
+          const failedInvoice = event.data.object;
+          const failedSubscriptionId = failedInvoice.subscription;
+  
+          // Cancel the subscription in Stripe
+          await stripe.subscriptions.cancel(failedSubscriptionId);
+  
+          // Update the subscription in the database
+          const failedSubscription = await Subscription.findOneAndUpdate(
+            { stripeSubscriptionId: failedSubscriptionId },
+            { 
+              status: 'cancelled',
+              endDate: new Date(),
+            }
+          );
+  
+          // Notify the user of the payment failure and subscription cancellation
+          const failedUser = await User.findById(failedSubscription.user);
+          await sendPaymentFailedEmail(failedUser.email, failedInvoice.amount_due);
+  
+          break;
+  
+        // Handle other events
+        default:
+          console.log(`Unhandled event type: ${event.type}`);
+      }  
+  } catch (error) {
+    console.error('Webhook Handling Error:', error);
+    throw error;
   }
 };
