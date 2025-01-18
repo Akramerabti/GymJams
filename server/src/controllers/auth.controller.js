@@ -232,36 +232,6 @@ export const getProfile = async (req, res) => {
   }
 };
 
-export const getCoach = async (req, res) => {
-  try {
-    const coaches = await User.find({ role: 'coach' })
-      .select('firstName lastName profileImage bio rating socialLinks payoutSetupComplete')
-      .sort({ rating: -1 }); // Sort by rating in descending order
-
-    if (!coaches.length) {
-      return res.status(404).json({ message: 'No coaches found' });
-    }
-
-    // Construct full URL for profile images
-    const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000/api';
-    const updatedCoaches = coaches.map(coach => {
-      if (coach.profileImage) {
-        const imagePath = coach.profileImage.startsWith('/api') 
-          ? coach.profileImage.replace('/api', '') 
-          : coach.profileImage;
-        coach.profileImage = `${baseUrl}${imagePath}`;
-        console.log('Updated image path:', coach.profileImage);
-      }
-      return coach;
-    });
-
-    res.json(updatedCoaches);
-  } catch (error) {
-    logger.error('Error fetching coaches:', error);
-    res.status(500).json({ message: 'Error fetching coaches' });
-  }
-};
-
 export const updateProfile = async (req, res) => {
   try {
     const { firstName, lastName, phone, bio, rating, socialLinks, specialties } = req.body;
@@ -528,3 +498,65 @@ export const resetPassword = async (req, res) => {
   }
 };
 
+export const getCoach = async (req, res) => {
+  try {
+    const coaches = await User.find({ role: 'coach' })
+      .select('firstName lastName profileImage bio rating socialLinks payoutSetupComplete')
+      .sort({ rating: -1 }); // Sort by rating in descending order
+
+    if (!coaches.length) {
+      return res.status(404).json({ message: 'No coaches found' });
+    }
+
+    // Construct full URL for profile images
+    const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000/api';
+    const updatedCoaches = coaches.map(coach => {
+      if (coach.profileImage) {
+        const imagePath = coach.profileImage.startsWith('/api') 
+          ? coach.profileImage.replace('/api', '') 
+          : coach.profileImage;
+        coach.profileImage = `${baseUrl}${imagePath}`;
+        console.log('Updated image path:', coach.profileImage);
+      }
+      return coach;
+    });
+
+    res.json(updatedCoaches);
+  } catch (error) {
+    logger.error('Error fetching coaches:', error);
+    res.status(500).json({ message: 'Error fetching coaches' });
+  }
+};
+
+export const getCoachById = async (req, res) => {
+  try {
+    const { coachId } = req.params;
+
+    // Validate the coachId
+    if (!coachId) {
+      return res.status(400).json({ message: 'Coach ID is required' });
+    }
+
+    // Find the coach by ID
+    const coach = await User.findOne({ _id: coachId, role: 'coach' })
+      .select('firstName lastName profileImage bio rating socialLinks specialties payoutSetupComplete');
+
+    if (!coach) {
+      return res.status(404).json({ message: 'Coach not found' });
+    }
+
+    // Construct full URL for profile image
+    if (coach.profileImage) {
+      const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000/api';
+      const imagePath = coach.profileImage.startsWith('/api') 
+        ? coach.profileImage.replace('/api', '') 
+        : coach.profileImage;
+      coach.profileImage = `${baseUrl}${imagePath}`;
+    }
+
+    res.json(coach);
+  } catch (error) {
+    logger.error('Error fetching coach by ID:', error);
+    res.status(500).json({ message: 'Error fetching coach details' });
+  }
+};
