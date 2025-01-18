@@ -26,25 +26,34 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
     setIsLoading(true);
   
     try {
-      const emailer = user?.user?.email || user?.email 
+      // Clear any existing access tokens
+      localStorage.removeItem('accessToken');
+      sessionStorage.removeItem('accessToken');
+  
+      const emailer = user?.user?.email || user?.email;
       const email = emailer || guestEmail;
       console.log('Using email:', email);
-
+  
       if (!email) {
         throw new Error('Email is required');
       }
-
+  
+      // Rest of your code...
+  
       const { error: submitError } = await elements.submit();
       if (submitError) {
         onError(submitError.message);
         return;
       }
   
+      // Determine the redirect URL based on whether the user is logged in
+      const redirectUrl = user ? '/dashboard' : '/guest-access';
+  
       // Confirm the SetupIntent
       const { error: setupError, setupIntent } = await stripe.confirmSetup({
         elements,
         confirmParams: {
-          return_url: window.location.origin + '/dashboard',
+          return_url: window.location.origin + redirectUrl, // Use the correct redirect URL
           payment_method_data: {
             billing_details: {
               email: email,
@@ -64,7 +73,7 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
           clientSecret: setupIntent.client_secret,
           elements,
           confirmParams: {
-            return_url: window.location.origin + '/dashboard',
+            return_url: window.location.origin + redirectUrl, // Use the correct redirect URL
           },
         });
   
@@ -77,6 +86,9 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
       if (setupIntent.status === 'succeeded') {
         // Pass both setupIntent data and email to parent
         onSuccess(setupIntent.id, setupIntent.payment_method, email);
+  
+        // Redirect the user based on whether they are logged in
+        navigate(redirectUrl);
       }
     } catch (err) {
       console.error('Setup error:', err);

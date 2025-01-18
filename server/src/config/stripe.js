@@ -63,32 +63,48 @@ export const createPaymentIntent = async ({ amount, metadata = {} }) => {
   }
 };
 
-export const handleStripeWebhook = async (event) => {
+export const createAccountLink = async (accountId, returnUrl, refreshUrl) => {
   try {
-    switch (event.type) {
-      case 'payment_intent.succeeded':
-        await handlePaymentSuccess(event.data.object);
-        break;
-      case 'payment_intent.payment_failed':
-        await handlePaymentFailure(event.data.object);
-        break;
-      default:
-        logger.info(`Unhandled event type ${event.type}`);
-    }
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: refreshUrl,
+      return_url: returnUrl,
+      type: 'account_onboarding',
+      collect: 'currently_due'
+    });
+    return accountLink;
   } catch (error) {
-    logger.error('Error handling stripe webhook:', error);
+    logger.error('Error creating account link:', error);
     throw error;
   }
 };
 
-const handlePaymentSuccess = async (paymentIntent) => {
-  // Implement payment success logic
-  logger.info(`Payment succeeded for intent: ${paymentIntent.id}`);
+export const retrieveConnectAccount = async (accountId) => {
+  try {
+    const account = await stripe.accounts.retrieve(accountId);
+    console.log('Stripe Account:', account);
+    console.log('Charges Enabled:', account.charges_enabled);
+    console.log('Payouts Enabled:', account.payouts_enabled);
+    return account;
+  } catch (error) {
+    logger.error('Error retrieving Connect account:', error);
+    throw error;
+  }
 };
 
-const handlePaymentFailure = async (paymentIntent) => {
-  // Implement payment failure logic
-  logger.error(`Payment failed for intent: ${paymentIntent.id}`);
+export const createTransfer = async ({ amount, destination, metadata = {} }) => {
+  try {
+    const transfer = await stripe.transfers.create({
+      amount: Math.round(amount * 100),
+      currency: 'usd',
+      destination,
+      metadata
+    });
+    return transfer;
+  } catch (error) {
+    logger.error('Error creating transfer:', error);
+    throw error;
+  }
 };
 
-export default stripe;
+export default stripe; 

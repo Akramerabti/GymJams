@@ -235,7 +235,7 @@ export const getProfile = async (req, res) => {
 export const getCoach = async (req, res) => {
   try {
     const coaches = await User.find({ role: 'coach' })
-      .select('firstName lastName profileImage bio rating socialLinks')
+      .select('firstName lastName profileImage bio rating socialLinks payoutSetupComplete')
       .sort({ rating: -1 }); // Sort by rating in descending order
 
     if (!coaches.length) {

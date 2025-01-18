@@ -220,11 +220,12 @@ const useAuthStore = create(
           // Clear auth token from axios headers
           delete api.defaults.headers.common['Authorization'];
       
-          // Clear local storage items
+          // Clear ALL relevant storage items
           localStorage.removeItem('token');
+          localStorage.removeItem('accessToken'); // Add this line
           localStorage.removeItem('cart-storage');
           localStorage.removeItem('persist:auth-storage');
-          localStorage.removeItem('accessToken'); // Also clear any guest access token
+          sessionStorage.removeItem('accessToken'); // Add this line if using sessionStorage
       
           // Reset store state
           reset();

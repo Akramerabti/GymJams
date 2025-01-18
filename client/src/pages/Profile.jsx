@@ -5,10 +5,11 @@ import { usePoints } from '../hooks/usePoints';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
-import { User, Package, LogOut, Loader2, Coins, Image, BookOpen, Star, Instagram, Twitter, Youtube, Crown, Settings } from 'lucide-react';
+import { User, Package, LogOut, Loader2, Coins, AlertCircle, CheckCircle, Clock, Star, Instagram, Twitter, Youtube, Crown, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../services/api';
 import ProfileImageUpload from '../components/layout/ProfileImageUpload';
+import subscriptionService from '../services/subscription.service';
 
 const Profile = () => {
   const { user, updateProfile, logout, validatePhone } = useAuth();
@@ -17,6 +18,7 @@ const Profile = () => {
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [subscriptionDetails, setSubscriptionDetails] = useState(null);
+  const [redirecting, setRedirecting] = useState(false);
   const [profileData, setProfileData] = useState({
     firstName: '',
     lastName: '',
@@ -30,7 +32,9 @@ const Profile = () => {
       twitter: '',
       youtube: ''
     },
-    specialties: []
+    specialties: [],
+    stripeAccountId: null,
+    payoutSetupComplete: false
   });
 
   const isCoach = user?.user?.role === 'coach' || user?.role === 'coach';
@@ -38,9 +42,10 @@ const Profile = () => {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const [profileResponse, subscriptionResponse] = await Promise.all([
+        const [profileResponse, subscriptionResponse,payoutSetupResponse] = await Promise.all([
           api.get('/auth/profile'),
-          api.get('/subscription/current')
+          api.get('/subscription/current'),
+          isCoach ? api.get('/stripe/check-payout-setup') : Promise.resolve({ data: { payoutSetupComplete: false } })
         ]);
 
         const userData = profileResponse.data;
@@ -59,6 +64,8 @@ const Profile = () => {
             youtube: ''
           },
           specialties: userData.specialties || [],
+          stripeAccountId: userData.stripeAccountId || null,
+          payoutSetupComplete: payoutSetupResponse.data.payoutSetupComplete || false
         });
 
         if (subscriptionResponse.data) {
@@ -147,6 +154,61 @@ const Profile = () => {
   const isCoachProfileComplete = () => {
     // Implement your logic to check if the coach profile is complete
     return profileData.firstName && profileData.lastName && profileData.bio && profileData.profileImage;
+  };
+
+  const handlePayoutSetup = async () => {
+    try {
+      setRedirecting(true); // Start loading
+      const { accountId, verificationUrl } = await subscriptionService.createStripeAccount({
+        email: profileData.email,
+        firstName: profileData.firstName,
+        lastName: profileData.lastName,
+      });
+  
+      // Redirect the coach to complete identity verification
+      window.location.href = verificationUrl;
+    } catch (error) {
+      console.error('Error setting up payout:', error);
+      toast.error('Failed to set up payout. Please try again.');
+    } finally {
+      setRedirecting(false); // Stop loading
+    }
+  };
+  
+  const handleCompletePayoutSetup = async () => {
+    try {
+      setRedirecting(true); // Start loading
+      const { url } = await subscriptionService.createStripeAccountLink(
+        profileData.stripeAccountId,
+        `${window.location.origin}/stripe-return`, // Use the new route
+        `${window.location.origin}/stripe-return`  // Use the new route
+      );
+      window.location.href = url;
+    } catch (error) {
+      console.error('Error completing setup:', error);
+      toast.error('Failed to complete setup. Please try again.');
+    } finally {
+      setRedirecting(false); // Stop loading
+    }
+  };
+  
+  const handleViewPayoutDashboard = async () => {
+    try {
+      setRedirecting(true); // Start loading
+  
+      // Call the Stripe API to generate a dashboard link
+      const { url } = await subscriptionService.createStripeDashboardLink(
+        profileData.stripeAccountId
+      );
+  
+      // Redirect the user to the Stripe dashboard
+      window.location.href = url;
+    } catch (error) {
+      console.error('Error accessing dashboard:', error);
+      toast.error('Failed to access dashboard. Please try again.');
+    } finally {
+      setRedirecting(false); // Stop loading
+    }
   };
 
   return (
@@ -342,9 +404,104 @@ const Profile = () => {
               </div>
             </div>
 
+            
+          {/* Payout Setup Section */}
+          <div className="mt-6 mb-6">
+            <label className="block text-sm font-medium mb-1">Payout Setup</label>
+            {!profileData.stripeAccountId ? (
+              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <AlertCircle className="h-5 w-5 text-yellow-400" />
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-yellow-800">
+                      Payout Setup Required
+                    </h3>
+                    <div className="mt-2 text-sm text-yellow-700">
+                      <p>To receive payments from your clients, you need to set up your payout information.</p>
+                    </div>
+                    <div className="mt-4">
+                      <Button
+                        onClick={handlePayoutSetup}
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                        disabled={redirecting} // Disable button during redirect
+                      >
+                        {redirecting ? (
+                          <Loader2 className="w-5 h-5 animate-spin" /> // Show spinner
+                        ) : (
+                          'Set Up Payouts'
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : !profileData.payoutSetupComplete ? (
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <Clock className="h-5 w-5 text-blue-400" />
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-blue-800">
+                      Payout Setup In Progress
+                    </h3>
+                    <div className="mt-2 text-sm text-blue-700">
+                      <p>Your payout setup is in progress. Please complete the onboarding process.</p>
+                    </div>
+                    <div className="mt-4">
+                      <Button
+                        onClick={handleCompletePayoutSetup}
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                        disabled={redirecting} // Disable button during redirect
+                      >
+                        {redirecting ? (
+                          <Loader2 className="w-5 h-5 animate-spin" /> // Show spinner
+                        ) : (
+                          'Complete Setup'
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <CheckCircle className="h-5 w-5 text-green-400" />
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-green-800">
+                      Payout Setup Complete
+                    </h3>
+                    <div className="mt-2 text-sm text-green-700">
+                      <p>Your payout information has been set up successfully. You can now receive payments from your clients.</p>
+                    </div>
+                    <div className="mt-4">
+                      <Button
+                        onClick={handleViewPayoutDashboard}
+                        variant="outline"
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-green-700 bg-green-100 hover:bg-green-200"
+                        disabled={redirecting} // Disable button during redirect
+                      >
+                        {redirecting ? (
+                          <Loader2 className="w-5 h-5 animate-spin" /> // Show spinner
+                        ) : (
+                          'View Payout Dashboard'
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
             {/* Specialties */}
             <div>
-              <label className="block text-sm font-medium mb-3 text-gray-700">Specialties</label>
+              <label className="block text-sm font-medium mb-3 ">Specialties</label>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {[
                   'Weight Training',

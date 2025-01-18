@@ -239,6 +239,26 @@ export const finishCurrentMonth = async (req, res) => {
     subscription.cancelAtPeriodEnd = true;
     await subscription.save();
 
+    // Schedule removal of the subscription from the coach's list of clients at the end of the billing period
+    const timeUntilEndOfPeriod = subscription.currentPeriodEnd - new Date();
+    setTimeout(async () => {
+      try {
+        // Remove the subscription from the coach's list of clients
+        if (subscription.assignedCoach) {
+          await User.findByIdAndUpdate(subscription.assignedCoach, {
+            $pull: { clients: subscription.user }, // Assuming `clients` is an array of user IDs in the coach's document
+          });
+        }
+
+        // Optionally, update the subscription status to reflect that it has ended
+        subscription.status = 'cancelled';
+        subscription.endDate = new Date();
+        await subscription.save();
+      } catch (error) {
+        logger.error('Failed to remove subscription from coach:', error);
+      }
+    }, timeUntilEndOfPeriod);
+
     res.json({ message: 'Recurring payments have been cancelled. You will retain access until the end of the current billing period.' });
   } catch (error) {
     logger.error('Failed to finish current month:', error);
@@ -311,6 +331,13 @@ export const cancelSubscription = async (req, res) => {
     if (req.user && subscription.user) {
       await User.findByIdAndUpdate(req.user.id, {
         $unset: { subscription: 1 },
+      });
+    }
+
+    // Remove the subscription from the coach's list of clients
+    if (subscription.assignedCoach) {
+      await User.findByIdAndUpdate(subscription.assignedCoach, {
+        $pull: { clients: subscription.user }, // Assuming `clients` is an array of user IDs in the coach's document
       });
     }
 

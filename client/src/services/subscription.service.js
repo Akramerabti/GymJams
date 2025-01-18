@@ -163,6 +163,7 @@ async submitQuestionnaire(answers, accessToken = null) {
     try {
       const params = accessToken ? { accessToken } : {};
       const response = await api.get('/auth/coach', { params });
+      console.log('All coaches:', response.data);
       // Filter coaches to only include those with payout setup complete
       const coaches = response.data.filter(coach => coach.payoutSetupComplete);
       console.log('Coaches:', coaches);
@@ -278,6 +279,32 @@ async submitQuestionnaire(answers, accessToken = null) {
       throw error;
     }
   },
+
+  async checkVerificationStatus(verificationSessionId) {
+    try {
+      const response = await api.post('/stripe/check-verification-status', {
+        verificationSessionId,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to check verification status:', error);
+      throw error;
+    }
+  },
+
+  async createStripeDashboardLink(accountId) {
+    try {
+      const response = await api.post('/stripe/create-dashboard-link', {
+        accountId,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to create Stripe dashboard link:', error);
+      throw error;
+    }
+  },
 };
+
+
 
 export default subscriptionService;
