@@ -106,7 +106,7 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
               onError={(e) => {
                 console.error('Image load error:', imageUrl);
                 e.target.onerror = null;
-                e.target.src = '/fallback-avatar.png';
+                e.target.src = `${baseUrl}/uploads/fallback-avatar.png`;
               }}
             />
           ) : (
