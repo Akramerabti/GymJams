@@ -21,6 +21,12 @@ const CoachingHome = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [coaches, setCoaches] = useState([]);
 
+   // Define the base URL
+   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+   // Fallback image URL
+   const fallbackAvatarUrl = `${baseUrl}/uploads/fallback-avatar.jpg`;
+
   useEffect(() => {
     const checkSubscription = async () => {
       try {
@@ -292,10 +298,11 @@ const CoachingHome = () => {
                     <div className="relative w-32 h-32 mx-auto mb-4">
                       <img
                         src={coach.profileImage}
-                        alt={`${coach.firstName} ${coach.lastName}`}
+                        alt={fallbackAvatarUrl}
                         className="rounded-full w-full h-full object-cover border-4 border-blue-500"
                         onError={(e) => {
                           e.target.onerror = null; // Prevent infinite loop
+                          e.target.src = fallbackAvatarUrl; // Use fallback image URL
                         }}
                       />
                     </div>

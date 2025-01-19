@@ -14,7 +14,7 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
   // Fallback image URL
-  const fallbackAvatarUrl = `${baseUrl}/uploads/fallback-avatar.png`;
+  const fallbackAvatarUrl = `${baseUrl}/uploads/fallback-avatar.jpg`;
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -98,13 +98,13 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
           {previewUrl ? (
             <img
               src={previewUrl}
-              alt="Profile Preview"
+              alt={fallbackAvatarUrl}
               className="w-full h-full object-cover"
             />
           ) : imageUrl ? (
             <img
               src={imageUrl}
-              alt="Profile"
+              alt={fallbackAvatarUrl}
               className="w-full h-full object-cover"
               crossOrigin="anonymous"
               onError={(e) => {
