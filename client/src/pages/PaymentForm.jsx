@@ -47,7 +47,7 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
       }
   
       // Determine the redirect URL based on whether the user is logged in
-      const redirectUrl = user ? '/dashboard' : '/guest-access';
+      const redirectUrl = user ? '/dashboard' : '/coaching';
   
       // Confirm the SetupIntent
       const { error: setupError, setupIntent } = await stripe.confirmSetup({

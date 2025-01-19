@@ -135,6 +135,28 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  earnings: {
+    pendingAmount: {
+      type: Number,
+      default: 0
+    },
+    totalEarned: {
+      type: Number,
+      default: 0
+    },
+    lastPayout: {
+      type: Date
+    },  
+    payoutHistory: [{
+      amount: Number,
+      date: Date,
+      stripeTransferId: String,
+      subscriptions: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Subscription'
+      }]
+    }]
+  }
 
 }, {
   timestamps: true,

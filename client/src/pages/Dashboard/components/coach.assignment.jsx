@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Search, CheckCircle, Clock, RefreshCw, Star,Info, X } from 'lucide-react';
+import { User, Search, CheckCircle, Clock, RefreshCw,Mail, Star,Info, X } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -21,13 +21,6 @@ const CoachProfileModal = ({ coach, onClose }) => {
         </div>
       </div>
     );
-  };
-
-  const handleBackgroundClick = (e) => {
-    // Check if the click was on the modal background
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
   };
 
   // Prepare coach details with detailed formatting
@@ -62,11 +55,6 @@ const CoachProfileModal = ({ coach, onClose }) => {
             icon: Star, 
             label: 'Rating', 
             value: coach.rating ? `${coach.rating.toFixed(1)} / 5.0` : null 
-          },
-          { 
-            icon: User, 
-            label: 'Current Clients', 
-            value: coach.availability?.currentClients || 'N/A' 
           }
         ]
       }
@@ -162,6 +150,8 @@ const CoachProfileModal = ({ coach, onClose }) => {
 };
 
 
+const MAX_RETRIES = 2; // Maximum number of retry attempts
+
 const CoachAssignment = ({ subscription, onCoachAssigned }) => {
   const [loading, setLoading] = useState(true);
   const [coaches, setCoaches] = useState([]);
@@ -172,18 +162,19 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
   const [tempSelectedCoach, setTempSelectedCoach] = useState(null);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [selectedCoachForProfile, setSelectedCoachForProfile] = useState(null);
+  const [retryCount, setRetryCount] = useState(0); // Track retry attempts
 
   const navigate = useNavigate();
-  
+
   const isBasicPlan = subscription?.subscription === 'basic';
 
   const loadingPhrases = [
-    { phrase: "Analyzing your fitness goals...", duration: 1000 }, // 3 seconds
-    { phrase: "Matching with expert coaches...", duration: 500 }, // 2 seconds
-    { phrase: "Finding your perfect mentor...", duration: 2000 }, // 2 seconds
-    { phrase: "Almost there...", duration: 3500 }, // 1 second
+    { phrase: "Analyzing your fitness goals...", duration: 1000 },
+    { phrase: "Matching with expert coaches...", duration: 500 },
+    { phrase: "Finding your perfect mentor...", duration: 2000 },
+    { phrase: "Almost there...", duration: 3500 },
   ];
-  
+
   useEffect(() => {
     if (assignmentStatus === 'pending') {
       let currentIndex = 0;
@@ -215,7 +206,7 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
             setAssignmentStatus('assigned');
             await new Promise(resolve => setTimeout(resolve, 7000));
             onCoachAssigned(response.coach);
-          }, 8000); 
+          }, 8000);
         } else {
           const response = await subscriptionService.getCoaches();
           setCoaches(response.coaches);
@@ -230,6 +221,13 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
     initializeCoachAssignment();
   }, [isBasicPlan, navigate]);
 
+  const handleConfirmSelection = () => {
+    if (tempSelectedCoach) {
+      handleCoachSelect(tempSelectedCoach);
+      setShowConfirmationModal(false);
+    }
+  };
+
   const handleCoachSelect = async (coach, retryCount = 0) => {
     try {
       setAssignmentStatus('pending');
@@ -238,29 +236,18 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
       setSelectedCoach(coach);
       setAssignmentStatus('assigned');
       onCoachAssigned(coach);
-
     } catch (error) {
       console.error('Coach selection error:', error);
-      if (retryCount < 3) {
+      if (retryCount < MAX_RETRIES) {
         // Retry the assignment
-        toast.info(`Retrying coach assignment... Attempt ${retryCount + 1} of ${3}`);
+        toast.info(`Retrying coach assignment... Attempt ${retryCount + 1} of ${MAX_RETRIES}`);
         setTimeout(() => {
           handleCoachSelect(coach, retryCount + 1);
-        }, 2000); 
+        }, 2000);
       } else {
-        setError('Failed to assign coach. Please try again.');
-        toast.error('Failed to assign coach after multiple attempts.');
-        setTimeout(() => {
-          navigate('/'); 
-        }, 3000); 
+        setError('Failed to assign coach after multiple attempts. Please contact support.');
+        setRetryCount(0); // Reset retry count
       }
-    }
-  };
-
-  const handleConfirmSelection = () => {
-    if (tempSelectedCoach) {
-      handleCoachSelect(tempSelectedCoach);
-      setShowConfirmationModal(false);
     }
   };
 
@@ -268,126 +255,11 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
     setError(null);
     setAssignmentStatus('pending');
     setCurrentPhraseIndex(0);
+    setRetryCount(0); // Reset retry count
   };
 
-
-  const CoachReveal = ({ selectedCoach }) => {
-    const [showConfetti, setShowConfetti] = useState(false);
-
-    useEffect(() => {
-      setShowConfetti(true);
-    }, []);
-
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.5 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="space-y-6"
-      >
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="relative"
-        >
-          {showConfetti && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="absolute inset-0 pointer-events-none"
-            >
-              {[...Array(50)].map((_, i) => (
-                <motion.div
-                  key={i}
-                  initial={{
-                    x: "50%",
-                    y: "50%",
-                    scale: 0,
-                  }}
-                  animate={{
-                    x: `${Math.random() * 100}%`,
-                    y: `${Math.random() * 100}%`,
-                    scale: Math.random() * 0.5 + 0.5,
-                    opacity: [1, 0],
-                  }}
-                  transition={{
-                    duration: Math.random() * 2 + 1,
-                    repeat: Infinity,
-                    repeatType: "loop",
-                  }}
-                  className={`absolute w-2 h-2 rounded-full ${
-                    ['bg-blue-500', 'bg-yellow-400', 'bg-green-400', 'bg-purple-500', 'bg-pink-500'][
-                      Math.floor(Math.random() * 5)
-                    ]
-                  }`}
-                />
-              ))}
-            </motion.div>
-          )}
-
-          <motion.div
-            initial={{ y: 50, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="bg-gradient-to-r from-blue-500 to-purple-600 p-8 rounded-2xl shadow-xl"
-          >
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", bounce: 0.5, delay: 1 }}
-              className="bg-white p-6 rounded-xl shadow-inner"
-            >
-              <div className="flex flex-col items-center space-y-4">
-                <motion.div
-                  initial={{ rotate: 180, scale: 0 }}
-                  animate={{ rotate: 360, scale: 1 }}
-                  transition={{ type: "spring", bounce: 0.5, delay: 1.2 }}
-                  className="relative"
-                >
-                  {selectedCoach.profileImage ? (
-                    <img
-                      src={selectedCoach.profileImage}
-                      alt={selectedCoach.firstName}
-                      className="w-32 h-32 rounded-full object-cover ring-4 ring-blue-500"
-                    />
-                  ) : (
-                    <div className="w-32 h-32 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full flex items-center justify-center ring-4 ring-blue-300">
-                      <User className="w-16 h-16 text-white" />
-                    </div>
-                  )}
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 1.5 }}
-                    className="absolute -bottom-2 -right-2 bg-green-500 rounded-full p-2"
-                  >
-                    <CheckCircle className="w-6 h-6 text-white" />
-                  </motion.div>
-                </motion.div>
-
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 1.7 }}
-                  className="text-center"
-                >
-                  <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">
-                    Meet Your Coach
-                  </h3>
-                  <h4 className="text-xl text-blue-600 font-semibold mt-2">
-                    {selectedCoach.firstName} {selectedCoach.lastName}
-                  </h4>
-                  {selectedCoach.specialties && (
-                    <p className="text-gray-600 mt-1">
-                      {selectedCoach.specialties.join(' • ')}
-                    </p>
-                  )}
-                </motion.div>
-              </div>
-            </motion.div>
-          </motion.div>
-        </motion.div>
-      </motion.div>
-    );
+  const handleContactSupport = () => {
+    navigate('/contact');
   };
 
   if (loading) {
@@ -410,15 +282,21 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
         <CardContent className="flex flex-col items-center justify-center p-8 space-y-4">
           <h3 className="text-2xl font-bold text-red-600">Oops! Something went wrong.</h3>
           <p className="text-gray-600">{error}</p>
-          <Button onClick={handleRetry} className="flex items-center">
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Try Again
-          </Button>
+          <div className="flex space-x-4">
+            <Button onClick={handleRetry} className="flex items-center">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Try Again
+            </Button>
+            <Button onClick={handleContactSupport} className="flex items-center">
+              <Mail className="w-4 h-4 mr-2" />
+              Contact Support
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
   }
-
+  
   if (isBasicPlan) {
     return (
       <Card className="w-full">

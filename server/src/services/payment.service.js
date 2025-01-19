@@ -7,7 +7,7 @@ class PaymentService {
     try {
       return await stripe.paymentIntents.create({
         amount: Math.round(amount * 100),
-        currency: 'usd',
+        currency: 'cad',
         metadata,
         automatic_payment_methods: {
           enabled: true,

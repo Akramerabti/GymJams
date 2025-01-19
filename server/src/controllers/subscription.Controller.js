@@ -525,13 +525,14 @@ export const assignCoach = async (req, res) => {
       const plan = PLANS[subscription.subscription];
       const coachShare = Math.round(plan.price * 0.6 * 100); // Convert to cents
 
-      // Create a transfer to the coach's Stripe account
-      await stripe.transfers.create({
-        amount: coachShare,
-        currency: 'usd',
-        destination: coach.stripeAccountId, // Ensure coaches have Stripe accounts
-        description: `Payment for coaching services for subscription ${subscription.stripeSubscriptionId}`,
-      });
+      // Instead of immediate transfer, add to pending earnings
+      await User.findByIdAndUpdate(
+        coachId,
+        {
+          $inc: { 'earnings.pendingAmount': coachShare }
+        },
+        { session }
+      );
 
       // Handle previous coach reassignment
       if (subscription.assignedCoach) {
@@ -548,18 +549,25 @@ export const assignCoach = async (req, res) => {
         subscription.coachAssignmentStatus = 'assigned';
       }
 
-      // Update subscription atomically
+      // Update subscription with coach assignment and payment tracking
       const updatedSubscription = await Subscription.findByIdAndUpdate(
         subscription._id,
         {
           assignedCoach: coachId,
           coachAssignmentDate: new Date(),
-          coachAssignmentStatus: subscription.coachAssignmentStatus
+          coachAssignmentStatus: subscription.coachAssignmentStatus,
+          coachPaymentDetails: {
+            weeklyAmount: coachShare,
+            startDate: new Date(),
+            lastPayoutDate: null,
+            subscriptionPrice: plan.price,
+            isRefundable: true // Will be used for 10-day refund window tracking
+          }
         },
         { session, new: true }
       );
 
-      // Update coach atomically
+      // Update coach availability
       const updatedCoach = await User.findByIdAndUpdate(
         coachId,
         {
@@ -569,10 +577,9 @@ export const assignCoach = async (req, res) => {
         { session, new: true }
       );
 
-      // Commit transaction
       await session.commitTransaction();
 
-      // Populate coach details after successful transaction
+      // Populate coach details
       await updatedSubscription.populate('assignedCoach', 
         'firstName lastName profileImage bio rating socialLinks specialties');
 
@@ -591,7 +598,6 @@ export const assignCoach = async (req, res) => {
     } catch (error) {
       await session.abortTransaction();
 
-      // Retry logic for write conflicts
       if (error.code === 112 && retryCount < MAX_RETRIES) {
         retryCount++;
         console.log(`Retrying transaction attempt ${retryCount}...`);
@@ -615,6 +621,7 @@ export const assignCoach = async (req, res) => {
   }
 };
 
+
 export const handleWebhook = async (event) => {
   try {
     console.log('Raw Webhook Event:', JSON.stringify(event, null, 2));
@@ -627,63 +634,102 @@ export const handleWebhook = async (event) => {
         const invoice = event.data.object;
         const subscriptionId = invoice.subscription;
 
-        // Update subscription in database
-        const subscription = await Subscription.findOneAndUpdate(
-          { stripeSubscriptionId: subscriptionId },
-          { 
-            status: 'active',
-            currentPeriodEnd: new Date(invoice.period_end * 1000),
-          }
-        );
+        // Find the subscription in the database
+        const subscription = await Subscription.findOne({
+          stripeSubscriptionId: subscriptionId,
+        });
 
-        // Check if a coach is assigned
+        if (!subscription) {
+          console.log('Subscription not found in database:', subscriptionId);
+          break;
+        }
+
+        // Double-check: Ensure the subscription is marked as active
+        if (subscription.status !== 'active') {
+          await Subscription.findOneAndUpdate(
+            { stripeSubscriptionId: subscriptionId },
+            { 
+              status: 'active',
+              currentPeriodEnd: new Date(invoice.period_end * 1000),
+            }
+          );
+          console.log(`Subscription ${subscriptionId} marked as active.`);
+        }
+
+        // Double-check: Ensure the coach's pendingAmount is correct
         if (subscription.assignedCoach) {
           const coach = await User.findById(subscription.assignedCoach);
-
-          // Calculate coach's share (60% of the payment)
           const plan = PLANS[subscription.subscription];
           const coachShare = Math.round(plan.price * 0.6 * 100); // Convert to cents
 
-          // Create a transfer to the coach's Stripe account
-          await stripe.transfers.create({
-            amount: coachShare,
-            currency: 'usd',
-            destination: coach.stripeAccountId,
-            description: `Payment for coaching services for subscription ${subscription.stripeSubscriptionId}`,
-          });
+          // Verify if the coach's pendingAmount is correct
+          if (coach.earnings.pendingAmount < coachShare) {
+            await User.findByIdAndUpdate(coach._id, {
+              $inc: { 'earnings.pendingAmount': coachShare },
+            });
+            console.log(`Added $${coachShare / 100} to coach ${coach._id}'s pending earnings.`);
+          }
         }
-
-        // Notify user of successful payment
-        const user = await User.findById(subscription.user);
-        await sendPaymentSuccessEmail(user.email, invoice.amount_paid);
+      
         break;
 
-        case 'invoice.payment_failed':
-          const failedInvoice = event.data.object;
-          const failedSubscriptionId = failedInvoice.subscription;
-  
-          // Cancel the subscription in Stripe
-          await stripe.subscriptions.cancel(failedSubscriptionId);
-  
-          // Update the subscription in the database
-          const failedSubscription = await Subscription.findOneAndUpdate(
+      case 'invoice.payment_failed':
+        const failedInvoice = event.data.object;
+        const failedSubscriptionId = failedInvoice.subscription;
+
+        // Find the subscription in the database
+        const failedSubscription = await Subscription.findOne({
+          stripeSubscriptionId: failedSubscriptionId,
+        });
+
+        if (!failedSubscription) {
+          console.log('Subscription not found in database:', failedSubscriptionId);
+          break;
+        }
+
+        // Double-check: Ensure the subscription is marked as cancelled
+        if (failedSubscription.status !== 'cancelled') {
+          await Subscription.findOneAndUpdate(
             { stripeSubscriptionId: failedSubscriptionId },
             { 
               status: 'cancelled',
               endDate: new Date(),
             }
           );
-  
-          // Notify the user of the payment failure and subscription cancellation
-          const failedUser = await User.findById(failedSubscription.user);
-          await sendPaymentFailedEmail(failedUser.email, failedInvoice.amount_due);
-  
+          console.log(`Subscription ${failedSubscriptionId} marked as cancelled.`);
+        }
+
+        break;
+
+      case 'customer.subscription.deleted':
+        const deletedSubscription = event.data.object;
+
+        // Find the subscription in the database
+        const dbSubscription = await Subscription.findOne({
+          stripeSubscriptionId: deletedSubscription.id,
+        });
+
+        if (!dbSubscription) {
+          console.log('Subscription not found in database:', deletedSubscription.id);
           break;
-  
-        // Handle other events
-        default:
-          console.log(`Unhandled event type: ${event.type}`);
-      }  
+        }
+
+        // Double-check: Ensure the subscription is marked as cancelled
+        if (dbSubscription.status !== 'cancelled') {
+          await Subscription.findOneAndUpdate(
+            { stripeSubscriptionId: deletedSubscription.id },
+            { 
+              status: 'cancelled',
+              endDate: new Date(),
+            }
+          );
+          console.log(`Subscription ${deletedSubscription.id} marked as cancelled.`);
+        }
+        break;
+
+      default:
+        console.log(`Unhandled event type: ${event.type}`);
+    }
   } catch (error) {
     console.error('Webhook Handling Error:', error);
     throw error;
