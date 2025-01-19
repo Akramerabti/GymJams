@@ -201,8 +201,8 @@ const Profile = () => {
         profileData.stripeAccountId
       );
   
-      // Redirect the user to the Stripe dashboard
-      window.location.href = url;
+      // Open the Stripe dashboard in a new tab
+      window.open(url, '_blank'); // Opens the URL in a new tab
     } catch (error) {
       console.error('Error accessing dashboard:', error);
       toast.error('Failed to access dashboard. Please try again.');

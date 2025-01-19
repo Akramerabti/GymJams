@@ -473,7 +473,8 @@ export const assignCoach = async (req, res) => {
       let clientName;
       let clientEmail;
 
-      // Find subscription with proper locking
+      console.log('Assigning coach:', coachId);
+    
       const subscriptionQuery = req.user ? 
         { user: req.user.id, status: 'active' } : 
         { accessToken: req.query.accessToken, status: 'active' };
@@ -506,8 +507,10 @@ export const assignCoach = async (req, res) => {
         _id: coachId,
         role: 'coach',
         isEmailVerified: true,
-        coachStatus: { $ne: 'full' }
+        coachStatus: 'available',
+        payoutSetupComplete: true
       }).session(session);
+      
 
       if (!coach) {
         await session.abortTransaction();
@@ -655,6 +658,19 @@ export const handleWebhook = async (event) => {
           );
           console.log(`Subscription ${subscriptionId} marked as active.`);
         }
+
+        if (subscription.user && !invoice.billing_reason !== 'subscription_create') {
+          const plan = PLANS[subscription.subscription];
+          if (plan && plan.points) {
+            // Award points for renewal
+            await User.findByIdAndUpdate(subscription.user, {
+              $inc: { points: plan.points }
+            });
+
+            console.log(`Awarded ${plan.points} renewal points to user ${subscription.user} for ${subscription.subscription} plan`);
+          }
+        }
+
 
         // Double-check: Ensure the coach's pendingAmount is correct
         if (subscription.assignedCoach) {
