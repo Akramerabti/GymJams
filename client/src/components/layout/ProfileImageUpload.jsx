@@ -105,7 +105,7 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
               crossOrigin="anonymous"
               onError={(e) => {
                 console.error('Image load error:', imageUrl);
-                e.target.onerror = null; 
+                e.target.onerror = null;
                 e.target.src = '/fallback-avatar.png';
               }}
             />
@@ -115,18 +115,21 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
             </div>
           )}
         </div>
-        
+
+        {/* Camera Icon for Mobile */}
         <label
           htmlFor="profileImageUpload"
-          className="absolute bottom-0 right-0 bg-blue-500 rounded-full p-2 cursor-pointer hover:bg-blue-600 transition-colors shadow-md"
+          className="absolute bottom-0 right-0 bg-blue-500 rounded-full p-3 cursor-pointer hover:bg-blue-600 transition-colors shadow-md"
+          style={{ touchAction: 'manipulation' }} // Ensure touch events work properly
         >
-          <Camera className="w-4 h-4 text-white" />
+          <Camera className="w-5 h-5 text-white" />
           <input
             id="profileImageUpload"
             type="file"
             accept="image/*"
             onChange={handleFileChange}
             className="hidden"
+            style={{ display: 'none' }} // Ensure the input is hidden but accessible
           />
         </label>
       </div>
@@ -136,6 +139,7 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
           onClick={handleUpload}
           disabled={loading}
           className="mt-4 bg-blue-500 hover:bg-blue-600 text-white"
+          style={{ touchAction: 'manipulation' }} // Ensure touch events work properly
         >
           {loading ? 'Uploading...' : 'Save Image'}
         </Button>
