@@ -166,6 +166,12 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
 
   const navigate = useNavigate();
 
+    // Define the base URL
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+    // Fallback image URL
+    const fallbackAvatarUrl = `${baseUrl}/uploads/fallback-avatar.jpg`;
+
   const isBasicPlan = subscription?.subscription === 'basic';
 
   const loadingPhrases = [
@@ -337,8 +343,12 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
                   {selectedCoach.profileImage ? (
                     <img
                       src={selectedCoach.profileImage}
-                      alt={selectedCoach.firstName}
+                      alt={fallbackAvatarUrl }
                       className="w-32 h-32 rounded-full object-cover ring-4 ring-blue-500"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = fallbackAvatarUrl; 
+                      }}
                     />
                   ) : (
                     <div className="w-32 h-32 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full flex items-center justify-center ring-4 ring-blue-300">

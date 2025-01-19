@@ -127,10 +127,13 @@ const DashboardUser = () => {
       setInitializing(true);
       const accessToken = localStorage.getItem('accessToken');
 
+   
+
       const [subData, questionnaireData] = await Promise.all([
         subscriptionService.getCurrentSubscription(accessToken),
         subscriptionService.checkQuestionnaireStatus(user?.id || accessToken),
       ]);
+
 
       if (!questionnaireData?.completed) {
         navigate('/questionnaire', {
