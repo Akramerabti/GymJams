@@ -25,7 +25,7 @@ const CoachingHome = () => {
     const checkSubscription = async () => {
       try {
         if (user) {
-          if (user.user.role === 'coach') {
+          if ( (user.role || user.user.role ) === 'coach') {
             console.log('User is a coach');
             navigate('/dashboard');
             return;

@@ -250,7 +250,9 @@ const SubscriptionCheckout = () => {
                             paymentMethodId,
                             userEmail
                           );
+                          navigate('/dashboard');
                           window.location.reload();
+      
                         } catch (error) {
                           console.error('Subscription error:', error);
                           toast.error(error.message || 'Failed to activate subscription');

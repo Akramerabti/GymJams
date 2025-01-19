@@ -132,16 +132,16 @@ const DashboardUser = () => {
         subscriptionService.checkQuestionnaireStatus(user?.id || accessToken),
       ]);
 
-      if (!subData) {
-        toast.error('No active subscription found');
-        navigate('/coaching');
-        return;
-      }
-
       if (!questionnaireData?.completed) {
         navigate('/questionnaire', {
           state: { subscription: subData, accessToken: accessToken || null },
         });
+        return;
+      }
+      
+      if (!subData) {
+        toast.error('No active subscription found');
+        navigate('/coaching');
         return;
       }
 
