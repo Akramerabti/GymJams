@@ -246,10 +246,9 @@ export const finishCurrentMonth = async (req, res) => {
         // Remove the subscription from the coach's list of clients
         if (subscription.assignedCoach) {
           await User.findByIdAndUpdate(subscription.assignedCoach, {
-            $pull: { clients: subscription.user }, // Assuming `clients` is an array of user IDs in the coach's document
+            $pull: { coachingSubscriptions: subscription.user }, // Assuming `clients` is an array of user IDs in the coach's document
           });
         }
-
         // Optionally, update the subscription status to reflect that it has ended
         subscription.status = 'cancelled';
         subscription.endDate = new Date();
@@ -582,7 +581,6 @@ export const assignCoach = async (req, res) => {
 
       await session.commitTransaction();
 
-      // Populate coach details
       await updatedSubscription.populate('assignedCoach', 
         'firstName lastName profileImage bio rating socialLinks specialties');
 

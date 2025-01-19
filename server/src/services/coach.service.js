@@ -3,6 +3,8 @@ import stripe from '../config/stripe.js';
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
 import cron from 'node-cron';
+import Subscription from '../models/Subscription.js';
+
 
 export const processWeeklyCoachPayouts = async () => {
   try {
@@ -51,6 +53,51 @@ export const processWeeklyCoachPayouts = async () => {
   }
 };
 
+export const cleanupSubscriptions = async () => {
+  try {
+    // Find all expired or cancelled subscriptions that still have assigned coaches
+    const expiredSubscriptions = await Subscription.find({
+      assignedCoach: { $ne: null },
+      $or: [
+        { status: { $ne: 'active' } },
+        { currentPeriodEnd: { $lt: new Date() } }
+      ]
+    });
+
+    // Group subscriptions by coach
+    const coachesSubs = {};
+    expiredSubscriptions.forEach(sub => {
+      if (!coachesSubs[sub.assignedCoach]) {
+        coachesSubs[sub.assignedCoach] = [];
+      }
+      coachesSubs[sub.assignedCoach].push(sub._id);
+    });
+
+    // Update each affected coach
+    for (const [coachId, expiredSubs] of Object.entries(coachesSubs)) {
+      const coach = await User.findById(coachId);
+      if (coach) {
+        // Remove expired subscriptions from coach's list
+        coach.coachingSubscriptions = coach.coachingSubscriptions.filter(
+          subId => !expiredSubs.includes(subId)
+        );
+        
+        // Update counts and status
+        coach.availability.currentClients = coach.coachingSubscriptions.length;
+        coach.coachStatus = coach.coachingSubscriptions.length >= coach.availability.maxClients 
+          ? 'full' 
+          : 'available';
+        
+        await coach.save();
+        
+        logger.info(`Updated coach ${coachId}: removed ${expiredSubs.length} expired subscriptions`);
+      }
+    }
+  } catch (error) {
+    logger.error('Error during subscription cleanup:', error);
+  }
+};
+
 // Initialize weekly cron job
 export const initializeCoachPayouts = () => {
   // Run every Sunday at midnight (0 0 * * 0)
@@ -61,5 +108,15 @@ export const initializeCoachPayouts = () => {
     } catch (error) {
       logger.error('Weekly coach payout cron job failed:', error);
     }
+  });
+};
+
+
+export const initializeSubcleanupJobs = () => {
+  console.log('Running daily subscription cleanup');
+
+  cron.schedule('0 */2 * * *', async () => {
+    logger.info('Running daily subscription cleanup');
+    await cleanupSubscriptions();
   });
 };

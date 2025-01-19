@@ -8,7 +8,7 @@ import swaggerUi from 'swagger-ui-express';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import 'dotenv/config';
-import { initializeCoachPayouts } from './services/coachPayout.service.js';
+import { initializeCoachPayouts, initializeSubcleanupJobs } from './services/coach.service.js';
 
 // Import configurations
 import connectDB from './config/database.js';
@@ -183,5 +183,7 @@ process.on('SIGTERM', () => {
 
 // Add near bottom with other initializations
 initializeCoachPayouts();
+
+initializeSubcleanupJobs();
 
 export default app;
