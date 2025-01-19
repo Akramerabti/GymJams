@@ -10,12 +10,17 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
 
+  // Define the base URL
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+  // Fallback image URL
+  const fallbackAvatarUrl = `${baseUrl}/uploads/fallback-avatar.png`;
+
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         const response = await api.get('/auth/profile');
         if (response.data.profileImage) {
-        console.log('Profile image:', response.data.profileImage);
           setImageUrl(response.data.profileImage);
         }
       } catch (error) {
@@ -52,30 +57,29 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
       toast.error('Please select a file first!');
       return;
     }
-  
+
     setLoading(true);
-  
+
     try {
       const formData = new FormData();
       formData.append('profileImage', file);
-  
+
       const response = await api.put('/auth/profile', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
-  
+
       if (response.data.profileImage) {
         // Construct the full URL if it's a relative path
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-        const fullImageUrl = response.data.profileImage.startsWith('http') 
-          ? response.data.profileImage 
+        const fullImageUrl = response.data.profileImage.startsWith('http')
+          ? response.data.profileImage
           : `${baseUrl}${response.data.profileImage}`;
-          
+
         setImageUrl(fullImageUrl);
         onUploadSuccess(fullImageUrl);
       }
-  
+
       setFile(null);
       setPreviewUrl('');
       toast.success('Profile image uploaded successfully!');
@@ -105,8 +109,8 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
               crossOrigin="anonymous"
               onError={(e) => {
                 console.error('Image load error:', imageUrl);
-                e.target.onerror = null;
-                e.target.src = `${baseUrl}/uploads/fallback-avatar.png`;
+                e.target.onerror = null; // Prevent infinite loop
+                e.target.src = fallbackAvatarUrl; // Use fallback image URL
               }}
             />
           ) : (

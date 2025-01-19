@@ -13,8 +13,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const PLANS = {
   basic: {
     name: 'Basic',
-    price: 29.99,
-    stripePriceId: 'price_1QfDwQFGfbnmVSqEnE7A8vlR',
+    price: 39.99,
+    stripePriceId: 'price_1Qj4nqFGfbnmVSqEuxLNYQr2',
     points: 100
   },
   premium: {
