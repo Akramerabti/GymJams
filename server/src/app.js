@@ -16,6 +16,8 @@ import passport from './config/passport.js';
 import corsOptions from './config/cors.js';
 import authRoutes from './routes/auth.routes.js';
 import { initStripe } from './config/stripe.js';
+import stripe from './config/stripe.js';
+import { handleWebhook } from '../src/controllers/subscription.Controller.js';
 
 // Import routes
 import routes from './routes/index.js';
@@ -46,27 +48,24 @@ initStripe();
 
 app.use(cors(corsOptions));
 
-// In app.js
-app.use('/api/subscription/webhook',
+app.post('/api/subscription/webhook', 
   express.raw({ type: 'application/json' }),
-  (req, res, next) => {
-    // Use your existing logger instead of console.log
-    logger.info('Stripe Webhook Received', {
-      timestamp: new Date().toISOString(),
-      method: req.method,
-      headers: req.headers,
-      bodyLength: req.body ? req.body.length : 0
-    });
-
-    res.status(200).json({
-      received: true,
-      timestamp: new Date().toISOString(),
-      message: 'Webhook request successfully received'
-    });
-
-    next();
+  async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    try {
+      const event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+      await handleWebhook(event);
+      res.json({ received: true });
+    } catch (err) {
+      console.error('Webhook Verification Error:', err);
+      res.status(400).send(`Webhook Error: ${err.message}`);
+    }
   }
-);
+)
 
 // Security Middleware
 app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
