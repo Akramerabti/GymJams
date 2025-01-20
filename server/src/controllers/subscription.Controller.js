@@ -723,8 +723,8 @@ export const handleWebhook = async (event) => {
     // Log refund eligibility
     console.log('Refund eligible:', isRefundEligible);
 
-    // Handle refund if eligible and not cancelled at period end
-    if (isRefundEligible && !dbSubscription.cancelAtPeriodEnd) {
+    // Handle refund if eligible (regardless of cancelAtPeriodEnd)
+    if (isRefundEligible) {
       const plan = PLANS[dbSubscription.subscription];
       const refundAmount = Math.round(plan.price * 0.4 * 100);
 
@@ -760,7 +760,7 @@ export const handleWebhook = async (event) => {
         };
 
         // If cancellation is refund-eligible, remove half of the pending earnings
-        if (isRefundEligible && !dbSubscription.cancelAtPeriodEnd) {
+        if (isRefundEligible) {
           const plan = PLANS[dbSubscription.subscription];
           const coachShare = Math.round(plan.price * 0.3 * 100); // Coach keeps half
           coachUpdate.$inc = { 'earnings.pendingAmount': -coachShare };
@@ -778,7 +778,7 @@ export const handleWebhook = async (event) => {
       };
 
       // Remove points only if the cancellation is refund-eligible
-      if (isRefundEligible && !dbSubscription.cancelAtPeriodEnd) {
+      if (isRefundEligible) {
         userUpdate.$inc = { points: -PLANS[dbSubscription.subscription].points };
       }
 
@@ -794,7 +794,7 @@ export const handleWebhook = async (event) => {
     await session.commitTransaction();
     console.log('Transaction committed successfully');
 
-    console.log(`Subscription ${dbSubscription._id} cancelled - Refund: ${isRefundEligible && !dbSubscription.cancelAtPeriodEnd}`);
+    console.log(`Subscription ${dbSubscription._id} cancelled - Refund: ${isRefundEligible}`);
   } catch (error) {
     await session.abortTransaction();
     console.error('Transaction failed:', error);
@@ -803,7 +803,7 @@ export const handleWebhook = async (event) => {
     session.endSession();
   }
   break;
-      }
+}
       default:
         console.log(`Unhandled event type: ${event.type}`);
     }
