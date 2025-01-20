@@ -352,7 +352,7 @@ export const cancelSubscription = async (req, res) => {
     res.status(500).json({ error: 'Failed to cancel subscription' });
   }
 };
-,
+
 export const handleSubscriptionSuccess = async (req, res) => {
   try {
     const { planType, paymentMethodId, email } = req.body;
