@@ -59,6 +59,7 @@ const subscriptionService = {
         paymentMethodId,
         email,
       });
+      console.log('Subscription success CALLING:', response.data);
       return response.data;
     } catch (error) {
       console.error('Failed to handle subscription success:', error);

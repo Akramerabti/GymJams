@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useStripe, useElements, PaymentElement } from '@stripe/react-stripe-js';
 import { toast } from 'sonner';
 import { useAuth } from '../stores/authStore';
@@ -14,19 +14,21 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
   const [isChecked, setIsChecked] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [guestEmail, setGuestEmail] = useState('');
-  const navigate = useNavigate(); // Initialize useNavigate
+  const navigate = useNavigate();
+  const submittedRef = useRef(false);
   
   const handleSubmit = async (event) => {
     event.preventDefault();
   
-    if (isLoading || !stripe || !elements || !isChecked) {
+    if (isLoading || !stripe || !elements || !isChecked || submittedRef.current) {
       return;
     }
   
     setIsLoading(true);
+    submittedRef.current = true;
   
     try {
-      const emailer = user?.user?.email || user?.email 
+      const emailer = user?.user?.email || user?.email;
       const email = emailer || guestEmail;
       console.log('Using email:', email);
 
@@ -56,9 +58,19 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
   
       if (setupError) {
         onError(setupError.message);
+        submittedRef.current = false;
         return;
       }
   
+      // Handle both 'succeeded' and non-action-required cases
+      if (setupIntent.status === 'succeeded' || 
+          (setupIntent.status === 'requires_payment_method' && !setupIntent.next_action)) {
+        console.log('Setup completed successfully:', setupIntent.id);
+        await onSuccess(setupIntent.id, setupIntent.payment_method, email);
+        return;
+      }
+  
+      // Handle cases requiring additional action
       if (setupIntent.status === 'requires_action') {
         const { error: actionError } = await stripe.confirmPayment({
           clientSecret: setupIntent.client_secret,
@@ -70,17 +82,15 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
   
         if (actionError) {
           onError(actionError.message);
+          submittedRef.current = false;
           return;
         }
       }
-  
-      if (setupIntent.status === 'succeeded') {
-        // Pass both setupIntent data and email to parent
-        onSuccess(setupIntent.id, setupIntent.payment_method, email);
-      }
+
     } catch (err) {
       console.error('Setup error:', err);
       onError(err.message || 'An unexpected error occurred. Please try again.');
+      submittedRef.current = false;
     } finally {
       setIsLoading(false);
     }

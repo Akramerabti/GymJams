@@ -328,21 +328,30 @@ export const cancelSubscription = async (req, res) => {
         await User.findByIdAndUpdate(subscription.user, userUpdate, { session });
       }
 
-      console.log(`Subscription ${subscription._id} cancelled - Refund: ${isRefundEligible}`);
-
       // Update coach metrics
       if (subscription.assignedCoach) {
-        const coach = await User.findById(subscription.assignedCoach);
+        console.log(`Subscription ${subscription._id} cancelled - Refund: ${isRefundEligible}`);
+
+        const coach = await User.findById(subscription.assignedCoach).session(session);
         if (coach) {
           const updatedSubscriptions = coach.coachingSubscriptions.filter(
             (subId) => subId.toString() !== subscription._id.toString()
           );
 
+          // Calculate the refund amount (one-third of the plan's value)
+          const plan = PLANS[subscription.subscription];
+          const refundAmount = Math.round((plan.price * 100) / 3); // Convert to cents for Stripe
+
+          // Update coach's pendingAmount if refund is eligible
           const coachUpdate = {
             coachingSubscriptions: updatedSubscriptions,
             'availability.currentClients': updatedSubscriptions.length,
             coachStatus: updatedSubscriptions.length >= coach.availability.maxClients ? 'full' : 'available',
           };
+
+          if (isRefundEligible) {
+            coachUpdate.$inc = { 'earnings.pendingAmount': -refundAmount };
+          }
 
           await User.findByIdAndUpdate(subscription.assignedCoach, coachUpdate, { session });
           console.log(`Updated coach ${coach._id} metrics - Current clients: ${updatedSubscriptions.length}`);

@@ -7,6 +7,12 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import subscriptionService from '../../../services/subscription.service';
 
+  // Define the base URL
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+  // Fallback image URL
+  const fallbackAvatarUrl = `${baseUrl}/uploads/fallback-avatar.jpg`;
+
 const CoachProfileModal = ({ coach, onClose }) => {
   // Function to render a detail row
   const DetailRow = ({ icon: Icon, label, value }) => {
@@ -110,8 +116,12 @@ const CoachProfileModal = ({ coach, onClose }) => {
             {coach.profileImage ? (
               <img
                 src={coach.profileImage}
-                alt={`${coach.firstName} ${coach.lastName}`}
+                alt={fallbackAvatarUrl}
                 className="w-24 h-24 rounded-full object-cover border-4 border-white"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = fallbackAvatarUrl; 
+                }}
               />
             ) : (
               <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center">
@@ -560,11 +570,15 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
                 {coach.profileImage ? (
                   <motion.img
                     src={coach.profileImage}
-                    alt={coach.firstName}
+                    alt={fallbackAvatarUrl}
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: "spring", bounce: 0.6 }}
                     className="w-24 h-24 rounded-full object-cover border-4 border-blue-100 group-hover:border-blue-300 transition-all"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = fallbackAvatarUrl; 
+                    }}
                   />
                 ) : (
                   <motion.div 
@@ -644,8 +658,12 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
                   {tempSelectedCoach?.profileImage ? (
                     <img
                       src={tempSelectedCoach.profileImage}
-                      alt={tempSelectedCoach.firstName}
+                      alt={fallbackAvatarUrl}
                       className="w-20 h-20 rounded-full object-cover border-4 border-blue-100"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = fallbackAvatarUrl; 
+                      }}
                     />
                   ) : (
                     <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center">
