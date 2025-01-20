@@ -231,6 +231,10 @@ export const finishCurrentMonth = async (req, res) => {
       return res.status(403).json({ error: 'You do not have permission to modify this subscription' });
     }
 
+    // Calculate the end date as one month after the start date
+    const endDate = new Date(subscription.startDate);
+    endDate.setMonth(endDate.getMonth() + 1);
+
     // Cancel the subscription in Stripe but allow it to run until the end of the current period
     await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
       cancel_at_period_end: true,
@@ -238,11 +242,12 @@ export const finishCurrentMonth = async (req, res) => {
 
     // Update the subscription in the database
     subscription.cancelAtPeriodEnd = true;
+    subscription.endDate = endDate; // Set the end date to one month after the start date
     await subscription.save();
 
     res.json({
       message: 'Recurring payments have been cancelled. You will retain access until the end of the current billing period.',
-      endDate: subscription.currentPeriodEnd,
+      endDate: endDate,
     });
   } catch (error) {
     logger.error('Failed to finish current month:', error);
