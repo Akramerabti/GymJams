@@ -140,21 +140,25 @@ export const getQuestionnaireStatus = async (req, res) => {
     let subscription;
 
     if (req.user) {
-      // For logged-in users: Find an ACTIVE subscription for the user
+      // For logged-in users: Find the most recent ACTIVE subscription for the user
       subscription = await Subscription.findOne({ 
         user: req.user.id, 
-        status: 'active' // Ensure the subscription is active
-      });
+        status: 'active'
+      })
+      .sort({ startDate: -1 }) // Sort by startDate in descending order
+      .exec();
     } else {
-      // For guest users: Find an ACTIVE subscription using the access token
+      // For guest users: Find the most recent ACTIVE subscription using the access token
       const { accessToken } = req.query;
       if (!accessToken) {
         return res.status(400).json({ error: 'Access token required for guest users' });
       }
       subscription = await Subscription.findOne({ 
         accessToken, 
-        status: 'active' // Ensure the subscription is active
-      });
+        status: 'active'
+      })
+      .sort({ startDate: -1 }) // Sort by startDate in descending order
+      .exec();
     }
 
     // If no ACTIVE subscription is found, return an error
@@ -162,11 +166,11 @@ export const getQuestionnaireStatus = async (req, res) => {
       return res.status(404).json({ error: 'No active subscription found' });
     }
 
-    console.log('Active subscription found:', subscription);
     res.json({
       completed: subscription.hasCompletedQuestionnaire,
       completedAt: subscription.questionnaireCompletedAt,
-      data: subscription.questionnaireData
+      data: subscription.questionnaireData,
+      subscriptionStartDate: subscription.startDate // Added for verification
     });
 
   } catch (error) {
@@ -175,22 +179,27 @@ export const getQuestionnaireStatus = async (req, res) => {
   }
 };
 
-// In subscription.controller.js
 export const submitQuestionnaire = async (req, res) => {
   try {
     const { answers, accessToken } = req.body;
     let subscription;
 
     if (req.user) {
+      // For logged-in users: Find the most recent ACTIVE subscription
       subscription = await Subscription.findOne({ 
         user: req.user.id, 
-        status: 'active' // Ensure the subscription is active
-      });
+        status: 'active'
+      })
+      .sort({ startDate: -1 }) // Sort by startDate in descending order
+      .exec();
     } else if (accessToken) {
+      // For guest users: Find the most recent ACTIVE subscription
       subscription = await Subscription.findOne({ 
         accessToken, 
-        status: 'active' // Ensure the subscription is active
-      });
+        status: 'active'
+      })
+      .sort({ startDate: -1 }) // Sort by startDate in descending order
+      .exec();
     } else {
       return res.status(400).json({ error: 'Access token required for guest users' });
     }
@@ -198,6 +207,13 @@ export const submitQuestionnaire = async (req, res) => {
     if (!subscription) {
       return res.status(404).json({ error: 'No active subscription found' });
     }
+
+    // Log the subscription being updated
+    console.log('Updating questionnaire for subscription:', {
+      id: subscription._id,
+      startDate: subscription.startDate,
+      status: subscription.status
+    });
 
     // Update questionnaire data
     subscription.hasCompletedQuestionnaire = true;
@@ -207,7 +223,8 @@ export const submitQuestionnaire = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Questionnaire completed successfully'
+      message: 'Questionnaire completed successfully',
+      subscriptionStartDate: subscription.startDate // Added for verification
     });
   } catch (error) {
     logger.error('Error submitting questionnaire:', error);
@@ -311,6 +328,8 @@ export const cancelSubscription = async (req, res) => {
         await User.findByIdAndUpdate(subscription.user, userUpdate, { session });
       }
 
+      console.log(`Subscription ${subscription._id} cancelled - Refund: ${isRefundEligible}`);
+
       // Update coach metrics
       if (subscription.assignedCoach) {
         const coach = await User.findById(subscription.assignedCoach);
@@ -324,13 +343,6 @@ export const cancelSubscription = async (req, res) => {
             'availability.currentClients': updatedSubscriptions.length,
             coachStatus: updatedSubscriptions.length >= coach.availability.maxClients ? 'full' : 'available',
           };
-
-          // If cancellation is refund-eligible, remove half of the pending earnings
-          if (isRefundEligible) {
-            const plan = PLANS[subscription.subscription];
-            const coachShare = Math.round(plan.price * 0.3 * 100); // Coach keeps half
-            coachUpdate.$inc = { 'earnings.pendingAmount': -coachShare };
-          }
 
           await User.findByIdAndUpdate(subscription.assignedCoach, coachUpdate, { session });
           console.log(`Updated coach ${coach._id} metrics - Current clients: ${updatedSubscriptions.length}`);
@@ -361,6 +373,9 @@ export const cancelSubscription = async (req, res) => {
 };
 
 export const handleSubscriptionSuccess = async (req, res) => {
+  const session = await mongoose.startSession();
+  let result = null;
+
   try {
     const { planType, paymentMethodId, email } = req.body;
 
@@ -368,103 +383,170 @@ export const handleSubscriptionSuccess = async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    console.log('handleSubscriptionSuccess called for:', {
+      planType,
+      email,
+      user: req.user?.id,
+      timestamp: new Date().toISOString()
+    });
+
     let user = null;
     let stripeCustomerId = null;
 
-    // 1. Get or create customer
-    if (req.user) {
-      user = req.user;
-      stripeCustomerId = user.stripeCustomerId;
-    } else {
-      const customer = await stripe.customers.create({
-        email,
+    result = await session.withTransaction(async () => {
+      // Check for existing active subscription to prevent duplicates
+      if (req.user) {
+        const existingSubscription = await Subscription.findOne({
+          user: req.user.id,
+          status: 'active',
+          stripeSubscriptionId: { $exists: true },
+          createdAt: { $gte: new Date(Date.now() - 5 * 60 * 1000) }
+        }).session(session);
+
+        if (existingSubscription) {
+          console.log('Duplicate subscription detected:', existingSubscription.id);
+          return {
+            subscription: existingSubscription,
+            status: 'succeeded',
+            duplicate: true
+          };
+        }
+
+        user = req.user;
+        stripeCustomerId = user.stripeCustomerId;
+      } else {
+        const existingSubscription = await Subscription.findOne({
+          guestEmail: email,
+          status: 'active',
+          stripeSubscriptionId: { $exists: true },
+          createdAt: { $gte: new Date(Date.now() - 5 * 60 * 1000) }
+        }).session(session);
+
+        if (existingSubscription) {
+          console.log('Duplicate guest subscription detected:', existingSubscription.id);
+          return {
+            subscription: existingSubscription,
+            status: 'succeeded',
+            duplicate: true
+          };
+        }
+
+        const customer = await stripe.customers.create({
+          email,
+        });
+        stripeCustomerId = customer.id;
+      }
+
+      // Stripe operations
+      await stripe.paymentMethods.attach(paymentMethodId, {
+        customer: stripeCustomerId,
       });
-      stripeCustomerId = customer.id;
-    }
 
-    // 2. Attach payment method to customer
-    await stripe.paymentMethods.attach(paymentMethodId, {
-      customer: stripeCustomerId,
-    });
-
-    // 3. Set as default payment method
-    await stripe.customers.update(stripeCustomerId, {
-      invoice_settings: {
-        default_payment_method: paymentMethodId,
-      },
-    });
-
-    // 4. Create the subscription
-    const subscription = await stripe.subscriptions.create({
-      customer: stripeCustomerId,
-      items: [{ price: PLANS[planType].stripePriceId }],
-      payment_behavior: 'error_if_incomplete',
-      expand: ['latest_invoice.payment_intent'],
-      metadata: { planType },
-    });
-
-    // Generate access token for guests
-    // Generate access token only for guests and set to undefined for users (not null)
-    const accessToken = !user ? crypto.randomBytes(32).toString('hex') : undefined;
-    
-    // 5. Create subscription in database
-    const subscriptionData = {
-      subscription: planType,
-      stripeSubscriptionId: subscription.id,
-      stripeCustomerId: stripeCustomerId,
-      status: subscription.status,
-      startDate: new Date(),
-      currentPeriodStart: new Date(subscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      ...(accessToken && { accessToken }), // Only include accessToken if it exists
-      ...(user ? { user: user.id } : { guestEmail: email })
-    };
-
-    const newSubscription = await Subscription.create(subscriptionData);
-
-    // 6. Update user if logged in
-    if (user) {
-      await User.findByIdAndUpdate(user.id, {
-        $set: { subscription: newSubscription._id },
-        $inc: { points: PLANS[planType].points },
+      await stripe.customers.update(stripeCustomerId, {
+        invoice_settings: {
+          default_payment_method: paymentMethodId,
+        },
       });
-    }
 
-    // 7. Send receipt email
-    try {
-      await sendSubscriptionReceipt({
+      const subscription = await stripe.subscriptions.create({
+        customer: stripeCustomerId,
+        items: [{ price: PLANS[planType].stripePriceId }],
+        payment_behavior: 'error_if_incomplete',
+        expand: ['latest_invoice.payment_intent'],
+        metadata: { planType },
+      });
+
+      const accessToken = !user ? crypto.randomBytes(32).toString('hex') : undefined;
+
+      const subscriptionData = {
         subscription: planType,
-        price: PLANS[planType].price,
-        pointsAwarded: PLANS[planType].points,
-        features: PLANS[planType].features,
-        startDate: subscriptionData.startDate,
-        accessToken: accessToken
-      }, email, !user);
-      console.log('Receipt email sent successfully');
-    } catch (emailError) {
-      console.error('Failed to send receipt email:', emailError);
-    }
+        stripeSubscriptionId: subscription.id,
+        stripeCustomerId: stripeCustomerId,
+        status: subscription.status,
+        startDate: new Date(),
+        currentPeriodStart: new Date(subscription.current_period_start * 1000),
+        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+        pointsAwarded: false, // Initialize pointsAwarded as false
+        ...(accessToken && { accessToken }),
+        ...(user ? { user: user.id } : { guestEmail: email })
+      };
 
-    if (subscription.latest_invoice.payment_intent) {
-      return res.json({
-        subscription: newSubscription,
-        clientSecret: subscription.latest_invoice.payment_intent.client_secret,
-        status: subscription.latest_invoice.payment_intent.status,
+      const newSubscription = await Subscription.create([subscriptionData], { session });
+      const createdSubscription = newSubscription[0];
+
+      console.log('New subscription created:', {
+        id: createdSubscription._id,
+        points: PLANS[planType].points
       });
+
+      if (user && !createdSubscription.pointsAwarded) {
+        await User.findByIdAndUpdate(
+          user.id,
+          {
+            $set: { subscription: createdSubscription._id },
+            $inc: { points: PLANS[planType].points }
+          },
+          { session }
+        );
+
+        // Mark points as awarded
+        await Subscription.findByIdAndUpdate(
+          createdSubscription._id,
+          { pointsAwarded: true },
+          { session }
+        );
+
+        console.log('Points awarded for user:', {
+          userId: user.id,
+          pointsAwarded: PLANS[planType].points,
+          subscriptionId: createdSubscription._id,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      return {
+        subscription: createdSubscription,
+        ...(subscription.latest_invoice.payment_intent && {
+          clientSecret: subscription.latest_invoice.payment_intent.client_secret,
+          status: subscription.latest_invoice.payment_intent.status,
+        }),
+        status: 'succeeded'
+      };
+    });
+
+    // Send receipt email after transaction commits
+    if (result && !result.duplicate) {
+      try {
+        await sendSubscriptionReceipt({
+          subscription: planType,
+          price: PLANS[planType].price,
+          pointsAwarded: PLANS[planType].points,
+          features: PLANS[planType].features,
+          startDate: result.subscription.startDate,
+          accessToken: result.subscription.accessToken
+        }, email, !user);
+        console.log('Receipt email sent successfully');
+      } catch (emailError) {
+        console.error('Failed to send receipt email:', emailError);
+      }
     }
 
-    // Default response if no payment intent is found
-    return res.json({
-      subscription: newSubscription,
-      status: 'succeeded',
-    });
+    // Send response after transaction commits
+    if (result) {
+      res.json(result);
+    } else {
+      throw new Error('Transaction failed to return result');
+    }
+
   } catch (error) {
     console.error('Error in handleSubscriptionSuccess:', error);
+    await session.abortTransaction();
 
-    // Ensure no response is sent if one has already been sent
     if (!res.headersSent) {
       return res.status(500).json({ error: 'Failed to complete subscription process' });
     }
+  } finally {
+    session.endSession();
   }
 };
 
@@ -472,6 +554,19 @@ export const handleSubscriptionSuccess = async (req, res) => {
 export const assignCoach = async (req, res) => {
   const MAX_RETRIES = 3;
   let retryCount = 0;
+  let stripeAccountVerified = false;
+  let coachShare = 0;
+
+  // Verify Stripe account outside the retry loop
+  async function verifyStripeAccount(coach) {
+    try {
+      const account = await stripe.accounts.retrieve(coach.stripeAccountId);
+      return account.charges_enabled && account.payouts_enabled;
+    } catch (error) {
+      console.error('Stripe account verification error:', error);
+      return false;
+    }
+  }
 
   async function attemptAssignment() {
     const session = await mongoose.startSession();
@@ -492,8 +587,10 @@ export const assignCoach = async (req, res) => {
       subscription = req.user ?
         await Subscription.findOne(subscriptionQuery)
           .populate('user', 'firstName lastName email')
+          .sort({ startDate: -1 })
           .session(session) :
         await Subscription.findOne(subscriptionQuery)
+          .sort({ startDate: -1 })
           .session(session);
 
       if (!subscription) {
@@ -501,7 +598,6 @@ export const assignCoach = async (req, res) => {
         return res.status(404).json({ error: 'No active subscription found' });
       }
 
-      // Set client details
       if (req.user) {
         clientName = `${subscription.user.firstName} ${subscription.user.lastName}`;
         clientEmail = subscription.user.email;
@@ -510,7 +606,6 @@ export const assignCoach = async (req, res) => {
         clientEmail = subscription.guestEmail;
       }
 
-      // Verify coach with locking
       const coach = await User.findOne({
         _id: coachId,
         role: 'coach',
@@ -519,33 +614,26 @@ export const assignCoach = async (req, res) => {
         payoutSetupComplete: true
       }).session(session);
       
-
       if (!coach) {
         await session.abortTransaction();
         return res.status(404).json({ error: 'Coach not found or unavailable' });
       }
 
-      // Check if the coach's Stripe account is verified
-      const account = await stripe.accounts.retrieve(coach.stripeAccountId);
-      if (!account.charges_enabled || !account.payouts_enabled) {
-        await session.abortTransaction();
-        return res.status(400).json({ error: 'Coach has not completed payment setup' });
+      // Only verify Stripe account on first attempt
+      if (retryCount === 0) {
+        stripeAccountVerified = await verifyStripeAccount(coach);
+        if (!stripeAccountVerified) {
+          await session.abortTransaction();
+          return res.status(400).json({ error: 'Coach has not completed payment setup' });
+        }
+
+        // Calculate coach's share only once
+        const plan = PLANS[subscription.subscription];
+        coachShare = Math.round(plan.price * 0.6 * 100);
+        console.log('Coach share calculated to give to coach:', coachShare);
       }
 
-      // Calculate coach's share (60% of the subscription price)
-      const plan = PLANS[subscription.subscription];
-      const coachShare = Math.round(plan.price * 0.6 * 100); // Convert to cents
-
-      // Instead of immediate transfer, add to pending earnings
-      await User.findByIdAndUpdate(
-        coachId,
-        {
-          $inc: { 'earnings.pendingAmount': coachShare }
-        },
-        { session }
-      );
-
-      // Handle previous coach reassignment
+      // Proceed with MongoDB transaction
       if (subscription.assignedCoach) {
         await User.findByIdAndUpdate(
           subscription.assignedCoach,
@@ -560,7 +648,18 @@ export const assignCoach = async (req, res) => {
         subscription.coachAssignmentStatus = 'assigned';
       }
 
-      // Update subscription with coach assignment and payment tracking
+      // Update coach earnings only if this is the first attempt
+      if (retryCount === 0) {
+        await User.findByIdAndUpdate(
+          coachId,
+          {
+            $inc: { 'earnings.pendingAmount': coachShare }
+          },
+          { session }
+        );
+      }
+
+      const plan = PLANS[subscription.subscription];
       const updatedSubscription = await Subscription.findByIdAndUpdate(
         subscription._id,
         {
@@ -572,13 +671,12 @@ export const assignCoach = async (req, res) => {
             startDate: new Date(),
             lastPayoutDate: null,
             subscriptionPrice: plan.price,
-            isRefundable: true // Will be used for 10-day refund window tracking
+            isRefundable: true
           }
         },
         { session, new: true }
       );
 
-      // Update coach availability
       const updatedCoach = await User.findByIdAndUpdate(
         coachId,
         {
@@ -634,176 +732,81 @@ export const assignCoach = async (req, res) => {
 
 export const handleWebhook = async (event) => {
   try {
-    console.log('Raw Webhook Event:', JSON.stringify(event, null, 2));
-    console.log('Webhook Event Type:', event.type);
-    console.log('Webhook Event ID:', event.id);
-    console.log('Webhook Timestamp:', new Date().toISOString());
 
     switch (event.type) {
-      case 'invoice.payment_succeeded': {
-        const invoice = event.data.object;
-        const subscriptionId = invoice.subscription;
+    
+      case 'customer.subscription.deleted': {
+        const deletedSubscription = event.data.object;
+        console.log('Subscription deleted event:', deletedSubscription);
+      
         const dbSubscription = await Subscription.findOne({
-          stripeSubscriptionId: subscriptionId,
+          stripeSubscriptionId: deletedSubscription.id,
         });
-
+      
         if (!dbSubscription) {
-          console.log('Subscription not found in database:', subscriptionId);
-          break;
+          console.error('Subscription not found in database:', deletedSubscription.id);
+          return;
         }
-
-        // Double-check: Ensure the subscription is marked as active
-        if (dbSubscription.status !== 'active') {
-          await Subscription.findOneAndUpdate(
-            { stripeSubscriptionId: subscriptionId },
-            { 
-              status: 'active',
-              currentPeriodEnd: new Date(invoice.period_end * 1000),
+      
+        console.log('Database subscription:', dbSubscription);
+      
+        const session = await mongoose.startSession();
+        session.startTransaction();
+      
+        try {
+          const isRefundEligible = dbSubscription.isEligibleForRefund();
+          console.log('Refund eligible:', isRefundEligible);
+      
+          // Don't remove points or coach earnings here since it's already done in cancelSubscription
+          // Only handle cleanup operations
+      
+          // Handle coach updates - only remove from client list, don't adjust earnings
+          if (dbSubscription.assignedCoach) {
+            const coach = await User.findById(dbSubscription.assignedCoach);
+            if (coach) {
+              const updatedSubscriptions = coach.coachingSubscriptions.filter(
+                (subId) => subId.toString() !== dbSubscription._id.toString()
+              );
+      
+              // Only update subscription list and client count, not earnings
+              const coachUpdate = {
+                coachingSubscriptions: updatedSubscriptions,
+                'availability.currentClients': updatedSubscriptions.length,
+                coachStatus: updatedSubscriptions.length >= coach.availability.maxClients ? 'full' : 'available',
+              };
+      
+              await User.findByIdAndUpdate(dbSubscription.assignedCoach, coachUpdate, { session });
+              console.log(`Updated coach ${coach._id} subscription list`);
             }
-          );
-          console.log(`Subscription ${subscriptionId} marked as active.`);
-        }
-
-        if (dbSubscription.user && !invoice.billing_reason !== 'subscription_create') {
-          const plan = PLANS[dbSubscription.subscription];
-          if (plan && plan.points) {
-            // Award points for renewal
-            await User.findByIdAndUpdate(dbSubscription.user, {
-              $inc: { points: plan.points }
-            });
-
-            console.log(`Awarded ${plan.points} renewal points to user ${dbSubscription.user} for ${dbSubscription.subscription} plan`);
           }
-        }
-
-        // Double-check: Ensure the coach's pendingAmount is correct
-        if (dbSubscription.assignedCoach) {
-          const coach = await User.findById(dbSubscription.assignedCoach);
-          const plan = PLANS[dbSubscription.subscription];
-          const coachShare = Math.round(plan.price * 0.6 * 100); // Convert to cents
-
-          // Verify if the coach's pendingAmount is correct
-          if (coach.earnings.pendingAmount < coachShare) {
-            await User.findByIdAndUpdate(coach._id, {
-              $inc: { 'earnings.pendingAmount': coachShare },
-            });
-            console.log(`Added $${coachShare / 100} to coach ${coach._id}'s pending earnings.`);
+      
+          // For users, only remove the subscription reference
+          if (dbSubscription.user) {
+            const userUpdate = {
+              $unset: { subscription: 1 }, // Only remove the subscription reference
+            };
+      
+            await User.findByIdAndUpdate(dbSubscription.user, userUpdate, { session });
+            console.log(`Removed subscription reference for user ${dbSubscription.user}`);
           }
+      
+          // Just update subscription status
+          dbSubscription.status = 'cancelled';
+          dbSubscription.endDate = new Date();
+          await dbSubscription.save({ session });
+      
+          await session.commitTransaction();
+          console.log('Webhook cleanup completed successfully');
+      
+        } catch (error) {
+          await session.abortTransaction();
+          console.error('Webhook transaction failed:', error);
+          throw error;
+        } finally {
+          session.endSession();
         }
         break;
       }
-
-      case 'customer.subscription.deleted': {
-  const deletedSubscription = event.data.object;
-
-  // Log the event payload for debugging
-  console.log('Subscription deleted event:', deletedSubscription);
-
-  // Find the subscription in the database
-  const dbSubscription = await Subscription.findOne({
-    stripeSubscriptionId: deletedSubscription.id,
-  });
-
-  if (!dbSubscription) {
-    console.error('Subscription not found in database:', deletedSubscription.id);
-    return;
-  }
-
-  // Log the subscription found in the database
-  console.log('Database subscription:', dbSubscription);
-
-  // Start a transaction
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    // Check if the subscription is eligible for a refund
-    const isRefundEligible = dbSubscription.isEligibleForRefund();
-
-    // Log refund eligibility
-    console.log('Refund eligible:', isRefundEligible);
-
-    // Handle refund if eligible (regardless of cancelAtPeriodEnd)
-    if (isRefundEligible) {
-      const plan = PLANS[dbSubscription.subscription];
-      const refundAmount = Math.round(plan.price * 0.4 * 100);
-
-      const invoices = await stripe.invoices.list({
-        subscription: dbSubscription.stripeSubscriptionId,
-        limit: 1,
-      });
-
-      if (invoices.data.length > 0) {
-        // Issue a refund
-        await stripe.refunds.create({
-          charge: invoices.data[0].charge,
-          amount: refundAmount,
-          reason: 'requested_by_customer',
-        });
-
-        console.log('Refund issued:', refundAmount);
-      }
-    }
-
-    // Handle coach updates
-    if (dbSubscription.assignedCoach) {
-      const coach = await User.findById(dbSubscription.assignedCoach);
-      if (coach) {
-        const updatedSubscriptions = coach.coachingSubscriptions.filter(
-          (subId) => subId.toString() !== dbSubscription._id.toString()
-        );
-
-        const coachUpdate = {
-          coachingSubscriptions: updatedSubscriptions,
-          'availability.currentClients': updatedSubscriptions.length,
-          coachStatus: updatedSubscriptions.length >= coach.availability.maxClients ? 'full' : 'available',
-        };
-
-        // If cancellation is refund-eligible, remove half of the pending earnings
-        if (isRefundEligible) {
-          const plan = PLANS[dbSubscription.subscription];
-          const coachShare = Math.round(plan.price * 0.3 * 100); // Coach keeps half
-          coachUpdate.$inc = { 'earnings.pendingAmount': -coachShare };
-        }
-
-        await User.findByIdAndUpdate(dbSubscription.assignedCoach, coachUpdate, { session });
-        console.log(`Updated coach ${coach._id} metrics - Current clients: ${updatedSubscriptions.length}`);
-      }
-    }
-
-    // Handle user updates
-    if (dbSubscription.user) {
-      const userUpdate = {
-        $unset: { subscription: 1 }, // Remove the subscription reference
-      };
-
-      // Remove points only if the cancellation is refund-eligible
-      if (isRefundEligible) {
-        userUpdate.$inc = { points: -PLANS[dbSubscription.subscription].points };
-      }
-
-      await User.findByIdAndUpdate(dbSubscription.user, userUpdate, { session });
-      console.log(`Removed subscription ${dbSubscription._id} from user ${dbSubscription.user}`);
-    }
-
-    // Update subscription status
-    dbSubscription.status = 'cancelled';
-    dbSubscription.endDate = new Date();
-    await dbSubscription.save({ session });
-
-    await session.commitTransaction();
-    console.log('Transaction committed successfully');
-
-    console.log(`Subscription ${dbSubscription._id} cancelled - Refund: ${isRefundEligible}`);
-  } catch (error) {
-    await session.abortTransaction();
-    console.error('Transaction failed:', error);
-    throw error;
-  } finally {
-    session.endSession();
-  }
-  break;
-}
       default:
         console.log(`Unhandled event type: ${event.type}`);
     }
