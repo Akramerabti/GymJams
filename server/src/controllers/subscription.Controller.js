@@ -302,7 +302,40 @@ export const cancelSubscription = async (req, res) => {
         // Update subscription in database
         subscription.status = 'cancelled';
         subscription.endDate = new Date();
-      } else {
+
+       // Retrieve the latest invoice ID for the subscription
+       const subscriptionDetails = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
+       const latestInvoiceId = subscriptionDetails.latest_invoice;
+
+       if (!latestInvoiceId) {
+         throw new Error('Latest invoice not found for the subscription');
+       }
+
+       // Retrieve the latest invoice details
+       const latestInvoice = await stripe.invoices.retrieve(latestInvoiceId);
+
+       // Ensure the latest invoice has a payment intent
+       if (!latestInvoice.payment_intent) {
+         throw new Error('Payment intent not found for the latest invoice');
+       }
+
+       // Process a 40% refund
+       const plan = PLANS[subscription.subscription];
+       const refundAmount = Math.round(plan.price * 0.4 * 100); // 40% of the plan's price in cents
+
+       // Create a refund in Stripe
+       const refund = await stripe.refunds.create({
+         payment_intent: latestInvoice.payment_intent, // Use the payment intent from the latest invoice
+         amount: refundAmount,
+         reason: 'requested_by_customer',
+       });
+
+       console.log('Refund processed:', {
+         refundId: refund.id,
+         amount: refundAmount,
+         subscriptionId: subscription._id,
+       });
+     } else {
         // Mark subscription for cancellation at period end
         await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
           cancel_at_period_end: true,
@@ -328,6 +361,7 @@ export const cancelSubscription = async (req, res) => {
         await User.findByIdAndUpdate(subscription.user, userUpdate, { session });
       }
 
+
       // Update coach metrics
       if (subscription.assignedCoach) {
         console.log(`Subscription ${subscription._id} cancelled - Refund: ${isRefundEligible}`);
@@ -340,7 +374,7 @@ export const cancelSubscription = async (req, res) => {
 
           // Calculate the refund amount (one-third of the plan's value)
           const plan = PLANS[subscription.subscription];
-          const refundAmount = Math.round((plan.price * 100) / 3); // Convert to cents for Stripe
+          const refundAmount = Math.round(plan.price * 100 * 0.3); // Convert to cents for Stripe
 
           // Update coach's pendingAmount if refund is eligible
           const coachUpdate = {
@@ -766,8 +800,6 @@ export const handleWebhook = async (event) => {
           const isRefundEligible = dbSubscription.isEligibleForRefund();
           console.log('Refund eligible:', isRefundEligible);
       
-          // Don't remove points or coach earnings here since it's already done in cancelSubscription
-          // Only handle cleanup operations
       
           // Handle coach updates - only remove from client list, don't adjust earnings
           if (dbSubscription.assignedCoach) {
