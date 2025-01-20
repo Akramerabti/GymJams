@@ -1,4 +1,3 @@
-// components/dashboard/Dashboard.coach.jsx
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,8 +6,12 @@ import {
   Users, Calendar, MessageSquare, TrendingUp,
   Clock, CheckSquare, AlertCircle, Settings
 } from 'lucide-react';
+import subscriptionService from '../../services/subscription.service';
+import { useAuth } from '../../stores/authStore';
+import { toast } from 'sonner';
 
 const DashboardCoach = () => {
+  const { user } = useAuth();
   const [stats, setStats] = useState({
     activeClients: 0,
     pendingRequests: 0,
@@ -16,15 +19,48 @@ const DashboardCoach = () => {
     messageThreads: 0
   });
 
-  // Mock data - replace with actual API calls
+  const [clients, setClients] = useState([]);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [upcomingSessions, setUpcomingSessions] = useState([]);
+
   useEffect(() => {
-    setStats({
-      activeClients: 15,
-      pendingRequests: 3,
-      upcomingSessions: 8,
-      messageThreads: 12
-    });
+    const fetchDashboardData = async () => {
+      try {
+        const data = await subscriptionService.getCoachDashboardData();
+        setStats({
+          activeClients: data.stats.activeClients,
+          pendingRequests: data.stats.pendingRequests,
+          upcomingSessions: data.stats.upcomingSessions,
+          messageThreads: data.stats.messageThreads,
+        });
+        setClients(data.recentClients);
+
+        // Mock upcoming sessions (replace with actual data from the backend)
+        setUpcomingSessions([
+          { id: 1, clientName: 'Client 1', time: '10:00 AM', duration: '30 min' },
+          { id: 2, clientName: 'Client 2', time: '11:00 AM', duration: '45 min' },
+        ]);
+      } catch (error) {
+        toast.error('Failed to fetch dashboard data');
+      }
+    };
+
+    fetchDashboardData();
   }, []);
+
+  const handleClientClick = (client) => {
+    setSelectedClient(client);
+  };
+
+  const handleUpdateClientStats = async (updatedStats) => {
+    try {
+      await subscriptionService.updateClientStats(selectedClient.id, updatedStats);
+      toast.success('Client stats updated successfully');
+      setSelectedClient(null); // Close the modal
+    } catch (error) {
+      toast.error('Failed to update client stats');
+    }
+  };
 
   const StatCard = ({ title, value, icon: Icon, trend }) => (
     <motion.div
@@ -99,25 +135,34 @@ const DashboardCoach = () => {
               <CardTitle>Recent Clients</CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Add client list here */}
-              <div className="space-y-4">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                        <Users className="w-5 h-5 text-blue-600" />
+              {clients.length > 0 ? (
+                <div className="space-y-4">
+                  {clients.map((client) => (
+                    <div
+                      key={client.id}
+                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleClientClick(client)}
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center ">
+                          <Users className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-700">
+                            {client.firstName} {client.lastName || client.email}
+                          </p>
+                          <p className="text-sm text-gray-500">Last active: {client.lastActive}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium">Client {i + 1}</p>
-                        <p className="text-sm text-gray-500">Last active: Today</p>
-                      </div>
+                      <Button variant="outline" size="sm" className="text-blue-700">
+                        View Details
+                      </Button>
                     </div>
-                    <Button variant="outline" size="sm">
-                      View Details
-                    </Button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500">No recent clients found.</p>
+              )}
             </CardContent>
           </Card>
 
@@ -127,40 +172,90 @@ const DashboardCoach = () => {
               <CardTitle>Today's Schedule</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="p-4 bg-gray-50 rounded-lg">
-                    <div className="flex justify-between items-start mb-2">
-                      <p className="font-medium">Client Session</p>
-                      <span className="text-sm text-gray-500">10:00 AM</span>
+              {upcomingSessions.length > 0 ? (
+                <div className="space-y-4">
+                  {upcomingSessions.map((session) => (
+                    <div key={session.id} className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex justify-between items-start mb-2">
+                        <p className="font-medium">{session.clientName}</p>
+                        <span className="text-sm text-gray-500">{session.time}</span>
+                      </div>
+                      <p className="text-sm text-gray-600">{session.duration}</p>
                     </div>
-                    <p className="text-sm text-gray-600">30 min consultation</p>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500">No sessions scheduled for today.</p>
+              )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Alerts Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Alerts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
-                  <AlertCircle className="w-5 h-5 text-yellow-500" />
-                  <div>
-                    <p className="font-medium">New client request</p>
-                    <p className="text-sm text-gray-500">2 hours ago</p>
-                  </div>
+        {/* Client Details Modal */}
+        {selectedClient && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl p-6 max-w-lg w-full">
+              <h2 className="text-2xl font-bold mb-4 ">
+                {selectedClient.firstName} {selectedClient.lastName || selectedClient.email}
+              </h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Workouts Completed</label>
+                  <input
+                    type="number"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                    defaultValue={selectedClient.stats.workoutsCompleted}
+                  />
                 </div>
-              ))}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Current Streak</label>
+                  <input
+                    type="number"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                    defaultValue={selectedClient.stats.currentStreak}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Monthly Progress</label>
+                  <input
+                    type="number"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                    defaultValue={selectedClient.stats.monthlyProgress}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Goals Achieved</label>
+                  <input
+                    type="number"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                    defaultValue={selectedClient.stats.goalsAchieved}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end space-x-4 mt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedClient(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    const updatedStats = {
+                      workoutsCompleted: parseInt(document.querySelector('input[name="workoutsCompleted"]').value),
+                      currentStreak: parseInt(document.querySelector('input[name="currentStreak"]').value),
+                      monthlyProgress: parseInt(document.querySelector('input[name="monthlyProgress"]').value),
+                      goalsAchieved: parseInt(document.querySelector('input[name="goalsAchieved"]').value),
+                    };
+                    handleUpdateClientStats(updatedStats);
+                  }}
+                >
+                  Save Changes
+                </Button>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        )}
       </div>
     </div>
   );

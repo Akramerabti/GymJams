@@ -94,6 +94,24 @@ const subscriptionSchema = new mongoose.Schema({
     preferredLanguages: [String],
     timeZone: String
   },
+  stats: { // Add this field
+    workoutsCompleted: {
+      type: Number,
+      default: 0
+    },
+    currentStreak: {
+      type: Number,
+      default: 0
+    },
+    monthlyProgress: {
+      type: Number,
+      default: 0
+    },
+    goalsAchieved: {
+      type: Number,
+      default: 0
+    }
+  },
 },  {
   timestamps: true
 });

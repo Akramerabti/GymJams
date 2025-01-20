@@ -304,7 +304,45 @@ async submitQuestionnaire(answers, accessToken = null) {
       throw error;
     }
   },
+
+   // Get user dashboard data
+   async getUserDashboardData(accessToken = null) {
+    try {
+      const response = await api.get('/user/dashboard/user', {
+        params: accessToken ? { accessToken } : undefined,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch user dashboard data:', error);
+      throw error;
+    }
+  },
+
+  // Get coach dashboard data
+  async getCoachDashboardData(accessToken = null) {
+    try {
+      const response = await api.get('/user/dashboard/coach', {
+        params: accessToken ? { accessToken } : undefined,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch coach dashboard data:', error);
+      throw error;
+    }
+  },
+
+  async updateClientStats(clientId, updatedStats) {
+    try {
+      const response = await api.put(`/user/${clientId}/stats`, updatedStats);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update client stats:', error);
+      throw error;
+    }
+  },
+
 };
+
 
 
 
