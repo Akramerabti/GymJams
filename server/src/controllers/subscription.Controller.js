@@ -721,9 +721,9 @@ export const handleWebhook = async (event) => {
               await User.findByIdAndUpdate(dbSubscription.user, userUpdate, { session });
             }
       
-            // Update subscription status
+            
             dbSubscription.status = 'cancelled';
-            dbSubscription.endDate = new Date();
+  
             await dbSubscription.save({ session });
       
             await session.commitTransaction();
