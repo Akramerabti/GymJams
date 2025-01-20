@@ -294,6 +294,23 @@ export const cancelSubscription = async (req, res) => {
         subscription.cancelAtPeriodEnd = true;
       }
 
+      // Remove points from the user only if the cancellation is refund-eligible
+      if (isRefundEligible) {
+        const userUpdate = {
+          $unset: { subscription: 1 },
+          $inc: { points: -PLANS[subscription.subscription].points },
+        };
+
+        await User.findByIdAndUpdate(subscription.user, userUpdate, { session });
+      } else {
+        // Only remove the subscription reference if the cancellation is not refund-eligible
+        const userUpdate = {
+          $unset: { subscription: 1 },
+        };
+
+        await User.findByIdAndUpdate(subscription.user, userUpdate, { session });
+      }
+
       await subscription.save({ session });
 
       await session.commitTransaction();
@@ -650,99 +667,116 @@ export const handleWebhook = async (event) => {
       }
 
       case 'customer.subscription.deleted': {
-        const deletedSubscription = event.data.object;
-      
-        const dbSubscription = await Subscription.findOne({
-          stripeSubscriptionId: deletedSubscription.id,
+  const deletedSubscription = event.data.object;
+
+  // Log the event payload for debugging
+  console.log('Subscription deleted event:', deletedSubscription);
+
+  // Find the subscription in the database
+  const dbSubscription = await Subscription.findOne({
+    stripeSubscriptionId: deletedSubscription.id,
+  });
+
+  if (!dbSubscription) {
+    console.error('Subscription not found in database:', deletedSubscription.id);
+    return;
+  }
+
+  // Log the subscription found in the database
+  console.log('Database subscription:', dbSubscription);
+
+  // Start a transaction
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    // Check if the subscription is eligible for a refund
+    const isRefundEligible = dbSubscription.isEligibleForRefund();
+
+    // Log refund eligibility
+    console.log('Refund eligible:', isRefundEligible);
+
+    // Handle refund if eligible and not cancelled at period end
+    if (isRefundEligible && !dbSubscription.cancelAtPeriodEnd) {
+      const plan = PLANS[dbSubscription.subscription];
+      const refundAmount = Math.round(plan.price * 0.4 * 100);
+
+      const invoices = await stripe.invoices.list({
+        subscription: dbSubscription.stripeSubscriptionId,
+        limit: 1,
+      });
+
+      if (invoices.data.length > 0) {
+        // Issue a refund
+        await stripe.refunds.create({
+          charge: invoices.data[0].charge,
+          amount: refundAmount,
+          reason: 'requested_by_customer',
         });
-      
-        if (dbSubscription) {
-          // Start a transaction
-          const session = await mongoose.startSession();
-          session.startTransaction();
-      
-          try {
-            // Check if the subscription is eligible for a refund
-            const isRefundEligible = dbSubscription.isEligibleForRefund();
-      
-            // Handle refund if eligible and not cancelled at period end
-            if (isRefundEligible && !dbSubscription.cancelAtPeriodEnd) {
-              const plan = PLANS[dbSubscription.subscription];
-              const refundAmount = Math.round(plan.price * 0.4 * 100);
-      
-              const invoices = await stripe.invoices.list({
-                subscription: dbSubscription.stripeSubscriptionId,
-                limit: 1,
-              });
-      
-              if (invoices.data.length > 0) {
-                // Issue a refund
-                await stripe.refunds.create({
-                  charge: invoices.data[0].charge,
-                  amount: refundAmount,
-                  reason: 'requested_by_customer',
-                });
-              }
-            }
-      
-            // Handle coach updates
-            if (dbSubscription.assignedCoach) {
-              const coach = await User.findById(dbSubscription.assignedCoach);
-              if (coach) {
-                const updatedSubscriptions = coach.coachingSubscriptions.filter(
-                  (subId) => subId.toString() !== dbSubscription._id.toString()
-                );
-      
-                // Base coach update
-                const coachUpdate = {
-                  coachingSubscriptions: updatedSubscriptions,
-                  'availability.currentClients': updatedSubscriptions.length,
-                  coachStatus: updatedSubscriptions.length >= coach.availability.maxClients ? 'full' : 'available',
-                };
-      
-                // If cancellation is refund-eligible, revert pending earnings
-                if (isRefundEligible && !dbSubscription.cancelAtPeriodEnd) {
-                  const plan = PLANS[dbSubscription.subscription];
-                  const coachShare = Math.round(plan.price * 0.3 * 100);
-                  coachUpdate.$inc = { 'earnings.pendingAmount': -coachShare };
-                }
-      
-                await User.findByIdAndUpdate(dbSubscription.assignedCoach, coachUpdate, { session });
-                console.log(`Updated coach ${coach._id} metrics - Current clients: ${updatedSubscriptions.length}`);
-              }
-            }
-      
-            // Handle user updates
-            if (dbSubscription.user) {
-              const userUpdate = {
-                $unset: { subscription: 1 },
-              };
-      
-              // Only remove points if it's a refund-eligible cancellation
-              if (isRefundEligible && !dbSubscription.cancelAtPeriodEnd) {
-                userUpdate.$inc = { points: -PLANS[dbSubscription.subscription].points };
-              }
-      
-              await User.findByIdAndUpdate(dbSubscription.user, userUpdate, { session });
-            }
-      
-            
-            dbSubscription.status = 'cancelled';
-  
-            await dbSubscription.save({ session });
-      
-            await session.commitTransaction();
-      
-            console.log(`Subscription ${dbSubscription._id} cancelled - Refund: ${isRefundEligible && !dbSubscription.cancelAtPeriodEnd}`);
-          } catch (error) {
-            await session.abortTransaction();
-            console.error('Failed to handle subscription deletion:', error);
-            throw error;
-          } finally {
-            session.endSession();
-          }
+
+        console.log('Refund issued:', refundAmount);
+      }
+    }
+
+    // Handle coach updates only for non-refundable cancellations or finish-the-month events
+    if (dbSubscription.assignedCoach && (!isRefundEligible || dbSubscription.cancelAtPeriodEnd)) {
+      const coach = await User.findById(dbSubscription.assignedCoach);
+      if (coach) {
+        const updatedSubscriptions = coach.coachingSubscriptions.filter(
+          (subId) => subId.toString() !== dbSubscription._id.toString()
+        );
+
+        // Base coach update
+        const coachUpdate = {
+          coachingSubscriptions: updatedSubscriptions,
+          'availability.currentClients': updatedSubscriptions.length,
+          coachStatus: updatedSubscriptions.length >= coach.availability.maxClients ? 'full' : 'available',
+        };
+
+        // If cancellation is non-refundable, revert pending earnings
+        if (!isRefundEligible && !dbSubscription.cancelAtPeriodEnd) {
+          const plan = PLANS[dbSubscription.subscription];
+          const coachShare = Math.round(plan.price * 0.3 * 100);
+          coachUpdate.$inc = { 'earnings.pendingAmount': -coachShare };
         }
-        break;
+
+        await User.findByIdAndUpdate(dbSubscription.assignedCoach, coachUpdate, { session });
+        console.log(`Updated coach ${coach._id} metrics - Current clients: ${updatedSubscriptions.length}`);
+      }
+    }
+
+    // Handle user updates
+    if (dbSubscription.user) {
+      const userUpdate = {
+        $unset: { subscription: 1 }, // Remove the subscription reference
+      };
+
+      // Remove points only if the cancellation is refund-eligible
+      if (isRefundEligible && !dbSubscription.cancelAtPeriodEnd) {
+        userUpdate.$inc = { points: -PLANS[dbSubscription.subscription].points };
+      }
+
+      await User.findByIdAndUpdate(dbSubscription.user, userUpdate, { session });
+      console.log(`Removed subscription ${dbSubscription._id} from user ${dbSubscription.user}`);
+    }
+
+    // Update subscription status
+    dbSubscription.status = 'cancelled';
+    dbSubscription.endDate = new Date();
+    await dbSubscription.save({ session });
+
+    await session.commitTransaction();
+    console.log('Transaction committed successfully');
+
+    console.log(`Subscription ${dbSubscription._id} cancelled - Refund: ${isRefundEligible && !dbSubscription.cancelAtPeriodEnd}`);
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Transaction failed:', error);
+    throw error;
+  } finally {
+    session.endSession();
+  }
+  break;
       }
       default:
         console.log(`Unhandled event type: ${event.type}`);
