@@ -311,6 +311,25 @@ export const cancelSubscription = async (req, res) => {
         await User.findByIdAndUpdate(subscription.user, userUpdate, { session });
       }
 
+      // Update coach metrics
+      if (subscription.assignedCoach) {
+        const coach = await User.findById(subscription.assignedCoach);
+        if (coach) {
+          const updatedSubscriptions = coach.coachingSubscriptions.filter(
+            (subId) => subId.toString() !== subscription._id.toString()
+          );
+
+          const coachUpdate = {
+            coachingSubscriptions: updatedSubscriptions,
+            'availability.currentClients': updatedSubscriptions.length,
+            coachStatus: updatedSubscriptions.length >= coach.availability.maxClients ? 'full' : 'available',
+          };
+
+          await User.findByIdAndUpdate(subscription.assignedCoach, coachUpdate, { session });
+          console.log(`Updated coach ${coach._id} metrics - Current clients: ${updatedSubscriptions.length}`);
+        }
+      }
+
       await subscription.save({ session });
 
       await session.commitTransaction();
@@ -333,6 +352,7 @@ export const cancelSubscription = async (req, res) => {
     res.status(500).json({ error: 'Failed to cancel subscription' });
   }
 };
+,
 export const handleSubscriptionSuccess = async (req, res) => {
   try {
     const { planType, paymentMethodId, email } = req.body;
@@ -718,27 +738,19 @@ export const handleWebhook = async (event) => {
       }
     }
 
-    // Handle coach updates only for non-refundable cancellations or finish-the-month events
-    if (dbSubscription.assignedCoach && (!isRefundEligible || dbSubscription.cancelAtPeriodEnd)) {
+    // Handle coach updates
+    if (dbSubscription.assignedCoach) {
       const coach = await User.findById(dbSubscription.assignedCoach);
       if (coach) {
         const updatedSubscriptions = coach.coachingSubscriptions.filter(
           (subId) => subId.toString() !== dbSubscription._id.toString()
         );
 
-        // Base coach update
         const coachUpdate = {
           coachingSubscriptions: updatedSubscriptions,
           'availability.currentClients': updatedSubscriptions.length,
           coachStatus: updatedSubscriptions.length >= coach.availability.maxClients ? 'full' : 'available',
         };
-
-        // If cancellation is non-refundable, revert pending earnings
-        if (!isRefundEligible && !dbSubscription.cancelAtPeriodEnd) {
-          const plan = PLANS[dbSubscription.subscription];
-          const coachShare = Math.round(plan.price * 0.3 * 100);
-          coachUpdate.$inc = { 'earnings.pendingAmount': -coachShare };
-        }
 
         await User.findByIdAndUpdate(dbSubscription.assignedCoach, coachUpdate, { session });
         console.log(`Updated coach ${coach._id} metrics - Current clients: ${updatedSubscriptions.length}`);
@@ -777,7 +789,7 @@ export const handleWebhook = async (event) => {
     session.endSession();
   }
   break;
-      }
+}
       default:
         console.log(`Unhandled event type: ${event.type}`);
     }
