@@ -325,6 +325,13 @@ export const cancelSubscription = async (req, res) => {
             coachStatus: updatedSubscriptions.length >= coach.availability.maxClients ? 'full' : 'available',
           };
 
+          // If cancellation is refund-eligible, remove half of the pending earnings
+          if (isRefundEligible) {
+            const plan = PLANS[subscription.subscription];
+            const coachShare = Math.round(plan.price * 0.3 * 100); // Coach keeps half
+            coachUpdate.$inc = { 'earnings.pendingAmount': -coachShare };
+          }
+
           await User.findByIdAndUpdate(subscription.assignedCoach, coachUpdate, { session });
           console.log(`Updated coach ${coach._id} metrics - Current clients: ${updatedSubscriptions.length}`);
         }
@@ -752,6 +759,13 @@ export const handleWebhook = async (event) => {
           coachStatus: updatedSubscriptions.length >= coach.availability.maxClients ? 'full' : 'available',
         };
 
+        // If cancellation is refund-eligible, remove half of the pending earnings
+        if (isRefundEligible && !dbSubscription.cancelAtPeriodEnd) {
+          const plan = PLANS[dbSubscription.subscription];
+          const coachShare = Math.round(plan.price * 0.3 * 100); // Coach keeps half
+          coachUpdate.$inc = { 'earnings.pendingAmount': -coachShare };
+        }
+
         await User.findByIdAndUpdate(dbSubscription.assignedCoach, coachUpdate, { session });
         console.log(`Updated coach ${coach._id} metrics - Current clients: ${updatedSubscriptions.length}`);
       }
@@ -789,7 +803,7 @@ export const handleWebhook = async (event) => {
     session.endSession();
   }
   break;
-}
+      }
       default:
         console.log(`Unhandled event type: ${event.type}`);
     }
