@@ -87,6 +87,8 @@ export const accessSubscription = async (req, res) => {
   try {
     const { token } = req.body;
 
+    console.log('Accessing subscription with token:', token);
+
     if (!token) {
       return res.status(400).json({ error: 'Access token is required' });
     }

@@ -66,7 +66,10 @@ export const sendPasswordResetEmail = async (user, resetToken) => {
 };
 
 export const sendSubscriptionReceipt = async (subscriptionData, email, isGuest = false) => {
-  const subscriptionAccessUrl = `${process.env.CLIENT_URL}/subscription-access/${subscriptionData.accessToken}`;
+
+  const subscriptionAccessUrl = isGuest
+    ? `${process.env.CLIENT_URL}/dashboard?accessToken=${subscriptionData.accessToken}`
+    : `${process.env.CLIENT_URL}/dashboard`;
 
   try {
     await resend.emails.send({
@@ -88,7 +91,7 @@ export const sendSubscriptionReceipt = async (subscriptionData, email, isGuest =
               <p style="margin: 8px 0;"><strong>Plan:</strong> ${subscriptionData.subscription.charAt(0).toUpperCase() + subscriptionData.subscription.slice(1)}</p>
               <p style="margin: 8px 0;"><strong>Monthly Fee:</strong> $${subscriptionData.price}</p>
               <p style="margin: 8px 0;"><strong>Start Date:</strong> ${new Date(subscriptionData.startDate).toLocaleDateString()}</p>
-              <p style="margin: 8px 0;"><strong>Points Earned:</strong> ${subscriptionData.pointsAwarded}</p>
+              ${!isGuest ? `<p style="margin: 8px 0;"><strong>Points Earned:</strong> ${subscriptionData.pointsAwarded}</p>` : ''}
             </div>
           </div>
 

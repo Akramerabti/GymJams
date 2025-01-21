@@ -9,6 +9,7 @@ import subscriptionService from '../services/subscription.service';
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
 
@@ -29,8 +30,11 @@ const Dashboard = () => {
           return;
         }
 
-        // If no logged-in user, check for access token
-        const accessToken = localStorage.getItem('accessToken');
+        // If no logged-in user, check for access token in the state, URL, or localStorage
+        const accessToken = location.state?.accessToken || // Check state
+                           new URLSearchParams(location.search).get('accessToken') || // Check URL query params
+                           localStorage.getItem('accessToken'); // Check localStorage
+
         if (!accessToken) {
           toast.error('Please log in or provide an access token');
           navigate('/coaching');
@@ -42,6 +46,7 @@ const Dashboard = () => {
           const response = await subscriptionService.verifyAccessToken(accessToken);
           if (response.success) {
             setHasAccess(true);
+            localStorage.setItem('accessToken', accessToken); // Store the access token in localStorage
           } else {
             toast.error('Invalid access token');
             localStorage.removeItem('accessToken');
@@ -64,7 +69,7 @@ const Dashboard = () => {
     };
 
     validateAccess();
-  }, [user, navigate]);
+  }, [user, navigate, location.state, location.search]);
 
   if (loading) {
     return (
