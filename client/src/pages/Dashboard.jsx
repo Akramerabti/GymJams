@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation  } from 'react-router-dom';
 import { useAuth } from '../stores/authStore';
 import DashboardUser from './Dashboard/Dashboard.user';
 import DashboardCoach from './Dashboard/Dashboard.coach';
