@@ -127,11 +127,12 @@ const Games = () => {
                   className="text-gray-900 hover:text-gray-700 flex items-center"
                 >
                   <ArrowLeft className="w-6 h-6 mr-2" />
-
+                
                 </button>
 
-                {/* Game Name */}
-                <h2 className="text-2xl font-bold">{selectedGame.name}</h2>
+                <h2 className="text-2xl font-bold text-center flex-grow mr-8">
+                {selectedGame.name}
+                </h2>
               </div>
 
               {/* Balance Points (Centered Below) */}
