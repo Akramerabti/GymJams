@@ -7,7 +7,7 @@ import CoinFlip from './Games/CoinFlip';
 import DiceRoll from './Games/DiceRoll';
 import SlotMachine from './Games/SlotMachine';
 import Roulette from './Games/Roulette';
-import Blackjack from './Games/Blackjack';
+import Blackjack from './Games/BlackJack';
 import { toast } from 'sonner';
 
 const Games = () => {
