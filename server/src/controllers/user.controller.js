@@ -181,3 +181,18 @@ export const updateClientStats = async (req, res) => {
     res.status(500).json({ message: 'Failed to update client stats', error: error.message });
   }
 };
+
+export const updatePoints = async (req, res) => {
+  const { points } = req.body;
+  console.log('Updating points:', points);
+  const userId = req.user.id; // Assuming you have user authentication middleware
+  console.log('User ID:', userId);
+
+  try {
+    await User.findByIdAndUpdate(userId, { points });
+    res.status(200).json({ message: 'Points updated successfully' });
+  } catch (error) {
+    console.error('Failed to update points:', error);
+    res.status(500).json({ message: 'Failed to update points' });
+  }
+};

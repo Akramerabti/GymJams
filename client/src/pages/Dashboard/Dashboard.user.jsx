@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Crown, Settings, Edit3, Award, Calendar, BarChart2, 
   Target, Activity, ArrowUpRight, ChevronUp, Dumbbell, 
-  Zap, UserPlus, RefreshCw, User
+  Zap, UserPlus, RefreshCw, User, Joystick
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -246,50 +246,79 @@ const DashboardUser = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        {/* Welcome Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={`p-8 rounded-2xl bg-gradient-to-r ${currentTier.color} text-white`}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">
-                Welcome back{user ? `, ${user.user.firstName || user.firstName}` : ''}! 👋
-              </h1>
-              <div className="flex items-center">
-                {currentTier.icon}
-                <span className="ml-2 text-lg">{currentTier.name} Plan</span>
+  <div className="max-w-7xl mx-auto space-y-8">
+    {/* Welcome Section */}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`p-8 rounded-2xl bg-gradient-to-r ${currentTier.color} text-white`}
+    >
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-6 sm:space-y-0">
+        {/* Left Side: Welcome Message and Coach Info */}
+        <div className="text-center sm:text-left">
+          <h1 className="text-3xl font-bold mb-2">
+            Welcome back{user ? `, ${user.user.firstName || user.firstName}` : ''}! 👋
+          </h1>
+          <div className="flex items-center justify-center sm:justify-start">
+            {currentTier.icon}
+            <span className="ml-2 text-lg">{currentTier.name} Plan</span>
+          </div>
+          {/* Display Assigned Coach */}
+          {assignedCoach && (
+            <div className="mt-4 flex items-center space-x-3 justify-center sm:justify-start">
+              <div className="p-2 bg-white/20 rounded-full">
+                <User className="w-6 h-6 text-white" />
               </div>
-              {/* Display Assigned Coach */}
-              {assignedCoach && (
-                <div className="mt-4 flex items-center space-x-3">
-                  <div className="p-2 bg-white/20 rounded-full">
-                    <User className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold">
-                      Coach: {assignedCoach.firstName} {assignedCoach.lastName}
-                    </h3>
-                    <p className="text-sm text-white/80">
-                      Specialties: {assignedCoach.specialties?.join(', ') || 'N/A'}
-                    </p>
-                  </div>
-                </div>
-              )}
+              <div>
+                <h3 className="text-lg font-semibold">
+                  Coach: {assignedCoach.firstName} {assignedCoach.lastName}
+                </h3>
+                <p className="text-sm text-white/80">
+                  Specialties: {assignedCoach.specialties?.join(', ') || 'N/A'}
+                </p>
+              </div>
             </div>
-            {currentTier.upgrade && (
+          )}
+        </div>
+
+        {/* Right Side: Upgrade and Play Games Buttons */}
+        <div className="flex flex-col items-center sm:items-end space-y-4 w-full sm:w-auto">
+              {/* Play To Win Button (Visible only for subscribed users) */}
+              {subscription && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="w-full sm:w-auto"
+                >
+                  <Button
+                    onClick={() => navigate('/hidden-games')}
+                    className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-yellow-600 text-white hover:from-red-700 hover:to-purple-700"
+                  >
+                    <Joystick className="w-5 h-5 mr-2" />
+                    Play To Win
+                  </Button>
+                </motion.div>
+              )}
+          
+          {/* Upgrade Button */}
+          {currentTier.upgrade && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="w-full sm:w-auto"
+            >
               <Button
                 onClick={handleUpgradeClick}
-                className="bg-white/20 hover:bg-white/30 text-white"
+                className="w-full sm:w-auto bg-white/20 hover:bg-white/30 text-white "
               >
                 Upgrade to {SUBSCRIPTION_TIERS[currentTier.upgrade].name}
                 <ArrowUpRight className="ml-2 w-4 h-4" />
               </Button>
-            )}
-          </div>
-        </motion.div>
+            </motion.div>
+          )}
+        </div>
+      </div>
+    </motion.div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

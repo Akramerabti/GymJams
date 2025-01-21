@@ -7,8 +7,9 @@ import { Dice1, Dice2, Dice3, Dice4, Dice5, Dice6 } from 'lucide-react';
 const DiceRoll = ({ minBet, maxBet }) => {
   const [betAmount, setBetAmount] = useState(minBet);
   const [isRolling, setIsRolling] = useState(false);
-  const [prediction, setPrediction] = useState(null);
-  const { balance, subtractPoints, addPoints } = usePoints();
+  const [prediction, setPrediction] = useState(null); // User's prediction (1-6)
+  const [result, setResult] = useState(null); // Result of the dice roll (1-6)
+  const { balance, subtractPoints, addPoints, updatePointsInBackend } = usePoints();
 
   const diceIcons = [Dice1, Dice2, Dice3, Dice4, Dice5, Dice6];
 
@@ -31,16 +32,26 @@ const DiceRoll = ({ minBet, maxBet }) => {
     setIsRolling(true);
     subtractPoints(betAmount);
 
-    const result = Math.floor(Math.random() * 6) + 1;
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Simulate a dice roll
+    const diceResult = Math.floor(Math.random() * 6) + 1;
+    setResult(diceResult);
 
-    if (result === prediction) {
-      const winnings = betAmount * 5;
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate rolling animation
+
+    let winnings = 0;
+    if (diceResult === prediction) {
+      winnings = betAmount * 5;
       addPoints(winnings);
       toast.success(`You won ${winnings} points!`);
     } else {
-      toast.error(`You lost! The dice showed ${result}`);
+      toast.error(`You lost! The dice showed ${diceResult}`);
     }
+
+    // Calculate the updated balance
+    const updatedBalance = balance - betAmount + (diceResult === prediction ? winnings : 0);
+
+    // Update points in the backend
+    await updatePointsInBackend(updatedBalance);
 
     setIsRolling(false);
   };
@@ -60,6 +71,7 @@ const DiceRoll = ({ minBet, maxBet }) => {
         </div>
       </div>
 
+      {/* Dice Selection */}
       <div className="grid grid-cols-6 gap-4 mb-8">
         {diceIcons.map((DiceIcon, index) => (
           <motion.button
@@ -67,7 +79,11 @@ const DiceRoll = ({ minBet, maxBet }) => {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => setPrediction(index + 1)}
-            className={`p-4 rounded-lg ${prediction === index + 1 ? 'bg-purple-100' : 'bg-gray-100'}`}
+            className={`p-4 rounded-lg transition-all ${
+              prediction === index + 1
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
             disabled={isRolling}
           >
             <DiceIcon className="w-8 h-8" />
@@ -75,6 +91,30 @@ const DiceRoll = ({ minBet, maxBet }) => {
         ))}
       </div>
 
+      {/* Dice Roll Animation */}
+      <AnimatePresence>
+        {isRolling && (
+          <motion.div
+            initial={{ rotate: 0, scale: 1 }}
+            animate={{ rotate: 360, scale: 1.2 }}
+            exit={{ rotate: 0, scale: 1 }}
+            transition={{ duration: 2, ease: "easeInOut" }}
+            className="w-32 h-32 bg-gray-100 rounded-lg mx-auto mb-8 flex items-center justify-center"
+          >
+            {result && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1.5 }}
+              >
+                {React.createElement(diceIcons[result - 1], { className: "w-16 h-16" })}
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Roll Button */}
       <button
         onClick={handleRoll}
         disabled={isRolling || !prediction}
@@ -82,6 +122,13 @@ const DiceRoll = ({ minBet, maxBet }) => {
       >
         {isRolling ? 'Rolling...' : 'Roll Dice'}
       </button>
+
+      {/* Result Display */}
+      {result && !isRolling && (
+        <div className="mt-8 text-xl font-semibold">
+          {result === prediction ? 'You won! 🎉' : 'You lost. 😢'}
+        </div>
+      )}
     </div>
   );
 };

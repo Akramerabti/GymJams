@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { usePoints } from '../hooks/usePoints';
 import { useAuth } from '../stores/authStore';
 import { motion } from 'framer-motion';
-import { Dice5, Coins, Joystick, PanelTopClose, SquareStack } from 'lucide-react';
+import { Dice5, Coins, Joystick, PanelTopClose, SquareStack, ArrowLeft } from 'lucide-react'; // Added ArrowLeft
 import CoinFlip from './Games/CoinFlip';
 import DiceRoll from './Games/DiceRoll';
 import SlotMachine from './Games/SlotMachine';
@@ -16,6 +16,15 @@ const Games = () => {
   const [selectedGame, setSelectedGame] = useState(null);
 
   const games = [
+    {
+      id: 'blackjack',
+      name: 'Blackjack',
+      description: 'Beat the dealer to win',
+      icon: PanelTopClose,
+      component: Blackjack,
+      minBet: 100,
+      maxBet: 10000,
+    },
     {
       id: 'coinflip',
       name: 'Coin Flip',
@@ -52,28 +61,19 @@ const Games = () => {
       minBet: 25,
       maxBet: 2500,
     },
-    {
-      id: 'blackjack',
-      name: 'Blackjack',
-      description: 'Beat the dealer to win',
-      icon: PanelTopClose,
-      component: Blackjack,
-      minBet: 100,
-      maxBet: 10000,
-    },
   ];
 
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 to-blue-900 flex items-center justify-center p-4">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full text-center"
         >
           <h1 className="text-3xl font-bold mb-4">VIP Games Access</h1>
-          <p className="text-gray-600 mb-6">
-            Log in to access exclusive games and start winning points!
+          <p className="text-gray-800 mb-6">
+            Log in to access exclusive games and start winning GymJams!
           </p>
           <a
             href="/login"
@@ -97,16 +97,18 @@ const Games = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 to-blue-900 p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-white mb-4">GymJams Casino</h1>
-          <div className="inline-flex items-center bg-white/10 px-6 py-3 rounded-full">
-            <Coins className="w-6 h-6 text-yellow-400 mr-2" />
-            <span className="text-white font-semibold">
-              Balance: {balance} points
-            </span>
+        {/* Header - Only show when no game is selected */}
+        {!selectedGame && (
+          <div className="text-center mb-12">
+            <h1 className="text-4xl font-bold text-white mb-4">GymJams Casino</h1>
+            <div className="inline-flex items-center bg-white/10 px-6 py-3 rounded-full">
+              <Coins className="w-6 h-6 text-yellow-400 mr-2" />
+              <span className="text-white font-semibold">
+                Balance: {balance} points
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
         {selectedGame ? (
           <motion.div
@@ -115,15 +117,33 @@ const Games = () => {
             exit={{ opacity: 0, scale: 0.95 }}
             className="bg-white rounded-2xl shadow-2xl p-8"
           >
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-2xl font-bold">{selectedGame.name}</h2>
-              <button
-                onClick={() => setSelectedGame(null)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                Back to Games
-              </button>
+            {/* Game Header with Back Arrow, Game Name, and Balance Below */}
+            <div className="flex flex-col items-center mb-8">
+              {/* Back Arrow and Game Name */}
+              <div className="flex items-center justify-between w-full mb-4">
+                {/* Back Arrow */}
+                <button
+                  onClick={() => setSelectedGame(null)}
+                  className="text-gray-900 hover:text-gray-700 flex items-center"
+                >
+                  <ArrowLeft className="w-6 h-6 mr-2" />
+
+                </button>
+
+                {/* Game Name */}
+                <h2 className="text-2xl font-bold">{selectedGame.name}</h2>
+              </div>
+
+              {/* Balance Points (Centered Below) */}
+              <div className="inline-flex items-center bg-purple-100 px-4 py-2 rounded-full">
+                <Coins className="w-5 h-5 text-purple-600 mr-2" />
+                <span className="text-purple-600 font-semibold">
+                  Balance: {balance} points
+                </span>
+              </div>
             </div>
+
+            {/* Render the Selected Game Component */}
             <selectedGame.component
               minBet={selectedGame.minBet}
               maxBet={selectedGame.maxBet}

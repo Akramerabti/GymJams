@@ -26,7 +26,8 @@ import SubscriptionManagement from './pages/SubscriptionManagement';
 import useAuthStore from './stores/authStore';
 import Dashboard from './pages/Dashboard';
 import Questionnaire from './pages/Questionnaire';
-import Games from './pages/Games'; // Import the new Gamble component
+import Games from './pages/Games'; 
+import HiddenGames from './pages/HiddenGames';
 
 const App = () => {
   const { checkAuth, logout } = useAuthStore();
@@ -71,6 +72,7 @@ const App = () => {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/questionnaire" element={<Questionnaire />} />
           <Route path="/games" element={ <Games />} />
+          <Route path="/hidden-games" element={<HiddenGames />} />
 
           {/* Protected Routes */}
           <Route path="/profile" element={

@@ -9,7 +9,7 @@ const SlotMachine = ({ minBet, maxBet }) => {
   const [betAmount, setBetAmount] = useState(minBet);
   const [isSpinning, setIsSpinning] = useState(false);
   const [reels, setReels] = useState(['🎰', '🎰', '🎰']);
-  const { balance, subtractPoints, addPoints } = usePoints();
+  const { balance, subtractPoints, addPoints, updatePointsInBackend } = usePoints();
 
   const spinReels = async () => {
     if (betAmount > balance) {
@@ -30,23 +30,28 @@ const SlotMachine = ({ minBet, maxBet }) => {
       return symbols[randomIndex];
     });
 
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate spinning animation
     setReels(newReels);
 
-    // Check for wins
+    let winnings = 0;
     if (newReels[0] === newReels[1] && newReels[1] === newReels[2]) {
       const multiplier = symbols.indexOf(newReels[0]) + 3;
-      const winnings = betAmount * multiplier;
+      winnings = betAmount * multiplier;
       addPoints(winnings);
       toast.success(`Jackpot! You won ${winnings} points!`);
     } else if (newReels[0] === newReels[1] || newReels[1] === newReels[2]) {
-      const winnings = betAmount * 2;
+      winnings = betAmount * 2;
       addPoints(winnings);
-
-    toast.success(`You matched two symbols! Won ${winnings} points!`);
+      toast.success(`You matched two symbols! Won ${winnings} points!`);
     } else {
       toast.error('Better luck next time!');
     }
+
+    // Calculate the updated balance
+    const updatedBalance = balance - betAmount + winnings;
+
+    // Update points in the backend
+    await updatePointsInBackend(updatedBalance);
 
     setIsSpinning(false);
   };

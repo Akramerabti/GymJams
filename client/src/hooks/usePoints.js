@@ -19,5 +19,12 @@ export const usePoints = create((set) => ({
     } catch (error) {
       console.error('Failed to fetch points:', error);
     }
-  }
+  },
+  updatePointsInBackend: async (points) => {
+    try {
+      await api.post('/user/update-points', { points }); // Update points in the backend
+    } catch (error) {
+      console.error('Failed to update points:', error);
+    }
+  },
 }));
