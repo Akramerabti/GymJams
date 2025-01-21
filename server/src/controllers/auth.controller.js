@@ -235,6 +235,8 @@ export const getProfile = async (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const { firstName, lastName, phone, bio, rating, socialLinks, specialties } = req.body;
+
+    
     // Find the user by ID
     const user = await User.findById(req.user.id);
 
@@ -281,6 +283,8 @@ export const updateProfile = async (req, res) => {
         twitter: socialLinks?.twitter || user.socialLinks?.twitter,
         youtube: socialLinks?.youtube || user.socialLinks?.youtube,
       };
+
+      console.log('Specialties:', specialties);
       // Update specialties if provided and valid
       if (Array.isArray(specialties)) {
         user.specialties = specialties;
@@ -501,7 +505,7 @@ export const resetPassword = async (req, res) => {
 export const getCoach = async (req, res) => {
   try {
     const coaches = await User.find({ role: 'coach' })
-      .select('firstName lastName profileImage bio rating socialLinks payoutSetupComplete')
+      .select('firstName lastName profileImage bio rating socialLinks payoutSetupComplete specialties')
       .sort({ rating: -1 }); // Sort by rating in descending order
 
     if (!coaches.length) {

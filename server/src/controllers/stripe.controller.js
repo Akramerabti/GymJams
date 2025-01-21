@@ -85,11 +85,6 @@ export const createStripeAccountLink = async (req, res) => {
       // Retrieve the Stripe account to check if payouts are enabled
       const account = await stripe.accounts.retrieve(user.stripeAccountId);
   
-      console.log('Stripe account:', account);
-
-      console.log('Charges Enabled:', account.charges_enabled);
-      console.log('Payouts Enabled:', account.payouts_enabled);
-  
       if (account.charges_enabled && account.payouts_enabled) {
         // Update the coach's payout setup status in the database
         await User.findByIdAndUpdate(req.user.id, {

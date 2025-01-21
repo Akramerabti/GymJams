@@ -107,7 +107,7 @@ const userSchema = new mongoose.Schema({
 
   specialties: [{
     type: String,
-    enum: ['Strength', 'Cardio', 'Nutrition', 'Flexibility', 'Weight Loss', 'Muscle Gain']
+    enum: ['HIIT', 'Cardio', 'Weight Training', 'Nutrition','Bodybuilding', 'Nutrition', 'Sports Performance', 'Yoga', 'Weight Loss', 'CrossFit','Powerlifting']
   }],
   
   availability: {
