@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { usePoints } from '../../hooks/usePoints';
 import { toast } from 'sonner';
 import { Coins, Plus, Minus, RefreshCw, Hand } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
 const CARD_BACK = "linear-gradient(135deg, #1e3c72 0%, #1e3c72 1%, #2a5298 100%)";
@@ -86,6 +87,7 @@ const Blackjack = ({ minBet = 100, maxBet = 10000 }) => {
   const [dealerHand, setDealerHand] = useState([]);
   const [deck, setDeck] = useState([]);
   const [isDealing, setIsDealing] = useState(false);
+  const [inputError, setInputError] = useState(null);
   const { balance, addPoints, subtractPoints, updatePointsInBackend } = usePoints();
   const [visibleHandValues, setVisibleHandValues] = useState({
     dealer: 0,
@@ -110,6 +112,26 @@ const Blackjack = ({ minBet = 100, maxBet = 10000 }) => {
       aces--;
     }
     return total;
+  };
+
+  const handleBetAmountChange = (e) => {
+    const value = e.target.value;
+    setBetAmount(value); // Allow the user to type freely
+    setInputError(null); // Clear any previous errors
+  };
+  
+  const handleBetAmountBlur = (e) => {
+    const value = parseInt(e.target.value);
+  
+    if (isNaN(value) || value < minBet) {
+      setInputError(`Minimum bet is ${minBet}`);
+      setBetAmount(minBet); // Reset to minimum bet
+    } else if (value > maxBet) {
+      setInputError(`Maximum bet is ${maxBet}`);
+      setBetAmount(maxBet); // Reset to maximum bet
+    } else {
+      setInputError(null); // Clear error if input is valid
+    }
   };
 
   const createShuffledDeck = () => {
@@ -213,6 +235,8 @@ const Blackjack = ({ minBet = 100, maxBet = 10000 }) => {
     }
   };
 
+  
+
   const stand = async () => {
     setGameState('dealer');
     let currentDealerHand = [...dealerHand];
@@ -262,49 +286,49 @@ const Blackjack = ({ minBet = 100, maxBet = 10000 }) => {
 
         {/* Betting UI */}
         <AnimatePresence>
-          {gameState === 'betting' && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="bg-white/10 backdrop-blur-lg rounded-xl p-8 w-[320px] shadow-xl border border-white/20"
-              >
-                <h3 className="text-2xl font-bold text-white text-center mb-6">Place Your Bet</h3>
-                <div className="flex items-center justify-center space-x-6 mb-8">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-12 w-12 rounded-full bg-white/20 hover:bg-white/30 border-0"
-                    onClick={() => setBetAmount(Math.max(minBet, betAmount - 100))}
-                  >
-                    <Minus className="w-6 h-6 text-white" />
-                  </Button>
-                  <span className="text-3xl font-bold text-white min-w-[120px] text-center">
-                    {betAmount}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-12 w-12 rounded-full bg-white/20 hover:bg-white/30 border-0"
-                    onClick={() => setBetAmount(Math.min(maxBet, betAmount + 100))}
-                  >
-                    <Plus className="w-6 h-6 text-white" />
-                  </Button>
-                </div>
-                <Button 
-                  className="w-full h-12 bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-white font-bold text-lg"
-                  onClick={dealInitialCards}
-                >
-                  Deal Cards
-                </Button>
-                <div className="text-white/70 text-sm text-center mt-4">
-                  Min: {minBet} | Max: {maxBet}
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
+  {gameState === 'betting' && (
+    <div className="absolute inset-0 flex items-center justify-center">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        className="bg-white/10 backdrop-blur-lg rounded-xl p-8 w-[320px] shadow-xl border border-white/20"
+      >
+        <h3 className="text-2xl font-bold text-white text-center mb-6">Place Your Bet</h3>
+        <div className="flex flex-col items-center space-y-4 mb-8">
+          <div className="relative w-full">
+            <input
+              type="number"
+              value={betAmount}
+              onChange={handleBetAmountChange}
+              onBlur={handleBetAmountBlur}
+              placeholder={`Enter amount (${minBet}-${maxBet})`}
+              className={`w-full bg-white/5 border ${
+                inputError ? 'border-red-500' : 'border-white/10'
+              } text-white text-center rounded-lg py-2 px-4 focus:outline-none focus:ring-2 ${
+                inputError ? 'focus:ring-red-500' : 'focus:ring-yellow-500'
+              } transition-all duration-300`}
+            />
+            {inputError && (
+              <div className="absolute top-full mt-1 text-sm text-red-500 text-center w-full">
+                {inputError}
+              </div>
+            )}
+          </div>
+        </div>
+        <Button 
+          className="w-full h-12 bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-white font-bold text-lg"
+          onClick={dealInitialCards}
+        >
+          Deal Cards
+        </Button>
+        <div className="text-white/70 text-sm text-center mt-4">
+          Min: {minBet} | Max: {maxBet}
+        </div>
+      </motion.div>
+    </div>
+  )}
+</AnimatePresence>
 
         {/* Game Table */}
         {gameState !== 'betting' && (

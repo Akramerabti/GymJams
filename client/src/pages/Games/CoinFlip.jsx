@@ -160,7 +160,8 @@ const CoinFlip = ({ minBet = 100, maxBet = 10000 }) => {
   const [userChoice, setUserChoice] = useState(null);
   const [result, setResult] = useState(null);
   const [showResult, setShowResult] = useState(false);
-  const [gameOver, setGameOver] = useState(false); // New state for game over
+  const [gameOver, setGameOver] = useState(false);
+  const [inputError, setInputError] = useState(null);
   const { balance, subtractPoints, addPoints, updatePointsInBackend } = usePoints();
 
   const betPresets = [
@@ -177,6 +178,26 @@ const CoinFlip = ({ minBet = 100, maxBet = 10000 }) => {
     setShowResult(false); // Hide the result display
   };
 
+  const handleBetAmountChange = (e) => {
+    const value = e.target.value;
+    setBetAmount(value); // Allow the user to type freely
+    setInputError(null); // Clear any previous errors
+  };
+  
+  const handleBetAmountBlur = (e) => {
+    const value = parseInt(e.target.value);
+  
+    if (isNaN(value) || value < minBet) {
+      setInputError(`Minimum bet is ${minBet}`);
+      setBetAmount(minBet); // Reset to minimum bet
+    } else if (value > maxBet) {
+      setInputError(`Maximum bet is ${maxBet}`);
+      setBetAmount(maxBet); // Reset to maximum bet
+    } else {
+      setInputError(null); // Clear error if input is valid
+    }
+  };
+  
   const flipCoin = async () => {
   if (!userChoice) {
     alert('Please choose Heads or Tails first!');
@@ -231,16 +252,30 @@ const CoinFlip = ({ minBet = 100, maxBet = 10000 }) => {
         <div className="w-full max-w-xs">
           <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6">
             {/* Betting Controls */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium mb-2 text-center">Bet Amount</label>
-              <div className="flex justify-center space-x-2">
+            <div className="flex flex-col items-center space-y-2">
+              <label htmlFor="betAmount" className="text-sm font-medium text-white">
+                Bet Amount
+              </label>
+              <div className="relative">
                 <Input
+                  id="betAmount"
                   type="number"
                   value={betAmount}
-                  onChange={(e) => setBetAmount(Math.max(minBet, Math.min(maxBet, parseInt(e.target.value) || 0)))}
-                  className="w-32 bg-white/5 border-white/10 text-white text-center"
+                  onChange={handleBetAmountChange}
+                  onBlur={handleBetAmountBlur}
+                  placeholder={`Enter amount (${minBet}-${maxBet})`}
+                  className={`w-48 bg-white/5 border ${
+                    inputError ? 'border-red-500' : 'border-white/10'
+                  } text-white text-center rounded-lg py-2 px-4 focus:outline-none focus:ring-2 ${
+                    inputError ? 'focus:ring-red-500' : 'focus:ring-yellow-500'
+                  } transition-all duration-300`}
                   disabled={isFlipping || gameOver} // Disable input when game is over
                 />
+                {inputError && (
+                  <div className="absolute top-full mt-1 text-sm text-red-500 text-center w-full">
+                    {inputError}
+                  </div>
+                )}
               </div>
             </div>
 
