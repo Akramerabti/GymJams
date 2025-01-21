@@ -26,33 +26,30 @@ import SubscriptionManagement from './pages/SubscriptionManagement';
 import useAuthStore from './stores/authStore';
 import Dashboard from './pages/Dashboard';
 import Questionnaire from './pages/Questionnaire';
+import Games from './pages/Games'; // Import the new Gamble component
 
 const App = () => {
   const { checkAuth, logout } = useAuthStore();
 
-  // In App.jsx
-useEffect(() => {
-  const validateTokenOnLoad = async () => {
-    try {
-      // Only attempt to validate if there's a token
-      const token = localStorage.getItem('token');
-      if (token) {
-        const isValid = await checkAuth();
-        if (!isValid) {
-          console.log('Token validation failed, logging out');
-          logout();
+  useEffect(() => {
+    const validateTokenOnLoad = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          const isValid = await checkAuth();
+          if (!isValid) {
+            console.log('Token validation failed, logging out');
+            logout();
+          }
         }
-        
+      } catch (error) {
+        console.error('Auth check error:', error);
+        logout();
       }
-    } catch (error) {
-      console.error('Auth check error:', error);
-      logout();
-    }
-  };
-  
-  validateTokenOnLoad();
-}, [checkAuth, logout]);
+    };
 
+    validateTokenOnLoad();
+  }, [checkAuth, logout]);
 
   return (
     <Router>
@@ -73,6 +70,7 @@ useEffect(() => {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/questionnaire" element={<Questionnaire />} />
+          <Route path="/games" element={ <Games />} />
 
           {/* Protected Routes */}
           <Route path="/profile" element={

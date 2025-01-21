@@ -512,7 +512,8 @@ const Profile = () => {
                   'Powerlifting',
                   'Bodybuilding',
                   'HIIT',
-                  'Sports Performance'
+                  'Sports Performance',
+                  'Weight Loss'
                 ].map((specialty) => (
                   <div
                     key={specialty}
@@ -524,16 +525,6 @@ const Profile = () => {
                       }
                       ${editing ? 'cursor-pointer' : 'cursor-not-allowed'}
                     `}
-                    onClick={() => {
-                      if (editing) {
-                        setProfileData(prev => ({
-                          ...prev,
-                          specialties: profileData.specialties.includes(specialty)
-                            ? prev.specialties.filter(s => s !== specialty)
-                            : [...prev.specialties, specialty]
-                        }));
-                      }
-                    }}
                   >
                     <input
                       type="checkbox"

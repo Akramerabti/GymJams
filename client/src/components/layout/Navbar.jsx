@@ -7,13 +7,14 @@ import { usePoints } from '../../hooks/usePoints';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Navbar = () => {
-  const navigationItems = [
-    { name: 'Home', path: '/' },
-    { name: 'Shop', path: '/shop' },
-    { name: 'Coaching', path: '/coaching' },
-    { name: 'About', path: '/about' },
-    { name: 'Contact', path: '/contact' },
-  ];
+    const navigationItems = [
+      { name: 'Home', path: '/' },
+      { name: 'Shop', path: '/shop' },
+      { name: 'Coaching', path: '/coaching' },
+      { name: 'Games', path: '/games' }, // Add the new gambling page
+      { name: 'About', path: '/about' },
+      { name: 'Contact', path: '/contact' },
+    ];
 
   const [isOpen, setIsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);

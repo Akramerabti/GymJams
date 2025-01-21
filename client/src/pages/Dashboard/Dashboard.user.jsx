@@ -1,4 +1,3 @@
-// components/dashboard/Dashboard.member.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../stores/authStore';
@@ -7,33 +6,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Crown, Settings, Edit3, Award, Calendar, BarChart2, 
   Target, Activity, ArrowUpRight, ChevronUp, Dumbbell, 
-  Zap, UserPlus, RefreshCw
+  Zap, UserPlus, RefreshCw, User
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import CoachAssignment from './components/coach.assignment';
-
-const SUBSCRIPTION_TIERS = {
-  basic: {
-    name: 'Basic',
-    color: 'from-blue-500 to-blue-600',
-    icon: <Award className="w-8 h-8" />,
-    upgrade: 'premium'
-  },
-  premium: {
-    name: 'Premium',
-    color: 'from-purple-500 to-purple-600',
-    icon: <Crown className="w-8 h-8" />,
-    upgrade: 'elite'
-  },
-  elite: {
-    name: 'Elite',
-    color: 'from-amber-500 to-amber-600',
-    icon: <Zap className="w-8 h-8" />,
-    upgrade: null
-  }
-};
 
 const DashboardCard = ({ children, className = '', ...props }) => (
   <motion.div
@@ -48,7 +26,12 @@ const DashboardCard = ({ children, className = '', ...props }) => (
 );
 
 const StatCard = ({ title, value, icon, trend }) => (
-  <DashboardCard className="p-6">
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.5 }}
+    className="bg-white rounded-xl shadow-lg overflow-hidden p-6"
+  >
     <div className="flex items-center justify-between mb-4">
       <div className="p-2 rounded-lg bg-blue-50">
         {icon}
@@ -62,7 +45,7 @@ const StatCard = ({ title, value, icon, trend }) => (
     </div>
     <h3 className="text-sm text-gray-600 mb-1">{title}</h3>
     <p className="text-2xl font-bold">{value}</p>
-  </DashboardCard>
+  </motion.div>
 );
 
 const ProgressRing = ({ progress, size = 120, strokeWidth = 12 }) => {
@@ -104,6 +87,27 @@ const ProgressRing = ({ progress, size = 120, strokeWidth = 12 }) => {
   );
 };
 
+const SUBSCRIPTION_TIERS = {
+  basic: {
+    name: 'Basic',
+    color: 'from-blue-500 to-blue-600',
+    icon: <Award className="w-8 h-8" />,
+    upgrade: 'premium'
+  },
+  premium: {
+    name: 'Premium',
+    color: 'from-purple-500 to-purple-600',
+    icon: <Crown className="w-8 h-8" />,
+    upgrade: 'elite'
+  },
+  elite: {
+    name: 'Elite',
+    color: 'from-amber-500 to-amber-600',
+    icon: <Zap className="w-8 h-8" />,
+    upgrade: null
+  }
+};
+
 const DashboardUser = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -113,27 +117,36 @@ const DashboardUser = () => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showCoachAssignment, setShowCoachAssignment] = useState(false);
-  
+  const [assignedCoach, setAssignedCoach] = useState(null); // State for assigned coach
 
-  const mockStats = {
-    workoutsCompleted: 12,
-    currentStreak: 5,
-    monthlyProgress: 68,
-    goalsAchieved: 3,
+  // Fetch assigned coach details
+  const fetchAssignedCoach = async () => {
+    if (subscription?.assignedCoach) {
+      try {
+        const { coaches } = await subscriptionService.getCoaches();
+        const coach = coaches.find(c => c._id === subscription.assignedCoach);
+        setAssignedCoach(coach);
+      } catch (error) {
+        console.error('Failed to fetch assigned coach:', error);
+      }
+    }
   };
+
+  useEffect(() => {
+    if (subscription) {
+      fetchAssignedCoach();
+    }
+  }, [subscription]);
 
   const verifyQuestionnaireAndSubscription = async () => {
     try {
       setInitializing(true);
       const accessToken = localStorage.getItem('accessToken');
 
-   
-
       const [subData, questionnaireData] = await Promise.all([
         subscriptionService.getCurrentSubscription(accessToken),
         subscriptionService.checkQuestionnaireStatus(user?.id || accessToken),
       ]);
-
 
       if (!questionnaireData?.completed) {
         navigate('/questionnaire', {
@@ -141,7 +154,7 @@ const DashboardUser = () => {
         });
         return;
       }
-      
+
       if (!subData) {
         toast.error('No active subscription found');
         navigate('/coaching');
@@ -185,6 +198,7 @@ const DashboardUser = () => {
       assignedCoach: coach,
       coachAssignmentStatus: 'assigned',
     }));
+    setAssignedCoach(coach); // Update the assigned coach state
   };
 
   const handleUpgradeClick = () => {
@@ -203,7 +217,7 @@ const DashboardUser = () => {
     });
   };
 
-  const currentTier = SUBSCRIPTION_TIERS[subscription?.type || 'basic'];
+  const currentTier = SUBSCRIPTION_TIERS[subscription?.subscription || 'basic'];
 
   if (initializing || loading) {
     return (
@@ -230,7 +244,6 @@ const DashboardUser = () => {
     );
   }
 
-
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -243,12 +256,28 @@ const DashboardUser = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold mb-2">
-                Welcome back{user ? `, ${user.user.firstName||user.firstName}` : ''}! 👋
+                Welcome back{user ? `, ${user.user.firstName || user.firstName}` : ''}! 👋
               </h1>
               <div className="flex items-center">
                 {currentTier.icon}
                 <span className="ml-2 text-lg">{currentTier.name} Plan</span>
               </div>
+              {/* Display Assigned Coach */}
+              {assignedCoach && (
+                <div className="mt-4 flex items-center space-x-3">
+                  <div className="p-2 bg-white/20 rounded-full">
+                    <User className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">
+                      Coach: {assignedCoach.firstName} {assignedCoach.lastName}
+                    </h3>
+                    <p className="text-sm text-white/80">
+                      Specialties: {assignedCoach.specialties?.join(', ') || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
             {currentTier.upgrade && (
               <Button
@@ -266,25 +295,25 @@ const DashboardUser = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
             title="Workouts Completed"
-            value={mockStats.workoutsCompleted}
+            value={subscription?.stats?.workoutsCompleted || 0}
             icon={<Dumbbell className="w-6 h-6 text-blue-600" />}
             trend={12}
           />
           <StatCard
             title="Current Streak"
-            value={`${mockStats.currentStreak} days`}
+            value={`${subscription?.stats?.currentStreak || 0} days`}
             icon={<Activity className="w-6 h-6 text-blue-600" />}
             trend={8}
           />
           <StatCard
             title="Monthly Progress"
-            value={`${mockStats.monthlyProgress}%`}
+            value={`${subscription?.stats?.monthlyProgress || 0}%`}
             icon={<BarChart2 className="w-6 h-6 text-blue-600" />}
             trend={15}
           />
           <StatCard
             title="Goals Achieved"
-            value={mockStats.goalsAchieved}
+            value={subscription?.stats?.goalsAchieved || 0}
             icon={<Target className="w-6 h-6 text-blue-600" />}
             trend={5}
           />
@@ -306,7 +335,7 @@ const DashboardUser = () => {
             <div className="p-6">
               <h2 className="text-xl font-bold mb-4">Goal Progress</h2>
               <div className="flex flex-col items-center">
-                <ProgressRing progress={68} />
+                <ProgressRing progress={subscription?.stats?.monthlyProgress || 0} />
                 <p className="mt-4 text-gray-600">
                   You're making great progress!
                 </p>
@@ -324,7 +353,7 @@ const DashboardUser = () => {
                 onClick={handleEditQuestionnaire}
                 className="bg-blue-50 text-white hover:bg-blue-100"
               >
-                <Edit3 className="w-4 h-4 mr-2 " />
+                <Edit3 className="w-4 h-4 mr-2" />
                 Edit Profile
               </Button>
             </div>
