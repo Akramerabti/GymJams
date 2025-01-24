@@ -196,3 +196,38 @@ export const updatePoints = async (req, res) => {
     res.status(500).json({ message: 'Failed to update points' });
   }
 };
+
+export const getDailyGames = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    const gamesPlayed = user.checkDailyGames();
+    
+    await user.save();
+    
+    res.json({ gamesPlayed });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching games count' });
+  }
+};
+
+export const completeMemoryGame = async (req, res) => {
+  try {
+    const { points, moves, time } = req.body;
+    const user = await User.findById(req.user.id);
+    
+    const gamesPlayed = user.checkDailyGames();
+    
+    if (gamesPlayed >= 3) {
+      return res.status(400).json({ message: 'Daily game limit reached' });
+    }
+    
+    user.gamesPlayed += 1;
+    user.points += points;
+    
+    await user.save();
+    
+    res.json({ success: true, points });
+  } catch (error) {
+    res.status(500).json({ message: 'Error completing game' });
+  }
+};

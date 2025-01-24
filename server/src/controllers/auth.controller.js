@@ -124,41 +124,44 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    // Ensure email and password are provided
+    
+    // Email and password validation
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    // Find user
     const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Compare password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Check if email is verified
     if (!user.isEmailVerified) {
       return res.status(403).json({ message: 'Please verify your email before logging in' });
+    }
+
+    // Handle first login bonus and onboarding
+    const isFirstLogin = !user.hasReceivedFirstLoginBonus;
+    if (isFirstLogin) {
+      user.points += 100;
+      user.hasReceivedFirstLoginBonus = true;
+      await user.save();
     }
 
     // Update last login
     user.lastLogin = new Date();
     await user.save();
 
-    // Create JWT
     const token = jwt.sign(
       { id: user._id },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
 
-    // Return success response
     res.json({
       token,
       user: {
@@ -168,7 +171,8 @@ export const login = async (req, res) => {
         lastName: user.lastName,
         phone: user.phone,
         points: user.points,
-        isEmailVerified: user.isEmailVerified
+        isEmailVerified: user.isEmailVerified,
+        showOnboarding: isFirstLogin 
       }
     });
   } catch (error) {

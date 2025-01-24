@@ -3,6 +3,9 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
 
+// Import global CSS
+import './global.css'; // Add this line
+
 // Layout Components
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -28,9 +31,11 @@ import Dashboard from './pages/Dashboard';
 import Questionnaire from './pages/Questionnaire';
 import Games from './pages/Games'; 
 import HiddenGames from './pages/HiddenGames';
+import Onboarding from './pages/Onboarding';
 
 const App = () => {
-  const { checkAuth, logout } = useAuthStore();
+  const { checkAuth, logout, showOnboarding, setShowOnboarding} = useAuthStore();
+  
 
   useEffect(() => {
     const validateTokenOnLoad = async () => {
@@ -92,6 +97,10 @@ const App = () => {
           } />
         </Routes>
 
+        {showOnboarding && (
+         <Onboarding onClose={() => setShowOnboarding(false)} />
+       )}
+       
         <Toaster />
       </Layout>
     </Router>

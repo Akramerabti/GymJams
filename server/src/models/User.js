@@ -104,7 +104,10 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Subscription'
   }],
-
+  hasSeenOnboarding: {
+    type: Boolean,
+    default: false
+  },
   specialties: [{
     type: String,
     enum: ['HIIT', 'Cardio', 'Weight Training', 'Nutrition','Bodybuilding', 'Nutrition', 'Sports Performance', 'Yoga', 'Weight Loss', 'CrossFit','Powerlifting']
@@ -121,6 +124,10 @@ const userSchema = new mongoose.Schema({
     }
   },
 
+  hasReceivedFirstLoginBonus: {
+    type: Boolean,
+    default: false
+  },
   coachStatus: {
     type: String,
     enum: ['available', 'full', 'unavailable'],
@@ -156,7 +163,15 @@ const userSchema = new mongoose.Schema({
         ref: 'Subscription'
       }]
     }]
-  }
+  },
+  gamesPlayed: {
+    type: Number,
+    default: 0
+  },
+  lastGameReset: {
+    type: Date,
+    default: Date.now
+  },
 
 }, {
   timestamps: true,
@@ -164,6 +179,17 @@ const userSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
+userSchema.methods.checkDailyGames = function() {
+  const now = new Date();
+  const lastReset = new Date(this.lastGameReset);
+  
+  if (now.getDate() !== lastReset.getDate()) {
+    this.gamesPlayed = 0;
+    this.lastGameReset = now;
+  }
+  
+  return this.gamesPlayed;
+};
 
 // Virtual for getting active clients count
 userSchema.virtual('activeClientsCount').get(function() {

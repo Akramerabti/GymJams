@@ -12,7 +12,7 @@ const Navbar = () => {
       { name: 'Shop', path: '/shop' },
       { name: 'Coaching', path: '/coaching' },
       { name: 'Games', path: '/games' }, // Add the new gambling page
-      { name: 'About', path: '/about' },
+      { name: 'Gains', path: '/gymbros' },
       { name: 'Contact', path: '/contact' },
     ];
 

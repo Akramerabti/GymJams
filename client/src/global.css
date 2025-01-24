@@ -1,0 +1,16 @@
+html, body {
+    overflow-x: hidden; /* Hide horizontal scrollbar */
+    width: 100%; /* Ensure full width */
+    margin: 0; /* Remove default margin */
+    padding: 0; /* Remove default padding */
+  }
+  
+  /* Ensure no child elements overflow horizontally */
+  * {
+    box-sizing: border-box; /* Prevent padding and border from causing overflow */
+  }
+  
+  /* Optional: Hide scrollbar for WebKit browsers (Chrome, Safari) */
+  ::-webkit-scrollbar {
+    display: none; /* Hide scrollbar */
+  }

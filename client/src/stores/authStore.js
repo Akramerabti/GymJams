@@ -10,6 +10,7 @@ const initialState = {
   loading: false,
   error: null,
   isAuthenticated: false,
+  showOnboarding: false,
 };
 
 const useAuthStore = create(
@@ -176,6 +177,9 @@ const useAuthStore = create(
         }
       },
 
+      showOnboarding: false,
+      setShowOnboarding: (show) => set({ showOnboarding: show }),
+
       // Authentication Actions
       login: async (email, password) => {
         const { setLoading, setError, setUser, setToken } = get();
@@ -195,6 +199,10 @@ const useAuthStore = create(
             usePoints.getState().setBalance(user.points);
           }
 
+          if (user.showOnboarding) {
+            set({ showOnboarding: true });
+          }
+      
           return response.data;
         } catch (error) {
           const message = error.response?.data?.message || 'Login failed';
@@ -299,6 +307,8 @@ export const useAuth = () => {
     verifyEmail: store.verifyEmail,
     resendVerificationEmail: store.resendVerificationEmail,
     registerResetCallback: store.registerResetCallback,
+    showOnboarding: store.showOnboarding,
+    setShowOnboarding: store.setShowOnboarding,
   };
 };
 
