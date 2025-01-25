@@ -31,7 +31,7 @@ const Games = () => {
     {
       id: 'memory',
       name: 'Fit Match',
-      description: 'Test your memory skills to earn points! 3 games per day.',
+      description: 'Test your memory skills to earn points! One try per day.',
       icon: Brain,
       image: GAME_IMAGES.memory,
       component: MemoryGame,

@@ -197,37 +197,86 @@ export const updatePoints = async (req, res) => {
   }
 };
 
-export const getDailyGames = async (req, res) => {
+export const checkDailyGames = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check daily games played
     const gamesPlayed = user.checkDailyGames();
-    
-    await user.save();
-    
     res.json({ gamesPlayed });
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching games count' });
+    res.status(500).json({ message: 'Error checking games count' });
   }
 };
 
-export const completeMemoryGame = async (req, res) => {
+export const completeGame = async (req, res) => {
   try {
-    const { points, moves, time } = req.body;
     const user = await User.findById(req.user.id);
-    
-    const gamesPlayed = user.checkDailyGames();
-    
-    if (gamesPlayed >= 3) {
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if daily limit reached (e.g., 3 games per day)
+    if (user.gamesPlayed >= 1) {
       return res.status(400).json({ message: 'Daily game limit reached' });
     }
-    
+
+    // Update user stats
     user.gamesPlayed += 1;
-    user.points += points;
-    
+  
+    // Update learning streak if the user completed the daily content
+    const now = new Date();
+    const lastReset = new Date(user.lastGameReset);
+
+    if (now.getDate() === lastReset.getDate()) {
+      user.learningStreak += 1;
+    } else {
+      user.learningStreak = 1;
+    }
+
+    user.lastGameReset = now;
     await user.save();
-    
-    res.json({ success: true, points });
+
+    res.json({
+      success: true,
+      points: req.body.points,
+      gamesRemaining: 1 - user.gamesPlayed,
+      streak: user.learningStreak,
+    });
   } catch (error) {
+    console.error('Error completing game:', error);
     res.status(500).json({ message: 'Error completing game' });
+  }
+};
+
+export const dailyCount = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if the user has already completed the daily content
+    const now = new Date();
+    const lastReset = new Date(user.lastGameReset);
+
+    // Reset gamesPlayed if it's a new day
+    if (now.getDate() !== lastReset.getDate()) {
+      user.gamesPlayed = 0;
+      user.lastGameReset = now;
+      await user.save();
+    }
+
+    res.json({ 
+      completed: user.gamesPlayed >= 1, // Daily limit is 3 games
+      streak: user.learningStreak || 0,
+      gamesPlayed: user.gamesPlayed || 0
+    });
+  } catch (error) {
+    console.error('Error fetching daily count:', error);
+    res.status(500).json({ message: 'Error fetching daily count' });
   }
 };

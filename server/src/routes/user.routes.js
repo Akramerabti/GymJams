@@ -8,8 +8,9 @@ import {
   getCoachDashboardData,
   updateClientStats,
   updatePoints,
-  getDailyGames,
-  completeMemoryGame,
+  checkDailyGames, 
+  completeGame,
+  dailyCount,
 } from '../controllers/user.controller.js';
 import { authenticateJWT } from '../config/passport.js';
 import {
@@ -33,8 +34,10 @@ router.put('/profile', validateProfileUpdate, updateProfile);
 router.get('/dashboard/user', getUserDashboardData);
 router.get('/dashboard/coach', getCoachDashboardData);
 router.put('/:subscriptionId/stats', updateClientStats);
-router.get('/daily-count', authenticate, getDailyGames);
-router.post('/complete', authenticate, completeMemoryGame);
+router.get('/check-games', authenticate, checkDailyGames);
+router.post('/complete', authenticate, completeGame);
+router.get('/daily-count', authenticate, dailyCount);
+
 
 
 export default router;

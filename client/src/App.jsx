@@ -4,7 +4,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
 
 // Import global CSS
-import './global.css'; // Add this line
+import './global.css';
 
 // Layout Components
 import Layout from './components/layout/Layout';

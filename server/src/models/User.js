@@ -172,6 +172,10 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+  learningStreak: {
+    type: Number,
+    default: 0
+  }
 
 }, {
   timestamps: true,
