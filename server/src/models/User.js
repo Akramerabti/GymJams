@@ -104,10 +104,6 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Subscription'
   }],
-  hasSeenOnboarding: {
-    type: Boolean,
-    default: false
-  },
   specialties: [{
     type: String,
     enum: ['HIIT', 'Cardio', 'Weight Training', 'Nutrition','Bodybuilding', 'Nutrition', 'Sports Performance', 'Yoga', 'Weight Loss', 'CrossFit','Powerlifting']

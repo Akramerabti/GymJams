@@ -358,6 +358,8 @@ export const verifyEmail = async (req, res) => {
   try {
     const { token } = req.params;
 
+    console.log('Verifying email...', token);
+
     // Find the user by verification token
     const user = await User.findOne({
          verificationToken: token 
@@ -366,7 +368,7 @@ export const verifyEmail = async (req, res) => {
     if (!user) {
       return res.status(400).json({ message: 'Invalid verification token' });
     }
-    
+
     // Check if the email is already verified
     if (user.isEmailVerified) {
       return res.json({ message: 'Email is already verified' });
@@ -493,7 +495,7 @@ export const resetPassword = async (req, res) => {
 
     // You might want to invalidate all existing sessions here
     // depending on your security requirements
-
+    console.log('Password reset successfully', user);
     res.status(200).json({ 
       message: 'Password has been reset successfully' 
     });

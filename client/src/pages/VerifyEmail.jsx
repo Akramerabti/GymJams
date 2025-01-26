@@ -3,56 +3,54 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle } from 'lucide-react';
-import api from '../services/api';
-import useAuthStore from '../stores/authStore';
+import useAuthStore from '../stores/authStore'; // Import the Zustand store
 
 const VerifyEmail = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState('verifying');
   const token = searchParams.get('token');
-  const { setUser, setToken } = useAuthStore();
+  const { verifyEmail, setUser, setToken } = useAuthStore(); // Use verifyEmail from the store
   const isExecuted = useRef(false); // Use a ref to track execution
 
   useEffect(() => {
     if (isExecuted.current) return; // Prevent duplicate calls
     isExecuted.current = true;
 
-    const verifyEmail = async () => {
+    const handleVerifyEmail = async () => {
       if (!token) {
         setStatus('error');
         return;
       }
 
       try {
-        // Verify the email and fetch user data
-        const response = await api.get(`/auth/verify-email/${token}`);
-        console.log('Verification response:', response.data); // Log the response
+        // Call the verifyEmail function from the Zustand store
+        const response = await verifyEmail(token);
 
         // Ensure the response contains user and token
-        const { user, token: authToken } = response.data;
+        const { user, token: authToken } = response;
         if (!user || !authToken) {
           throw new Error('User or token missing in response');
         }
 
-        // Set the user's authentication state
-        console.log('Setting user:', user); // Log the user
-        console.log('Setting token:', authToken); // Log the token
         setUser(user);
         setToken(authToken);
 
-        // Redirect to the home page
-        console.log('Redirecting to home page...'); // Log the redirection
-        navigate('/');
-        window.location.reload(); // Force a page refresh
+        // Update status to success
+        setStatus('success');
+
+        // Redirect to the home page after a short delay
+        setTimeout(() => {
+          navigate('/');
+        }, 4000); // 2-second delay before redirecting
       } catch (error) {
         console.error('Verification error:', error);
         setStatus('error');
       }
     };
 
-    verifyEmail();
-  }, [token, navigate, setUser, setToken]);
+    handleVerifyEmail();
+  }, [token, navigate, verifyEmail, setUser, setToken]);
 
   const renderContent = () => {
     switch (status) {
@@ -97,6 +95,9 @@ const VerifyEmail = () => {
             </Button>
           </div>
         );
+
+      default:
+        return null;
     }
   };
 

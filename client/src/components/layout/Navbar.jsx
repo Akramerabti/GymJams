@@ -7,19 +7,18 @@ import { usePoints } from '../../hooks/usePoints';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Navbar = () => {
-    const navigationItems = [
-      { name: 'Home', path: '/' },
-      { name: 'Shop', path: '/shop' },
-      { name: 'Coaching', path: '/coaching' },
-      { name: 'Games', path: '/games' }, // Add the new gambling page
-      { name: 'Gains', path: '/gymbros' },
-      { name: 'Contact', path: '/contact' },
-    ];
+  const navigationItems = [
+    { name: 'Home', path: '/' },
+    { name: 'Shop', path: '/shop' },
+    { name: 'Coaching', path: '/coaching' },
+    { name: 'Games', path: '/games' },
+    { name: 'Gains', path: '/gymbros' },
+    { name: 'Contact', path: '/contact' },
+  ];
 
   const [isOpen, setIsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const { user, logout, isTokenValid } = useAuth();
-
   const { cartItems = [] } = useCart();
   const { balance, fetchPoints } = usePoints();
   const userMenuRef = useRef(null);
@@ -63,23 +62,23 @@ const Navbar = () => {
 
   return (
     <nav className="bg-white shadow-lg sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 ">
         <div className="flex justify-between h-16">
           {/* Logo Section */}
           <div className="flex items-center">
             <Link to="/" className="flex-shrink-0 flex items-center space-x-2">
               <Dumbbell className="h-8 w-8 text-blue-600" />
-              <span className="text-2xl font-bold text-gray-800">GymJams</span>
+              <span className="text-2xl lg:text-xl font-bold text-gray-800">GymJams</span>
             </Link>
           </div>
 
-          {/* Desktop Navigation Links */}
-          <div className="hidden md:flex items-center space-x-8">
+          {/* Desktop Navigation Links (Hidden on md screens and below) */}
+          <div className="hidden md:flex items-center space-x-2">
             {navigationItems.map((item) => (
               <Link
                 key={item.name}
                 to={item.path}
-                className={`text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`text-gray-600 hover:text-blue-600 px-2 py-2 rounded-md text-sm lg:text-base font-medium transition-colors ${
                   location.pathname === item.path ? 'text-blue-600 font-semibold' : ''
                 }`}
               >
@@ -92,9 +91,9 @@ const Navbar = () => {
           <div className="flex items-center space-x-4">
             {/* Points Balance (Logged-in Users Only) */}
             {user && isTokenValid() && (
-              <div className="flex items-center space-x-2 border-r pr-4">
+              <div className="hidden md:flex items-center space-x-2 border-r pr-4">
                 <Coins className="h-5 w-5 text-yellow-500" />
-                <span className="font-medium text-gray-700">{balance} points</span>
+                <span className="font-medium text-gray-700 lg:text-base">{balance} points</span>
               </div>
             )}
 
@@ -103,7 +102,7 @@ const Navbar = () => {
               to="/cart"
               className="relative text-gray-600 hover:text-blue-600 transition-colors"
             >
-              <ShoppingCart className="h-6 w-6" />
+              <ShoppingCart className="h-6 w-6 lg:h-7 lg:w-7" />
               {cartItems.length > 0 && (
                 <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
                   {cartItems.length}
@@ -118,7 +117,7 @@ const Navbar = () => {
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                   className="text-gray-600 hover:text-blue-600 transition-colors"
                 >
-                  <User className="h-6 w-6" />
+                  <User className="h-6 w-6 lg:h-7 lg:w-7" />
                 </button>
                 <AnimatePresence>
                   {isUserMenuOpen && (
@@ -159,13 +158,13 @@ const Navbar = () => {
             ) : (
               <Link
                 to="/login"
-                className="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                className="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm lg:text-lg font-medium transition-colors"
               >
                 Login
               </Link>
             )}
 
-            {/* Mobile Menu Toggle */}
+            {/* Mobile Menu Toggle (Visible on md screens and below) */}
             <div className="md:hidden">
               <button
                 onClick={() => setIsOpen(!isOpen)}
@@ -177,7 +176,7 @@ const Navbar = () => {
           </div>
         </div>
 
-        {/* Mobile Navigation Links */}
+        {/* Mobile Navigation Links (Visible on md screens and below) */}
         <AnimatePresence>
           {isOpen && (
             <motion.div

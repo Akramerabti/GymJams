@@ -189,7 +189,22 @@ export const updatePoints = async (req, res) => {
   console.log('User ID:', userId);
 
   try {
+    const user = await User.findById(userId);
+
+    if (!user) {
+      console.error('User not found');
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+
+    if (user.hasReceivedFirstLoginBonus === false) {
+      user.hasReceivedFirstLoginBonus = true;
+      await user.save();
+    }
+
+    // Update the user's points
     await User.findByIdAndUpdate(userId, { points });
+
     res.status(200).json({ message: 'Points updated successfully' });
   } catch (error) {
     console.error('Failed to update points:', error);

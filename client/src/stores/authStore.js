@@ -27,20 +27,23 @@ const useAuthStore = create(
       },
 
       setToken: (token) => {
-       if (token) {
-         localStorage.setItem('token', token); // Ensure token is saved to localStorage
-         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-         set({ token, isAuthenticated: true });
-       } else {
-         localStorage.removeItem('token'); // Ensure token is removed on logout
-         delete api.defaults.headers.common['Authorization'];
-         set({ token: null, isAuthenticated: false });
-       }
-},
+        if (token) {
+          localStorage.setItem('token', token); // Ensure token is saved to localStorage
+          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          set({ token, isAuthenticated: true });
+        } else {
+          localStorage.removeItem('token'); // Ensure token is removed on logout
+          delete api.defaults.headers.common['Authorization'];
+          set({ token: null, isAuthenticated: false });
+        }
+      },
 
 
       setLoading: (loading) => set({ loading }),
       setError: (error) => set({ error }),
+
+      showOnboarding: false,
+      setShowOnboarding: (show) => set({ showOnboarding: show }),
 
       // Reset function
       reset: () => {
@@ -177,9 +180,6 @@ const useAuthStore = create(
         }
       },
 
-      showOnboarding: false,
-      setShowOnboarding: (show) => set({ showOnboarding: show }),
-
       // Authentication Actions
       login: async (email, password) => {
         const { setLoading, setError, setUser, setToken } = get();
@@ -199,8 +199,9 @@ const useAuthStore = create(
             usePoints.getState().setBalance(user.points);
           }
 
-          if (user.showOnboarding) {
-            set({ showOnboarding: true });
+          if (!(user.hasReceivedFirstLoginBonus)) {
+            set({ showOnboarding: true }); 
+            usePoints.getState().updatePointsInBackend((user.points)+100);
           }
       
           return response.data;
@@ -263,12 +264,19 @@ const useAuthStore = create(
 
         try {
           const response = await api.get('/auth/validate');
+          const user = response.data;
           setUser(response.data);
 
           // Update points balance
           if (response.data.points !== undefined) {
             usePoints.getState().setBalance(response.data.points);
           }
+
+          if (!(user.user.hasReceivedFirstLoginBonus)) {
+            set({ showOnboarding: true }); 
+            usePoints.getState().updatePointsInBackend((user.user.points)+100);
+          }
+
           return true;
         } catch (error) {
           console.error('Token validation failed:', error);
@@ -283,6 +291,7 @@ const useAuthStore = create(
         token: state.token,
         user: state.user,
         isAuthenticated: state.isAuthenticated,
+        showOnboarding: state.showOnboarding, 
       }),
     }
   )
