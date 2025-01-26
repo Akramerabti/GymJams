@@ -62,7 +62,7 @@ const Navbar = () => {
 
   return (
     <nav className="bg-white shadow-lg sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 ">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex justify-between h-16">
           {/* Logo Section */}
           <div className="flex items-center">
@@ -91,9 +91,11 @@ const Navbar = () => {
           <div className="flex items-center space-x-4">
             {/* Points Balance (Logged-in Users Only) */}
             {user && isTokenValid() && (
-              <div className="hidden md:flex items-center space-x-2 border-r pr-4">
+              <div className="flex items-center space-x-2">
                 <Coins className="h-5 w-5 text-yellow-500" />
-                <span className="font-medium text-gray-700 lg:text-base">{balance} points</span>
+                <span className="font-medium text-gray-700 text-sm lg:text-base">
+                  {balance} points
+                </span>
               </div>
             )}
 

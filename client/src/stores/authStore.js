@@ -198,7 +198,7 @@ const useAuthStore = create(
           if (user.points !== undefined) {
             usePoints.getState().setBalance(user.points);
           }
-
+          
           if (!(user.hasReceivedFirstLoginBonus)) {
             set({ showOnboarding: true }); 
             usePoints.getState().updatePointsInBackend((user.points)+100);

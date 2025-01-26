@@ -172,7 +172,7 @@ export const login = async (req, res) => {
         phone: user.phone,
         points: user.points,
         isEmailVerified: user.isEmailVerified,
-        showOnboarding: isFirstLogin 
+        hasReceivedFirstLoginBonus: user.hasReceivedFirstLoginBonus
       }
     });
   } catch (error) {
