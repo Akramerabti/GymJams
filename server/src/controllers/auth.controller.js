@@ -360,16 +360,13 @@ export const verifyEmail = async (req, res) => {
 
     // Find the user by verification token
     const user = await User.findOne({
-      $or: [
-        { verificationToken: token },
-        { isEmailVerified: true }
-      ]
+         verificationToken: token 
     });
 
     if (!user) {
       return res.status(400).json({ message: 'Invalid verification token' });
     }
-
+    
     // Check if the email is already verified
     if (user.isEmailVerified) {
       return res.json({ message: 'Email is already verified' });
