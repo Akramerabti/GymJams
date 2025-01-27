@@ -110,6 +110,25 @@ const LoginForm = () => {
     }
   };
 
+  const handleResendVerificationEmail = async () => {
+    try {
+      const email = localStorage.getItem('verificationEmail');
+      if (!email) {
+        toast.error('No email found for verification.');
+        return;
+      }
+
+      // Call the resend verification endpoint
+      await api.post('/auth/resend-verification', { email });
+
+      // Redirect to the email verification notification page
+      navigate('/email-verification-notification');
+    } catch (error) {
+      console.error('Error resending verification email:', error);
+      toast.error('Failed to resend verification email. Please try again.');
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-blue-700 py-12 px-4 sm:px-6 lg:px-8">
       <motion.div
@@ -137,13 +156,22 @@ const LoginForm = () => {
           <AnimatePresence>
             {error && (
               <motion.div
-                className="bg-red-50 text-red-500 p-3 rounded-md text-sm"
+                className=" flex justify-center bg-red-50 text-red-500 p-3 rounded-md text-sm"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
               >
                 {error}
+                {error.includes('not verified') && (
+                  <button
+                    type="button"
+                    onClick={handleResendVerificationEmail}
+                    className="font-semibold w-1/3 mt-1 h-1/2 bg-gradient-to-br from-red-400 to-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                  >
+                    Resend 
+                  </button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

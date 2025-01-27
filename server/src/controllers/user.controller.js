@@ -234,27 +234,36 @@ export const completeGame = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Check if daily limit reached (e.g., 3 games per day)
+    // Check if daily limit reached (e.g., 1 game per day)
     if (user.gamesPlayed >= 1) {
       return res.status(400).json({ message: 'Daily game limit reached' });
     }
 
     // Update user stats
     user.gamesPlayed += 1;
-  
-    // Update learning streak if the user completed the daily content
+
+    // Check if the user won or lost the game
+    const { win } = req.body; // Expecting `win` to be a boolean (true/false)
+    console.log('Game result:', win ? 'Win' : 'Lose');
+
     const now = new Date();
     const lastReset = new Date(user.lastGameReset);
 
-    if (now.getDate() === lastReset.getDate()) {
-      user.learningStreak += 1;
+    
+    // Reset the learning streak if the user lost the game
+    if (!win) {
+      user.learningStreak = 0;
     } else {
-      user.learningStreak = 1;
+        user.learningStreak += 1;
     }
 
+    // Update the last game reset date
     user.lastGameReset = now;
+
+    // Save the updated user document
     await user.save();
 
+    // Send response
     res.json({
       success: true,
       points: req.body.points,

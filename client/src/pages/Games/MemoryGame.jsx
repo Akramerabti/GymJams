@@ -18,6 +18,33 @@ const KNOWLEDGE_CATEGORIES = {
   TRAINING_PRINCIPLES: 'Training Principles'
 };
 
+const containerVariants = {
+  hidden: { opacity: 0, y: 50 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { 
+      duration: 0.6,
+      when: "beforeChildren",
+      staggerChildren: 0.1
+    }
+  },
+  exit: {
+    opacity: 0,
+    y: -50,
+    transition: { duration: 0.4 }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, x: -20 },
+  visible: { 
+    opacity: 1, 
+    x: 0,
+    transition: { duration: 0.4 }
+  }
+};
+
 const MemoryGame = () => {
   const [dailyContent, setDailyContent] = useState(null);
   const [selectedQuestion, setSelectedQuestion] = useState(null);
@@ -41,7 +68,7 @@ const MemoryGame = () => {
       setIsLoading(true);
       const response = await api.get('/user/daily-count');
       const { completed, streak, gamesPlayed } = response.data;
-      console.log('Fetched daily status:', response.data);
+      
       setHasCompletedDaily(completed);
       setLearningStreak(streak);
       setGamesPlayed(gamesPlayed);
@@ -697,8 +724,7 @@ const MemoryGame = () => {
       setDailyContent(content);
       setSelectedQuestion(randomQuestion);
       setIsLoading(false);
-      console.log('Fetched daily content:', randomQuestion);
-      console.log('Daily content:', randomQuestion.mainTopic.title);
+
     } catch (error) {
       console.error('Error fetching daily content:', error);
       toast.error('Failed to load daily fitness knowledge');
@@ -760,50 +786,56 @@ const MemoryGame = () => {
   const handleAnswerSelect = async (answerIndex) => {
     setSelectedAnswer(answerIndex);
     setShowExplanation(true);
-
+  
     const isCorrect = answerIndex === selectedQuestion.correctAnswer;
-    
+  
     if (isCorrect) {
       createParticleEffect();
-      setScore(prev => prev + 1);
-
-      // Add points to the user's balance
+  
+      // Update score synchronously using a callback
+      setScore((prev) => {
+        const newScore = prev + 1;
+        handleQuizCompletion(newScore, true); // Pass the new score and win status
+        return newScore;
+      });
+  
       const basePoints = 20;
       const streakBonus = Math.round(learningStreak * 1.1);
-      const totalPoints = basePoints + streakBonus ;
-
-      addPoints(totalPoints); // Update points in the frontend state
-      console.log('Total points:', totalPoints);
-      await updatePointsInBackend(balance + totalPoints); // Update points in the backend
+      const totalPoints = basePoints + streakBonus;
+  
+      addPoints(totalPoints);
+      await updatePointsInBackend(balance + totalPoints);
     } else {
-      // Increment games played if the answer is wrong
-      setGamesPlayed(prev => prev + 1);
+      setGamesPlayed((prev) => prev + 1);
+      handleQuizCompletion(0, false); // Pass 0 as the score and win status as false
     }
-
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    handleQuizCompletion();
+  
+    await new Promise((resolve) => setTimeout(resolve, 2000));
   };
 
-  const handleQuizCompletion = async () => {
+  const handleQuizCompletion = async (score, win) => {
     try {
       const totalQuestions = 1; // Only 1 question per day
       const basePoints = 20;
       const streakBonus = Math.round(learningStreak * 1.1);
       const totalPoints = basePoints + streakBonus;
   
-      if (score === totalQuestions) {
-        // User answered correctly
-        await api.post('/user/complete', {
-          score,
-          totalQuestions,
-          points: totalPoints,
-          streak: learningStreak + 1,
-          gamesPlayed: gamesPlayed + 1,
-        });
+      // Send data to the backend
+      const response = await api.post('/user/complete', {
+        score,
+        totalQuestions,
+        points: win ? totalPoints : 0, // Only award points if the user won
+        streak: win ? learningStreak + 1 : 0, // Reset streak if the user lost
+        gamesPlayed: gamesPlayed + 1,
+        win, // Pass the win status to the backend
+      });
   
-        setLearningStreak((prev) => prev + 1);
+      // Update the frontend state based on the response
+      setLearningStreak(response.data.streak); // Use the updated streak from the backend
+      setHasCompletedDaily(true);
   
+      // Show the appropriate toast
+      if (win) {
         // Success toast
         toast.custom((t) => (
           <motion.div
@@ -817,7 +849,7 @@ const MemoryGame = () => {
               <div>
                 <h3 className="font-bold text-lg">Knowledge Champion!</h3>
                 <p className="text-sm opacity-90">
-                  {`${score}/${totalQuestions} correct • ${learningStreak + 1} day streak`}
+                  {`${score}/${totalQuestions} correct • ${response.data.streak} day streak`}
                 </p>
               </div>
             </div>
@@ -830,17 +862,6 @@ const MemoryGame = () => {
           </motion.div>
         ));
       } else {
-        // User failed the question
-        await api.post('/user/complete', {
-          score,
-          totalQuestions,
-          points: 0,
-          streak: 0, // Reset the streak
-          gamesPlayed: gamesPlayed + 1,
-        });
-  
-        setLearningStreak(0); // Reset the streak in the frontend
-  
         // Failure toast
         toast.custom((t) => (
           <motion.div
@@ -867,10 +888,7 @@ const MemoryGame = () => {
           </motion.div>
         ));
       }
-  
-      setHasCompletedDaily(true);
     } catch (error) {
-      console.error('Error completing quiz:', error);
       toast.error('Failed to save your progress');
     }
   };
@@ -885,13 +903,23 @@ const MemoryGame = () => {
     return `${hours}h ${minutes}m`;
   };
 
+  const gradientBg = "bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500";
+  const cardBg = "bg-white bg-opacity-95 backdrop-blur-lg";
+  
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[600px]">
+      <div className="flex items-center justify-center min-h-[600px] bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
         <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full"
+          animate={{ 
+            rotate: 360,
+            scale: [1, 1.2, 1],
+          }}
+          transition={{ 
+            duration: 2,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="w-16 h-16 border-4 border-purple-400 border-t-transparent rounded-full shadow-lg"
         />
       </div>
     );
@@ -900,147 +928,210 @@ const MemoryGame = () => {
   if (hasCompletedDaily) {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center py-12"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+        className={`text-center py-16 ${gradientBg} min-h-[600px] rounded-2xl text-white`}
       >
-        <Award className="w-16 h-16 mx-auto text-yellow-400 mb-4" />
-        <h2 className="text-2xl font-bold mb-4">Daily Learning Complete!</h2>
-        <p className="text-gray-600 mb-6">
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 200, damping: 15 }}
+        >
+          <Award className="w-24 h-24 mx-auto text-yellow-300 mb-6 drop-shadow-lg" />
+        </motion.div>
+        
+        <motion.h2 
+          variants={itemVariants}
+          className="text-4xl font-bold mb-6 bg-clip-text text-yellow-300 bg-size-200 relative inline-block px-2"
+          style={{
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            backgroundSize: '200% 100%',
+            backgroundPosition: '0 0'
+          }}
+        >
+          Daily Learning Complete!
+        </motion.h2>
+        
+        <motion.p 
+          variants={itemVariants}
+          className="text-xl text-purple-200 mb-8"
+        >
           You're on a {learningStreak} day learning streak! 🔥
-        </p>
-        <div className="bg-blue-50 p-4 rounded-lg inline-block">
-          <Clock className="w-8 h-8 mx-auto text-blue-600 mb-2" />
-          <p className="text-sm text-blue-800">
+        </motion.p>
+        
+        <motion.div 
+          variants={itemVariants}
+          className="bg-white bg-opacity-10 p-6 rounded-2xl inline-block backdrop-blur-lg"
+        >
+          <Clock className="w-10 h-10 mx-auto text-purple-300 mb-3" />
+          <p className="text-lg text-purple-200">
             New knowledge available in {timeUntilReset()}
           </p>
-        </div>
+        </motion.div>
       </motion.div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-4">
-      {!showQuiz ? (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-xl shadow-xl p-8 mb-8"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center space-x-2">
-              <Book className="w-6 h-6 text-blue-600" />
-              <h2 className="text-2xl font-bold">
-                {selectedQuestion.mainTopic.title}
-              </h2>
-            </div>
-            <span className="px-4 py-2 bg-blue-100 text-blue-800 rounded-full text-sm">
-              {selectedQuestion.mainTopic.category}
-            </span>
-          </div>
-
-          <div className="prose max-w-none mb-8">
-            <p className="text-gray-700 leading-relaxed">
-              {selectedQuestion.mainTopic.content}
-            </p>
-          </div>
-
-          <div className="bg-gray-50 rounded-lg p-6 mb-8">
-            <h3 className="font-bold text-lg mb-4">Key Points to Remember</h3>
-            <ul className="space-y-3">
-              {selectedQuestion.mainTopic.keyPoints.map((point, index) => (
-                <motion.li
-                  key={index}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="flex items-center space-x-3"
-                >
-                  <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
-                  <span>{point}</span>
-                </motion.li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="bg-blue-50 rounded-lg p-6">
-            <h3 className="font-bold text-lg mb-4">Visual Cues</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {selectedQuestion.mainTopic.visualCues.map((cue, index) => (
-                <motion.div
-                  key={index}
-                  whileHover={{ scale: 1.05 }}
-                  className="bg-white p-4 rounded-lg shadow-sm"
-                >
-                  <div className="flex items-center space-x-3">
-                    <Clock className="w-5 h-5 text-yellow-500" />
-                    <span className="text-gray-700">{cue}</span>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setShowQuiz(true)}
-            className="mt-8 w-full bg-blue-600 text-white py-4 rounded-lg font-bold hover:bg-blue-700 transition-colors"
+    <div className={`max-w-4xl mx-auto p-4 ${gradientBg} rounded-2xl min-h-[600px]`}>
+      <AnimatePresence mode="wait">
+        {!showQuiz ? (
+          <motion.div
+            key="learning"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className={`${cardBg} rounded-2xl shadow-2xl p-8 mb-8`}
           >
-            Test Your Knowledge
-          </motion.button>
-        </motion.div>
-      ) : (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-xl shadow-xl p-8"
-        >
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold">
-                Question 1 of 1
-              </h3>
-              <div className="flex items-center space-x-2">
-                <Brain className="w-5 h-5 text-purple-600" />
-                <span className="font-medium">{score} correct</span>
+            <motion.div 
+              variants={itemVariants}
+              className="flex items-center justify-between mb-8"
+            >
+              <div className="flex items-center space-x-3">
+                <Book className="w-8 h-8 text-indigo-600" />
+                <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
+                  {selectedQuestion.mainTopic.title}
+                </h2>
               </div>
-            </div>
+              <span className="px-6 py-2 bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-800 rounded-full text-sm font-medium shadow-sm">
+                {selectedQuestion.mainTopic.category}
+              </span>
+            </motion.div>
 
-            <p className="text-lg mb-6">
-              {selectedQuestion.question}
-            </p>
+            <motion.div 
+              variants={itemVariants}
+              className="prose max-w-none mb-8"
+            >
+              <p className="text-lg text-gray-700 leading-relaxed">
+                {selectedQuestion.mainTopic.content}
+              </p>
+            </motion.div>
 
-            <div className="space-y-4">
-              {selectedQuestion.answers.map((answer, index) => (
-                <motion.button
-                  key={index}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  disabled={selectedAnswer !== null}
-                  onClick={() => handleAnswerSelect(index)}
-                  className={`w-full p-4 rounded-lg text-left transition-colors ${
-                    selectedAnswer === null
-                      ? 'hover:bg-blue-50 bg-gray-50'
-                      : index === selectedQuestion.correctAnswer
-                      ? 'bg-green-100 border-green-500'
-                      : selectedAnswer === index
-                      ? 'bg-red-100 border-red-500'
-                      : 'bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center border-2 border-gray-300">
-                      {String.fromCharCode(65 + index)}
+            <motion.div 
+              variants={itemVariants}
+              className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-8 mb-8"
+            >
+              <h3 className="font-bold text-xl mb-6 text-indigo-900">Key Points to Remember</h3>
+              <ul className="space-y-4">
+                {selectedQuestion.mainTopic.keyPoints.map((point, index) => (
+                  <motion.li
+                    key={index}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="flex items-center space-x-4 bg-white bg-opacity-50 p-4 rounded-lg"
+                  >
+                    <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0" />
+                    <span className="text-gray-800">{point}</span>
+                  </motion.li>
+                ))}
+              </ul>
+            </motion.div>
+
+            <motion.div 
+              variants={itemVariants}
+              className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-8"
+            >
+              <h3 className="font-bold text-xl mb-6 text-purple-900">Visual Cues</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {selectedQuestion.mainTopic.visualCues.map((cue, index) => (
+                  <motion.div
+                    key={index}
+                    whileHover={{ 
+                      scale: 1.05,
+                      boxShadow: "0 10px 30px -10px rgba(0,0,0,0.1)"
+                    }}
+                    className="bg-white p-6 rounded-xl shadow-sm"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <Clock className="w-6 h-6 text-purple-500" />
+                      <span className="text-gray-700">{cue}</span>
                     </div>
-                    <span>{answer}</span>
-                  </div>
-                </motion.button>
-              ))}
-            </div>
-          </div>
-        </motion.div>
-      )}
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowQuiz(true)}
+              className="mt-8 w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300"
+            >
+              Test Your Knowledge
+            </motion.button>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="quiz"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className={`${cardBg} rounded-2xl shadow-2xl p-8`}
+          >
+            <motion.div variants={itemVariants} className="mb-8">
+              <div className="flex items-center justify-between mb-8">
+                <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
+                  Question 1 of 1
+                </h3>
+                <motion.div 
+                  className="flex items-center space-x-3 bg-gradient-to-r from-indigo-100 to-purple-100 px-6 py-2 rounded-full"
+                  whileHover={{ scale: 1.05 }}
+                >
+                  <Brain className="w-6 h-6 text-indigo-600" />
+                  <span className="font-medium text-indigo-900">{score} correct</span>
+                </motion.div>
+              </div>
+
+              <p className="text-xl mb-8 text-gray-800">
+                {selectedQuestion.question}
+              </p>
+
+              <div className="space-y-4">
+                {selectedQuestion.answers.map((answer, index) => (
+                  <motion.button
+                    key={index}
+                    variants={itemVariants}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    disabled={selectedAnswer !== null}
+                    onClick={() => handleAnswerSelect(index)}
+                    className={`w-full p-6 rounded-xl text-left transition-all duration-300 ${
+                      selectedAnswer === null
+                        ? 'hover:bg-indigo-50 bg-gray-50'
+                        : index === selectedQuestion.correctAnswer
+                        ? 'bg-gradient-to-r from-green-100 to-emerald-100 border-2 border-green-500'
+                        : selectedAnswer === index
+                        ? 'bg-gradient-to-r from-red-100 to-pink-100 border-2 border-red-500'
+                        : 'bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-lg font-medium ${
+                        selectedAnswer === null
+                          ? 'bg-indigo-100 text-indigo-600'
+                          : index === selectedQuestion.correctAnswer
+                          ? 'bg-green-200 text-green-700'
+                          : selectedAnswer === index
+                          ? 'bg-red-200 text-red-700'
+                          : 'bg-gray-200 text-gray-700'
+                      }`}>
+                        {String.fromCharCode(65 + index)}
+                      </div>
+                      <span className="text-lg">{answer}</span>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
