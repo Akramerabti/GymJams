@@ -106,10 +106,20 @@ export const getCoachDashboardData = async (req, res) => {
       .populate('user', 'firstName lastName email') // Populate user details
       .populate('assignedCoach', 'firstName lastName'); // Populate coach details
 
-    // Group subscriptions by user (or guest email)
+    const currentTime = new Date();
+
+    // Filter out subscriptions that are no longer active
+    const activeSubscriptions = subscriptions.filter(sub => {
+      const isCancelled = sub.status === 'cancelled';
+      const isActive = sub.status === 'active' && sub.currentPeriodEnd > currentTime;
+      const isCancelledButStillActive = sub.cancelAtPeriodEnd && sub.currentPeriodEnd > currentTime && isCancelled;
+      return isActive || isCancelledButStillActive;
+    });
+
+    // Group active subscriptions by user (or guest email)
     const userMap = new Map(); // Use a Map to group by user ID or guest email
 
-    subscriptions.forEach(sub => {
+    activeSubscriptions.forEach(sub => {
       const userKey = sub.user?._id || sub.guestEmail; // Use user ID or guest email as a unique key
       if (!userMap.has(userKey)) {
         // If the user is not already in the map, add them
@@ -118,7 +128,7 @@ export const getCoachDashboardData = async (req, res) => {
           firstName: sub.user?.firstName || 'Guest',
           lastName: sub.user?.lastName || '',
           email: sub.user?.email || sub.guestEmail || 'No email',
-          lastActive: sub.lastActive || new Date().toLocaleDateString(), // Default to today if no lastActive
+          lastActive: sub.lastLogin || new Date().toLocaleDateString(), // Default to today if no lastActive
           stats: sub.stats || {
             workoutsCompleted: 0,
             currentStreak: 0,
@@ -137,8 +147,24 @@ export const getCoachDashboardData = async (req, res) => {
     const pendingRequests = subscriptions.filter(sub => sub.coachAssignmentStatus === 'pending').length;
 
     // Mock data for upcoming sessions (replace with actual logic)
-    const upcomingSessions = 8; // Replace with actual logic to count upcoming sessions
+    const upcomingSessions = activeSubscriptions.length; // Each active subscription corresponds to an upcoming session
     const messageThreads = 12; // Replace with actual logic to count active messages
+
+    // Update the coach's coachingSubscriptions and availability.currentClients
+    const coach = await User.findById(coachId);
+    if (coach) {
+      // Remove coachingSubscriptions that are no longer active
+      const activeSubscriptionIds = activeSubscriptions.map(sub => sub._id.toString());
+      coach.coachingSubscriptions = coach.coachingSubscriptions.filter(subId => 
+        activeSubscriptionIds.includes(subId.toString())
+      );
+
+      // Update availability.currentClients
+      coach.availability.currentClients = activeClients;
+
+      // Save the updated coach data
+      await coach.save();
+    }
 
     res.json({
       stats: {

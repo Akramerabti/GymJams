@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { motion } from 'framer-motion';
-import { 
+import { motion, AnimatePresence } from 'framer-motion';
+import {
   Users, Calendar, MessageSquare, TrendingUp,
-  Clock, CheckSquare, AlertCircle, Settings
+  Clock, CheckSquare, AlertCircle, Settings, ArrowRight
 } from 'lucide-react';
 import subscriptionService from '../../services/subscription.service';
+import ClientWork from '../../pages/Dashboard/components/clientwork';
 import { useAuth } from '../../stores/authStore';
 import { toast } from 'sonner';
 
@@ -20,8 +21,11 @@ const DashboardCoach = () => {
   });
 
   const [clients, setClients] = useState([]);
+  const [activeClients, setActiveClients] = useState([]); // New state for active clients
   const [selectedClient, setSelectedClient] = useState(null);
   const [upcomingSessions, setUpcomingSessions] = useState([]);
+  const [showClientWork, setShowClientWork] = useState(false);
+  const [showActiveClients, setShowActiveClients] = useState(false); // New state for showing active clients
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -34,6 +38,7 @@ const DashboardCoach = () => {
           messageThreads: data.stats.messageThreads,
         });
         setClients(data.recentClients);
+        setActiveClients(data.recentClients); // Set active clients
 
         // Mock upcoming sessions (replace with actual data from the backend)
         setUpcomingSessions([
@@ -62,18 +67,36 @@ const DashboardCoach = () => {
     }
   };
 
-  const StatCard = ({ title, value, icon: Icon, trend }) => (
+  const handleActiveClientsClick = async () => {
+    try {
+      
+      setShowActiveClients(true); // Show the active clients list
+    } catch (error) {
+      toast.error('Failed to fetch active clients');
+    }
+  };
+
+  const StatCard = ({ title, value, icon: Icon, trend, onClick }) => (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-xl shadow-lg p-6"
+      whileHover={{ scale: 1.05 }}
+      transition={{ type: 'spring', stiffness: 300 }}
+      className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white cursor-pointer"
+      onClick={onClick}
     >
       <div className="flex items-center justify-between mb-4">
-        <div className="p-2 bg-blue-50 rounded-lg">
-          <Icon className="w-6 h-6 text-blue-600" />
+        <div className="p-2 bg-white/20 rounded-lg">
+          <Icon className="w-6 h-6" />
         </div>
+        {trend && (
+          <div className="flex items-center space-x-1">
+            <TrendingUp className="w-4 h-4" />
+            <span className="text-sm">{trend}</span>
+          </div>
+        )}
       </div>
-      <h3 className="text-sm text-gray-600 mb-1">{title}</h3>
+      <h3 className="text-sm font-medium mb-1">{title}</h3>
       <p className="text-2xl font-bold">{value}</p>
     </motion.div>
   );
@@ -85,7 +108,7 @@ const DashboardCoach = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-8 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 text-white"
+          className="p-8 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
         >
           <div className="flex items-center justify-between">
             <div>
@@ -109,6 +132,7 @@ const DashboardCoach = () => {
             title="Active Clients"
             value={stats.activeClients}
             icon={Users}
+            onClick={handleActiveClientsClick} // Add click handler
           />
           <StatCard
             title="Pending Requests"
@@ -128,23 +152,35 @@ const DashboardCoach = () => {
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 from-black to-gray-900 bg-gradient-to-br rounded-2xl p-6 shadow-lg">
           {/* Client List */}
-          <Card className="lg:col-span-2">
+          <Card className="lg:col-span-2 bg-gradient-to-tr from-purple-900 to-yellow-900">
             <CardHeader>
               <CardTitle>Recent Clients</CardTitle>
             </CardHeader>
             <CardContent>
               {clients.length > 0 ? (
-                <div className="space-y-4">
+                <motion.div
+                  className="space-y-4"
+                  initial="hidden"
+                  animate="visible"
+                  variants={{
+                    visible: { transition: { staggerChildren: 0.1 } },
+                    hidden: {},
+                  }}
+                >
                   {clients.map((client) => (
-                    <div
+                    <motion.div
                       key={client.id}
-                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      whileHover={{ scale: 1.02 }}
+                      transition={{ type: 'spring', stiffness: 300 }}
+                      className="flex items-center justify-between p-4 bg-white rounded-lg shadow-sm cursor-pointer hover:shadow-md"
                       onClick={() => handleClientClick(client)}
                     >
                       <div className="flex items-center space-x-4">
-                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center ">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                           <Users className="w-5 h-5 text-blue-600" />
                         </div>
                         <div>
@@ -154,12 +190,10 @@ const DashboardCoach = () => {
                           <p className="text-sm text-gray-500">Last active: {client.lastActive}</p>
                         </div>
                       </div>
-                      <Button variant="outline" size="sm" className="text-blue-700">
-                        View Details
-                      </Button>
-                    </div>
+                      <ArrowRight className="w-5 h-5 text-gray-400" />
+                    </motion.div>
                   ))}
-                </div>
+                </motion.div>
               ) : (
                 <p className="text-gray-500">No recent clients found.</p>
               )}
@@ -175,13 +209,20 @@ const DashboardCoach = () => {
               {upcomingSessions.length > 0 ? (
                 <div className="space-y-4">
                   {upcomingSessions.map((session) => (
-                    <div key={session.id} className="p-4 bg-gray-50 rounded-lg">
+                    <motion.div
+                      key={session.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      whileHover={{ scale: 1.02 }}
+                      transition={{ type: 'spring', stiffness: 300 }}
+                      className="p-4 bg-white rounded-lg shadow-sm"
+                    >
                       <div className="flex justify-between items-start mb-2">
                         <p className="font-medium">{session.clientName}</p>
                         <span className="text-sm text-gray-500">{session.time}</span>
                       </div>
                       <p className="text-sm text-gray-600">{session.duration}</p>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               ) : (
@@ -191,71 +232,165 @@ const DashboardCoach = () => {
           </Card>
         </div>
 
+        {/* Active Clients Modal */}
+        <AnimatePresence>
+          {showActiveClients && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.9 }}
+                className="bg-white rounded-xl p-6 max-w-2xl w-full shadow-lg"
+              >
+                <h2 className="text-2xl font-bold mb-4">Active Clients</h2>
+                <div className="space-y-4">
+                  {activeClients.length > 0 ? (
+                    activeClients.map((client) => (
+                      <motion.div
+                        key={client.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        whileHover={{ scale: 1.02 }}
+                        transition={{ type: 'spring', stiffness: 300 }}
+                        className="flex items-center justify-between p-4 bg-white rounded-lg shadow-sm cursor-pointer hover:shadow-md"
+                        onClick={() => handleClientClick(client)}
+                      >
+                        <div className="flex items-center space-x-4">
+                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                            <Users className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-700">
+                              {client.firstName} {client.lastName || client.email}
+                            </p>
+                            <p className="text-sm text-gray-500">Last active: {client.lastActive}</p>
+                          </div>
+                        </div>
+                        <ArrowRight className="w-5 h-5 text-gray-400" />
+                      </motion.div>
+                    ))
+                  ) : (
+                    <p className="text-gray-500">No active clients found.</p>
+                  )}
+                </div>
+                <div className="flex justify-end mt-6">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowActiveClients(false)}
+                  >
+                    Close
+                  </Button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Client Details Modal */}
-        {selectedClient && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl p-6 max-w-lg w-full">
-              <h2 className="text-2xl font-bold mb-4 ">
-                {selectedClient.firstName} {selectedClient.lastName || selectedClient.email}
-              </h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Workouts Completed</label>
-                  <input
-                    type="number"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-                    defaultValue={selectedClient.stats.workoutsCompleted}
-                  />
+        <AnimatePresence>
+          {selectedClient && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.9 }}
+                className="bg-white rounded-xl p-6 max-w-lg w-full shadow-lg"
+              >
+                <h2 className="text-2xl font-bold mb-4">
+                  {selectedClient.firstName} {selectedClient.lastName || selectedClient.email}
+                </h2>
+                <div className="space-y-4">
+                  {/* Redesigned Input Boxes */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Workouts Completed</label>
+                    <input
+                      name="workoutsCompleted"
+                      type="number"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      defaultValue={selectedClient.stats.workoutsCompleted}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Current Streak</label>
+                    <input
+                      name="currentStreak"
+                      type="number"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      defaultValue={selectedClient.stats.currentStreak}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Monthly Progress</label>
+                    <input
+                      name="monthlyProgress"
+                      type="number"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      defaultValue={selectedClient.stats.monthlyProgress}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Goals Achieved</label>
+                    <input
+                      name="goalsAchieved"
+                      type="number"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      defaultValue={selectedClient.stats.goalsAchieved}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Current Streak</label>
-                  <input
-                    type="number"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-                    defaultValue={selectedClient.stats.currentStreak}
-                  />
+                <div className="flex justify-end space-x-4 mt-6">
+                  <Button
+                    variant="outline"
+                    onClick={() => setSelectedClient(null)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      const updatedStats = {
+                        workoutsCompleted: parseInt(document.querySelector('input[name="workoutsCompleted"]').value),
+                        currentStreak: parseInt(document.querySelector('input[name="currentStreak"]').value),
+                        monthlyProgress: parseInt(document.querySelector('input[name="monthlyProgress"]').value),
+                        goalsAchieved: parseInt(document.querySelector('input[name="goalsAchieved"]').value),
+                      };
+                      handleUpdateClientStats(updatedStats);
+                      window.location.reload();
+                    }}
+                  >
+                    Save Changes
+                  </Button>
+                  {/* Advanced Button to Open Client Work */}
+                  <Button
+                    variant="primary"
+                    onClick={() => setShowClientWork(true)}
+                  >
+                    Open Client Work
+                  </Button>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Monthly Progress</label>
-                  <input
-                    type="number"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-                    defaultValue={selectedClient.stats.monthlyProgress}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Goals Achieved</label>
-                  <input
-                    type="number"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-                    defaultValue={selectedClient.stats.goalsAchieved}
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end space-x-4 mt-6">
-                <Button
-                  variant="outline"
-                  onClick={() => setSelectedClient(null)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => {
-                    const updatedStats = {
-                      workoutsCompleted: parseInt(document.querySelector('input[name="workoutsCompleted"]').value),
-                      currentStreak: parseInt(document.querySelector('input[name="currentStreak"]').value),
-                      monthlyProgress: parseInt(document.querySelector('input[name="monthlyProgress"]').value),
-                      goalsAchieved: parseInt(document.querySelector('input[name="goalsAchieved"]').value),
-                    };
-                    handleUpdateClientStats(updatedStats);
-                  }}
-                >
-                  Save Changes
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Client Work Modal */}
+        <AnimatePresence>
+          {showClientWork && selectedClient && (
+            <ClientWork
+              client={selectedClient}
+              onClose={() => setShowClientWork(false)}
+            />
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

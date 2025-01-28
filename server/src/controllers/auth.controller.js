@@ -8,6 +8,7 @@ import { sendVerificationEmail, sendPasswordResetEmail  } from '../services/emai
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { subscribe } from 'diagnostics_channel';
 
 const __filename = fileURLToPath(import.meta.url); // Get the file path
 const __dirname = path.dirname(__filename); // Get the directory name
@@ -172,7 +173,9 @@ export const login = async (req, res) => {
         phone: user.phone,
         points: user.points,
         isEmailVerified: user.isEmailVerified,
-        hasReceivedFirstLoginBonus: user.hasReceivedFirstLoginBonus
+        hasReceivedFirstLoginBonus: user.hasReceivedFirstLoginBonus,
+        role: user.role,
+        subscription: user.subscription
       }
     });
   } catch (error) {
