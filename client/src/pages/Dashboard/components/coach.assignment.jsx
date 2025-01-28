@@ -247,7 +247,7 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
   const handleCoachSelect = async (coach, retryCount = 0) => {
     try {
       setAssignmentStatus('pending');
-      const response = await subscriptionService.assignCoach(coach.id);
+      await subscriptionService.assignCoach(coach.id);
 
       setSelectedCoach(coach);
       setAssignmentStatus('assigned');

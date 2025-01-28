@@ -122,22 +122,33 @@ const DashboardUser = () => {
 
   // Fetch assigned coach details
   const fetchAssignedCoach = async () => {
-    if (subscription?.assignedCoach) {
-      try {
-        const { coaches } = await subscriptionService.getCoaches();
-        const coach = coaches.find(c => c._id === subscription.assignedCoach);
+    if (!subscription?.assignedCoach) {
+      return;
+    }
+  
+    try {
+      const { coaches } = await subscriptionService.getCoaches();
+      const coach = coaches.find(c => 
+        c._id === subscription.assignedCoach 
+      );
+
+      if (coach) {
         setAssignedCoach(coach);
-      } catch (error) {
-        console.error('Failed to fetch assigned coach:', error);
+      } else {
+        console.error('Coach not found in coaches list');
+        toast.error('Unable to load coach details');
       }
+    } catch (error) {
+      console.error('Failed to fetch assigned coach:', error);
+      toast.error('Error loading coach details');
     }
   };
 
   useEffect(() => {
-    if (subscription) {
+    if (subscription?.assignedCoach) {
       fetchAssignedCoach();
     }
-  }, [subscription]);
+  }, [subscription?.assignedCoach]); 
 
   const verifyQuestionnaireAndSubscription = async () => {
     try {
@@ -168,7 +179,7 @@ const DashboardUser = () => {
       } else {
         setShowCoachAssignment(false);
       }
-
+ 
       setSubscription(subData);
       setQuestionnaire(questionnaireData);
       setLoading(false);
@@ -197,15 +208,28 @@ const DashboardUser = () => {
     verifyQuestionnaireAndSubscription();
   }, [user]);
 
-  const handleCoachAssigned = (coach) => {
-    setShowCoachAssignment(false); // Hide the CoachAssignment component
-    setSubscription((prev) => ({
-      ...prev,
-      assignedCoach: coach,
-      coachAssignmentStatus: 'assigned',
-    }));
-    setAssignedCoach(coach); // Update the assigned coach state
-  };
+  const handleCoachAssigned = async (coach) => {
+  try {
+
+    const accessToken = localStorage.getItem('accessToken');
+    const latestSubscription = await subscriptionService.getCurrentSubscription(accessToken);
+    
+    if (latestSubscription?.assignedCoach) {
+      setShowCoachAssignment(false);
+      setSubscription(latestSubscription);
+      setAssignedCoach(coach);
+    } else {
+      // If still not updated, show loading state
+      toast.info('Finalizing coach assignment...');
+      setTimeout(() => {
+        verifyQuestionnaireAndSubscription();
+      }, 2000);
+    }
+  } catch (error) {
+    console.error('Error handling coach assignment:', error);
+    toast.error('Error updating coach assignment');
+  }
+};
 
   const handleUpgradeClick = () => {
     navigate('/dashboard/upgrade', {
