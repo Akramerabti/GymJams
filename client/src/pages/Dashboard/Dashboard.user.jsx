@@ -12,6 +12,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import CoachAssignment from './components/coach.assignment';
+import CoachInteraction from './components/CoachInteraction';
 
 const DashboardCard = ({ children, className = '', ...props }) => (
   <motion.div
@@ -117,7 +118,7 @@ const DashboardUser = () => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showCoachAssignment, setShowCoachAssignment] = useState(false);
-  const [assignedCoach, setAssignedCoach] = useState(null); // State for assigned coach
+  const [assignedCoach, setAssignedCoach] = useState(null);
 
   // Fetch assigned coach details
   const fetchAssignedCoach = async () => {
@@ -319,6 +320,11 @@ const DashboardUser = () => {
         </div>
       </div>
     </motion.div>
+
+     {/* Coach Interaction Section */}
+     {assignedCoach && (
+          <CoachInteraction coach={assignedCoach} />
+        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
