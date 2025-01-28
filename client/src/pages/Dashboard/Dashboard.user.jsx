@@ -188,6 +188,11 @@ const DashboardUser = () => {
     }
   };
 
+  const getUserFirstName = (user) => {
+    return user?.user?.firstName || user?.firstName || '';
+  };
+  
+
   useEffect(() => {
     verifyQuestionnaireAndSubscription();
   }, [user]);
@@ -255,15 +260,15 @@ const DashboardUser = () => {
       className={`p-8 rounded-2xl bg-gradient-to-r ${currentTier.color} text-white`}
     >
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-6 sm:space-y-0">
-        {/* Left Side: Welcome Message and Coach Info */}
-        <div className="text-center sm:text-left">
-          <h1 className="text-3xl font-bold mb-2">
-            Welcome back{user ? `, ${user.user.firstName || user.firstName}` : ''}! 👋
-          </h1>
-          <div className="flex items-center justify-center sm:justify-start">
-            {currentTier.icon}
-            <span className="ml-2 text-lg">{currentTier.name} Plan</span>
-          </div>
+    {/* Left Side: Welcome Message and Coach Info */}
+    <div className="text-center sm:text-left">
+      <h1 className="text-3xl font-bold mb-2">
+        Welcome back{user ? `, ${getUserFirstName(user)}` : ''}! 👋
+      </h1>
+      <div className="flex items-center justify-center sm:justify-start">
+        {currentTier.icon}
+        <span className="ml-2 text-lg">{currentTier.name} Plan</span>
+      </div>
           {/* Display Assigned Coach */}
           {assignedCoach && (
             <div className="mt-4 flex items-center space-x-3 justify-center sm:justify-start">

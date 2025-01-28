@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,7 @@ const Coin = ({ isFlipping, result }) => {
         className="w-full h-full absolute rounded-full preserve-3d"
         initial={false}
         animate={{
-          rotateY: isFlipping ? 1800 : 0, // Keep spinning while flipping, stop at 0 when done
+          rotateY: isFlipping ? 3000 : 0, // Keep spinning while flipping, stop at 0 when done
         }}
         transition={{
           duration: isFlipping ? 1.5 : 0.5, // Faster flip animation (1.5 seconds)
@@ -161,15 +161,9 @@ const CoinFlip = ({ minBet = 100, maxBet = 10000 }) => {
   const [result, setResult] = useState(null);
   const [showResult, setShowResult] = useState(false);
   const [gameOver, setGameOver] = useState(false);
+  const [delayedResult, setDelayedResult] = useState(false);
   const [inputError, setInputError] = useState(null);
   const { balance, subtractPoints, addPoints, updatePointsInBackend } = usePoints();
-
-  const betPresets = [
-    { label: 'Min', amount: minBet },
-    { label: '1000', amount: 1000 },
-    { label: '5000', amount: 5000 },
-    { label: 'Max', amount: maxBet }
-  ];
 
   const handleReBet = () => {
     // Keep the same bet amount and result, but reset other game state
@@ -177,6 +171,21 @@ const CoinFlip = ({ minBet = 100, maxBet = 10000 }) => {
     setGameOver(false);  // Reset game over state
     setShowResult(false); // Hide the result display
   };
+
+   useEffect(() => {
+    if (showResult && result) {
+      // Set a timeout to delay the display of the result
+      const timer = setTimeout(() => {
+        setDelayedResult(true);
+      }, 1000); // 1 second delay
+
+      // Clear the timeout if the component unmounts or showResult changes
+      return () => clearTimeout(timer);
+    } else {
+      // Reset delayedResult if showResult is false
+      setDelayedResult(false);
+    }
+  }, [showResult, result]);
 
   const handleBetAmountChange = (e) => {
     const value = e.target.value;
@@ -280,13 +289,13 @@ const CoinFlip = ({ minBet = 100, maxBet = 10000 }) => {
             </div>
 
             {/* Coin Display */}
-            <div className="h-64 relative mb-6 flex items-center justify-center">
+            <div className="h-64 relative mb-2 flex items-center justify-center">
               <Coin isFlipping={isFlipping} result={result} />
             </div>
 
             {/* Result Display */}
-            {showResult && result && (
-              <div className="text-center text-xl font-bold mb-6">
+            {showResult && result && delayedResult && (
+              <div className="text-center text-xl font-bold mb-4">
                 {result === userChoice ? (
                   <span className="text-green-400">You won! 🎉</span>
                 ) : (

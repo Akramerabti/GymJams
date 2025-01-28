@@ -32,6 +32,7 @@ import Questionnaire from './pages/Questionnaire';
 import Games from './pages/Games'; 
 import HiddenGames from './pages/HiddenGames';
 import Onboarding from './pages/Onboarding';
+import Contact from './pages/CustomerService/contact';
 
 const App = () => {
   const { checkAuth, logout, showOnboarding, setShowOnboarding} = useAuthStore();
@@ -78,6 +79,8 @@ const App = () => {
           <Route path="/questionnaire" element={<Questionnaire />} />
           <Route path="/games" element={ <Games />} />
           <Route path="/hidden-games" element={<HiddenGames />} />
+          <Route path="/contact" element={<Contact />} />
+
 
           {/* Protected Routes */}
           <Route path="/profile" element={

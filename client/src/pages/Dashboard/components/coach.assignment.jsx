@@ -387,10 +387,12 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
                   <h4 className="text-xl text-blue-600 font-semibold mt-2">
                     {selectedCoach.firstName} {selectedCoach.lastName}
                   </h4>
-                  {selectedCoach.specialties && (
+                  {selectedCoach.specialties && selectedCoach.specialties.length > 0 ? (
                     <p className="text-gray-600 mt-1">
-                      {selectedCoach.specialties.join(' • ')}
+                      Specialties: {selectedCoach.specialties.join(' • ')}
                     </p>
+                  ) : (
+                    <p className="text-gray-600 mt-1">No specialties listed.</p>
                   )}
                 </motion.div>
               </div>

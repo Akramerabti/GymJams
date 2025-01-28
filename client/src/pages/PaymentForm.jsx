@@ -156,7 +156,7 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
           <span className="text-xs sm:text-sm text-gray-400">
             I agree to the{' '}
             <span
-              className="text-primary hover:underline cursor-pointer text-blue-800"
+              className="text-blue-700 hover:underline cursor-pointer"
               onClick={() => setShowTerms(true)}
             >
               Terms of Service
@@ -167,30 +167,112 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
 
       {showTerms && (
         <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-lg max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg sm:text-xl font-bold text-gray-800">Terms of Service</h3>
-              <button
-                onClick={() => setShowTerms(false)}
-                className="text-gray-400 hover:text-gray-700"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="text-xs sm:text-sm text-gray-600">
-              <p className="mb-4">By subscribing to our service, you agree to the following terms:</p>
-              <ul className="list-disc list-inside space-y-2">
-                <li>You will be billed monthly for the subscription.</li>
-                <li>You can cancel your subscription at any time.</li>
-                <li>No refunds are provided for partial subscription periods.</li>
-                <li>We reserve the right to change the terms at any time.</li>
+        <div className="bg-white rounded-lg shadow-lg w-full max-w-lg max-h-[90vh] p-4 sm:p-6 relative flex flex-col">
+          <div className="flex justify-between items-center sticky top-0 bg-white z-10 pb-2">
+            <h3 className="text-lg sm:text-xl font-bold text-gray-800">Terms of Service</h3>
+            <button
+              onClick={() => setShowTerms(false)}
+              className="text-gray-400 hover:text-gray-700"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          <div 
+            className="text-xs sm:text-sm text-gray-600 space-y-6 overflow-y-auto pr-4 scrollbar-thin" 
+            style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#CBD5E0 #EDF2F7',
+            }}
+          >
+            <style jsx global>{`
+              .scrollbar-thin::-webkit-scrollbar {
+                width: 8px;
+              }
+              
+              .scrollbar-thin::-webkit-scrollbar-track {
+                background: #EDF2F7;
+                border-radius: 4px;
+              }
+              
+              .scrollbar-thin::-webkit-scrollbar-thumb {
+                background-color: #CBD5E0;
+                border-radius: 4px;
+                border: 2px solid #EDF2F7;
+              }
+              
+              .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+                background-color: #A0AEC0;
+              }
+            `}</style>
+  
+            <section>
+              <h4 className="font-semibold text-gray-800 mb-2">1. Subscription Agreement</h4>
+              <p>By subscribing to our service ("Service"), you ("User," "you," or "your") agree to be bound by these Terms of Service ("Terms"). Please read these Terms carefully before subscribing.</p>
+            </section>
+  
+            <section>
+              <h4 className="font-semibold text-gray-800 mb-2">2. Billing and Payment</h4>
+              <ul className="list-disc list-inside space-y-1">
+                <li>You will be billed monthly according to your selected subscription plan. All fees are payable in advance.</li>
+                <li>Your subscription will automatically renew each month unless canceled.</li>
+                <li>We reserve the right to modify pricing with 30 days advance notice.</li>
               </ul>
-            </div>
+            </section>
+  
+            <section>
+              <h4 className="font-semibold text-gray-800 mb-2">3. Cancellation and Refunds</h4>
+              <ul className="list-disc list-inside space-y-1">
+                <li>You may cancel your subscription any time through profile settings. </li>
+                <li>You may decide to end recurring payments by finishing the current month.</li>
+                <li>40% refunds are provided within 10 days of initial subscription.</li>
+                <li>No refunds are issued for partial subscription periods after the 10-day cooling-off period.</li>
+                <li>Points or benefits from refunded periods will be forfeited.</li>
+              </ul>
+            </section>
+  
+            <section>
+              <h4 className="font-semibold text-gray-800 mb-2">4. Service Modifications</h4>
+              <p>We reserve the right to modify, suspend, or discontinue any aspect of the Service at any time. We will provide reasonable notice of material changes that may adversely affect your use.</p>
+            </section>
+  
+            <section>
+              <h4 className="font-semibold text-gray-800 mb-2">5. Account Management</h4>
+              <ul className="list-disc list-inside space-y-1">
+                <li>You are responsible for maintaining account credential confidentiality.</li>
+                <li>All activities under your account are your responsibility.</li>
+                <li>We may suspend accounts that violate these Terms.</li>
+              </ul>
+            </section>
+  
+            <section>
+              <h4 className="font-semibold text-gray-800 mb-2">6. Points System</h4>
+              <ul className="list-disc list-inside space-y-1">
+                <li>Points are forfeited upon refund-eligible cancellations.</li>
+                <li>Points are utilities for benefits within the website.</li>
+              </ul>
+            </section>
+  
+            <section>
+              <h4 className="font-semibold text-gray-800 mb-2">7. Liability</h4>
+              <p>To the maximum extent permitted by law, we shall not be liable for indirect, incidental, or consequential damages, including loss of data, profits, or service interruptions.</p>
+            </section>
+  
+            <section>
+              <h4 className="font-semibold text-gray-800 mb-2">8. Terms Updates</h4>
+              <ul className="list-disc list-inside space-y-2 mb-4">
+                <li>We reserve the right to modify these Terms at any time.</li>
+                <li>Material changes will be notified via email.</li>
+                <li>Continued use after changes constitutes acceptance.</li>
+              </ul>
+            </section>
           </div>
         </div>
-      )}
+      </div>
+    )}
+  
 
       <button
         type="submit"
@@ -203,7 +285,7 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
 
       <p className="text-center text-xs sm:text-sm text-gray-400">
         Need help?{' '}
-        <a href="/contact" className="text-primary hover:underline text-blue-800">
+        <a href="/contact" className="hover:underline text-blue-700">
           Contact us
         </a>
       </p>
