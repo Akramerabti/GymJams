@@ -111,23 +111,13 @@ const LoginForm = () => {
   };
 
   const handleResendVerificationEmail = async () => {
-    try {
-      const email = localStorage.getItem('verificationEmail');
-      if (!email) {
-        toast.error('No email found for verification.');
-        return;
-      }
-
-      // Call the resend verification endpoint
-      await api.post('/auth/resend-verification', { email });
-
-      // Redirect to the email verification notification page
-      navigate('/email-verification-notification');
-    } catch (error) {
-      console.error('Error resending verification email:', error);
-      toast.error('Failed to resend verification email. Please try again.');
-    }
-  };
+  try {
+    const email = watch('email'); // Get the email from the form
+    await api.post('/auth/resend-verification', { email })
+  } catch (err) {
+    toast.error('Failed to resend verification email. Please try again.');
+  }
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-blue-700 py-12 px-4 sm:px-6 lg:px-8">
