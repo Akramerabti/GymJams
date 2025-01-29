@@ -115,6 +115,7 @@ const LoginForm = () => {
   try {
     const email = watch('email'); // Get the email from the form
     await api.post('/auth/resend-verification', { email })
+    navigate('/email-verification-notification');
   } catch (err) {
     toast.error('Failed to resend verification email. Please try again.');
   }
