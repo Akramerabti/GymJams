@@ -198,7 +198,7 @@ const useAuthStore = create(
           if (user.points !== undefined) {
             usePoints.getState().setBalance(user.points);
           }
-          
+          console.log('has received login bonus', user.hasReceivedFirstLoginBonus)
           if (!(user.hasReceivedFirstLoginBonus)) {
             set({ showOnboarding: true }); 
             usePoints.getState().updatePointsInBackend((user.points)+100);
@@ -271,7 +271,7 @@ const useAuthStore = create(
           if (response.data.points !== undefined) {
             usePoints.getState().setBalance(response.data.points);
           }
-
+          console.log('has received login bonus', user.user.hasReceivedFirstLoginBonus)
           if (!(user.user.hasReceivedFirstLoginBonus)) {
             set({ showOnboarding: true }); 
             usePoints.getState().updatePointsInBackend((user.user.points)+100);
