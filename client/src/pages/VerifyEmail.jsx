@@ -41,7 +41,7 @@ const VerifyEmail = () => {
 
         // Redirect to the home page after a short delay
         setTimeout(() => {
-          navigate('/');
+          window.location.replace('/');
         }, 4000); // 2-second delay before redirecting
       } catch (error) {
         console.error('Verification error:', error);
