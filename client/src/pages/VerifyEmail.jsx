@@ -72,7 +72,7 @@ const VerifyEmail = () => {
             </p>
             <Button 
               className="w-full" 
-              onClick={() => navigate('/')}
+              onClick={() => window.location.replace('/')}
             >
               Go to Home
             </Button>
