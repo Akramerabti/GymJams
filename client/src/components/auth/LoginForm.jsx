@@ -21,12 +21,13 @@ const LoginForm = () => {
   const navigate = useNavigate();
 
   const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm({
-    resolver: zodResolver(loginSchema),
-  });
+  register,
+  handleSubmit,
+  watch, // Add this
+  formState: { errors, isSubmitting },
+} = useForm({
+  resolver: zodResolver(loginSchema),
+});
 
   const onSubmit = async (data, retryCount = 0) => {
     try {
