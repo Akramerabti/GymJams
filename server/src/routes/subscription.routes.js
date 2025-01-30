@@ -11,6 +11,7 @@ import {
   getQuestionnaireStatus,
   submitQuestionnaire,
   assignCoach,
+  messaging,
 } from '../controllers/subscription.Controller.js';
 import stripe from '../config/stripe.js';
 
@@ -25,21 +26,16 @@ router.post('/access', optionalAuthenticate, accessSubscription);
 router.get('/questionnaire-status', optionalAuthenticate, getQuestionnaireStatus);
 router.post('/submit-questionnaire', optionalAuthenticate, submitQuestionnaire);
 router.post('/assign-coach', optionalAuthenticate, assignCoach);
+router.post('/subscriptions/:id/send-message', messaging);
 
-router.post('/webhook', 
-  express.raw({ type: 'application/json' }),
-  async (req, res) => {
+router.post('/webhook', express.raw({ type: 'application/json' }),  async (req, res) => {
     const sig = req.headers['stripe-signature'];
-
     try {
-
-
       const event = stripe.webhooks.constructEvent(
         req.body,
         sig,
         process.env.STRIPE_WEBHOOK_SECRET
       );
-
       await handleWebhook(event);
       res.json({ received: true });
     } catch (err) {

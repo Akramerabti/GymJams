@@ -65,7 +65,7 @@ app.post('/api/subscription/webhook',
       res.status(400).send(`Webhook Error: ${err.message}`);
     }
   }
-)
+);
 
 // Security Middleware
 app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
@@ -127,8 +127,7 @@ app.get('/', (req, res) => {
   res.send('API server running'); 
 });
 
-
-// Start server
+// Start HTTP server
 const PORT = process.env.PORT || 5000;
 
 let server;
@@ -144,6 +143,10 @@ try {
   logger.error('Failed to start server:', error);
   process.exit(1);
 }
+
+// Initialize WebSocket server
+import { initializeSocket } from './socketServer.js';
+const io = initializeSocket(server);
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
@@ -182,7 +185,6 @@ process.on('SIGTERM', () => {
 
 // Add near bottom with other initializations
 initializeCoachPayouts();
-
 initializeSubcleanupJobs();
 
 export default app;

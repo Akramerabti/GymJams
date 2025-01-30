@@ -34,9 +34,11 @@ import HiddenGames from './pages/HiddenGames';
 import Onboarding from './pages/Onboarding';
 import Contact from './pages/CustomerService/contact';
 
+// Socket Context
+import { SocketProvider } from './SocketContext';
+
 const App = () => {
-  const { checkAuth, logout, showOnboarding, setShowOnboarding} = useAuthStore();
-  
+  const { checkAuth, logout, showOnboarding, setShowOnboarding } = useAuthStore();
 
   useEffect(() => {
     const validateTokenOnLoad = async () => {
@@ -59,54 +61,55 @@ const App = () => {
   }, [checkAuth, logout]);
 
   return (
-    <Router>
-      <Layout>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<Home />} />
-          <Route path="/coaching" element={<CoachingHome />} />
-          <Route path="/shop" element={<Shop />} />
-          <Route path="/cart" element={<Cart />} />
-          <Route path="/shop-checkout" element={<ShopCheckout />} />
-          <Route path="/subscription-checkout" element={<SubscriptionCheckout />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/verify-email" element={<VerifyEmail />} />
-          <Route path="/email-verification-notification" element={<EmailVerificationNotification />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/questionnaire" element={<Questionnaire />} />
-          <Route path="/games" element={ <Games />} />
-          <Route path="/hidden-games" element={<HiddenGames />} />
-          <Route path="/contact" element={<Contact />} />
+    <SocketProvider>
+      <Router>
+        <Layout>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<Home />} />
+            <Route path="/coaching" element={<CoachingHome />} />
+            <Route path="/shop" element={<Shop />} />
+            <Route path="/cart" element={<Cart />} />
+            <Route path="/shop-checkout" element={<ShopCheckout />} />
+            <Route path="/subscription-checkout" element={<SubscriptionCheckout />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/email-verification-notification" element={<EmailVerificationNotification />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/questionnaire" element={<Questionnaire />} />
+            <Route path="/games" element={<Games />} />
+            <Route path="/hidden-games" element={<HiddenGames />} />
+            <Route path="/contact" element={<Contact />} />
 
+            {/* Protected Routes */}
+            <Route path="/profile" element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            } />
+            <Route path="/orders" element={
+              <ProtectedRoute>
+                <Orders />
+              </ProtectedRoute>
+            } />
+            <Route path="/subscription-management" element={
+              <ProtectedRoute>
+                <SubscriptionManagement />
+              </ProtectedRoute>
+            } />
+          </Routes>
 
-          {/* Protected Routes */}
-          <Route path="/profile" element={
-            <ProtectedRoute>
-              <Profile />
-            </ProtectedRoute>
-          } />
-          <Route path="/orders" element={
-            <ProtectedRoute>
-              <Orders />
-            </ProtectedRoute>
-          } />
-          <Route path="/subscription-management" element={
-            <ProtectedRoute>
-              <SubscriptionManagement />
-            </ProtectedRoute>
-          } />
-        </Routes>
+          {showOnboarding && (
+            <Onboarding onClose={() => setShowOnboarding(false)} />
+          )}
 
-        {showOnboarding && (
-         <Onboarding onClose={() => setShowOnboarding(false)} />
-       )}
-       
-        <Toaster />
-      </Layout>
-    </Router>
+          <Toaster />
+        </Layout>
+      </Router>
+    </SocketProvider>
   );
 };
 

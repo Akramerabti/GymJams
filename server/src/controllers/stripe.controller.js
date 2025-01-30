@@ -5,12 +5,25 @@ import mongoose from 'mongoose';
 
 export const createStripeAccount = async (req, res) => {
   try {
-    const { email, firstName, lastName } = req.body;
+    const { email, firstName, lastName } = req.body.email || req.body;
 
-    // Create a Stripe Connected Account
+    // Add proper logging
+    console.log('Creating Stripe account:', { email, firstName, lastName });
+
+    // Validate input data
+    if (!email || !firstName || !lastName) {
+      console.log('Missing required fields:', { email, firstName, lastName });
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    // Check if user exists and has the required permissions
+    if (!req.user || !req.user.id) {
+      console.log('User not authenticated');
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
     const account = await stripe.accounts.create({
       type: 'express',
-      email,
+      email: email,
       business_type: 'individual',
       individual: {
         first_name: firstName,
@@ -21,32 +34,35 @@ export const createStripeAccount = async (req, res) => {
       },
     });
 
-    // Save the Stripe account ID to the coach's profile
+    console.log('Stripe account created:', account.id);
+
+    // Update user with Stripe account ID
     await User.findByIdAndUpdate(req.user.id, {
       stripeAccountId: account.id,
     });
 
-    // Initiate Identity Verification for proof of liveness
     const verificationSession = await stripe.identity.verificationSessions.create({
-      type: 'document', // Use 'document' for ID + selfie verification
+      type: 'document',
       metadata: {
-        stripeAccountId: account.id, // Link to the Stripe account
+        stripeAccountId: account.id,
       },
       options: {
         document: {
-          require_live_capture: true, // Require a live selfie
+          require_live_capture: true,
         },
       },
     });
 
-    res.json({ 
+    console.log('Verification session created:', verificationSession.id);
+
+    return res.json({ 
       accountId: account.id,
-      verificationUrl: verificationSession.url, // URL for the coach to complete verification
-      verificationSessionId: verificationSession.id, // ID to check verification status later
+      verificationUrl: verificationSession.url,
+      verificationSessionId: verificationSession.id,
     });
   } catch (error) {
-    console.error('Error creating Stripe account:', error);
-    res.status(500).json({ error: 'Failed to create Stripe account' });
+    console.error('Error creating Stripe account:', error.message);
+    return res.status(400).json({ error: error.message || 'Failed to create Stripe account' });
   }
 };
 

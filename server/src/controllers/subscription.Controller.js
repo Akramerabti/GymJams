@@ -858,3 +858,23 @@ export const handleWebhook = async (event) => {
     throw error;
   }
 };
+
+export const messaging = async (req,res) => {
+  try {
+    const { id } = req.params;
+    const { senderId, receiverId, content } = req.body;
+
+    const subscription = await sendMessage(id, { senderId, content });
+
+    // Emit the message via WebSocket
+    io.emit('sendMessage', {
+      senderId,
+      receiverId,
+      content,
+    });
+
+    res.status(200).json(subscription);
+  } catch (error) {
+    res.status(500).json({ message: 'Error sending message', error });
+  }
+};

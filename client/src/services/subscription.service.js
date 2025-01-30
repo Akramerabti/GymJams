@@ -167,8 +167,7 @@ async submitQuestionnaire(answers, accessToken = null) {
       console.log('All coaches:', response.data);
       // Filter coaches to only include those with payout setup complete
       const coaches = response.data.filter(coach => coach.payoutSetupComplete);
-      console.log('Coaches:', coaches);
-      return { coaches };
+      return coaches ;
     } catch (error) {
       console.error('Error fetching coaches:', error);
       throw error;
@@ -179,33 +178,33 @@ async submitQuestionnaire(answers, accessToken = null) {
     try {
       // Get access token if available
       const accessToken = localStorage.getItem('accessToken');
-
       // Get all available coaches with payout setup complete
-      const { coaches } = await this.getCoaches(accessToken);
-
+      const coaches = await this.getCoaches(accessToken); // Directly assign the array
+      console.log('All coaches:', coaches);
+  
       if (!coaches || coaches.length === 0) {
         throw new Error('No coaches available with payout setup complete');
       }
-
+  
       // Randomly select a coach
       const randomIndex = Math.floor(Math.random() * coaches.length);
       const selectedCoach = coaches[randomIndex];
-
       console.log('Selected coach:', selectedCoach);
-
+  
       if (!selectedCoach) {
         throw new Error('Failed to select a coach');
       }
-
+  
       // Assign the selected coach with access token
-      const response = await api.post('/subscription/assign-coach',
+      const response = await api.post(
+        '/subscription/assign-coach',
         { coachId: selectedCoach._id },
         { params: accessToken ? { accessToken } : {} }
       );
-
+  
       return {
         coach: selectedCoach,
-        assignment: response.data
+        assignment: response.data,
       };
     } catch (error) {
       console.error('Error assigning random coach:', error);
@@ -243,6 +242,7 @@ async submitQuestionnaire(answers, accessToken = null) {
   // Create Stripe Connected Account for coach
   async createStripeAccount(email, firstName, lastName) {
     try {
+      console.log('Creating Stripe account:', email, firstName, lastName);
       const response = await api.post('/stripe/create-account', {
         email,
         firstName,

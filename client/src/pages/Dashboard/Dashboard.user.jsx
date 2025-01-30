@@ -6,13 +6,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Crown, Settings, Edit3, Award, Calendar, BarChart2, 
   Target, Activity, ArrowUpRight, ChevronUp, Dumbbell, 
-  Zap, UserPlus, RefreshCw, User, Joystick
+  Zap, UserPlus, RefreshCw, User, Joystick, MessageCircle
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import CoachAssignment from './components/coach.assignment';
 import CoachInteraction from './components/CoachInteraction';
+import Chat from './components/Chat'; // Import the Chat component
 
 const DashboardCard = ({ children, className = '', ...props }) => (
   <motion.div
@@ -119,6 +120,8 @@ const DashboardUser = () => {
   const [loading, setLoading] = useState(true);
   const [showCoachAssignment, setShowCoachAssignment] = useState(false);
   const [assignedCoach, setAssignedCoach] = useState(null);
+  const [showChat, setShowChat] = useState(false); // State for chat visibility
+  const [bubblePosition, setBubblePosition] = useState({ x: 0, y: 0 }); // State for chat bubble position
 
   // Fetch assigned coach details
   const fetchAssignedCoach = async () => {
@@ -127,11 +130,9 @@ const DashboardUser = () => {
     }
   
     try {
-      const { coaches } = await subscriptionService.getCoaches();
-      const coach = coaches.find(c => 
-        c._id === subscription.assignedCoach 
-      );
-
+      const coaches = await subscriptionService.getCoaches(); // Directly assign the array
+      const coach = coaches.find(c => c._id === subscription.assignedCoach);
+      console.log('Assigned coach:', coach);
       if (coach) {
         setAssignedCoach(coach);
       } else {
@@ -140,7 +141,6 @@ const DashboardUser = () => {
       }
     } catch (error) {
       console.error('Failed to fetch assigned coach:', error);
-      toast.error('Error loading coach details');
     }
   };
 
@@ -276,43 +276,43 @@ const DashboardUser = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-  <div className="max-w-7xl mx-auto space-y-8">
-    {/* Welcome Section */}
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`p-8 rounded-2xl bg-gradient-to-r ${currentTier.color} text-white`}
-    >
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-6 sm:space-y-0">
-    {/* Left Side: Welcome Message and Coach Info */}
-    <div className="text-center sm:text-left">
-      <h1 className="text-3xl font-bold mb-2">
-        Welcome back{user ? `, ${getUserFirstName(user)}` : ''}! 👋
-      </h1>
-      <div className="flex items-center justify-center sm:justify-start">
-        {currentTier.icon}
-        <span className="ml-2 text-lg">{currentTier.name} Plan</span>
-      </div>
-          {/* Display Assigned Coach */}
-          {assignedCoach && (
-            <div className="mt-4 flex items-center space-x-3 justify-center sm:justify-start">
-              <div className="p-2 bg-white/20 rounded-full">
-                <User className="w-6 h-6 text-white" />
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Welcome Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`p-8 rounded-2xl bg-gradient-to-r ${currentTier.color} text-white`}
+        >
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-6 sm:space-y-0">
+            {/* Left Side: Welcome Message and Coach Info */}
+            <div className="text-center sm:text-left">
+              <h1 className="text-3xl font-bold mb-2">
+                Welcome back{user ? `, ${getUserFirstName(user)}` : ''}! 👋
+              </h1>
+              <div className="flex items-center justify-center sm:justify-start">
+                {currentTier.icon}
+                <span className="ml-2 text-lg">{currentTier.name} Plan</span>
               </div>
-              <div>
-                <h3 className="text-lg font-semibold">
-                  Coach: {assignedCoach.firstName} {assignedCoach.lastName}
-                </h3>
-                <p className="text-sm text-white/80">
-                  Specialties: {assignedCoach.specialties?.join(', ') || 'N/A'}
-                </p>
-              </div>
+              {/* Display Assigned Coach */}
+              {assignedCoach && (
+                <div className="mt-4 flex items-center space-x-3 justify-center sm:justify-start">
+                  <div className="p-2 bg-white/20 rounded-full">
+                    <User className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">
+                      Coach: {assignedCoach.firstName} {assignedCoach.lastName}
+                    </h3>
+                    <p className="text-sm text-white/80">
+                      Specialties: {assignedCoach.specialties?.join(', ') || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Right Side: Upgrade and Play Games Buttons */}
-        <div className="flex flex-col items-center sm:items-end space-y-4 w-full sm:w-auto">
+            {/* Right Side: Upgrade and Play Games Buttons */}
+            <div className="flex flex-col items-center sm:items-end space-y-4 w-full sm:w-auto">
               {/* Play To Win Button (Visible only for subscribed users) */}
               {subscription && (
                 <motion.div
@@ -329,29 +329,29 @@ const DashboardUser = () => {
                   </Button>
                 </motion.div>
               )}
-          
-          {/* Upgrade Button */}
-          {currentTier.upgrade && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="w-full sm:w-auto"
-            >
-              <Button
-                onClick={handleUpgradeClick}
-                className="w-full sm:w-auto bg-white/20 hover:bg-white/30 text-white "
-              >
-                Upgrade to {SUBSCRIPTION_TIERS[currentTier.upgrade].name}
-                <ArrowUpRight className="ml-2 w-4 h-4" />
-              </Button>
-            </motion.div>
-          )}
-        </div>
-      </div>
-    </motion.div>
+              
+              {/* Upgrade Button */}
+              {currentTier.upgrade && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="w-full sm:w-auto"
+                >
+                  <Button
+                    onClick={handleUpgradeClick}
+                    className="w-full sm:w-auto bg-white/20 hover:bg-white/30 text-white "
+                  >
+                    Upgrade to {SUBSCRIPTION_TIERS[currentTier.upgrade].name}
+                    <ArrowUpRight className="ml-2 w-4 h-4" />
+                  </Button>
+                </motion.div>
+              )}
+            </div>
+          </div>
+        </motion.div>
 
-     {/* Coach Interaction Section */}
-     {assignedCoach && (
+        {/* Coach Interaction Section */}
+        {assignedCoach && (
           <CoachInteraction coach={assignedCoach} />
         )}
 
@@ -447,6 +447,39 @@ const DashboardUser = () => {
           </div>
         </DashboardCard>
       </div>
+
+      {/* Floating Chat Bubble */}
+      <motion.div
+        drag
+        dragConstraints={{
+          top: 0,
+          left: 0,
+          right: window.innerWidth - 64, // Adjust based on bubble size
+          bottom: window.innerHeight - 64, // Adjust based on bubble size
+        }}
+        dragElastic={0.1}
+        whileTap={{ scale: 0.9 }} // Animation when the bubble is pressed
+        style={{
+          position: 'fixed',
+          bottom: bubblePosition.y,
+          right: bubblePosition.x,
+          zIndex: 1000,
+        }}
+        className="cursor-pointer"
+        onClick={() => setShowChat(!showChat)}
+      >
+        <motion.div
+          whileHover={{ scale: 1.1 }} // Animation when the bubble is hovered
+          className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center shadow-lg hover:bg-blue-600 transition-colors"
+        >
+          <MessageCircle className="w-8 h-8 text-white" />
+        </motion.div>
+      </motion.div>
+
+      {/* Chat Component */}
+      {showChat && assignedCoach && (
+        <Chat subscription={subscription} onClose={() => setShowChat(false)} />
+      )}
 
       {/* Upgrade Modal */}
       <AnimatePresence>

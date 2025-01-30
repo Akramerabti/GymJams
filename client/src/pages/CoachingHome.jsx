@@ -52,9 +52,9 @@ const CoachingHome = () => {
 
     const fetchCoaches = async () => {
       try {
-        const response = await api.get('/auth/coach');
-        setCoaches(response.data);
-        console.log('Coaches:', response.data);
+        const response = await subscriptionService.getCoaches();
+        setCoaches(response);
+        console.log('Coaches:', response);
       } catch (error) {
         console.error('Error fetching coaches:', error);
       }

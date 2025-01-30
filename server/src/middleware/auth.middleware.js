@@ -1,4 +1,5 @@
 import rateLimit from 'express-rate-limit';
+import { MemoryStore } from 'express-rate-limit';
 import { verifyToken } from '../utils/jwt.js';
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
@@ -93,8 +94,26 @@ export const authRateLimiter = rateLimit({
 
 export const apiRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300, // Higher limit for API routes
-  message: 'Too many API requests, please try again later',
+  max: async (req) => {
+    // Allow unauthenticated users a lower limit
+    if (!req.user) return 300;
+
+    // Admins get a higher limit
+    if (req.user?.role === 'admin') return 1000;
+
+    // Regular users get a moderate limit
+    return 600;
+  },
+  message: 'Too many requests, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
+  store: new MemoryStore(), // Use sliding window for better burst handling
+  handler: (req, res) => {
+    const retryAfter = Math.ceil((req.rateLimit.resetTime - Date.now()) / 1000); // Seconds until reset
+    logger.warn(`Rate limit exceeded for user: ${req.user?._id || 'unauthenticated'}, IP: ${req.ip}`);
+    res.status(429).json({
+      error: 'Too many requests, please try again later',
+      retryAfter: retryAfter > 0 ? retryAfter : 0,
+    });
+  },
 });
