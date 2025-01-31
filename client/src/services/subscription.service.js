@@ -239,34 +239,42 @@ async submitQuestionnaire(answers, accessToken = null) {
     }
   },
 
-  // Create Stripe Connected Account for coach
-  async createStripeAccount(email, firstName, lastName) {
+  // Function to create a Stripe account
+  async createStripeAccount(formData) {
     try {
-      console.log('Creating Stripe account:', email, firstName, lastName);
+      console.log('Creating Stripe account:', formData);
+  
+      // Define the refresh and return URLs
+      const refreshUrl = `${window.location.origin}/profile`; // URL to redirect if onboarding is incomplete
+      const returnUrl = `${window.location.origin}/profile`; // URL to redirect after onboarding is complete
+  
+      // Call the backend to create the Stripe account
       const response = await api.post('/stripe/create-account', {
-        email,
-        firstName,
-        lastName,
+        ...formData,
+        refreshUrl, // Pass the refresh URL
+        returnUrl,  // Pass the return URL
       });
+  
       return response.data;
     } catch (error) {
       console.error('Failed to create Stripe account:', error);
-      throw error;
+      throw error; // Re-throw the error for handling in the calling code
     }
   },
 
-  // Create Stripe Account Link for onboarding
-  async createStripeAccountLink(accountId, refreshUrl, returnUrl) {
+  async initiateVerification(accountId, refreshUrl, returnUrl) {
     try {
+      // Call the backend to initiate verification
       const response = await api.post('/stripe/create-account-link', {
         accountId,
         refreshUrl,
         returnUrl,
       });
+  
       return response.data;
     } catch (error) {
-      console.error('Failed to create Stripe account link:', error);
-      throw error;
+      console.error('Failed to initiate verification:', error);
+      throw error; // Re-throw the error for handling in the calling code
     }
   },
 

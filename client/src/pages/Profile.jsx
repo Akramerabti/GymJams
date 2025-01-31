@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import api from '../services/api';
 import ProfileImageUpload from '../components/layout/ProfileImageUpload';
 import subscriptionService from '../services/subscription.service';
+import StripeOnboardingForm from '../pages/StripeOnboardingForm'; // Import the StripeOnboardingForm
 
 const Profile = () => {
   const { user, updateProfile, logout, validatePhone } = useAuth();
@@ -19,6 +20,8 @@ const Profile = () => {
   const [loading, setLoading] = useState(false);
   const [subscriptionDetails, setSubscriptionDetails] = useState(null);
   const [redirecting, setRedirecting] = useState(false);
+  const [showStripeOnboarding, setShowStripeOnboarding] = useState(false); // State to control StripeOnboardingForm visibility
+  const [verificationSessionId, setVerificationSessionId] = useState(null);
   const [profileData, setProfileData] = useState({
     firstName: '',
     lastName: '',
@@ -42,7 +45,7 @@ const Profile = () => {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const [profileResponse, subscriptionResponse,payoutSetupResponse] = await Promise.all([
+        const [profileResponse, subscriptionResponse, payoutSetupResponse] = await Promise.all([
           api.get('/auth/profile'),
           api.get('/subscription/current'),
           isCoach ? api.get('/stripe/check-payout-setup') : Promise.resolve({ data: { payoutSetupComplete: false } })
@@ -156,42 +159,54 @@ const Profile = () => {
     return profileData.firstName && profileData.lastName && profileData.bio && profileData.profileImage;
   };
 
-  const handlePayoutSetup = async () => {
+  const handlePayoutSetup = async (onboardingData) => {
     try {
       setRedirecting(true); // Start loading
-      const { accountId, verificationUrl } = await subscriptionService.createStripeAccount({
-        email: profileData.email,
-        firstName: profileData.firstName,
-        lastName: profileData.lastName,
-      });
-  
+
+      // Call the createStripeAccount function with the onboarding data
+      const { accountId, verificationUrl } = await subscriptionService.createStripeAccount(onboardingData);
+
+      // Update the user's Stripe account ID in the profile data
+      setProfileData((prev) => ({
+        ...prev,
+        stripeAccountId: accountId,
+      }));
+
       // Redirect the coach to complete identity verification
       window.location.href = verificationUrl;
     } catch (error) {
       console.error('Error setting up payout:', error);
-      toast.error('Failed to set up payout. Please try again.');
     } finally {
       setRedirecting(false); // Stop loading
     }
   };
-  
+
   const handleCompletePayoutSetup = async () => {
     try {
       setRedirecting(true); // Start loading
-      const { url } = await subscriptionService.createStripeAccountLink(
+  
+      // Call the initiateVerification function with the account ID
+      const { url } = await subscriptionService.initiateVerification(
         profileData.stripeAccountId,
-        `${window.location.origin}/stripe-return`, // Use the new route
-        `${window.location.origin}/stripe-return`  // Use the new route
+        `${window.location.origin}/profile`, // Use the new route
+        `${window.location.origin}/profile`  // Use the new route
       );
+      
+      console.log('Verification URL:', url);
+
+      // Store the verification session ID
+      setVerificationSessionId(verificationSessionId);
+  
       window.location.href = url;
     } catch (error) {
       console.error('Error completing setup:', error);
-      toast.error('Failed to complete setup. Please try again.');
+      toast.error('Failed to initiate verification. Please try again.');
     } finally {
       setRedirecting(false); // Stop loading
     }
   };
   
+
   const handleViewPayoutDashboard = async () => {
     try {
       setRedirecting(true); // Start loading
@@ -406,98 +421,102 @@ const Profile = () => {
 
             
           {/* Payout Setup Section */}
-          <div className="mt-6 mb-6">
-            <label className="block text-sm font-medium mb-1">Payout Setup</label>
-            {!profileData.stripeAccountId ? (
-              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0">
-                    <AlertCircle className="h-5 w-5 text-yellow-400" />
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-yellow-800">
-                      Payout Setup Required
-                    </h3>
-                    <div className="mt-2 text-sm text-yellow-700">
-                      <p>To receive payments from your clients, you need to set up your payout information.</p>
-                    </div>
-                    <div className="mt-4">
-                      <Button
-                        onClick={handlePayoutSetup}
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-                        disabled={redirecting} // Disable button during redirect
-                      >
-                        {redirecting ? (
-                          <Loader2 className="w-5 h-5 animate-spin" /> // Show spinner
-                        ) : (
-                          'Set Up Payouts'
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : !profileData.payoutSetupComplete ? (
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0">
-                    <Clock className="h-5 w-5 text-blue-400" />
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-blue-800">
-                      Payout Setup In Progress
-                    </h3>
-                    <div className="mt-2 text-sm text-blue-700">
-                      <p>Your payout setup is in progress. Please complete the onboarding process.</p>
-                    </div>
-                    <div className="mt-4">
-                      <Button
-                        onClick={handleCompletePayoutSetup}
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-                        disabled={redirecting} // Disable button during redirect
-                      >
-                        {redirecting ? (
-                          <Loader2 className="w-5 h-5 animate-spin" /> // Show spinner
-                        ) : (
-                          'Complete Setup'
-                        )}
-                      </Button>
+          {isCoach && (
+              <div className="mt-6 mb-6">
+                <label className="block text-sm font-medium mb-1">Payout Setup</label>
+                {!profileData.stripeAccountId ? (
+                  <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <AlertCircle className="h-5 w-5 text-yellow-400" />
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-yellow-800">
+                          Payout Setup Required
+                        </h3>
+                        <div className="mt-2 text-sm text-yellow-700">
+                          <p>To receive payments from your clients, you need to set up your payout information.</p>
+                        </div>
+                        <div className="mt-4">
+                          <Button
+                            type="button"
+                            onClick={() => setShowStripeOnboarding(true)} // Show the StripeOnboardingForm
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                            disabled={redirecting} // Disable button during redirect
+                          >
+                            {redirecting ? (
+                              <Loader2 className="w-5 h-5 animate-spin" /> // Show spinner
+                            ) : (
+                              'Set Up Payouts'
+                            )}
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0">
-                    <CheckCircle className="h-5 w-5 text-green-400" />
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-green-800">
-                      Payout Setup Complete
-                    </h3>
-                    <div className="mt-2 text-sm text-green-700">
-                      <p>Your payout information has been set up successfully. You can now receive payments from your clients.</p>
+                ) : !profileData.payoutSetupComplete ? (
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <Clock className="h-5 w-5 text-blue-400" />
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-blue-800">
+                          Payout Setup In Progress
+                        </h3>
+                        <div className="mt-2 text-sm text-blue-700">
+                          <p>Your payout setup is in progress. Please complete the onboarding process.</p>
+                        </div>
+                        <div className="mt-4">
+                          <Button
+                            onClick={handleCompletePayoutSetup}
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                            disabled={redirecting} // Disable button during redirect
+                          >
+                            {redirecting ? (
+                              <Loader2 className="w-5 h-5 animate-spin" /> // Show spinner
+                            ) : (
+                              'Complete Setup'
+                            )}
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="mt-4">
-                      <Button
-                        onClick={handleViewPayoutDashboard}
-                        variant="outline"
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-green-700 bg-green-100 hover:bg-green-200"
-                        disabled={redirecting} // Disable button during redirect
-                      >
-                        {redirecting ? (
-                          <Loader2 className="w-5 h-5 animate-spin" /> // Show spinner
-                        ) : (
-                          'View Payout Dashboard'
-                        )}
-                      </Button>
+                  </div>
+                ) : (
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <CheckCircle className="h-5 w-5 text-green-400" />
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-green-800">
+                          Payout Setup Complete
+                        </h3>
+                        <div className="mt-2 text-sm text-green-700">
+                          <p>Your payout information has been set up successfully. You can now receive payments from your clients.</p>
+                        </div>
+                        <div className="mt-4">
+                          <Button
+                            onClick={handleViewPayoutDashboard}
+                            variant="outline"
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-green-700 bg-green-100 hover:bg-green-200"
+                            disabled={redirecting} // Disable button during redirect
+                          >
+                            {redirecting ? (
+                              <Loader2 className="w-5 h-5 animate-spin" /> // Show spinner
+                            ) : (
+                              'View Payout Dashboard'
+                            )}
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
-          </div>
+
 
             {/* Specialties */}
             <div>
@@ -628,15 +647,15 @@ const Profile = () => {
                   ) : (
                     <div className="space-y-4">
                       <div className="bg-blue-50 p-4 rounded-lg">
-                        <p className="text-gray-600 mb-4">
-                          Unlock exclusive features with our coaching plans:
-                          <ul className="list-disc list-inside mt-2 space-y-1">
-                            <li>Personalized workout plans</li>
-                            <li>Nutrition guidance</li>
-                            <li>Expert coaching support</li>
-                            <li>Premium features access</li>
-                          </ul>
-                        </p>
+                      <div className="text-gray-600 mb-4">
+                        Unlock exclusive features with our coaching plans:
+                        <ul className="list-disc list-inside mt-2 space-y-1">
+                          <li>Personalized workout plans</li>
+                          <li>Nutrition guidance</li>
+                          <li>Expert coaching support</li>
+                          <li>Premium features access</li>
+                        </ul>
+                      </div>
                         <Button
                           className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
                           onClick={() => navigate('/coaching')}
@@ -670,6 +689,22 @@ const Profile = () => {
             </div>
           </div>
         </form>
+        {showStripeOnboarding && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg w-full max-w-2xl">
+              <StripeOnboardingForm
+                initialData={{
+                  email: profileData.email,
+                  firstName: profileData.firstName,
+                  lastName: profileData.lastName,
+                  phone: profileData.phone,
+                }}
+                onSubmit={handlePayoutSetup} // Pass the handlePayoutSetup function
+                onClose={() => setShowStripeOnboarding(false)} // Close the modal
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
