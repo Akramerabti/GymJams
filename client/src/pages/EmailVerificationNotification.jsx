@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Mail } from 'lucide-react';
 import api from '../services/api';
 
@@ -6,7 +7,11 @@ const EmailVerificationNotification = () => {
   const [cooldown, setCooldown] = useState(0);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const email = localStorage.getItem('verificationEmail');
+  
+  // Use useLocation to get the query parameters
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const email = queryParams.get('email');
 
   useEffect(() => {
     if (cooldown > 0) {
