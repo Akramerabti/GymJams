@@ -152,6 +152,7 @@ export const checkPayoutSetup = async (req, res) => {
       return res.json({
         payoutSetupComplete: false,
         missingRequirements: account.requirements.currently_due,
+        pendingVerification: account.requirements.pending_verification,
       });
     }
   } catch (error) {

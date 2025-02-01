@@ -5,6 +5,9 @@ import { createCustomer } from '../config/stripe.js';
 import logger from '../utils/logger.js';
 import crypto from 'crypto';
 import { sendVerificationEmail, sendPasswordResetEmail  } from '../services/email.service.js';
+import stripe from '../config/stripe.js'; 
+import Subscription from '../models/Subscription.js';
+import mongoose from 'mongoose';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -568,5 +571,56 @@ export const getCoachById = async (req, res) => {
   } catch (error) {
     logger.error('Error fetching coach by ID:', error);
     res.status(500).json({ message: 'Error fetching coach details' });
+  }
+};
+
+// Add this function to auth.controller.js
+export const deleteAccount = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const userId = req.user.id;
+
+    // Find the user
+    const user = await User.findById(userId).session(session);
+    if (!user) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // If the user is a coach, delete their Stripe account
+    if (user.role === 'coach' && user.stripeAccountId) {
+      try {
+        await stripe.accounts.del(user.stripeAccountId);
+        console.log(`Stripe account deleted for coach: ${user.stripeAccountId}`);
+      } catch (stripeError) {
+        console.error('Error deleting Stripe account:', stripeError);
+        // Even if Stripe account deletion fails, proceed with user deletion
+      }
+    }
+
+    // Delete any subscriptions associated with the user
+    await Subscription.deleteMany({ user: userId }).session(session);
+
+    // If the user is a coach, remove them from any client's assigned coach
+    if (user.role === 'coach') {
+      await Subscription.updateMany(
+        { assignedCoach: userId },
+        { $unset: { assignedCoach: 1 } }
+      ).session(session);
+    }
+
+    // Finally, delete the user
+    await User.findByIdAndDelete(userId).session(session);
+
+    await session.commitTransaction();
+    res.status(200).json({ message: 'Account deleted successfully' });
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error deleting account:', error);
+    res.status(500).json({ message: 'Failed to delete account' });
+  } finally {
+    session.endSession();
   }
 };

@@ -11,6 +11,7 @@ import api from '../services/api';
 import ProfileImageUpload from '../components/layout/ProfileImageUpload';
 import subscriptionService from '../services/subscription.service';
 import StripeOnboardingForm from '../pages/StripeOnboardingForm'; // Import the StripeOnboardingForm
+import { Trash2 } from 'lucide-react';
 
 const Profile = () => {
   const { user, updateProfile, logout, validatePhone } = useAuth();
@@ -50,9 +51,9 @@ const Profile = () => {
           api.get('/subscription/current'),
           isCoach ? api.get('/stripe/check-payout-setup') : Promise.resolve({ data: { payoutSetupComplete: false } })
         ]);
-
+  
         const userData = profileResponse.data;
-
+  
         setProfileData({
           firstName: userData.firstName || '',
           lastName: userData.lastName || '',
@@ -68,13 +69,14 @@ const Profile = () => {
           },
           specialties: userData.specialties || [],
           stripeAccountId: userData.stripeAccountId || null,
-          payoutSetupComplete: payoutSetupResponse.data.payoutSetupComplete || false
+          payoutSetupComplete: payoutSetupResponse.data.payoutSetupComplete || false,
+          pendingVerification: payoutSetupResponse.data.pendingVerification || [], // Add pendingVerification to state
         });
-
+  
         if (subscriptionResponse.data) {
           setSubscriptionDetails(subscriptionResponse.data);
         }
-
+  
         fetchPoints();
       } catch (error) {
         if (error.response?.status === 401) {
@@ -86,11 +88,40 @@ const Profile = () => {
         }
       }
     };
-
+  
     if (user) {
       fetchUserData();
     }
   }, [user, fetchPoints, navigate]);
+
+  const handleDeleteAccount = async () => {
+    const confirmed = window.confirm(
+      'Are you sure you want to delete your account? This action cannot be undone. All your data, including subscriptions and coaching information, will be permanently removed.'
+    );
+  
+    if (!confirmed) return;
+  
+    const secondConfirmation = window.confirm(
+      'This is your final warning. Deleting your account will remove all your data permanently. Are you absolutely sure?'
+    );
+  
+    if (!secondConfirmation) return;
+  
+    try {
+      setLoading(true);
+      const response = await api.delete('/auth/delete-account');
+      if (response.status === 200) {
+        toast.success('Account deleted successfully');
+        await logout();
+        navigate('/login');
+      }
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      toast.error('Failed to delete account. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getStatusColor = (status) => {
     const colors = {
@@ -422,101 +453,121 @@ const Profile = () => {
             
           {/* Payout Setup Section */}
           {isCoach && (
-              <div className="mt-6 mb-6">
-                <label className="block text-sm font-medium mb-1">Payout Setup</label>
-                {!profileData.stripeAccountId ? (
-                  <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0">
-                        <AlertCircle className="h-5 w-5 text-yellow-400" />
+            <div className="mt-6 mb-6">
+              <label className="block text-sm font-medium mb-1">Payout Setup</label>
+              {!profileData.stripeAccountId ? (
+                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <AlertCircle className="h-5 w-5 text-yellow-400" />
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-yellow-800">
+                        Payout Setup Required
+                      </h3>
+                      <div className="mt-2 text-sm text-yellow-700">
+                        <p>To receive payments from your clients, you need to set up your payout information.</p>
                       </div>
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-yellow-800">
-                          Payout Setup Required
-                        </h3>
-                        <div className="mt-2 text-sm text-yellow-700">
-                          <p>To receive payments from your clients, you need to set up your payout information.</p>
-                        </div>
-                        <div className="mt-4">
-                          <Button
-                            type="button"
-                            onClick={() => setShowStripeOnboarding(true)} // Show the StripeOnboardingForm
-                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-                            disabled={redirecting} // Disable button during redirect
-                          >
-                            {redirecting ? (
-                              <Loader2 className="w-5 h-5 animate-spin" /> // Show spinner
-                            ) : (
-                              'Set Up Payouts'
-                            )}
-                          </Button>
-                        </div>
+                      <div className="mt-4">
+                        <Button
+                          type="button"
+                          onClick={() => setShowStripeOnboarding(true)}
+                          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                          disabled={redirecting}
+                        >
+                          {redirecting ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          ) : (
+                            'Set Up Payouts'
+                          )}
+                        </Button>
                       </div>
                     </div>
                   </div>
-                ) : !profileData.payoutSetupComplete ? (
-                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0">
-                        <Clock className="h-5 w-5 text-blue-400" />
-                      </div>
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-blue-800">
-                          Payout Setup In Progress
-                        </h3>
-                        <div className="mt-2 text-sm text-blue-700">
-                          <p>Your payout setup is in progress. Please complete the onboarding process.</p>
-                        </div>
-                        <div className="mt-4">
-                          <Button
-                            onClick={handleCompletePayoutSetup}
-                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-                            disabled={redirecting} // Disable button during redirect
-                          >
-                            {redirecting ? (
-                              <Loader2 className="w-5 h-5 animate-spin" /> // Show spinner
-                            ) : (
-                              'Complete Setup'
-                            )}
-                          </Button>
-                        </div>
+                </div>
+              ) : profileData.pendingVerification && profileData.pendingVerification.length > 0 ? (
+                <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <Clock className="h-5 w-5 text-purple-400" />
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-purple-800">
+                        Pending Verification
+                      </h3>
+                      <div className="mt-2 text-sm text-purple-700">
+                        <p>Your account is under review. The following documents are pending verification:</p>
+                        <ul className="list-disc list-inside mt-2">
+                          {profileData.pendingVerification.map((requirement, index) => (
+                            <li key={index}>{requirement}</li>
+                          ))}
+                        </ul>
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0">
-                        <CheckCircle className="h-5 w-5 text-green-400" />
+                </div>
+              ) : !profileData.payoutSetupComplete ? (
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <Clock className="h-5 w-5 text-blue-400" />
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-blue-800">
+                        Payout Setup In Progress
+                      </h3>
+                      <div className="mt-2 text-sm text-blue-700">
+                        <p>Your payout setup is in progress. Please complete the onboarding process.</p>
                       </div>
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-green-800">
-                          Payout Setup Complete
-                        </h3>
-                        <div className="mt-2 text-sm text-green-700">
-                          <p>Your payout information has been set up successfully. You can now receive payments from your clients.</p>
-                        </div>
-                        <div className="mt-4">
-                          <Button
-                            onClick={handleViewPayoutDashboard}
-                            variant="outline"
-                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-green-700 bg-green-100 hover:bg-green-200"
-                            disabled={redirecting} // Disable button during redirect
-                          >
-                            {redirecting ? (
-                              <Loader2 className="w-5 h-5 animate-spin" /> // Show spinner
-                            ) : (
-                              'View Payout Dashboard'
-                            )}
-                          </Button>
-                        </div>
+                      <div className="mt-4">
+                        <Button
+                          onClick={handleCompletePayoutSetup}
+                          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                          disabled={redirecting}
+                        >
+                          {redirecting ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          ) : (
+                            'Complete Setup'
+                          )}
+                        </Button>
                       </div>
                     </div>
                   </div>
-                )}
-              </div>
-            )}
-
+                </div>
+              ) : (
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <CheckCircle className="h-5 w-5 text-green-400" />
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-green-800">
+                        Payout Setup Complete
+                      </h3>
+                      <div className="mt-2 text-sm text-green-700">
+                        <p>Your payout information has been set up successfully. You can now receive payments from your clients.</p>
+                      </div>
+                      <div className="mt-4">
+                        <Button
+                          onClick={handleViewPayoutDashboard}
+                          variant="outline"
+                          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-green-700 bg-green-100 hover:bg-green-200"
+                          disabled={redirecting}
+                        >
+                          {redirecting ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          ) : (
+                            'View Payout Dashboard'
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
             {/* Specialties */}
             <div>
@@ -685,6 +736,15 @@ const Profile = () => {
               >
                 <LogOut className="w-5 h-5" />
                 <span>Logout</span>
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex items-center justify-center space-x-2 py-6 col-span-2"
+                onClick={handleDeleteAccount}
+                disabled={loading}
+              >
+                <Trash2 className="w-5 h-5" />
+                <span>Delete Account</span>
               </Button>
             </div>
           </div>

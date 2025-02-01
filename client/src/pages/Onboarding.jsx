@@ -22,7 +22,7 @@ const Onboarding = ({ onClose }) => {
     },
     {
       title: "Points System",
-      description: "You've earned 100 points! Earn more points through workouts and purchases.",
+      description: "You've earned 100 points! Earn more points through workouts and purchases. These will let you earn rewards, discounts and much more...",
       icon: Coins
     },
     {
