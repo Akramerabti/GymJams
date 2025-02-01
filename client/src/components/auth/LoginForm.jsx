@@ -114,13 +114,14 @@ const LoginForm = () => {
   const handleResendVerificationEmail = async () => {
   try {
     const email = watch('email'); // Get the email from the form
-    await api.post('/auth/resend-verification', { email })
-    navigate('/email-verification-notification');
+    await api.post('/auth/resend-verification', { email });
+    
+    // Navigate to the email verification notification page with the email as a query parameter
+    navigate(`/email-verification-notification?email=${encodeURIComponent(email)}`);
   } catch (err) {
     toast.error('Failed to resend verification email. Please try again.');
   }
 };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-blue-700 py-12 px-4 sm:px-6 lg:px-8">
       <motion.div
