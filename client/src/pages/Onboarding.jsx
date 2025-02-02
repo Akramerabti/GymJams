@@ -1,7 +1,8 @@
-// components/Onboarding.jsx
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronRight, ChevronLeft, Coins, Dumbbell, Award } from 'lucide-react';
+
+const DRAG_THRESHOLD = 50; // Minimum drag distance to trigger slide
 
 const OnboardingStep = ({ title, description, icon: Icon }) => (
   <div className="flex flex-col items-center text-center p-6">
@@ -13,7 +14,6 @@ const OnboardingStep = ({ title, description, icon: Icon }) => (
 
 const Onboarding = ({ onClose }) => {
   const [currentStep, setCurrentStep] = useState(0);
-
   const steps = [
     {
       title: "Welcome to GymJams!",
@@ -31,6 +31,32 @@ const Onboarding = ({ onClose }) => {
       icon: Award
     }
   ];
+
+  const handleDragEnd = (event, info) => {
+    const { offset } = info;
+    
+    if (Math.abs(offset.x) > DRAG_THRESHOLD) {
+      if (offset.x > 0 && currentStep > 0) {
+        // Dragged right - go to previous step
+        setCurrentStep(prev => prev - 1);
+      } else if (offset.x < 0 && currentStep < steps.length - 1) {
+        // Dragged left - go to next step
+        setCurrentStep(prev => prev + 1);
+      }
+    }
+  };
+
+  const handleNext = () => {
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(prev => prev + 1);
+    }
+  };
+
+  const handlePrevious = () => {
+    if (currentStep > 0) {
+      setCurrentStep(prev => prev - 1);
+    }
+  };
 
   return (
     <motion.div
@@ -50,7 +76,6 @@ const Onboarding = ({ onClose }) => {
         >
           <X className="w-6 h-6" />
         </button>
-
         <div className="p-6">
           <AnimatePresence mode="wait">
             <motion.div
@@ -58,20 +83,23 @@ const Onboarding = ({ onClose }) => {
               initial={{ x: 50, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -50, opacity: 0 }}
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.1}
+              onDragEnd={handleDragEnd}
+              className="touch-pan-y"
             >
               <OnboardingStep {...steps[currentStep]} />
             </motion.div>
           </AnimatePresence>
-
           <div className="flex justify-between mt-8">
             <button
-              onClick={() => setCurrentStep(prev => prev - 1)}
+              onClick={handlePrevious}
               disabled={currentStep === 0}
               className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50"
             >
               <ChevronLeft className="w-6 h-6" />
             </button>
-
             {currentStep === steps.length - 1 ? (
               <button
                 onClick={onClose}
@@ -81,7 +109,7 @@ const Onboarding = ({ onClose }) => {
               </button>
             ) : (
               <button
-                onClick={() => setCurrentStep(prev => prev + 1)}
+                onClick={handleNext}
                 className="p-2 text-blue-600 hover:text-blue-700"
               >
                 <ChevronRight className="w-6 h-6" />
@@ -89,7 +117,6 @@ const Onboarding = ({ onClose }) => {
             )}
           </div>
         </div>
-
         <div className="flex justify-center pb-4 space-x-2">
           {steps.map((_, index) => (
             <div

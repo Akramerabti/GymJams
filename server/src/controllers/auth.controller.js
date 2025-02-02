@@ -574,7 +574,6 @@ export const getCoachById = async (req, res) => {
   }
 };
 
-// Add this function to auth.controller.js
 export const deleteAccount = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -589,13 +588,22 @@ export const deleteAccount = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // If the user is a coach, delete their Stripe account
+    // Check if the user is a coach and has pending payments
     if (user.role === 'coach' && user.stripeAccountId) {
+      // Check for pending payments
+      if (user.earnings?.pendingAmount > 0) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          message: 'You have pending payments. Please resolve them before deleting your account.',
+        });
+      }
+
+      // Delete the Stripe account
       try {
         await stripe.accounts.del(user.stripeAccountId);
-        console.log(`Stripe account deleted for coach: ${user.stripeAccountId}`);
+        logger.info(`Stripe account deleted for coach: ${user.stripeAccountId}`);
       } catch (stripeError) {
-        console.error('Error deleting Stripe account:', stripeError);
+        logger.error('Error deleting Stripe account:', stripeError);
         // Even if Stripe account deletion fails, proceed with user deletion
       }
     }
@@ -618,7 +626,7 @@ export const deleteAccount = async (req, res) => {
     res.status(200).json({ message: 'Account deleted successfully' });
   } catch (error) {
     await session.abortTransaction();
-    console.error('Error deleting account:', error);
+    logger.error('Error deleting account:', error);
     res.status(500).json({ message: 'Failed to delete account' });
   } finally {
     session.endSession();

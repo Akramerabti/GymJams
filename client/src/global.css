@@ -14,3 +14,136 @@ html, body {
   ::-webkit-scrollbar {
     display: none; /* Hide scrollbar */
   }
+
+  /* Dynamic Background */
+@keyframes gradientShift {
+  0% { background-position: 0% 25%; }
+  25% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  75% { background-position: 50% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.register-page {
+  min-height: 100vh;
+  background: linear-gradient(270deg, #0026ff, #0059ff, #0050b8, #ff5733, #d94b1f, #ff5733,#0050b8, #0059ff, #0026ff);
+  background-size: 300% 300%;
+  animation: gradientShift 50s ease infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+
+/* Glassmorphism Card */
+.register-card {
+  background: rgba(10, 15, 26, 0.7); /* Dark blue with transparency */
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  padding: 2rem;
+  width: 100%;
+  max-width: 400px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.register-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* Input Fields */
+.input-field {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  transition: all 0.3s ease;
+  color: #ffffff;
+}
+
+.input-field::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.input-field:focus {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 165, 0, 0.6); /* Orange accent */
+  box-shadow: 0 0 10px rgba(255, 165, 0, 0.3);
+}
+
+/* Button Animation */
+.submit-button {
+  background: linear-gradient(45deg, #ff7e5f, #feb47b); /* Orange gradient */
+  border: none;
+  border-radius: 10px;
+  color: #0a0f1a; /* Dark blue text */
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.submit-button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 300%;
+  height: 300%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 70%);
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 0.5s ease;
+}
+
+.submit-button:hover::after {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.submit-button:disabled {
+  background: linear-gradient(45deg, #555, #777);
+  cursor: not-allowed;
+}
+
+/* Loading Animation */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #ff7e5f; /* Orange accent */
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Text and Links */
+.text-gray-300 {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.text-blue-400 {
+  color: #ff7e5f; /* Orange accent */
+}
+
+.text-blue-400:hover {
+  color: #feb47b; /* Lighter orange */
+}
+
+/* Icons */
+.icon {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.icon:hover {
+  color: #ff7e5f; /* Orange accent */
+}
