@@ -1,3 +1,4 @@
+import { time } from 'framer-motion';
 import api from './api';
 
 const subscriptionService = {
@@ -278,6 +279,8 @@ async submitQuestionnaire(answers, accessToken = null) {
     }
   },
 
+  
+
   // Check if coach's payout setup is complete
   async checkPayoutSetup() {
     try {
@@ -349,9 +352,35 @@ async submitQuestionnaire(answers, accessToken = null) {
     }
   },
 
+  async sendMessage(subscriptionId, senderId, receiverId, content, timestamp) {
+    try {
+  
+      console.log('Sending message:', {
+        subscriptionId,
+        senderId,
+        receiverId,
+        content,
+        timestamp,
+      });
+  
+      // Send the POST request to the backend
+      const response = await api.post(`/subscription/${subscriptionId}/send-message`,{
+        senderId: senderId, // Ensure this is a string (e.g., user ID)
+        receiverId: receiverId, // Ensure this is a string (e.g., coach ID)
+        content: content, // Ensure content is a non-empty string
+        timestamp: timestamp, // Ensure timestamp is a valid Date object
+      }
+       );
+  
+      // Return the response data
+      return response.data;
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      throw error;
+    }
+  }
+
 };
-
-
 
 
 export default subscriptionService;

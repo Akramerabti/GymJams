@@ -14,6 +14,7 @@ const Chat = ({ subscription, onClose }) => {
   const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef(null);
 
+  // Register the user with their socket ID and listen for incoming messages
   useEffect(() => {
     if (socket) {
       // Register the user with their socket ID
@@ -32,6 +33,7 @@ const Chat = ({ subscription, onClose }) => {
     };
   }, [socket, user._id]);
 
+  // Scroll to the bottom of the chat when messages update
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -40,30 +42,29 @@ const Chat = ({ subscription, onClose }) => {
     scrollToBottom();
   }, [messages]);
 
+  // Handle sending a new message
   const handleSendMessage = async () => {
     if (newMessage.trim()) {
-      const message = {
-        sender: user._id,
-        content: newMessage.trim(),
-        timestamp: new Date(),
-        read: false,
-      };
+      try {
+        // Send the message via WebSocket
+        socket.emit('sendMessage', {
+          subscriptionId: subscription._id, // Include subscriptionId in the WebSocket message
+          senderId: user._id || user.user._id,
+          receiverId: subscription.assignedCoach,
+          content: newMessage.trim(),
+        });
 
-      // Send the message via WebSocket
-      socket.emit('sendMessage', {
-        senderId: user._id,
-        receiverId: subscription.assignedCoach,
-        content: newMessage.trim(),
-      });
+        // Update the subscription with the new message via API call
+        const updatedSubscription = await subscriptionService.sendMessage(
+          subscription._id, user._id || user.user._id, subscription.assignedCoach, newMessage.trim(), new Date(),
+        );
 
-      // Update the subscription with the new message
-      const updatedSubscription = await subscriptionService.sendMessage(
-        subscription._id,
-        message
-      );
-
-      setMessages(updatedSubscription.messages);
-      setNewMessage('');
+        // Update the local messages state with the updated subscription messages
+        setMessages(updatedSubscription.messages);
+        setNewMessage('');
+      } catch (error) {
+        console.error('Failed to send message:', error);
+      }
     }
   };
 

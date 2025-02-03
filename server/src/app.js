@@ -148,6 +148,7 @@ try {
 import { initializeSocket } from './socketServer.js';
 const io = initializeSocket(server);
 
+
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   logger.error('Unhandled Promise Rejection:', err);

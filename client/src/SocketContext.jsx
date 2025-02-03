@@ -9,7 +9,7 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     // Initialize the WebSocket connection
-    const newSocket = io(import.meta.env.REACT_APP_SOCKET_URL || 'http://localhost:5001', {
+    const newSocket = io(import.meta.env.VITE_URL || 'http://localhost:5000', {
       withCredentials: true,
     });
 

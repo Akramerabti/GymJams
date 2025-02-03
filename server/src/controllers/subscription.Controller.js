@@ -6,6 +6,7 @@ import logger from '../utils/logger.js';
 import { sendSubscriptionReceipt } from '../services/email.service.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
+import { getIoInstance } from '../socketServer.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -859,22 +860,73 @@ export const handleWebhook = async (event) => {
   }
 };
 
-export const messaging = async (req,res) => {
+
+export const messaging = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { senderId, receiverId, content } = req.body;
+    const { subscriptionId } = req.params; // Subscription ID
+    const { senderId, receiverId, content, timestamp } = req.body;
 
-    const subscription = await sendMessage(id, { senderId, content });
-
-    // Emit the message via WebSocket
-    io.emit('sendMessage', {
+    console.log('Received message:', {
+      subscriptionId,
       senderId,
       receiverId,
       content,
+      timestamp,
     });
 
-    res.status(200).json(subscription);
-  } catch (error) {
-    res.status(500).json({ message: 'Error sending message', error });
-  }
+    // Validate that all required fields are present
+    if (!subscriptionId || !senderId || !receiverId || !content || !timestamp) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    // Ensure senderId and receiverId are valid ObjectIds
+    if (!mongoose.Types.ObjectId.isValid(senderId)) {
+      return res.status(400).json({ message: 'Invalid senderId' });
+    }
+    if (!mongoose.Types.ObjectId.isValid(receiverId)) {
+      return res.status(400).json({ message: 'Invalid receiverId' });
+    }
+
+    // Ensure content is not empty
+    if (!content || content.trim() === '') {
+      return res.status(400).json({ message: 'Content is required' });
+    }
+
+    // Ensure timestamp is a valid Date object
+    const parsedTimestamp = new Date(timestamp);
+    if (isNaN(parsedTimestamp.getTime())) {
+      return res.status(400).json({ message: 'Invalid timestamp' });
+    }
+
+    // Find the subscription
+    const subscription = await Subscription.findById(subscriptionId);
+    if (!subscription) {
+      return res.status(404).json({ message: 'Subscription not found' });
+    }
+
+    // Create the message object
+    const message = {
+      sender: new mongoose.Types.ObjectId(senderId), // Cast senderId to ObjectId
+      content: content.trim(), // Trim whitespace from content
+      timestamp: parsedTimestamp, // Use the validated timestamp
+      read: false,
+    };
+
+    // Use the sendMessage method to save the message
+    const updatedSubscription = await subscription.sendMessage(message);
+
+   // Get the io instance and emit the message via WebSocket
+   const io = getIoInstance();
+   if (!io) {
+     console.error('Socket.io instance is not initialized');
+     return res.status(500).json({ message: 'Socket.io instance is not initialized' });
+   }
+
+   io.to(receiverId).emit('receiveMessage', message);
+
+   res.status(200).json(updatedSubscription);
+ } catch (error) {
+   console.error('Error sending message:', error);
+   res.status(500).json({ message: 'Error sending message', error });
+ }
 };

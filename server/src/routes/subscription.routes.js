@@ -26,7 +26,7 @@ router.post('/access', optionalAuthenticate, accessSubscription);
 router.get('/questionnaire-status', optionalAuthenticate, getQuestionnaireStatus);
 router.post('/submit-questionnaire', optionalAuthenticate, submitQuestionnaire);
 router.post('/assign-coach', optionalAuthenticate, assignCoach);
-router.post('/subscriptions/:id/send-message', messaging);
+router.post('/:subscriptionId/send-message', messaging);
 
 router.post('/webhook', express.raw({ type: 'application/json' }),  async (req, res) => {
     const sig = req.headers['stripe-signature'];

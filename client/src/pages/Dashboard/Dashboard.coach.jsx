@@ -7,9 +7,10 @@ import {
   Clock, CheckSquare, AlertCircle, Settings, ArrowRight
 } from 'lucide-react';
 import subscriptionService from '../../services/subscription.service';
-import ClientWork from '../../pages/Dashboard/components/clientwork';
+import ClientWork from './components/CoachChatComponent';
 import { useAuth } from '../../stores/authStore';
 import { toast } from 'sonner';
+import CoachChatComponent from './components/CoachChatComponent';
 
 const DashboardCoach = () => {
   const { user } = useAuth();
@@ -26,6 +27,8 @@ const DashboardCoach = () => {
   const [upcomingSessions, setUpcomingSessions] = useState([]);
   const [showClientWork, setShowClientWork] = useState(false);
   const [showActiveClients, setShowActiveClients] = useState(false); // New state for showing active clients
+  const [showChat, setShowChat] = useState(false);
+  const [chatClient, setChatClient] = useState(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -55,6 +58,11 @@ const DashboardCoach = () => {
 
   const handleClientClick = (client) => {
     setSelectedClient(client);
+  };
+
+  const handleChatClick = (client) => {
+    setChatClient(client);
+    setShowChat(true);
   };
 
   const handleUpdateClientStats = async (updatedStats) => {
@@ -190,9 +198,27 @@ const DashboardCoach = () => {
                           <p className="text-sm text-gray-500">Last active: {client.lastActive}</p>
                         </div>
                       </div>
-                      <ArrowRight className="w-5 h-5 text-gray-400" />
-                    </motion.div>
-                  ))}
+                      <div className="flex items-center space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent triggering the client details modal
+                              handleChatClick(client);
+                            }}
+                            className="relative"
+                          >
+                            <MessageSquare className="h-5 w-5" />
+                            {client.unreadMessages > 0 && (
+                              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                                {client.unreadMessages}
+                              </span>
+                            )}
+                          </Button>
+                          <ArrowRight className="w-5 h-5 text-gray-400" />
+                        </div>
+                      </motion.div>
+                    ))}
                 </motion.div>
               ) : (
                 <p className="text-gray-500">No recent clients found.</p>
@@ -291,6 +317,18 @@ const DashboardCoach = () => {
           )}
         </AnimatePresence>
 
+          {/* Chat Modal */}
+          <AnimatePresence>
+            {showChat && chatClient && (
+              <CoachChatComponent
+                selectedClient={chatClient}
+                onClose={() => {
+                  setShowChat(false);
+                  setChatClient(null);
+                }}
+              />
+            )}
+          </AnimatePresence>
         {/* Client Details Modal */}
         <AnimatePresence>
           {selectedClient && (

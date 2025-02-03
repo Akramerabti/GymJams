@@ -1,18 +1,20 @@
-// socketServer.js
 import { Server } from 'socket.io';
 
 // Store active users and their socket connections
 const activeUsers = new Map();
 
+let ioInstance;
+
 export const initializeSocket = (server) => {
-  const io = new Server(server, {
+  ioInstance = new Server(server, {
     cors: {
-      origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+      origin: [process.env.CLIENT_URL, 'http://localhost:5173'],
       methods: ['GET', 'POST'],
+      credentials: true,
     },
   });
 
-  io.on('connection', (socket) => {
+  ioInstance.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
 
     // Listen for user registration (when a user logs in)
@@ -24,10 +26,9 @@ export const initializeSocket = (server) => {
     // Listen for incoming messages
     socket.on('sendMessage', async ({ senderId, receiverId, content }) => {
       const receiverSocketId = activeUsers.get(receiverId);
-
       if (receiverSocketId) {
         // Emit the message to the receiver
-        io.to(receiverSocketId).emit('receiveMessage', {
+        ioInstance.to(receiverSocketId).emit('receiveMessage', {
           senderId,
           content,
           timestamp: new Date(),
@@ -50,5 +51,8 @@ export const initializeSocket = (server) => {
     });
   });
 
-  return io;
+  return ioInstance;
 };
+
+// Export the io instance
+export const getIoInstance = () => ioInstance;
