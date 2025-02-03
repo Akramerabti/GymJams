@@ -58,7 +58,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
     if (!socket) return;
 
     // Register the coach socket
-    socket.emit('register', user._id || user.user._id);
+    socket.emit('register', user.id || user.user.id);
 
     // Listen for incoming messages
     const handleReceiveMessage = (message) => {
