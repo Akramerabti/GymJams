@@ -14,24 +14,30 @@ const Chat = ({ subscription, onClose }) => {
   const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef(null);
 
+  // Helper function to safely get the user ID
+  const getUserId = () => {
+    return user?.id || user?.user?.id;
+  };
+
   // Register the user with their socket ID and listen for incoming messages
   useEffect(() => {
     if (socket) {
-      // Register the user with their socket ID
-      socket.emit('register', user._id);
-
-      // Listen for incoming messages
-      socket.on('receiveMessage', (message) => {
-        setMessages((prevMessages) => [...prevMessages, message]);
-      });
+      const userId = getUserId();
+      if (userId) {
+        // Register the user with their socket ID
+        socket.emit('register', userId);
+        // Listen for incoming messages
+        socket.on('receiveMessage', (message) => {
+          setMessages((prevMessages) => [...prevMessages, message]);
+        });
+      }
     }
-
     return () => {
       if (socket) {
         socket.off('receiveMessage');
       }
     };
-  }, [socket, user._id]);
+  }, [socket, user]);
 
   // Scroll to the bottom of the chat when messages update
   const scrollToBottom = () => {
@@ -46,17 +52,23 @@ const Chat = ({ subscription, onClose }) => {
   const handleSendMessage = async () => {
     if (newMessage.trim()) {
       try {
+        const userId = getUserId();
+
         // Send the message via WebSocket
         socket.emit('sendMessage', {
           subscriptionId: subscription._id, // Include subscriptionId in the WebSocket message
-          senderId: user._id || user.user._id,
+          senderId: userId,
           receiverId: subscription.assignedCoach,
           content: newMessage.trim(),
         });
 
         // Update the subscription with the new message via API call
         const updatedSubscription = await subscriptionService.sendMessage(
-          subscription._id, user._id || user.user._id, subscription.assignedCoach, newMessage.trim(), new Date(),
+          subscription._id,
+          userId,
+          subscription.assignedCoach,
+          newMessage.trim(),
+          new Date(),
         );
 
         // Update the local messages state with the updated subscription messages
@@ -85,11 +97,11 @@ const Chat = ({ subscription, onClose }) => {
         {messages.map((msg, index) => (
           <div
             key={index}
-            className={`mb-4 ${msg.sender === user._id ? 'text-right' : 'text-left'}`}
+            className={`mb-4 ${msg.senderId === getUserId() ? 'text-right' : 'text-left'}`}
           >
             <div
               className={`inline-block p-2 rounded-lg ${
-                msg.sender === user._id ? 'bg-blue-500 text-white' : 'bg-gray-200'
+                msg.sender === getUserId() ? 'bg-blue-500 text-white' : 'bg-gray-200'
               }`}
             >
               {msg.content}

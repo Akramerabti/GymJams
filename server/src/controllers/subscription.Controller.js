@@ -930,3 +930,17 @@ export const messaging = async (req, res) => {
    res.status(500).json({ message: 'Error sending message', error });
  }
 };
+
+ export const getMessages = async (req, res) => {
+  try {
+    const subscription = await Subscription.findById(req.params.subscriptionId);
+    if (!subscription) {
+      return res.status(404).json({ message: 'Subscription not found' });
+    }
+    res.status(200).json({ messages: subscription.messages });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching messages', error });
+  }
+};
+
+

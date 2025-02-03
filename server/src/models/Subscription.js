@@ -1,130 +1,170 @@
 import mongoose from 'mongoose';
 
-const subscriptionSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  guestEmail: {
-    type: String,
-    sparse: true
-  },
-  subscription: {
-    type: String,
-    required: true,
-    enum: ['basic', 'premium', 'elite']
-  },
-  stripeSubscriptionId: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  stripeCustomerId: {
-    type: String,
-    required: true
-  },
-  status: {
-    type: String,
-    required: true,
-    enum: ['active', 'cancelled', 'past_due', 'unpaid', 'incomplete', 'incomplete_expired'],
-    default: 'active'
-  },
-  startDate: {
-    type: Date,
-    required: true
-  },
-  endDate: {
-    type: Date
-  },
-  currentPeriodStart: {
-    type: Date,
-    required: true
-  },
-  currentPeriodEnd: {
-    type: Date,
-    required: true
-  },
-  cancelAtPeriodEnd: {
-    type: Boolean,
-    default: false
-  },
-  cancelledAt: {
-    type: Date
-  },
-  pointsAwarded: {
-    type: Number,
-    default: 0
-  },
-  accessToken: {
-    type: String,
-    sparse: true, // Allow null values
-    index: {
-      unique: true,
-      partialFilterExpression: { accessToken: { $type: "string" } } // Only index non-null values
-    }
-  },
-  hasCompletedQuestionnaire: {
-    type: Boolean,
-    default: false
-  },
-  questionnaireData: {
-    type: Map,
-    of: mongoose.Schema.Types.Mixed,
-    default: new Map()
-  },
-  questionnaireCompletedAt: {
-    type: Date
-  },
-  assignedCoach: {
+const messageSchema = new mongoose.Schema({
+  sender: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: false
+    required: true,
   },
-  coachAssignmentStatus: {
+  content: {
     type: String,
-    enum: ['pending', 'assigned', 'declined', 'changed'],
-    default: 'pending'
+    required: true,
   },
-  coachAssignmentDate: {
-    type: Date
+  timestamp: {
+    type: Date,
+    default: Date.now,
   },
-  coachPreferences: {
-    specialties: [String],
-    preferredGender: String,
-    preferredLanguages: [String],
-    timeZone: String
+  read: {
+    type: Boolean,
+    default: false,
   },
-  stats: { // Add this field
-    workoutsCompleted: {
-      type: Number,
-      default: 0
-    },
-    currentStreak: {
-      type: Number,
-      default: 0
-    },
-    monthlyProgress: {
-      type: Number,
-      default: 0
-    },
-    goalsAchieved: {
-      type: Number,
-      default: 0
-    }
-  },
-},  {
-  timestamps: true
 });
 
+const subscriptionSchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    guestEmail: {
+      type: String,
+      sparse: true,
+    },
+    subscription: {
+      type: String,
+      required: true,
+      enum: ['basic', 'premium', 'elite'],
+    },
+    stripeSubscriptionId: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    stripeCustomerId: {
+      type: String,
+      required: true,
+    },
+    status: {
+      type: String,
+      required: true,
+      enum: ['active', 'cancelled', 'past_due', 'unpaid', 'incomplete', 'incomplete_expired'],
+      default: 'active',
+    },
+    startDate: {
+      type: Date,
+      required: true,
+    },
+    endDate: {
+      type: Date,
+    },
+    currentPeriodStart: {
+      type: Date,
+      required: true,
+    },
+    currentPeriodEnd: {
+      type: Date,
+      required: true,
+    },
+    cancelAtPeriodEnd: {
+      type: Boolean,
+      default: false,
+    },
+    cancelledAt: {
+      type: Date,
+    },
+    pointsAwarded: {
+      type: Number,
+      default: 0,
+    },
+    accessToken: {
+      type: String,
+      sparse: true,
+      index: {
+        unique: true,
+        partialFilterExpression: { accessToken: { $type: 'string' } },
+      },
+    },
+    hasCompletedQuestionnaire: {
+      type: Boolean,
+      default: false,
+    },
+    questionnaireData: {
+      type: Map,
+      of: mongoose.Schema.Types.Mixed,
+      default: new Map(),
+    },
+    questionnaireCompletedAt: {
+      type: Date,
+    },
+    assignedCoach: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: false,
+    },
+    coachAssignmentStatus: {
+      type: String,
+      enum: ['pending', 'assigned', 'declined', 'changed'],
+      default: 'pending',
+    },
+    coachAssignmentDate: {
+      type: Date,
+    },
+    coachPreferences: {
+      specialties: [String],
+      preferredGender: String,
+      preferredLanguages: [String],
+      timeZone: String,
+    },
+    stats: {
+      workoutsCompleted: {
+        type: Number,
+        default: 0,
+      },
+      currentStreak: {
+        type: Number,
+        default: 0,
+      },
+      monthlyProgress: {
+        type: Number,
+        default: 0,
+      },
+      goalsAchieved: {
+        type: Number,
+        default: 0,
+      },
+    },
+    messages: [messageSchema], // Add messages field to store messages
+  },
+  {
+    timestamps: true,
+  }
+);
+
 // Virtual for checking if subscription is active
-subscriptionSchema.virtual('isActive').get(function() {
+subscriptionSchema.virtual('isActive').get(function () {
   return this.status === 'active' && (!this.endDate || this.endDate > new Date());
 });
 
 // Method to check if subscription can be cancelled with refund
-subscriptionSchema.methods.isEligibleForRefund = function() {
+subscriptionSchema.methods.isEligibleForRefund = function () {
   const daysSinceStart = (new Date() - this.startDate) / (1000 * 60 * 60 * 24);
   return daysSinceStart <= 10;
+};
+
+// Method to send and store messages
+subscriptionSchema.methods.sendMessage = async function (message) {
+  // Add the message to the messages array
+  this.messages.push(message);
+  await this.save(); // Save the updated subscription
+
+  // Return the updated subscription
+  return this;
+};
+
+// Method to fetch messages
+subscriptionSchema.methods.fetchMessages = async function () {
+  // Return all messages associated with this subscription
+  return this.messages;
 };
 
 const Subscription = mongoose.model('Subscription', subscriptionSchema);

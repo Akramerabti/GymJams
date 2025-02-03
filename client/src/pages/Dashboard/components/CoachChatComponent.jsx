@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ArrowLeft, Send, User, MessageCircle } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
+import subscriptionService from '../../../services/subscription.service';
 
 const CoachChatComponent = ({ onClose, selectedClient }) => {
   const socket = useSocket();
@@ -18,6 +18,29 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
   const messagesEndRef = useRef(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  useEffect(() => {
+    const fetchMessages = async () => {
+      if (!selectedClient?.id) return;
+  
+      setIsLoading(true);
+      try {
+        const fetchedMessages = await subscriptionService.fetchMessages(
+          selectedClient.id
+        );
+
+        
+        setMessages(fetchedMessages);
+      } catch (error) {
+        console.error('Error fetching messages:', error);
+        setMessages([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+  
+    fetchMessages();
+  }, [selectedClient?.subscriptionId]);
+
   // Scroll to bottom of messages
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -27,39 +50,73 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
     scrollToBottom();
   }, [messages]);
 
+  const getUserId = () => {
+    return user?.id || user?.user?.id;
+  };
+  // Handle WebSocket events
   useEffect(() => {
     if (!socket) return;
 
-    // Register the coach
-    socket.emit('register', user.id);
+    // Register the coach socket
+    socket.emit('register', user._id || user.user._id);
 
     // Listen for incoming messages
-    socket.on('receiveMessage', (message) => {
-      setMessages((prev) => [...prev, message]);
+    const handleReceiveMessage = (message) => {
+      setMessages((prev) => {
+        // Prevent duplicate messages
+        const isDuplicate = prev.some(
+          m => m.content === message.content && 
+               m.timestamp === message.timestamp
+        );
+        
+        return isDuplicate 
+          ? prev 
+          : [...prev, message];
+      });
+
       if (message.senderId !== user.id) {
         setUnreadCount((prev) => prev + 1);
       }
-    });
+    };
+
+    socket.on('receiveMessage', handleReceiveMessage);
 
     return () => {
-      socket.off('receiveMessage');
+      socket.off('receiveMessage', handleReceiveMessage);
     };
   }, [socket, user.id]);
 
-  const sendMessage = (e) => {
+  // Send a new message
+  const sendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
+    
+    const trimmedMessage = newMessage.trim();
+    if (!trimmedMessage) return;
 
-    const message = {
-      senderId: user.id,
-      receiverId: selectedClient.id,
-      content: newMessage.trim(),
-      timestamp: new Date(),
-    };
+    const timestamp = new Date().toISOString();
 
-    socket.emit('sendMessage', message);
-    setMessages((prev) => [...prev, message]);
-    setNewMessage('');
+    try {
+      // Use the service method to send message
+      await subscriptionService.sendMessage(
+        selectedClient.id, 
+        user.id || user.user.id, 
+        selectedClient.id, 
+        trimmedMessage,
+        timestamp
+      );
+  
+      // Optimistically update messages
+      setMessages((prev) => [...prev, {
+        senderId: user.id,
+        content: trimmedMessage,
+        timestamp: new Date().toISOString()
+      }]);
+  
+      setNewMessage('');
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Optionally show error to user
+    }
   };
 
   return (
@@ -79,39 +136,45 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
 
       {/* Messages Area */}
       <ScrollArea className="flex-1 p-4 overflow-y-auto">
-        {messages.map((message, index) => (
-          <div
-            key={index}
-            className={`flex ${
-              message.senderId === user.id ? 'justify-end' : 'justify-start'
-            } mb-2`}
-          >
-            <div
-              className={`max-w-xs p-2 rounded-lg ${
-                message.senderId === user.id
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-200 text-black'
-              }`}
+        {isLoading ? (
+          <p className="text-center text-gray-500">Loading messages...</p>
+        ) : messages.length === 0 ? (
+          <p className="text-center text-gray-500">No messages yet</p>
+        ) : (
+          messages.map((message, index) => (
+            <div 
+              key={`${index}-${message.timestamp}`} 
+              className={`flex ${
+                message.sender === getUserId() ? 'justify-end' : 'justify-start'
+              } mb-2`}
             >
-              <p>{message.content}</p>
-              <small className="text-xs opacity-70">
-                {format(new Date(message.timestamp), 'HH:mm')}
-              </small>
+              <div
+                className={`max-w-xs p-3 rounded-lg ${
+                  message.sender === getUserId()
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-100 text-black'
+                }`}
+              >
+                <p>{message.content}</p>
+                <small className="text-xs opacity-70 block mt-1">
+                  {format(new Date(message.timestamp), 'HH:mm')}
+                </small>
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
         <div ref={messagesEndRef} />
       </ScrollArea>
 
       {/* Message Input */}
       <form onSubmit={sendMessage} className="flex gap-2 p-4 border-t">
-        <Input
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Type your message..."
-          className="flex-1"
+        <Input 
+          value={newMessage} 
+          onChange={(e) => setNewMessage(e.target.value)} 
+          placeholder="Type your message..." 
+          className="flex-1" 
         />
-        <Button type="submit">
+        <Button type="submit" disabled={!newMessage.trim()}>
           <Send />
         </Button>
       </form>

@@ -378,6 +378,46 @@ async submitQuestionnaire(answers, accessToken = null) {
       console.error('Failed to send message:', error);
       throw error;
     }
+  },
+  
+  async fetchMessages(subscriptionId, options = {}) {
+    try {
+      if (!subscriptionId) {
+        throw new Error('Subscription ID is required');
+      }
+
+      // Prepare query parameters
+      const params = {
+        limit: options.limit || 50,
+        offset: options.offset || 0,
+        unreadOnly: options.unreadOnly || false
+      };
+
+      // Fetch messages
+      const response = await api.get(`/subscription/${subscriptionId}/messages`, { params });
+
+      return response.data.messages || response.data || [];
+    } catch (error) {
+      console.error('Failed to fetch messages:', error);
+      throw error;
+    }
+  },
+
+  async markMessagesAsRead(subscriptionId, messageIds) {
+    try {
+      if (!subscriptionId) {
+        throw new Error('Subscription ID is required');
+      }
+      if (!messageIds || messageIds.length === 0) {
+        throw new Error('At least one message ID is required');
+      }
+
+      const response = await api.put(`/subscription/${subscriptionId}/mark-read`, { messageIds });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to mark messages as read:', error);
+      throw error;
+    }
   }
 
 };
