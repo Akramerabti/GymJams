@@ -31,11 +31,8 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
     setTimeout(() => onClose(), 300);
   };
 
-
   const handleReceiveMessage = (message) => {
-
     setMessages((prev) => {
-      // Prevent duplicate messages
       const isDuplicate = prev.some(
         (m) =>
           m.content === message.content &&
@@ -72,9 +69,8 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
     if (!socket) return;
 
     if (userId) {
-    // Register the coach socket
-    socket.emit('register', userId);
-    socket.on('receiveMessage', handleReceiveMessage);
+      socket.emit('register', userId);
+      socket.on('receiveMessage', handleReceiveMessage);
     }
     
     fetchMessages();
@@ -82,19 +78,16 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
     return () => {
       socket.off('receiveMessage', handleReceiveMessage);
     };
-  }, [selectedClient?.subscriptionId,socket, user.id, user.user.id]);
+  }, [selectedClient?.subscriptionId, socket, user.id, user.user.id]);
 
-    useEffect(() => {
-      scrollToBottom();
-    }, [messages]);
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
-  // Scroll to bottom of messages
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-
-  // Send a new message
   const sendMessage = async (e) => {
     e.preventDefault();
 
@@ -103,11 +96,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
 
     const timestamp = new Date().toISOString();
 
-    console.log('Sending message:asssssssssssssssss', selectedClient);
-
     try {
-
-      // Emit the message via WebSocket
       socket.emit('sendMessage', {
         subscriptionId: selectedClient.id,
         senderId: getUserId(),
@@ -116,7 +105,6 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
         timestamp,
       });
       
-      // Use the service method to send message
       const updatedSubscription = await subscriptionService.sendMessage(
         selectedClient.id,
         user.id || user.user.id,
@@ -126,23 +114,34 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
       );
 
       setMessages(updatedSubscription.messages);
-
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
-      // Optionally show error to user
     }
   };
 
+  // Prevent background scrolling when chat is open
+  useEffect(() => {
+    if (isChatVisible) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isChatVisible]);
+
   return (
     <motion.div 
-      initial={{ opacity: 0, x: '100%' }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: '100%' }}
-      transition={{ type: 'tween', duration: 0.3 }}
-      className="fixed inset-0 z-50 bg-gray-100 flex flex-col"
-    >
-      <div className="relative flex-1 flex flex-col max-w-2xl mx-auto w-full shadow-xl bg-white">
+  initial={{ opacity: 0, x: '100%' }}
+  animate={{ opacity: 1, x: 0 }}
+  exit={{ opacity: 0, x: '100%' }}
+  transition={{ type: 'tween', duration: 0.3 }}
+  className="fixed inset-0 z-[9999] bg-gray-100 flex flex-col"
+>
+      <div className="relative flex-1 flex flex-col min-h-0 max-w-2xl mx-auto w-full shadow-xl bg-white">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md">
           <div className="flex items-center justify-between p-4">
@@ -163,7 +162,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
         </div>
 
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+        <ScrollArea className="flex-1 overflow-y-auto p-4 bg-gray-50">
           {isLoading ? (
             <p className="text-center text-gray-500">Loading messages...</p>
           ) : messages.length === 0 ? (
@@ -203,7 +202,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
               <div ref={messagesEndRef} />
             </AnimatePresence>
           )}
-        </div>
+        </ScrollArea>
 
         {/* Message Input */}
         <div className="sticky bottom-0 bg-white border-t p-4 shadow-lg">
@@ -212,7 +211,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
               type="text"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+              onKeyPress={(e) => e.key === 'Enter' && sendMessage(e)}
               placeholder="Type a message..."
               className="flex-1 rounded-full px-4 py-2 border-2 border-gray-300 focus:border-indigo-500 transition-colors"
             />

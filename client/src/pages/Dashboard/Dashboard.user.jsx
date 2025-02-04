@@ -121,7 +121,34 @@ const DashboardUser = () => {
   const [showCoachAssignment, setShowCoachAssignment] = useState(false);
   const [assignedCoach, setAssignedCoach] = useState(null);
   const [showChat, setShowChat] = useState(false); // State for chat visibility
-  const [bubblePosition, setBubblePosition] = useState({ x: 0, y: 0 }); // State for chat bubble position
+  const [bubblePosition, setBubblePosition] = useState({ x: window.innerWidth - 80, y: window.innerHeight - 80 }); // State for chat bubble position
+  const [bubbleConstraints, setBubbleConstraints] = useState({
+    top: 0,
+    left: 0,
+    right: window.innerWidth - 64,
+    bottom: window.innerHeight - 64,
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      const newConstraints = {
+        top: 0,
+        left: 0,
+        right: window.innerWidth - 64,
+        bottom: window.innerHeight - 64,
+      };
+      setBubbleConstraints(newConstraints);
+
+      // Optionally, ensure the bubble stays within the new boundaries.
+      setBubblePosition(prev => ({
+        x: Math.min(prev.x, window.innerWidth - 64),
+        y: Math.min(prev.y, window.innerHeight - 64),
+      }));
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Fetch assigned coach details
   const fetchAssignedCoach = async () => {
@@ -449,14 +476,9 @@ const DashboardUser = () => {
       </div>
 
       {/* Floating Chat Bubble */}
-      <motion.div
+       <motion.div
         drag
-        dragConstraints={{
-          top: 0,
-          left: 0,
-          right: window.innerWidth - 64, // Adjust based on bubble size
-          bottom: window.innerHeight - 64, // Adjust based on bubble size
-        }}
+        dragConstraints={bubbleConstraints}
         dragElastic={0.1}
         whileTap={{ scale: 0.9 }} // Animation when the bubble is pressed
         style={{

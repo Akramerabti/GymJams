@@ -54,7 +54,19 @@ const DashboardCoach = () => {
     };
 
     fetchDashboardData();
-  }, []);
+
+    if (showChat || showActiveClients || selectedClient) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+  
+    // Clean up when component unmounts or modal closes
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  
+  }, [showChat, showActiveClients, selectedClient]);
 
   const handleClientClick = (client) => {
     setSelectedClient(client);
