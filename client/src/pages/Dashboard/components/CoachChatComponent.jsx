@@ -18,100 +18,108 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
   const messagesEndRef = useRef(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  useEffect(() => {
-    const fetchMessages = async () => {
-      if (!selectedClient?.id) return;
+  const getUserId = () => {
+    return user?.id || user?.user?.id;
+  };
   
-      setIsLoading(true);
-      try {
-        const fetchedMessages = await subscriptionService.fetchMessages(
-          selectedClient.id
-        );
+  const userId = getUserId();
 
-        
-        setMessages(fetchedMessages);
-      } catch (error) {
-        console.error('Error fetching messages:', error);
-        setMessages([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-  
+
+  const handleReceiveMessage = (message) => {
+
+    setMessages((prev) => {
+      // Prevent duplicate messages
+      const isDuplicate = prev.some(
+        (m) =>
+          m.content === message.content &&
+          m.timestamp === message.timestamp
+      );
+
+      return isDuplicate ? prev : [...prev, message];
+    });
+
+    if (message.sender !== userId) {
+      setUnreadCount((prev) => prev + 1);
+    }
+  };
+
+  const fetchMessages = async () => {
+    console.log('Fetching messages for:', selectedClient);
+    if (!selectedClient?.id) return;
+
+    setIsLoading(true);
+    try {
+      const fetchedMessages = await subscriptionService.fetchMessages(
+        selectedClient.id
+      );
+      setMessages(fetchedMessages);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      setMessages([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!socket) return;
+
+    if (userId) {
+    // Register the coach socket
+    socket.emit('register', userId);
+    socket.on('receiveMessage', handleReceiveMessage);
+    }
+    
     fetchMessages();
-  }, [selectedClient?.subscriptionId]);
+
+    return () => {
+      socket.off('receiveMessage', handleReceiveMessage);
+    };
+  }, [selectedClient?.subscriptionId,socket, user.id, user.user.id]);
+
+    useEffect(() => {
+      scrollToBottom();
+    }, [messages]);
 
   // Scroll to bottom of messages
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const getUserId = () => {
-    return user?.id || user?.user?.id;
-  };
-  // Handle WebSocket events
-  useEffect(() => {
-    if (!socket) return;
-
-    // Register the coach socket
-    socket.emit('register', user.id || user.user.id);
-
-    // Listen for incoming messages
-    const handleReceiveMessage = (message) => {
-      setMessages((prev) => {
-        // Prevent duplicate messages
-        const isDuplicate = prev.some(
-          m => m.content === message.content && 
-               m.timestamp === message.timestamp
-        );
-        
-        return isDuplicate 
-          ? prev 
-          : [...prev, message];
-      });
-
-      if (message.senderId !== user.id) {
-        setUnreadCount((prev) => prev + 1);
-      }
-    };
-
-    socket.on('receiveMessage', handleReceiveMessage);
-
-    return () => {
-      socket.off('receiveMessage', handleReceiveMessage);
-    };
-  }, [socket, user.id]);
 
   // Send a new message
   const sendMessage = async (e) => {
     e.preventDefault();
-    
+
     const trimmedMessage = newMessage.trim();
     if (!trimmedMessage) return;
 
     const timestamp = new Date().toISOString();
 
+    console.log('Sending message:asssssssssssssssss', selectedClient);
+
     try {
+
+      // Emit the message via WebSocket
+      socket.emit('sendMessage', {
+        subscriptionId: selectedClient.id,
+        senderId: getUserId(),
+        receiverId: selectedClient.userId,
+        content: trimmedMessage,
+        timestamp,
+      });
+      
       // Use the service method to send message
-      await subscriptionService.sendMessage(
-        selectedClient.id, 
-        user.id || user.user.id, 
-        selectedClient.id, 
+      const updatedSubscription = await subscriptionService.sendMessage(
+        selectedClient.id,
+        user.id || user.user.id,
+        selectedClient.userId,
         trimmedMessage,
         timestamp
       );
-  
-      // Optimistically update messages
-      setMessages((prev) => [...prev, {
-        senderId: user.id,
-        content: trimmedMessage,
-        timestamp: new Date().toISOString()
-      }]);
-  
+
+      setMessages(updatedSubscription.messages);
+
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
@@ -142,8 +150,8 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
           <p className="text-center text-gray-500">No messages yet</p>
         ) : (
           messages.map((message, index) => (
-            <div 
-              key={`${index}-${message.timestamp}`} 
+            <div
+              key={`${index}-${message.timestamp}`}
               className={`flex ${
                 message.sender === getUserId() ? 'justify-end' : 'justify-start'
               } mb-2`}
@@ -151,11 +159,11 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
               <div
                 className={`max-w-xs p-3 rounded-lg ${
                   message.sender === getUserId()
-                    ? 'bg-blue-500 text-white' 
+                    ? 'bg-blue-500 text-white'
                     : 'bg-gray-100 text-black'
                 }`}
               >
-                <p>{message.content}</p>
+                {message.content}
                 <small className="text-xs opacity-70 block mt-1">
                   {format(new Date(message.timestamp), 'HH:mm')}
                 </small>
@@ -167,17 +175,19 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
       </ScrollArea>
 
       {/* Message Input */}
-      <form onSubmit={sendMessage} className="flex gap-2 p-4 border-t">
-        <Input 
-          value={newMessage} 
-          onChange={(e) => setNewMessage(e.target.value)} 
-          placeholder="Type your message..." 
-          className="flex-1" 
-        />
-        <Button type="submit" disabled={!newMessage.trim()}>
-          <Send />
-        </Button>
-      </form>
+      <div className="p-4 border-t flex">
+              <Input
+                type="text"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                placeholder="Type a message..."
+                className="flex-1 mr-2"
+              />
+              <Button onClick={sendMessage}>
+                <Send className="w-4 h-4" />
+              </Button>
+          </div>
     </Card>
   );
 };

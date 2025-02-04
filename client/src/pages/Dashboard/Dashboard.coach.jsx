@@ -61,6 +61,7 @@ const DashboardCoach = () => {
   };
 
   const handleChatClick = (client) => {
+    console.log('Opening chat with:', client);
     setChatClient(client);
     setShowChat(true);
   };

@@ -19,24 +19,37 @@ const Chat = ({ subscription, onClose }) => {
     return user?.id || user?.user?.id;
   };
 
+  const userId = getUserId();
+
+  const handleReceiveMessage = (message) => {
+    setMessages((prev) => {
+      const isDuplicate = prev.some(
+        (m) =>
+          m.content === message.content &&
+          m.timestamp === message.timestamp
+      );
+      return isDuplicate ? prev : [...prev, message];
+    });
+
+    if (message.sender !== userId) {
+      setUnreadCount((prev) => prev + 1);
+    }
+  };
+
   // Register the user with their socket ID and listen for incoming messages
   useEffect(() => {
-    if (socket) {
-      const userId = getUserId();
+    if (!socket) return;
+
       if (userId) {
         // Register the user with their socket ID
         socket.emit('register', userId);
         // Listen for incoming messages
-        socket.on('receiveMessage', (message) => {
-          setMessages((prevMessages) => [...prevMessages, message]);
-        });
+        socket.on('receiveMessage',handleReceiveMessage );
       }
-    }
-    return () => {
-      if (socket) {
-        socket.off('receiveMessage');
-      }
-    };
+
+      return () => {
+        socket.off('receiveMessage', handleReceiveMessage);
+      };
   }, [socket, user]);
 
   // Scroll to the bottom of the chat when messages update
@@ -60,6 +73,7 @@ const Chat = ({ subscription, onClose }) => {
           senderId: userId,
           receiverId: subscription.assignedCoach,
           content: newMessage.trim(),
+          timestamp: new Date().toISOString(),
         });
 
         // Update the subscription with the new message via API call
@@ -68,7 +82,7 @@ const Chat = ({ subscription, onClose }) => {
           userId,
           subscription.assignedCoach,
           newMessage.trim(),
-          new Date(),
+          new Date().toISOString()
         );
 
         // Update the local messages state with the updated subscription messages
@@ -97,7 +111,9 @@ const Chat = ({ subscription, onClose }) => {
         {messages.map((msg, index) => (
           <div
             key={index}
-            className={`mb-4 ${msg.senderId === getUserId() ? 'text-right' : 'text-left'}`}
+            className={`mb-4 ${
+              msg.sender === getUserId() ? 'text-right' : 'text-left'
+            }`}
           >
             <div
               className={`inline-block p-2 rounded-lg ${

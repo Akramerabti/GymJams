@@ -125,6 +125,7 @@ export const getCoachDashboardData = async (req, res) => {
         // If the user is not already in the map, add them
         userMap.set(userKey, {
           id: sub._id,
+          userId: sub.user?._id,
           firstName: sub.user?.firstName || 'Guest',
           lastName: sub.user?.lastName || '',
           email: sub.user?.email || sub.guestEmail || 'No email',
