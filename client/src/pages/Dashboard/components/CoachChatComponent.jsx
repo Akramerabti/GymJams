@@ -5,9 +5,10 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowLeft, Send, User, MessageCircle } from 'lucide-react';
-import { format } from 'date-fns';
+import { ArrowLeft, Send, User, X } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
 import subscriptionService from '../../../services/subscription.service';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const CoachChatComponent = ({ onClose, selectedClient }) => {
   const socket = useSocket();
@@ -15,6 +16,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isChatVisible, setIsChatVisible] = useState(true);
   const messagesEndRef = useRef(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -23,6 +25,11 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
   };
   
   const userId = getUserId();
+
+  const handleBack = () => {
+    setIsChatVisible(false);
+    setTimeout(() => onClose(), 300);
+  };
 
 
   const handleReceiveMessage = (message) => {
@@ -128,67 +135,96 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
   };
 
   return (
-    <Card className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
-        <div className="flex items-center gap-2">
-          <User />
-          <span>
-            {selectedClient.firstName} {selectedClient.lastName}
-          </span>
-        </div>
-        <Button variant="ghost" onClick={onClose}>
-          <ArrowLeft />
-        </Button>
-      </div>
-
-      {/* Messages Area */}
-      <ScrollArea className="flex-1 p-4 overflow-y-auto">
-        {isLoading ? (
-          <p className="text-center text-gray-500">Loading messages...</p>
-        ) : messages.length === 0 ? (
-          <p className="text-center text-gray-500">No messages yet</p>
-        ) : (
-          messages.map((message, index) => (
-            <div
-              key={`${index}-${message.timestamp}`}
-              className={`flex ${
-                message.sender === getUserId() ? 'justify-end' : 'justify-start'
-              } mb-2`}
+    <motion.div 
+      initial={{ opacity: 0, x: '100%' }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: '100%' }}
+      transition={{ type: 'tween', duration: 0.3 }}
+      className="fixed inset-0 z-50 bg-gray-100 flex flex-col"
+    >
+      <div className="relative flex-1 flex flex-col max-w-2xl mx-auto w-full shadow-xl bg-white">
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md">
+          <div className="flex items-center justify-between p-4">
+            <Button 
+              variant="ghost" 
+              onClick={handleBack} 
+              className="text-white hover:bg-white/20 absolute left-2 top-1/2 -translate-y-1/2"
             >
-              <div
-                className={`max-w-xs p-3 rounded-lg ${
-                  message.sender === getUserId()
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-black'
-                }`}
-              >
-                {message.content}
-                <small className="text-xs opacity-70 block mt-1">
-                  {format(new Date(message.timestamp), 'HH:mm')}
-                </small>
-              </div>
+              <ArrowLeft />
+            </Button>
+            <div className="flex items-center gap-2 mx-auto">
+              <User className="w-6 h-6" />
+              <span className="font-semibold text-lg">
+                {selectedClient.firstName} {selectedClient.lastName}
+              </span>
             </div>
-          ))
-        )}
-        <div ref={messagesEndRef} />
-      </ScrollArea>
-
-      {/* Message Input */}
-      <div className="p-4 border-t flex">
-              <Input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder="Type a message..."
-                className="flex-1 mr-2"
-              />
-              <Button onClick={sendMessage}>
-                <Send className="w-4 h-4" />
-              </Button>
           </div>
-    </Card>
+        </div>
+
+        {/* Messages Area */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+          {isLoading ? (
+            <p className="text-center text-gray-500">Loading messages...</p>
+          ) : messages.length === 0 ? (
+            <p className="text-center text-gray-500">No messages yet</p>
+          ) : (
+            <AnimatePresence>
+              {messages.map((message, index) => (
+                <motion.div
+                  key={`${index}-${message.timestamp}`}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.2 }}
+                  className={`flex ${
+                    message.sender === getUserId() 
+                      ? 'justify-end' 
+                      : 'justify-start'
+                  }`}
+                >
+                  <div
+                    className={`max-w-[70%] p-3 rounded-2xl shadow-sm ${
+                      message.sender === getUserId()
+                        ? 'bg-gradient-to-br from-indigo-600 to-purple-600 text-white'
+                        : 'bg-white border text-gray-800'
+                    }`}
+                  >
+                    <p className="break-words">{message.content}</p>
+                    <small className={`text-xs opacity-70 block mt-1 text-right ${
+                      message.sender === getUserId() 
+                        ? 'text-gray-200' 
+                        : 'text-gray-500'
+                    }`}>
+                      {format(parseISO(message.timestamp), 'HH:mm')}
+                    </small>
+                  </div>
+                </motion.div>
+              ))}
+              <div ref={messagesEndRef} />
+            </AnimatePresence>
+          )}
+        </div>
+
+        {/* Message Input */}
+        <div className="sticky bottom-0 bg-white border-t p-4 shadow-lg">
+          <form onSubmit={sendMessage} className="flex items-center space-x-2">
+            <Input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+              placeholder="Type a message..."
+              className="flex-1 rounded-full px-4 py-2 border-2 border-gray-300 focus:border-indigo-500 transition-colors"
+            />
+            <Button onClick={sendMessage}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-2 w-10 h-10 flex items-center justify-center"
+            >
+              <Send className="w-5 h-5" />
+            </Button>
+          </form>
+        </div>
+      </div>
+    </motion.div>
   );
 };
 
