@@ -22,15 +22,16 @@ const DashboardCoach = () => {
   });
 
   const [clients, setClients] = useState([]);
-  const [activeClients, setActiveClients] = useState([]); // New state for active clients
+  const [activeClients, setActiveClients] = useState([]);
   const [selectedClient, setSelectedClient] = useState(null);
   const [upcomingSessions, setUpcomingSessions] = useState([]);
   const [showClientWork, setShowClientWork] = useState(false);
-  const [showActiveClients, setShowActiveClients] = useState(false); // New state for showing active clients
-  const [showChat, setShowChat] = useState(false);
+  const [showActiveClients, setShowActiveClients] = useState(false);
   const [chatClient, setChatClient] = useState(null);
+  const [isChatOpen, setIsChatOpen] = useState(false); // State to track chat visibility
 
   useEffect(() => {
+
     const fetchDashboardData = async () => {
       try {
         const data = await subscriptionService.getCoachDashboardData();
@@ -41,9 +42,7 @@ const DashboardCoach = () => {
           messageThreads: data.stats.messageThreads,
         });
         setClients(data.recentClients);
-        setActiveClients(data.recentClients); // Set active clients
-
-        // Mock upcoming sessions (replace with actual data from the backend)
+        setActiveClients(data.recentClients);
         setUpcomingSessions([
           { id: 1, clientName: 'Client 1', time: '10:00 AM', duration: '30 min' },
           { id: 2, clientName: 'Client 2', time: '11:00 AM', duration: '45 min' },
@@ -54,35 +53,29 @@ const DashboardCoach = () => {
     };
 
     fetchDashboardData();
-
-    if (showChat || showActiveClients || selectedClient) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'auto';
-    }
   
-    // Clean up when component unmounts or modal closes
-    return () => {
-      document.body.style.overflow = 'auto';
-    };
-  
-  }, [showChat, showActiveClients, selectedClient]);
+  }, [isChatOpen, showActiveClients, selectedClient]);
 
   const handleClientClick = (client) => {
     setSelectedClient(client);
   };
 
+  const handleCloseChat = () => {
+    setIsChatOpen(false);
+    setChatClient(null);
+  };
+
   const handleChatClick = (client) => {
-    console.log('Opening chat with:', client);
     setChatClient(client);
-    setShowChat(true);
+    setIsChatOpen(true); // Open the chat
+  
   };
 
   const handleUpdateClientStats = async (updatedStats) => {
     try {
       await subscriptionService.updateClientStats(selectedClient.id, updatedStats);
       toast.success('Client stats updated successfully');
-      setSelectedClient(null); // Close the modal
+      setSelectedClient(null);
     } catch (error) {
       toast.error('Failed to update client stats');
     }
@@ -90,8 +83,7 @@ const DashboardCoach = () => {
 
   const handleActiveClientsClick = async () => {
     try {
-      
-      setShowActiveClients(true); // Show the active clients list
+      setShowActiveClients(true);
     } catch (error) {
       toast.error('Failed to fetch active clients');
     }
@@ -153,7 +145,7 @@ const DashboardCoach = () => {
             title="Active Clients"
             value={stats.activeClients}
             icon={Users}
-            onClick={handleActiveClientsClick} // Add click handler
+            onClick={handleActiveClientsClick}
           />
           <StatCard
             title="Pending Requests"
@@ -212,26 +204,26 @@ const DashboardCoach = () => {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => {
-                              e.stopPropagation(); // Prevent triggering the client details modal
-                              handleChatClick(client);
-                            }}
-                            className="relative"
-                          >
-                            <MessageSquare className="h-5 w-5" />
-                            {client.unreadMessages > 0 && (
-                              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                                {client.unreadMessages}
-                              </span>
-                            )}
-                          </Button>
-                          <ArrowRight className="w-5 h-5 text-gray-400" />
-                        </div>
-                      </motion.div>
-                    ))}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleChatClick(client);
+                          }}
+                          className="relative"
+                        >
+                          <MessageSquare className="h-5 w-5" />
+                          {client.unreadMessages > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                              {client.unreadMessages}
+                            </span>
+                          )}
+                        </Button>
+                        <ArrowRight className="w-5 h-5 text-gray-400" />
+                      </div>
+                    </motion.div>
+                  ))}
                 </motion.div>
               ) : (
                 <p className="text-gray-500">No recent clients found.</p>
@@ -330,18 +322,17 @@ const DashboardCoach = () => {
           )}
         </AnimatePresence>
 
-          {/* Chat Modal */}
-          <AnimatePresence>
-            {showChat && chatClient && (
-              <CoachChatComponent
-                selectedClient={chatClient}
-                onClose={() => {
-                  setShowChat(false);
-                  setChatClient(null);
-                }}
-              />
-            )}
-          </AnimatePresence>
+        {/* Chat Modal */}
+        <AnimatePresence>
+          {isChatOpen && chatClient && (
+            <CoachChatComponent
+              selectedClient={chatClient}
+              onClose={handleCloseChat}
+              isChatOpen={isChatOpen}
+            />
+          )}
+        </AnimatePresence>
+
         {/* Client Details Modal */}
         <AnimatePresence>
           {selectedClient && (
@@ -361,7 +352,6 @@ const DashboardCoach = () => {
                   {selectedClient.firstName} {selectedClient.lastName || selectedClient.email}
                 </h2>
                 <div className="space-y-4">
-                  {/* Redesigned Input Boxes */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Workouts Completed</label>
                     <input
@@ -420,7 +410,6 @@ const DashboardCoach = () => {
                   >
                     Save Changes
                   </Button>
-                  {/* Advanced Button to Open Client Work */}
                   <Button
                     variant="primary"
                     onClick={() => setShowClientWork(true)}

@@ -10,7 +10,7 @@ import { format, parseISO } from 'date-fns';
 import subscriptionService from '../../../services/subscription.service';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const CoachChatComponent = ({ onClose, selectedClient }) => {
+const CoachChatComponent = ({ onClose, selectedClient, isChatOpen}) => {
   const socket = useSocket();
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
@@ -78,7 +78,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
     return () => {
       socket.off('receiveMessage', handleReceiveMessage);
     };
-  }, [selectedClient?.subscriptionId, socket, user.id, user.user.id]);
+  }, [selectedClient?.subscriptionId, socket, userId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -139,11 +139,11 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
   animate={{ opacity: 1, x: 0 }}
   exit={{ opacity: 0, x: '100%' }}
   transition={{ type: 'tween', duration: 0.3 }}
-  className="fixed inset-0 z-[9999] bg-gray-100 flex flex-col"
+  className="fixed inset-0 z-[9999] bg-gray-100 flex flex-col "
 >
-      <div className="relative flex-1 flex flex-col min-h-0 max-w-2xl mx-auto w-full shadow-xl bg-white">
+      <div className="flex flex-col max-w-2xl mx-auto w-full shadow-xl bg-white overflow-y-auto h-full">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md">
+        <div className="sticky  z-[9999] bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md">
           <div className="flex items-center justify-between p-4">
             <Button 
               variant="ghost" 
