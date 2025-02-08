@@ -15,6 +15,7 @@ import {
   getMessages,
 } from '../controllers/subscription.Controller.js';
 import stripe from '../config/stripe.js';
+import upload from '../config/multer.js';
 
 const router = express.Router();
 
@@ -27,8 +28,9 @@ router.post('/access', optionalAuthenticate, accessSubscription);
 router.get('/questionnaire-status', optionalAuthenticate, getQuestionnaireStatus);
 router.post('/submit-questionnaire', optionalAuthenticate, submitQuestionnaire);
 router.post('/assign-coach', optionalAuthenticate, assignCoach);
-router.post('/:subscriptionId/send-message', messaging);
+router.post('/:subscriptionId/send-message', upload.array('files', 10), messaging);
 router.get('/:subscriptionId/messages', getMessages);
+
 
 router.post('/webhook', express.raw({ type: 'application/json' }),  async (req, res) => {
     const sig = req.headers['stripe-signature'];

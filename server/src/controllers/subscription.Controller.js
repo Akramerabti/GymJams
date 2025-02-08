@@ -860,11 +860,12 @@ export const handleWebhook = async (event) => {
   }
 };
 
-
 export const messaging = async (req, res) => {
   try {
-    const { subscriptionId } = req.params; // Subscription ID
-    const { senderId, receiverId, content, timestamp } = req.body;
+    const { subscriptionId } = req.params;
+    const { senderId, receiverId, content, timestamp, file} = req.body;
+
+    
 
     console.log('Received message:', {
       subscriptionId,
@@ -872,14 +873,15 @@ export const messaging = async (req, res) => {
       receiverId,
       content,
       timestamp,
+      file
     });
 
-    // Validate that all required fields are present
-    if (!subscriptionId || !senderId || !receiverId || !content || !timestamp) {
+    // Validate required fields
+    if (!subscriptionId || !senderId || !receiverId || !timestamp) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // Ensure senderId and receiverId are valid ObjectIds
+    // Validate ObjectIds
     if (!mongoose.Types.ObjectId.isValid(senderId)) {
       return res.status(400).json({ message: 'Invalid senderId' });
     }
@@ -887,16 +889,31 @@ export const messaging = async (req, res) => {
       return res.status(400).json({ message: 'Invalid receiverId' });
     }
 
-    // Ensure content is not empty
-    if (!content || content.trim() === '') {
-      return res.status(400).json({ message: 'Content is required' });
-    }
-
-    // Ensure timestamp is a valid Date object
+    // Validate timestamp
     const parsedTimestamp = new Date(timestamp);
     if (isNaN(parsedTimestamp.getTime())) {
       return res.status(400).json({ message: 'Invalid timestamp' });
     }
+
+    // Create the message object
+    const message = {
+      sender: new mongoose.Types.ObjectId(senderId),
+      content: content?.trim() || "", // Optional content (default to empty string)
+      timestamp: parsedTimestamp,
+      read: false,
+      file: file.map((files) => {
+        // Ensure file.type is always set
+        const type = files.type
+          ? files.type
+            ? 'image'
+            : 'video'
+          : 'unknown'; // Default to 'unknown' if mimetype is missing
+        return {
+          path: files.path, // Save the file path
+          type, // Determine file type
+        };
+      }),
+    };
 
     // Find the subscription
     const subscription = await Subscription.findById(subscriptionId);
@@ -904,31 +921,25 @@ export const messaging = async (req, res) => {
       return res.status(404).json({ message: 'Subscription not found' });
     }
 
-    // Create the message object
-    const message = {
-      sender: new mongoose.Types.ObjectId(senderId), // Cast senderId to ObjectId
-      content: content.trim(), // Trim whitespace from content
-      timestamp: parsedTimestamp, // Use the validated timestamp
-      read: false,
-    };
-
     // Use the sendMessage method to save the message
     const updatedSubscription = await subscription.sendMessage(message);
 
-   // Get the io instance and emit the message via WebSocket
-   const io = getIoInstance();
-   if (!io) {
-     console.error('Socket.io instance is not initialized');
-     return res.status(500).json({ message: 'Socket.io instance is not initialized' });
-   }
+    // Get the io instance and emit the message via WebSocket
+    const io = getIoInstance();
+    if (!io) {
+      console.error('Socket.io instance is not initialized');
+      return res.status(500).json({ message: 'Socket.io instance is not initialized' });
+    }
+    io.to(receiverId).emit('receiveMessage', {
+      ...message,
+      sender: senderId, // Include sender ID for the frontend
+    });
 
-   io.to(receiverId).emit('receiveMessage', message);
-
-   res.status(200).json(updatedSubscription);
- } catch (error) {
-   console.error('Error sending message:', error);
-   res.status(500).json({ message: 'Error sending message', error });
- }
+    res.status(200).json(updatedSubscription);
+  } catch (error) {
+    console.error('Error sending message:', error);
+    res.status(500).json({ message: 'Error sending message', error });
+  }
 };
 
  export const getMessages = async (req, res) => {

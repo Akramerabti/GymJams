@@ -331,3 +331,18 @@ export const dailyCount = async (req, res) => {
     res.status(500).json({ message: 'Error fetching daily count' });
   }
 };
+
+export const uploadFile = async (req, res) => {
+  console.log('Uploaded files:', req.files);
+  try {
+    const files = req.files.map((file) => ({
+      path: file.path, // File path on the server
+      type: file.mimetype.startsWith('image') ? 'image' : 'video', // Determine file type
+    }));
+
+    res.status(200).json({ files });
+  } catch (error) {
+    console.error('Error uploading files:', error);
+    res.status(500).json({ message: 'File upload failed' });
+  }
+};

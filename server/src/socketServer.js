@@ -2,13 +2,12 @@ import { Server } from 'socket.io';
 
 // Store active users and their socket connections
 const activeUsers = new Map();
-
 let ioInstance;
 
 export const initializeSocket = (server) => {
   ioInstance = new Server(server, {
     cors: {
-      origin: [process.env.CLIENT_URL, 'http://localhost:5173'],
+      origin: [process.env.CLIENT_URL, 'http://localhost:5173'], // Allow client URLs
       methods: ['GET', 'POST'],
       credentials: true,
     },
@@ -24,18 +23,41 @@ export const initializeSocket = (server) => {
     });
 
     // Listen for incoming messages
-    socket.on('sendMessage', async ({ senderId, receiverId, content }) => {
-      const receiverSocketId = activeUsers.get(receiverId);
-      if (receiverSocketId) {
-        // Emit the message to the receiver
-        ioInstance.to(receiverSocketId).emit('receiveMessage', {
-          senderId,
-          content,
-          timestamp: new Date(),
-        });
-        console.log(`Message sent from ${senderId} to ${receiverId}`);
-      } else {
-        console.log(`Receiver ${receiverId} is offline`);
+    socket.on('sendMessage', async ({ senderId, receiverId, content, timestamp, file }) => {
+
+      console.log('files:', file);
+      try {
+        // Validate the files field
+        if (file && !Array.isArray(file)) {
+          console.error('Invalid files data. Expected an array.');
+          return;
+        }
+
+        // Ensure each file has the required properties
+        if (file?.some((file) => !file.path || !file.type)) {
+          console.error('Invalid file metadata. Each file must have a path and type.');
+          return;
+        }
+
+        // Find the receiver's socket ID
+        const receiverSocketId = activeUsers.get(receiverId);
+
+        if (receiverSocketId) {
+          // Emit the message to the receiver
+          console.log('filesssssssssssssssssssssssssss:', file);
+          ioInstance.to(receiverSocketId).emit('receiveMessage', {
+            senderId,
+            content: content || '', // Optional content
+            file: file || [], // Ensure files is always an array
+            timestamp: timestamp, // Use ISO string for consistency
+          });
+
+          console.log(`Message sent from ${senderId} to ${receiverId}`);
+        } else {
+          console.log(`Receiver ${receiverId} is offline`);
+        }
+      } catch (error) {
+        console.error('Error handling sendMessage event:', error);
       }
     });
 

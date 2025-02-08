@@ -11,6 +11,7 @@ import {
   checkDailyGames, 
   completeGame,
   dailyCount,
+  uploadFile
 } from '../controllers/user.controller.js';
 import { authenticateJWT } from '../config/passport.js';
 import {
@@ -18,6 +19,7 @@ import {
   validatePasswordReset,
 } from '../middleware/validate.middleware.js';
 import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
+import upload from '../config/multer.js';
 
 const router = express.Router();
 
@@ -29,6 +31,7 @@ router.post('/change-password',  validatePasswordReset, changePassword);
 router.get('/profile', getProfile);
 router.get('/points', getPoints);
 router.put('/profile', validateProfileUpdate, updateProfile);
+router.post('/upload', upload.array('files'), uploadFile);
 
 
 router.get('/dashboard/user', getUserDashboardData);

@@ -352,7 +352,7 @@ async submitQuestionnaire(answers, accessToken = null) {
     }
   },
 
-  async sendMessage(subscriptionId, senderId, receiverId, content, timestamp) {
+  async sendMessage(subscriptionId, senderId, receiverId, content, timestamp, file) {
     try {
   
       console.log('Sending message:', {
@@ -361,6 +361,7 @@ async submitQuestionnaire(answers, accessToken = null) {
         receiverId,
         content,
         timestamp,
+        file,
       });
   
       // Send the POST request to the backend
@@ -369,6 +370,7 @@ async submitQuestionnaire(answers, accessToken = null) {
         receiverId: receiverId, // Ensure this is a string (e.g., coach ID)
         content: content, // Ensure content is a non-empty string
         timestamp: timestamp, // Ensure timestamp is a valid Date object
+        file: file, // Optional file attachment (if any)
       }
        );
   
@@ -416,6 +418,30 @@ async submitQuestionnaire(answers, accessToken = null) {
       return response.data;
     } catch (error) {
       console.error('Failed to mark messages as read:', error);
+      throw error;
+    }
+  },
+
+  async uploadFiles(files) {
+    try {
+      const formData = new FormData();
+      files.forEach((file) => {
+        formData.append('files', file); // Append each file to the form data
+      });
+
+      const response = await api.post('/user/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data', // Ensure proper content type for file uploads
+        },
+      });
+
+      if (!response.data || !Array.isArray(response.data.files)) {
+        throw new Error('Invalid response from the server');
+      }
+  
+      return response.data.files; // Return the array of uploaded file metadata
+    } catch (error) {
+      console.error('Error uploading files:', error);
       throw error;
     }
   }

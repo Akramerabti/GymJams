@@ -8,7 +8,7 @@ const messageSchema = new mongoose.Schema({
   },
   content: {
     type: String,
-    required: true,
+    default: "", // Make content optional and default to an empty string
   },
   timestamp: {
     type: Date,
@@ -18,8 +18,13 @@ const messageSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  file: [
+    {
+      path: { type: String, required: true }, // File path on the server
+      type: { type: String, required: true }, // File type (e.g., 'image' or 'video')
+    },
+  ],
 });
-
 const subscriptionSchema = new mongoose.Schema(
   {
     user: {
