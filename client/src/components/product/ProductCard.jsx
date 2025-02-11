@@ -6,7 +6,12 @@ import { useCart } from '../../hooks/useCart';
 const ProductCard = ({ product }) => {
   const navigate = useNavigate();
   const { addToCart } = useCart();
-  const { id, name, price, image, description } = product;
+  const { id, name, price, images, description } = product;
+
+  // Construct the full image URL using VITE_API_URL
+  const imageUrl = images && images.length > 0 
+    ? `${import.meta.env.VITE_API_URL}/${images[0]}` 
+    : ''; // Fallback to an empty string if no images are available
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden transition-transform hover:scale-[1.02]">
@@ -15,11 +20,13 @@ const ProductCard = ({ product }) => {
         className="relative h-48 cursor-pointer"
         onClick={() => navigate(`/product/${id}`)}
       >
-        <img
-          src={image}
-          alt={name}
-          className="w-full h-full object-cover"
-        />
+        {imageUrl && (
+          <img
+            src={imageUrl}
+            alt={name}
+            className="w-full h-full object-cover"
+          />
+        )}
         <button 
           className="absolute top-2 right-2 p-1.5 rounded-full bg-white/80 hover:bg-white"
           aria-label="Add to wishlist"

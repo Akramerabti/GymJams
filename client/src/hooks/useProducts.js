@@ -4,28 +4,19 @@ import { create } from 'zustand';
 import productService from '../services/product.service';
 
 const useProductStore = create((set, get) => ({
-  products: [],
-  featuredProducts: [],
-  categories: [],
+  products: [], // Store all products
   loading: false,
   error: null,
-  filters: {
-    category: null,
-    priceRange: null,
-    sortBy: 'featured',
-    search: ''
-  },
+
 
   // Fetch all products with optional filters
-  fetchProducts: async (filters = {}) => {
+  fetchProducts: async () => {
     set({ loading: true, error: null });
     try {
-      const response = await productService.getProducts(filters);
-      set({ products: response.data });
-      return response.data;
+      const response = await productService.getProducts();
+      set({ products: response.data || [] }); // Ensure products is an array
     } catch (error) {
       set({ error: error.message });
-      throw error;
     } finally {
       set({ loading: false });
     }
@@ -59,7 +50,7 @@ const useProductStore = create((set, get) => ({
   },
 
   // Get single product by ID
-  getProduct: async (productId) => {
+   getProduct: async (productId) => {
     set({ loading: true, error: null });
     try {
       const response = await productService.getProduct(productId);
@@ -109,23 +100,14 @@ const useProductStore = create((set, get) => ({
 
 export const useProducts = () => {
   const store = useProductStore();
-  
   return {
     products: store.products,
-    featuredProducts: store.featuredProducts,
-    categories: store.categories,
     loading: store.loading,
     error: store.error,
-    filters: store.filters,
     fetchProducts: store.fetchProducts,
-    fetchFeaturedProducts: store.fetchFeaturedProducts,
-    fetchCategories: store.fetchCategories,
     getProduct: store.getProduct,
-    setFilters: store.setFilters,
-    resetFilters: store.resetFilters,
   };
 };
-
 // Custom hook to fetch a single product
 export const useProduct = (productId) => {
   const { getProduct, loading, error } = useProductStore();

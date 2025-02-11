@@ -1,4 +1,3 @@
-// Shop.jsx
 import React, { useState, useEffect } from 'react';
 import { useProducts } from '../hooks/useProducts';
 import ProductGrid from '../components/product/ProductGrid';
@@ -19,18 +18,19 @@ const Shop = () => {
     category: '',
     priceRange: '',
     search: '',
-    sort: 'featured'
+    sort: 'featured',
   });
 
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [filterSections, setFilterSections] = useState({
     categories: true,
     priceRange: true,
-    sortBy: true
+    sortBy: true,
   });
 
   const [screenWidth, setScreenWidth] = useState(window.innerWidth);
-  const { products, loading, error } = useProducts(filters);
+  const { products, loading, error, fetchProducts } = useProducts();
+  const [filteredProducts, setFilteredProducts] = useState([]); // Store filtered products
   const navigate = useNavigate();
 
   const categories = ['Weights', 'Machines', 'Accessories', 'CardioEquipment'];
@@ -38,20 +38,61 @@ const Shop = () => {
     { label: 'Under $100', value: '0-100' },
     { label: '$100 - $500', value: '100-500' },
     { label: '$500 - $1000', value: '500-1000' },
-    { label: 'Over $1000', value: '1000+' }
+    { label: 'Over $1000', value: '1000+' },
   ];
 
+  // Fetch all products on component mount
   useEffect(() => {
-    const handleResize = () => setScreenWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    fetchProducts();
+  }, [fetchProducts]);
+
+  // Apply filters, sorting, and searching whenever filters or products change
+  useEffect(() => {
+    let result = [...products];
+
+    // Apply category filter
+    if (filters.category) {
+      result = result.filter((product) => product.category === filters.category);
+    }
+
+    // Apply price range filter
+    if (filters.priceRange) {
+      const [min, max] = filters.priceRange.split('-');
+      result = result.filter((product) => {
+        const price = product.price;
+        if (max === '+') return price >= min;
+        return price >= min && price <= max;
+      });
+    }
+
+    // Apply search filter
+    if (filters.search) {
+      result = result.filter((product) =>
+        product.name.toLowerCase().includes(filters.search.toLowerCase())
+      );
+    }
+
+    // Apply sorting
+    switch (filters.sort) {
+      case 'price-asc':
+        result.sort((a, b) => a.price - b.price);
+        break;
+      case 'price-desc':
+        result.sort((a, b) => b.price - a.price);
+        break;
+      case 'name':
+        result.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      default:
+        // Default sorting (featured)
+        break;
+    }
+
+    setFilteredProducts(result);
+  }, [filters, products]);
 
   const updateFilter = (filterType, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [filterType]: prev[filterType] === value ? '' : value
-    }));
+    setFilters((prev) => ({ ...prev, [filterType]: value }));
   };
 
   const resetFilters = () => {
@@ -59,20 +100,16 @@ const Shop = () => {
       category: '',
       priceRange: '',
       search: '',
-      sort: 'featured'
+      sort: 'featured',
     });
   };
 
   const toggleFilterSection = (section) => {
-    setFilterSections(prev => ({
-      ...prev,
-      [section]: !prev[section]
-    }));
+    setFilterSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
 
   const renderFilterSection = (title, key, items, renderItem) => {
     const isMobile = screenWidth <= 768;
-    
     return (
       <div className="mb-4 border-b pb-4">
         <div 
@@ -219,7 +256,7 @@ const Shop = () => {
             </div>
           ) : (
             <ProductGrid 
-              products={products} 
+              products={filteredProducts} 
               onProductClick={(productId) => navigate(`/product/${productId}`)}
             />
           )}

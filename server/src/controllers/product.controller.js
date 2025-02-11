@@ -5,8 +5,8 @@ import mongoose from 'mongoose';
 // Get all products
 export const getProducts = async (req, res) => {
   try {
-    const products = await Product.find();
-    res.status(200).json(products);
+    const products = await Product.find({}); // Fetch all products
+    res.status(200).json({ data: products }); // Return products in a `data` field
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -14,24 +14,29 @@ export const getProducts = async (req, res) => {
 
 // Add a new product
 export const addProduct = async (req, res) => {
-  const { name, description, price, category, stockQuantity, imageUrl, specs, discount } = req.body;
   try {
+    const { name, description, price, category } = req.body;
+    const images = req.files.map((file) => file.path); // Save file paths
+
+    if (images.length < 2 || images.length > 8) {
+      return res.status(400).json({ message: 'A product must have between 2 and 8 images.' });
+    }
+
     const newProduct = new Product({
       name,
       description,
       price,
       category,
-      stockQuantity,
-      imageUrl,
-      specs,
-      discount
+      images,
     });
+
     await newProduct.save();
     res.status(201).json(newProduct);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 // Update a product
 export const updateProduct = async (req, res) => {

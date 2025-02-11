@@ -24,11 +24,11 @@ const Navbar = () => {
   const navigationItems = [
     { name: 'Home', path: '/' },
     { name: 'Shop', path: '/shop' },
+    { name: 'Coaching', path: '/coaching' },
     { 
-      name: (getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin' ) ? 'Taskforce Dashboard' : 'Coaching', 
-      path: (getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin' ) ? '/taskforce-dashboard' : '/coaching' 
+      name: (getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin' ) ? 'Taskforce Dashboard' : 'Games', 
+      path: (getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin' ) ? '/taskforce-dashboard' : '/games' 
     },
-    { name: 'Games', path: '/games' },
     { name: 'Gains', path: '/gymbros' },
     { name: 'Contact', path: '/contact' },
   ];

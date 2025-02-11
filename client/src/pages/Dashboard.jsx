@@ -20,7 +20,7 @@ const Dashboard = () => {
         // Check for logged-in user first
         if (user) {
           // Validate user has required role
-          if (!['user', 'coach'].includes(user.user?.role || user.role)) {
+          if (!['user', 'admin', 'taskforce', 'coach'].includes(user.user?.role || user.role)) {
             console.error('Invalid user role:', user);
             toast.error('Invalid user role');
             navigate('/');

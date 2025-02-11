@@ -1,7 +1,6 @@
-// components/taskforce/ProductList.jsx
 import React from 'react';
 
-const ProductList = ({ products, onDeleteProduct }) => {
+const ProductList = ({ products = [], onDeleteProduct }) => { // Default to an empty array if products is undefined
   return (
     <div className="space-y-4">
       {products.map((product) => (
