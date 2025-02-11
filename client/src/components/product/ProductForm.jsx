@@ -2,7 +2,7 @@ import React, { useState} from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import  Textarea from "@/components/ui/textarea";
+import TextArea from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { 
@@ -125,7 +125,7 @@ const ProductForm = ({ categories, onAddProduct }) => {
 
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
-              <Textarea
+              <TextArea
                 id="description"
                 name="description"
                 value={product.description}
