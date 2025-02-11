@@ -87,20 +87,18 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
       }
 
       const timestamp = new Date().toISOString();
-      const messagePayload = {
-        subscriptionId: selectedClient.id,
-        senderId: getUserId(),
-        receiverId: selectedClient.userId,
-        content: trimmedMessage,
-        timestamp,
-        file: uploadedFiles.map((file) => ({
-          path: file.path,
-          type: file.type,
-        })),
-      };
 
-      // Emit the message via WebSocket
-      socket.emit('sendMessage', messagePayload);
+      socket.emit('sendMessage', {
+        senderId: getUserId(),
+        receiverId: subscription.assignedCoach,
+        content: trimmedMessage,
+        timestamp: timestamp,
+        file: uploadedFiles.map((file) => ({
+          path: file.path, // Path returned by the backend
+          type: file.type, // File type (e.g., 'image' or 'video')
+        })),
+      });
+
 
       // Update the subscription with the new message via API call
       const updatedSubscription = await subscriptionService.sendMessage(

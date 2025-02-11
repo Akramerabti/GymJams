@@ -1,4 +1,5 @@
 // hooks/useProducts.js
+import { useEffect } from 'react';
 import { create } from 'zustand';
 import productService from '../services/product.service';
 
@@ -123,4 +124,17 @@ export const useProducts = () => {
     setFilters: store.setFilters,
     resetFilters: store.resetFilters,
   };
+};
+
+// Custom hook to fetch a single product
+export const useProduct = (productId) => {
+  const { getProduct, loading, error } = useProductStore();
+
+  useEffect(() => {
+    if (productId) {
+      getProduct(productId);
+    }
+  }, [productId, getProduct]);
+
+  return { product: useProductStore((state) => state.products.find(p => p._id === productId)), loading, error };
 };

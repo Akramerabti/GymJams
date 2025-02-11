@@ -1,3 +1,4 @@
+// components/Navbar.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X, ShoppingCart, User, Coins, Dumbbell } from 'lucide-react';
@@ -7,22 +8,30 @@ import { usePoints } from '../../hooks/usePoints';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Navbar = () => {
+  const { user, logout, isTokenValid } = useAuth();
+  const { cartItems = [] } = useCart();
+  const { balance, fetchPoints } = usePoints();
+  const [isOpen, setIsOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef(null);
+  const location = useLocation();
+
+  const getUserrole = (user) => {
+    return user?.user?.role || user?.role || '';
+  };
+  
+  // Navigation items based on user role
   const navigationItems = [
     { name: 'Home', path: '/' },
     { name: 'Shop', path: '/shop' },
-    { name: 'Coaching', path: '/coaching' },
+    { 
+      name: (getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin' ) ? 'Taskforce Dashboard' : 'Coaching', 
+      path: (getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin' ) ? '/taskforce-dashboard' : '/coaching' 
+    },
     { name: 'Games', path: '/games' },
     { name: 'Gains', path: '/gymbros' },
     { name: 'Contact', path: '/contact' },
   ];
-
-  const [isOpen, setIsOpen] = useState(false);
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const { user, logout, isTokenValid } = useAuth();
-  const { cartItems = [] } = useCart();
-  const { balance, fetchPoints } = usePoints();
-  const userMenuRef = useRef(null);
-  const location = useLocation();
 
   // Check token validity on mount
   useEffect(() => {

@@ -68,6 +68,14 @@ export const isAdmin = (req, res, next) => {
   next();
 };
 
+export const isTaskforce = (req, res, next) => {
+  if (req.user && req.user.role === 'taskforce') {
+    next();
+  } else {
+    res.status(403).json({ message: 'Access denied. Only taskforce members can perform this action.' });
+  }
+};
+
 export const rateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs

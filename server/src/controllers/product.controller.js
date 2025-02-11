@@ -1,83 +1,74 @@
+// productController.js
 import Product from '../models/Product.js';
-import logger from '../utils/logger.js';
+import mongoose from 'mongoose';
 
+// Get all products
 export const getProducts = async (req, res) => {
   try {
-    const { 
-      category, 
-      priceRange, 
-      search, 
-      sortBy = 'createdAt',
-      order = 'desc',
-      page = 1,
-      limit = 12
-    } = req.query;
-
-    // Build query
-    const query = {};
-    if (category) query.category = category;
-    if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
-      ];
-    }
-    if (priceRange) {
-      const [min, max] = priceRange.split('-');
-      query.price = { $gte: min, $lte: max };
-    }
-
-    // Count total documents
-    const total = await Product.countDocuments(query);
-
-    // Execute query with pagination
-    const products = await Product.find(query)
-      .sort({ [sortBy]: order })
-      .skip((page - 1) * limit)
-      .limit(limit);
-
-    res.json({
-      products,
-      page: parseInt(page),
-      totalPages: Math.ceil(total / limit),
-      total
-    });
+    const products = await Product.find();
+    res.status(200).json(products);
   } catch (error) {
-    logger.error('Error fetching products:', error);
-    res.status(500).json({ message: 'Error fetching products' });
+    res.status(500).json({ message: error.message });
   }
 };
 
-export const getProduct = async (req, res) => {
+// Add a new product
+export const addProduct = async (req, res) => {
+  const { name, description, price, category, stockQuantity, imageUrl, specs, discount } = req.body;
   try {
-    const product = await Product.findById(req.params.id);
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
-    res.json(product);
-  } catch (error) {
-    logger.error('Error fetching product:', error);
-    res.status(500).json({ message: 'Error fetching product' });
-  }
-};
-
-export const createProduct = async (req, res) => {
-  try {
-    const { name, description, price, category, stockQuantity } = req.body;
-    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
-
-    const product = await Product.create({
+    const newProduct = new Product({
       name,
       description,
       price,
       category,
       stockQuantity,
-      imageUrl
+      imageUrl,
+      specs,
+      discount
     });
-
-    res.status(201).json(product);
+    await newProduct.save();
+    res.status(201).json(newProduct);
   } catch (error) {
-    logger.error('Error creating product:', error);
-    res.status(500).json({ message: 'Error creating product' });
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Update a product
+export const updateProduct = async (req, res) => {
+  const { id } = req.params;
+  const updates = req.body;
+  try {
+    const updatedProduct = await Product.findByIdAndUpdate(id, updates, { new: true });
+    res.status(200).json(updatedProduct);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Delete a product
+export const deleteProduct = async (req, res) => {
+  const { id } = req.params;
+  try {
+    await Product.findByIdAndDelete(id);
+    res.status(200).json({ message: 'Product deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Apply promotion to a product
+export const applyPromotion = async (req, res) => {
+  const { id } = req.params;
+  const { percentage, startDate, endDate } = req.body;
+  try {
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+    product.discount = { percentage, startDate, endDate };
+    await product.save();
+    res.status(200).json(product);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };

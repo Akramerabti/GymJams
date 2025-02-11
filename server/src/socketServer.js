@@ -25,7 +25,6 @@ export const initializeSocket = (server) => {
     // Listen for incoming messages
     socket.on('sendMessage', async ({ senderId, receiverId, content, timestamp, file }) => {
 
-      console.log('files:', file);
       try {
         // Validate the files field
         if (file && !Array.isArray(file)) {
@@ -44,7 +43,6 @@ export const initializeSocket = (server) => {
 
         if (receiverSocketId) {
           // Emit the message to the receiver
-          console.log('filesssssssssssssssssssssssssss:', file);
           ioInstance.to(receiverSocketId).emit('receiveMessage', {
             senderId,
             content: content || '', // Optional content

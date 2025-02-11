@@ -32,7 +32,9 @@ import Questionnaire from './pages/Questionnaire';
 import Games from './pages/Games'; 
 import HiddenGames from './pages/HiddenGames';
 import Onboarding from './pages/Onboarding';
+import TaskforceDashboard from './pages/TaskforceDashboard';
 import Contact from './pages/CustomerService/contact';
+import ProductPage from './pages/ProductPage';
 
 // Socket Context
 import { SocketProvider } from './SocketContext';
@@ -83,6 +85,7 @@ const App = () => {
             <Route path="/games" element={<Games />} />
             <Route path="/hidden-games" element={<HiddenGames />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/product/:productId" element={<ProductPage />} />
 
             {/* Protected Routes */}
             <Route path="/profile" element={
@@ -98,6 +101,11 @@ const App = () => {
             <Route path="/subscription-management" element={
               <ProtectedRoute>
                 <SubscriptionManagement />
+              </ProtectedRoute>
+            } />
+            <Route path="/taskforce-dashboard" element={
+              <ProtectedRoute>
+                <TaskforceDashboard />
               </ProtectedRoute>
             } />
           </Routes>

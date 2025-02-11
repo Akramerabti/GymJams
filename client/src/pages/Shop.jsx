@@ -1,3 +1,4 @@
+// Shop.jsx
 import React, { useState, useEffect } from 'react';
 import { useProducts } from '../hooks/useProducts';
 import ProductGrid from '../components/product/ProductGrid';
@@ -11,9 +12,9 @@ import {
   ChevronUp, 
   SlidersHorizontal 
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const Shop = () => {
-  // Filters state
   const [filters, setFilters] = useState({
     category: '',
     priceRange: '',
@@ -21,7 +22,6 @@ const Shop = () => {
     sort: 'featured'
   });
 
-  // UI State
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [filterSections, setFilterSections] = useState({
     categories: true,
@@ -29,13 +29,10 @@ const Shop = () => {
     sortBy: true
   });
 
-  // Responsive state
   const [screenWidth, setScreenWidth] = useState(window.innerWidth);
-
-  // Product hooks
   const { products, loading, error } = useProducts(filters);
+  const navigate = useNavigate();
 
-  // Constants
   const categories = ['Weights', 'Machines', 'Accessories', 'CardioEquipment'];
   const priceRanges = [
     { label: 'Under $100', value: '0-100' },
@@ -44,14 +41,12 @@ const Shop = () => {
     { label: 'Over $1000', value: '1000+' }
   ];
 
-  // Responsive handling
   useEffect(() => {
     const handleResize = () => setScreenWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Update filter state
   const updateFilter = (filterType, value) => {
     setFilters(prev => ({
       ...prev,
@@ -59,7 +54,6 @@ const Shop = () => {
     }));
   };
 
-  // Reset all filters
   const resetFilters = () => {
     setFilters({
       category: '',
@@ -69,7 +63,6 @@ const Shop = () => {
     });
   };
 
-  // Toggle filter section visibility
   const toggleFilterSection = (section) => {
     setFilterSections(prev => ({
       ...prev,
@@ -77,7 +70,6 @@ const Shop = () => {
     }));
   };
 
-  // Responsive filter rendering
   const renderFilterSection = (title, key, items, renderItem) => {
     const isMobile = screenWidth <= 768;
     
@@ -103,14 +95,12 @@ const Shop = () => {
     );
   };
 
-  // Main filter component
   const FilterComponent = () => (
     <div className={`
       ${screenWidth <= 768 
         ? 'fixed inset-0 z-50 bg-white p-4 overflow-y-auto' 
         : 'w-full max-w-xs'}
     `}>
-      {/* Mobile close button */}
       {screenWidth <= 768 && (
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold">Filters</h2>
@@ -124,7 +114,6 @@ const Shop = () => {
         </div>
       )}
 
-      {/* Search */}
       <div className="mb-4 sticky top-0 bg-white z-10">
         <div className="relative">
           <Input
@@ -138,7 +127,6 @@ const Shop = () => {
         </div>
       </div>
 
-      {/* Categories Filter */}
       {renderFilterSection(
         'Categories', 
         'categories', 
@@ -155,7 +143,6 @@ const Shop = () => {
         )
       )}
 
-      {/* Price Range Filter */}
       {renderFilterSection(
         'Price Range', 
         'priceRange', 
@@ -172,7 +159,6 @@ const Shop = () => {
         )
       )}
 
-      {/* Sort By Filter */}
       {renderFilterSection(
         'Sort By', 
         'sortBy', 
@@ -192,7 +178,6 @@ const Shop = () => {
         }
       )}
 
-      {/* Reset Filters */}
       <Button 
         variant="destructive" 
         className="w-full mt-4"
@@ -203,11 +188,9 @@ const Shop = () => {
     </div>
   );
 
-  // Render
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row gap-4">
-        {/* Filter Toggle for Mobile */}
         {screenWidth <= 768 && (
           <Button 
             variant="outline"
@@ -219,14 +202,12 @@ const Shop = () => {
           </Button>
         )}
 
-        {/* Filters Sidebar for Desktop */}
         {screenWidth > 768 && (
           <div className="w-full max-w-xs mr-4 space-y-4">
             <FilterComponent />
           </div>
         )}
 
-        {/* Products Grid */}
         <main className="flex-1">
           {loading ? (
             <div className="flex justify-center items-center h-96">
@@ -237,11 +218,13 @@ const Shop = () => {
               Error loading products. Please try again later.
             </div>
           ) : (
-            <ProductGrid products={products} />
+            <ProductGrid 
+              products={products} 
+              onProductClick={(productId) => navigate(`/product/${productId}`)}
+            />
           )}
         </main>
 
-        {/* Mobile Filters Overlay */}
         {screenWidth <= 768 && mobileFiltersOpen && (
           <div className="fixed inset-0 z-50">
             <FilterComponent />

@@ -109,7 +109,6 @@ if (process.env.NODE_ENV === 'development') {
 
 // Mount routes
 app.use('/api', routes); // Mount other routes under /api
-app.use('/api/auth', authRoutes); // Mount auth routes under /api/auth
 
 // Handle production setup
 if (process.env.NODE_ENV === 'production') {
