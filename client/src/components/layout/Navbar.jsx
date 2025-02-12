@@ -25,11 +25,11 @@ const Navbar = () => {
     { name: 'Home', path: '/' },
     { name: 'Shop', path: '/shop' },
     { name: 'Coaching', path: '/coaching' },
+    { name: 'Games', path: '/games' },
     { 
-      name: (getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin' ) ? 'Taskforce Dashboard' : 'Games', 
-      path: (getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin' ) ? '/taskforce-dashboard' : '/games' 
+      name: (getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin' ) ? 'Taskforce Dashboard' : 'Gains', 
+      path: (getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin' ) ? '/taskforce-dashboard' : '/gymbros' 
     },
-    { name: 'Gains', path: '/gymbros' },
     { name: 'Contact', path: '/contact' },
   ];
 

@@ -1,17 +1,90 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { usePoints } from '../../hooks/usePoints';
 import { toast } from 'sonner';
-import { Dice1, Dice2, Dice3, Dice4, Dice5, Dice6 } from 'lucide-react';
 
 const DiceRoll = ({ minBet, maxBet }) => {
   const [betAmount, setBetAmount] = useState(minBet);
   const [isRolling, setIsRolling] = useState(false);
-  const [prediction, setPrediction] = useState(null); // User's prediction (1-6)
-  const [result, setResult] = useState(null); // Result of the dice roll (1-6)
+  const [prediction, setPrediction] = useState(null);
+  const [result, setResult] = useState(null);
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [showResult, setShowResult] = useState(false);
   const { balance, subtractPoints, addPoints, updatePointsInBackend } = usePoints();
 
-  const diceIcons = [Dice1, Dice2, Dice3, Dice4, Dice5, Dice6];
+  const DiceFace = ({ number }) => {
+    const dotPositions = {
+      1: [{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }],
+      2: [
+        { top: '10%', right: '10%' },
+        { bottom: '10%', left: '10%' },
+      ],
+      3: [
+        { top: '10%', right: '10%' },
+        { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' },
+        { bottom: '10%', left: '10%' },
+      ],
+      4: [
+        { top: '10%', left: '10%' },
+        { top: '10%', right: '10%' },
+        { bottom: '10%', left: '10%' },
+        { bottom: '10%', right: '10%' },
+      ],
+      5: [
+        { top: '10%', left: '10%' },
+        { top: '10%', right: '10%' },
+        { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' },
+        { bottom: '10%', left: '10%' },
+        { bottom: '10%', right: '10%' },
+      ],
+      6: [
+        { top: '10%', left: '10%' },
+        { top: '10%', right: '10%' },
+        { top: '50%', left: '10%', transform: 'translateY(-50%)' },
+        { top: '50%', right: '10%', transform: 'translateY(-50%)' },
+        { bottom: '10%', left: '10%' },
+        { bottom: '10%', right: '10%' },
+      ],
+    };
+
+    return (
+      <div
+        style={{
+          position: 'relative',
+          width: '96px',
+          height: '96px',
+          backgroundColor: 'white',
+          borderRadius: '12px',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        }}
+      >
+        {dotPositions[number].map((position, index) => (
+          <div
+            key={index}
+            style={{
+              position: 'absolute',
+              width: '12px',
+              height: '12px',
+              backgroundColor: '#4C1D95',
+              borderRadius: '50%',
+              ...position,
+            }}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  const generateSpinSequence = (finalNumber) => {
+    const sequence = [];
+    const numSpins = 20; // Total number of faces to show during spin
+
+    for (let i = 0; i < numSpins - 1; i++) {
+      sequence.push(Math.floor(Math.random() * 6) + 1);
+    }
+    sequence.push(finalNumber); // Ensure we end on our actual result
+
+    return sequence;
+  };
 
   const handleRoll = async () => {
     if (!prediction) {
@@ -30,103 +103,200 @@ const DiceRoll = ({ minBet, maxBet }) => {
     }
 
     setIsRolling(true);
+    setShowResult(false);
     subtractPoints(betAmount);
 
-    // Simulate a dice roll
+    // Predetermine the result before animation
     const diceResult = Math.floor(Math.random() * 6) + 1;
     setResult(diceResult);
 
-    await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate rolling animation
+    // Start the spinning animation
+    setIsSpinning(true);
 
-    let winnings = 0;
-    if (diceResult === prediction) {
-      winnings = betAmount * 5;
-      addPoints(winnings);
-      toast.success(`You won ${winnings} points!`);
-    } else {
-      toast.error(`You lost! The dice showed ${diceResult}`);
-    }
+    // Sequence of dice faces during spin
+    const sequence = generateSpinSequence(diceResult);
+    let currentIndex = 0;
 
-    // Calculate the updated balance
-    const updatedBalance = balance - betAmount + (diceResult === prediction ? winnings : 0);
+    // Create a smooth spinning animation
+    const spinInterval = setInterval(() => {
+      if (currentIndex < sequence.length) {
+        setResult(sequence[currentIndex]);
+        currentIndex++;
+      } else {
+        clearInterval(spinInterval);
+        setIsSpinning(false);
+        setShowResult(true);
+        setIsRolling(false);
 
-    // Update points in the backend
-    await updatePointsInBackend(updatedBalance);
+        // Handle win/lose logic after spin completes
+        let winnings = 0;
+        if (diceResult === prediction) {
+          winnings = betAmount * 5;
+          addPoints(winnings);
+          toast.success(`You won ${winnings} points!`);
+        } else {
+          toast.error(`You lost! The dice showed ${diceResult}`);
+        }
 
-    setIsRolling(false);
+        const updatedBalance = balance - betAmount + winnings;
+        updatePointsInBackend(updatedBalance);
+      }
+    }, 100); // Adjust speed of spin here
   };
 
   return (
-    <div className="text-center">
-      <div className="mb-8">
+    <div
+      style={{
+        maxWidth: '448px',
+        margin: '0 auto',
+        padding: '24px',
+        backgroundColor: 'white',
+        borderRadius: '20px',
+        boxShadow: '0 10px 15px rgba(0, 0, 0, 0.1)',
+      }}
+    >
+      <h2
+        style={{
+          fontSize: '24px',
+          fontWeight: 'bold',
+          color: '#4C1D95',
+          marginBottom: '24px',
+        }}
+      >
+        Dice Roll Game
+      </h2>
+
+      <div style={{ marginBottom: '24px' }}>
+        <label
+          style={{
+            display: 'block',
+            fontSize: '14px',
+            fontWeight: '500',
+            color: '#374151',
+            marginBottom: '8px',
+          }}
+        >
+          Your Bet
+        </label>
         <input
           type="number"
           value={betAmount}
-          onChange={(e) => setBetAmount(Math.max(minBet, Math.min(maxBet, parseInt(e.target.value))))}
-          className="w-full max-w-xs mx-auto block border border-gray-300 rounded-lg px-4 py-2"
+          onChange={(e) =>
+            setBetAmount(Math.max(minBet, Math.min(maxBet, parseInt(e.target.value) || minBet)))
+          }
+          style={{
+            width: '100%',
+            padding: '8px 16px',
+            border: '1px solid #D1D5DB',
+            borderRadius: '12px',
+            outline: 'none',
+          }}
           disabled={isRolling}
         />
-        <div className="text-sm text-gray-500 mt-2">
+        <div
+          style={{
+            fontSize: '14px',
+            color: '#6B7280',
+            marginTop: '8px',
+          }}
+        >
           Min: {minBet} points | Max: {maxBet} points
         </div>
       </div>
 
-      {/* Dice Selection */}
-      <div className="grid grid-cols-6 gap-4 mb-8">
-        {diceIcons.map((DiceIcon, index) => (
-          <motion.button
-            key={index}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setPrediction(index + 1)}
-            className={`p-4 rounded-lg transition-all ${
-              prediction === index + 1
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-            disabled={isRolling}
-          >
-            <DiceIcon className="w-8 h-8" />
-          </motion.button>
-        ))}
+      <div style={{ marginBottom: '32px' }}>
+        <label
+          style={{
+            display: 'block',
+            fontSize: '14px',
+            fontWeight: '500',
+            color: '#374151',
+            marginBottom: '12px',
+          }}
+        >
+          Select Your Number
+        </label>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: '12px',
+          }}
+        >
+          {[1, 2, 3, 4, 5, 6].map((num) => (
+            <button
+              key={num}
+              onClick={() => setPrediction(num)}
+              style={{
+                padding: '12px 16px',
+                borderRadius: '12px',
+                backgroundColor: prediction === num ? '#4C1D95' : '#F3F4F6',
+                color: prediction === num ? 'white' : '#374151',
+                fontWeight: '500',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s, color 0.2s',
+              }}
+              disabled={isRolling}
+            >
+              {num}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Dice Roll Animation */}
-      <AnimatePresence>
-        {isRolling && (
-          <motion.div
-            initial={{ rotate: 0, scale: 1 }}
-            animate={{ rotate: 360, scale: 1.2 }}
-            exit={{ rotate: 0, scale: 1 }}
-            transition={{ duration: 2, ease: "easeInOut" }}
-            className="w-32 h-32 bg-gray-100 rounded-lg mx-auto mb-8 flex items-center justify-center"
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '24px',
+          marginBottom: '32px',
+        }}
+      >
+        {result && (
+          <div
+            style={{
+              transform: isSpinning ? 'rotate(360deg)' : 'rotate(0deg)',
+              transition: 'transform 0.3s linear',
+            }}
           >
-            {result && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1.5 }}
-              >
-                {React.createElement(diceIcons[result - 1], { className: "w-16 h-16" })}
-              </motion.div>
-            )}
-          </motion.div>
+            <DiceFace number={result} />
+          </div>
         )}
-      </AnimatePresence>
+      </div>
 
-      {/* Roll Button */}
       <button
         onClick={handleRoll}
         disabled={isRolling || !prediction}
-        className="bg-purple-600 text-white px-8 py-3 rounded-lg font-semibold disabled:opacity-50"
+        style={{
+          width: '100%',
+          padding: '12px 24px',
+          borderRadius: '12px',
+          backgroundColor: isRolling ? '#9CA3AF' : '#4C1D95',
+          color: 'white',
+          fontWeight: '600',
+          border: 'none',
+          cursor: 'pointer',
+          transition: 'background-color 0.2s',
+        }}
       >
         {isRolling ? 'Rolling...' : 'Roll Dice'}
       </button>
 
-      {/* Result Display */}
-      {result && !isRolling && (
-        <div className="mt-8 text-xl font-semibold">
-          {result === prediction ? 'You won! 🎉' : 'You lost. 😢'}
+      {showResult && !isRolling && (
+        <div
+          style={{
+            marginTop: '24px',
+            padding: '16px',
+            borderRadius: '12px',
+            backgroundColor: result === prediction ? '#D1FAE5' : '#FEE2E2',
+            color: result === prediction ? '#065F46' : '#991B1B',
+            textAlign: 'center',
+            fontWeight: '600',
+          }}
+        >
+          {result === prediction ? 'You won! 🎉' : 'Better luck next time! 🎲'}
         </div>
       )}
     </div>
