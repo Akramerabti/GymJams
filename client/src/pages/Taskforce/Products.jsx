@@ -2,53 +2,55 @@ import React, { useState, useEffect } from 'react';
 import ProductForm from '../../components/product/ProductForm';
 import ProductList from '../../components/product/ProductList';
 import PromotionForm from '../../components/product/PromotionForm';
-import productService from '../../services/product.service'; // Import productService
-import { toast } from 'sonner'; // For displaying notifications
-import { useAuth } from '../../stores/authStore'; // Import useAuth to check user role
+import productService from '../../services/product.service';
+import { useAuth } from '../../stores/authStore';
+import { toast } from 'sonner';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { PlusCircle, TagIcon, Package, Loader2 } from 'lucide-react';
 
 const Products = () => {
-  const [products, setProducts] = useState([]); // Initialize products as an empty array
-  const [showAddProduct, setShowAddProduct] = useState(false);
-  const [showPromotionForm, setShowPromotionForm] = useState(false);
-  const { user, token } = useAuth(); // Get the current user and token from the auth store
+  const [products, setProducts] = useState([]);
+  const [activeTab, setActiveTab] = useState("list");
+  const [isLoading, setIsLoading] = useState(true);
+  const { user, token } = useAuth();
 
   const categories = ['Weights', 'Machines', 'Accessories', 'CardioEquipment'];
-
-  // Fetch products on component mount
-  useEffect(() => {
-    fetchProducts();
-  }, []);
 
   const getUserrole = (user) => {
     return user?.user?.role || user?.role || '';
   };
 
-  
-  // Fetch all products
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
   const fetchProducts = async () => {
     try {
+      setIsLoading(true);
       const response = await productService.getProducts();
-      console.log('Fetched Products:', response); // Debugging: Log fetched products
-      setProducts(response.data || []); // Extract the `data` field and ensure it's an array
+      setProducts(response.data || []);
     } catch (error) {
       console.error('Error fetching products:', error);
       toast.error('Failed to fetch products. Please try again.');
-      setProducts([]); // Reset products to an empty array on error
+      setProducts([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Add a new product
   const handleAddProduct = async (product) => {
     if (getUserrole(user) !== 'taskforce' && getUserrole(user) !== 'admin') {
       toast.error('Access denied. Only taskforce members can add products.');
       return;
     }
-
+    console.log('product:', product);
     try {
       const newProduct = await productService.addProduct(product);
-      console.log('New Product:', newProduct); // Debugging: Log new product
       setProducts((prevProducts) => [...prevProducts, newProduct]);
-      setShowAddProduct(false);
+      setActiveTab("list");
       toast.success('Product added successfully!');
     } catch (error) {
       console.error('Error adding product:', error);
@@ -56,7 +58,6 @@ const Products = () => {
     }
   };
 
-  // Delete a product
   const handleDeleteProduct = async (id) => {
     if (getUserrole(user) !== 'taskforce' && getUserrole(user) !== 'admin') {
       toast.error('Access denied. Only taskforce members can delete products.');
@@ -73,7 +74,6 @@ const Products = () => {
     }
   };
 
-  // Apply a promotion to a product
   const handleApplyPromotion = async (productId, promotion) => {
     if (user?.role !== 'taskforce') {
       toast.error('Access denied. Only taskforce members can apply promotions.');
@@ -85,7 +85,7 @@ const Products = () => {
       setProducts((prevProducts) =>
         prevProducts.map((p) => (p._id === updatedProduct._id ? updatedProduct : p))
       );
-      setShowPromotionForm(false);
+      setActiveTab("list");
       toast.success('Promotion applied successfully!');
     } catch (error) {
       console.error('Error applying promotion:', error);
@@ -93,30 +93,97 @@ const Products = () => {
     }
   };
 
-  return (
-    <div className="bg-white p-6 rounded-lg shadow-md">
-      <h2 className="text-2xl font-semibold mb-4">Product Management</h2>
-      <div className="space-y-4">
-        <button
-          onClick={() => setShowAddProduct(!showAddProduct)}
-          className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors"
-        >
-          {showAddProduct ? 'Hide Add Product Form' : 'Add New Product'}
-        </button>
-        {showAddProduct && (
-          <ProductForm categories={categories} onAddProduct={handleAddProduct} />
-        )}
-        <button
-          onClick={() => setShowPromotionForm(!showPromotionForm)}
-          className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition-colors"
-        >
-          {showPromotionForm ? 'Hide Promotion Form' : 'Apply Promotion'}
-        </button>
-        {showPromotionForm && (
-          <PromotionForm products={products} onApplyPromotion={handleApplyPromotion} />
-        )}
-        <ProductList products={products} onDeleteProduct={handleDeleteProduct} />
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Product Management</h2>
+          <p className="text-gray-500 mt-1">Manage your product catalog and promotions</p>
+        </div>
+        <div className="flex gap-3">
+          <Button
+            variant={activeTab === "add-product" ? "secondary" : "outline"}
+            onClick={() => setActiveTab("add-product")}
+            className="gap-2"
+          >
+            <PlusCircle className="h-4 w-4" />
+            Add Product
+          </Button>
+          <Button
+            variant={activeTab === "promotions" ? "secondary" : "outline"}
+            onClick={() => setActiveTab("promotions")}
+            className="gap-2"
+          >
+            <TagIcon className="h-4 w-4" />
+            Promotions
+          </Button>
+        </div>
+      </div>
+
+      <Card>
+        <CardContent className="p-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="mb-6">
+              <TabsTrigger value="list" className="gap-2">
+                <Package className="h-4 w-4" />
+                Product List
+              </TabsTrigger>
+              <TabsTrigger value="add-product" className="gap-2">
+                <PlusCircle className="h-4 w-4" />
+                Add Product
+              </TabsTrigger>
+              <TabsTrigger value="promotions" className="gap-2">
+                <TagIcon className="h-4 w-4" />
+                Promotions
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="list" className="mt-0">
+              {products.length === 0 ? (
+                <Alert>
+                  <AlertDescription>
+                    No products found. Add your first product to get started.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <ProductList products={products} onDeleteProduct={handleDeleteProduct} />
+              )}
+            </TabsContent>
+
+            <TabsContent value="add-product" className="mt-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Add New Product</CardTitle>
+                  <CardDescription>Fill in the details to add a new product to your catalog.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ProductForm categories={categories} onAddProduct={handleAddProduct} />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="promotions" className="mt-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Apply Promotion</CardTitle>
+                  <CardDescription>Select a product and set up a promotion.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <PromotionForm products={products} onApplyPromotion={handleApplyPromotion} />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 };

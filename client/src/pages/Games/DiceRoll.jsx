@@ -1,18 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { usePoints } from '../../hooks/usePoints';
 import { toast } from 'sonner';
-import { Play, Square, Settings, RotateCw } from 'lucide-react';
+import { Play, Square, RotateCw, ChevronUp, ChevronDown } from 'lucide-react';
 
 const EnhancedDiceGame = ({ minBet = 10, maxBet = 1000 }) => {
   const [betAmount, setBetAmount] = useState(minBet);
   const [prediction, setPrediction] = useState(null);
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState(1);
   const [isRolling, setIsRolling] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [autoPlayActive, setAutoPlayActive] = useState(false);
   const [autoPlayCount, setAutoPlayCount] = useState(1);
   const [remainingAutoPlays, setRemainingAutoPlays] = useState(0);
-  const [showSettings, setShowSettings] = useState(false);
   const [isWin, setIsWin] = useState(false);
   const { balance, subtractPoints, addPoints, updatePointsInBackend } = usePoints();
 
@@ -45,7 +44,6 @@ const EnhancedDiceGame = ({ minBet = 10, maxBet = 1000 }) => {
     return sequence;
   }, []);
 
-
   const handleSingleRoll = useCallback(async () => {
     if (!prediction) {
       toast.error('Please select a number');
@@ -61,7 +59,11 @@ const EnhancedDiceGame = ({ minBet = 10, maxBet = 1000 }) => {
     setIsRolling(true);
     isRollingRef.current = true;
     setShowResult(false);
+
+    // Deduct points immediately and update backend
+    const newBalance = balanceRef.current - betAmount;
     subtractPoints(betAmount);
+    await updatePointsInBackend(newBalance);
 
     const diceResult = Math.floor(Math.random() * 6) + 1;
     const sequence = generateSpinSequence(diceResult);
@@ -80,15 +82,15 @@ const EnhancedDiceGame = ({ minBet = 10, maxBet = 1000 }) => {
 
           const win = diceResult === prediction;
           setIsWin(win);
-          
+
           if (win) {
             const winnings = betAmount * 5;
+            const updatedBalance = newBalance + winnings;
             addPoints(winnings);
             toast.success(`Won ${winnings} points!`);
+            updatePointsInBackend(updatedBalance);
           }
 
-          const updatedBalance = balanceRef.current - betAmount + (win ? betAmount * 5 : 0);
-          updatePointsInBackend(updatedBalance);
           resolve(true);
         }
       }, 100);
@@ -174,13 +176,13 @@ const EnhancedDiceGame = ({ minBet = 10, maxBet = 1000 }) => {
     };
 
     return (
-      <div className="relative w-24 h-24 bg-gradient-to-br from-pink-500 to-purple-600 p-1 rounded-xl shadow-lg transform transition-transform hover:scale-105">
-        <div className="absolute inset-0 bg-white rounded-lg">
+      <div className="relative w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-purple-600 to-pink-600 p-1.5 rounded-2xl shadow-2xl transform transition-all duration-300 hover:scale-105">
+        <div className="absolute inset-0 bg-white rounded-xl">
           <div className={`absolute inset-0 ${isRolling ? 'animate-spin' : ''}`}>
             {dotPositions[number]?.map((position, index) => (
               <div
                 key={index}
-                className="absolute w-3 h-3 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full"
+                className="absolute w-3 h-3 sm:w-4 sm:h-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full"
                 style={position}
               />
             ))}
@@ -190,124 +192,122 @@ const EnhancedDiceGame = ({ minBet = 10, maxBet = 1000 }) => {
     );
   };
 
-  const GameControls = () => (
-    <div className="flex flex-col gap-4 w-full">
-      <div className="flex items-center gap-4">
-        <input
-          type="number"
-          value={betAmount}
-          onChange={(e) => setBetAmount(Math.max(minBet, Math.min(maxBet, parseInt(e.target.value) || minBet)))}
-          className="flex-1 p-3 border rounded-xl bg-gradient-to-r from-pink-50 to-purple-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
-          disabled={isRolling || autoPlayActive}
-        />
-        <button
-          onClick={() => setShowSettings(!showSettings)}
-          className="p-3 rounded-xl bg-gradient-to-r from-pink-100 to-purple-100 hover:from-pink-200 hover:to-purple-200 transition-colors"
-        >
-          <Settings className="w-6 h-6 text-purple-600" />
-        </button>
-      </div>
-  
-      {showSettings && (
-        <div className="p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl space-y-4">
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <label className="text-sm text-purple-700">Auto-play Rolls</label>
-              <input
-                type="number"
-                value={autoPlayCount}
-                onChange={(e) => setAutoPlayCount(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
-                className="w-full p-2 border rounded-lg"
-                min="1"
-                max="50"
-                disabled={autoPlayActive}
-              />
-            </div>
-            <button
-              onClick={handleAutoPlay}
-              className={`p-3 rounded-lg transition-all ${
-                autoPlayActive 
-                  ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700' 
-                  : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700'
-              } text-white`}
-              disabled={isRolling && !autoPlayActive}
-            >
-              {autoPlayActive ? (
-                <Square className="w-5 h-5" />
-              ) : (
-                <div className="flex items-center gap-2">
-                  <RotateCw className="w-5 h-5" />
-                  <span>Auto</span>
-                </div>
-              )}
-            </button>
-          </div>
-          {autoPlayActive && remainingAutoPlays > 0 && (
-            <div className="text-center text-sm text-purple-600">
-              Remaining rolls: {remainingAutoPlays}
-            </div>
-          )}
-        </div>
-      )}
+  const BetControls = () => (
+    <div className="flex items-center gap-2 bg-gradient-to-r from-purple-900/50 to-pink-900/50 p-3 rounded-xl">
+      <button
+        onClick={() => setBetAmount(prev => Math.min(maxBet, prev + 10))}
+        className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-white"
+        disabled={isRolling || autoPlayActive}
+      >
+        <ChevronUp className="w-5 h-5" />
+      </button>
+      <input
+        type="number"
+        value={betAmount}
+        onChange={(e) => setBetAmount(Math.max(minBet, Math.min(maxBet, parseInt(e.target.value) || minBet)))}
+        className="w-20 sm:w-24 p-2 text-center bg-purple-800/30 text-white border border-purple-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+        disabled={isRolling || autoPlayActive}
+      />
+      <button
+        onClick={() => setBetAmount(prev => Math.max(minBet, prev - 10))}
+        className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-white"
+        disabled={isRolling || autoPlayActive}
+      >
+        <ChevronDown className="w-5 h-5" />
+      </button>
     </div>
   );
 
-  const NumberSelector = () => (
-    <div className="grid grid-cols-3 gap-3">
-      {[1, 2, 3, 4, 5, 6].map((num) => (
-        <button
-          key={num}
-          onClick={() => setPrediction(num)}
-          className={`p-4 rounded-xl font-semibold transition-all transform hover:scale-105 ${
-            prediction === num
-              ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg'
-              : 'bg-gradient-to-r from-pink-100 to-purple-100 text-purple-700 hover:from-pink-200 hover:to-purple-200'
-          }`}
-          disabled={isRolling || autoPlayActive}
-        >
-          {num}
-        </button>
-      ))}
+  const AutoPlayControls = () => (
+    <div className="flex items-center gap-4 bg-gradient-to-r from-purple-900/50 to-pink-900/50 p-3 rounded-xl">
+      <input
+        type="number"
+        value={autoPlayCount}
+        onChange={(e) => setAutoPlayCount(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
+        className="w-16 sm:w-20 p-2 text-center bg-purple-800/30 text-white border border-purple-500/30 rounded-lg"
+        min="1"
+        max="50"
+        disabled={autoPlayActive}
+      />
+      <button
+        onClick={handleAutoPlay}
+        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+          autoPlayActive 
+            ? 'bg-red-500 hover:bg-red-600' 
+            : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
+        } text-white font-medium`}
+        disabled={isRolling && !autoPlayActive}
+      >
+        {autoPlayActive ? (
+          <Square className="w-5 h-5" />
+        ) : (
+          <>
+            <RotateCw className="w-5 h-5" />
+            <span>Auto Play</span>
+          </>
+        )}
+      </button>
     </div>
   );
 
   return (
-    <div className="max-w-md mx-auto p-6 bg-gradient-to-br from-white to-pink-50 rounded-2xl shadow-xl">
-      <h2 className="text-2xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent mb-6">
-        Dice Casino
-      </h2>
-      
-      <div className="space-y-6">
-        <GameControls />
-        <NumberSelector />
+    <div className=" bg-gradient-to-b from-purple-900 via-purple-800 to-pink-900 p-4 sm:p-6">
+      <div className="max-w-3xl mx-auto bg-gradient-to-br from-purple-950/80 to-pink-950/80 rounded-3xl shadow-2xl backdrop-blur-sm p-6 sm:p-8 border border-white/10">
         
-        <div className="flex justify-center">
-          {result && <DiceFace number={result} />}
-        </div>
-
-        <button
-          onClick={handleSingleRoll}
-          disabled={isRolling || !prediction || autoPlayActive}
-          className={`w-full p-4 rounded-xl font-semibold text-white transition-all transform hover:scale-105 ${
-            isRolling || !prediction || autoPlayActive
-              ? 'bg-gray-400' 
-              : 'bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700'
-          }`}
-        >
-          {isRolling ? 'Rolling...' : 'Roll Dice'}
-        </button>
-
-        {showResult && !isRolling && (
-          <div
-            className={`p-4 rounded-xl text-center font-semibold ${
-              isWin
-                ? 'bg-gradient-to-r from-green-100 to-green-200 text-green-800'
-                : 'bg-gradient-to-r from-red-100 to-red-200 text-red-800'
-            }`}
-          >
-            {isWin ? 'You won! 🎉' : 'Better luck next time! 🎲'}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+          <div className="flex flex-col items-center gap-4 sm:gap-6">
+            <div className="relative">
+              <DiceFace number={result || 1} />
+            </div>
+            {/* Result Message Below Dice */}
+            {showResult && !isRolling && (
+              <div className={`px-4 py-2 rounded-xl text-white font-medium ${
+                isWin 
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
+                  : 'bg-gradient-to-r from-red-500 to-pink-500'
+              }`}>
+                {isWin ? '🎉 Winner!' : 'Try Again!'}
+              </div>
+            )}
+            
+            <div className="flex flex-col gap-4 w-full">
+              <BetControls />
+              <AutoPlayControls />
+            </div>
           </div>
-        )}
+
+          <div className="flex flex-col gap-4 sm:gap-6">
+            <div className="text-white/80 text-center text-lg font-medium">Select Your Number</div>
+            <div className="grid grid-cols-3 gap-3 sm:gap-4">
+              {[1, 2, 3, 4, 5, 6].map((num) => (
+                <button
+                  key={num}
+                  onClick={() => setPrediction(num)}
+                  className={`w-full h-16 sm:h-20 rounded-xl font-bold text-xl transition-all transform hover:scale-105 ${
+                    prediction === num
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/25'
+                      : 'bg-gradient-to-r from-purple-900/50 to-pink-900/50 text-white/70 hover:text-white border border-white/10'
+                  }`}
+                  disabled={isRolling || autoPlayActive}
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={handleSingleRoll}
+              disabled={isRolling || !prediction || autoPlayActive}
+              className={`mt-4 p-3 sm:p-4 rounded-xl font-bold text-lg text-white transition-all transform hover:scale-105 ${
+                isRolling || !prediction || autoPlayActive
+                  ? 'bg-gray-700/50 cursor-not-allowed' 
+                  : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg shadow-purple-500/25'
+              }`}
+            >
+              {isRolling ? 'Rolling...' : 'Roll Dice'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -26,10 +26,7 @@ const productSchema = new mongoose.Schema({
     min: 0,
     default: 0
   },
-  imageUrl: {
-    type: String,
-    required: true
-  },
+  imageUrls: [{ type: String, required: true }],
   featured: {
     type: Boolean,
     default: false

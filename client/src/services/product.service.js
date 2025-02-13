@@ -43,15 +43,18 @@ const productService = {
   },
 
   // Add a new product
-  async addProduct(product) {
+  async addProduct(productData) {
     try {
-    const response = await api.post('/products', product);
-    console.log('newProduct:', response.data);
-    return response.data;
-  } catch (error) {
-    console.error('Failed to mark messages as read:', error);
-    throw error;
-  }
+      const response = await api.post('/products', productData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error adding product:', error);
+      throw error;
+    }
   },
 
   // Delete a product

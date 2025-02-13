@@ -164,28 +164,46 @@ const ProductForm = ({ categories, onAddProduct }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
   
-    // Validate the form (including the minimum number of images)
+    // Validate the form
     if (!validateForm()) {
       toast.error('Please correct all errors before submitting.');
       return;
     }
   
-    const formData = new FormData();
-    Object.keys(product).forEach((key) => {
-      if (key === 'images') {
-        product.images.forEach((image) => {
-          formData.append('images', image); // Append each image file
-        });
-      } else if (key !== 'imagePreviews') {
-        formData.append(key, product[key]); // Append other fields
-      }
-    });
+    // Check minimum image requirement
+    if (product.images.length < 2) {
+      toast.error('Please upload at least 2 images.');
+      return;
+    }
   
     try {
-      await onAddProduct(formData); // Call the parent function to handle the API request
-      toast.success('Product added successfully!');
+      // Create a FormData object
+      const formData = new FormData();
+  
+      // Append product fields
+      formData.append('name', product.name);
+      formData.append('description', product.description);
+      formData.append('price', product.price);
+      formData.append('category', product.category);
+      formData.append('stockQuantity', product.stockQuantity);
+      formData.append('specs', JSON.stringify(product.specs));
+      formData.append('discount', JSON.stringify(product.discount));
+  
+      // Append images as binary files
+      product.images.forEach((file) => {
+        formData.append('images', file); // Append each image file
+      });
+  
+      // Log the data being sent
+      console.log('Sending product data:', formData);
+  
+      // Call the parent function to handle the API request
+      const response = await onAddProduct(formData);
+      return response;
     } catch (error) {
-      toast.error('Failed to add product. Please try again.');
+      console.error('Error submitting form:', error);
+      toast.error(error.response?.data?.message || 'Failed to add product. Please try again.');
+      throw error;
     }
   };
 
@@ -210,7 +228,7 @@ const ProductForm = ({ categories, onAddProduct }) => {
 
     return (
       <div className={cn(
-        "border rounded-lg mx-auto overflow-hidden bg-white",
+        "border rounded-lg mx-auto overflow-hidden bg-white", 
         isMobile ? "w-[375px] h-[667px]" : "w-full max-w-6xl"
       )}>
         <div className={cn(
