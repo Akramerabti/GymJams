@@ -4,14 +4,24 @@ import ProductGrid from '../components/product/ProductGrid';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { 
-  Search, 
-  Filter, 
-  X, 
-  ChevronDown, 
-  ChevronUp, 
-  SlidersHorizontal 
+  Search, X, ChevronDown, ChevronUp, SlidersHorizontal,
+  ShoppingBag, ArrowUpDown
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const Shop = () => {
   const [filters, setFilters] = useState({
@@ -21,16 +31,9 @@ const Shop = () => {
     sort: 'featured',
   });
 
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const [filterSections, setFilterSections] = useState({
-    categories: true,
-    priceRange: true,
-    sortBy: true,
-  });
-
-  const [screenWidth, setScreenWidth] = useState(window.innerWidth);
+  const [activeFilters, setActiveFilters] = useState(0);
   const { products, loading, error, fetchProducts } = useProducts();
-  const [filteredProducts, setFilteredProducts] = useState([]); // Store filtered products
+  const [filteredProducts, setFilteredProducts] = useState([]);
   const navigate = useNavigate();
 
   const categories = ['Weights', 'Machines', 'Accessories', 'CardioEquipment'];
@@ -41,38 +44,40 @@ const Shop = () => {
     { label: 'Over $1000', value: '1000+' },
   ];
 
-  // Fetch all products on component mount
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
-  // Apply filters, sorting, and searching whenever filters or products change
+  useEffect(() => {
+    let count = 0;
+    if (filters.category) count++;
+    if (filters.priceRange) count++;
+    if (filters.search) count++;
+    if (filters.sort !== 'featured') count++;
+    setActiveFilters(count);
+  }, [filters]);
+
   useEffect(() => {
     let result = [...products];
 
-    // Apply category filter
     if (filters.category) {
       result = result.filter((product) => product.category === filters.category);
     }
 
-    // Apply price range filter
     if (filters.priceRange) {
       const [min, max] = filters.priceRange.split('-');
       result = result.filter((product) => {
-        const price = product.price;
-        if (max === '+') return price >= min;
-        return price >= min && price <= max;
+        if (max === '+') return product.price >= Number(min);
+        return product.price >= Number(min) && product.price <= Number(max);
       });
     }
 
-    // Apply search filter
     if (filters.search) {
       result = result.filter((product) =>
         product.name.toLowerCase().includes(filters.search.toLowerCase())
       );
     }
 
-    // Apply sorting
     switch (filters.sort) {
       case 'price-asc':
         result.sort((a, b) => a.price - b.price);
@@ -82,9 +87,6 @@ const Shop = () => {
         break;
       case 'name':
         result.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      default:
-        // Default sorting (featured)
         break;
     }
 
@@ -104,151 +106,148 @@ const Shop = () => {
     });
   };
 
-  const toggleFilterSection = (section) => {
-    setFilterSections((prev) => ({ ...prev, [section]: !prev[section] }));
-  };
-
-  const renderFilterSection = (title, key, items, renderItem) => {
-    const isMobile = screenWidth <= 768;
-    return (
-      <div className="mb-4 border-b pb-4">
-        <div 
-          className="flex justify-between items-center cursor-pointer"
-          onClick={() => isMobile && toggleFilterSection(key)}
-        >
-          <h3 className="text-lg font-semibold">{title}</h3>
-          {isMobile && (
-            <Button variant="ghost" size="icon">
-              {filterSections[key] ? <ChevronUp /> : <ChevronDown />}
-            </Button>
-          )}
-        </div>
-        {(!isMobile || filterSections[key]) && (
-          <div className="space-y-2 mt-2">
-            {items.map(renderItem)}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const FilterComponent = () => (
-    <div className={`
-      ${screenWidth <= 768 
-        ? 'fixed inset-0 z-50 bg-white p-4 overflow-y-auto' 
-        : 'w-full max-w-xs'}
-    `}>
-      {screenWidth <= 768 && (
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">Filters</h2>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => setMobileFiltersOpen(false)}
-          >
-            <X className="h-6 w-6" />
-          </Button>
-        </div>
-      )}
-
-      <div className="mb-4 sticky top-0 bg-white z-10">
-        <div className="relative">
-          <Input
-            type="text"
-            placeholder="Search products..."
-            value={filters.search}
-            onChange={(e) => updateFilter('search', e.target.value)}
-            className="pr-10"
-          />
-          <Search className="absolute right-3 top-3 text-gray-400" />
-        </div>
-      </div>
-
-      {renderFilterSection(
-        'Categories', 
-        'categories', 
-        categories, 
-        (category) => (
-          <Button
-            key={category}
-            variant={filters.category === category ? 'default' : 'ghost'}
-            className="w-full justify-start"
-            onClick={() => updateFilter('category', category)}
-          >
-            {category}
-          </Button>
-        )
-      )}
-
-      {renderFilterSection(
-        'Price Range', 
-        'priceRange', 
-        priceRanges, 
-        (range) => (
-          <Button
-            key={range.value}
-            variant={filters.priceRange === range.value ? 'default' : 'ghost'}
-            className="w-full justify-start"
-            onClick={() => updateFilter('priceRange', range.value)}
-          >
-            {range.label}
-          </Button>
-        )
-      )}
-
-      {renderFilterSection(
-        'Sort By', 
-        'sortBy', 
-        ['Featured', 'Price Low to High', 'Price High to Low', 'Newest Arrivals'], 
-        (sortOption) => {
-          const sortValue = sortOption.toLowerCase().replace(/\s+/g, '');
-          return (
+  const FilterPanel = ({ inSheet = false }) => (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="font-medium text-sm text-gray-500">Categories</div>
+        <div className="grid grid-cols-2 gap-2">
+          {categories.map((category) => (
             <Button
-              key={sortOption}
-              variant={filters.sort === sortValue ? 'default' : 'ghost'}
+              key={category}
+              variant={filters.category === category ? "default" : "outline"}
               className="w-full justify-start"
-              onClick={() => updateFilter('sort', sortValue)}
+              onClick={() => updateFilter('category', category)}
             >
-              {sortOption}
+              {category}
             </Button>
-          );
-        }
-      )}
+          ))}
+        </div>
+      </div>
 
-      <Button 
-        variant="destructive" 
-        className="w-full mt-4"
-        onClick={resetFilters}
-      >
-        Reset All Filters
-      </Button>
+      <div className="space-y-4">
+        <div className="font-medium text-sm text-gray-500">Price Range</div>
+        <div className="grid grid-cols-2 gap-2">
+          {priceRanges.map((range) => (
+            <Button
+              key={range.value}
+              variant={filters.priceRange === range.value ? "default" : "outline"}
+              className="w-full justify-start"
+              onClick={() => updateFilter('priceRange', range.value)}
+            >
+              {range.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="font-medium text-sm text-gray-500">Sort By</div>
+        <Select value={filters.sort} onValueChange={(value) => updateFilter('sort', value)}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Sort by..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="featured">Featured</SelectItem>
+            <SelectItem value="price-asc">Price: Low to High</SelectItem>
+            <SelectItem value="price-desc">Price: High to Low</SelectItem>
+            <SelectItem value="name">Name</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {inSheet && (
+        <Button 
+          variant="destructive" 
+          className="w-full mt-4"
+          onClick={resetFilters}
+        >
+          Reset All Filters
+        </Button>
+      )}
     </div>
   );
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex flex-col md:flex-row gap-4">
-        {screenWidth <= 768 && (
-          <Button 
-            variant="outline"
-            className="w-full mb-4 flex items-center justify-center"
-            onClick={() => setMobileFiltersOpen(true)}
-          >
-            <SlidersHorizontal className="mr-2 h-5 w-5" /> 
-            Filters
-          </Button>
-        )}
-
-        {screenWidth > 768 && (
-          <div className="w-full max-w-xs mr-4 space-y-4">
-            <FilterComponent />
+      <div className="flex flex-col lg:flex-row gap-8">
+        {/* Desktop Filters */}
+        <div className="hidden lg:block w-64 flex-none">
+          <div className="sticky top-8 space-y-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold">Filters</h2>
+              {activeFilters > 0 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={resetFilters}
+                >
+                  Clear all
+                </Button>
+              )}
+            </div>
+            <FilterPanel />
           </div>
-        )}
+        </div>
 
-        <main className="flex-1">
+        <div className="flex-1">
+          {/* Search and Mobile Filters */}
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="relative flex-1 bg-white rounded-md">
+                  <Input
+                    type="text"
+                    placeholder="Search products..."
+                    value={filters.search}
+                    onChange={(e) => updateFilter('search', e.target.value)}
+                    className="pl-10 bg-white"
+                  />
+                  <Search className="absolute left-3 top-3 text-gray-500 h-4 w-4" />
+                </div>
+            
+            <div className="flex gap-2">
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="outline" className="lg:hidden relative bg-white">
+                    <SlidersHorizontal className="h-4 w-4 mr-2" />
+                    Filters
+                    {activeFilters > 0 && (
+                      <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground w-5 h-5 rounded-full text-xs flex items-center justify-center">
+                        {activeFilters}
+                      </span>
+                    )}
+                  </Button>
+                </SheetTrigger>
+                <SheetContent>
+                  <SheetHeader>
+                    <SheetTitle>Filters</SheetTitle>
+                  </SheetHeader>
+                  <div className="mt-6">
+                    <FilterPanel inSheet={true} />
+                  </div>
+                </SheetContent>
+              </Sheet>
+
+              <Select 
+                value={filters.sort}
+                onValueChange={(value) => updateFilter('sort', value)}
+                className="hidden sm:inline-flex"
+              >
+                <SelectTrigger className="w-40 bg-white">
+                  <SelectValue placeholder="Sort by..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="featured">Featured</SelectItem>
+                  <SelectItem value="price-asc">Price: Low to High</SelectItem>
+                  <SelectItem value="price-desc">Price: High to Low</SelectItem>
+                  <SelectItem value="name">Name</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Results */}
           {loading ? (
             <div className="flex justify-center items-center h-96">
-              <span className="loading loading-spinner loading-lg"></span>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
           ) : error ? (
             <div className="text-center text-red-500 p-4">
@@ -260,13 +259,7 @@ const Shop = () => {
               onProductClick={(productId) => navigate(`/product/${productId}`)}
             />
           )}
-        </main>
-
-        {screenWidth <= 768 && mobileFiltersOpen && (
-          <div className="fixed inset-0 z-50">
-            <FilterComponent />
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

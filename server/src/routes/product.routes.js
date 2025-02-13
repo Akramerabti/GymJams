@@ -5,6 +5,7 @@ import {
   updateProduct,
   deleteProduct,
   applyPromotion,
+  getProductById,
 } from '../controllers/product.controller.js';
 
 import upload from '../config/storage.js';
@@ -13,6 +14,9 @@ const router = express.Router();
 
 // Public route to get products
 router.get('/', getProducts);
+
+router.get('/:id', getProductById);
+
 
 // Taskforce-only routes
 router.post('/', upload.array('images', 8), addProduct);

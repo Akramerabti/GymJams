@@ -1,4 +1,5 @@
-// productController.js
+import fs from 'fs';
+import path from 'path';
 import Product from '../models/Product.js';
 import mongoose from 'mongoose';
 
@@ -7,6 +8,24 @@ export const getProducts = async (req, res) => {
   try {
     const products = await Product.find({}); // Fetch all products
     res.status(200).json({ data: products }); // Return products in a `data` field
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getProductById = async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: 'Invalid product ID' });
+  }
+
+  try {
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+    res.status(200).json(product);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -28,7 +47,9 @@ export const addProduct = async (req, res) => {
     }
 
     // Extract file paths from uploaded files
-    const images = req.files.map((file) => file.path);
+    const images = req.files.map((file) => `/${file.path.replace(/\\/g, '/')}`);
+    
+    console.log('images:', images);
 
     // Create a new product
     const newProduct = new Product({
@@ -37,9 +58,9 @@ export const addProduct = async (req, res) => {
       price,
       category,
       stockQuantity,
-      images,
-      specs: JSON.parse(specs), // Ensure specs is parsed if sent as a string
-      discount: JSON.parse(discount), // Ensure discount is parsed if sent as a string
+      imageUrls: images,
+      specs: JSON.parse(specs),
+      discount: JSON.parse(discount),
     });
 
     // Save the product to the database
@@ -65,12 +86,32 @@ export const updateProduct = async (req, res) => {
   }
 };
 
-// Delete a product
 export const deleteProduct = async (req, res) => {
   const { id } = req.params;
+
   try {
+    // Find the product
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    // Delete associated images
+    if (product.imageUrls && product.imageUrls.length > 0) {
+      product.imageUrls.forEach((imagePath) => {
+        const fullPath = path.join(process.cwd(), imagePath);
+        fs.unlink(fullPath, (err) => {
+          if (err && err.code !== 'ENOENT') {
+            console.error(`Failed to delete image: ${fullPath}`, err);
+          }
+        });
+      });
+    }
+
+    // Delete the product from the database
     await Product.findByIdAndDelete(id);
-    res.status(200).json({ message: 'Product deleted successfully' });
+
+    res.status(200).json({ message: 'Product and images deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

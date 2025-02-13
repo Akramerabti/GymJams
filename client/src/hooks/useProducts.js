@@ -9,12 +9,12 @@ const useProductStore = create((set, get) => ({
   error: null,
 
 
-  // Fetch all products with optional filters
   fetchProducts: async () => {
     set({ loading: true, error: null });
     try {
       const response = await productService.getProducts();
-      set({ products: response.data || [] }); // Ensure products is an array
+      console.log('response:', response);
+      set({ products: response.data || [] });
     } catch (error) {
       set({ error: error.message });
     } finally {
@@ -54,6 +54,7 @@ const useProductStore = create((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await productService.getProduct(productId);
+      console.log('response:', response);
       return response.data;
     } catch (error) {
       set({ error: error.message });
@@ -105,10 +106,10 @@ export const useProducts = () => {
     loading: store.loading,
     error: store.error,
     fetchProducts: store.fetchProducts,
-    getProduct: store.getProduct,
   };
 };
-// Custom hook to fetch a single product
+
+
 export const useProduct = (productId) => {
   const { getProduct, loading, error } = useProductStore();
 
