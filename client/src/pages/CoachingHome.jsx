@@ -356,7 +356,7 @@ const CoachingHome = () => {
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       className="mt-6 w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
-                      onClick={() => handleSelectPlan(coach)}
+                      onClick={() => handleSelectPlan(subscriptionPlans[1])}
                     >
                       Train with {coach.firstName}
                     </motion.button>
