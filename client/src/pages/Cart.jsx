@@ -1,5 +1,6 @@
+// components/Cart.js
 import React from 'react';
-import { useCart } from '../hooks/useCart';
+import useCartStore from '../stores/cartStore';
 import CartItem from '../components/cart/CartItem';
 import CartSummary from '../components/cart/CartSummary';
 import { Button } from '../components/ui/button';
@@ -7,10 +8,24 @@ import { ShoppingBag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Cart = () => {
-  const { items, isEmpty, total } = useCart();
   const navigate = useNavigate();
+  const cartStore = useCartStore();
+  const { items, getCartTotals, initiateCheckout } = cartStore;
 
-  if (isEmpty) {
+  const handleCheckout = async () => {
+    try {
+      const checkoutData = {
+        // Add any additional checkout data here, e.g., shipping address, payment method
+      };
+      await initiateCheckout(checkoutData);
+      navigate('/shop-checkout');
+    } catch (error) {
+      console.error('Checkout failed:', error);
+      alert('An error occurred during checkout.');
+    }
+  };
+
+  if (items.length === 0) {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
         <ShoppingBag className="w-16 h-16 mx-auto text-gray-400 mb-4" />
@@ -28,10 +43,6 @@ const Cart = () => {
     );
   }
 
-  const handleCheckout = () => {
-    navigate('/shop-checkout');
-  };
-
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">Shopping Cart</h1>
@@ -48,13 +59,14 @@ const Cart = () => {
 
         {/* Cart Summary */}
         <div className="lg:w-96">
-          <CartSummary />
+          <CartSummary totals={getCartTotals()} />
           <Button 
             size="lg" 
             className="w-full mt-4"
             onClick={handleCheckout}
+            disabled={cartStore.loading}
           >
-            Proceed to Checkout
+            {cartStore.loading ? 'Processing...' : 'Proceed to Checkout'}
           </Button>
         </div>
       </div>

@@ -99,7 +99,6 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
         })),
       });
 
-
       // Update the subscription with the new message via API call
       const updatedSubscription = await subscriptionService.sendMessage(
         selectedClient.id,

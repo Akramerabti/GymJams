@@ -1,3 +1,4 @@
+// components/ProductPage.js
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
@@ -20,9 +21,11 @@ import {
 } from "@/components/ui/carousel";
 import { formatCurrency } from '@/utils/formatters';
 import productService from '@/services/product.service';
+import { useAuth } from '@/stores/authStore';
+import  useCartStore from '@/stores/cartStore';
 
 const constructImageUrl = (path) => {
-  if (!path) return '/placeholder-image.jpg';
+  if (!path) return null;
   return path.startsWith('http') ? path : `${import.meta.env.VITE_API_URL}${path}`;
 };
 
@@ -34,6 +37,9 @@ const ProductPage = ({ isPreview = false }) => {
   const [selectedSize, setSelectedSize] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [isWishlist, setIsWishlist] = useState(false);
+  const [showCopied, setShowCopied] = useState(false);
+  const { user, logout, checkAuth } = useAuth();
+  const cartStore = useCartStore();
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -85,44 +91,86 @@ const ProductPage = ({ isPreview = false }) => {
     productImages.push('/placeholder-image.jpg');
   }
 
+  const handleWishlistClick = async () => {
+    if (user) {
+      setIsWishlist(!isWishlist);
+      try {
+        await productService.toggleWishlist(user._id, product._id);
+      } catch (err) {
+        console.error('Error toggling wishlist:', err);
+      }
+    } else {
+      // Redirect to login page or show a login modal
+      console.log('User is not logged in');
+    }
+  };
+
+  const handleShareClick = () => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setShowCopied(true);
+      setTimeout(() => setShowCopied(false), 2000);
+    });
+  };
+
+  const handleReviewSubmit = async (rating) => {
+    if (user) {
+      try {
+        await productService.addReview(user._id, product._id, rating);
+        const updatedProduct = await productService.getProduct(productId);
+        setProduct(updatedProduct);
+      } catch (err) {
+        console.error('Error submitting review:', err);
+      }
+    } else {
+      // Redirect to login page or show a login modal
+      console.log('User is not logged in');
+    }
+  };
+
+  const handleAddToCartClick = async () => {
+    await cartStore.addItem({ ...product, id: product._id }, quantity);
+    alert('Added to cart');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
         {!isPreview && (
-          <div className="hidden md:flex mb-6 items-center text-sm text-gray-500">
+          <div className="flex mb-4 md:mb-6 items-center text-sm text-gray-500">
             <button onClick={() => window.history.back()} className="flex items-center hover:text-gray-700">
-              <ChevronLeft className="h-4 w-4" />
-              Back
+              <ChevronLeft className="h-6 w-6" />
             </button>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-12">
-          <div className="space-y-4 -mx-4 md:mx-0 h-[70vh] md:h-auto">
-            <Carousel className="w-full relative">
-              <CarouselContent>
-                {productImages.map((image, index) => (
-                  <CarouselItem key={index}>
-                    <div className="aspect-square relative">
-                      <img
-                        src={image}
-                        alt={`${product.name} - View ${index + 1}`}
-                        className="object-cover w-full h-full"
-                      />
-                    </div>
-                  </CarouselItem>
-                ))}
-              </CarouselContent>
-              {productImages.length > 1 && (
-                <>
-                  <CarouselPrevious className="absolute left-4 top-1/2 transform -translate-y-1/2" />
-                  <CarouselNext className="absolute right-4 top-1/2 transform -translate-y-1/2" />
-                </>
-              )}
-            </Carousel>
-          </div>
+        <div className="flex flex-col md:flex-row gap-6 md:gap-12">
+          {productImages.length > 0 && (
+            <div className="flex-1 space-y-4 mt-4 -mx-4 md:mx-0 h-[70vh] md:h-auto">
+              <Carousel className="w-full relative">
+                <CarouselContent>
+                  {productImages.map((image, index) => (
+                    <CarouselItem key={index}>
+                      <div className="aspect-square relative">
+                        <img
+                          src={image}
+                          alt={`${product.name} - View ${index + 1}`}
+                          className="object-cover w-full h-full"
+                        />
+                      </div>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                {productImages.length > 1 && (
+                  <>
+                    <CarouselPrevious className="absolute left-4 top-1/2 transform -translate-y-1/2" />
+                    <CarouselNext className="absolute right-4 top-1/2 transform -translate-y-1/2" />
+                  </>
+                )}
+              </Carousel>
+            </div>
+          )}
 
-          <div className="space-y-6">
+          <div className="flex-1 space-y-6">
             <h1 className="text-3xl font-bold">{product.name}</h1>
             <div className="flex items-center space-x-2">
               <div className="flex items-center">
@@ -152,15 +200,16 @@ const ProductPage = ({ isPreview = false }) => {
               </div>
 
               <div className="flex items-center space-x-4">
-                <Button className="flex-1" onClick={() => alert('Added to cart')}>
+                <Button className="flex-1" onClick={handleAddToCartClick}>
                   <ShoppingCart className="h-5 w-5 mr-2" />
                   Add to Cart
                 </Button>
-                <Button variant="outline" onClick={() => setIsWishlist(!isWishlist)}>
+                <Button variant="outline" onClick={handleWishlistClick}>
                   <Heart className={`h-5 w-5 ${isWishlist ? 'text-red-500 fill-current' : ''}`} />
                 </Button>
-                <Button variant="outline" onClick={() => alert('Shared')}>
+                <Button variant="outline" onClick={handleShareClick}>
                   <Share2 className="h-5 w-5" />
+                  {showCopied && <span className="ml-2">Copied</span>}
                 </Button>
               </div>
             </div>
@@ -179,6 +228,22 @@ const ProductPage = ({ isPreview = false }) => {
                 <span>2-year warranty</span>
               </div>
             </div>
+
+            {user && (
+              <div className="mt-6">
+                <h2 className="text-xl font-bold">Leave a Review</h2>
+                <div className="flex items-center space-x-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`h-5 w-5 cursor-pointer ${star <= (product.averageRating || 0) ? 'text-yellow-400' : 'text-gray-300'}`}
+                      fill={star <= (product.averageRating || 0) ? 'currentColor' : 'none'}
+                      onClick={() => handleReviewSubmit(star)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
