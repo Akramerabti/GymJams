@@ -35,6 +35,8 @@ import Onboarding from './pages/Onboarding';
 import TaskforceDashboard from './pages/TaskforceDashboard';
 import Contact from './pages/CustomerService/contact';
 import ProductPage from './pages/ProductPage';
+import GymBros from './pages/Gymbros';
+
 
 // Socket Context
 import { SocketProvider } from './SocketContext';
@@ -86,6 +88,7 @@ const App = () => {
             <Route path="/hidden-games" element={<HiddenGames />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/product/:productId" element={<ProductPage />} />
+            <Route path="/gymbros" element={<GymBros />} />
 
             {/* Protected Routes */}
             <Route path="/profile" element={

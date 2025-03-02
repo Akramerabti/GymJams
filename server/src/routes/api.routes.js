@@ -3,7 +3,9 @@ import authRoutes from './auth.routes.js';
 import productRoutes from './product.routes.js';
 import orderRoutes from './order.routes.js';
 import userRoutes from './user.routes.js';
+import gymBrosRoutes from './gymBrosRoutes.js';
 import { handleError } from '../middleware/error.middleware.js';
+
 
 const router = express.Router();
 
@@ -13,6 +15,8 @@ router.use('/products', productRoutes);
 router.use('/orders', orderRoutes);
 router.use('/users', userRoutes);
 router.use('/products', productRoutes);
+router.use('/gym-bros', gymBrosRoutes);
+
 // Webhook route for Stripe
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   const sig = req.headers['stripe-signature'];

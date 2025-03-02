@@ -1,4 +1,3 @@
-import { time } from 'framer-motion';
 import api from './api';
 
 const subscriptionService = {

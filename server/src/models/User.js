@@ -171,8 +171,11 @@ const userSchema = new mongoose.Schema({
   learningStreak: {
     type: Number,
     default: 0
-  }
-
+  },
+  gymBrosProfile: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'GymBrosProfile',
+  },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

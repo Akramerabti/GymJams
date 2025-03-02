@@ -6,6 +6,7 @@ import orderRoutes from './order.routes.js';
 import userRoutes from './user.routes.js';
 import subscriptionRoutes from './subscription.routes.js';
 import stripeRoutes from './stripe.routes.js';
+import gymBrosRoutes from './gymBrosRoutes.js';
 
 const router = express.Router();
 
@@ -17,6 +18,7 @@ router.use('/subscription', subscriptionRoutes);
 router.use('/products', productRoutes);
 router.use('/orders', orderRoutes);
 router.use('/stripe', stripeRoutes);
+router.use('/gym-bros', gymBrosRoutes);
 
 
 export default router;
