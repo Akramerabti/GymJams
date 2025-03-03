@@ -1,13 +1,39 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { Heart, X, MessageCircle, Filter, Dumbbell, UserPlus, Calendar, MapPin } from 'lucide-react';
+import { 
+  Heart, X, MessageCircle, Filter, Dumbbell, UserPlus, 
+  Calendar, MapPin, Settings, ShoppingBag, User,
+  ChevronLeft, ChevronRight
+} from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import api from '../services/api';
+
+import EnhancedProfileCard from '../components/gymBros/EnhancedProfileCard';
 import GymBrosProfile from '../components/gymBros/GymBrosProfile';
 import GymBrosSetup from '../components/gymBros/GymBrosSetup';
 import GymBrosMatches from '../components/gymBros/GymBrosMatches';
 import GymBrosFilters from '../components/gymBros/GymBrosFilters';
+import GymBrosSettings from '../components/gymBros/GymBrosSettings';
+
+import { useLocation } from 'react-router-dom';
+
+// Tell Layout component to hide footer when on this route
+const FooterHider = () => {
+  const location = useLocation();
+  
+  useEffect(() => {
+    // When component mounts, add class to hide footer
+    document.body.classList.add('hide-footer');
+    
+    // When component unmounts, remove the class
+    return () => {
+      document.body.classList.remove('hide-footer');
+    };
+  }, [location.pathname]);
+  
+  return null;
+};
 
 const GymBros = () => {
   const { user, isAuthenticated } = useAuthStore();
@@ -18,49 +44,86 @@ const GymBros = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [showMatches, setShowMatches] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [matches, setMatches] = useState([]);
+  const [viewStartTime, setViewStartTime] = useState(null);
+  const [activeTab, setActiveTab] = useState('discover'); // discover, matches, shop, profile
   const [filters, setFilters] = useState({
     workoutTypes: [],
-    experienceLevel: 'any',
-    preferredTime: 'any',
+    experienceLevel: 'Any',
+    preferredTime: 'Any',
+    genderPreference: 'All',
+    ageRange: { min: 18, max: 99 },
     maxDistance: 50
   });
   
   const swipeRef = useRef(null);
+  const profileRef = useRef(null);
 
   const getUserId = (user) => {
-    return user?.user?.id|| user?.id || '';
+    return user?.user?.id || user?.id || '';
   };
-  
   
   useEffect(() => {
     if (isAuthenticated) {
-      console.log('Checking user profile...', user); // Debugging log
+      console.log('[GymBros] Checking user profile for ID:', getUserId(user));
       checkUserProfile();
     }
   }, [isAuthenticated, user]);
+
+  // Set view start time when profile changes
+  useEffect(() => {
+    if (profiles.length > 0 && currentIndex < profiles.length) {
+      setViewStartTime(Date.now());
+      console.log('[GymBros] Viewing profile:', profiles[currentIndex].name, 'at index:', currentIndex);
+    }
+  }, [currentIndex, profiles]);
 
   const checkUserProfile = async () => {
     try {
       setLoading(true);
       const response = await api.get('/gym-bros/profile', {
         params: {
-          userId: getUserId(user), // Assuming `user.id` contains the authenticated user's ID
+          userId: getUserId(user),
         },
       });
+      
+      console.log('[GymBros] Profile check response:', response.data);
   
       if (response.data.hasProfile) {
         setHasProfile(true);
         setUserProfile(response.data.profile);
+        
+        // Initialize filters based on user profile preferences if available
+        if (response.data.profile) {
+          console.log('[GymBros] Setting initial filters from user profile');
+          
+          const initialFilters = {
+            workoutTypes: response.data.profile.workoutTypes || [],
+            experienceLevel: response.data.profile.experienceLevel || 'Any',
+            preferredTime: response.data.profile.preferredTime || 'Any',
+            genderPreference: response.data.profile.genderPreference || 'All',
+            ageRange: { 
+              min: response.data.profile.ageRange?.min || 18, 
+              max: response.data.profile.ageRange?.max || 99 
+            },
+            maxDistance: response.data.profile.maxDistance || 50
+          };
+          
+          console.log('[GymBros] Initial filters:', initialFilters);
+          setFilters(initialFilters);
+        }
+        
         fetchProfiles();
       } else {
+        console.log('[GymBros] No profile found, showing profile setup');
         setHasProfile(false);
-        setUserProfile(null); // Explicitly set userProfile to null
+        setUserProfile(null);
       }
     } catch (error) {
-      console.error('Error checking gym profile:', error);
+      console.error('[GymBros] Error checking gym profile:', error);
       setHasProfile(false);
-      setUserProfile(null); // Explicitly set userProfile to null
+      setUserProfile(null);
     } finally {
       setLoading(false);
     }
@@ -68,13 +131,47 @@ const GymBros = () => {
 
   const fetchProfiles = async () => {
     try {
+      console.log('[GymBros] Fetching profiles with filters:', filters);
       setLoading(true);
-      const response = await api.get('/gym-bros/profiles', { 
-        params: filters 
-      });
+      
+      // Build query parameters from filters
+      const queryParams = new URLSearchParams();
+      
+      if (filters.workoutTypes.length > 0) {
+        queryParams.append('workoutTypes', filters.workoutTypes.join(','));
+      }
+      
+      if (filters.experienceLevel && filters.experienceLevel !== 'Any') {
+        queryParams.append('experienceLevel', filters.experienceLevel);
+      }
+      
+      if (filters.preferredTime && filters.preferredTime !== 'Any') {
+        queryParams.append('preferredTime', filters.preferredTime);
+      }
+      
+      if (filters.genderPreference && filters.genderPreference !== 'All') {
+        queryParams.append('gender', filters.genderPreference);
+      }
+      
+      if (filters.ageRange) {
+        queryParams.append('minAge', filters.ageRange.min || 18);
+        queryParams.append('maxAge', filters.ageRange.max || 99);
+      }
+      
+      queryParams.append('maxDistance', filters.maxDistance || 50);
+      
+      // Add timestamp to prevent caching
+      queryParams.append('_t', Date.now());
+      
+      console.log('[GymBros] Query params:', queryParams.toString());
+      
+      const response = await api.get(`/gym-bros/profiles?${queryParams.toString()}`);
+      console.log('[GymBros] Received profiles:', response.data.length);
+      
       setProfiles(response.data);
+      setCurrentIndex(0);
     } catch (error) {
-      console.error('Error fetching profiles:', error);
+      console.error('[GymBros] Error fetching profiles:', error);
       toast.error('Failed to load gym profiles');
     } finally {
       setLoading(false);
@@ -83,63 +180,147 @@ const GymBros = () => {
 
   const fetchMatches = async () => {
     try {
+      console.log('[GymBros] Fetching matches');
       const response = await api.get('/gym-bros/matches');
+      console.log('[GymBros] Matches received:', response.data.length);
       setMatches(response.data);
     } catch (error) {
-      console.error('Error fetching matches:', error);
+      console.error('[GymBros] Error fetching matches:', error);
       toast.error('Failed to load matches');
     }
   };
 
   const handleSwipe = (direction, profileId) => {
+    // Calculate view duration
+    const viewDuration = Date.now() - (viewStartTime || Date.now());
+    console.log(`[GymBros] Swiped ${direction} on profile ${profileId} after ${viewDuration}ms`);
+    
     if (direction === 'right') {
-      handleLike(profileId);
+      handleLike(profileId, viewDuration);
     } else {
-      handleDislike(profileId);
+      handleDislike(profileId, viewDuration);
     }
     
-    // Move to next profile
-    if (currentIndex < profiles.length - 1) {
-      setCurrentIndex(prevIndex => prevIndex + 1);
-    } else {
-      toast('You\'ve seen all profiles for now! Check back later.', {
-        description: 'Pull to refresh for new profiles'
+    // Move to next profile with animation
+    if (profileRef.current) {
+      const moveAnimation = {
+        x: direction === 'right' ? 1000 : -1000,
+        opacity: 0,
+        transition: { duration: 0.3 }
+      };
+      
+      // Apply animation through ref
+      profileRef.current.animate(moveAnimation, {
+        onComplete: () => {
+          if (currentIndex < profiles.length - 1) {
+            console.log('[GymBros] Moving to next profile, index:', currentIndex + 1);
+            setCurrentIndex(prevIndex => prevIndex + 1);
+          } else {
+            console.log('[GymBros] No more profiles to show');
+            toast('You\'ve seen all profiles for now! Check back later.', {
+              description: 'Pull to refresh for new profiles'
+            });
+          }
+        }
       });
+    } else {
+      // Fallback if ref isn't available
+      if (currentIndex < profiles.length - 1) {
+        setCurrentIndex(prevIndex => prevIndex + 1);
+      } else {
+        toast('You\'ve seen all profiles for now! Check back later.', {
+          description: 'Pull to refresh for new profiles'
+        });
+      }
     }
   };
 
-  const handleLike = async (profileId) => {
+  const handleLike = async (profileId, viewDuration) => {
     try {
-      const response = await api.post(`/gym-bros/like/${profileId}`);
+      console.log(`[GymBros] Sending like for profile ${profileId} with view duration ${viewDuration}ms`);
+      const response = await api.post(`/gym-bros/like/${profileId}`, { viewDuration });
+      
       if (response.data.match) {
+        console.log('[GymBros] Match created!', response.data);
         toast.success('It\'s a match! 🎉', {
           description: 'You can now message each other'
         });
         // Add to matches list
         fetchMatches();
+      } else {
+        console.log('[GymBros] Like sent, no match yet');
       }
     } catch (error) {
-      console.error('Error liking profile:', error);
+      console.error('[GymBros] Error liking profile:', error);
     }
   };
 
-  const handleDislike = async (profileId) => {
+  const handleDislike = async (profileId, viewDuration) => {
     try {
-      await api.post(`/gym-bros/dislike/${profileId}`);
+      console.log(`[GymBros] Sending dislike for profile ${profileId} with view duration ${viewDuration}ms`);
+      await api.post(`/gym-bros/dislike/${profileId}`, { viewDuration });
     } catch (error) {
-      console.error('Error disliking profile:', error);
+      console.error('[GymBros] Error disliking profile:', error);
     }
   };
 
   const handleProfileCreated = (profile) => {
+    console.log('[GymBros] New profile created:', profile);
     setUserProfile(profile);
     setHasProfile(true);
+    
+    // Initialize filters from newly created profile
+    setFilters({
+      workoutTypes: profile.workoutTypes || [],
+      experienceLevel: profile.experienceLevel || 'Any',
+      preferredTime: profile.preferredTime || 'Any',
+      genderPreference: 'All',  // Default to all
+      ageRange: { min: 18, max: 99 },  // Default age range
+      maxDistance: 50  // Default distance
+    });
+    
     fetchProfiles();
   };
 
   const handleFilterChange = (newFilters) => {
+    console.log('[GymBros] Filters updated:', newFilters);
     setFilters(newFilters);
     setShowFilters(false);
+    
+    // Also update user preferences in the database
+    updateUserPreferences(newFilters);
+    
+    // Fetch new profiles with updated filters
+    fetchProfiles();
+  };
+  
+  const updateUserPreferences = async (newFilters) => {
+    try {
+      console.log('[GymBros] Updating user preferences with new filters:', newFilters);
+      
+      // Update profile preferences with new filter settings
+      await api.put('/gym-bros/preferences', {
+        workoutTypes: newFilters.workoutTypes,
+        experienceLevel: newFilters.experienceLevel !== 'Any' ? newFilters.experienceLevel : undefined,
+        preferredTime: newFilters.preferredTime !== 'Any' ? newFilters.preferredTime : undefined,
+        genderPreference: newFilters.genderPreference !== 'All' ? newFilters.genderPreference : undefined,
+        ageRange: newFilters.ageRange,
+        maxDistance: newFilters.maxDistance
+      });
+      
+      console.log('[GymBros] User preferences updated successfully');
+    } catch (error) {
+      console.error('[GymBros] Error updating user preferences:', error);
+      toast.error('Failed to update preferences');
+    }
+  };
+  
+  const handleProfileUpdated = (updatedProfile) => {
+    console.log('[GymBros] Profile updated:', updatedProfile);
+    setUserProfile(updatedProfile);
+    setShowSettings(false);
+    
+    // Refresh profiles
     fetchProfiles();
   };
 
@@ -147,7 +328,7 @@ const GymBros = () => {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-pulse flex flex-col items-center">
-          <Dumbbell size={48} className="text-primary animate-bounce mb-4" />
+          <Dumbbell size={48} className="text-blue-500 animate-bounce mb-4" />
           <p className="text-lg font-medium">Loading Gym Partners...</p>
         </div>
       </div>
@@ -155,12 +336,13 @@ const GymBros = () => {
   }
 
   if (!isAuthenticated) {
+    console.log('[GymBros] User not authenticated, showing login prompt');
     return (
       <div className="flex flex-col items-center justify-center h-screen p-6 text-center">
-        <Dumbbell size={48} className="text-primary mb-4" />
+        <Dumbbell size={48} className="text-blue-500 mb-4" />
         <h1 className="text-2xl font-bold mb-4">Find Your Perfect Gym Partner</h1>
         <p className="mb-6">Please log in to view and match with gym buddies.</p>
-        <a href="/login" className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-opacity-90 transition-all">
+        <a href="/login" className="bg-blue-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-600 transition-all">
           Log In to Continue
         </a>
       </div>
@@ -168,169 +350,258 @@ const GymBros = () => {
   }
 
   if (!hasProfile) {
+    console.log('[GymBros] User has no profile, showing setup form');
     return <GymBrosSetup onProfileCreated={handleProfileCreated} />;
   }
 
+  // Different content based on active tab
+  const renderTabContent = () => {
+    switch(activeTab) {
+      case 'discover':
+        return (
+          <div className="h-[65vh] flex items-center justify-center">
+            {profiles.length > 0 ? (
+              <div className="relative w-full h-full">
+                {profiles.map((profile, index) => (
+                  <EnhancedProfileCard
+                    key={profile._id}
+                    profile={profile}
+                    onLike={() => handleSwipe('right', profile._id)}
+                    onDislike={() => handleSwipe('left', profile._id)}
+                    isActive={index === currentIndex}
+                    onNext={() => currentIndex < profiles.length - 1 && setCurrentIndex(currentIndex + 1)}
+                    onPrevious={() => currentIndex > 0 && setCurrentIndex(currentIndex - 1)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center p-6">
+                <Dumbbell size={48} className="text-gray-400 mb-4" />
+                <h3 className="text-xl font-semibold mb-2">No more profiles</h3>
+                <p className="text-gray-500 mb-4">We couldn't find gym buddies matching your criteria.</p>
+                <button 
+                  onClick={fetchProfiles}
+                  className="bg-blue-500 text-white px-4 py-2 rounded-lg"
+                >
+                  Refresh
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      
+      case 'matches':
+        return (
+          <div className="h-[65vh] p-4 overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">Your Matches</h2>
+            {matches.length > 0 ? (
+              <div className="space-y-4">
+                {matches.map(match => (
+                  <div key={match._id} className="bg-white rounded-lg shadow p-4 flex items-center">
+                    <img 
+                      src={match.profileImage || "/api/placeholder/50/50"} 
+                      alt={match.name} 
+                      className="w-16 h-16 rounded-full object-cover mr-4"
+                    />
+                    <div className="flex-1">
+                      <h3 className="font-bold">{match.name}, {match.age}</h3>
+                      <p className="text-sm text-gray-500">{match.bio?.substring(0, 50)}...</p>
+                    </div>
+                    <button className="p-2 bg-blue-100 rounded-full text-blue-500">
+                      <MessageCircle size={24} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <Heart size={48} className="text-gray-300 mb-4" />
+                <p className="text-gray-500">No matches yet. Keep swiping!</p>
+              </div>
+            )}
+          </div>
+        );
+      
+      case 'shop':
+        return (
+          <div className="h-[65vh] p-4 overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">Fitness Shop</h2>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { id: 1, name: 'Premium Membership', price: 9.99, image: '/api/placeholder/150/150' },
+                { id: 2, name: 'Workout Plan', price: 29.99, image: '/api/placeholder/150/150' },
+                { id: 3, name: 'Nutrition Guide', price: 19.99, image: '/api/placeholder/150/150' },
+                { id: 4, name: 'Personal Coach', price: 49.99, image: '/api/placeholder/150/150' }
+              ].map(item => (
+                <div key={item.id} className="bg-white rounded-lg shadow overflow-hidden">
+                  <img src={item.image} alt={item.name} className="w-full h-32 object-cover" />
+                  <div className="p-3">
+                    <h3 className="font-semibold text-sm">{item.name}</h3>
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="font-bold">${item.price}</span>
+                      <button className="bg-blue-500 text-white px-2 py-1 rounded text-xs">
+                        Add to Cart
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      
+      case 'profile':
+        return (
+          <div className="h-[65vh] p-4 overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-500 to-purple-600 h-32 relative">
+                <div className="absolute -bottom-16 left-1/2 transform -translate-x-1/2">
+                  <img 
+                    src={userProfile?.profileImage || "/api/placeholder/100/100"} 
+                    alt={userProfile?.name} 
+                    className="w-32 h-32 rounded-full border-4 border-white object-cover"
+                  />
+                </div>
+              </div>
+              
+              <div className="mt-20 p-4 text-center">
+                <h2 className="text-2xl font-bold">{userProfile?.name}, {userProfile?.age}</h2>
+                <p className="text-gray-500">{userProfile?.location?.address}</p>
+                
+                <div className="mt-6 flex flex-wrap justify-center gap-2">
+                  {userProfile?.workoutTypes?.map(type => (
+                    <span key={type} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+                      {type}
+                    </span>
+                  ))}
+                </div>
+                
+                <div className="mt-6 text-left">
+                  <h3 className="font-semibold mb-2">About Me</h3>
+                  <p className="text-gray-700">{userProfile?.bio || 'No bio provided'}</p>
+                </div>
+                
+                <div className="mt-6 flex justify-center">
+                  <button 
+                    onClick={() => setShowSettings(true)}
+                    className="bg-blue-500 text-white px-4 py-2 rounded-lg flex items-center"
+                  >
+                    <Settings size={18} className="mr-2" />
+                    Edit Profile
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+        
+      default:
+        return null;
+    }
+  };
+
   return (
-    <div className="max-w-xl mx-auto p-4 h-screen">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold flex items-center">
-          <Dumbbell className="mr-2 text-primary" /> GymMatch
-        </h1>
-        <div className="flex space-x-2">
-          <button 
-            onClick={() => {
-              setShowMatches(true);
-              fetchMatches();
-            }}
-            className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
-          >
-            <MessageCircle size={24} />
-          </button>
-          <button 
-            onClick={() => setShowFilters(true)}
-            className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
-          >
-            <Filter size={24} />
-          </button>
+    <>
+      <FooterHider />
+      <div className="max-w-xl mx-auto h-screen flex flex-col">
+        {/* Filter Bar */}
+        <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+          <h1 className="text-xl font-bold flex items-center">
+            <Dumbbell className="mr-2 text-blue-500" /> GymMatch
+          </h1>
+          <div className="flex space-x-2">
+            <button 
+              onClick={() => setShowFilters(true)}
+              className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
+            >
+              <Filter size={20} />
+            </button>
+            <button
+              onClick={() => {
+                fetchMatches();
+                setActiveTab('matches');
+              }}
+              className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 relative"
+            >
+              <MessageCircle size={20} />
+              {matches.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
+                  {matches.length}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+        
+        {/* Main Content Area */}
+        <div className="flex-1 relative bg-gray-50">
+          {renderTabContent()}
+        </div>
+        
+        {/* Navigation Tabs */}
+        <div className="bg-white shadow-lg border-t border-gray-200 px-6 py-2">
+          <div className="flex justify-between items-center">
+            <button 
+              onClick={() => setActiveTab('discover')}
+              className={`flex flex-col items-center p-2 ${
+                activeTab === 'discover' ? 'text-blue-500' : 'text-gray-500'
+              }`}
+            >
+              <Heart size={24} />
+              <span className="text-xs mt-1">Discover</span>
+            </button>
+            
+            <button 
+              onClick={() => {
+                fetchMatches();
+                setActiveTab('matches');
+              }}
+              className={`flex flex-col items-center p-2 ${
+                activeTab === 'matches' ? 'text-blue-500' : 'text-gray-500'
+              }`}
+            >
+              <MessageCircle size={24} />
+              <span className="text-xs mt-1">Matches</span>
+            </button>
+            
+            <button 
+              onClick={() => setActiveTab('shop')}
+              className={`flex flex-col items-center p-2 ${
+                activeTab === 'shop' ? 'text-blue-500' : 'text-gray-500'
+              }`}
+            >
+              <ShoppingBag size={24} />
+              <span className="text-xs mt-1">Shop</span>
+            </button>
+            
+            <button 
+              onClick={() => setActiveTab('profile')}
+              className={`flex flex-col items-center p-2 ${
+                activeTab === 'profile' ? 'text-blue-500' : 'text-gray-500'
+              }`}
+            >
+              <User size={24} />
+              <span className="text-xs mt-1">Profile</span>
+            </button>
+          </div>
         </div>
       </div>
       
-      {/* Card Stack */}
-      {profiles.length > 0 ? (
-        <div className="relative h-[70vh] w-full flex items-center justify-center">
-          <AnimatePresence>
-            {profiles.map((profile, index) => (
-              index >= currentIndex && (
-                <motion.div
-                  key={profile._id}
-                  ref={index === currentIndex ? swipeRef : null}
-                  className="absolute w-full max-w-md rounded-xl overflow-hidden shadow-xl bg-white"
-                  initial={{ scale: 0.95, opacity: index === currentIndex ? 1 : 0 }}
-                  animate={{ 
-                    scale: index === currentIndex ? 1 : 0.95,
-                    opacity: index === currentIndex ? 1 : 0,
-                    zIndex: profiles.length - index
-                  }}
-                  exit={{ 
-                    x: Math.random() > 0.5 ? 1000 : -1000, 
-                    opacity: 0,
-                    transition: { duration: 0.3 }
-                  }}
-                  drag={index === currentIndex}
-                  dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
-                  dragElastic={0.7}
-                  onDragEnd={(e, { offset, velocity }) => {
-                    const swipe = swipeRef.current;
-                    if (swipe) {
-                      const swipeThreshold = swipe.offsetWidth * 0.4;
-                      if (offset.x > swipeThreshold) {
-                        handleSwipe('right', profile._id);
-                      } else if (offset.x < -swipeThreshold) {
-                        handleSwipe('left', profile._id);
-                      }
-                    }
-                  }}
-                >
-                  <div className="h-full w-full">
-                    {/* Profile content */}
-                    <div className="relative h-[350px]">
-                      <img 
-                        src={profile.profileImage || "/api/placeholder/400/350"} 
-                        alt={profile.name} 
-                        className="h-full w-full object-cover"
-                      />
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-4 text-white">
-                        <h3 className="text-xl font-bold">{profile.name}, {profile.age}</h3>
-                        <div className="flex items-center mt-1">
-                          <MapPin size={16} className="mr-1" />
-                          <span className="text-sm">{profile.location.distance} miles away</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="p-4 bg-white">
-                      {/* Workout preferences */}
-                      <div className="mb-3">
-                        <h4 className="text-sm font-semibold text-gray-500 mb-1">WORKOUT PREFERENCES</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {profile.workoutTypes.map(type => (
-                            <span key={type} className="bg-primary bg-opacity-10 text-primary px-2 py-1 rounded-full text-xs">
-                              {type}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      {/* Experience level */}
-                      <div className="mb-3">
-                        <h4 className="text-sm font-semibold text-gray-500 mb-1">EXPERIENCE</h4>
-                        <p className="text-sm">{profile.experienceLevel}</p>
-                      </div>
-                      
-                      {/* Preferred schedule */}
-                      <div className="mb-3 flex items-center">
-                        <Calendar size={16} className="mr-2 text-gray-500" />
-                        <span className="text-sm">{profile.preferredTime}</span>
-                      </div>
-                      
-                      {/* Bio */}
-                      <p className="text-sm text-gray-700">{profile.bio}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              )
-            ))}
-          </AnimatePresence>
-        </div>
-      ) : (
-        <div className="h-[70vh] flex flex-col items-center justify-center text-center p-6">
-          <Dumbbell size={48} className="text-gray-400 mb-4" />
-          <h3 className="text-xl font-semibold mb-2">No more profiles</h3>
-          <p className="text-gray-500 mb-4">We couldn't find more gym buddies matching your criteria right now.</p>
-          <button 
-            onClick={fetchProfiles}
-            className="bg-primary text-white px-4 py-2 rounded-lg"
-          >
-            Refresh
-          </button>
-        </div>
-      )}
-      
-      {/* Bottom action buttons */}
-      {profiles.length > 0 && (
-        <div className="fixed bottom-6 left-0 right-0 flex justify-center space-x-4">
-          <button 
-            onClick={() => handleSwipe('left', profiles[currentIndex]._id)}
-            className="p-4 bg-white rounded-full shadow-lg border border-gray-200 hover:bg-gray-100"
-          >
-            <X size={28} className="text-red-500" />
-          </button>
-          <button 
-            onClick={() => handleSwipe('right', profiles[currentIndex]._id)}
-            className="p-4 bg-white rounded-full shadow-lg border border-gray-200 hover:bg-gray-100"
-          >
-            <Heart size={28} className="text-green-500" />
-          </button>
-        </div>
-      )}
-      
-      {/* Matches Modal */}
-      <GymBrosMatches 
-        isOpen={showMatches} 
-        onClose={() => setShowMatches(false)} 
-        matches={matches}
-      />
-      
-      {/* Filters Modal */}
+      {/* Modals */}
       <GymBrosFilters
         isOpen={showFilters}
         onClose={() => setShowFilters(false)}
         filters={filters}
         onApply={handleFilterChange}
       />
-    </div>
+      
+      <GymBrosSettings
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        userProfile={userProfile}
+        onProfileUpdated={handleProfileUpdated}
+      />
+    </>
   );
 };
 
