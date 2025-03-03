@@ -35,9 +35,23 @@ const GymBrosProfileSchema = new mongoose.Schema({
   },
   images: [{ type: String }], // Array of image URLs
   isProfileComplete: { type: Boolean, default: false },
+  lastActive: {
+    type: Date,
+    default: Date.now
+  },
+  metrics: {
+    views: { type: Number, default: 0 },
+    likes: { type: Number, default: 0 },
+    dislikes: { type: Number, default: 0 },
+    matches: { type: Number, default: 0 },
+    popularityScore: { type: Number, default: 50 }
+  },
 }, {
   timestamps: true,
 });
+
+// Fix: Use GymBrosProfileSchema (uppercase S) instead of gymBrosProfileSchema (lowercase s)
+GymBrosProfileSchema.index({ 'location.lat': 1, 'location.lng': 1 });
 
 const GymBrosProfile = mongoose.model('GymBrosProfile', GymBrosProfileSchema);
 export default GymBrosProfile;

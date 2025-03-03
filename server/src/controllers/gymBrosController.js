@@ -1,5 +1,9 @@
 import GymBrosProfile from '../models/GymBrosProfile.js';
+import GymBrosPreference from '../models/GymBrosPreference.js';
+import GymBrosMatch from '../models/GymBrosMatch.js';
 import User from '../models/User.js';
+import { getRecommendedProfiles } from '../services/gymBrosRecommendationService.js';
+import { processFeedback } from '../services/gymBrosFeedbackService.js';
 import { handleError } from '../middleware/error.middleware.js';
 
 // Check if user has a GymBros profile
@@ -54,12 +58,56 @@ export const checkGymBrosProfile = async (req, res) => {
     }
   };
 
-// Get all GymBros profiles (excluding the current user)
+// Get recommended profiles for the user
 export const getGymBrosProfiles = async (req, res) => {
   try {
-    const { userId } = req.user;
-    const profiles = await GymBrosProfile.find({ userId: { $ne: userId } });
-    res.json(profiles);
+    const userId = req.user.id;
+    
+    // Get user's profile
+    const userProfile = await GymBrosProfile.findOne({ userId });
+    if (!userProfile) {
+      return res.status(400).json({ message: "User profile not found" });
+    }
+    
+    // Get user's preferences
+    const userPreferences = await GymBrosPreference.findOne({ userId }) || 
+      new GymBrosPreference({ userId });
+    
+    // Get all candidate profiles (excluding already liked/disliked and the user)
+    const excludedProfiles = [
+      userId,
+      ...userPreferences.likedProfiles || [],
+      ...userPreferences.dislikedProfiles || []
+    ];
+    
+    const candidateProfiles = await GymBrosProfile.find({
+      userId: { $nin: excludedProfiles }
+    });
+    
+    // Apply fitness and experience level filters if provided
+    const { workoutTypes, experienceLevel, preferredTime, maxDistance } = req.query;
+    
+    // Build recommendation options
+    const recommendationOptions = {
+      maxDistance: maxDistance ? parseInt(maxDistance, 10) : 50,
+      userPreferences,
+      filters: {
+        workoutTypes: workoutTypes ? workoutTypes.split(',') : undefined,
+        experienceLevel: experienceLevel || undefined,
+        preferredTime: preferredTime || undefined
+      }
+    };
+    
+    // Get recommended profiles
+    const recommendations = await getRecommendedProfiles(
+      userProfile, 
+      candidateProfiles,
+      recommendationOptions
+    );
+    
+    // Return recommended profiles
+    res.json(recommendations);
+    
   } catch (error) {
     handleError(res, error);
   }
@@ -69,26 +117,16 @@ export const getGymBrosProfiles = async (req, res) => {
 export const likeGymBrosProfile = async (req, res) => {
   try {
     const { profileId } = req.params;
-    const { userId } = req.user;
-
-    // Check if the other user has already liked the current user
-    const existingMatch = await Match.findOne({
-      $or: [
-        { user1: userId, user2: profileId },
-        { user1: profileId, user2: userId },
-      ],
-    });
-
-    if (existingMatch) {
-      // It's a match!
-      return res.json({ match: true, matchId: existingMatch._id });
-    }
-
-    // Create a new like
-    const match = new Match({ user1: userId, user2: profileId });
-    await match.save();
-
-    res.json({ match: false });
+    const userId = req.user.id;
+    const viewDuration = req.body.viewDuration || 0;
+    
+    // Process the like interaction
+    const result = await processFeedback(userId, profileId, 'like', viewDuration);
+    
+    // Check if this created a match
+    const isMatch = await checkForMatch(userId, profileId);
+    
+    res.json({ success: result, match: isMatch });
   } catch (error) {
     handleError(res, error);
   }
@@ -98,12 +136,13 @@ export const likeGymBrosProfile = async (req, res) => {
 export const dislikeGymBrosProfile = async (req, res) => {
   try {
     const { profileId } = req.params;
-    const { userId } = req.user;
-
-    // Remove any existing like
-    await Match.deleteOne({ user1: userId, user2: profileId });
-
-    res.json({ message: 'Profile disliked' });
+    const userId = req.user.id;
+    const viewDuration = req.body.viewDuration || 0;
+    
+    // Process the dislike interaction
+    const result = await processFeedback(userId, profileId, 'dislike', viewDuration);
+    
+    res.json({ success: result });
   } catch (error) {
     handleError(res, error);
   }
@@ -111,14 +150,27 @@ export const dislikeGymBrosProfile = async (req, res) => {
 
 // Get user matches
 export const getGymBrosMatches = async (req, res) => {
-    try {
-      const { userId } = req.user;
-      const matches = await Match.find({
-        $or: [{ user1: userId }, { user2: userId }],
-      }).populate('user1 user2');
-  
-      res.json(matches);
-    } catch (error) {
-      handleError(res, error); // This is where the error occurs
-    }
-  };
+  try {
+    const userId = req.user.id;
+    
+    // Find all matches where this user is a participant
+    const matches = await GymBrosMatch.find({
+      users: userId,
+      active: true
+    });
+    
+    // Get the matched user IDs (excluding current user)
+    const matchedUserIds = matches.map(match => 
+      match.users.find(id => id !== userId)
+    );
+    
+    // Get profiles for matched users
+    const matchedProfiles = await GymBrosProfile.find({
+      userId: { $in: matchedUserIds }
+    });
+    
+    res.json(matchedProfiles);
+  } catch (error) {
+    handleError(res, error);
+  }
+};
