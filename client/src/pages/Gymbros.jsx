@@ -27,9 +27,15 @@ const GymBros = () => {
   });
   
   const swipeRef = useRef(null);
+
+  const getUserId = (user) => {
+    return user?.user?.id|| user?.id || '';
+  };
+  
   
   useEffect(() => {
     if (isAuthenticated) {
+      console.log('Checking user profile...', user); // Debugging log
       checkUserProfile();
     }
   }, [isAuthenticated, user]);
@@ -37,8 +43,12 @@ const GymBros = () => {
   const checkUserProfile = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/gym-bros/profile');
-      
+      const response = await api.get('/gym-bros/profile', {
+        params: {
+          userId: getUserId(user), // Assuming `user.id` contains the authenticated user's ID
+        },
+      });
+  
       if (response.data.hasProfile) {
         setHasProfile(true);
         setUserProfile(response.data.profile);

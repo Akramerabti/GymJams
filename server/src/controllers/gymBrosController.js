@@ -4,29 +4,29 @@ import { handleError } from '../middleware/error.middleware.js';
 
 // Check if user has a GymBros profile
 export const checkGymBrosProfile = async (req, res) => {
-    try {
-      const { userId } = req.user;
-      console.log('Checking profile for user:', userId); // Debugging log
-  
-      const profile = await GymBrosProfile.findOne({ userId });
-  
-      console.log('Profile found:', profile); // Debugging log
-  
-      if (profile) {
-        return res.json({ hasProfile: true, profile });
-      } else {
-        return res.json({ hasProfile: false, profile: null });
-      }
-    } catch (error) {
-      console.error('Error in checkGymBrosProfile:', error); // Debugging log
-      handleError(res, error);
+  try {
+    const { userId } = req.query; // Extract userId from query parameters
+    console.log('Checking profile for user:', userId); // Debugging log
+
+    const profile = await GymBrosProfile.findOne({ userId });
+
+    console.log('Profile found:', profile); // Debugging log
+
+    if (profile) {
+      return res.json({ hasProfile: true, profile });
+    } else {
+      return res.json({ hasProfile: false, profile: null });
     }
-  };
+  } catch (error) {
+    console.error('Error in checkGymBrosProfile:', error); // Debugging log
+    handleError(res, error);
+  }
+};
 
   export const createOrUpdateGymBrosProfile = async (req, res) => {
     try {
       const profileData = req.body;
-    const { userId } = profileData.userId;
+      const { userId } = profileData.userId;
     
       console.log('Creating or updating profile for user:', userId); // Debugging log
       console.log('Profile data:', profileData); // Debugging log
