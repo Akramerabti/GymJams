@@ -3,6 +3,7 @@ html, body {
     width: 100%; /* Ensure full width */
     margin: 0; /* Remove default margin */
     padding: 0; /* Remove default padding */
+    scroll-behavior: smooth;
   }
   
   /* Ensure no child elements overflow horizontally */
@@ -146,6 +147,14 @@ html, body {
 
 .icon:hover {
   color: #ff7e5f; /* Orange accent */
+}
+
+.content-padding-top {
+  padding-top: calc(4rem + 3rem); /* navbar + gymbros header */
+}
+
+.gymbros-header.hidden {
+  transform: translateY(-100%);
 }
 
 /* Hide footer when specified */

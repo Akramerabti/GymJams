@@ -1,10 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { X, Save, User, MapPin, Calendar, Dumbbell, Award } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
+import { 
+  PlusCircle, Camera, MapPin, Award, Clock, 
+  Calendar, Target, ArrowLeft, ArrowRight, 
+  User, Trash2, Upload, Dumbbell
+} from 'lucide-react';
 import api from '../../services/api';
+import debounce from 'lodash/debounce';
 
-const ProfileEditor = ({ isOpen, onClose, userProfile, onProfileUpdated }) => {
+// Define workout types, experience levels, and preferred times
+const workoutTypes = [
+  'Weightlifting', 'Cardio', 'Yoga', 'CrossFit', 'Pilates',
+  'HIIT', 'Calisthenics', 'Running', 'Swimming', 'Cycling'
+];
+
+const experienceLevels = ['Beginner', 'Intermediate', 'Advanced'];
+const timePreferences = ['Morning', 'Afternoon', 'Evening', 'Late Night', 'Weekends Only', 'Flexible'];
+
+const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
   const [profileData, setProfileData] = useState({
     name: '',
     age: '',
@@ -16,10 +29,17 @@ const ProfileEditor = ({ isOpen, onClose, userProfile, onProfileUpdated }) => {
     location: {
       address: '',
     },
+    images: []
   });
+  
+  const [isSaving, setIsSaving] = useState(false);
+  const [isImageUploading, setIsImageUploading] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const fileInputRef = useRef(null);
 
+  // Initialize profile data when userProfile changes
   useEffect(() => {
-    if (isOpen && userProfile) {
+    if (userProfile) {
       setProfileData({
         name: userProfile.name || '',
         age: userProfile.age || '',
@@ -31,195 +51,430 @@ const ProfileEditor = ({ isOpen, onClose, userProfile, onProfileUpdated }) => {
         location: {
           address: userProfile.location?.address || '',
         },
+        images: userProfile.images || []
       });
     }
-  }, [isOpen, userProfile]);
+  }, [userProfile]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setProfileData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+  // Create a debounced save function
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const debouncedSave = useCallback(
+    debounce(async (data) => {
+      setIsSaving(true);
+      try {
+        const response = await api.put('/gym-bros/profile', data);
+        
+        // Only show toast after successful save
+        toast.success('Profile updated', {
+          duration: 2000,
+          position: 'bottom-right',
+        });
+        
+        if (onProfileUpdated) {
+          onProfileUpdated(response.data);
+        }
+      } catch (error) {
+        console.error('Error updating profile:', error);
+        toast.error('Failed to update profile', {
+          description: error.message || 'Please try again',
+        });
+      } finally {
+        setIsSaving(false);
+      }
+    }, 1000),
+    []
+  );
+
+  // Handle input changes
+  const handleChange = (field, value) => {
+    let updatedData;
+    
+    if (field === 'location') {
+      updatedData = {
+        ...profileData,
+        location: {
+          ...profileData.location,
+          ...value,
+        },
+      };
+    } else {
+      updatedData = {
+        ...profileData,
+        [field]: value,
+      };
+    }
+    
+    setProfileData(updatedData);
+    debouncedSave(updatedData);
   };
 
-  const handleWorkoutTypesChange = (e) => {
-    const { value, checked } = e.target;
-    setProfileData((prev) => ({
-      ...prev,
-      workoutTypes: checked
-        ? [...prev.workoutTypes, value]
-        : prev.workoutTypes.filter((type) => type !== value),
-    }));
+  // Toggle workout type selection
+  const handleWorkoutTypeToggle = (type) => {
+    const updatedWorkoutTypes = profileData.workoutTypes.includes(type)
+      ? profileData.workoutTypes.filter(t => t !== type)
+      : [...profileData.workoutTypes, type];
+      
+    handleChange('workoutTypes', updatedWorkoutTypes);
   };
 
-  const handleSave = async () => {
+  // Handle image upload
+  const handleImageUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    
+    // Check if adding these files would exceed the 6 image limit
+    if (profileData.images.length + files.length > 6) {
+      toast.error('Maximum 6 images allowed', {
+        description: `You can only upload ${6 - profileData.images.length} more images`
+      });
+      return;
+    }
+    
+    // Check file types
+    for (const file of files) {
+      if (!file.type.match('image.*')) {
+        toast.error('Invalid file type', {
+          description: 'Please select only image files'
+        });
+        return;
+      }
+      
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('File too large', {
+          description: 'Image size should be less than 5MB'
+        });
+        return;
+      }
+    }
+    
+    setIsImageUploading(true);
+    
     try {
-      const response = await api.put('/gym-bros/profile', profileData);
-      toast.success('Profile updated successfully');
-      onProfileUpdated(response.data);
-      onClose();
+      const formData = new FormData();
+      files.forEach(file => {
+        formData.append('images', file);
+      });
+      
+      const response = await api.post('/gym-bros/profile-images', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      // Update profile with new images
+      const updatedImages = [...profileData.images, ...response.data.imageUrls];
+      handleChange('images', updatedImages);
+      
+      toast.success(`${files.length > 1 ? 'Images' : 'Image'} uploaded successfully`);
     } catch (error) {
-      console.error('Error updating profile:', error);
-      toast.error('Failed to update profile');
+      console.error('Error uploading images:', error);
+      toast.error('Failed to upload images');
+    } finally {
+      setIsImageUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
-  if (!isOpen) return null;
+  // Handle image deletion
+  const handleDeleteImage = async (index) => {
+    if (profileData.images.length <= 1) {
+      toast.error('You must keep at least one profile image');
+      return;
+    }
+    
+    try {
+      const imageUrl = profileData.images[index];
+      const imageId = imageUrl.split('/').pop().split('.')[0]; // Extract ID from URL
+      
+      await api.delete(`/gym-bros/profile-image/${imageId}`);
+      
+      const updatedImages = profileData.images.filter((_, i) => i !== index);
+      handleChange('images', updatedImages);
+      
+      // Update current index if needed
+      if (currentImageIndex >= updatedImages.length) {
+        setCurrentImageIndex(updatedImages.length - 1);
+      }
+      
+      toast.success('Image deleted');
+    } catch (error) {
+      console.error('Error deleting image:', error);
+      toast.error('Failed to delete image');
+    }
+  };
+
+  // Navigation for image carousel
+  const nextImage = () => {
+    if (currentImageIndex < profileData.images.length - 1) {
+      setCurrentImageIndex(currentImageIndex + 1);
+    } else {
+      setCurrentImageIndex(0); // Loop back to the first image
+    }
+  };
+
+  const prevImage = () => {
+    if (currentImageIndex > 0) {
+      setCurrentImageIndex(currentImageIndex - 1);
+    } else {
+      setCurrentImageIndex(profileData.images.length - 1); // Loop to the last image
+    }
+  };
+
+  // Trigger file input click
+  const triggerFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
 
   return (
-    <motion.div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-    >
-      <motion.div
-        className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto"
-        initial={{ scale: 0.9 }}
-        animate={{ scale: 1 }}
-        exit={{ scale: 0.9 }}
-      >
-        <div className="sticky top-0 bg-white z-10 flex justify-between items-center p-4 border-b">
-          <h2 className="text-xl font-bold">Edit Profile</h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <X size={24} />
-          </button>
-        </div>
-
-        <div className="p-4 space-y-6">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Name</label>
-              <input
-                type="text"
-                name="name"
-                value={profileData.name}
-                onChange={handleChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              />
+    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+      {/* Images Carousel Header */}
+      <div className="relative h-80 overflow-hidden">
+        {profileData.images.length > 0 ? (
+          <>
+            {/* Main Image */}
+            <img 
+              src={profileData.images[currentImageIndex]} 
+              alt={`Profile ${currentImageIndex + 1}`} 
+              className="w-full h-full object-cover"
+            />
+            
+            {/* Image Counter Indicator */}
+            <div className="absolute top-4 right-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-full text-sm">
+              {currentImageIndex + 1} / {profileData.images.length}
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Age</label>
-              <input
-                type="number"
-                name="age"
-                value={profileData.age}
-                onChange={handleChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Bio</label>
-              <textarea
-                name="bio"
-                value={profileData.bio}
-                onChange={handleChange}
-                rows={3}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Workout Types</label>
-              <div className="mt-2 space-y-2">
-                {['Weightlifting', 'Cardio', 'Yoga', 'CrossFit', 'Pilates'].map((type) => (
-                  <label key={type} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      value={type}
-                      checked={profileData.workoutTypes.includes(type)}
-                      onChange={handleWorkoutTypesChange}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <span className="ml-2 text-sm text-gray-700">{type}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Experience Level</label>
-              <select
-                name="experienceLevel"
-                value={profileData.experienceLevel}
-                onChange={handleChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              >
-                <option value="">Select</option>
-                <option value="Beginner">Beginner</option>
-                <option value="Intermediate">Intermediate</option>
-                <option value="Advanced">Advanced</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Preferred Time</label>
-              <select
-                name="preferredTime"
-                value={profileData.preferredTime}
-                onChange={handleChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              >
-                <option value="">Select</option>
-                <option value="Morning">Morning</option>
-                <option value="Afternoon">Afternoon</option>
-                <option value="Evening">Evening</option>
-                <option value="Late Night">Late Night</option>
-                <option value="Weekends Only">Weekends Only</option>
-                <option value="Flexible">Flexible</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Goals</label>
-              <textarea
-                name="goals"
-                value={profileData.goals}
-                onChange={handleChange}
-                rows={3}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Location</label>
-              <input
-                type="text"
-                name="location.address"
-                value={profileData.location.address}
-                onChange={(e) =>
-                  setProfileData((prev) => ({
-                    ...prev,
-                    location: {
-                      ...prev.location,
-                      address: e.target.value,
-                    },
-                  }))
-                }
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          <div className="sticky bottom-0 bg-white p-4 border-t">
-            <button
-              onClick={handleSave}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+            
+            {/* Navigation Arrows */}
+            <button 
+              onClick={prevImage}
+              className="absolute top-1/2 left-4 -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-all"
             >
-              Save Changes
-              <Save className="ml-2 h-4 w-4 inline-block" />
+              <ArrowLeft size={20} />
             </button>
+            <button 
+              onClick={nextImage}
+              className="absolute top-1/2 right-4 -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-all"
+            >
+              <ArrowRight size={20} />
+            </button>
+            
+            {/* Delete Current Image Button */}
+            <button 
+              onClick={() => handleDeleteImage(currentImageIndex)}
+              className="absolute bottom-4 right-4 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-all"
+            >
+              <Trash2 size={20} />
+            </button>
+          </>
+        ) : (
+          <div className="w-full h-full bg-gray-200 flex flex-col items-center justify-center">
+            <Camera size={48} className="text-gray-400 mb-2" />
+            <p className="text-gray-500">No profile images yet</p>
+          </div>
+        )}
+        
+        {/* Upload New Image Button */}
+        <button 
+          onClick={triggerFileInput}
+          disabled={isImageUploading}
+          className="absolute bottom-4 left-4 bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600 transition-all flex items-center space-x-2"
+        >
+          {isImageUploading ? (
+            <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+          ) : (
+            <PlusCircle size={20} />
+          )}
+        </button>
+        <input 
+          ref={fileInputRef}
+          type="file" 
+          accept="image/*"
+          onChange={handleImageUpload}
+          className="hidden"
+          multiple
+        />
+      </div>
+      
+      {/* Thumbnail Navigation */}
+      <div className="flex justify-center space-x-2 py-2 bg-gray-100">
+        {profileData.images.map((image, index) => (
+          <button 
+            key={index}
+            onClick={() => setCurrentImageIndex(index)}
+            className={`w-10 h-10 rounded-md overflow-hidden border-2 transition-all ${
+              currentImageIndex === index ? 'border-blue-500 scale-110' : 'border-transparent opacity-70'
+            }`}
+          >
+            <img 
+              src={image} 
+              alt={`Thumbnail ${index + 1}`}
+              className="w-full h-full object-cover"
+            />
+          </button>
+        ))}
+        {profileData.images.length < 6 && (
+          <button 
+            onClick={triggerFileInput}
+            className="w-10 h-10 rounded-md bg-gray-200 flex items-center justify-center hover:bg-gray-300 transition-all"
+          >
+            <Upload size={16} className="text-gray-500" />
+          </button>
+        )}
+      </div>
+      
+      {/* Profile Content */}
+      <div className="p-6 space-y-6">
+        {/* Name and Age (inline editing) */}
+        <div className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <User className="w-5 h-5 text-gray-500" />
+            <input
+              type="text"
+              value={profileData.name}
+              onChange={(e) => handleChange('name', e.target.value)}
+              placeholder="Your Name"
+              className="flex-1 text-xl font-bold border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-1 transition-colors"
+            />
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <Calendar className="w-5 h-5 text-gray-500" />
+            <input
+              type="number"
+              value={profileData.age}
+              onChange={(e) => handleChange('age', e.target.value)}
+              placeholder="Your Age"
+              min="18"
+              max="99"
+              className="w-20 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-1 transition-colors"
+            />
+            <span className="text-gray-500">years old</span>
           </div>
         </div>
-      </motion.div>
-    </motion.div>
+
+        {/* Bio */}
+        <div className="space-y-2">
+          <label className="flex items-center text-sm font-medium text-gray-700">
+            About Me
+          </label>
+          <textarea
+            value={profileData.bio}
+            onChange={(e) => handleChange('bio', e.target.value)}
+            placeholder="Tell potential gym partners a bit about yourself..."
+            rows="3"
+            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all hover:border-gray-400"
+          />
+        </div>
+
+        {/* Workout Types */}
+        <div className="space-y-2">
+          <label className="flex items-center text-sm font-medium text-gray-700">
+            <Dumbbell className="w-5 h-5 text-gray-500 mr-2" />
+            Workout Types
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {workoutTypes.map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => handleWorkoutTypeToggle(type)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  profileData.workoutTypes.includes(type)
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Experience Level */}
+        <div className="space-y-2">
+          <label className="flex items-center text-sm font-medium text-gray-700">
+            <Award className="w-5 h-5 text-gray-500 mr-2" />
+            Experience Level
+          </label>
+          <select
+            value={profileData.experienceLevel}
+            onChange={(e) => handleChange('experienceLevel', e.target.value)}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all hover:border-gray-400"
+          >
+            <option value="">Select Experience Level</option>
+            {experienceLevels.map((level) => (
+              <option key={level} value={level}>
+                {level}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Preferred Time */}
+        <div className="space-y-2">
+          <label className="flex items-center text-sm font-medium text-gray-700">
+            <Clock className="w-5 h-5 text-gray-500 mr-2" />
+            Preferred Workout Time
+          </label>
+          <select
+            value={profileData.preferredTime}
+            onChange={(e) => handleChange('preferredTime', e.target.value)}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all hover:border-gray-400"
+          >
+            <option value="">Select Preferred Time</option>
+            {timePreferences.map((time) => (
+              <option key={time} value={time}>
+                {time}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Goals */}
+        <div className="space-y-2">
+          <label className="flex items-center text-sm font-medium text-gray-700">
+            <Target className="w-5 h-5 text-gray-500 mr-2" />
+            Fitness Goals
+          </label>
+          <textarea
+            value={profileData.goals}
+            onChange={(e) => handleChange('goals', e.target.value)}
+            placeholder="What are your fitness goals?"
+            rows="3"
+            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all hover:border-gray-400"
+          />
+        </div>
+
+        {/* Location */}
+        <div className="space-y-2">
+          <label className="flex items-center text-sm font-medium text-gray-700">
+            <MapPin className="w-5 h-5 text-gray-500 mr-2" />
+            Location
+          </label>
+          <input
+            type="text"
+            value={profileData.location.address}
+            onChange={(e) => handleChange('location', { address: e.target.value })}
+            placeholder="Your location"
+            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all hover:border-gray-400"
+          />
+        </div>
+      </div>
+
+      {/* Saving indicator */}
+      {isSaving && (
+        <div className="fixed bottom-4 right-4 bg-blue-500 text-white py-2 px-4 rounded-lg shadow-lg flex items-center">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+          <span>Saving changes...</span>
+        </div>
+      )}
+    </div>
   );
 };
 
-export default ProfileEditor;
+export default GymBrosEnhancedProfile;

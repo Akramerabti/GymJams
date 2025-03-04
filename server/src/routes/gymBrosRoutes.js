@@ -15,14 +15,27 @@ import {
   getUserSettings,
   updateUserSettings,
   deleteGymBrosProfile,
-  getUserPreferences // Add this controller function
+  getUserPreferences,
+  uploadProfileImages,
+  deleteProfileImage
 } from '../controllers/gymBrosController.js';
+
+import upload from '../config/multer.js';
 
 // Check if user has a GymBros profile
 router.get('/profile', authenticate, checkGymBrosProfile);
 
 // Create or update GymBros profile
 router.post('/profile', authenticate, createOrUpdateGymBrosProfile);
+
+// Update GymBros profile with automatic saving (same endpoint as create)
+router.put('/profile', authenticate, createOrUpdateGymBrosProfile);
+
+// Upload profile images - supports multiple images
+router.post('/profile-images', authenticate, upload.array('images', 6), uploadProfileImages);
+
+// Delete a specific profile image
+router.delete('/profile-image/:imageId', authenticate, deleteProfileImage);
 
 // Delete GymBros profile
 router.delete('/profile', authenticate, deleteGymBrosProfile);

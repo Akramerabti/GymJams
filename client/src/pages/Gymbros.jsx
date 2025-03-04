@@ -15,7 +15,7 @@ import GymBrosSetup from '../components/gymBros/GymBrosSetup';
 import GymBrosMatches from '../components/gymBros/GymBrosMatches';
 import GymBrosFilters from '../components/gymBros/GymBrosFilters';
 import GymBrosSettings from '../components/gymBros/GymBrosSettings';
-import ProfileEditor from '../components/gymBros/ProfileEditor';
+import GymBrosEnhancedProfile from '../components/gymBros/ProfileEditor';
 
 import { useLocation } from 'react-router-dom';
 
@@ -46,10 +46,11 @@ const GymBros = () => {
   const [showMatches, setShowMatches] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showProfileEditor, setShowProfileEditor] = useState(false); // State for ProfileEditor
   const [matches, setMatches] = useState([]);
   const [viewStartTime, setViewStartTime] = useState(null);
   const [activeTab, setActiveTab] = useState('discover'); // discover, matches, shop, profile
+  const [headerVisible, setHeaderVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
   const [filters, setFilters] = useState({
     workoutTypes: [],
     experienceLevel: 'Any',
@@ -80,6 +81,30 @@ const GymBros = () => {
       console.log('[GymBros] Viewing profile:', profiles[currentIndex].name, 'at index:', currentIndex);
     }
   }, [currentIndex, profiles]);
+
+  // Handle scroll for header visibility
+  useEffect(() => {
+    const controlHeader = () => {
+      // Get main navbar height (assuming it's 64px or 4rem)
+      const navbarHeight = 64;
+      
+      if (window.scrollY > navbarHeight + 10 && window.scrollY > lastScrollY) {
+        // Scrolling down past navbar
+        setHeaderVisible(false);
+      } else {
+        // Scrolling up or at top
+        setHeaderVisible(true);
+      }
+      
+      setLastScrollY(window.scrollY);
+    };
+    
+    window.addEventListener('scroll', controlHeader);
+    
+    return () => {
+      window.removeEventListener('scroll', controlHeader);
+    };
+  }, [lastScrollY]);
 
   const checkUserProfile = async () => {
     try {
@@ -117,6 +142,7 @@ const GymBros = () => {
         }
         
         fetchProfiles();
+        fetchMatches();
       } else {
         console.log('[GymBros] No profile found, showing profile setup');
         setHasProfile(false);
@@ -320,11 +346,112 @@ const GymBros = () => {
   const handleProfileUpdated = (updatedProfile) => {
     console.log('[GymBros] Profile updated:', updatedProfile);
     setUserProfile(updatedProfile);
-    setShowProfileEditor(false); // Close the profile editor after update
-    setShowSettings(false);
     
     // Refresh profiles
     fetchProfiles();
+  };
+
+  // Renders the appropriate header based on the active tab
+  const renderHeader = () => {
+    // Common header title with logo
+    const headerTitle = (
+      <h1 className="text-xl font-bold flex items-center">
+        <Dumbbell className="mr-2 text-blue-500" /> GymMatch
+      </h1>
+    );
+
+    const headerContent = (() => {
+      switch(activeTab) {
+        case 'discover':
+          return (
+            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+              {headerTitle}
+              <div className="flex space-x-2">
+                <button 
+                  onClick={() => setShowFilters(true)}
+                  className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
+                >
+                  <Filter size={20} />
+                </button>
+                <button
+                  onClick={() => {
+                    fetchMatches();
+                    setActiveTab('matches');
+                  }}
+                  className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 relative"
+                >
+                  <MessageCircle size={20} />
+                  {matches.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
+                      {matches.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+          );
+        
+        case 'matches':
+          return (
+            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+              {headerTitle}
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
+                >
+                  <Settings size={20} />
+                </button>
+              </div>
+            </div>
+          );
+          
+        case 'shop':
+          return (
+            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+              {headerTitle}
+              <div className="flex space-x-2">
+                <button
+                  className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 relative"
+                >
+                  <ShoppingBag size={20} />
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
+                    0
+                  </span>
+                </button>
+              </div>
+            </div>
+          );
+          
+        case 'profile':
+          return (
+            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+              {headerTitle}
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
+                >
+                  <Settings size={20} />
+                </button>
+              </div>
+            </div>
+          );
+          
+        default:
+          return (
+            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+              {headerTitle}
+            </div>
+          );
+      }
+    })();
+
+    return (
+      <div className={`transition-transform duration-300 ${headerVisible ? 'translate-y-0' : '-translate-y-full'}`}>
+        {headerContent}
+      </div>
+    );
   };
 
   if (loading) {
@@ -362,7 +489,7 @@ const GymBros = () => {
     switch(activeTab) {
       case 'discover':
         return (
-          <div className="h-[65vh] flex items-center justify-center">
+          <div className="h-[calc(100vh-136px)] flex items-center justify-center pb-16">
             {profiles.length > 0 ? (
               <div className="relative w-full h-full">
                 {profiles.map((profile, index) => (
@@ -395,7 +522,7 @@ const GymBros = () => {
       
       case 'matches':
         return (
-          <div className="h-[65vh] p-4 overflow-y-auto">
+          <div className="h-[calc(100vh-136px)] p-4 overflow-y-auto pb-16">
             <h2 className="text-xl font-bold mb-4">Your Matches</h2>
             {matches.length > 0 ? (
               <div className="space-y-4">
@@ -427,7 +554,7 @@ const GymBros = () => {
       
       case 'shop':
         return (
-          <div className="h-[65vh] p-4 overflow-y-auto">
+          <div className="h-[calc(100vh-136px)] p-4 overflow-y-auto pb-16">
             <h2 className="text-xl font-bold mb-4">Fitness Shop</h2>
             <div className="grid grid-cols-2 gap-4">
               {[
@@ -453,40 +580,15 @@ const GymBros = () => {
           </div>
         );
       
-        case 'profile':
-  return (
-    <div className="h-[65vh] p-4 overflow-y-auto">
-      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-500 to-purple-600 h-32 relative">
-          <div className="absolute -bottom-16 left-1/2 transform -translate-x-1/2">
-            <img 
-              src={userProfile?.profileImage || "/api/placeholder/100/100"} 
-              alt={userProfile?.name} 
-              className="w-32 h-32 rounded-full border-4 border-white object-cover"
+      case 'profile':
+        return (
+          <div className="h-[calc(100vh-136px)] p-4 overflow-y-auto pb-16">
+            <GymBrosEnhancedProfile
+              userProfile={userProfile}
+              onProfileUpdated={handleProfileUpdated}
             />
           </div>
-        </div>
-        
-        <div className="mt-20 p-4 text-center">
-          <h2 className="text-2xl font-bold">{userProfile?.name}, {userProfile?.age}</h2>
-          <p className="text-gray-500">{userProfile?.location?.address}</p>
-          
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
-            {userProfile?.workoutTypes?.map(type => (
-              <span key={type} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                {type}
-              </span>
-            ))}
-          </div>
-          
-          <ProfileEditor
-            userProfile={userProfile}
-            onProfileUpdated={handleProfileUpdated}
-          />
-        </div>
-      </div>
-    </div>
-  );
+        );
         
       default:
         return null;
@@ -496,33 +598,11 @@ const GymBros = () => {
   return (
     <>
       <FooterHider />
-      <div className="max-w-xl mx-auto h-screen flex flex-col">
-        {/* Filter Bar */}
-        <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
-          <h1 className="text-xl font-bold flex items-center">
-            <Dumbbell className="mr-2 text-blue-500" /> GymMatch
-          </h1>
-          <div className="flex space-x-2">
-            <button 
-              onClick={() => setShowFilters(true)}
-              className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
-            >
-              <Filter size={20} />
-            </button>
-            <button
-              onClick={() => {
-                fetchMatches();
-                setActiveTab('matches');
-              }}
-              className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 relative"
-            >
-              <MessageCircle size={20} />
-              {matches.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
-                  {matches.length}
-                </span>
-              )}
-            </button>
+      <div className="max-w-xl mx-auto flex flex-col h-screen">
+        {/* Dynamic Header Bar - Positioned right under the main navbar */}
+        <div className="sticky top-16 left-0 right-0 z-10">
+          <div className="max-w-xl mx-auto">
+            {renderHeader()}
           </div>
         </div>
         
@@ -531,9 +611,9 @@ const GymBros = () => {
           {renderTabContent()}
         </div>
         
-        {/* Navigation Tabs */}
-        <div className="bg-white shadow-lg border-t border-gray-200 px-6 py-2">
-          <div className="flex justify-between items-center">
+        {/* Fixed Navigation Tabs */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t border-gray-200 z-20">
+          <div className="max-w-xl mx-auto px-6 py-3 flex justify-between items-center">
             <button 
               onClick={() => setActiveTab('discover')}
               className={`flex flex-col items-center p-2 ${
@@ -591,14 +671,6 @@ const GymBros = () => {
       <GymBrosSettings
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
-        userProfile={userProfile}
-        onProfileUpdated={handleProfileUpdated}
-      />
-
-      {/* Profile Editor Modal */}
-      <ProfileEditor
-        isOpen={showProfileEditor}
-        onClose={() => setShowProfileEditor(false)}
         userProfile={userProfile}
         onProfileUpdated={handleProfileUpdated}
       />

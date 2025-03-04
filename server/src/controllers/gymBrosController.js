@@ -2,6 +2,10 @@ import GymBrosProfile from '../models/GymBrosProfile.js';
 import GymBrosPreference from '../models/GymBrosPreference.js';
 import GymBrosMatch from '../models/GymBrosMatch.js';
 import User from '../models/User.js';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 import { getRecommendedProfiles } from '../services/gymBrosRecommendationService.js';
 import { processFeedback } from '../services/gymBrosFeedbackService.js';
 import { handleError } from '../middleware/error.middleware.js';
@@ -59,6 +63,95 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
     res.status(201).json(profile);
   } catch (error) {
     console.error('Error in createOrUpdateGymBrosProfile:', error);
+    handleError(error, req, res);
+  }
+};
+
+// Upload multiple profile images
+export const uploadProfileImages = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // If no files were uploaded
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No images uploaded' });
+    }
+    
+    // Get the profile
+    const profile = await GymBrosProfile.findOne({ userId });
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+    
+    // Check if adding these files would exceed the 6 image limit
+    if (profile.images && profile.images.length + req.files.length > 6) {
+      // Delete the uploaded files to clean up
+      req.files.forEach(file => {
+        fs.unlinkSync(file.path);
+      });
+      
+      return res.status(400).json({ 
+        error: 'Maximum 6 images allowed',
+        message: `You can only upload ${6 - profile.images.length} more images`
+      });
+    }
+    
+    // Add the new image URLs to the profile
+    const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+    const imageUrls = req.files.map(file => `${baseUrl}/uploads/gym-bros/${file.filename}`);
+    
+    // Update the profile with new images
+    profile.images = [...(profile.images || []), ...imageUrls];
+    await profile.save();
+    
+    res.status(201).json({ 
+      success: true, 
+      imageUrls,
+      message: `${req.files.length} image(s) uploaded successfully`
+    });
+  } catch (error) {
+    console.error('Error uploading profile images:', error);
+    handleError(error, req, res);
+  }
+};
+
+// Delete a specific profile image
+export const deleteProfileImage = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const imageId = req.params.imageId;
+    
+    // Get the profile
+    const profile = await GymBrosProfile.findOne({ userId });
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+    
+    // Find the image in the profile's images array
+    const imagePath = profile.images.find(img => img.includes(imageId));
+    if (!imagePath) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
+    
+    // Must have at least one image
+    if (!profile.images || profile.images.length <= 1) {
+      return res.status(400).json({ error: 'Cannot delete last image' });
+    }
+    
+    // Remove image from profile
+    profile.images = profile.images.filter(img => !img.includes(imageId));
+    await profile.save();
+    
+    // Delete the file from the server
+    const filename = path.basename(imagePath);
+    const filePath = path.join('uploads', 'gym-bros', filename);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    
+    res.json({ success: true, message: 'Image deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting profile image:', error);
     handleError(error, req, res);
   }
 };
@@ -373,6 +466,34 @@ export const deleteGymBrosProfile = async (req, res) => {
   }
 };
 
+// Get user preferences for GymBros
+export const getUserPreferences = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    console.log('Fetching preferences for user:', userId);
+
+    // Find user preferences or return default settings
+    let preferences = await GymBrosPreference.findOne({ userId });
+
+    if (!preferences) {
+      // Return default preferences if none found
+      return res.json({
+        workoutTypes: [],
+        experienceLevel: 'Any',
+        preferredTime: 'Any',
+        genderPreference: 'All',
+        ageRange: { min: 18, max: 99 },
+        maxDistance: 50
+      });
+    }
+
+    res.json(preferences);
+  } catch (error) {
+    console.error('Error in getUserPreferences:', error);
+    handleError(error, req, res);
+  }
+};
+
 // Internal function to check for a match
 const checkForMatch = async (userId, targetId) => {
   // Check if the target user has liked the current user
@@ -404,32 +525,4 @@ const checkForMatch = async (userId, targetId) => {
   }
   
   return false;
-};
-
-// Get user preferences for GymBros
-export const getUserPreferences = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    console.log('Fetching preferences for user:', userId);
-
-    // Find user preferences or return default settings
-    let preferences = await GymBrosPreference.findOne({ userId });
-
-    if (!preferences) {
-      // Return default preferences if none found
-      return res.json({
-        workoutTypes: [],
-        experienceLevel: 'Any',
-        preferredTime: 'Any',
-        genderPreference: 'All',
-        ageRange: { min: 18, max: 99 },
-        maxDistance: 50
-      });
-    }
-
-    res.json(preferences);
-  } catch (error) {
-    console.error('Error in getUserPreferences:', error);
-    handleError(error, req, res);
-  }
 };
