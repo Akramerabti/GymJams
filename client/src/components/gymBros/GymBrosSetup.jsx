@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { Dumbbell, ChevronRight, ChevronLeft, CheckCircle, Award, Clock, MapPin, Target, Phone } from 'lucide-react';
+import { Dumbbell, ChevronRight, ChevronLeft, CheckCircle, Award, Clock, MapPin, Moon,Sun, Target, Phone } from 'lucide-react';
 import api from '../../services/api';
 import useAuthStore from '../../stores/authStore';
 import ImageUploader from './ImageUploader'; // Assume this is a custom component for image uploads
@@ -39,6 +39,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
   const { user, isAuthenticated } = useAuthStore();
   const [currentStep, setCurrentStep] = useState(0);
   const [direction, setDirection] = useState(1); // 1 for forward, -1 for backward
+  const [darkMode, setDarkMode] = useState(false);
   const [profileData, setProfileData] = useState({
     name: '',
     age: '',
@@ -411,6 +412,12 @@ const GymBrosSetup = ({ onProfileCreated }) => {
     }
   };
 
+  const toggleDarkMode = () => {
+    const newMode = !darkMode;
+    setDarkMode(newMode);
+    localStorage.setItem('gymBrosDarkMode', newMode.toString());
+  };
+
   const handleWorkoutTypeToggle = (type) => {
     setProfileData(prev => {
       if (prev.workoutTypes.includes(type)) {
@@ -509,16 +516,24 @@ const GymBrosSetup = ({ onProfileCreated }) => {
       opacity: 0,
     }),
   };
+  const darkModeClasses = {
+    bg: darkMode ? 'bg-gray-900' : 'bg-white',
+    text: darkMode ? 'text-gray-200' : 'text-gray-900',
+    border: darkMode ? 'border-gray-700' : 'border-gray-300',
+    button: darkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+    buttonActive: darkMode ? 'bg-blue-700 text-white' : 'bg-blue-500 text-white',
+  };
 
   return (
-    <div className="max-w-md mx-auto p-4 flex flex-col h-[80vh]">
+    <div className={`${darkModeClasses.bg} ${darkModeClasses.text} max-w-md mx-auto p-4 flex flex-col h-[80vh] transition-colors duration-300`}>
       {/* Progress bar */}
       <div className="w-full h-2 bg-gray-200 rounded-full mb-4">
         <div
-          className="h-full bg-primary rounded-full transition-all bg-black duration-500 ease-out"
+          className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
           style={{ width: `${progress}%` }}
         />
       </div>
+
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col">
@@ -551,22 +566,32 @@ const GymBrosSetup = ({ onProfileCreated }) => {
       </div>
 
       {/* Navigation buttons */}
-      <div className="flex justify-between mt-4">
-        <button
-          onClick={goToPrevStep}
-          disabled={currentStep === 0}
-          className="p-2 rounded-full bg-primary text-white bg-gray-300 hover:bg-primary/90 transition-all"
-        >
-          <ChevronLeft size={24} />
-        </button>
-        <button
-          onClick={goToNextStep}
-          className="p-2 rounded-full bg-primary text-white bg-blue-500 hover:bg-primary/90 transition-all"
-          disabled={loading}
-        >
-          <ChevronRight size={24} />
-        </button>
-      </div>
+<div className="flex justify-between items-center mt-4">
+  <button
+    onClick={goToPrevStep}
+    disabled={currentStep === 0}
+    className={`p-2 rounded-full ${darkModeClasses.button} transition-all`}
+  >
+    <ChevronLeft size={24} />
+  </button>
+
+  {/* Dark Mode Toggle Button */}
+  <button 
+    onClick={toggleDarkMode}
+    className={`p-2 rounded-full ${darkMode ? 'bg-gray-700 text-yellow-300' : 'bg-gray-200 text-blue-900'} transition-colors`}
+    aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+  >
+    {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+  </button>
+
+  <button
+    onClick={goToNextStep}
+    className={`p-2 rounded-full ${darkModeClasses.buttonActive} transition-all`}
+    disabled={loading}
+  >
+    <ChevronRight size={24} />
+  </button>
+</div>
     </div>
   );
 };
