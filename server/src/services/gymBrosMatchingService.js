@@ -152,3 +152,11 @@ export const calculateMatchScore = (userProfile, candidateProfile) => {
   const toRadians = (degrees) => {
     return degrees * (Math.PI / 180);
   };
+
+  export {
+    calculateDistance,
+    calculateWorkoutTypeCompatibility,
+    calculateExperienceCompatibility,
+    calculateScheduleCompatibility,
+    calculateLocationScore,
+  };

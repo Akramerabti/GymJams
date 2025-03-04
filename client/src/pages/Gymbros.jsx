@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { 
   Heart, X, MessageCircle, Filter, Dumbbell, UserPlus, 
   Calendar, MapPin, Settings, ShoppingBag, User,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Edit
 } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import api from '../services/api';
@@ -15,6 +15,7 @@ import GymBrosSetup from '../components/gymBros/GymBrosSetup';
 import GymBrosMatches from '../components/gymBros/GymBrosMatches';
 import GymBrosFilters from '../components/gymBros/GymBrosFilters';
 import GymBrosSettings from '../components/gymBros/GymBrosSettings';
+import ProfileEditor from '../components/gymBros/ProfileEditor';
 
 import { useLocation } from 'react-router-dom';
 
@@ -45,6 +46,7 @@ const GymBros = () => {
   const [showMatches, setShowMatches] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showProfileEditor, setShowProfileEditor] = useState(false); // State for ProfileEditor
   const [matches, setMatches] = useState([]);
   const [viewStartTime, setViewStartTime] = useState(null);
   const [activeTab, setActiveTab] = useState('discover'); // discover, matches, shop, profile
@@ -318,6 +320,7 @@ const GymBros = () => {
   const handleProfileUpdated = (updatedProfile) => {
     console.log('[GymBros] Profile updated:', updatedProfile);
     setUserProfile(updatedProfile);
+    setShowProfileEditor(false); // Close the profile editor after update
     setShowSettings(false);
     
     // Refresh profiles
@@ -450,50 +453,40 @@ const GymBros = () => {
           </div>
         );
       
-      case 'profile':
-        return (
-          <div className="h-[65vh] p-4 overflow-y-auto">
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-500 to-purple-600 h-32 relative">
-                <div className="absolute -bottom-16 left-1/2 transform -translate-x-1/2">
-                  <img 
-                    src={userProfile?.profileImage || "/api/placeholder/100/100"} 
-                    alt={userProfile?.name} 
-                    className="w-32 h-32 rounded-full border-4 border-white object-cover"
-                  />
-                </div>
-              </div>
-              
-              <div className="mt-20 p-4 text-center">
-                <h2 className="text-2xl font-bold">{userProfile?.name}, {userProfile?.age}</h2>
-                <p className="text-gray-500">{userProfile?.location?.address}</p>
-                
-                <div className="mt-6 flex flex-wrap justify-center gap-2">
-                  {userProfile?.workoutTypes?.map(type => (
-                    <span key={type} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                      {type}
-                    </span>
-                  ))}
-                </div>
-                
-                <div className="mt-6 text-left">
-                  <h3 className="font-semibold mb-2">About Me</h3>
-                  <p className="text-gray-700">{userProfile?.bio || 'No bio provided'}</p>
-                </div>
-                
-                <div className="mt-6 flex justify-center">
-                  <button 
-                    onClick={() => setShowSettings(true)}
-                    className="bg-blue-500 text-white px-4 py-2 rounded-lg flex items-center"
-                  >
-                    <Settings size={18} className="mr-2" />
-                    Edit Profile
-                  </button>
-                </div>
-              </div>
-            </div>
+        case 'profile':
+  return (
+    <div className="h-[65vh] p-4 overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 h-32 relative">
+          <div className="absolute -bottom-16 left-1/2 transform -translate-x-1/2">
+            <img 
+              src={userProfile?.profileImage || "/api/placeholder/100/100"} 
+              alt={userProfile?.name} 
+              className="w-32 h-32 rounded-full border-4 border-white object-cover"
+            />
           </div>
-        );
+        </div>
+        
+        <div className="mt-20 p-4 text-center">
+          <h2 className="text-2xl font-bold">{userProfile?.name}, {userProfile?.age}</h2>
+          <p className="text-gray-500">{userProfile?.location?.address}</p>
+          
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            {userProfile?.workoutTypes?.map(type => (
+              <span key={type} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+                {type}
+              </span>
+            ))}
+          </div>
+          
+          <ProfileEditor
+            userProfile={userProfile}
+            onProfileUpdated={handleProfileUpdated}
+          />
+        </div>
+      </div>
+    </div>
+  );
         
       default:
         return null;
@@ -598,6 +591,14 @@ const GymBros = () => {
       <GymBrosSettings
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
+        userProfile={userProfile}
+        onProfileUpdated={handleProfileUpdated}
+      />
+
+      {/* Profile Editor Modal */}
+      <ProfileEditor
+        isOpen={showProfileEditor}
+        onClose={() => setShowProfileEditor(false)}
         userProfile={userProfile}
         onProfileUpdated={handleProfileUpdated}
       />

@@ -1,5 +1,4 @@
-// server/src/models/GymBrosPreference.js
-
+// models/GymBrosPreference.js
 import mongoose from 'mongoose';
 
 const gymBrosPreferenceSchema = new mongoose.Schema({
@@ -9,49 +8,89 @@ const gymBrosPreferenceSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
-  workoutTypePreferences: [{
-    type: {
-      type: String,
-      enum: [
-        'Strength Training', 'Cardio', 'HIIT', 'CrossFit', 'Bodybuilding',
-        'Yoga', 'Pilates', 'Calisthenics', 'Powerlifting', 'Olympic Lifting',
-        'Functional Training', 'Group Classes'
-      ]
-    },
-    weight: {
+  ageRange: {
+    min: {
       type: Number,
-      default: 1.0
-    }
-  }],
-  experienceLevelPreferences: [{
-    level: {
-      type: String,
-      enum: ['Beginner', 'Intermediate', 'Advanced']
+      default: 18
     },
-    weight: {
+    max: {
       type: Number,
-      default: 1.0
+      default: 99
     }
-  }],
-  likedProfiles: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  }],
-  dislikedProfiles: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  }],
-  engagementScore: {
-    type: Number,
-    default: 1.0
   },
-  lastUpdated: {
-    type: Date,
-    default: Date.now
+  genderPreference: {
+    type: String,
+    enum: ['male', 'female', 'non-binary', 'all'],
+    default: 'all'
+  },
+  experienceLevel: {
+    type: String,
+    enum: ['beginner', 'intermediate', 'advanced', 'any'],
+    default: 'any'
+  },
+  workoutTypes: {
+    type: [String],
+    default: []
+  },
+  preferredTime: {
+    type: [String],
+    default: []
+  },
+  maxDistance: {
+    type: Number,
+    default: 50 // km
+  },
+  likedProfiles: {
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: 'User',
+    default: []
+  },
+  dislikedProfiles: {
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: 'User',
+    default: []
+  },
+  // Settings
+  settings: {
+    showMe: {
+      type: Boolean,
+      default: true
+    },
+    notifications: {
+      matches: {
+        type: Boolean,
+        default: true
+      },
+      messages: {
+        type: Boolean,
+        default: true
+      },
+      profileUpdates: {
+        type: Boolean,
+        default: true
+      }
+    },
+    privacy: {
+      showWorkoutTypes: {
+        type: Boolean,
+        default: true
+      },
+      showExperienceLevel: {
+        type: Boolean,
+        default: true
+      },
+      showGoals: {
+        type: Boolean,
+        default: true
+      },
+      profileVisibility: {
+        type: String,
+        enum: ['everyone', 'matches', 'nobody'],
+        default: 'everyone'
+      }
+    }
   }
-}, { 
-  timestamps: true 
-});
+}, { timestamps: true });
 
 const GymBrosPreference = mongoose.model('GymBrosPreference', gymBrosPreferenceSchema);
 

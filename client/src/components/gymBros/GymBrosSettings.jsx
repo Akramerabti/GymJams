@@ -2,20 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Save, Sliders, Globe, Bell, Eye, Shield, LogOut, Trash2 } from 'lucide-react';
 import { Switch } from '../ui/Switch';
-import  Slider from '../ui/Slider';
+import Slider from '../ui/Slider';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
 import api from '../../services/api';
+import RangeSlider from '../ui/RangeSlider'; // Import the RangeSlider component
 
-const GymBrosSettings = ({ isOpen, onClose, userProfile, onProfileUpdated }) => {
+const GymBrosSettings = ({ isOpen, onClose, userProfile, onProfileUpdated, filters = {} }) => {
   const [settings, setSettings] = useState({
-    maxDistance: 50,
-    ageRange: [18, 60],
+    maxDistance: filters?.maxDistance || 50,
+    ageRange: {
+      min: filters?.ageRange?.min || 18, // Change to object format
+      max: filters?.ageRange?.max || 60,
+    },
     showMe: true,
     notifications: {
       matches: true,
       messages: true,
-      profileUpdates: true
+      profileUpdates: true,
     },
     // Privacy settings
     showWorkoutTypes: true,
@@ -23,16 +27,58 @@ const GymBrosSettings = ({ isOpen, onClose, userProfile, onProfileUpdated }) => 
     showGoals: true,
     profileVisibility: 'everyone', // 'everyone', 'matches', 'nobody'
   });
+
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     if (isOpen && userProfile) {
-      // Load user settings from profile
-      setSettings(prev => ({
-        ...prev,
-        ...(userProfile.settings || {}),
-      }));
+      const fetchUserPreferences = async () => {
+        try {
+          const response = await api.get('/gym-bros/settings');
+          const fetchedSettings = response.data;
+
+          let ageRange;
+          if (fetchedSettings.ageRange) {
+            // Handle both array and object formats
+            if (Array.isArray(fetchedSettings.ageRange)) {
+              ageRange = {
+                min: fetchedSettings.ageRange[0] || 18,
+                max: fetchedSettings.ageRange[1] || 60,
+              };
+            } else {
+              ageRange = {
+                min: fetchedSettings.ageRange.min || 18,
+                max: fetchedSettings.ageRange.max || 60,
+              };
+            }
+          } else {
+            ageRange = { min: 18, max: 60 }; // Default age range
+          }
+
+          const privacy = fetchedSettings.privacy || {};
+          
+          setSettings({
+            maxDistance: fetchedSettings.maxDistance || 50,
+            ageRange, // Use the ageRange object
+            showMe: fetchedSettings.showMe !== undefined ? fetchedSettings.showMe : true,
+            notifications: fetchedSettings.notifications || {
+              matches: true,
+              messages: true,
+              profileUpdates: true,
+            },
+            showWorkoutTypes: privacy.showWorkoutTypes !== undefined ? privacy.showWorkoutTypes : true,
+            showExperienceLevel: privacy.showExperienceLevel !== undefined ? privacy.showExperienceLevel : true,
+            showGoals: privacy.showGoals !== undefined ? privacy.showGoals : true,
+            profileVisibility: privacy.profileVisibility || 'everyone',
+          });
+        } catch (error) {
+          console.error('Error fetching user preferences:', error);
+          toast.error('Failed to load settings');
+        }
+      };
+
+      fetchUserPreferences();
     }
   }, [isOpen, userProfile]);
 
@@ -45,21 +91,42 @@ const GymBrosSettings = ({ isOpen, onClose, userProfile, onProfileUpdated }) => 
         ...prev,
         [parent]: {
           ...prev[parent],
-          [child]: value
-        }
+          [child]: value,
+        },
       }));
     } else {
       setSettings(prev => ({
         ...prev,
-        [path]: value
+        [path]: value,
       }));
     }
+  };
+
+  // Handle age range change from RangeSlider
+  const handleAgeRangeChange = (range) => {
+    setSettings(prev => ({
+      ...prev,
+      ageRange: range,
+    }));
   };
 
   const handleSaveSettings = async () => {
     setLoading(true);
     try {
-      const response = await api.put('/gym-bros/settings', settings);
+      const completeSettings = {
+        maxDistance: settings.maxDistance,
+        ageRange: settings.ageRange, // Use the ageRange object
+        showMe: settings.showMe,
+        notifications: settings.notifications,
+        privacy: {
+          showWorkoutTypes: settings.showWorkoutTypes,
+          showExperienceLevel: settings.showExperienceLevel,
+          showGoals: settings.showGoals,
+          profileVisibility: settings.profileVisibility,
+        },
+      };
+
+      const response = await api.put('/gym-bros/settings', completeSettings);
       toast.success('Settings updated successfully');
       if (onProfileUpdated) {
         onProfileUpdated(response.data);
@@ -82,7 +149,7 @@ const GymBrosSettings = ({ isOpen, onClose, userProfile, onProfileUpdated }) => 
     try {
       await api.delete('/gym-bros/profile');
       toast.success('Profile deleted successfully');
-      window.location.reload(); // Refresh to show setup again
+      window.location.reload();
     } catch (error) {
       console.error('Error deleting profile:', error);
       toast.error('Failed to delete profile');
@@ -115,14 +182,14 @@ const GymBrosSettings = ({ isOpen, onClose, userProfile, onProfileUpdated }) => 
       >
         <div className="sticky top-0 bg-white z-10 flex justify-between items-center p-4 border-b">
           <h2 className="text-xl font-bold">Settings</h2>
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
           >
             <X size={24} />
           </button>
         </div>
-        
+
         <div className="p-4 space-y-6">
           {/* Discovery Settings */}
           <div className="space-y-4">
@@ -130,19 +197,19 @@ const GymBrosSettings = ({ isOpen, onClose, userProfile, onProfileUpdated }) => 
               <Globe className="mr-2 h-5 w-5 text-blue-500" />
               Discovery
             </h3>
-            
+
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <div>
                   <p className="font-medium">Show Me on GymBros</p>
                   <p className="text-sm text-gray-500">Toggle off to hide your profile</p>
                 </div>
-                <Switch 
-                  checked={settings.showMe} 
+                <Switch
+                  checked={settings.showMe}
                   onCheckedChange={(value) => handleSettingChange('showMe', value)}
                 />
               </div>
-              
+
               <div>
                 <div className="flex justify-between mb-2">
                   <p className="font-medium">Maximum Distance</p>
@@ -154,101 +221,107 @@ const GymBrosSettings = ({ isOpen, onClose, userProfile, onProfileUpdated }) => 
                   max={100}
                   step={1}
                   onValueChange={(value) => handleSettingChange('maxDistance', value[0])}
+                  className="[&>div]:bg-blue-500" // Add blue fill to the slider
                 />
               </div>
-              
+
               <div>
                 <div className="flex justify-between mb-2">
                   <p className="font-medium">Age Range</p>
-                  <p className="text-sm font-semibold">{settings.ageRange[0]}-{settings.ageRange[1]}</p>
+                  <p className="text-sm font-semibold">
+                    {settings.ageRange.min} - {settings.ageRange.max}
+                  </p>
                 </div>
-                <Slider
-                  value={settings.ageRange}
+                {/* Replace the Slider with RangeSlider */}
+                <RangeSlider
                   min={18}
                   max={99}
+                  minValue={settings.ageRange.min}
+                  maxValue={settings.ageRange.max}
                   step={1}
-                  onValueChange={(value) => handleSettingChange('ageRange', value)}
-                  className="mt-2"
+                  onChange={handleAgeRangeChange}
+                  trackColor="bg-blue-500"
+                  thumbColor="bg-white border-blue-500"
                 />
               </div>
             </div>
           </div>
-          
+
           {/* Notification Settings */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold flex items-center">
               <Bell className="mr-2 h-5 w-5 text-blue-500" />
               Notifications
             </h3>
-            
+
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <p className="font-medium">New Matches</p>
-                <Switch 
-                  checked={settings.notifications.matches} 
+                <Switch
+                  checked={settings.notifications.matches}
                   onCheckedChange={(value) => handleSettingChange('notifications.matches', value)}
                 />
               </div>
-              
+
               <div className="flex justify-between items-center">
                 <p className="font-medium">Messages</p>
-                <Switch 
-                  checked={settings.notifications.messages} 
+                <Switch
+                  checked={settings.notifications.messages}
                   onCheckedChange={(value) => handleSettingChange('notifications.messages', value)}
                 />
               </div>
-              
+
               <div className="flex justify-between items-center">
                 <p className="font-medium">Profile Updates</p>
-                <Switch 
-                  checked={settings.notifications.profileUpdates} 
+                <Switch
+                  checked={settings.notifications.profileUpdates}
                   onCheckedChange={(value) => handleSettingChange('notifications.profileUpdates', value)}
                 />
               </div>
             </div>
           </div>
-          
+
           {/* Privacy Settings */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold flex items-center">
               <Shield className="mr-2 h-5 w-5 text-blue-500" />
               Privacy
             </h3>
-            
+
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <p className="font-medium">Show Workout Types</p>
-                <Switch 
-                  checked={settings.showWorkoutTypes} 
+                <Switch
+                  checked={settings.showWorkoutTypes}
                   onCheckedChange={(value) => handleSettingChange('showWorkoutTypes', value)}
                 />
               </div>
-              
+
               <div className="flex justify-between items-center">
                 <p className="font-medium">Show Experience Level</p>
-                <Switch 
-                  checked={settings.showExperienceLevel} 
+                <Switch
+                  checked={settings.showExperienceLevel}
                   onCheckedChange={(value) => handleSettingChange('showExperienceLevel', value)}
                 />
               </div>
-              
+
               <div className="flex justify-between items-center">
                 <p className="font-medium">Show Fitness Goals</p>
-                <Switch 
-                  checked={settings.showGoals} 
+                <Switch
+                  checked={settings.showGoals}
                   onCheckedChange={(value) => handleSettingChange('showGoals', value)}
                 />
               </div>
-              
+
               <div>
                 <p className="font-medium mb-2">Profile Visibility</p>
                 <div className="space-y-2">
                   {['everyone', 'matches', 'nobody'].map((option) => (
-                    <div 
+                    <div
                       key={option}
                       className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                        settings.profileVisibility === option 
-                          ? 'border-blue-500 bg-blue-50' 
+                        settings.profileVisibility === option
+                          ? 'border-blue-500 bg-blue-50'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                       onClick={() => handleSettingChange('profileVisibility', option)}
@@ -265,16 +338,16 @@ const GymBrosSettings = ({ isOpen, onClose, userProfile, onProfileUpdated }) => 
               </div>
             </div>
           </div>
-          
+
           {/* Account Actions */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold flex items-center">
               <Sliders className="mr-2 h-5 w-5 text-blue-500" />
               Account
             </h3>
-            
-            <Button 
-              onClick={handleDeleteProfile} 
+
+            <Button
+              onClick={handleDeleteProfile}
               variant={confirmDelete ? "destructive" : "outline"}
               className="w-full justify-start"
             >
@@ -283,9 +356,9 @@ const GymBrosSettings = ({ isOpen, onClose, userProfile, onProfileUpdated }) => 
             </Button>
           </div>
         </div>
-        
+
         <div className="sticky bottom-0 bg-white p-4 border-t">
-          <Button 
+          <Button
             onClick={handleSaveSettings}
             className="w-full bg-blue-600 hover:bg-blue-700"
             disabled={loading}

@@ -1,4 +1,4 @@
-import { calculateMatchScore } from './gymBrosMatchingService.js';
+import { calculateDistance } from './gymBrosMatchingService.js';
 
 /**
  * Get recommended profiles for a user
