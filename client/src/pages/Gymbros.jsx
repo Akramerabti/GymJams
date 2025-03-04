@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { 
   Heart, X, MessageCircle, Filter, Dumbbell, UserPlus, 
   Calendar, MapPin, Settings, ShoppingBag, User,
-  ChevronLeft, ChevronRight, Edit
+  ChevronLeft, ChevronRight, Edit, Sun, Moon,
 } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import api from '../services/api';
@@ -51,6 +51,7 @@ const GymBros = () => {
   const [activeTab, setActiveTab] = useState('discover'); // discover, matches, shop, profile
   const [headerVisible, setHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [filters, setFilters] = useState({
     workoutTypes: [],
     experienceLevel: 'Any',
@@ -66,7 +67,33 @@ const GymBros = () => {
   const getUserId = (user) => {
     return user?.user?.id || user?.id || '';
   };
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('siteTheme');
+    if (savedTheme) {
+      setIsDarkMode(savedTheme === 'dark');
+    } else {
+      // Check system preference
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setIsDarkMode(prefersDark);
+    }
+  }, []);
   
+  // Toggle dark mode function
+  const toggleDarkMode = () => {
+    const newDarkMode = !isDarkMode;
+    setIsDarkMode(newDarkMode);
+    
+    // Update the global site theme
+    if (window.toggleDarkMode) {
+      window.toggleDarkMode(newDarkMode);
+    } else {
+      // Fallback if global function not available
+      localStorage.setItem('siteTheme', newDarkMode ? 'dark' : 'light');
+      document.documentElement.classList.toggle('dark-mode', newDarkMode);
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
       console.log('[GymBros] Checking user profile for ID:', getUserId(user));
@@ -351,108 +378,148 @@ const GymBros = () => {
     fetchProfiles();
   };
 
-  // Renders the appropriate header based on the active tab
-  const renderHeader = () => {
-    // Common header title with logo
-    const headerTitle = (
-      <h1 className="text-xl font-bold flex items-center">
-        <Dumbbell className="mr-2 text-blue-500" /> GymMatch
-      </h1>
-    );
 
-    const headerContent = (() => {
-      switch(activeTab) {
-        case 'discover':
-          return (
-            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
-              {headerTitle}
-              <div className="flex space-x-2">
-                <button 
-                  onClick={() => setShowFilters(true)}
-                  className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
-                >
-                  <Filter size={20} />
-                </button>
-                <button
-                  onClick={() => {
-                    fetchMatches();
-                    setActiveTab('matches');
-                  }}
-                  className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 relative"
-                >
-                  <MessageCircle size={20} />
-                  {matches.length > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
-                      {matches.length}
-                    </span>
-                  )}
-                </button>
-              </div>
-            </div>
-          );
-        
-        case 'matches':
-          return (
-            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
-              {headerTitle}
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => setShowSettings(true)}
-                  className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
-                >
-                  <Settings size={20} />
-                </button>
-              </div>
-            </div>
-          );
-          
-        case 'shop':
-          return (
-            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
-              {headerTitle}
-              <div className="flex space-x-2">
-                <button
-                  className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 relative"
-                >
-                  <ShoppingBag size={20} />
+const renderHeader = () => {
+  // Common header title with logo
+  const headerTitle = (
+    <h1 className="text-xl font-bold flex items-center">
+      <Dumbbell className="mr-2 text-blue-500" /> GymMatch
+    </h1>
+  );
+
+  const headerContent = (() => {
+    switch(activeTab) {
+      case 'discover':
+        return (
+          <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+            {headerTitle}
+            <div className="flex space-x-2">
+              <button 
+                onClick={toggleDarkMode}
+                className={`p-2 rounded-full transition-colors ${
+                  isDarkMode ? 'bg-gray-800 text-yellow-300' : 'bg-gray-100 hover:bg-gray-200 text-blue-800'
+                }`}
+              >
+                {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+              </button>
+              <button 
+                onClick={() => setShowFilters(true)}
+                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
+              >
+                <Filter size={20} />
+              </button>
+              <button
+                onClick={() => {
+                  fetchMatches();
+                  setActiveTab('matches');
+                }}
+                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 relative"
+              >
+                <MessageCircle size={20} />
+                {matches.length > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
-                    0
+                    {matches.length}
                   </span>
-                </button>
-              </div>
+                )}
+              </button>
             </div>
-          );
-          
-        case 'profile':
-          return (
-            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
-              {headerTitle}
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => setShowSettings(true)}
-                  className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
-                >
-                  <Settings size={20} />
-                </button>
-              </div>
+          </div>
+        );
+      
+      case 'matches':
+        return (
+          <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+            {headerTitle}
+            <div className="flex space-x-2">
+              <button 
+                onClick={toggleDarkMode}
+                className={`p-2 rounded-full transition-colors ${
+                  isDarkMode ? 'bg-gray-800 text-yellow-300' : 'bg-gray-100 hover:bg-gray-200 text-blue-800'
+                }`}
+              >
+                {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+              </button>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
+              >
+                <Settings size={20} />
+              </button>
             </div>
-          );
-          
-        default:
-          return (
-            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
-              {headerTitle}
+          </div>
+        );
+        
+      case 'shop':
+        return (
+          <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+            {headerTitle}
+            <div className="flex space-x-2">
+              <button 
+                onClick={toggleDarkMode}
+                className={`p-2 rounded-full transition-colors ${
+                  isDarkMode ? 'bg-gray-800 text-yellow-300' : 'bg-gray-100 hover:bg-gray-200 text-blue-800'
+                }`}
+              >
+                {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+              </button>
+              <button
+                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 relative"
+              >
+                <ShoppingBag size={20} />
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
+                  0
+                </span>
+              </button>
             </div>
-          );
-      }
-    })();
+          </div>
+        );
+        
+      case 'profile':
+        return (
+          <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+            {headerTitle}
+            <div className="flex space-x-2">
+              <button 
+                onClick={toggleDarkMode}
+                className={`p-2 rounded-full transition-colors ${
+                  isDarkMode ? 'bg-gray-800 text-yellow-300' : 'bg-gray-100 hover:bg-gray-200 text-blue-800'
+                }`}
+              >
+                {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+              </button>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
+              >
+                <Settings size={20} />
+              </button>
+            </div>
+          </div>
+        );
+        
+      default:
+        return (
+          <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+            {headerTitle}
+            <button 
+              onClick={toggleDarkMode}
+              className={`p-2 rounded-full transition-colors ${
+                isDarkMode ? 'bg-gray-800 text-yellow-300' : 'bg-gray-100 hover:bg-gray-200 text-blue-800'
+              }`}
+            >
+              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+          </div>
+        );
+    }
+  })();
 
-    return (
-      <div className={`transition-transform duration-300 ${headerVisible ? 'translate-y-0' : '-translate-y-full'}`}>
-        {headerContent}
-      </div>
-    );
-  };
+  return (
+    <div className={`transition-transform duration-300 ${headerVisible ? 'translate-y-0' : '-translate-y-full'}`}>
+      {headerContent}
+    </div>
+  );
+};
 
   if (loading) {
     return (

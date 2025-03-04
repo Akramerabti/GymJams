@@ -1,3 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 84% 4.9%;
+}
+
+/* Dark mode variables */
+.dark-mode {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --primary: 217.2 91.2% 59.8%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 224.3 76.3% 48%;
+}
+
+/* Dark theme styles */
+.dark-theme {
+  color-scheme: dark;
+}
+
+.dark-theme .card,
+.dark-theme .input,
+.dark-theme .button:not(.primary),
+.dark-theme .select {
+  background-color: hsl(222.2, 15%, 20%);
+  color: white;
+  border-color: hsl(222.2, 15%, 30%);
+}
+
+.dark-theme .bg-white {
+  background-color: hsl(222.2, 15%, 20%);
+}
+
+.dark-theme .text-gray-900 {
+  color: hsl(210, 40%, 98%);
+}
+
+.dark-theme .text-gray-800 {
+  color: hsl(210, 40%, 96%);
+}
+
+.dark-theme .text-gray-700 {
+  color: hsl(210, 40%, 90%);
+}
+
+.dark-theme .text-gray-600 {
+  color: hsl(210, 40%, 80%);
+}
+
+.dark-theme .text-gray-500 {
+  color: hsl(210, 40%, 70%);
+}
+
+.dark-theme .border-gray-300,
+.dark-theme .border-gray-200,
+.dark-theme .border-gray-100 {
+  border-color: hsl(222.2, 15%, 30%);
+}
+
+.dark-theme .bg-gray-100,
+.dark-theme .bg-gray-50 {
+  background-color: hsl(222.2, 15%, 18%);
+}
+
+.dark-theme .shadow-lg,
+.dark-theme .shadow-md,
+.dark-theme .shadow-sm {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
+}
+
+/* Exclude navbar from dark mode styles */
+.dark-theme nav:first-child {
+  background-color: white;
+  color: hsl(222.2, 84%, 4.9%);
+}
+
+/* Keep the navbar text and icons in normal mode */
+.dark-theme nav:first-child .text-gray-600,
+.dark-theme nav:first-child .text-gray-700 {
+  color: hsl(222.2, 15%, 45%);
+}
+
+.dark-theme nav:first-child .bg-gray-100 {
+  background-color: hsl(210, 40%, 96.1%);
+}
+
+.dark-theme nav:first-child .hover\:bg-gray-100:hover {
+  background-color: hsl(210, 40%, 90%);
+}
+
 html, body {
     overflow-x: hidden; /* Hide horizontal scrollbar */
     width: 100%; /* Ensure full width */

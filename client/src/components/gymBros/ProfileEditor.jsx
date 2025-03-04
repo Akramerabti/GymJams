@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { 
   PlusCircle, Camera, MapPin, Award, Clock, 
   Calendar, Target, ArrowLeft, ArrowRight, 
-  User, Trash2, Upload, Dumbbell, Sun, Moon
+  User, Trash2, Upload, Dumbbell
 } from 'lucide-react';
 import api from '../../services/api';
 import debounce from 'lodash/debounce';
@@ -35,7 +35,6 @@ const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isImageUploading, setIsImageUploading] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [darkMode, setDarkMode] = useState(false);
   const fileInputRef = useRef(null);
 
   // Initialize profile data when userProfile changes
@@ -55,24 +54,7 @@ const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
         images: userProfile.images || []
       });
     }
-
-    // Check for saved theme preference
-    const savedTheme = localStorage.getItem('gymBrosDarkMode');
-    if (savedTheme) {
-      setDarkMode(savedTheme === 'true');
-    } else {
-      // Check system preference
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      setDarkMode(prefersDark);
-    }
   }, [userProfile]);
-
-  // Toggle dark mode
-  const toggleDarkMode = () => {
-    const newMode = !darkMode;
-    setDarkMode(newMode);
-    localStorage.setItem('gymBrosDarkMode', newMode.toString());
-  };
 
   // Create a debounced save function
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -249,27 +231,8 @@ const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
     }
   };
 
-  const darkModeClasses = {
-    bg: darkMode ? 'bg-gray-900' : 'bg-white',
-    text: darkMode ? 'text-gray-200' : 'text-gray-900',
-    label: darkMode ? 'text-gray-300' : 'text-gray-700',
-    border: darkMode ? 'border-gray-700' : 'border-gray-300',
-    input: darkMode ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-800 border-gray-300',
-    workoutTypeActive: darkMode ? 'bg-blue-700 text-white' : 'bg-blue-500 text-white',
-    workoutTypeInactive: darkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
-  };
-
   return (
-    <div className={`${darkModeClasses.bg} ${darkModeClasses.text} rounded-lg shadow-lg overflow-hidden transition-colors duration-300`}>
-      {/* Dark Mode Toggle */}
-      <button 
-        onClick={toggleDarkMode}
-        className={`absolute top-4 left-4 z-10 p-2 rounded-full ${darkMode ? 'bg-gray-700 text-yellow-300' : 'bg-gray-200 text-blue-900'} transition-colors`}
-        aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-      >
-        {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-      </button>
-
+    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
       {/* Images Carousel Header */}
       <div className="relative h-80 overflow-hidden">
         {profileData.images.length > 0 ? (
@@ -309,9 +272,9 @@ const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
             </button>
           </>
         ) : (
-          <div className={`w-full h-full ${darkMode ? 'bg-gray-800' : 'bg-gray-200'} flex flex-col items-center justify-center transition-colors`}>
-            <Camera size={48} className={darkMode ? 'text-gray-500' : 'text-gray-400'} />
-            <p className={darkMode ? 'text-gray-400' : 'text-gray-500'}>No profile images yet</p>
+          <div className="w-full h-full bg-gray-200 flex flex-col items-center justify-center">
+            <Camera size={48} className="text-gray-400 mb-2" />
+            <p className="text-gray-500">No profile images yet</p>
           </div>
         )}
         
@@ -338,7 +301,7 @@ const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
       </div>
       
       {/* Thumbnail Navigation */}
-      <div className={`flex justify-center space-x-2 py-2 ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} transition-colors`}>
+      <div className="flex justify-center space-x-2 py-2 bg-gray-100">
         {profileData.images.map((image, index) => (
           <button 
             key={index}
@@ -357,11 +320,9 @@ const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
         {profileData.images.length < 6 && (
           <button 
             onClick={triggerFileInput}
-            className={`w-10 h-10 rounded-md flex items-center justify-center transition-all ${
-              darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-400' : 'bg-gray-200 hover:bg-gray-300 text-gray-500'
-            }`}
+            className="w-10 h-10 rounded-md bg-gray-200 flex items-center justify-center hover:bg-gray-300 transition-all"
           >
-            <Upload size={16} />
+            <Upload size={16} className="text-gray-500" />
           </button>
         )}
       </div>
@@ -371,18 +332,18 @@ const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
         {/* Name and Age (inline editing) */}
         <div className="space-y-4">
           <div className="flex items-center space-x-2">
-            <User className={darkMode ? 'w-5 h-5 text-gray-400' : 'w-5 h-5 text-gray-500'} />
+            <User className="w-5 h-5 text-gray-500" />
             <input
               type="text"
               value={profileData.name}
               onChange={(e) => handleChange('name', e.target.value)}
               placeholder="Your Name"
-              className={`flex-1 text-xl font-bold border-b ${darkMode ? 'bg-gray-900 border-transparent hover:border-gray-600 focus:border-blue-700' : 'bg-white border-transparent hover:border-gray-300 focus:border-blue-500'} focus:outline-none px-1 py-1 transition-colors`}
+              className="flex-1 text-xl font-bold border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-1 transition-colors"
             />
           </div>
           
           <div className="flex items-center space-x-2">
-            <Calendar className={darkMode ? 'w-5 h-5 text-gray-400' : 'w-5 h-5 text-gray-500'} />
+            <Calendar className="w-5 h-5 text-gray-500" />
             <input
               type="number"
               value={profileData.age}
@@ -390,15 +351,15 @@ const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
               placeholder="Your Age"
               min="18"
               max="99"
-              className={`w-20 border-b ${darkMode ? 'bg-gray-900 border-transparent hover:border-gray-600 focus:border-blue-700' : 'bg-white border-transparent hover:border-gray-300 focus:border-blue-500'} focus:outline-none px-1 py-1 transition-colors`}
+              className="w-20 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-1 transition-colors"
             />
-            <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>years old</span>
+            <span className="text-gray-500">years old</span>
           </div>
         </div>
 
         {/* Bio */}
         <div className="space-y-2">
-          <label className={`flex items-center text-sm font-medium ${darkModeClasses.label}`}>
+          <label className="flex items-center text-sm font-medium text-gray-700">
             About Me
           </label>
           <textarea
@@ -406,14 +367,14 @@ const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
             onChange={(e) => handleChange('bio', e.target.value)}
             placeholder="Tell potential gym partners a bit about yourself..."
             rows="3"
-            className={`w-full rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all ${darkModeClasses.input} ${darkMode ? 'hover:border-gray-600' : 'hover:border-gray-400'}`}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all hover:border-gray-400"
           />
         </div>
 
         {/* Workout Types */}
         <div className="space-y-2">
-          <label className={`flex items-center text-sm font-medium ${darkModeClasses.label}`}>
-            <Dumbbell className={darkMode ? 'w-5 h-5 text-gray-400 mr-2' : 'w-5 h-5 text-gray-500 mr-2'} />
+          <label className="flex items-center text-sm font-medium text-gray-700">
+            <Dumbbell className="w-5 h-5 text-gray-500 mr-2" />
             Workout Types
           </label>
           <div className="flex flex-wrap gap-2">
@@ -424,8 +385,8 @@ const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
                 onClick={() => handleWorkoutTypeToggle(type)}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                   profileData.workoutTypes.includes(type)
-                    ? darkModeClasses.workoutTypeActive
-                    : darkModeClasses.workoutTypeInactive
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
                 {type}
@@ -436,14 +397,14 @@ const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
 
         {/* Experience Level */}
         <div className="space-y-2">
-          <label className={`flex items-center text-sm font-medium ${darkModeClasses.label}`}>
-            <Award className={darkMode ? 'w-5 h-5 text-gray-400 mr-2' : 'w-5 h-5 text-gray-500 mr-2'} />
+          <label className="flex items-center text-sm font-medium text-gray-700">
+            <Award className="w-5 h-5 text-gray-500 mr-2" />
             Experience Level
           </label>
           <select
             value={profileData.experienceLevel}
             onChange={(e) => handleChange('experienceLevel', e.target.value)}
-            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all ${darkModeClasses.input} ${darkMode ? 'hover:border-gray-600' : 'hover:border-gray-400'}`}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all hover:border-gray-400"
           >
             <option value="">Select Experience Level</option>
             {experienceLevels.map((level) => (
@@ -456,14 +417,14 @@ const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
 
         {/* Preferred Time */}
         <div className="space-y-2">
-          <label className={`flex items-center text-sm font-medium ${darkModeClasses.label}`}>
-            <Clock className={darkMode ? 'w-5 h-5 text-gray-400 mr-2' : 'w-5 h-5 text-gray-500 mr-2'} />
+          <label className="flex items-center text-sm font-medium text-gray-700">
+            <Clock className="w-5 h-5 text-gray-500 mr-2" />
             Preferred Workout Time
           </label>
           <select
             value={profileData.preferredTime}
             onChange={(e) => handleChange('preferredTime', e.target.value)}
-            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all ${darkModeClasses.input} ${darkMode ? 'hover:border-gray-600' : 'hover:border-gray-400'}`}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all hover:border-gray-400"
           >
             <option value="">Select Preferred Time</option>
             {timePreferences.map((time) => (
@@ -476,8 +437,8 @@ const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
 
         {/* Goals */}
         <div className="space-y-2">
-          <label className={`flex items-center text-sm font-medium ${darkModeClasses.label}`}>
-            <Target className={darkMode ? 'w-5 h-5 text-gray-400 mr-2' : 'w-5 h-5 text-gray-500 mr-2'} />
+          <label className="flex items-center text-sm font-medium text-gray-700">
+            <Target className="w-5 h-5 text-gray-500 mr-2" />
             Fitness Goals
           </label>
           <textarea
@@ -485,14 +446,14 @@ const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
             onChange={(e) => handleChange('goals', e.target.value)}
             placeholder="What are your fitness goals?"
             rows="3"
-            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all ${darkModeClasses.input} ${darkMode ? 'hover:border-gray-600' : 'hover:border-gray-400'}`}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all hover:border-gray-400"
           />
         </div>
 
         {/* Location */}
         <div className="space-y-2">
-          <label className={`flex items-center text-sm font-medium ${darkModeClasses.label}`}>
-            <MapPin className={darkMode ? 'w-5 h-5 text-gray-400 mr-2' : 'w-5 h-5 text-gray-500 mr-2'} />
+          <label className="flex items-center text-sm font-medium text-gray-700">
+            <MapPin className="w-5 h-5 text-gray-500 mr-2" />
             Location
           </label>
           <input
@@ -500,7 +461,7 @@ const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
             value={profileData.location.address}
             onChange={(e) => handleChange('location', { address: e.target.value })}
             placeholder="Your location"
-            className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all ${darkModeClasses.input} ${darkMode ? 'hover:border-gray-600' : 'hover:border-gray-400'}`}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all hover:border-gray-400"
           />
         </div>
       </div>
