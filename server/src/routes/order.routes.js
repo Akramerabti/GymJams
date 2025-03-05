@@ -18,9 +18,6 @@ router.post(
   handleStripeWebhook
 );
 
-// Protected routes - require authentication
-router.use(authenticate);
-
 // Get all orders for the current user
 router.get('/', getOrders);
 
