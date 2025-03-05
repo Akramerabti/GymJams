@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { Dumbbell, ChevronRight, ChevronLeft, CheckCircle, Award, Clock, MapPin, Moon,Sun, Target, Phone } from 'lucide-react';
+import { Dumbbell, ChevronRight, ChevronLeft, CheckCircle, Award, Clock, MapPin, Moon, Sun, Target, Phone } from 'lucide-react';
 import api from '../../services/api';
 import useAuthStore from '../../stores/authStore';
-import ImageUploader from './ImageUploader'; // Assume this is a custom component for image uploads
-import LocationPicker from './LocationPicker'; // Assume this is a custom component for location selection
+import ImageUploader from './ImageUploader';
+import LocationPicker from './LocationPicker';
+import PhoneVerification from './PhoneVerification';
 
 const workoutTypes = [
   'Strength Training', 'Cardio', 'HIIT', 'CrossFit', 'Bodybuilding',
@@ -38,7 +39,7 @@ const interests = [
 const GymBrosSetup = ({ onProfileCreated }) => {
   const { user, isAuthenticated } = useAuthStore();
   const [currentStep, setCurrentStep] = useState(0);
-  const [direction, setDirection] = useState(1); // 1 for forward, -1 for backward
+  const [direction, setDirection] = useState(1);
   const [darkMode, setDarkMode] = useState(false);
   const [profileData, setProfileData] = useState({
     name: '',
@@ -49,7 +50,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
     interests: [],
     work: '',
     studies: '',
-    phone: '', // Pre-fill phone if available
+    phone: '',
     workoutTypes: [],
     experienceLevel: '',
     preferredTime: '',
@@ -59,27 +60,100 @@ const GymBrosSetup = ({ onProfileCreated }) => {
       lng: null,
       address: '',
     },
-    images: [], // Array to store up to 6 images
+    images: [],
   });
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [phoneLoginStep, setPhoneLoginStep] = useState(false); // New state for phone login step
 
-  // Pre-fill user data when user object is available
-  useEffect(() => {
-    if (user?.user) {
+  const toggleDarkMode = () => {
+    const newMode = !darkMode;
+    setDarkMode(newMode);
+    localStorage.setItem('gymBrosDarkMode', newMode.toString());
+  };
+
+  const handleWorkoutTypeToggle = (type) => {
+    setProfileData(prev => {
+      if (prev.workoutTypes.includes(type)) {
+        return {
+          ...prev,
+          workoutTypes: prev.workoutTypes.filter(t => t !== type),
+        };
+      } else {
+        return {
+          ...prev,
+          workoutTypes: [...prev.workoutTypes, type],
+        };
+      }
+    });
+  };
+
+  const handleInterestToggle = (interest) => {
+    setProfileData(prev => {
+      if (prev.interests.includes(interest)) {
+        return {
+          ...prev,
+          interests: prev.interests.filter(i => i !== interest),
+        };
+      } else {
+        return {
+          ...prev,
+          interests: [...prev.interests, interest],
+        };
+      }
+    });
+  };
+
+  const handlePhoneChange = (phone) => {
+    setProfileData(prev => ({ ...prev, phone }));
+    // Reset verification status when phone number changes
+    setIsPhoneVerified(false);
+  };
+
+  const handlePhoneVerified = (verified) => {
+    setIsPhoneVerified(verified);
+  };
+
+  const handleChange = (field, value) => {
+    if (field === 'location') {
       setProfileData(prev => ({
         ...prev,
-        name: user.user.firstName || '',
-        phone: user.user.phone || '',
-        location: {
-          lat: user.user.location?.lat || null,
-          lng: user.user.location?.lng || null,
-          address: user.user.location?.address || '',
-        },
+        location: { ...prev.location, ...value },
       }));
+    } else {
+      setProfileData(prev => ({ ...prev, [field]: value }));
     }
-  }, [user]);
+  };
 
+  const handleSubmit = async () => {
+    if (!isPhoneVerified) {
+      toast.error('Please verify your phone number before proceeding.');
+      return;
+    }
+  
+    setLoading(true);
+    try {
+      const payload = {
+        ...profileData,
+        // Only include userId if the user is logged in
+        userId: user?.user?.id || null, // Use null if user is not logged in
+      };
+  
+      const response = await api.post('/gym-bros/profile', payload, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+  
+      toast.success('Profile created successfully!');
+      onProfileCreated(response.data);
+    } catch (error) {
+      console.error('Error creating profile:', error);
+      toast.error('Failed to create profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   const steps = [
     {
       id: 'name',
@@ -97,7 +171,31 @@ const GymBrosSetup = ({ onProfileCreated }) => {
             placeholder="Enter your name"
             autoFocus
           />
+          {/* Add a login button if the user is not authenticated */}
+          {!isAuthenticated && (
+            <button
+              onClick={() => setPhoneLoginStep(true)}
+              className="w-full mt-4 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+            >
+              <Phone className="w-5 h-5 mr-2" />
+              Log in with Phone Number
+            </button>
+          )}
         </div>
+      )
+    },
+    {
+      id: 'phone',
+      title: "What's your phone number?",
+      subtitle: "We'll send a verification code to this number",
+      icon: <Phone size={24} />,
+      isValid: () => isPhoneVerified,
+      component: (
+        <PhoneVerification
+          phone={profileData.phone}
+          onChange={handlePhoneChange}
+          onVerified={handlePhoneVerified}
+        />
       )
     },
     {
@@ -374,13 +472,13 @@ const GymBrosSetup = ({ onProfileCreated }) => {
           <input 
             type="text" 
             value={profileData.goals} 
-            onChange={(e) => handleChange('studies', e.target.value)}
+            onChange={(e) => handleChange('goals', e.target.value)}
             className="w-full p-4 text-2xl bg-transparent border-b-2 border-primary focus:outline-none" 
             placeholder="Enter your goals"
             autoFocus
           />
         </div>
-        )
+      )
     },
     {
       id: 'location',
@@ -397,85 +495,41 @@ const GymBrosSetup = ({ onProfileCreated }) => {
     },
   ];
   
-      useEffect(() => {
-    setProgress(((currentStep + 1) / steps.length) * 100);
-  }, [currentStep, steps.length]);
+  if (phoneLoginStep) {
+    steps.splice(1, 0, {
+      id: 'phone-login',
+      title: "Log in with your phone number",
+      subtitle: "We'll send a verification code to this number",
+      icon: <Phone size={24} />,
+      isValid: () => isPhoneVerified,
+      component: (
+        <PhoneVerification
+          phone={profileData.phone}
+          onChange={handlePhoneChange}
+          onVerified={handlePhoneVerified}
+        />
+      )
+    });
+  }
 
-  const handleChange = (field, value) => {
-    if (field === 'location') {
+  useEffect(() => {
+    if (user?.user) {
       setProfileData(prev => ({
         ...prev,
-        location: { ...prev.location, ...value },
+        name: user.user.firstName || '',
+        phone: user.user.phone || '',
+        location: {
+          lat: user.user.location?.lat || null,
+          lng: user.user.location?.lng || null,
+          address: user.user.location?.address || '',
+        },
       }));
-    } else {
-      setProfileData(prev => ({ ...prev, [field]: value }));
     }
-  };
+  }, [user]);
 
-  const toggleDarkMode = () => {
-    const newMode = !darkMode;
-    setDarkMode(newMode);
-    localStorage.setItem('gymBrosDarkMode', newMode.toString());
-  };
-
-  const handleWorkoutTypeToggle = (type) => {
-    setProfileData(prev => {
-      if (prev.workoutTypes.includes(type)) {
-        return {
-          ...prev,
-          workoutTypes: prev.workoutTypes.filter(t => t !== type),
-        };
-      } else {
-        return {
-          ...prev,
-          workoutTypes: [...prev.workoutTypes, type],
-        };
-      }
-    });
-  };
-
-  const handleInterestToggle = (interest) => {
-    setProfileData(prev => {
-      if (prev.interests.includes(interest)) {
-        return {
-          ...prev,
-          interests: prev.interests.filter(i => i !== interest),
-        };
-      } else {
-        return {
-          ...prev,
-          interests: [...prev.interests, interest],
-        };
-      }
-    });
-  };
-
-  const handleSubmit = async () => {
-    setLoading(true);
-    try {
-      // Add userId to profileData
-      const payload = {
-        ...profileData,
-        userId: user.user.id, // Ensure userId is included
-      };
-  
-      // Log the payload to the console for debugging
-      console.log("Payload being sent:", payload);
-  
-      // Send the payload as JSON
-      const response = await api.post('/gym-bros/profile', payload, {
-        headers: { 'Content-Type': 'application/json' }, // Set the content type to JSON
-      });
-  
-      toast.success('Profile created successfully!');
-      onProfileCreated(response.data);
-    } catch (error) {
-      console.error('Error creating profile:', error);
-      toast.error('Failed to create profile');
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    setProgress(((currentStep + 1) / steps.length) * 100);
+  }, [currentStep, steps.length]);
 
   const goToNextStep = () => {
     const currentStepConfig = steps[currentStep];
@@ -516,6 +570,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
       opacity: 0,
     }),
   };
+
   const darkModeClasses = {
     bg: darkMode ? 'bg-gray-900' : 'bg-white',
     text: darkMode ? 'text-gray-200' : 'text-gray-900',
@@ -533,7 +588,6 @@ const GymBrosSetup = ({ onProfileCreated }) => {
           style={{ width: `${progress}%` }}
         />
       </div>
-
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col">
@@ -566,32 +620,32 @@ const GymBrosSetup = ({ onProfileCreated }) => {
       </div>
 
       {/* Navigation buttons */}
-<div className="flex justify-between items-center mt-4">
-  <button
-    onClick={goToPrevStep}
-    disabled={currentStep === 0}
-    className={`p-2 rounded-full ${darkModeClasses.button} transition-all`}
-  >
-    <ChevronLeft size={24} />
-  </button>
+      <div className="flex justify-between items-center mt-4">
+        <button
+          onClick={goToPrevStep}
+          disabled={currentStep === 0}
+          className={`p-2 rounded-full ${darkModeClasses.button} transition-all`}
+        >
+          <ChevronLeft size={24} />
+        </button>
 
-  {/* Dark Mode Toggle Button */}
-  <button 
-    onClick={toggleDarkMode}
-    className={`p-2 rounded-full ${darkMode ? 'bg-gray-700 text-yellow-300' : 'bg-gray-200 text-blue-900'} transition-colors`}
-    aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-  >
-    {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-  </button>
+        {/* Dark Mode Toggle Button */}
+        <button
+          onClick={toggleDarkMode}
+          className={`p-2 rounded-full ${darkMode ? 'bg-gray-700 text-yellow-300' : 'bg-gray-200 text-blue-900'} transition-colors`}
+          aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+        </button>
 
-  <button
-    onClick={goToNextStep}
-    className={`p-2 rounded-full ${darkModeClasses.buttonActive} transition-all`}
-    disabled={loading}
-  >
-    <ChevronRight size={24} />
-  </button>
-</div>
+        <button
+          onClick={goToNextStep}
+          className={`p-2 rounded-full ${darkModeClasses.buttonActive} transition-all`}
+          disabled={loading}
+        >
+          <ChevronRight size={24} />
+        </button>
+      </div>
     </div>
   );
 };

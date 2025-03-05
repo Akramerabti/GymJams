@@ -1,11 +1,13 @@
 import GymBrosProfile from '../models/GymBrosProfile.js';
 import GymBrosPreference from '../models/GymBrosPreference.js';
 import GymBrosMatch from '../models/GymBrosMatch.js';
+import PhoneVerification from '../models/PhoneVerification.js'; // Add this import
 import User from '../models/User.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+import jwt from 'jsonwebtoken'; // Also add jwt for token generation
 import { getRecommendedProfiles } from '../services/gymBrosRecommendationService.js';
 import { processFeedback } from '../services/gymBrosFeedbackService.js';
 import { handleError } from '../middleware/error.middleware.js';
@@ -525,4 +527,150 @@ const checkForMatch = async (userId, targetId) => {
   }
   
   return false;
+};
+
+// server/src/controllers/gymBrosController.js (add these functions)
+
+// Check if a phone number exists in the system
+export const checkPhoneExists = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    
+    if (!phone) {
+      return res.status(400).json({ message: 'Phone number is required' });
+    }
+    
+    // Check if the phone exists in User collection
+    const existingUser = await User.findOne({ phone });
+    
+    return res.json({ exists: !!existingUser });
+  } catch (error) {
+    console.error('Error checking phone:', error);
+    handleError(error, req, res);
+  }
+};
+
+// Send verification code
+export const sendVerificationCode = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    
+    if (!phone) {
+      return res.status(400).json({ message: 'Phone number is required' });
+    }
+    
+    // Validate phone format (E.164 format: +12345678900)
+    const phoneRegex = /^\+[1-9]\d{1,14}$/;
+    if (!phoneRegex.test(phone)) {
+      return res.status(400).json({ 
+        message: 'Invalid phone number format. Please use international format (e.g., +12345678900)' 
+      });
+    }
+    
+    // Generate a random 6-digit code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Store the code in database
+    await PhoneVerification.findOneAndUpdate(
+      { phone },
+      { 
+        phone,
+        code: verificationCode,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+      },
+      { upsert: true, new: true }
+    );
+    
+    // Log the code during development (remove in production)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Verification code for ${phone}: ${verificationCode}`);
+    }
+    
+    // Send SMS using Twilio
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
+    
+    if (!accountSid || !authToken || !twilioPhone) {
+      // Fallback for development if Twilio credentials aren't set
+      if (process.env.NODE_ENV !== 'production') {
+        return res.json({ 
+          success: true, 
+          message: 'Verification code generated (check server logs)',
+          devCode: verificationCode // Only in development
+        });
+      } else {
+        throw new Error('SMS service configuration missing');
+      }
+    }
+    
+    // Initialize Twilio client
+    const twilioClient = require('twilio')(accountSid, authToken);
+    
+    // Send the SMS
+    await twilioClient.messages.create({
+      body: `Your GymBros verification code is: ${verificationCode}`,
+      from: twilioPhone,
+      to: phone
+    });
+    
+    res.json({ success: true, message: 'Verification code sent' });
+  } catch (error) {
+    console.error('Error sending verification code:', error);
+    
+    // Provide more specific error messages
+    if (error.code === 21211) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid phone number format or unverified recipient' 
+      });
+    } else if (error.code === 21608) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'This phone number is not a verified Twilio test number'
+      });
+    }
+    
+    handleError(error, req, res);
+  }
+};
+
+export const verifyCode = async (req, res) => {
+  try {
+    const { phone, code } = req.body;
+    
+    if (!phone || !code) {
+      return res.status(400).json({ message: 'Phone and code are required' });
+    }
+    
+    // Find the verification record
+    const verification = await PhoneVerification.findOne({ 
+      phone,
+      code,
+      expiresAt: { $gt: new Date() } // Make sure it hasn't expired
+    });
+    
+    if (!verification) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid or expired verification code' 
+      });
+    }
+    
+    // Code is valid, create a temporary verification token
+    const token = jwt.sign(
+      { phone, verified: true },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+    
+    res.json({ 
+      success: true,
+      message: 'Phone verified successfully',
+      token
+    });
+  } catch (error) {
+    console.error('Error verifying code:', error);
+    handleError(error, req, res);
+  }
 };

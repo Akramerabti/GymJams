@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { 
   Heart, X, MessageCircle, Filter, Dumbbell, UserPlus, 
   Calendar, MapPin, Settings, ShoppingBag, User,
-  ChevronLeft, ChevronRight, Edit, Sun, Moon,
+  ChevronLeft, ChevronRight, Edit, Sun, Moon
 } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import api from '../services/api';
@@ -95,10 +95,15 @@ const GymBros = () => {
   };
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setLoading(false); // Immediately stop loading if not authenticated
+    }
+    
     if (isAuthenticated) {
       console.log('[GymBros] Checking user profile for ID:', getUserId(user));
       checkUserProfile();
     }
+
   }, [isAuthenticated, user]);
 
   // Set view start time when profile changes
@@ -136,6 +141,9 @@ const GymBros = () => {
   const checkUserProfile = async () => {
     try {
       setLoading(true);
+
+      if (!isAuthenticated) return;
+
       const response = await api.get('/gym-bros/profile', {
         params: {
           userId: getUserId(user),
@@ -175,14 +183,14 @@ const GymBros = () => {
         setHasProfile(false);
         setUserProfile(null);
       }
-    } catch (error) {
-      console.error('[GymBros] Error checking gym profile:', error);
-      setHasProfile(false);
-      setUserProfile(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+     } catch (error) {
+    console.error('[GymBros] Error checking gym profile:', error);
+    setHasProfile(false);
+    setUserProfile(null);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchProfiles = async () => {
     try {
@@ -533,17 +541,8 @@ const renderHeader = () => {
   }
 
   if (!isAuthenticated) {
-    console.log('[GymBros] User not authenticated, showing login prompt');
-    return (
-      <div className="flex flex-col items-center justify-center h-screen p-6 text-center">
-        <Dumbbell size={48} className="text-blue-500 mb-4" />
-        <h1 className="text-2xl font-bold mb-4">Find Your Perfect Gym Partner</h1>
-        <p className="mb-6">Please log in to view and match with gym buddies.</p>
-        <a href="/login" className="bg-blue-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-600 transition-all">
-          Log In to Continue
-        </a>
-      </div>
-    );
+    console.log('[GymBros] User not authenticated, showing setup form');
+    return <GymBrosSetup onProfileCreated={handleProfileCreated} />;
   }
 
   if (!hasProfile) {

@@ -17,7 +17,10 @@ import {
   deleteGymBrosProfile,
   getUserPreferences,
   uploadProfileImages,
-  deleteProfileImage
+  deleteProfileImage,
+  checkPhoneExists,
+  sendVerificationCode,
+  verifyCode 
 } from '../controllers/gymBrosController.js';
 
 import upload from '../config/multer.js';
@@ -63,5 +66,12 @@ router.post('/dislike/:profileId', authenticate, dislikeGymBrosProfile);
 
 // Get user matches
 router.get('/matches', authenticate, getGymBrosMatches);
+
+
+router.post('/check-phone', checkPhoneExists);
+
+router.post('/send-verification', sendVerificationCode);
+
+router.post('/verify-code', verifyCode);
 
 export default router;
