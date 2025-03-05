@@ -2,19 +2,26 @@
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
     ? [
-        'https://gymjams.ca',
-        'https://www.gymjams.ca',
-        'https://gymjams.onrender.com',
+        'https://gymtonic.ca',
+        'https://www.gymtonic.ca',
+        'https://gymtonic.onrender.com',
         'https://saas-pl33-git-main-akramerabtis-projects.vercel.app',
         'https://saas-pl33-izz8roaoz-akramerabtis-projects.vercel.app',
         'https://saas-pl33-9fzcpos92-akramerabtis-projects.vercel.app',
         'https://api.stripe.com', // Add Stripe
-        'https://hooks.stripe.com', // Add Stripe
+        'https://hooks.stripe.com', // Add Stripe Webhooks
         'https://dashboard.stripe.com', // Add Stripe Dashboard
-        'https://gymjams.onrender.com/api/subscription/webhook',
+        'https://gymtonic.onrender.com/api/subscription/webhook',
       ]
-    : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5000', 'https://api.stripe.com','https://dashboard.stripe.com'],
+    : [
+        'http://localhost:3000', 
+        'http://localhost:5173', 
+        'http://localhost:5000', 
+        'https://api.stripe.com',
+        'https://dashboard.stripe.com'
+      ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+
   allowedHeaders: [
     'Content-Type', 
     'Authorization',
