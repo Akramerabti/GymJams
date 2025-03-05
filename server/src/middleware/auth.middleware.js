@@ -62,9 +62,49 @@ export const optionalAuthenticate = async (req, res, next) => {
 };
 
 export const isAdmin = (req, res, next) => {
-  if (req.user?.role !== 'admin') {
-    return res.status(403).json({ message: 'Admin access required' });
+  if (!req.user) {
+    return res.status(401).json({ message: 'Authentication required' });
   }
+  
+  const userRole = req.user.role || req.user.user?.role;
+  
+  if (userRole !== 'admin') {
+    logger.warn(`Access denied: User ${req.user.id} with role ${userRole} attempted to access admin-only route`);
+    return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
+  }
+  
+  next();
+};
+
+// Middleware to check if user is in the taskforce
+export const isTaskforce = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+  
+  const userRole = req.user.role || req.user.user?.role;
+  
+  if (userRole !== 'admin' && userRole !== 'taskforce') {
+    logger.warn(`Access denied: User ${req.user.id} with role ${userRole} attempted to access taskforce-only route`);
+    return res.status(403).json({ message: 'Access denied. Taskforce or admin privileges required.' });
+  }
+  
+  next();
+};
+
+// Middleware to check if user is a coach
+export const isCoach = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+  
+  const userRole = req.user.role || req.user.user?.role;
+  
+  if (userRole !== 'coach' && userRole !== 'admin') {
+    logger.warn(`Access denied: User ${req.user.id} with role ${userRole} attempted to access coach-only route`);
+    return res.status(403).json({ message: 'Access denied. Coach privileges required.' });
+  }
+  
   next();
 };
 

@@ -13,11 +13,11 @@ export const sendVerificationEmail = async (user, verificationToken) => {
 
   try {
     await resend.emails.send({
-      from: 'GYMJAMS.CA <verification@gymjams.ca>',
+      from: 'GYMTONIC.CA <verification@gymtonic.ca>',
       to: user.email,
-      subject: 'Verify your GymJams account',
+      subject: 'Verify your GymTonic account',
       html: `
-        <h1>Welcome to GymJams!</h1>
+        <h1>Welcome to GymTonic!</h1>
         <p>Hi ${user.firstName},</p>
         <p>Please verify your email address by clicking the link below:</p>
         <a href="${verificationUrl}" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">
@@ -25,7 +25,7 @@ export const sendVerificationEmail = async (user, verificationToken) => {
         </a>
         <p>Or copy this link: ${verificationUrl}</p>
         <p>This link expires in 24 hours.</p>
-        <p>Best regards,<br>The GymJams Team</p>
+        <p>Best regards,<br>The GymTonic Team</p>
       `
     });
     logger.info(`Verification email sent to ${user.email}`);
@@ -41,9 +41,9 @@ export const sendPasswordResetEmail = async (user, resetToken) => {
 
   try {
     await resend.emails.send({
-      from: 'GYMJAMS.CA <noreply@gymjams.ca>',
+      from: 'GYMTONIC.CA <noreply@gymtonic.ca>',
       to: user.email,
-      subject: 'Reset your GymJams password',
+      subject: 'Reset your GymTonic password',
       html: `
         <h1>Password Reset Request</h1>
         <p>Hi ${user.firstName},</p>
@@ -54,7 +54,7 @@ export const sendPasswordResetEmail = async (user, resetToken) => {
         <p>Or copy this link: ${resetUrl}</p>
         <p>This link expires in 1 hour.</p>
         <p>If you didn't request this, please ignore this email.</p>
-        <p>Best regards,<br>The GymJams Team</p>
+        <p>Best regards,<br>The GymTonic Team</p>
       `
     });
     logger.info(`Password reset email sent to ${user.email}`);
@@ -73,13 +73,13 @@ export const sendSubscriptionReceipt = async (subscriptionData, email, isGuest =
 
   try {
     await resend.emails.send({
-      from: 'GYMJAMS.CA <subscriptions@gymjams.ca>',
+      from: 'GYMTONIC.CA <subscriptions@gymtonic.ca>',
       to: email,
-      subject: 'Welcome to GymJams - Your Subscription Details',
+      subject: 'Welcome to GymTonic - Your Subscription Details',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
           <div style="text-align: center; padding: 20px;">
-            <h1 style="color: #2b6cb0; margin: 0;">Welcome to GymJams!</h1>
+            <h1 style="color: #2b6cb0; margin: 0;">Welcome to GymTonic!</h1>
             <p style="color: #4a5568; font-size: 18px;">Thank you for subscribing to our ${subscriptionData.subscription.charAt(0).toUpperCase() + subscriptionData.subscription.slice(1)} Plan</p>
           </div>
 
@@ -104,7 +104,7 @@ export const sendSubscriptionReceipt = async (subscriptionData, email, isGuest =
             </div>
             <p style="margin-top: 15px;">To access your subscription:</p>
             <ol style="margin: 10px 0; padding-left: 20px;">
-              <li>Visit <a href="${process.env.CLIENT_URL}/coaching" style="color: #4299e1;">GymJams Coaching</a></li>
+              <li>Visit <a href="${process.env.CLIENT_URL}/coaching" style="color: #4299e1;">GymTonic Coaching</a></li>
               <li>Click on "Already have a subscription? Access it here"</li>
               <li>Enter your access token</li>
             </ol>
@@ -134,8 +134,8 @@ export const sendSubscriptionReceipt = async (subscriptionData, email, isGuest =
 
           <div style="margin-top: 30px; padding: 20px; background-color: #f7fafc; border-radius: 8px; font-size: 14px; color: #718096;">
             <p style="margin: 0 0 10px 0;"><strong>Need Help?</strong></p>
-            <p style="margin: 0;">Contact our support team at support@gymjams.ca</p>
-            <p style="margin: 10px 0 0 0; font-size: 12px;">© 2024 GymJams. All rights reserved.</p>
+            <p style="margin: 0;">Contact our support team at support@gymtonic.ca</p>
+            <p style="margin: 10px 0 0 0; font-size: 12px;">© 2024 GymTonic. All rights reserved.</p>
           </div>
         </div>
       `
