@@ -154,3 +154,21 @@ const handleRefund = async (charge) => {
     }),
   });
 };
+
+export const createPaymentElementOptions = (clientSecret) => {
+  return {
+    clientSecret,
+    appearance: {
+      theme: 'stripe',
+      variables: {
+        colorPrimary: '#0070f3',
+        colorBackground: '#ffffff',
+        colorText: '#1a1a1a',
+        colorDanger: '#df1b41',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        spacingUnit: '4px',
+        borderRadius: '4px',
+      },
+    },
+  };
+};

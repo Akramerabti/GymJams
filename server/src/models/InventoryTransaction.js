@@ -49,6 +49,7 @@ inventoryTransactionSchema.index({ product: 1, createdAt: -1 });
 inventoryTransactionSchema.index({ transactionType: 1 });
 inventoryTransactionSchema.index({ user: 1 });
 
-const InventoryTransaction = mongoose.model('InventoryTransaction', inventoryTransactionSchema);
+// Check if the model already exists before defining it
+const InventoryTransaction = mongoose.models.InventoryTransaction || mongoose.model('InventoryTransaction', inventoryTransactionSchema);
 
 export default InventoryTransaction;

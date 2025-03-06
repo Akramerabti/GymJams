@@ -75,7 +75,7 @@ const SubscriptionCheckout = () => {
   useEffect(() => {
     const initializePayment = async () => {
       if (!currentPlan) {
-        navigate('/plans');
+        navigate('/');
         return;
       }
 

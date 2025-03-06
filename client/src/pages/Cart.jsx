@@ -16,7 +16,6 @@ const Cart = () => {
 
   const handleCheckout = async () => {
     try {
-      console.log('Initiating checkout:', user?.user._id );
       const checkoutData = {
         items: items.map((item) => ({
           id: item.id,

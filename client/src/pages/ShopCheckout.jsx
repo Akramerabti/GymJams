@@ -15,8 +15,7 @@ import inventoryService from '../services/inventory.service';
 import { Loader2, AlertTriangle, ShoppingCart, Truck, MapPin, CreditCard, Check, ChevronRight } from 'lucide-react';
 import { useAuth } from '../stores/authStore';
 
-console.log('Stripe Public Key:', import.meta.env.VITE_STRIPE_PUBLIC_KEY);
-  const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
 // Payment Form Component
 const PaymentForm = ({ clientSecret, onPaymentSuccess, onPaymentError }) => {
