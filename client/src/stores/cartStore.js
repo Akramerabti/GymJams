@@ -88,10 +88,7 @@ const useCartStore = create(
           set({ items: [...items, { ...product, quantity }] });
         }
         
-        toast({
-          title: "Added to Cart",
-          description: `${product.name} has been added to your cart.`
-        });
+        toast.success(`${product.name} has been added to your cart.`);
       },
 
       /**
