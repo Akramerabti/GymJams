@@ -12,10 +12,21 @@ const Cart = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const cartStore = useCartStore();
-  const { items, getCartTotals, initiateCheckout } = cartStore;
+  const { items, getCartTotals, initiateCheckout, validateCartStock } = cartStore;
+
+  const getUserId = (user) => {
+    return user?.user?.id || user?.id || '';
+  };
 
   const handleCheckout = async () => {
     try {
+      // Validate stock before proceeding to checkout
+      const isStockValid = await validateCartStock();
+      if (!isStockValid) {
+        toast.error('Some items in your cart are out of stock or have insufficient quantity.');
+        return;
+      }
+
       const checkoutData = {
         items: items.map((item) => ({
           id: item.id,
@@ -29,7 +40,7 @@ const Cart = () => {
           // Add billing address details here
         },
         shippingMethod: 'standard',
-        userId: user?.user._id, // Pass the user ID if authenticated
+        userId: getUserId(user), // Pass the user ID if authenticated
       };
 
       await initiateCheckout(checkoutData);
