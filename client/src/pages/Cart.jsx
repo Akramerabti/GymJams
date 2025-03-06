@@ -1,4 +1,3 @@
-// components/Cart.js
 import React from 'react';
 import useCartStore from '../stores/cartStore';
 import CartItem from '../components/cart/CartItem';
@@ -6,22 +5,39 @@ import CartSummary from '../components/cart/CartSummary';
 import { Button } from '../components/ui/button';
 import { ShoppingBag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import useAuthStore from '../stores/authStore';
 
 const Cart = () => {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const cartStore = useCartStore();
   const { items, getCartTotals, initiateCheckout } = cartStore;
 
   const handleCheckout = async () => {
     try {
+      console.log('Initiating checkout:', user?.user._id );
       const checkoutData = {
-        // Add any additional checkout data here, e.g., shipping address, payment method
+        items: items.map((item) => ({
+          id: item.id,
+          quantity: item.quantity,
+        })),
+        shippingAddress: {
+          // Add shipping address details here
+          email: user?.email || '', // Required for guest orders
+        },
+        billingAddress: {
+          // Add billing address details here
+        },
+        shippingMethod: 'standard',
+        userId: user?.user._id, // Pass the user ID if authenticated
       };
+
       await initiateCheckout(checkoutData);
       navigate('/shop-checkout');
     } catch (error) {
       console.error('Checkout failed:', error);
-      alert('An error occurred during checkout.');
+      toast.error('An error occurred during checkout.');
     }
   };
 
@@ -57,17 +73,14 @@ const Cart = () => {
           </div>
         </div>
 
-        {/* Cart Summary */}
+        {/* Cart Summary - Pass the checkout handler to CartSummary */}
         <div className="lg:w-96">
-          <CartSummary totals={getCartTotals()} />
-          <Button 
-            size="lg" 
-            className="w-full mt-4"
-            onClick={handleCheckout}
-            disabled={cartStore.loading}
-          >
-            {cartStore.loading ? 'Processing...' : 'Proceed to Checkout'}
-          </Button>
+          <CartSummary 
+            totals={getCartTotals()} 
+            onCheckout={handleCheckout}
+            isLoading={cartStore.loading}
+          />
+          {/* Removed duplicate checkout button */}
         </div>
       </div>
     </div>

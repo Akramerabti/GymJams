@@ -10,8 +10,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import useCartStore from '@/stores/cartStore'; // Import the useCartStore
 
 const ProductGrid = ({ products = [], onProductClick }) => {
+  const cartStore = useCartStore(); // Initialize the cart store
+
   const constructImageUrl = (path) => {
     if (!path) return '/placeholder-image.jpg';
     return path.startsWith('http') ? path : `${import.meta.env.VITE_API_URL}${path}`;
@@ -35,9 +38,19 @@ const ProductGrid = ({ products = [], onProductClick }) => {
     return { original: product.price, hasDiscount: false };
   };
 
+  const handleAddToCart = (e, product) => {
+    e.stopPropagation(); // Prevent the card's onClick from firing
+    const productToAdd = {
+      ...product,
+      id: product._id,
+      quantity: 1, // Default quantity
+    };
+    cartStore.addItem(productToAdd); // Add the product to the cart
+  };
+
   return (
     <div className="grid grid-cols-2  xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-      {console.log('products',products)}
+      {console.log('products', products)}
       {products.map((product) => {
         const price = getPrice(product);
         const isOutOfStock = product.stockQuantity === 0;
@@ -88,10 +101,7 @@ const ProductGrid = ({ products = [], onProductClick }) => {
                         variant="secondary"
                         className="h-8 w-8 bg-white hover:bg-gray-100"
                         disabled={isOutOfStock}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Add to cart logic
-                        }}
+                        onClick={(e) => handleAddToCart(e, product)} // Add to cart logic
                       >
                         <ShoppingCart className="h-4 w-4 text-gray-600" />
                       </Button>

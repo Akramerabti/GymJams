@@ -1,15 +1,16 @@
-// components/Navbar.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X, ShoppingCart, User, Coins, Dumbbell } from 'lucide-react';
 import { useAuth } from '../../stores/authStore';
-import { useCart } from '../../hooks/useCart';
+import { useCart } from '../../hooks/useCart'; // Import useCart hook
 import { usePoints } from '../../hooks/usePoints';
 import { motion, AnimatePresence } from 'framer-motion';
+import useCartStore from '@/stores/cartStore';
 
 const Navbar = () => {
   const { user, logout, isTokenValid } = useAuth();
-  const { cartItems = [] } = useCart();
+  const { items } = useCart(); // Get cart items from useCart
+  const itemCount = useCartStore((state) => state.getItemCount());
   const { balance, fetchPoints } = usePoints();
   const [isOpen, setIsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -19,16 +20,22 @@ const Navbar = () => {
   const getUserrole = (user) => {
     return user?.user?.role || user?.role || '';
   };
-  
+
   // Navigation items based on user role
   const navigationItems = [
     { name: 'Home', path: '/' },
     { name: 'Shop', path: '/shop' },
     { name: 'Coaching', path: '/coaching' },
     { name: 'Games', path: '/games' },
-    { 
-      name: (getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin' ) ? 'Taskforce Dashboard' : 'Gains', 
-      path: (getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin' ) ? '/taskforce-dashboard' : '/gymbros' 
+    {
+      name:
+        getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin'
+          ? 'Taskforce Dashboard'
+          : 'Gains',
+      path:
+        getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin'
+          ? '/taskforce-dashboard'
+          : '/gymbros',
     },
     { name: 'Contact', path: '/contact' },
   ];
@@ -108,17 +115,26 @@ const Navbar = () => {
               </div>
             )}
 
-            {/* Cart Icon */}
+            {/* Cart Icon with Badge */}
             <Link
               to="/cart"
               className="relative text-gray-600 hover:text-blue-600 transition-colors"
             >
               <ShoppingCart className="h-6 w-6 lg:h-7 lg:w-7" />
-              {cartItems.length > 0 && (
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                  {cartItems.length}
-                </span>
-              )}
+              <AnimatePresence>
+                {itemCount > 0 && (
+                  <motion.div
+                    key={itemCount}
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center"
+                  >
+                    {itemCount}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </Link>
 
             {/* User Menu (Logged-in Users) or Login Link */}

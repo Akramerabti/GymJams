@@ -8,14 +8,14 @@ const useCartStore = create(
       items: [],
       loading: false,
       error: null,
-      
+
       // Add item to cart
       addItem: (product, quantity = 1) => {
         const { items } = get();
-        const existingItem = items.find(item => item.id === product.id);
+        const existingItem = items.find((item) => item.id === product.id);
 
         if (existingItem) {
-          const updatedItems = items.map(item =>
+          const updatedItems = items.map((item) =>
             item.id === product.id
               ? { ...item, quantity: item.quantity + quantity }
               : item
@@ -24,40 +24,39 @@ const useCartStore = create(
         } else {
           set({ items: [...items, { ...product, quantity }] });
         }
-        
-        toast({
-          title: "Added to Cart",
-          description: `${product.name} has been added to your cart.`
-        });
+
+        toast.success(`${product.name} has been added to your cart.`);
       },
 
       // Remove item from cart
       removeItem: (productId) => {
         const { items } = get();
-        set({ items: items.filter(item => item.id !== productId) });
+        set({ items: items.filter((item) => item.id !== productId) });
+        toast.success('Item removed from cart.');
       },
 
       // Update item quantity
       updateQuantity: (productId, quantity) => {
         if (quantity < 1) return;
-        
+
         const { items } = get();
-        const updatedItems = items.map(item =>
-          item.id === productId
-            ? { ...item, quantity }
-            : item
+        const updatedItems = items.map((item) =>
+          item.id === productId ? { ...item, quantity } : item
         );
-        
+
         set({ items: updatedItems });
       },
 
       // Clear cart
-      clearCart: () => set({ items: [] }),
+      clearCart: () => {
+        set({ items: [] });
+        toast.success('Cart cleared.');
+      },
 
       // Calculate total price
       getTotal: () => {
         const { items } = get();
-        return items.reduce((total, item) => total + (item.price * item.quantity), 0);
+        return items.reduce((total, item) => total + item.price * item.quantity, 0);
       },
 
       // Get item count
@@ -69,25 +68,27 @@ const useCartStore = create(
       // Check if an item exists in cart
       hasItem: (productId) => {
         const { items } = get();
-        return items.some(item => item.id === productId);
+        return items.some((item) => item.id === productId);
       },
 
       // Get item quantity
       getItemQuantity: (productId) => {
         const { items } = get();
-        const item = items.find(item => item.id === productId);
+        const item = items.find((item) => item.id === productId);
         return item ? item.quantity : 0;
-      }
+      },
     }),
     {
-      name: 'cart-storage'
+      name: 'cart-storage', // Name for localStorage
+      getStorage: () => localStorage, // Use localStorage for persistence
     }
   )
 );
 
+// Custom hook to expose cart state and actions
 export const useCart = () => {
   const store = useCartStore();
-  
+
   return {
     items: store.items,
     loading: store.loading,

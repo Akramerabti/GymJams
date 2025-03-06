@@ -15,14 +15,15 @@ import inventoryService from '../services/inventory.service';
 import { Loader2, AlertTriangle, ShoppingCart, Truck, MapPin, CreditCard, Check, ChevronRight } from 'lucide-react';
 import { useAuth } from '../stores/authStore';
 
-// Initialize Stripe
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
+console.log('Stripe Public Key:', import.meta.env.VITE_STRIPE_PUBLIC_KEY);
+  const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
 // Payment Form Component
 const PaymentForm = ({ clientSecret, onPaymentSuccess, onPaymentError }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
+
   
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -240,19 +241,19 @@ const ShopCheckout = () => {
       if (!validateForm()) {
         return;
       }
-      
-      // Re-validate stock before proceeding
+  
       try {
         setLoading(true);
+  
+        // Validate stock before proceeding
         const isValid = await validateCartStock();
-        
         if (!isValid) {
           const store = useCartStore.getState();
           setStockWarnings(store.stockWarnings);
           toast.error('Some items in your cart are no longer available in the requested quantity.');
           return;
         }
-        
+  
         setStep(2);
       } catch (error) {
         console.error('Error validating stock:', error);
@@ -263,14 +264,19 @@ const ShopCheckout = () => {
     } else if (step === 2) {
       try {
         setLoading(true);
-        
+  
         // Create order and get client secret for payment
         const result = await initiateCheckout({
+          items: items.map((item) => ({
+            id: item.id,
+            quantity: item.quantity,
+          })),
           shippingAddress: formData.shipping,
           billingAddress: formData.billing.sameAsShipping ? formData.shipping : formData.billing,
-          shippingMethod: formData.shippingMethod
+          shippingMethod: formData.shippingMethod,
+          userId: user?.id, // Pass the user ID if authenticated
         });
-        
+  
         if (result.clientSecret) {
           setClientSecret(result.clientSecret);
           setOrderId(result.order._id);

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Star, Minus, Plus, ShoppingCart, Heart, Share2 } from 'lucide-react';
+import { Star, Minus, Plus, ShoppingCart, Heart, Share2, Check } from 'lucide-react';
 import { useCart } from '../../hooks/useCart';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const ProductDetail = ({ product }) => {
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
-  const { addToCart } = useCart();
+  const [isAdded, setIsAdded] = useState(false);
+  const { addItem } = useCart();
 
   const handleQuantityChange = (newQuantity) => {
     if (newQuantity >= 1 && newQuantity <= product.stockQuantity) {
@@ -15,7 +16,19 @@ const ProductDetail = ({ product }) => {
   };
 
   const handleAddToCart = () => {
-    addToCart({ ...product, quantity });
+    const productWithQuantity = {
+      ...product,
+      quantity,
+      id: product._id || product.id, // Ensure ID is properly passed
+    };
+
+    addItem(productWithQuantity); // Add product to cart
+    setIsAdded(true); // Show checkmark animation
+
+    // Reset the button after 1.5 seconds
+    setTimeout(() => {
+      setIsAdded(false);
+    }, 1500);
   };
 
   return (
@@ -54,7 +67,7 @@ const ProductDetail = ({ product }) => {
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
             {product.name}
           </h1>
-          
+
           {/* Price and Rating */}
           <div className="flex items-center justify-between mb-6">
             <div className="text-3xl font-bold text-gray-900">
@@ -113,13 +126,43 @@ const ProductDetail = ({ product }) => {
 
           {/* Action Buttons */}
           <div className="flex space-x-4">
-            <button
+            <motion.button
               onClick={handleAddToCart}
-              className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 flex items-center justify-center space-x-2"
+              className="flex-1 text-white px-6 py-3 rounded-md flex items-center justify-center space-x-2 overflow-hidden"
+              whileTap={{ scale: 0.95 }}
+              animate={{
+                backgroundColor: isAdded ? '#10B981' : '#2563EB',
+              }}
+              transition={{ duration: 0.3 }}
+              disabled={isAdded}
             >
-              <ShoppingCart className="w-5 h-5" />
-              <span>Add to Cart</span>
-            </button>
+              <AnimatePresence mode="wait">
+                {isAdded ? (
+                  <motion.div
+                    key="check"
+                    initial={{ scale: 0, rotate: -90, opacity: 0 }}
+                    animate={{ scale: 1.2, rotate: 0, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, type: 'spring' }}
+                    className="flex items-center justify-center"
+                  >
+                    <Check className="w-6 h-6" />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="cart"
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="flex items-center"
+                  >
+                    <ShoppingCart className="w-5 h-5 mr-2" />
+                    <span>Add to Cart</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.button>
             <button
               className="p-3 border border-gray-300 rounded-md hover:bg-gray-50"
               aria-label="Add to wishlist"

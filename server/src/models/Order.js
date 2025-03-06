@@ -33,7 +33,13 @@ const orderSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false,
+  },
+  email: {
+    type: String,
+    required: function () {
+      return !this.user; 
+    },
   },
   items: [orderItemSchema],
   shippingAddress: {

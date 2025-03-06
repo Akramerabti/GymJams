@@ -23,55 +23,25 @@ const useCartStore = create(
   persist(
     (set, get) => ({
       items: [],
-      loading: false,
-      error: null,
-      stockWarnings: [],
-      checkoutData: null,
-      
-      // Cart Actions
-      addItem: async (product, quantity = 1) => {
+      addItem: (product, quantity = 1) => {
         const { items } = get();
-        const existingItem = items.find(item => item.id === product.id);
-        
-        // Validate stock before adding to cart
-        try {
-          const totalQuantity = existingItem 
-            ? existingItem.quantity + quantity 
-            : quantity;
-            
-          const stockCheck = await inventoryService.validateStock([{ 
-            id: product.id, 
-            quantity: totalQuantity 
-          }]);
-          
-          if (!stockCheck.valid) {
-            const item = stockCheck.outOfStockItems[0];
-            toast.error(
-              `Cannot add to cart: ${item.available === 0 
-                ? 'Out of stock' 
-                : `Only ${item.available} available`}`
-            );
-            return false;
-          }
-          
-          // Add or update item
-          if (existingItem) {
-            const updatedItems = items.map(item =>
-              item.id === product.id
-                ? { ...item, quantity: item.quantity + quantity }
-                : item
-            );
-            set({ items: updatedItems });
-          } else {
-            set({ items: [...items, { ...product, quantity }] });
-          }
-          
-          return true;
-        } catch (error) {
-          console.error('Error adding item to cart:', error);
-          toast.error('Could not add item to cart');
-          return false;
+        const existingItem = items.find((item) => item.id === product.id);
+
+        if (existingItem) {
+          const updatedItems = items.map((item) =>
+            item.id === product.id
+              ? { ...item, quantity: item.quantity + quantity }
+              : item
+          );
+          set({ items: updatedItems });
+        } else {
+          set({ items: [...items, { ...product, quantity }] });
         }
+      },
+
+      getItemCount: () => {
+        const { items } = get();
+        return items.reduce((count, item) => count + item.quantity, 0);
       },
 
       removeItem: (productId) => {
@@ -167,7 +137,9 @@ const useCartStore = create(
           const response = await api.post('/orders', {
             items: items.map(({ id, quantity }) => ({ id, quantity })),
             shippingAddress: checkoutData.shippingAddress || {},
-            billingAddress: checkoutData.billingAddress || {}
+            billingAddress: checkoutData.billingAddress || {},
+            shippingMethod: checkoutData.shippingMethod || 'standard',
+            userId: checkoutData.userId || null
           });
 
           set({ checkoutData: response.data });
@@ -260,6 +232,7 @@ const useCartStore = create(
     }),
     {
       name: 'cart-storage',
+      getStorage: () => localStorage,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         items: state.items,

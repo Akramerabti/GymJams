@@ -4,17 +4,16 @@ import User from '../models/User.js';
 import stripe from '../config/stripe.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
-import { processOrderInventory } from './inventory.controller.js';
 
 // Get all orders for the current user
 export const getOrders = async (req, res) => {
   try {
     const userId = req.user.id;
     const orders = await Order.find({ user: userId }).populate('items.product');
-    res.status(200).json({ success: true, orders });
+    res.status(200).json({ orders });
   } catch (error) {
     logger.error('Error fetching orders:', error);
-    res.status(500).json({ success: false, message: 'Error fetching orders' });
+    res.status(500).json({ message: 'Error fetching orders' });
   }
 };
 
@@ -26,97 +25,128 @@ export const getOrderDetails = async (req, res) => {
 
     const order = await Order.findOne({ _id: id, user: userId }).populate('items.product');
     if (!order) {
-      return res.status(404).json({ success: false, message: 'Order not found' });
+      return res.status(404).json({ message: 'Order not found' });
     }
 
-    res.status(200).json({ success: true, order });
+    res.status(200).json({ order });
   } catch (error) {
     logger.error('Error fetching order details:', error);
-    res.status(500).json({ success: false, message: 'Error fetching order details' });
+    res.status(500).json({ message: 'Error fetching order details' });
   }
 };
 
-// Create a new order
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const { items, shippingAddress, billingAddress } = req.body;
-    const userId = req.user.id;
+    // Extract order data from request body
+    const { items, shippingAddress, billingAddress, shippingMethod = 'standard', userId } = req.body;
 
-    // 1. Validate items are in stock
+    const isGuest = !userId;
+    
+    if (!items || !items.length) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'No items provided' });
+    }
+
+    if (!shippingAddress) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'Shipping address is required' });
+    }
+
+    // For guest orders, ensure email is provided
+    if (isGuest && !shippingAddress.email) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'Email is required for guest orders' });
+    }
+
+    // 1. Validate items and check stock
+    const orderItems = [];
+    let subtotal = 0;
+
     for (const item of items) {
+      console.log('item:', item);
+      // Make sure all properties exist
+      if (!item.id) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: 'Product ID is required for all items' });
+      }
+
       const product = await Product.findById(item.id).session(session);
       
       if (!product) {
         await session.abortTransaction();
         session.endSession();
-        return res.status(404).json({ 
-          success: false, 
-          message: `Product not found: ${item.id}` 
-        });
+        return res.status(404).json({ message: `Product not found: ${item.id}` });
       }
       
       if (product.stockQuantity < item.quantity) {
         await session.abortTransaction();
         session.endSession();
         return res.status(400).json({
-          success: false,
           message: `Insufficient stock for ${product.name}. Available: ${product.stockQuantity}, Requested: ${item.quantity}`
         });
       }
-    }
 
-    // 2. Calculate order total
-    let subtotal = 0;
-    const orderItems = [];
-
-    for (const item of items) {
-      const product = await Product.findById(item.id).session(session);
-      const price = product.price;
+      // Calculate price (handle discounts if needed)
+      let price = product.price;
+      if (product.discount && 
+          product.discount.percentage && 
+          new Date(product.discount.startDate) <= new Date() && 
+          new Date(product.discount.endDate) >= new Date()) {
+        const discountAmount = (price * product.discount.percentage) / 100;
+        price = price - discountAmount;
+      }
       
       orderItems.push({
-        product: item.id,
+        product: product._id,
         quantity: item.quantity,
-        price
+        price: price
       });
       
       subtotal += price * item.quantity;
     }
 
-    // 3. Calculate shipping, tax, etc.
-    const shipping = subtotal > 100 ? 0 : 10; // Free shipping over $100
-    const tax = Math.round(subtotal * 0.08 * 100) / 100; // 8% tax, rounded to 2 decimal places
-    const total = subtotal + shipping + tax;
+    // 2. Calculate shipping, tax, etc.
+    const shippingCost = calculateShippingCost(subtotal, shippingMethod);
+    const tax = Math.round(subtotal * 0.08 * 100) / 100; // 8% tax
+    const total = subtotal + shippingCost + tax;
 
-    // 4. Create the order
+    // 3. Create the order
     const order = new Order({
-      user: userId,
+      user: userId, // Will be null for guest checkout
+      email: shippingAddress.email, // Required for guest checkout
       items: orderItems,
       shippingAddress,
-      billingAddress,
+      billingAddress: billingAddress || shippingAddress,
+      shippingMethod,
       subtotal,
-      shipping,
+      shippingCost,
       tax,
       total,
       status: 'pending',
-      paymentStatus: 'pending'
+      paymentStatus: 'pending',
+      guestOrder: isGuest
     });
 
     await order.save({ session });
     
-    // 5. Create Stripe payment intent
+    // 4. Create Stripe payment intent
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(total * 100), // Convert to cents
       currency: 'usd',
       metadata: { 
         orderId: order._id.toString(),
-        userId: userId.toString()
+        userId: userId ? userId.toString() : 'guest'
       }
     });
 
-    // 6. Update order with payment intent ID
+    // 5. Update order with payment intent ID
     order.paymentIntentId = paymentIntent.id;
     await order.save({ session });
 
@@ -124,7 +154,6 @@ export const createOrder = async (req, res) => {
     session.endSession();
 
     res.status(201).json({
-      success: true,
       order,
       clientSecret: paymentIntent.client_secret
     });
@@ -133,7 +162,7 @@ export const createOrder = async (req, res) => {
     session.endSession();
     
     logger.error('Error creating order:', error);
-    res.status(500).json({ success: false, message: 'Error creating order' });
+    res.status(500).json({ message: 'Error creating order' });
   }
 };
 
@@ -151,10 +180,7 @@ export const processPayment = async (req, res) => {
     if (paymentIntent.status !== 'succeeded') {
       await session.abortTransaction();
       session.endSession();
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Payment not successful' 
-      });
+      return res.status(400).json({ message: 'Payment not successful' });
     }
     
     const orderId = paymentIntent.metadata.orderId;
@@ -165,10 +191,7 @@ export const processPayment = async (req, res) => {
     if (!order) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Order not found' 
-      });
+      return res.status(404).json({ message: 'Order not found' });
     }
     
     // 3. Update order status
@@ -179,7 +202,13 @@ export const processPayment = async (req, res) => {
     await order.save({ session });
     
     // 4. Update inventory
-    await processOrderInventory(order, session);
+    for (const item of order.items) {
+      await Product.findByIdAndUpdate(
+        item.product,
+        { $inc: { stockQuantity: -item.quantity } },
+        { session }
+      );
+    }
     
     // 5. Add points to user if they have an account
     if (order.user) {
@@ -197,7 +226,6 @@ export const processPayment = async (req, res) => {
     session.endSession();
     
     res.status(200).json({
-      success: true,
       order,
       message: 'Payment processed successfully'
     });
@@ -206,10 +234,7 @@ export const processPayment = async (req, res) => {
     session.endSession();
     
     logger.error('Error processing payment:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error processing payment' 
-    });
+    res.status(500).json({ message: 'Error processing payment' });
   }
 };
 
@@ -220,22 +245,30 @@ export const cancelOrder = async (req, res) => {
 
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = req.user?.id;
+    
+    // Find the order (include guest orders if the email matches)
+    const orderQuery = { _id: id };
+    if (userId) {
+      orderQuery.user = userId;
+    } else if (req.body.email) {
+      orderQuery.email = req.body.email;
+    } else {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    // Check if order is in a cancellable state
+    orderQuery.status = { $nin: ['delivered', 'cancelled'] };
     
     // 1. Find the order
-    const order = await Order.findOne({ 
-      _id: id, 
-      user: userId,
-      status: { $nin: ['delivered', 'cancelled'] }
-    }).session(session);
+    const order = await Order.findOne(orderQuery).session(session);
     
     if (!order) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Order not found or cannot be cancelled' 
-      });
+      return res.status(404).json({ message: 'Order not found or cannot be cancelled' });
     }
     
     // 2. If payment was made, process refund
@@ -277,7 +310,6 @@ export const cancelOrder = async (req, res) => {
     session.endSession();
     
     res.status(200).json({
-      success: true,
       order,
       message: 'Order cancelled successfully'
     });
@@ -286,10 +318,7 @@ export const cancelOrder = async (req, res) => {
     session.endSession();
     
     logger.error('Error cancelling order:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error cancelling order' 
-    });
+    res.status(500).json({ message: 'Error cancelling order' });
   }
 };
 
@@ -361,7 +390,13 @@ const handleSuccessfulPayment = async (paymentIntent) => {
     await order.save({ session });
     
     // Update inventory
-    await processOrderInventory(order, session);
+    for (const item of order.items) {
+      await Product.findByIdAndUpdate(
+        item.product,
+        { $inc: { stockQuantity: -item.quantity } },
+        { session }
+      );
+    }
     
     // Add points to user
     if (order.user) {
@@ -403,4 +438,13 @@ const handleFailedPayment = async (paymentIntent) => {
   } catch (error) {
     logger.error('Error handling failed payment webhook:', error);
   }
+};
+
+// Helper function to calculate shipping cost
+const calculateShippingCost = (subtotal, shippingMethod) => {
+  if (subtotal >= 100) {
+    return 0; // Free shipping for orders over $100
+  }
+  
+  return shippingMethod === 'express' ? 25 : 10; // $25 for express, $10 for standard
 };

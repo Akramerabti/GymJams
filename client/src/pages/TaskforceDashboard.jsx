@@ -5,6 +5,8 @@ import Support from '../pages/Taskforce/Support';
 import Products from '../pages/Taskforce/Products';
 import useAuthStore from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
+import InventoryManagement from '../pages/Taskforce/InventoryManagement';
+
 
 const TaskforceDashboard = () => {
   const [activeTab, setActiveTab] = useState(0);  // ✅ Fix: Define activeTab state
@@ -34,6 +36,7 @@ const TaskforceDashboard = () => {
           <Tab label="Products" />
           <Tab label="Applications" />
           <Tab label="Support" />
+          <Tab label="Inventory Management" />
           
         </Tabs>
       </Box>
@@ -41,6 +44,7 @@ const TaskforceDashboard = () => {
         {activeTab === 0 && <Products />}
         {activeTab === 1 && <Applications />}
         {activeTab === 2 && <Support />}
+        {activeTab === 3 && <InventoryManagement/>}
         
       </div>
     </div>

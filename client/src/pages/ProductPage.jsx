@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Shield,
   ChevronLeft,
+  Check
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +23,8 @@ import {
 import { formatCurrency } from '@/utils/formatters';
 import productService from '@/services/product.service';
 import { useAuth } from '@/stores/authStore';
-import  useCartStore from '@/stores/cartStore';
+import useCartStore from '@/stores/cartStore';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const constructImageUrl = (path) => {
   if (!path) return null;
@@ -38,6 +40,7 @@ const ProductPage = ({ isPreview = false }) => {
   const [quantity, setQuantity] = useState(1);
   const [isWishlist, setIsWishlist] = useState(false);
   const [showCopied, setShowCopied] = useState(false);
+  const [isAdded, setIsAdded] = useState(false);
   const { user, logout, checkAuth } = useAuth();
   const cartStore = useCartStore();
 
@@ -128,8 +131,23 @@ const ProductPage = ({ isPreview = false }) => {
   };
 
   const handleAddToCartClick = async () => {
-    await cartStore.addItem({ ...product, id: product._id }, quantity);
-    alert('Added to cart');
+    // Create a product object with the required properties
+    const productToAdd = { 
+      ...product, 
+      id: product._id,
+      quantity: quantity
+    };
+    
+    // Add the item to the cart
+    await cartStore.addItem(productToAdd, quantity);
+    
+    // Show the animation
+    setIsAdded(true);
+    
+    // Reset after animation
+    setTimeout(() => {
+      setIsAdded(false);
+    }, 1500);
   };
 
   return (
@@ -200,10 +218,39 @@ const ProductPage = ({ isPreview = false }) => {
               </div>
 
               <div className="flex items-center space-x-4">
-                <Button className="flex-1" onClick={handleAddToCartClick}>
-                  <ShoppingCart className="h-5 w-5 mr-2" />
-                  Add to Cart
-                </Button>
+                <motion.button
+                  className={`flex-1 flex items-center justify-center px-4 py-2 font-medium text-white rounded-md ${isAdded ? 'bg-green-600' : 'bg-blue-600 hover:bg-blue-700'}`}
+                  whileTap={{ scale: 0.95 }}
+                  disabled={isAdded}
+                  onClick={handleAddToCartClick}
+                >
+                  <AnimatePresence mode="wait">
+                    {isAdded ? (
+                      <motion.div
+                        key="check"
+                        initial={{ scale: 0, rotate: -90, opacity: 0 }}
+                        animate={{ scale: 1.2, rotate: 0, opacity: 1 }}
+                        exit={{ scale: 0, opacity: 0 }}
+                        transition={{ duration: 0.3, type: "spring" }}
+                        className="flex items-center justify-center"
+                      >
+                        <Check className="w-6 h-6" />
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="cart"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="flex items-center"
+                      >
+                        <ShoppingCart className="h-5 w-5 mr-2" />
+                        <span>Add to Cart</span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
                 <Button variant="outline" onClick={handleWishlistClick}>
                   <Heart className={`h-5 w-5 ${isWishlist ? 'text-red-500 fill-current' : ''}`} />
                 </Button>
