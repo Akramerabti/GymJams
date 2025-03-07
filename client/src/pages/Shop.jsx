@@ -143,7 +143,7 @@ const Shop = () => {
   const FilterPanel = ({ inSheet = false }) => (
     <div className="space-y-6">
       <div className="space-y-4">
-        <div className={`font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+        <div className={`font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-200'}`}>
           Categories
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -154,7 +154,7 @@ const Shop = () => {
               className={`w-full justify-start ${
                 isDarkMode && filters.category !== category 
                   ? 'hover:bg-gray-700 text-gray-200 border-gray-600' 
-                  : ''
+                  : 'text-gray-100 hover:bg-gray-700'
               }`}
               onClick={() => updateFilter('category', category)}
             >
@@ -165,7 +165,7 @@ const Shop = () => {
       </div>
 
       <div className="space-y-4">
-        <div className={`font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+        <div className={`font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-200'}`}>
           Price Range
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -176,7 +176,7 @@ const Shop = () => {
               className={`w-full justify-start ${
                 isDarkMode && filters.priceRange !== range.value 
                   ? 'hover:bg-gray-700 text-gray-200 border-gray-600' 
-                  : ''
+                  : 'text-gray-100 hover:bg-gray-700'
               }`}
               onClick={() => updateFilter('priceRange', range.value)}
             >
@@ -187,11 +187,11 @@ const Shop = () => {
       </div>
 
       <div className="space-y-4">
-        <div className={`font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+        <div className={`font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-200'}`}>
           Sort By
         </div>
         <Select value={filters.sort} onValueChange={(value) => updateFilter('sort', value)}>
-          <SelectTrigger className={`w-full ${isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-200' : 'bg-white'}`}>
+          <SelectTrigger className={`w-full ${isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-200 ' : 'bg-white'}`}>
             <SelectValue placeholder="Sort by..." />
           </SelectTrigger>
           <SelectContent className={isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-200' : 'bg-white'}>
@@ -269,7 +269,7 @@ const Shop = () => {
                         : 'bg-white'
                     }`}
                   >
-                    <SlidersHorizontal className="h-4 w-4 mr-2" />
+                    <SlidersHorizontal className="h-4 w-4 mr-2 " />
                     Filters
                     {activeFilters > 0 && (
                       <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground w-5 h-5 rounded-full text-xs flex items-center justify-center">
@@ -280,7 +280,7 @@ const Shop = () => {
                 </SheetTrigger>
                 <SheetContent className={isDarkMode ? 'bg-gray-900 border-gray-800' : ''}>
                   <SheetHeader>
-                    <SheetTitle className={isDarkMode ? 'text-white' : ''}>Filters</SheetTitle>
+                    <SheetTitle className={isDarkMode ? 'text-white' : 'text-white'}>Filters</SheetTitle>
                   </SheetHeader>
                   <div className="mt-6">
                     <FilterPanel inSheet={true} />

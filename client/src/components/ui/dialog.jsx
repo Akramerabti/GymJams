@@ -2,10 +2,16 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils"; // Ensure you have a utility function for classnames
 
+// Root component for the dialog
 export const Dialog = DialogPrimitive.Root;
+
+// Trigger component to open the dialog
 export const DialogTrigger = DialogPrimitive.Trigger;
+
+// Close component to close the dialog
 export const DialogClose = DialogPrimitive.Close;
 
+// Content component for the dialog
 export const DialogContent = ({ className, children, ...props }) => (
   <DialogPrimitive.Portal>
     <DialogPrimitive.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
@@ -24,8 +30,29 @@ export const DialogContent = ({ className, children, ...props }) => (
   </DialogPrimitive.Portal>
 );
 
-export const DialogHeader = ({ children, className }) => (
-  <div className={cn("mb-4 text-xl font-bold", className)}>{children}</div>
+// Header component for the dialog
+export const DialogHeader = ({ className, children, ...props }) => (
+  <div className={cn("mb-4 text-xl font-bold", className)} {...props}>
+    {children}
+  </div>
 );
 
+// Title component for the dialog
 export const DialogTitle = DialogPrimitive.Title;
+
+// Description component for the dialog
+export const DialogDescription = DialogPrimitive.Description;
+
+// Body component for the dialog (for main content)
+export const DialogBody = ({ className, children, ...props }) => (
+  <div className={cn("mb-6", className)} {...props}>
+    {children}
+  </div>
+);
+
+// Footer component for the dialog (for actions like buttons)
+export const DialogFooter = ({ className, children, ...props }) => (
+  <div className={cn("flex justify-end gap-2", className)} {...props}>
+    {children}
+  </div>
+);

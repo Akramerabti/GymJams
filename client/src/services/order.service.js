@@ -1,7 +1,6 @@
 import api from './api';
 
 const orderService = {
-  
   async createOrder(orderData) {
     try {
       const response = await api.post('/orders', orderData);
@@ -11,7 +10,6 @@ const orderService = {
       throw error;
     }
   },
-
 
   async getOrder(orderId) {
     if (!orderId) {
@@ -47,8 +45,7 @@ const orderService = {
   async getUserOrders() {
     try {
       const response = await api.get('/orders');
-
-      console.log('User orders:', response.data?.orders);
+      console.log('User orders response:', response.data);
       return response.data?.orders || [];
     } catch (error) {
       console.error('Failed to fetch user orders:', error);
@@ -57,13 +54,46 @@ const orderService = {
   },
 
   async cancelOrder(orderId) {
-    const response = await api.post(`/orders/${orderId}/cancel`);
-    return response.data;
+    try {
+      const response = await api.post(`/orders/${orderId}/cancel`);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to cancel order ${orderId}:`, error);
+      throw error;
+    }
   },
 
   async getOrderTracking(orderId) {
-    const response = await api.get(`/orders/${orderId}/tracking`);
-    return response.data;
+    try {
+      const response = await api.get(`/orders/${orderId}/tracking`);
+      console.log('Order tracking response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to get tracking for order ${orderId}:`, error);
+      throw error;
+    }
+  },
+  
+  // Add this method for updating an existing order
+  async updateOrder(orderId, orderData) {
+    try {
+      const response = await api.put(`/orders/${orderId}`, orderData);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to update order ${orderId}:`, error);
+      throw error;
+    }
+  },
+  
+  // Add this method for processing payment
+  async processPayment(paymentIntentId) {
+    try {
+      const response = await api.post('/orders/payment', { paymentIntentId });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to process payment:', error);
+      throw error;
+    }
   }
 };
 

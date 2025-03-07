@@ -4,10 +4,12 @@ import {
   getOrders,
   getOrderDetails,
   createOrder,
-  updateOrder, // Add this new controller
+  updateOrder,
   processPayment,
   cancelOrder,
-  handleStripeWebhook
+  handleStripeWebhook,
+  getGuestOrder,
+  updateOrderEmail
 } from '../controllers/order.controller.js';
 
 const router = express.Router();
@@ -25,16 +27,22 @@ router.get('/', optionalAuthenticate, getOrders);
 // Get order details
 router.get('/:id', optionalAuthenticate, getOrderDetails);
 
+// Look up guest order by email and order ID
+router.post('/guest/lookup', getGuestOrder);
+
 // Create a new order
 router.post('/', optionalAuthenticate, createOrder);
 
 // Update an existing order
-router.put('/:id', optionalAuthenticate, updateOrder); // Add this new route
+router.put('/:id', optionalAuthenticate, updateOrder);
 
 // Process payment (after Stripe confirmation)
 router.post('/payment', optionalAuthenticate, processPayment);
 
 // Cancel an order
 router.post('/:id/cancel', optionalAuthenticate, cancelOrder);
+
+router.put('/:id/email', optionalAuthenticate, updateOrderEmail);
+
 
 export default router;

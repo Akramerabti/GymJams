@@ -81,11 +81,10 @@ export const createOrder = async (req, res) => {
   session.startTransaction();
 
   try {
-    // Extract order data from request body
     const { items, shippingAddress, billingAddress, shippingMethod = 'standard', userId } = req.body;
 
     const isGuest = !userId;
-    
+
     if (!items || !items.length) {
       await session.abortTransaction();
       session.endSession();
@@ -98,19 +97,11 @@ export const createOrder = async (req, res) => {
       return res.status(400).json({ message: 'Shipping address is required' });
     }
 
-    // For guest orders, ensure email is provided
-    if (isGuest && !shippingAddress.email) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ message: 'Email is required for guest orders' });
-    }
-
-    // 1. Validate items and check stock
+    // Validate items and check stock
     const orderItems = [];
     let subtotal = 0;
 
     for (const item of items) {
-      // Make sure all properties exist
       if (!item.id) {
         await session.abortTransaction();
         session.endSession();
@@ -118,49 +109,44 @@ export const createOrder = async (req, res) => {
       }
 
       const product = await Product.findById(item.id).session(session);
-      
+
       if (!product) {
         await session.abortTransaction();
         session.endSession();
         return res.status(404).json({ message: `Product not found: ${item.id}` });
       }
-      
+
       if (product.stockQuantity < item.quantity) {
         await session.abortTransaction();
         session.endSession();
         return res.status(400).json({
-          message: `Insufficient stock for ${product.name}. Available: ${product.stockQuantity}, Requested: ${item.quantity}`
+          message: `Insufficient stock for ${product.name}. Available: ${product.stockQuantity}, Requested: ${item.quantity}`,
         });
       }
 
-      // Calculate price (handle discounts if needed)
       let price = product.price;
-      if (product.discount && 
-          product.discount.percentage && 
-          new Date(product.discount.startDate) <= new Date() && 
-          new Date(product.discount.endDate) >= new Date()) {
+      if (product.discount && product.discount.percentage && new Date(product.discount.startDate) <= new Date() && new Date(product.discount.endDate) >= new Date()) {
         const discountAmount = (price * product.discount.percentage) / 100;
         price = price - discountAmount;
       }
-      
+
       orderItems.push({
         product: product._id,
         quantity: item.quantity,
-        price: price
+        price: price,
       });
-      
+
       subtotal += price * item.quantity;
     }
 
-    // 2. Calculate shipping, tax, etc.
     const shippingCost = calculateShippingCost(subtotal, shippingMethod);
     const tax = Math.round(subtotal * 0.08 * 100) / 100; // 8% tax
     const total = subtotal + shippingCost + tax;
 
-    // 3. Create the order
+    // Create the order without requiring an email for guest users
     const order = new Order({
       user: userId, // Will be null for guest checkout
-      email: shippingAddress.email, // Required for guest checkout
+      email: shippingAddress.email || null, // Allow null for guest orders
       items: orderItems,
       shippingAddress,
       billingAddress: billingAddress || shippingAddress,
@@ -171,22 +157,22 @@ export const createOrder = async (req, res) => {
       total,
       status: 'pending',
       paymentStatus: 'pending',
-      guestOrder: isGuest
+      guestOrder: isGuest,
     });
 
     await order.save({ session });
-    
-    // 4. Create Stripe payment intent
+
+    // Create a payment intent
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(total * 100), // Convert to cents
       currency: 'usd',
-      metadata: { 
+      metadata: {
         orderId: order._id.toString(),
-        userId: userId ? userId.toString() : 'guest'
-      }
+        userId: userId ? userId.toString() : 'guest',
+      },
     });
 
-    // 5. Update order with payment intent ID
+    // Update the order with the payment intent ID
     order.paymentIntentId = paymentIntent.id;
     await order.save({ session });
 
@@ -195,12 +181,12 @@ export const createOrder = async (req, res) => {
 
     res.status(201).json({
       order,
-      clientSecret: paymentIntent.client_secret
+      clientSecret: paymentIntent.client_secret,
     });
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    
+
     logger.error('Error creating order:', error);
     res.status(500).json({ message: 'Error creating order' });
   }
@@ -739,7 +725,6 @@ const calculateShippingCost = (subtotal, shippingMethod) => {
   return shippingMethod === 'express' ? 25 : 10; // $25 for express, $10 for standard
 };
 
-// Add this function to order.controller.js
 export const updateOrder = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -748,30 +733,26 @@ export const updateOrder = async (req, res) => {
     const { id } = req.params;
     const { items, shippingAddress, billingAddress, shippingMethod = 'standard', userId } = req.body;
 
-    // Validate orderId
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({ message: 'Invalid order ID format' });
     }
 
-    // Find the existing order - don't restrict by user since it might be a guest order initially
     const order = await Order.findById(id).session(session);
-    
+
     if (!order) {
       await session.abortTransaction();
       session.endSession();
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    // Make sure the order is in a state that can be updated
     if (order.status !== 'pending' || order.paymentStatus !== 'pending') {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({ message: 'Order cannot be modified' });
     }
 
-    // Update order items and check stock
     if (items && items.length > 0) {
       const orderItems = [];
       let subtotal = 0;
@@ -784,49 +765,43 @@ export const updateOrder = async (req, res) => {
         }
 
         const product = await Product.findById(item.id).session(session);
-        
+
         if (!product) {
           await session.abortTransaction();
           session.endSession();
           return res.status(404).json({ message: `Product not found: ${item.id}` });
         }
-        
+
         if (product.stockQuantity < item.quantity) {
           await session.abortTransaction();
           session.endSession();
           return res.status(400).json({
-            message: `Insufficient stock for ${product.name}. Available: ${product.stockQuantity}, Requested: ${item.quantity}`
+            message: `Insufficient stock for ${product.name}. Available: ${product.stockQuantity}, Requested: ${item.quantity}`,
           });
         }
 
-        // Calculate price (handle discounts if needed)
         let price = product.price;
-        if (product.discount && 
-            product.discount.percentage && 
-            new Date(product.discount.startDate) <= new Date() && 
-            new Date(product.discount.endDate) >= new Date()) {
+        if (product.discount && product.discount.percentage && new Date(product.discount.startDate) <= new Date() && new Date(product.discount.endDate) >= new Date()) {
           const discountAmount = (price * product.discount.percentage) / 100;
           price = price - discountAmount;
         }
-        
+
         orderItems.push({
           product: product._id,
           quantity: item.quantity,
-          price: price
+          price: price,
         });
-        
+
         subtotal += price * item.quantity;
       }
 
-      // Update order items
       order.items = orderItems;
       order.subtotal = subtotal;
     }
 
-    // Update shipping, billing info
     if (shippingAddress) {
       order.shippingAddress = shippingAddress;
-      
+
       // If this is a guest order getting a user ID, update the user field
       if (userId && !order.user) {
         order.user = userId;
@@ -841,7 +816,6 @@ export const updateOrder = async (req, res) => {
       order.shippingMethod = shippingMethod;
     }
 
-    // Recalculate totals
     const shippingCost = calculateShippingCost(order.subtotal || 0, order.shippingMethod);
     const tax = Math.round((order.subtotal || 0) * 0.08 * 100) / 100; // 8% tax
     const total = (order.subtotal || 0) + shippingCost + tax;
@@ -850,33 +824,26 @@ export const updateOrder = async (req, res) => {
     order.tax = tax;
     order.total = total;
 
-    // Save updated order
     await order.save({ session });
 
-    // If we already have a payment intent, update it with the new total
     if (order.paymentIntentId) {
-      await stripe.paymentIntents.update(
-        order.paymentIntentId,
-        {
-          amount: Math.round(total * 100), // Convert to cents
-          metadata: { 
-            orderId: order._id.toString(),
-            userId: userId ? userId.toString() : 'guest'
-          }
-        }
-      );
+      await stripe.paymentIntents.update(order.paymentIntentId, {
+        amount: Math.round(total * 100), // Convert to cents
+        metadata: {
+          orderId: order._id.toString(),
+          userId: userId ? userId.toString() : 'guest',
+        },
+      });
     } else {
-      // Create a new payment intent
       const paymentIntent = await stripe.paymentIntents.create({
         amount: Math.round(total * 100), // Convert to cents
         currency: 'usd',
-        metadata: { 
+        metadata: {
           orderId: order._id.toString(),
-          userId: userId ? userId.toString() : 'guest'
-        }
+          userId: userId ? userId.toString() : 'guest',
+        },
       });
 
-      // Update order with payment intent ID
       order.paymentIntentId = paymentIntent.id;
       await order.save({ session });
     }
@@ -884,20 +851,99 @@ export const updateOrder = async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-    // Fetch the saved order with populated items
     const updatedOrder = await Order.findById(id).populate('items.product');
 
     res.status(200).json({
       order: updatedOrder,
-      clientSecret: updatedOrder.paymentIntentId 
+      clientSecret: updatedOrder.paymentIntentId
         ? (await stripe.paymentIntents.retrieve(updatedOrder.paymentIntentId)).client_secret
-        : null
+        : null,
     });
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    
+
     logger.error('Error updating order:', error);
     res.status(500).json({ message: 'Error updating order' });
+  }
+};
+
+export const getGuestOrder = async (req, res) => {
+  try {
+    const { orderId, email } = req.body;
+
+    if (!orderId || !email) {
+      return res.status(400).json({ message: 'Order ID and email are required' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      logger.error(`Invalid order ID format: ${orderId}`);
+      return res.status(400).json({ message: 'Invalid order ID format' });
+    }
+
+    const order = await Order.findOne({
+      _id: orderId,
+      email: email.toLowerCase(),
+    }).populate({
+      path: 'items.product',
+      select: 'name price images category stockQuantity',
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found for the provided email' });
+    }
+
+    return res.status(200).json({ order });
+  } catch (error) {
+    logger.error('Error fetching guest order details:', error);
+    return res.status(500).json({ message: 'Error fetching order details' });
+  }
+};
+
+export const updateOrderEmail = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { id } = req.params;
+    const { email } = req.body;
+
+    if (!email) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'Invalid email format' });
+    }
+
+    // Find the order
+    const order = await Order.findById(id).session(session);
+
+    if (!order) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Update the order with the email
+    order.email = email;
+    await order.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({ order });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+
+    logger.error('Error updating order email:', error);
+    res.status(500).json({ message: 'Error updating order email' });
   }
 };

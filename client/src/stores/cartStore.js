@@ -196,57 +196,58 @@ const useCartStore = create(
        * @returns {Object} - The order and payment info
        */
       // Modified initiateCheckout function in cartStore.js
-initiateCheckout: async (checkoutData) => {
-  const { items, validateCartStock } = get();
-  set({ loading: true, error: null });
-
-  try {
-    // First validate stock
-    const isStockValid = await validateCartStock();
-    if (!isStockValid) {
-      throw new Error('Some items in your cart are unavailable');
-    }
-
-    // Check if we already have an orderId stored in state
-    const existingOrderId = get().checkoutData?.order?._id;
-    
-    let endpoint = '/orders';
-    let method = 'post';
-    
-    // If we already have an order, update it instead of creating a new one
-    if (existingOrderId) {
-      endpoint = `/orders/${existingOrderId}`;
-      method = 'put';
-    }
-
-    // Create or update order with retry logic
-    const response = await retryWithBackoff(() => 
-      api({
-        method: method,
-        url: endpoint,
-        data: {
-          items: items.map(({ id, quantity }) => ({ id, quantity })),
-          shippingAddress: checkoutData.shippingAddress || {},
-          billingAddress: checkoutData.billingAddress || {},
-          shippingMethod: checkoutData.shippingMethod || 'standard',
-          userId: checkoutData.userId || null
+      initiateCheckout: async (checkoutData) => {
+        const { items, validateCartStock } = get();
+        set({ loading: true, error: null });
+      
+        try {
+          // First validate stock
+          const isStockValid = await validateCartStock();
+          if (!isStockValid) {
+            throw new Error('Some items in your cart are unavailable');
+          }
+      
+          // Check if we already have an orderId stored in state
+          const existingOrderId = get().checkoutData?.order?._id;
+      
+          let endpoint = '/orders';
+          let method = 'post';
+      
+          // If we already have an order, update it instead of creating a new one
+          if (existingOrderId) {
+            endpoint = `/orders/${existingOrderId}`;
+            method = 'put';
+          }
+      
+          // Create or update order with retry logic
+          const response = await retryWithBackoff(() =>
+            api({
+              method: method,
+              url: endpoint,
+              data: {
+                items: items.map(({ id, quantity }) => ({ id, quantity })),
+                shippingAddress: checkoutData.shippingAddress || {},
+                billingAddress: checkoutData.billingAddress || {},
+                shippingMethod: checkoutData.shippingMethod || 'standard',
+                userId: checkoutData.userId || null,
+                isGuest: !checkoutData.userId, // Mark as guest if no userId is provided
+              },
+            })
+          );
+      
+          console.log('Order created/updated successfully:', response.data);
+          set({ checkoutData: response.data });
+          return response.data;
+        } catch (error) {
+          const message = error.response?.data?.message || error.message || 'Checkout failed';
+          console.error('Checkout error:', message);
+          set({ error: message });
+          toast.error(message);
+          throw error;
+        } finally {
+          set({ loading: false });
         }
-      })
-    );
-
-    console.log('Order created/updated successfully:', response.data);
-    set({ checkoutData: response.data });
-    return response.data;
-  } catch (error) {
-    const message = error.response?.data?.message || error.message || 'Checkout failed';
-    console.error('Checkout error:', message);
-    set({ error: message });
-    toast.error(message);
-    throw error;
-  } finally {
-    set({ loading: false });
-  }
-},
+      },
 
       /**
        * Process payment for an order
@@ -279,6 +280,34 @@ initiateCheckout: async (checkoutData) => {
           throw error;
         } finally {
           set({ loading: false, processingPayment: false });
+        }
+      },
+
+      updateGuestEmail: async (email) => {
+        const { checkoutData } = get();
+        set({ loading: true, error: null });
+      
+        try {
+          if (!checkoutData?.order?._id) {
+            throw new Error('No order found to update');
+          }
+      
+          // Update the order with the guest's email
+          const response = await api.put(`/orders/${checkoutData.order._id}`, {
+            shippingAddress: { email },
+          });
+      
+          console.log('Guest email updated successfully:', response.data);
+          set({ checkoutData: response.data });
+          return response.data;
+        } catch (error) {
+          const message = error.response?.data?.message || error.message || 'Failed to update guest email';
+          console.error('Update guest email error:', message);
+          set({ error: message });
+          toast.error(message);
+          throw error;
+        } finally {
+          set({ loading: false });
         }
       },
       

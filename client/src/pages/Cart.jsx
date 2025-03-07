@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import useCartStore from '../stores/cartStore';
 import CartItem from '../components/cart/CartItem';
 import CartSummary from '../components/cart/CartSummary';
@@ -7,6 +7,9 @@ import { ShoppingBag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import useAuthStore from '../stores/authStore';
+import { Input } from '../components/ui/input'; // Import Input component
+import { Label } from '../components/ui/label'; // Import Label component
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog'; // Import Dialog components
 
 const Cart = () => {
   const navigate = useNavigate();
@@ -14,40 +17,88 @@ const Cart = () => {
   const cartStore = useCartStore();
   const { items, getCartTotals, initiateCheckout, validateCartStock } = cartStore;
 
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false); // State to control email modal
+  const [email, setEmail] = useState(''); // State to store the user's email
+
   const getUserId = (user) => {
     return user?.user?.id || user?.id || '';
   };
 
   const handleCheckout = async () => {
-  
     try {
       const isStockValid = await validateCartStock();
-  
+
       if (!isStockValid) {
         toast.error('Some items in your cart are out of stock or have insufficient quantity.');
         return;
       }
-  
+
+      // If the user is logged in, proceed directly to checkout
+      if (user) {
+        const checkoutData = {
+          items: items.map((item) => ({
+            id: item.id,
+            quantity: item.quantity,
+          })),
+          shippingAddress: {
+            email: user.email, // Use the logged-in user's email
+          },
+          billingAddress: {},
+          shippingMethod: 'standard',
+          userId: getUserId(user),
+        };
+
+        const order = await initiateCheckout(checkoutData);
+        console.log('Checkout successful, redirecting to /shop-checkout', order);
+        navigate('/shop-checkout');
+        return;
+      }
+
+      // If the user is a guest, open the email modal
+      setIsEmailModalOpen(true);
+    } catch (error) {
+      console.error('Checkout failed:', error);
+      toast.error('An error occurred during checkout.');
+    }
+  };
+
+  const handleGuestCheckout = async () => {
+    try {
+      // Validate the email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        toast.error('Please enter a valid email address.');
+        return;
+      }
+
+      const isStockValid = await validateCartStock();
+
+      if (!isStockValid) {
+        toast.error('Some items in your cart are out of stock or have insufficient quantity.');
+        return;
+      }
+
       const checkoutData = {
         items: items.map((item) => ({
           id: item.id,
           quantity: item.quantity,
         })),
         shippingAddress: {
-          email: user?.email || '',
+          email: email, // Use the email provided by the guest user
         },
         billingAddress: {},
         shippingMethod: 'standard',
-        userId: getUserId(user),
+        userId: null, // No user ID for guest checkout
       };
-  
+
       const order = await initiateCheckout(checkoutData);
       console.log('Checkout successful, redirecting to /shop-checkout', order);
-  
       navigate('/shop-checkout');
     } catch (error) {
       console.error('Checkout failed:', error);
       toast.error('An error occurred during checkout.');
+    } finally {
+      setIsEmailModalOpen(false); // Close the email modal
     }
   };
 
@@ -72,7 +123,7 @@ const Cart = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">Shopping Cart</h1>
-      
+
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Cart Items */}
         <div className="flex-1">
@@ -92,6 +143,28 @@ const Cart = () => {
           />
         </div>
       </div>
+
+      {/* Email Modal for Guest Users */}
+      <Dialog open={isEmailModalOpen} onOpenChange={setIsEmailModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enter Your Email</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button onClick={handleGuestCheckout}>Proceed to Checkout</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
