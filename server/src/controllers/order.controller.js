@@ -9,30 +9,67 @@ import InventoryTransaction from '../models/InventoryTransaction.js';
 // Get all orders for the current user
 export const getOrders = async (req, res) => {
   try {
+    // Extract user ID from the authenticated user
     const userId = req.user.id;
-    const orders = await Order.find({ user: userId }).populate('items.product');
-    res.status(200).json({ orders });
+    
+    if (!userId || typeof userId !== 'string') {
+      logger.error(`Invalid userId format: ${userId}`);
+      return res.status(400).json({ message: 'Invalid user ID format' });
+    }
+
+    // Validate the userId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      logger.error(`User ID is not a valid ObjectId: ${userId}`);
+      return res.status(400).json({ message: 'Invalid user ID format' });
+    }
+
+    // Find orders for the current user
+    const orders = await Order.find({ user: userId })
+      .populate('items.product')
+      .sort({ createdAt: -1 })
+      .lean(); // Use lean for better performance when you don't need Mongoose documents
+
+    return res.status(200).json({ orders });
   } catch (error) {
     logger.error('Error fetching orders:', error);
-    res.status(500).json({ message: 'Error fetching orders' });
+    return res.status(500).json({ message: 'Error fetching orders' });
   }
 };
 
-// Get a specific order by ID
 export const getOrderDetails = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
 
-    const order = await Order.findOne({ _id: id, user: userId }).populate('items.product');
+    // Validate orderId
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      logger.error(`Invalid order ID format: ${id}`);
+      return res.status(400).json({ message: 'Invalid order ID format' });
+    }
+
+    // Validate userId
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      logger.error(`Invalid user ID format in order details request: ${userId}`);
+      return res.status(400).json({ message: 'Invalid user ID format' });
+    }
+
+    // Find the order with proper population
+    const order = await Order.findOne({ 
+      _id: id, 
+      user: userId 
+    }).populate({
+      path: 'items.product',
+      select: 'name price images category stockQuantity'
+    });
+
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    res.status(200).json({ order });
+    return res.status(200).json({ order });
   } catch (error) {
     logger.error('Error fetching order details:', error);
-    res.status(500).json({ message: 'Error fetching order details' });
+    return res.status(500).json({ message: 'Error fetching order details' });
   }
 };
 
@@ -166,135 +203,284 @@ export const createOrder = async (req, res) => {
   }
 };
 
-// Process successful payment and update inventory
 export const processPayment = async (req, res) => {
-  const maxRetries = 5; // Increased number of retries
+  const maxRetries = 5;
   let retryCount = 0;
   let lastError = null;
+
+  logger.debug(`Starting payment processing for request: ${JSON.stringify(req.body)}`);
 
   while (retryCount < maxRetries) {
     const session = await mongoose.startSession();
     
     try {
+      // Start transaction with proper concurrency control
       session.startTransaction({
         readConcern: { level: 'snapshot' },
-        writeConcern: { w: 'majority', j: true },
-        readPreference: 'primary'
+        writeConcern: { w: 'majority' }
       });
+
+      logger.debug(`Starting transaction (attempt ${retryCount + 1})`);
 
       const { paymentIntentId } = req.body;
 
+      logger.debug(`Processing payment intent: ${paymentIntentId}`);
+
       if (!paymentIntentId) {
+        logger.error('Payment intent ID is required');
         await session.abortTransaction();
         session.endSession();
         return res.status(400).json({ message: 'Payment intent ID is required' });
       }
 
-      // 1. Validate payment intent
       const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+      logger.debug(`Retrieved payment intent: ${JSON.stringify(paymentIntent)}`);
 
-      if (!paymentIntent) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(404).json({ message: 'Payment intent not found' });
-      }
-
-      if (paymentIntent.status !== 'succeeded') {
+      if (!paymentIntent || paymentIntent.status !== 'succeeded') {
+        logger.error('Payment not successful or payment intent not found');
         await session.abortTransaction();
         session.endSession();
         return res.status(400).json({ message: 'Payment not successful' });
       }
 
       const orderId = paymentIntent.metadata.orderId;
+      logger.debug(`Order ID from payment intent metadata: ${orderId}`);
+
       if (!orderId) {
+        logger.error('No order ID found in payment metadata');
         await session.abortTransaction();
         session.endSession();
         return res.status(400).json({ message: 'No order ID found in payment metadata' });
       }
 
-      // 2. Find the order - with explicit locking
-      const order = await Order.findById(orderId).session(session);
+      // Use findOne instead of findById to have more control over the query
+      const order = await Order.findOne({
+        _id: orderId,
+        paymentStatus: { $ne: 'paid' } // Only process if not already paid
+      }).session(session);
+      
+      logger.debug(`Retrieved order: ${JSON.stringify(order)}`);
 
       if (!order) {
+        logger.warn('Order not found or already processed');
         await session.abortTransaction();
         session.endSession();
-        return res.status(404).json({ message: 'Order not found' });
-      }
-
-      // Check if the order has already been processed to avoid double-processing
-      if (order.paymentStatus === 'paid') {
-        // Order already processed, no need to continue with the transaction
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(200).json({
-          order,
-          message: 'Order has already been processed',
+        return res.status(200).json({ 
+          message: 'Order not found or already processed',
+          alreadyProcessed: true
         });
       }
 
-      // 3. Update order status
+      // Update order status
       order.paymentStatus = 'paid';
       order.status = 'processing';
+      await order.save({ session });
+      logger.debug('Order status updated to paid and processing');
 
+      // Update inventory using findOneAndUpdate with optimistic concurrency control
+      for (const item of order.items) {
+        logger.debug(`Updating inventory for product: ${item.product}, quantity: ${item.quantity}`);
+        
+        // First get the current product to check stock
+        const product = await Product.findById(item.product).session(session);
+        
+        if (!product) {
+          throw new Error(`Product ${item.product} not found`);
+        }
+        
+        if (product.stockQuantity < item.quantity) {
+          throw new Error(`Insufficient stock for product ${item.product}`);
+        }
+        
+        // Now update with atomic operation
+        const updatedProduct = await Product.findOneAndUpdate(
+          { 
+            _id: item.product,
+            stockQuantity: { $gte: item.quantity } // Optimistic concurrency control
+          },
+          { $inc: { stockQuantity: -item.quantity } },
+          { new: true, session }
+        );
+        
+        if (!updatedProduct) {
+          throw new Error(`Failed to update inventory for product ${item.product}`);
+        }
+        
+        // Get the user value - either ObjectId or 'guest'
+        const userId = order.user || 'guest';
+        
+        // Create inventory transaction record
+        await new InventoryTransaction({
+          product: item.product,
+          transactionType: 'reduction',
+          quantity: item.quantity,
+          previousQuantity: product.stockQuantity,
+          newQuantity: product.stockQuantity - item.quantity,
+          reason: `Order #${order._id}`,
+          user: userId,
+          orderId: order._id
+        }).save({ session });
+        
+        logger.debug(`Inventory updated for product: ${item.product}`);
+      }
+
+      // If we get here without errors, commit the transaction
+      await session.commitTransaction();
+      session.endSession();
+      logger.debug('Transaction committed successfully');
+
+      return res.status(200).json({ 
+        order, 
+        message: 'Payment processed successfully' 
+      });
+    } catch (error) {
+      // Always abort the transaction on error
+      await session.abortTransaction();
+      session.endSession();
+
+      logger.error(`Error during transaction (attempt ${retryCount + 1}): ${error.message}`);
+      logger.debug(`Error details: ${JSON.stringify(error)}`);
+
+      // Check if this is a retryable error (write conflict or other transient error)
+      const isTransient = 
+        error.code === 112 || // WriteConflict error
+        error.code === 251 || // Transaction aborted due to transaction timeout
+        (error.errorLabels && error.errorLabels.includes("TransientTransactionError")) ||
+        error.message?.includes('Write conflict');
+      
+      if (isTransient && retryCount < maxRetries - 1) {
+        // Exponential backoff with jitter: 2^n * (100-500ms) milliseconds
+        retryCount++;
+        const baseDelay = Math.pow(2, retryCount) * 100;
+        const jitter = Math.floor(Math.random() * 400); // Random number between 0-400
+        const backoffMs = baseDelay + jitter;
+        logger.debug(`Retrying transaction in ${backoffMs}ms...`);
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+        continue;
+      }
+
+      // We've reached max retries or encountered a non-transient error
+      lastError = error;
+      break;
+    }
+  }
+
+  // If we get here, all retries failed
+  logger.error(`Failed to process payment after ${retryCount} attempts`);
+  
+  return res.status(500).json({
+    message: 'Failed to process payment after multiple attempts',
+    error: lastError?.message || 'Transaction conflicts',
+    retryCount
+  });
+};
+
+// Improved helper function to handle successful payments from webhook
+const handleSuccessfulPayment = async (paymentIntent) => {
+  let retryCount = 0;
+  const maxRetries = 5;
+  
+  while (retryCount < maxRetries) {
+    const session = await mongoose.startSession();
+    
+    try {
+      session.startTransaction({
+        readConcern: { level: 'snapshot' },
+        writeConcern: { w: 'majority' }
+      });
+      
+      logger.debug(`Webhook transaction attempt ${retryCount + 1} for payment intent ${paymentIntent.id}`);
+      
+      const orderId = paymentIntent.metadata.orderId;
+      
+      if (!orderId) {
+        logger.error('No orderId found in paymentIntent metadata');
+        await session.abortTransaction();
+        session.endSession();
+        return;
+      }
+      
+      // Use findOne with query conditions instead of findById to ensure atomicity
+      const order = await Order.findOne({
+        _id: orderId,
+        paymentStatus: { $ne: 'paid' } // Only process if not already paid
+      }).session(session);
+      
+      if (!order) {
+        logger.info(`Order ${orderId} not found or already processed, skipping webhook`);
+        await session.abortTransaction();
+        session.endSession();
+        return;
+      }
+      
+      // Update order status
+      order.paymentStatus = 'paid';
+      order.status = 'processing';
+      
       // Handle cases where there might not be charges data yet
       let chargeId = null;
       if (paymentIntent.charges && paymentIntent.charges.data && paymentIntent.charges.data.length > 0) {
         chargeId = paymentIntent.charges.data[0].id;
       } else if (paymentIntent.latest_charge) {
+        // Some payment intents have a direct latest_charge field
         chargeId = paymentIntent.latest_charge;
       }
-
+      
       if (chargeId) {
         order.stripeChargeId = chargeId;
       }
-
+      
       await order.save({ session });
-
-      // 4. Update inventory with improved locking strategy
+      logger.debug(`Order ${orderId} marked as paid via webhook`);
+      
+      // Update inventory with optimistic concurrency control
       for (const item of order.items) {
-        // Find product with explicit lock for update
+        // First get the current product to check stock
         const product = await Product.findById(item.product).session(session);
         
         if (!product) {
-          // Skip if product doesn't exist
-          logger.warn(`Product ${item.product} not found while processing order ${order._id}`);
+          logger.warn(`Product ${item.product} not found during webhook processing`);
           continue;
-        }
-        
-        // Verify stock again in case it changed between transactions
-        if (product.stockQuantity < item.quantity) {
-          // We have already charged the customer, so we need to fulfill the order
-          // Log a warning about negative inventory
-          logger.warn(`Insufficient stock for product ${product._id} while processing order ${order._id}. Allowing negative inventory.`);
         }
         
         const previousQuantity = product.stockQuantity;
         const newQuantity = Math.max(0, previousQuantity - item.quantity);
         
-        // Update product with a specific update query to avoid race conditions
-        await Product.findByIdAndUpdate(
-          item.product,
+        // Use findOneAndUpdate with optimistic concurrency control
+        const updatedProduct = await Product.findOneAndUpdate(
+          { 
+            _id: product._id,
+            stockQuantity: previousQuantity // Ensure no one else updated it
+          },
           { $set: { stockQuantity: newQuantity } },
-          { session, new: true }
+          { new: true, session }
         );
         
-        // Create inventory transaction record
-        const inventoryTransaction = new InventoryTransaction({
+        if (!updatedProduct) {
+          // This means another process updated the product, forcing a retry
+          throw new Error(`Concurrent modification detected for product ${product._id}`);
+        }
+        
+        // Get the user value - either ObjectId or 'guest'
+        const userId = order.user || 'guest';
+        
+        // Create inventory transaction
+        await new InventoryTransaction({
           product: item.product,
           transactionType: 'reduction',
           quantity: item.quantity,
-          previousQuantity: previousQuantity,
-          newQuantity: newQuantity,
-          reason: `Order #${order._id}`,
-          user: order.user || 'guest',
+          previousQuantity,
+          newQuantity,
+          reason: `Order #${order._id} webhook`,
+          user: userId, // Use userId which is either ObjectId or 'guest'
           orderId: order._id,
-          notes: `Inventory reduction due to purchase (attempt ${retryCount + 1})`
-        });
+          notes: 'Inventory reduction due to webhook payment confirmation'
+        }).save({ session });
         
-        await inventoryTransaction.save({ session });
+        logger.debug(`Webhook: Updated inventory for product ${item.product}: ${previousQuantity} -> ${newQuantity}`);
       }
-
-      // 5. Add points to user if they have an account
+      
+      // Add points to user (only for registered users)
       if (order.user) {
         const pointsEarned = Math.floor(order.total);
         await User.findByIdAndUpdate(
@@ -302,50 +488,45 @@ export const processPayment = async (req, res) => {
           { $inc: { points: pointsEarned } },
           { session, new: true }
         );
-
-        logger.info(`Added ${pointsEarned} points to user ${order.user} for order ${order._id}`);
+        logger.debug(`Added ${pointsEarned} points to user ${order.user}`);
       }
-
+      
       await session.commitTransaction();
+      logger.info(`Webhook: Payment processed successfully for order ${orderId}`);
       session.endSession();
-
-      return res.status(200).json({
-        order,
-        message: 'Payment processed successfully',
-      });
+      return;
+      
     } catch (error) {
-      lastError = error;
       await session.abortTransaction();
       session.endSession();
-
-      // Only retry on specific transient errors
-      const isTransient = 
-        error.errorLabels?.includes('TransientTransactionError') || 
-        error.message?.includes('Write conflict') ||
-        error.message?.includes('yielding is disabled');
       
-      if (isTransient && retryCount < maxRetries) {
+      const isTransient = 
+        error.code === 112 || // WriteConflict error
+        error.code === 251 || // Transaction aborted due to transaction timeout
+        (error.errorLabels && error.errorLabels.includes("TransientTransactionError")) ||
+        error.message?.includes('Write conflict') ||
+        error.message?.includes('Concurrent modification detected');
+        
+      if (isTransient && retryCount < maxRetries - 1) {
         retryCount++;
-        logger.warn(`Retrying transaction (attempt ${retryCount}) due to transient error: ${error.message}`);
+        // Exponential backoff with jitter
+        const baseDelay = Math.pow(2, retryCount) * 100;
+        const jitter = Math.floor(Math.random() * 400);
+        const backoffMs = baseDelay + jitter;
         
-        // Add exponential backoff to reduce contention
-        const backoffMs = Math.min(100 * Math.pow(2, retryCount), 2000);
+        logger.warn(`Retrying webhook transaction (attempt ${retryCount + 1}) due to transient error: ${error.message}`);
         await new Promise(resolve => setTimeout(resolve, backoffMs));
-        
-        continue; // Retry the transaction
+        continue;
       }
-
-      logger.error('Error processing payment:', error);
-      break; // Exit the loop for non-transient errors
+      
+      logger.error('Error handling webhook payment (non-retryable):', error);
+      break;
     }
   }
-
-  // If all retries fail
-  logger.error('Max retries reached for processing payment');
-  return res.status(500).json({ 
-    message: 'Failed to process payment after multiple attempts',
-    error: lastError?.message || 'Transaction conflicts' 
-  });
+  
+  if (retryCount >= maxRetries) {
+    logger.error(`Max retries (${maxRetries}) reached for webhook payment processing`);
+  }
 };
 
 // Cancel an order
@@ -427,6 +608,9 @@ export const cancelOrder = async (req, res) => {
           { session, new: true }
         );
         
+        // Get the user value - either ObjectId or 'guest'
+        const userId = order.user || 'guest';
+        
         // Create inventory transaction record for the inventory restoration
         const inventoryTransaction = new InventoryTransaction({
           product: item.product,
@@ -435,7 +619,7 @@ export const cancelOrder = async (req, res) => {
           previousQuantity: previousQuantity,
           newQuantity: newQuantity,
           reason: `Order #${order._id} cancelled`,
-          user: order.user || 'guest',
+          user: userId,
           orderId: order._id,
           notes: 'Inventory restoration due to order cancellation'
         });
@@ -489,135 +673,6 @@ export const handleStripeWebhook = async (req, res) => {
   res.json({ received: true });
 };
 
-// Helper function to handle successful payments from webhook
-const handleSuccessfulPayment = async (paymentIntent) => {
-  let retryCount = 0;
-  const maxRetries = 5;
-  
-  while (retryCount < maxRetries) {
-    const session = await mongoose.startSession();
-    
-    try {
-      session.startTransaction({
-        readConcern: { level: 'snapshot' },
-        writeConcern: { w: 'majority' }
-      });
-      
-      const orderId = paymentIntent.metadata.orderId;
-      
-      if (!orderId) {
-        logger.error('No orderId found in paymentIntent metadata');
-        await session.abortTransaction();
-        session.endSession();
-        return;
-      }
-      
-      const order = await Order.findById(orderId).session(session);
-      
-      if (!order) {
-        logger.error(`Order not found: ${orderId}`);
-        await session.abortTransaction();
-        session.endSession();
-        return;
-      }
-      
-      if (order.paymentStatus === 'paid') {
-        logger.info(`Order ${orderId} already marked as paid, skipping`);
-        await session.abortTransaction();
-        session.endSession();
-        return;
-      }
-      
-      // Update order status
-      order.paymentStatus = 'paid';
-      order.status = 'processing';
-      
-      // Handle cases where there might not be charges data yet
-      let chargeId = null;
-      if (paymentIntent.charges && paymentIntent.charges.data && paymentIntent.charges.data.length > 0) {
-        chargeId = paymentIntent.charges.data[0].id;
-      } else if (paymentIntent.latest_charge) {
-        // Some payment intents have a direct latest_charge field
-        chargeId = paymentIntent.latest_charge;
-      }
-      
-      if (chargeId) {
-        order.stripeChargeId = chargeId;
-      }
-      
-      await order.save({ session });
-      
-      // Update inventory and create transaction records
-      for (const item of order.items) {
-        const product = await Product.findById(item.product).session(session);
-        if (!product) continue;
-        
-        const previousQuantity = product.stockQuantity;
-        const newQuantity = Math.max(0, previousQuantity - item.quantity);
-        
-        await Product.findByIdAndUpdate(
-          item.product,
-          { stockQuantity: newQuantity },
-          { session, new: true }
-        );
-        
-        // Create inventory transaction
-        const inventoryTransaction = new InventoryTransaction({
-          product: item.product,
-          transactionType: 'reduction',
-          quantity: item.quantity,
-          previousQuantity: previousQuantity,
-          newQuantity: newQuantity,
-          reason: `Order #${order._id} webhook`,
-          user: order.user || 'guest',
-          orderId: order._id,
-          notes: 'Inventory reduction due to webhook payment confirmation'
-        });
-        
-        await inventoryTransaction.save({ session });
-      }
-      
-      // Add points to user
-      if (order.user) {
-        const pointsEarned = Math.floor(order.total);
-        await User.findByIdAndUpdate(
-          order.user,
-          { $inc: { points: pointsEarned } },
-          { session, new: true }
-        );
-      }
-      
-      await session.commitTransaction();
-      logger.info(`Payment processed successfully for order ${orderId}`);
-      return;
-      
-    } catch (error) {
-      await session.abortTransaction();
-      
-      const isTransient = 
-        error.errorLabels?.includes('TransientTransactionError') || 
-        error.message?.includes('Write conflict') ||
-        error.message?.includes('yielding is disabled');
-        
-      if (isTransient && retryCount < maxRetries) {
-        retryCount++;
-        const backoffMs = Math.min(100 * Math.pow(2, retryCount), 2000);
-        await new Promise(resolve => setTimeout(resolve, backoffMs));
-        logger.warn(`Retrying webhook transaction (attempt ${retryCount}) due to transient error: ${error.message}`);
-        continue;
-      }
-      
-      logger.error('Error handling successful payment webhook:', error);
-      break;
-    } finally {
-      session.endSession();
-    }
-  }
-  
-  if (retryCount >= maxRetries) {
-    logger.error(`Max retries (${maxRetries}) reached for webhook payment processing`);
-  }
-};
 
 // Helper function to handle failed payments from webhook
 const handleFailedPayment = async (paymentIntent) => {

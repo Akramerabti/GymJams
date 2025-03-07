@@ -1,4 +1,3 @@
-// App.jsx
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
@@ -36,7 +35,7 @@ import TaskforceDashboard from './pages/TaskforceDashboard';
 import Contact from './pages/CustomerService/contact';
 import ProductPage from './pages/ProductPage';
 import GymBros from './pages/Gymbros';
-
+import OrderConfirmation from './pages/OrderConfirmation'; // Import the OrderConfirmation component
 
 // Socket Context
 import { SocketProvider } from './SocketContext';
@@ -89,6 +88,7 @@ const App = () => {
             <Route path="/contact" element={<Contact />} />
             <Route path="/product/:productId" element={<ProductPage />} />
             <Route path="/gymbros" element={<GymBros />} />
+            <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} /> {/* Add this route */}
 
             {/* Protected Routes */}
             <Route path="/profile" element={

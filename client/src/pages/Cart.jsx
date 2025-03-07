@@ -19,31 +19,31 @@ const Cart = () => {
   };
 
   const handleCheckout = async () => {
+  
     try {
-      // Validate stock before proceeding to checkout
       const isStockValid = await validateCartStock();
+  
       if (!isStockValid) {
         toast.error('Some items in your cart are out of stock or have insufficient quantity.');
         return;
       }
-
+  
       const checkoutData = {
         items: items.map((item) => ({
           id: item.id,
           quantity: item.quantity,
         })),
         shippingAddress: {
-          // Add shipping address details here
-          email: user?.email || '', // Required for guest orders
+          email: user?.email || '',
         },
-        billingAddress: {
-          // Add billing address details here
-        },
+        billingAddress: {},
         shippingMethod: 'standard',
-        userId: getUserId(user), // Pass the user ID if authenticated
+        userId: getUserId(user),
       };
-
-      await initiateCheckout(checkoutData);
+  
+      const order = await initiateCheckout(checkoutData);
+      console.log('Checkout successful, redirecting to /shop-checkout', order);
+  
       navigate('/shop-checkout');
     } catch (error) {
       console.error('Checkout failed:', error);
@@ -90,7 +90,6 @@ const Cart = () => {
             onCheckout={handleCheckout}
             isLoading={cartStore.loading}
           />
-          {/* Removed duplicate checkout button */}
         </div>
       </div>
     </div>

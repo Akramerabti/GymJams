@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
 import {
   getOrders,
   getOrderDetails,
@@ -19,18 +19,18 @@ router.post(
 );
 
 // Get all orders for the current user
-router.get('/', getOrders);
+router.get('/', optionalAuthenticate, getOrders);
 
 // Get order details
-router.get('/:id', getOrderDetails);
+router.get('/:id', optionalAuthenticate,  getOrderDetails);
 
 // Create a new order
-router.post('/', createOrder);
+router.post('/', optionalAuthenticate, createOrder);
 
 // Process payment (after Stripe confirmation)
-router.post('/payment', processPayment);
+router.post('/payment', optionalAuthenticate, processPayment);
 
 // Cancel an order
-router.post('/:id/cancel', cancelOrder);
+router.post('/:id/cancel', optionalAuthenticate, cancelOrder);
 
 export default router;

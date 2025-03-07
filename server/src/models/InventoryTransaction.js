@@ -31,9 +31,16 @@ const inventoryTransactionSchema = new mongoose.Schema({
     required: true
   },
   user: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.Mixed, // Changed from ObjectId to Mixed
     ref: 'User',
-    required: true
+    required: true,
+    // Custom validator to ensure it's either an ObjectId or the string "guest"
+    validate: {
+      validator: function(value) {
+        return mongoose.Types.ObjectId.isValid(value) || value === 'guest';
+      },
+      message: props => `${props.value} is not a valid user ID or the string "guest"`
+    }
   },
   orderId: {
     type: mongoose.Schema.Types.ObjectId,

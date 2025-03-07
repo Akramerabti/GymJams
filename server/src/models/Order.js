@@ -93,6 +93,9 @@ const orderSchema = new mongoose.Schema({
   timestamps: true
 });
 
+
+orderSchema.index({ paymentIntentId: 1 }, { unique: true });
+
 // Calculate subtotal
 orderSchema.virtual('subtotal').get(function() {
   return this.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -103,17 +106,6 @@ orderSchema.virtual('totalWithShipping').get(function() {
   return this.total + this.shippingCost;
 });
 
-// Update stock quantities after order
-orderSchema.post('save', async function() {
-  if (this.status === 'processing') {
-    for (const item of this.items) {
-      await mongoose.model('Product').updateOne(
-        { _id: item.product },
-        { $inc: { stockQuantity: -item.quantity } }
-      );
-    }
-  }
-});
 
 const Order = mongoose.model('Order', orderSchema);
 export default Order;

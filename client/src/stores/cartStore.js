@@ -11,7 +11,9 @@ import inventoryService from '../services/inventory.service';
  * @returns {Object} - Calculated cart totals
  */
 const calculateTotals = (items) => {
+  // Fixed calculation to properly account for item quantities
   const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  // Determine shipping cost based on subtotal
   const shipping = subtotal > 100 ? 0 : 10; // Free shipping over $100
   const tax = subtotal * 0.08; // 8% tax rate
   const total = subtotal + shipping + tax;
@@ -98,10 +100,7 @@ const useCartStore = create(
       removeItem: (productId) => {
         const { items } = get();
         set({ items: items.filter(item => item.id !== productId) });
-        toast({ 
-          title: "Item Removed",
-          description: "Item has been removed from your cart."
-        });
+        toast.success('Item has been removed from your cart.');
       },
 
       /**
@@ -199,14 +198,14 @@ const useCartStore = create(
       initiateCheckout: async (checkoutData) => {
         const { items, validateCartStock } = get();
         set({ loading: true, error: null });
-
+      
         try {
           // First validate stock
           const isStockValid = await validateCartStock();
           if (!isStockValid) {
             throw new Error('Some items in your cart are unavailable');
           }
-
+      
           // Create order with retry logic
           const response = await retryWithBackoff(() => 
             api.post('/orders', {
@@ -217,11 +216,13 @@ const useCartStore = create(
               userId: checkoutData.userId || null
             })
           );
-
+      
+          console.log('Order created successfully:', response.data);
           set({ checkoutData: response.data });
           return response.data;
         } catch (error) {
           const message = error.response?.data?.message || error.message || 'Checkout failed';
+          console.error('Checkout error:', message);
           set({ error: message });
           toast.error(message);
           throw error;
@@ -292,6 +293,7 @@ const useCartStore = create(
       // Cart Getters
       getCartTotals: () => {
         const { items } = get();
+        
         return calculateTotals(items);
       },
 
@@ -314,6 +316,7 @@ const useCartStore = create(
       // Get shipping methods and calculate costs
       getShippingMethods: async () => {
         const { items } = get();
+        const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
         
         try {
           const response = await api.post('/shipping/calculate', {
@@ -323,7 +326,7 @@ const useCartStore = create(
         } catch (error) {
           console.error('Error fetching shipping methods:', error);
           return [
-            { id: 'standard', name: 'Standard Shipping', price: items.reduce((sum, item) => sum + item.price * item.quantity, 0) >= 100 ? 0 : 10 },
+            { id: 'standard', name: 'Standard Shipping', price: subtotal >= 100 ? 0 : 10 },
             { id: 'express', name: 'Express Shipping', price: 25 }
           ];
         }
@@ -374,6 +377,9 @@ export const useCart = () => {
     cancelOrder
   } = useCartStore();
 
+  // Calculate totals using the fixed calculation method
+  const totals = getCartTotals();
+  
   return {
     items,
     loading,
@@ -383,7 +389,10 @@ export const useCart = () => {
     removeItem,
     updateQuantity,
     clearCart,
-    totals: getCartTotals(),
+    total: totals.total,  // Make the total directly available
+    subtotal: totals.subtotal,
+    shipping: totals.shipping,
+    tax: totals.tax,
     itemCount: getItemCount(),
     hasItem,
     getItemQuantity,

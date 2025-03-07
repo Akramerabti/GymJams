@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X, ShoppingCart, User, Coins, Dumbbell } from 'lucide-react';
 import { useAuth } from '../../stores/authStore';
-import { useCart } from '../../hooks/useCart'; // Import useCart hook
+import { useCart } from '../../stores/cartStore'; // Import useCart hook
 import { usePoints } from '../../hooks/usePoints';
 import { motion, AnimatePresence } from 'framer-motion';
 import useCartStore from '@/stores/cartStore';

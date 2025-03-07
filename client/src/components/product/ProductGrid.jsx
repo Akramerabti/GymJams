@@ -50,7 +50,6 @@ const ProductGrid = ({ products = [], onProductClick }) => {
 
   return (
     <div className="grid grid-cols-2  xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-      {console.log('products', products)}
       {products.map((product) => {
         const price = getPrice(product);
         const isOutOfStock = product.stockQuantity === 0;
