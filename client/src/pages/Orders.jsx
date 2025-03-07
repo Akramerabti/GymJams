@@ -34,7 +34,9 @@ const Orders = () => {
     try {
       setLoading(true);
       const response = await orderService.getUserOrders();
-      setOrders(response.orders || []);
+
+      console.log('User orders:', response);
+      setOrders(response || []);
     } catch (error) {
       console.error('Failed to fetch orders:', error);
       toast.error('Failed to fetch orders. Please try again.');

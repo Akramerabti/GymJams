@@ -19,40 +19,52 @@ const OrderConfirmation = () => {
   const [error, setError] = useState(null);
   const [guestEmail, setGuestEmail] = useState('');
 
-  // Check if we have order data directly from state (e.g., redirect after payment)
-  useEffect(() => {
-    if (location.state?.order) {
-      setOrder(location.state.order);
-      setLoading(false);
-    } else if (orderId) {
-      fetchOrder();
-    } else {
-      setError('No order information found');
-      setLoading(false);
-    }
-  }, [orderId, location.state]);
-
-  const fetchOrder = async () => {
+  // Updated useEffect to handle multiple ways of getting the order ID
+useEffect(() => {
+  const fetchOrderData = async () => {
     try {
       setLoading(true);
       
-      // Different approaches for authenticated users vs guest users
-      if (user && user.id) {
-        // For logged-in users
-        const response = await orderService.getOrder(orderId);
-        if (response?.order) {
-          setOrder(response.order);
-        } else {
-          setError('Order not found');
+      // Try multiple sources to get the order ID
+      const finalOrderId = orderId || 
+                           location.state?.orderId || 
+                           new URLSearchParams(location.search).get('orderId') ||
+                           localStorage.getItem('lastOrderId');
+      
+      // If we have order data directly from state, use it
+      if (location.state?.order) {
+        setOrder(location.state.order);
+        // Also cache the order for future reference if we have an ID
+        if (finalOrderId) {
+          localStorage.setItem(`order_${finalOrderId}`, JSON.stringify(location.state.order));
         }
-      } else if (localStorage.getItem(`order_${orderId}`)) {
-        // For guest users with cached order data
-        const cachedOrder = JSON.parse(localStorage.getItem(`order_${orderId}`));
-        setOrder(cachedOrder);
-      } else {
-        // For guest users trying to access order without cache
-        setError('To view this order, please enter the email used during checkout.');
+        setLoading(false);
+        return;
       }
+      
+      // If we have a valid order ID, try to fetch the order
+      if (finalOrderId) {
+        // For logged-in users
+        if (user && user.id) {
+          const response = await orderService.getOrder(finalOrderId);
+          if (response?.order) {
+            setOrder(response.order);
+            setLoading(false);
+            return;
+          }
+        } 
+        // Try to get from localStorage cache for guest users
+        else if (localStorage.getItem(`order_${finalOrderId}`)) {
+          const cachedOrder = JSON.parse(localStorage.getItem(`order_${finalOrderId}`));
+          setOrder(cachedOrder);
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // If we reach here, we couldn't find the order
+      setError('To view this order, please enter the email used during checkout.');
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching order:', error);
       if (error.response?.status === 404) {
@@ -60,10 +72,12 @@ const OrderConfirmation = () => {
       } else {
         setError('Failed to load order information. Please try again later.');
       }
-    } finally {
       setLoading(false);
     }
   };
+
+  fetchOrderData();
+}, [orderId, location.state, location.search, user]);
 
   const handleGuestLookup = async (e) => {
     e.preventDefault();

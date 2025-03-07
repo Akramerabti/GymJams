@@ -18,6 +18,8 @@ import { useAuth } from '../stores/authStore';
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
 // Payment Form Component
+// Updated PaymentForm component with proper Stripe redirect handling
+// This is the updated PaymentForm component with debug statements
 const PaymentForm = ({ clientSecret, onPaymentSuccess, onPaymentError }) => {
   const stripe = useStripe();
   const elements = useElements();
@@ -27,13 +29,16 @@ const PaymentForm = ({ clientSecret, onPaymentSuccess, onPaymentError }) => {
     e.preventDefault();
 
     if (!stripe || !elements) {
+      console.log("Stripe or Elements not loaded yet");
       return;
     }
 
     setIsProcessing(true);
+    console.log("Processing payment...");
 
     try {
       // Confirm payment with Stripe
+      console.log("Confirming payment with Stripe...");
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
@@ -42,12 +47,20 @@ const PaymentForm = ({ clientSecret, onPaymentSuccess, onPaymentError }) => {
         redirect: 'if_required',
       });
 
+      console.log("Payment confirmation result:", { error, paymentIntent });
+
       if (error) {
+        console.error("Payment error:", error);
         throw new Error(error.message || 'Payment failed');
       }
 
       if (paymentIntent && paymentIntent.status === 'succeeded') {
+        console.log("Payment succeeded! PaymentIntent:", paymentIntent);
         await onPaymentSuccess(paymentIntent.id);
+      } else if (paymentIntent) {
+        console.log("Payment intent returned but status is not 'succeeded':", paymentIntent.status);
+      } else {
+        console.log("No payment intent returned, but no error either. This is unusual.");
       }
     } catch (error) {
       console.error('Payment error:', error);
@@ -300,25 +313,61 @@ const handleNextStep = async () => {
     setStep((prev) => Math.max(1, prev - 1));
   };
 
-  const handlePaymentSuccess = async (paymentIntentId) => {
-    try {
-      setLoading(true);
+  // This is the updated payment success handler with debug statements
+const handlePaymentSuccess = async (paymentIntentId) => {
+  console.log("Payment success handler called with paymentIntentId:", paymentIntentId);
+  
+  try {
+    setLoading(true);
+    console.log("Processing payment on server side...");
 
-      // Process payment and update inventory
-      await processPayment(paymentIntentId);
+    // Process payment and update inventory
+    const paymentResult = await processPayment(paymentIntentId);
+    console.log("Payment processing result:", paymentResult);
 
-      // Clear cart and redirect to confirmation page
-      clearCart();
-
-      toast.success('Payment successful! Your order has been placed.');
-      navigate(`/order-confirmation/${orderId}`);
-    } catch (error) {
-      console.error('Payment processing error:', error);
-      toast.error('There was an issue processing your payment. Please try again.');
-    } finally {
-      setLoading(false);
+    // Store the order ID in localStorage as a fallback
+    if (orderId) {
+      console.log("Storing orderId in localStorage:", orderId);
+      localStorage.setItem('lastCompletedOrderId', orderId);
+    } else {
+      console.warn("No orderId available to store!");
     }
-  };
+
+    // Clear cart
+    console.log("Clearing cart...");
+    clearCart();
+
+    toast.success('Payment successful! Your order has been placed.');
+    
+    // Explicitly navigate with state to ensure order data is available
+    console.log("Navigating to order confirmation page with orderId:", orderId);
+    navigate(`/order-confirmation/${orderId}`, { 
+      state: { 
+        fromPayment: true,
+        paymentIntentId,
+        // You might want to pass minimal order data here to ensure the page has something to display
+        order: {
+          _id: orderId,
+          createdAt: new Date().toISOString(),
+          status: 'processing'
+        }
+      } 
+    });
+  } catch (error) {
+    console.error('Payment processing error:', error);
+    toast.error('There was an issue processing your payment. Please try again.');
+    
+    // Even on error, try to navigate to the order page if we have an orderId
+    if (orderId) {
+      console.log("Error occurred but still navigating to order page with orderId:", orderId);
+      navigate(`/order-confirmation/${orderId}`);
+    } else {
+      console.error("No orderId available for navigation after error!");
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handlePaymentError = (errorMessage) => {
     toast.error(errorMessage || 'Payment failed. Please try again.');

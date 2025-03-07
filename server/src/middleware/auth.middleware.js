@@ -49,7 +49,6 @@ export const optionalAuthenticate = async (req, res, next) => {
       const user = await User.findById(decoded.id).select('-password');
       req.user = user || null;
 
-      console.log('Optional auth user:', user);
     } catch (error) {
       req.user = null;
       logger.warn('Optional auth token invalid:', error);

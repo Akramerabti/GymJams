@@ -47,6 +47,8 @@ const orderService = {
   async getUserOrders() {
     try {
       const response = await api.get('/orders');
+
+      console.log('User orders:', response.data?.orders);
       return response.data?.orders || [];
     } catch (error) {
       console.error('Failed to fetch user orders:', error);
