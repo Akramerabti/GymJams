@@ -4,6 +4,7 @@ import {
   getOrders,
   getOrderDetails,
   createOrder,
+  updateOrder, // Add this new controller
   processPayment,
   cancelOrder,
   handleStripeWebhook
@@ -22,10 +23,13 @@ router.post(
 router.get('/', optionalAuthenticate, getOrders);
 
 // Get order details
-router.get('/:id', optionalAuthenticate,  getOrderDetails);
+router.get('/:id', optionalAuthenticate, getOrderDetails);
 
 // Create a new order
 router.post('/', optionalAuthenticate, createOrder);
+
+// Update an existing order
+router.put('/:id', optionalAuthenticate, updateOrder); // Add this new route
 
 // Process payment (after Stripe confirmation)
 router.post('/payment', optionalAuthenticate, processPayment);

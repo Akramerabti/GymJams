@@ -254,26 +254,41 @@ export const processPayment = async (req, res) => {
       }
 
       // Use findOne instead of findById to have more control over the query
-      const order = await Order.findOne({
-        _id: orderId,
-        paymentStatus: { $ne: 'paid' } // Only process if not already paid
-      }).session(session);
+      // IMPORTANT: We're now explicitly looking for the order by _id
+      // and not checking paymentStatus, because we want to update the existing order
+      const order = await Order.findById(orderId).session(session);
       
       logger.debug(`Retrieved order: ${JSON.stringify(order)}`);
 
       if (!order) {
-        logger.warn('Order not found or already processed');
+        logger.warn('Order not found');
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(404).json({ message: 'Order not found' });
+      }
+
+      // Only proceed if the order hasn't already been paid
+      if (order.paymentStatus === 'paid') {
+        logger.info('Order already marked as paid, returning success');
         await session.abortTransaction();
         session.endSession();
         return res.status(200).json({ 
-          message: 'Order not found or already processed',
-          alreadyProcessed: true
+          order, 
+          message: 'Payment already processed'
         });
       }
 
       // Update order status
       order.paymentStatus = 'paid';
       order.status = 'processing';
+      
+      // Get charge ID if available
+      if (paymentIntent.charges?.data?.length > 0) {
+        order.stripeChargeId = paymentIntent.charges.data[0].id;
+      } else if (paymentIntent.latest_charge) {
+        order.stripeChargeId = paymentIntent.latest_charge;
+      }
+      
       await order.save({ session });
       logger.debug('Order status updated to paid and processing');
 
@@ -322,6 +337,17 @@ export const processPayment = async (req, res) => {
         }).save({ session });
         
         logger.debug(`Inventory updated for product: ${item.product}`);
+      }
+      
+      // If a user is authenticated, award points
+      if (order.user) {
+        const pointsEarned = Math.floor(order.total);
+        await User.findByIdAndUpdate(
+          order.user,
+          { $inc: { points: pointsEarned } },
+          { session }
+        );
+        logger.debug(`Added ${pointsEarned} points to user ${order.user}`);
       }
 
       // If we get here without errors, commit the transaction
@@ -375,7 +401,7 @@ export const processPayment = async (req, res) => {
   });
 };
 
-// Improved helper function to handle successful payments from webhook
+
 const handleSuccessfulPayment = async (paymentIntent) => {
   let retryCount = 0;
   const maxRetries = 5;
@@ -400,14 +426,20 @@ const handleSuccessfulPayment = async (paymentIntent) => {
         return;
       }
       
-      // Use findOne with query conditions instead of findById to ensure atomicity
-      const order = await Order.findOne({
-        _id: orderId,
-        paymentStatus: { $ne: 'paid' } // Only process if not already paid
-      }).session(session);
+      // Find the order by ID, not restricting by payment status because
+      // the regular payment route might have already handled it
+      const order = await Order.findById(orderId).session(session);
       
       if (!order) {
-        logger.info(`Order ${orderId} not found or already processed, skipping webhook`);
+        logger.info(`Order ${orderId} not found, skipping webhook`);
+        await session.abortTransaction();
+        session.endSession();
+        return;
+      }
+      
+      // If the order is already paid, we don't need to do anything
+      if (order.paymentStatus === 'paid') {
+        logger.info(`Order ${orderId} already paid, skipping webhook processing`);
         await session.abortTransaction();
         session.endSession();
         return;
@@ -528,7 +560,6 @@ const handleSuccessfulPayment = async (paymentIntent) => {
     logger.error(`Max retries (${maxRetries}) reached for webhook payment processing`);
   }
 };
-
 // Cancel an order
 export const cancelOrder = async (req, res) => {
   const session = await mongoose.startSession();
@@ -703,4 +734,167 @@ const calculateShippingCost = (subtotal, shippingMethod) => {
   }
   
   return shippingMethod === 'express' ? 25 : 10; // $25 for express, $10 for standard
+};
+
+// Add this function to order.controller.js
+export const updateOrder = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { id } = req.params;
+    const { items, shippingAddress, billingAddress, shippingMethod = 'standard', userId } = req.body;
+
+    // Validate orderId
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'Invalid order ID format' });
+    }
+
+    // Find the existing order - don't restrict by user since it might be a guest order initially
+    const order = await Order.findById(id).session(session);
+    
+    if (!order) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Make sure the order is in a state that can be updated
+    if (order.status !== 'pending' || order.paymentStatus !== 'pending') {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'Order cannot be modified' });
+    }
+
+    // Update order items and check stock
+    if (items && items.length > 0) {
+      const orderItems = [];
+      let subtotal = 0;
+
+      for (const item of items) {
+        if (!item.id) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({ message: 'Product ID is required for all items' });
+        }
+
+        const product = await Product.findById(item.id).session(session);
+        
+        if (!product) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(404).json({ message: `Product not found: ${item.id}` });
+        }
+        
+        if (product.stockQuantity < item.quantity) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({
+            message: `Insufficient stock for ${product.name}. Available: ${product.stockQuantity}, Requested: ${item.quantity}`
+          });
+        }
+
+        // Calculate price (handle discounts if needed)
+        let price = product.price;
+        if (product.discount && 
+            product.discount.percentage && 
+            new Date(product.discount.startDate) <= new Date() && 
+            new Date(product.discount.endDate) >= new Date()) {
+          const discountAmount = (price * product.discount.percentage) / 100;
+          price = price - discountAmount;
+        }
+        
+        orderItems.push({
+          product: product._id,
+          quantity: item.quantity,
+          price: price
+        });
+        
+        subtotal += price * item.quantity;
+      }
+
+      // Update order items
+      order.items = orderItems;
+      order.subtotal = subtotal;
+    }
+
+    // Update shipping, billing info
+    if (shippingAddress) {
+      order.shippingAddress = shippingAddress;
+      
+      // If this is a guest order getting a user ID, update the user field
+      if (userId && !order.user) {
+        order.user = userId;
+      }
+    }
+
+    if (billingAddress) {
+      order.billingAddress = billingAddress;
+    }
+
+    if (shippingMethod) {
+      order.shippingMethod = shippingMethod;
+    }
+
+    // Recalculate totals
+    const shippingCost = calculateShippingCost(order.subtotal || 0, order.shippingMethod);
+    const tax = Math.round((order.subtotal || 0) * 0.08 * 100) / 100; // 8% tax
+    const total = (order.subtotal || 0) + shippingCost + tax;
+
+    order.shippingCost = shippingCost;
+    order.tax = tax;
+    order.total = total;
+
+    // Save updated order
+    await order.save({ session });
+
+    // If we already have a payment intent, update it with the new total
+    if (order.paymentIntentId) {
+      await stripe.paymentIntents.update(
+        order.paymentIntentId,
+        {
+          amount: Math.round(total * 100), // Convert to cents
+          metadata: { 
+            orderId: order._id.toString(),
+            userId: userId ? userId.toString() : 'guest'
+          }
+        }
+      );
+    } else {
+      // Create a new payment intent
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(total * 100), // Convert to cents
+        currency: 'usd',
+        metadata: { 
+          orderId: order._id.toString(),
+          userId: userId ? userId.toString() : 'guest'
+        }
+      });
+
+      // Update order with payment intent ID
+      order.paymentIntentId = paymentIntent.id;
+      await order.save({ session });
+    }
+
+    await session.commitTransaction();
+    session.endSession();
+
+    // Fetch the saved order with populated items
+    const updatedOrder = await Order.findById(id).populate('items.product');
+
+    res.status(200).json({
+      order: updatedOrder,
+      clientSecret: updatedOrder.paymentIntentId 
+        ? (await stripe.paymentIntents.retrieve(updatedOrder.paymentIntentId)).client_secret
+        : null
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    
+    logger.error('Error updating order:', error);
+    res.status(500).json({ message: 'Error updating order' });
+  }
 };

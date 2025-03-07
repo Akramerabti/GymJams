@@ -26,7 +26,10 @@ const addressSchema = new mongoose.Schema({
   state: String,
   zipCode: String,
   country: String,
-  phone: String
+  phone: String,
+  address: String,
+  apartment: String,
+  email: String
 });
 
 const orderSchema = new mongoose.Schema({
@@ -50,6 +53,10 @@ const orderSchema = new mongoose.Schema({
     type: addressSchema,
     required: true
   },
+  subtotal: {
+    type: Number,
+    min: 0
+  },
   total: {
     type: Number,
     required: true,
@@ -65,7 +72,11 @@ const orderSchema = new mongoose.Schema({
     enum: ['pending', 'paid', 'failed', 'refunded'],
     default: 'pending'
   },
-  paymentIntentId: String,
+  paymentIntentId: {
+    type: String,
+    unique: true,
+    sparse: true // This allows multiple null values
+  },
   stripeChargeId: String,
   shippingMethod: {
     type: String,
@@ -73,6 +84,10 @@ const orderSchema = new mongoose.Schema({
     default: 'standard'
   },
   shippingCost: {
+    type: Number,
+    default: 0
+  },
+  tax: {
     type: Number,
     default: 0
   },
@@ -88,24 +103,27 @@ const orderSchema = new mongoose.Schema({
     reason: String,
     amount: Number,
     date: Date
-  }
+  },
+  cancelledAt: Date
 }, {
   timestamps: true
 });
 
-
-orderSchema.index({ paymentIntentId: 1 }, { unique: true });
-
-// Calculate subtotal
-orderSchema.virtual('subtotal').get(function() {
+// Virtual to calculate subtotal if it's not set
+orderSchema.virtual('calculatedSubtotal').get(function() {
+  if (this.subtotal) return this.subtotal;
   return this.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 });
 
-// Calculate total with shipping
-orderSchema.virtual('totalWithShipping').get(function() {
-  return this.total + this.shippingCost;
+// Virtual to calculate total with shipping if it's not set
+orderSchema.virtual('calculatedTotal').get(function() {
+  if (this.total) return this.total;
+  return this.calculatedSubtotal + this.shippingCost + (this.tax || 0);
 });
 
+// Ensure virtual properties are included in JSON output
+orderSchema.set('toJSON', { virtuals: true });
+orderSchema.set('toObject', { virtuals: true });
 
 const Order = mongoose.model('Order', orderSchema);
 export default Order;

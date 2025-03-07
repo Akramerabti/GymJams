@@ -240,60 +240,61 @@ const ShopCheckout = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleNextStep = async () => {
-    if (step === 1) {
-      if (!validateForm()) {
+const handleNextStep = async () => {
+  if (step === 1) {
+    if (!validateForm()) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Validate stock before proceeding
+      const isValid = await validateCartStock();
+      if (!isValid) {
+        const store = useCartStore.getState();
+        setStockWarnings(store.stockWarnings);
+        toast.error('Some items in your cart are no longer available in the requested quantity.');
         return;
       }
 
-      try {
-        setLoading(true);
-
-        // Validate stock before proceeding
-        const isValid = await validateCartStock();
-        if (!isValid) {
-          const store = useCartStore.getState();
-          setStockWarnings(store.stockWarnings);
-          toast.error('Some items in your cart are no longer available in the requested quantity.');
-          return;
-        }
-
-        setStep(2);
-      } catch (error) {
-        console.error('Error validating stock:', error);
-        toast.error('Failed to validate item availability. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    } else if (step === 2) {
-      try {
-        setLoading(true);
-
-        // Create order and get client secret for payment
-        const result = await initiateCheckout({
-          items: items.map((item) => ({
-            id: item.id,
-            quantity: item.quantity,
-          })),
-          shippingAddress: formData.shipping,
-          billingAddress: formData.billing.sameAsShipping ? formData.shipping : formData.billing,
-          shippingMethod: formData.shippingMethod,
-          userId: user?.id, // Pass the user ID if authenticated
-        });
-
-        if (result.clientSecret) {
-          setClientSecret(result.clientSecret);
-          setOrderId(result.order._id);
-          setStep(3);
-        }
-      } catch (error) {
-        console.error('Checkout error:', error);
-        toast.error('Failed to initialize checkout. Please try again.');
-      } finally {
-        setLoading(false);
-      }
+      setStep(2);
+    } catch (error) {
+      console.error('Error validating stock:', error);
+      toast.error('Failed to validate item availability. Please try again.');
+    } finally {
+      setLoading(false);
     }
-  };
+  } else if (step === 2) {
+    try {
+      setLoading(true);
+
+      // We use the existing orderId from the state if available
+      // cartStore already handles creating vs updating in initiateCheckout
+      const result = await initiateCheckout({
+        items: items.map((item) => ({
+          id: item.id,
+          quantity: item.quantity,
+        })),
+        shippingAddress: formData.shipping,
+        billingAddress: formData.billing.sameAsShipping ? formData.shipping : formData.billing,
+        shippingMethod: formData.shippingMethod,
+        userId: user?.id, // Pass the user ID if authenticated
+      });
+
+      if (result.clientSecret) {
+        setClientSecret(result.clientSecret);
+        setOrderId(result.order._id);
+        setStep(3);
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+      toast.error('Failed to initialize checkout. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+};
 
   const handlePrevStep = () => {
     setStep((prev) => Math.max(1, prev - 1));
