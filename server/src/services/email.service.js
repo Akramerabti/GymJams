@@ -156,19 +156,19 @@ const generateOrderPDF = async (order) => {
       // Create a PDF document
       const doc = new PDFDocument({ margin: 50, size: 'A4' });
       let buffers = [];
-      
+
       doc.on('data', buffer => buffers.push(buffer));
       doc.on('end', () => resolve(Buffer.concat(buffers)));
       doc.on('error', err => reject(err));
-      
+
       // Add order receipt title with styled header
       doc.rect(50, 45, doc.page.width - 100, 60).fill('#f0f9ff');
       doc.fontSize(22).fillColor('#2563eb').text('ORDER RECEIPT', { align: 'center', y: 60 });
       doc.moveDown(2);
-      
+
       // Add order details
       doc.fontSize(12).fillColor('#000');
-      
+
       // Order information
       doc.font('Helvetica-Bold').text('Order Information', { underline: true });
       doc.font('Helvetica').text(`Order ID: ${order._id}`);
@@ -179,7 +179,7 @@ const generateOrderPDF = async (order) => {
       })}`);
       doc.text(`Status: ${order.status.charAt(0).toUpperCase() + order.status.slice(1)}`);
       doc.moveDown();
-      
+
       // Customer information
       doc.font('Helvetica-Bold').text('Customer Information', { underline: true });
       doc.font('Helvetica');
@@ -187,7 +187,7 @@ const generateOrderPDF = async (order) => {
       doc.text(`Email: ${order.email || order.shippingAddress.email}`);
       doc.text(`Phone: ${order.shippingAddress.phone || 'N/A'}`);
       doc.moveDown();
-      
+
       // Shipping information
       doc.font('Helvetica-Bold').text('Shipping Address', { underline: true });
       doc.font('Helvetica');
@@ -197,12 +197,12 @@ const generateOrderPDF = async (order) => {
       doc.text(`${order.shippingAddress.city}, ${order.shippingAddress.state} ${order.shippingAddress.zipCode}`);
       doc.text(order.shippingAddress.country);
       doc.moveDown();
-      
+
       // Shipping method
       doc.font('Helvetica-Bold').text('Shipping Method', { underline: true });
       doc.font('Helvetica').text(`${order.shippingMethod === 'express' ? 'Express Shipping (1-2 business days)' : 'Standard Shipping (3-5 business days)'}`);
       doc.moveDown(2);
-      
+
       // Order items table with improved styling
       const tableData = {
         headers: ['Item', 'Quantity', 'Unit Price', 'Total'],
@@ -213,7 +213,7 @@ const generateOrderPDF = async (order) => {
           formatCurrency(item.price * item.quantity)
         ])
       };
-      
+
       // Style the table headers with a blue background
       doc.table(tableData, {
         prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10).fillColor('#fff'),
@@ -230,62 +230,84 @@ const generateOrderPDF = async (order) => {
             .fill('#3b82f6');
         }
       });
-      
+
       doc.moveDown();
-      
+
       // Order summary with improved layout
       const summaryX = 350; // Moved to the right
       const summaryStartY = doc.y + 10;
-      
+
       // Draw a light gray box for the summary section
       doc.rect(summaryX - 10, summaryStartY - 10, 160, 120).fill('#f8fafc');
-      
+
       // Points discount (if used)
       let extraRowsHeight = 0;
       if (order.pointsUsed > 0 && order.pointsDiscount > 0) {
         extraRowsHeight = 20;
       }
-      
+
       doc.font('Helvetica').fontSize(10).fillColor('#000').text('Subtotal:', summaryX, summaryStartY);
       doc.font('Helvetica').fontSize(10).text(formatCurrency(order.subtotal), 500, summaryStartY, { align: 'right' });
-      
+
       doc.font('Helvetica').fontSize(10).text('Shipping:', summaryX, summaryStartY + 20);
       doc.font('Helvetica').fontSize(10).text(formatCurrency(order.shippingCost), 500, summaryStartY + 20, { align: 'right' });
-      
+
       doc.font('Helvetica').fontSize(10).text('Tax:', summaryX, summaryStartY + 40);
       doc.font('Helvetica').fontSize(10).text(formatCurrency(order.tax), 500, summaryStartY + 40, { align: 'right' });
-      
+
       // Add points discount if applicable
       if (order.pointsUsed > 0 && order.pointsDiscount > 0) {
         doc.font('Helvetica').fontSize(10).fillColor('#059669').text(`Points Discount (${order.pointsUsed} pts):`, summaryX, summaryStartY + 60);
         doc.font('Helvetica').fontSize(10).fillColor('#059669').text(`-${formatCurrency(order.pointsDiscount)}`, 500, summaryStartY + 60, { align: 'right' });
       }
-      
+
       // Draw a separator line
       doc.moveTo(summaryX, summaryStartY + 60 + extraRowsHeight).lineTo(500, summaryStartY + 60 + extraRowsHeight).stroke();
-      
+
       // Total
       doc.font('Helvetica-Bold').fontSize(12).fillColor('#000').text('Total:', summaryX, summaryStartY + 70 + extraRowsHeight);
       doc.font('Helvetica-Bold').fontSize(12).text(formatCurrency(order.total), 500, summaryStartY + 70 + extraRowsHeight, { align: 'right' });
-      
+
+      // Footer with brand info and contact details
+      const footerHeight = 80; // Height of the footer box
+      const footerY = doc.page.height - footerHeight - 50; // Position footer 50 units above the bottom of the page
+
+      // Check if there's enough space for the footer on the current page
+      if (doc.y > footerY) {
+        // If not, add a new page
+        doc.addPage();
+      }
+
+      // Draw footer box
+      doc.rect(50, footerY, doc.page.width - 100, footerHeight).fill('#f0f9ff');
+
+      // Add thank you message in footer
+      doc.fontSize(11)
+         .fillColor('#2563eb')
+         .text('Thank you for your purchase!', 50, footerY + 15, { align: 'center', width: doc.page.width - 100 });
+
+      doc.fontSize(9)
+         .fillColor('#4b5563')
+         .text('If you have any questions, please contact our customer support at support@gymtonic.ca', 50, footerY + 35, { align: 'center', width: doc.page.width - 100 });
+
       // Add reward points summary if applicable
       if (order.user && !order.pointsUsed) {
-        doc.moveDown(2);
-        doc.font('Helvetica-Bold').fontSize(10).fillColor('#3b82f6').text('🎁 You earned points with this purchase!', { align: 'center' });
-        doc.font('Helvetica').fontSize(9).fillColor('#4b5563').text(`Your purchase of ${formatCurrency(order.total)} has earned you points that can be used on your next purchase.`, { align: 'center' });
+        doc.font('Helvetica-Bold')
+           .fontSize(10)
+           .fillColor('#3b82f6')
+           .text(' You earned points with this purchase!', 50, footerY + 55, { align: 'center', width: doc.page.width - 100 });
+
+        doc.font('Helvetica')
+           .fontSize(9)
+           .fillColor('#4b5563')
+           .text(`Your purchase of ${formatCurrency(order.total)} has earned you points that can be used on your next purchase.`, 50, footerY + 70, { align: 'center', width: doc.page.width - 100 });
       }
-      
-      // Footer with brand info and contact details
-      doc.moveDown(4);
-      
-      // Draw footer box
-      doc.rect(50, doc.y, doc.page.width, 60).fill('#f0f9ff');
-      
-      // Add thank you message in footer
-      doc.fontSize(11).fillColor('#2563eb').text('Thank you for your purchase!', { align: 'center', y: doc.y + 15 });
-      doc.fontSize(9).fillColor('#4b5563').text('If you have any questions, please contact our customer support at support@gymtonic.ca', { align: 'center' });
-      doc.fontSize(8).fillColor('#6b7280').text('© 2024 GymTonic. All rights reserved.', { align: 'center' });
-      
+
+      // Add copyright text
+      doc.fontSize(8)
+         .fillColor('#6b7280')
+         .text('© 2024 GymTonic. All rights reserved.', 50, footerY + 90, { align: 'center', width: doc.page.width - 100 });
+
       // Finalize the PDF
       doc.end();
     } catch (error) {
