@@ -32,9 +32,9 @@ const OrderConfirmation = () => {
         
         // Try multiple sources to get the order ID
         const finalOrderId = orderId || 
-                           location.state?.orderId || 
-                           new URLSearchParams(location.search).get('orderId') ||
-                           localStorage.getItem('lastOrderId');
+                   location.state?.orderId || 
+                   new URLSearchParams(location.search).get('orderId') ||
+                   localStorage.getItem('lastOrderId');
         
         console.log('Final order ID:', finalOrderId);
         

@@ -17,10 +17,7 @@ import { useAuth } from '../stores/authStore';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
-// Payment Form Component
-// Updated PaymentForm component with proper Stripe redirect handling
-// This is the updated PaymentForm component with debug statements
-const PaymentForm = ({ clientSecret, onPaymentSuccess, onPaymentError }) => {
+const PaymentForm = ({ clientSecret, orderId, onPaymentSuccess, onPaymentError }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -29,38 +26,28 @@ const PaymentForm = ({ clientSecret, onPaymentSuccess, onPaymentError }) => {
     e.preventDefault();
 
     if (!stripe || !elements) {
-      console.log("Stripe or Elements not loaded yet");
       return;
     }
 
     setIsProcessing(true);
-    console.log("Processing payment...");
 
     try {
       // Confirm payment with Stripe
-      console.log("Confirming payment with Stripe...");
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
-          return_url: `${window.location.origin}/order-confirmation`,
+          // Include the order ID in the return URL
+          return_url: `${window.location.origin}/order-confirmation/${orderId}`,
         },
         redirect: 'if_required',
       });
 
-      console.log("Payment confirmation result:", { error, paymentIntent });
-
       if (error) {
-        console.error("Payment error:", error);
         throw new Error(error.message || 'Payment failed');
       }
 
       if (paymentIntent && paymentIntent.status === 'succeeded') {
-        console.log("Payment succeeded! PaymentIntent:", paymentIntent);
         await onPaymentSuccess(paymentIntent.id);
-      } else if (paymentIntent) {
-        console.log("Payment intent returned but status is not 'succeeded':", paymentIntent.status);
-      } else {
-        console.log("No payment intent returned, but no error either. This is unusual.");
       }
     } catch (error) {
       console.error('Payment error:', error);
@@ -69,6 +56,7 @@ const PaymentForm = ({ clientSecret, onPaymentSuccess, onPaymentError }) => {
       setIsProcessing(false);
     }
   };
+
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -135,14 +123,13 @@ const ShopCheckout = () => {
 
   const [formErrors, setFormErrors] = useState({});
 
-  // Validate stock on component mount
   useEffect(() => {
     const validateStock = async () => {
       try {
         setValidatingStock(true);
         const isValid = await validateCartStock();
         setStockValid(isValid);
-
+  
         if (!isValid) {
           const store = useCartStore.getState();
           setStockWarnings(store.stockWarnings);
@@ -154,12 +141,15 @@ const ShopCheckout = () => {
         setValidatingStock(false);
       }
     };
-
-    if (items.length === 0) {
+  
+    // Add this check to prevent redirect after successful payment
+    const isPaymentComplete = localStorage.getItem('paymentComplete');
+    
+    if (items.length === 0 && !isPaymentComplete) {
       navigate('/cart');
       return;
     }
-
+    
     validateStock();
   }, [items, navigate, validateCartStock]);
 
@@ -298,6 +288,7 @@ const handleNextStep = async () => {
       if (result.clientSecret) {
         setClientSecret(result.clientSecret);
         setOrderId(result.order._id);
+        localStorage.setItem('lastOrderId', result.order._id);
         setStep(3);
       }
     } catch (error) {
@@ -313,62 +304,53 @@ const handleNextStep = async () => {
     setStep((prev) => Math.max(1, prev - 1));
   };
 
-  // This is the updated payment success handler with debug statements
-const handlePaymentSuccess = async (paymentIntentId) => {
-  console.log("Payment success handler called with paymentIntentId:", paymentIntentId);
+  const handlePaymentSuccess = async (paymentIntentId) => {
+    console.log("Payment success handler called with paymentIntentId:", paymentIntentId);
+    
+    try {
+      setLoading(true);
+      console.log("Processing payment on server side...");
   
-  try {
-    setLoading(true);
-    console.log("Processing payment on server side...");
-
-    // Process payment and update inventory
-    const paymentResult = await processPayment(paymentIntentId);
-    console.log("Payment processing result:", paymentResult);
-
-    // Store the order ID in localStorage as a fallback
-    if (orderId) {
-      console.log("Storing orderId in localStorage:", orderId);
-      localStorage.setItem('lastCompletedOrderId', orderId);
-    } else {
-      console.warn("No orderId available to store!");
-    }
-
-    // Clear cart
-    console.log("Clearing cart...");
-    clearCart();
-
-    toast.success('Payment successful! Your order has been placed.');
-    
-    // Explicitly navigate with state to ensure order data is available
-    console.log("Navigating to order confirmation page with orderId:", orderId);
-    navigate(`/order-confirmation/${orderId}`, { 
-      state: { 
-        fromPayment: true,
-        paymentIntentId,
-        // You might want to pass minimal order data here to ensure the page has something to display
-        order: {
-          _id: orderId,
-          createdAt: new Date().toISOString(),
-          status: 'processing'
-        }
-      } 
-    });
-  } catch (error) {
-    console.error('Payment processing error:', error);
-    toast.error('There was an issue processing your payment. Please try again.');
-    
-    // Even on error, try to navigate to the order page if we have an orderId
-    if (orderId) {
-      console.log("Error occurred but still navigating to order page with orderId:", orderId);
+      // Process payment and update inventory
+      const paymentResult = await processPayment(paymentIntentId);
+      console.log("Payment processing result:", paymentResult);
+  
+      // Store the order ID in localStorage as a fallback
+      if (orderId) {
+        console.log("Storing orderId in localStorage:", orderId);
+        localStorage.setItem('lastOrderId', orderId);
+      }
+  
+      // Set flag to prevent cart redirect
+      localStorage.setItem('paymentComplete', 'true');
+      
+      // Clear cart
+      console.log("Clearing cart...");
+      clearCart();
+  
+      toast.success('Payment successful! Your order has been placed.');
+      
+      // Navigate to order confirmation
+      console.log("Navigating to order confirmation page with orderId:", orderId);
       navigate(`/order-confirmation/${orderId}`);
-    } else {
-      console.error("No orderId available for navigation after error!");
+      
+      // Remove the flag after a short delay
+      setTimeout(() => {
+        localStorage.removeItem('paymentComplete');
+      }, 5000); // Remove after 5 seconds
+      
+    } catch (error) {
+      console.error('Payment processing error:', error);
+      toast.error('There was an issue processing your payment. Please try again.');
+      
+      // Even on error, try to navigate to the order page if we have an orderId
+      if (orderId) {
+        navigate(`/order-confirmation/${orderId}`);
+      }
+    } finally {
+      setLoading(false);
     }
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
   const handlePaymentError = (errorMessage) => {
     toast.error(errorMessage || 'Payment failed. Please try again.');
   };
@@ -835,12 +817,13 @@ const handlePaymentSuccess = async (paymentIntentId) => {
                   </CardHeader>
                   <CardContent>
                     <Elements stripe={stripePromise} options={{ clientSecret }}>
-                      <PaymentForm
-                        clientSecret={clientSecret}
-                        onPaymentSuccess={handlePaymentSuccess}
-                        onPaymentError={handlePaymentError}
-                      />
-                    </Elements>
+                        <PaymentForm
+                          clientSecret={clientSecret}
+                          orderId={orderId}
+                          onPaymentSuccess={handlePaymentSuccess}
+                          onPaymentError={handlePaymentError}
+                        />
+                      </Elements>
                   </CardContent>
                 </>
               )}
