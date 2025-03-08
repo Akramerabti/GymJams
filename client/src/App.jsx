@@ -35,7 +35,7 @@ import TaskforceDashboard from './pages/TaskforceDashboard';
 import Contact from './pages/CustomerService/contact';
 import ProductPage from './pages/ProductPage';
 import GymBros from './pages/Gymbros';
-import OrderConfirmation from './pages/OrderConfirmation'; // Import the OrderConfirmation component
+import OrderConfirmation from './pages/OrderConfirmation';
 
 // Socket Context
 import { SocketProvider } from './SocketContext';
@@ -88,6 +88,7 @@ const App = () => {
             <Route path="/contact" element={<Contact />} />
             <Route path="/product/:productId" element={<ProductPage />} />
             <Route path="/gymbros" element={<GymBros />} />
+            <Route path="/orders" element={<Orders />} />
             <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} /> {/* Add this route */}
 
             {/* Protected Routes */}
@@ -96,11 +97,7 @@ const App = () => {
                 <Profile />
               </ProtectedRoute>
             } />
-            <Route path="/orders" element={
-              <ProtectedRoute>
-                <Orders />
-              </ProtectedRoute>
-            } />
+            
             <Route path="/subscription-management" element={
               <ProtectedRoute>
                 <SubscriptionManagement />

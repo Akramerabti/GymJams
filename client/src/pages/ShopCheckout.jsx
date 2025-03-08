@@ -315,35 +315,60 @@ const handleNextStep = async () => {
       const paymentResult = await processPayment(paymentIntentId);
       console.log("Payment processing result:", paymentResult);
   
-      // Store the order ID in localStorage as a fallback
+      // Store the order data and ID for retrieval on confirmation page
       if (orderId) {
         console.log("Storing orderId in localStorage:", orderId);
         localStorage.setItem('lastOrderId', orderId);
+        localStorage.setItem('lastCompletedOrderId', orderId);
+        
+        // Important: Store the actual order data if available
+        if (paymentResult && paymentResult.order) {
+          localStorage.setItem(`order_${orderId}`, JSON.stringify(paymentResult.order));
+        }
+        
+        // Set flag to prevent cart redirect and indicate payment completion
+        localStorage.setItem('paymentComplete', 'true');
       }
   
-      // Set flag to prevent cart redirect
-      localStorage.setItem('paymentComplete', 'true');
-      
       // Clear cart
       console.log("Clearing cart...");
       clearCart();
   
       toast.success('Payment successful! Your order has been placed.');
       
-      // Navigate to order confirmation
+      // Navigate to order confirmation with state
       console.log("Navigating to order confirmation page with orderId:", orderId);
-      navigate(`/order-confirmation/${orderId}`);
+      navigate(`/order-confirmation/${orderId}`, {
+        state: {
+          fromPayment: true,
+          paymentIntentId,
+          // Include minimal order data
+          order: paymentResult?.order || {
+            _id: orderId,
+            createdAt: new Date().toISOString(),
+            status: 'processing',
+            shippingAddress: formData.shipping,
+            shippingMethod: formData.shippingMethod,
+            items: items.map(item => ({
+              quantity: item.quantity,
+              price: item.price,
+              product: {
+                name: item.name
+              }
+            }))
+          }
+        }
+      });
       
-      // Remove the flag after a short delay
+      // Clear payment flag after 10 seconds
       setTimeout(() => {
         localStorage.removeItem('paymentComplete');
-      }, 5000); // Remove after 5 seconds
+      }, 10000);
       
     } catch (error) {
       console.error('Payment processing error:', error);
       toast.error('There was an issue processing your payment. Please try again.');
       
-      // Even on error, try to navigate to the order page if we have an orderId
       if (orderId) {
         navigate(`/order-confirmation/${orderId}`);
       }
@@ -351,6 +376,7 @@ const handleNextStep = async () => {
       setLoading(false);
     }
   };
+  
   const handlePaymentError = (errorMessage) => {
     toast.error(errorMessage || 'Payment failed. Please try again.');
   };

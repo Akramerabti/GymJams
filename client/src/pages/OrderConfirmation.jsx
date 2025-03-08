@@ -34,7 +34,8 @@ const OrderConfirmation = () => {
         const finalOrderId = orderId || 
                    location.state?.orderId || 
                    new URLSearchParams(location.search).get('orderId') ||
-                   localStorage.getItem('lastOrderId');
+                   localStorage.getItem('lastOrderId') ||
+                   localStorage.getItem('lastCompletedOrderId'); // Added for backup
         
         console.log('Final order ID:', finalOrderId);
         
@@ -48,9 +49,31 @@ const OrderConfirmation = () => {
           setLoading(false);
           return;
         }
+        
+        // Look for payment success indicators
+        const paymentComplete = localStorage.getItem('paymentComplete');
+        const fromPayment = location.state?.fromPayment;
+        
         // If we have a valid order ID, try to fetch the order
         if (finalOrderId) {
           try {
+            // Try to get from localStorage cache first (for both guests and logged-in users)
+            const cachedOrderKey = `order_${finalOrderId}`;
+            if (localStorage.getItem(cachedOrderKey)) {
+              try {
+                console.log('Getting order from localStorage:', cachedOrderKey);
+                const cachedOrder = JSON.parse(localStorage.getItem(cachedOrderKey));
+                if (cachedOrder) {
+                  setOrder(cachedOrder);
+                  setLoading(false);
+                  return;
+                }
+              } catch (cacheError) {
+                console.error('Error parsing cached order:', cacheError);
+                // Continue to other methods
+              }
+            }
+            
             // For logged-in users
             if (user && (getUserId(user))) {
               console.log('Fetching order for logged-in user');
@@ -64,26 +87,32 @@ const OrderConfirmation = () => {
                 return;
               }
             }
+            
+            // For guest users coming directly from payment
+            // Skip email verification if coming from payment or if payment was just completed
+            if (fromPayment || paymentComplete) {
+              try {
+                console.log('Attempting to fetch order directly after payment');
+                const response = await orderService.getOrder(finalOrderId);
+                
+                if (response && (response.order || response.data?.order)) {
+                  const orderData = response.order || response.data?.order;
+                  setOrder(orderData);
+                  
+                  // Cache it for future reference
+                  localStorage.setItem(`order_${finalOrderId}`, JSON.stringify(orderData));
+                  
+                  setLoading(false);
+                  return;
+                }
+              } catch (directFetchError) {
+                console.error('Error fetching order directly after payment:', directFetchError);
+                // Continue to next options
+              }
+            }
           } catch (fetchError) {
             console.error('Error fetching order for logged-in user:', fetchError);
-            // Continue to try localStorage
-          }
-          
-          // Try to get from localStorage cache for guest users
-          const cachedOrderKey = `order_${finalOrderId}`;
-          if (localStorage.getItem(cachedOrderKey)) {
-            try {
-              console.log('Getting order from localStorage:', cachedOrderKey);
-              const cachedOrder = JSON.parse(localStorage.getItem(cachedOrderKey));
-              if (cachedOrder) {
-                setOrder(cachedOrder);
-                setLoading(false);
-                return;
-              }
-            } catch (cacheError) {
-              console.error('Error parsing cached order:', cacheError);
-              // Continue to error state
-            }
+            // Continue to error state
           }
         }
           
