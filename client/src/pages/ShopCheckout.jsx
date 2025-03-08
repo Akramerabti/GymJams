@@ -97,7 +97,7 @@ const ShopCheckout = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { processPayment, initiateCheckout, clearCart, validateCartStock } = useCartStore();
-
+  const [isPaymentComplete, setIsPaymentComplete] = useState(false);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [validatingStock, setValidatingStock] = useState(true);
@@ -154,16 +154,15 @@ const ShopCheckout = () => {
       }
     };
   
-    // Add this check to prevent redirect after successful payment
-    const isPaymentComplete = localStorage.getItem('paymentComplete');
-    
+    // Redirect to cart only if payment was not completed
     if (items.length === 0 && !isPaymentComplete) {
       navigate('/cart');
+      toast.error('Payment failed. Please try again.'); // Notify the user that payment failed
       return;
     }
-    
+  
     validateStock();
-  }, [items, navigate, validateCartStock]);
+  }, [items, navigate, validateCartStock, isPaymentComplete]);
 
   const handleInputChange = (section, field, value) => {
     setFormData((prev) => ({
@@ -302,7 +301,7 @@ const ShopCheckout = () => {
 
   const handlePaymentSuccess = async (paymentIntentId) => {
     console.log("Payment success handler called with paymentIntentId:", paymentIntentId);
-    
+  
     try {
       setLoading(true);
       console.log("Processing payment on server side...");
@@ -311,9 +310,20 @@ const ShopCheckout = () => {
       const paymentResult = await processPayment(paymentIntentId);
       console.log("Payment processing result:", paymentResult);
   
-      // Rest of the function...
+      // Mark payment as complete
+      setIsPaymentComplete(true);
+  
+      // Navigate to the order confirmation page
+      navigate(`/order-confirmation/${orderId}`, {
+        state: {
+          paymentIntentId,
+          pointsUsed,
+          pointsDiscount,
+        },
+      });
     } catch (error) {
-      // Error handling...
+      console.error("Payment error:", error);
+      toast.error(error.message || 'Payment failed. Please try again.');
     } finally {
       setLoading(false);
     }

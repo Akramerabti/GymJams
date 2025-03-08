@@ -23,16 +23,13 @@ const OrderConfirmation = () => {
   const searchParams = new URLSearchParams(location.search);
   const pointsUsed = parseInt(searchParams.get('pointsUsed')) || 0;
   const pointsDiscount = parseFloat(searchParams.get('pointsDiscount')) || 0;
-  
+
   // Parse URL parameters for payment success
   const paymentSuccess = searchParams.get('success') === 'true';
 
   // Mark order as ready to display
   useEffect(() => {
-    // Set a flag in localStorage to prevent redirect after payment success
     localStorage.setItem('paymentComplete', 'true');
-    
-    // Clean up on component unmount
     return () => {
       localStorage.removeItem('paymentComplete');
     };
@@ -40,7 +37,6 @@ const OrderConfirmation = () => {
 
   // Clear the cart if payment was successful
   useEffect(() => {
-    // Remove from sessionStorage/localStorage any items related to the cart
     if (paymentSuccess) {
       localStorage.removeItem('cart-storage');
       sessionStorage.removeItem('checkoutData');
@@ -68,28 +64,28 @@ const OrderConfirmation = () => {
         setError(null);
 
         let orderData;
-        
-        // If user is logged in, fetch order from user orders
+
         if (user) {
           orderData = await orderService.getOrder(orderId);
         } else {
-          // If guest checkout, try to find order by ID and email (if available)
           const email = localStorage.getItem('guestEmail');
           if (email) {
             try {
               orderData = await orderService.getGuestOrder(orderId, email);
             } catch (err) {
               console.error('Guest order lookup failed:', err);
-              // If guest lookup fails, we'll still show generic confirmation
+              setError('Order not found. Please check your email for confirmation details.');
             }
+          } else {
+            setError('Guest email not found. Please check your email for confirmation details.');
           }
         }
 
-        // If we have order data, update it
         if (orderData) {
           setOrder(orderData);
+        } else {
+          setError('Order details could not be loaded.');
         }
-
       } catch (error) {
         console.error('Error fetching order details:', error);
         setError('Failed to fetch order details. Please try again later.');
@@ -100,6 +96,13 @@ const OrderConfirmation = () => {
 
     fetchOrderDetails();
   }, [orderId, user]);
+
+  // Helper function to safely access nested order properties
+  const getOrderProperty = (path, defaultValue = '') => {
+    return path
+      .split('.')
+      .reduce((obj, key) => (obj && obj[key] !== undefined ? obj[key] : defaultValue), order?.order);
+  };
 
   // Format date for display
   const formatDate = (dateString) => {
@@ -112,18 +115,27 @@ const OrderConfirmation = () => {
 
   // Calculate estimated delivery date
   const getEstimatedDelivery = () => {
+
+  
     const today = new Date();
-    if (order?.shippingMethod === 'express') {
-      // 1-2 business days
+    if (getOrderProperty('shippingMethod') === 'express') {
       const estimatedDate = new Date(today);
       estimatedDate.setDate(today.getDate() + 2);
       return formatDate(estimatedDate);
     } else {
-      // 3-5 business days
       const estimatedDate = new Date(today);
       estimatedDate.setDate(today.getDate() + 5);
       return formatDate(estimatedDate);
     }
+  };
+
+  // Safe helper function to get order ID display
+  const getOrderIdDisplay = () => {
+    const orderId = getOrderProperty('id');
+    if (orderId) {
+      return `#${orderId.substring(orderId.length - 8).toUpperCase()}`;
+    }
+    return '';
   };
 
   if (loading) {
@@ -144,10 +156,12 @@ const OrderConfirmation = () => {
           <CardHeader className="bg-green-50 border-b">
             <div className="flex items-center mb-2">
               <CheckCircle2 className="h-6 w-6 text-green-600 mr-2" />
-              <CardTitle>Order Confirmation</CardTitle>
+              <CardTitle className="text-green-600 mr-2">Order Confirmation</CardTitle>
             </div>
-            <CardDescription>
-              {order ? `Order #${order._id.substring(order._id.length - 8).toUpperCase()} has been placed successfully!` : 'Your order has been placed successfully!'}
+            <CardDescription className="text-green-600 mr-2">
+              {order?.order?.id
+                ? `Order ${getOrderIdDisplay()} has been placed successfully!`
+                : 'Your order has been placed successfully!'}
             </CardDescription>
           </CardHeader>
 
@@ -169,8 +183,8 @@ const OrderConfirmation = () => {
                 {/* Order Summary */}
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Order Summary</h3>
-                  
-                  {order ? (
+
+                  {order?.order ? (
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="bg-gray-50 p-4 rounded-lg">
@@ -179,13 +193,13 @@ const OrderConfirmation = () => {
                             <h4 className="font-medium">Order Details</h4>
                           </div>
                           <p className="text-sm text-gray-600 mb-1">
-                            <span className="font-medium">Order Number:</span> #{order._id.substring(order._id.length - 8).toUpperCase()}
+                            <span className="font-medium">Order Number:</span> {getOrderIdDisplay()}
                           </p>
                           <p className="text-sm text-gray-600 mb-1">
-                            <span className="font-medium">Date:</span> {formatDate(order.createdAt)}
+                            <span className="font-medium">Date:</span> {formatDate(getOrderProperty('createdAt'))}
                           </p>
                           <p className="text-sm text-gray-600">
-                            <span className="font-medium">Status:</span> {order.status}
+                            <span className="font-medium">Status:</span> {getOrderProperty('status')}
                           </p>
                         </div>
 
@@ -195,7 +209,8 @@ const OrderConfirmation = () => {
                             <h4 className="font-medium">Shipping Details</h4>
                           </div>
                           <p className="text-sm text-gray-600 mb-1">
-                            <span className="font-medium">Method:</span> {order.shippingMethod === 'express' ? 'Express (1-2 days)' : 'Standard (3-5 days)'}
+                            <span className="font-medium">Method:</span>{' '}
+                            {getOrderProperty('shippingMethod') === 'express' ? 'Express (1-2 days)' : 'Standard (3-5 days)'}
                           </p>
                           <p className="text-sm text-gray-600">
                             <span className="font-medium">Estimated Delivery:</span> {getEstimatedDelivery()}
@@ -204,49 +219,51 @@ const OrderConfirmation = () => {
                       </div>
 
                       {/* Items */}
-                      <div className="mt-6">
-                        <h4 className="font-medium mb-2">Items</h4>
-                        <div className="border rounded-lg overflow-hidden">
-                          <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                              <thead className="bg-gray-50">
-                                <tr>
-                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Product
-                                  </th>
-                                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Price
-                                  </th>
-                                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Quantity
-                                  </th>
-                                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Total
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody className="bg-white divide-y divide-gray-200">
-                                {order.items.map((item, index) => (
-                                  <tr key={index}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                      {item.product ? item.product.name : 'Product'}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                                      ${item.price.toFixed(2)}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                                      {item.quantity}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                                      ${(item.price * item.quantity).toFixed(2)}
-                                    </td>
+                      {getOrderProperty('items')?.length > 0 && (
+                        <div className="mt-6">
+                          <h4 className="font-medium mb-2">Items</h4>
+                          <div className="border rounded-lg overflow-hidden">
+                            <div className="overflow-x-auto">
+                              <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                  <tr>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                      Product
+                                    </th>
+                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                      Price
+                                    </th>
+                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                      Quantity
+                                    </th>
+                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                      Total
+                                    </th>
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                  {getOrderProperty('items').map((item, index) => (
+                                    <tr key={index}>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        {item.product ? item.product.name : 'Product'}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                                        ${item.price?.toFixed(2)}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                                        {item.quantity}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                                        ${(item.price * item.quantity)?.toFixed(2)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* Order Totals */}
                       <div className="mt-6 flex justify-end">
@@ -254,32 +271,31 @@ const OrderConfirmation = () => {
                           <div className="space-y-2">
                             <div className="flex justify-between text-sm">
                               <span>Subtotal</span>
-                              <span>${order.subtotal.toFixed(2)}</span>
+                              <span>${getOrderProperty('subtotal', 0)?.toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between text-sm">
                               <span>Shipping</span>
-                              <span>${order.shippingCost.toFixed(2)}</span>
+                              <span>${getOrderProperty('shippingCost', 0)?.toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between text-sm">
                               <span>Tax</span>
-                              <span>${order.tax.toFixed(2)}</span>
+                              <span>${getOrderProperty('tax', 0)?.toFixed(2)}</span>
                             </div>
-                            
-                            {/* Show points discount if available */}
-                            {(order.pointsUsed > 0 || pointsUsed > 0) && (
+
+                            {(getOrderProperty('pointsUsed') > 0 || pointsUsed > 0) && (
                               <div className="flex justify-between text-sm text-green-600">
                                 <span className="flex items-center">
                                   <Coins className="h-4 w-4 mr-1" />
-                                  Points Discount ({order.pointsUsed || pointsUsed})
+                                  Points Discount ({getOrderProperty('pointsUsed') || pointsUsed})
                                 </span>
-                                <span>-${(order.pointsDiscount || pointsDiscount).toFixed(2)}</span>
+                                <span>-${(getOrderProperty('pointsDiscount') || pointsDiscount || 0)?.toFixed(2)}</span>
                               </div>
                             )}
-                            
+
                             <div className="border-t border-gray-200 pt-2 mt-2">
                               <div className="flex justify-between font-semibold">
                                 <span>Total</span>
-                                <span>${order.total.toFixed(2)}</span>
+                                <span>${getOrderProperty('total', 0)?.toFixed(2)}</span>
                               </div>
                             </div>
                           </div>
@@ -290,7 +306,7 @@ const OrderConfirmation = () => {
                     // Generic confirmation when order details aren't available
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <p className="text-gray-600">
-                        Your order has been placed successfully. 
+                        Your order has been placed successfully.
                         {pointsUsed > 0 && (
                           <span className="flex items-center text-green-600 mt-2">
                             <Coins className="h-4 w-4 mr-1" />
@@ -303,15 +319,22 @@ const OrderConfirmation = () => {
                 </div>
 
                 {/* Shipping Address */}
-                {order && (
+                {getOrderProperty('shippingAddress') && (
                   <div>
                     <h3 className="text-lg font-semibold mb-4">Shipping Address</h3>
                     <div className="bg-gray-50 p-4 rounded-lg">
-                      <p className="text-sm">{order.shippingAddress.firstName} {order.shippingAddress.lastName}</p>
-                      <p className="text-sm">{order.shippingAddress.address}</p>
-                      {order.shippingAddress.apartment && <p className="text-sm">{order.shippingAddress.apartment}</p>}
-                      <p className="text-sm">{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zipCode}</p>
-                      <p className="text-sm">{order.shippingAddress.country}</p>
+                      <p className="text-sm text-white">
+                        {getOrderProperty('shippingAddress.firstName')} {getOrderProperty('shippingAddress.lastName')}
+                      </p>
+                      <p className="text-sm">{getOrderProperty('shippingAddress.address')}</p>
+                      {getOrderProperty('shippingAddress.apartment') && (
+                        <p className="text-sm">{getOrderProperty('shippingAddress.apartment')}</p>
+                      )}
+                      <p className="text-sm">
+                        {getOrderProperty('shippingAddress.city')}, {getOrderProperty('shippingAddress.state')}{' '}
+                        {getOrderProperty('shippingAddress.zipCode')}
+                      </p>
+                      <p className="text-sm">{getOrderProperty('shippingAddress.country')}</p>
                     </div>
                   </div>
                 )}
@@ -325,11 +348,13 @@ const OrderConfirmation = () => {
                         <div>
                           <h4 className="font-medium text-blue-800">Rewards Update</h4>
                           <p className="text-sm text-blue-700">
-                            {order?.pointsUsed > 0 ? 
-                              `You used ${order.pointsUsed} points to save ${order.pointsDiscount.toFixed(2)} on this order.` :
-                              pointsUsed > 0 ?
-                              `You used ${pointsUsed} points to save ${pointsDiscount.toFixed(2)} on this order.` :
-                              'Purchase points have been added to your account.'}
+                            {getOrderProperty('pointsUsed') > 0
+                              ? `You used ${getOrderProperty('pointsUsed')} points to save ${getOrderProperty(
+                                  'pointsDiscount'
+                                )?.toFixed(2)} on this order.`
+                              : pointsUsed > 0
+                              ? `You used ${pointsUsed} points to save ${pointsDiscount.toFixed(2)} on this order.`
+                              : 'Purchase points have been added to your account.'}
                           </p>
                           <p className="text-sm text-blue-700 mt-1">
                             Your current balance: <span className="font-semibold">{balance} points</span>
@@ -341,17 +366,10 @@ const OrderConfirmation = () => {
                 )}
 
                 <div className="flex flex-col sm:flex-row gap-4 justify-between mt-8">
-                  <Button
-                    variant="outline"
-                    onClick={() => navigate('/orders')}
-                  >
+                  <Button variant="outline" onClick={() => navigate('/orders')}>
                     View Orders
                   </Button>
-                  <Button
-                    onClick={() => navigate('/shop')}
-                  >
-                    Continue Shopping
-                  </Button>
+                  <Button onClick={() => navigate('/shop')}>Continue Shopping</Button>
                 </div>
               </div>
             )}
