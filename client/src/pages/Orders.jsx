@@ -1,346 +1,391 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../stores/authStore';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2, PackageOpen, AlertTriangle, ExternalLink, Coins } from 'lucide-react';
 import orderService from '../services/order.service';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { 
-  Package, Clock, CheckCircle, Truck, X, ShoppingBag, 
-  Search, ChevronRight, Mail, AlertCircle
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { motion } from 'framer-motion';
+import { useAuth } from '../stores/authStore';
 
-const Orders = () => {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [guestEmail, setGuestEmail] = useState('');
-  const [guestOrderId, setGuestOrderId] = useState('');
-  const [showGuestLookup, setShowGuestLookup] = useState(false);
-  const [lookupError, setLookupError] = useState('');
-
-  useEffect(() => {
-    // Check if there's an orderId in the URL params for guest lookup
-    const urlParams = new URLSearchParams(location.search);
-    const urlOrderId = urlParams.get('orderId');
-    
-    if (urlOrderId) {
-      setGuestOrderId(urlOrderId);
-    }
-    
-    if (user) {
-      fetchOrders();
-    } else {
-      setShowGuestLookup(true);
-      setLoading(false);
-    }
-  }, [user, location.search]);
-
-  const fetchOrders = async () => {
-    try {
-      setLoading(true);
-      const response = await orderService.getUserOrders();
-      setOrders(Array.isArray(response) ? response : (response?.orders || []));
-    } catch (error) {
-      console.error('Failed to fetch orders:', error);
-      toast.error('Failed to fetch orders. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGuestLookup = async () => {
-    setLookupError('');
-    
-    if (!guestEmail) {
-      setLookupError('Please enter your email address');
-      return;
-    }
-    
-    if (!guestOrderId) {
-      setLookupError('Please enter your order ID');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const response = await orderService.getGuestOrder(guestOrderId, guestEmail);
-      
-      if (response.order) {
-        // Store order in local storage for easier retrieval later
-        localStorage.setItem(`order_${guestOrderId}`, JSON.stringify(response.order));
-        
-        // Redirect to the order confirmation page
-        navigate(`/order-confirmation/${guestOrderId}`);
-      } else {
-        setLookupError('No order found for this email and order ID');
-      }
-    } catch (error) {
-      console.error('Error looking up guest order:', error);
-      setLookupError('No order found for this email and order ID');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getOrderStatusDisplay = (status) => {
-    switch (status) {
-      case 'pending':
-        return { 
-          icon: <Clock className="w-5 h-5" />, 
-          color: 'text-yellow-600 bg-yellow-100', 
-          label: 'Pending' 
-        };
-      case 'processing':
-        return { 
-          icon: <Package className="w-5 h-5" />, 
-          color: 'text-blue-600 bg-blue-100', 
-          label: 'Processing' 
-        };
-      case 'shipped':
-        return { 
-          icon: <Truck className="w-5 h-5" />, 
-          color: 'text-green-600 bg-green-100', 
-          label: 'Shipped' 
-        };
-      case 'delivered':
-        return { 
-          icon: <CheckCircle className="w-5 h-5" />, 
-          color: 'text-green-800 bg-green-100', 
-          label: 'Delivered' 
-        };
-      case 'cancelled':
-        return { 
-          icon: <X className="w-5 h-5" />, 
-          color: 'text-red-600 bg-red-100', 
-          label: 'Cancelled' 
-        };
-      default:
-        return { 
-          icon: <Package className="w-5 h-5" />, 
-          color: 'text-gray-600 bg-gray-100', 
-          label: status 
-        };
-    }
-  };
-
+const OrderItem = ({ order, onViewDetails }) => {
+  // Function to format date
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
     });
   };
 
-  if (loading && !showGuestLookup) {
+  // Determine status badge color
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'processing':
+        return 'bg-blue-100 text-blue-800';
+      case 'shipped':
+        return 'bg-purple-100 text-purple-800';
+      case 'delivered':
+        return 'bg-green-100 text-green-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  return (
+    <Card className="mb-4 hover:shadow-md transition-shadow">
+      <CardContent className="p-5">
+        <div className="flex flex-col md:flex-row justify-between">
+          <div className="mb-4 md:mb-0">
+            <div className="flex items-center gap-2">
+              <PackageOpen className="h-5 w-5 text-gray-500" />
+              <h3 className="font-semibold text-lg">Order #{order._id.substring(order._id.length - 8).toUpperCase()}</h3>
+            </div>
+            <div className="text-sm text-gray-500 mt-1">
+              Placed on {formatDate(order.createdAt)}
+            </div>
+            <div className="mt-3">
+              <span className={`px-2 py-1 rounded-full text-xs font-medium uppercase ${getStatusBadge(order.status)}`}>
+                {order.status}
+              </span>
+            </div>
+          </div>
+          
+          <div className="flex flex-col">
+            <div className="text-right">
+              <div className="text-gray-500 text-sm">Total</div>
+              <div className="font-bold text-lg">${order.total.toFixed(2)}</div>
+              {order.pointsUsed > 0 && (
+                <div className="flex items-center justify-end text-green-600 text-xs">
+                  <Coins className="h-3 w-3 mr-1" />
+                  <span>{order.pointsUsed} points saved ${order.pointsDiscount.toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+            <div className="mt-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => onViewDetails(order._id)}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                View Details
+              </Button>
+            </div>
+          </div>
+        </div>
+        
+        <div className="mt-4 border-t pt-4">
+          <div className="text-sm text-gray-500 mb-2">Items</div>
+          <div className="space-y-2">
+            {order.items.map((item, index) => (
+              <div key={index} className="flex justify-between">
+                <div className="flex items-center">
+                  <span className="font-medium">
+                    {item.quantity} x {item.product ? item.product.name : 'Product'}
+                  </span>
+                </div>
+                <div>${(item.price * item.quantity).toFixed(2)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const OrderDetailModal = ({ order, onClose }) => {
+  if (!order) return null;
+
+  // Function to format date
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white p-4 border-b flex justify-between items-center">
+          <h2 className="text-xl font-bold">
+            Order #{order._id.substring(order._id.length - 8).toUpperCase()}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            &times;
+          </button>
+        </div>
+
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div>
+            <h3 className="font-medium text-gray-700 mb-2">Order Information</h3>
+            <p className="text-sm py-1">
+              <span className="font-medium">Date Placed:</span> {formatDate(order.createdAt)}
+            </p>
+            <p className="text-sm py-1">
+              <span className="font-medium">Status:</span>{' '}
+              <span className={`px-2 py-1 rounded-full text-xs font-medium uppercase 
+                ${order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                  order.status === 'processing' ? 'bg-blue-100 text-blue-800' : 
+                  order.status === 'shipped' ? 'bg-purple-100 text-purple-800' : 
+                  order.status === 'delivered' ? 'bg-green-100 text-green-800' : 
+                  order.status === 'cancelled' ? 'bg-red-100 text-red-800' : 
+                  'bg-gray-100 text-gray-800'}`}>
+                {order.status}
+              </span>
+            </p>
+            <p className="text-sm py-1">
+              <span className="font-medium">Payment Status:</span>{' '}
+              <span className={`px-2 py-1 rounded-full text-xs font-medium uppercase 
+                ${order.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' : 
+                  order.paymentStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                  order.paymentStatus === 'refunded' ? 'bg-purple-100 text-purple-800' : 
+                  'bg-red-100 text-red-800'}`}>
+                {order.paymentStatus}
+              </span>
+            </p>
+            {order.trackingNumber && (
+              <p className="text-sm py-2">
+                <span className="font-medium">Tracking Number:</span> {order.trackingNumber}
+              </p>
+            )}
+          </div>
+
+            <div>
+              <h3 className="font-medium text-gray-700 mb-2">Shipping Information</h3>
+              <p className="text-sm">
+                {order.shippingAddress.firstName} {order.shippingAddress.lastName}
+              </p>
+              <p className="text-sm">{order.shippingAddress.address}</p>
+              {order.shippingAddress.apartment && (
+                <p className="text-sm">{order.shippingAddress.apartment}</p>
+              )}
+              <p className="text-sm">
+                {order.shippingAddress.city}, {order.shippingAddress.state}{' '}
+                {order.shippingAddress.zipCode}
+              </p>
+              <p className="text-sm">{order.shippingAddress.country}</p>
+              <p className="text-sm mt-2">
+                <span className="font-medium">Shipping Method:</span>{' '}
+                {order.shippingMethod === 'express'
+                  ? 'Express Shipping (1-2 business days)'
+                  : 'Standard Shipping (3-5 business days)'}
+              </p>
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <h3 className="font-medium text-gray-700 mb-2">Items</h3>
+            <div className="border rounded-lg overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Product
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Price
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Quantity
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {order.items.map((item, index) => (
+                    <tr key={index}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {item.product ? item.product.name : 'Product'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                        ${item.price.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                        {item.quantity}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                        ${(item.price * item.quantity).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="border-t pt-6">
+            <div className="flex justify-end">
+              <div className="w-64">
+                <div className="flex justify-between py-2">
+                  <span className="text-sm">Subtotal</span>
+                  <span className="text-sm font-medium">${order.subtotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between py-2">
+                  <span className="text-sm">Shipping</span>
+                  <span className="text-sm font-medium">${order.shippingCost.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between py-2">
+                  <span className="text-sm">Tax</span>
+                  <span className="text-sm font-medium">${order.tax.toFixed(2)}</span>
+                </div>
+                
+                {/* Points discount section */}
+                {order.pointsUsed > 0 && (
+                  <div className="flex justify-between py-2 text-green-600">
+                    <span className="text-sm flex items-center">
+                      <Coins className="h-4 w-4 mr-1" />
+                      Points Discount ({order.pointsUsed})
+                    </span>
+                    <span className="text-sm font-medium">-${order.pointsDiscount.toFixed(2)}</span>
+                  </div>
+                )}
+                
+                <div className="flex justify-between py-2 border-t border-gray-200 mt-2">
+                  <span className="text-base font-medium">Total</span>
+                  <span className="text-base font-bold">${order.total.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Orders = () => {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Fetch orders
+        const response = await orderService.getUserOrders();
+        
+        // Sort by most recent first
+        const sortedOrders = response.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        
+        setOrders(sortedOrders);
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+        setError('Failed to fetch orders. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchOrders();
+    } else {
+      setLoading(false);
+    }
+  }, [user]);
+
+  const handleViewOrderDetails = (orderId) => {
+    const order = orders.find(order => order._id === orderId);
+    setSelectedOrder(order);
+  };
+
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Loading your orders...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Sign In to View Orders</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600 mb-4">
+              Please sign in to view your order history.
+            </p>
+            <Button 
+              className="w-full"
+              onClick={() => navigate('/login?redirect=/orders')}
+            >
+              Sign In
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-          <h1 className="text-3xl font-bold">{user ? 'My Orders' : 'Order Lookup'}</h1>
-          <Button
-            onClick={() => navigate('/shop')}
-            variant="outline"
-            className="flex items-center"
-          >
-            <ShoppingBag className="mr-2 h-4 w-4" />
-            Continue Shopping
-          </Button>
-        </div>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="container mx-auto px-4">
+        <h1 className="text-2xl font-bold mb-6">Your Orders</h1>
 
-        {showGuestLookup && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="mb-8"
-          >
-            <Card className="shadow-md">
-              <CardHeader>
-                <CardTitle className="flex items-center text-xl">
-                  <Mail className="h-5 w-5 mr-2 text-blue-600" />
-                  Track Your Order
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
-                  <p className="text-blue-700">
-                    {user 
-                      ? "You're logged in, but you can still track a guest order by entering the details below."
-                      : "Enter the email address and order ID from your confirmation email to check your order status."}
-                  </p>
-                </div>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                      Email Address
-                    </label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="Email used for your order"
-                      value={guestEmail}
-                      onChange={(e) => setGuestEmail(e.target.value)}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="orderId" className="block text-sm font-medium text-gray-700 mb-1">
-                      Order ID
-                    </label>
-                    <Input
-                      id="orderId"
-                      placeholder="Enter your order ID (e.g., 612f3a5e...)"
-                      value={guestOrderId}
-                      onChange={(e) => setGuestOrderId(e.target.value)}
-                    />
-                  </div>
-                  
-                  {lookupError && (
-                    <div className="bg-red-50 border-l-4 border-red-500 p-4 my-4 flex items-start">
-                      <AlertCircle className="h-5 w-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
-                      <p className="text-red-700">{lookupError}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-              <CardFooter className="flex justify-end border-t bg-gray-50 p-4">
-                <Button 
-                  onClick={handleGuestLookup}
-                  className="w-full sm:w-auto"
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <span className="flex items-center">
-                      <span className="animate-spin mr-2 h-4 w-4 border-2 border-white border-opacity-50 border-t-transparent rounded-full"></span>
-                      Looking up...
-                    </span>
-                  ) : (
-                    <span className="flex items-center">
-                      <Search className="mr-2 h-4 w-4" />
-                      Find My Order
-                    </span>
-                  )}
-                </Button>
-              </CardFooter>
-            </Card>
-          </motion.div>
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
-        {user && (
-          <>
-            {orders.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="text-center py-12 bg-white rounded-lg shadow-sm"
-              >
-                <div className="bg-gray-100 p-4 inline-block rounded-full mb-4">
-                  <ShoppingBag className="h-12 w-12 text-gray-500" />
-                </div>
-                <h2 className="text-2xl font-semibold mb-2">No orders yet</h2>
-                <p className="text-gray-600 mb-8 max-w-md mx-auto">
-                  Your order history will appear here once you make a purchase.
-                </p>
-                <Button onClick={() => navigate('/shop')}>
-                  Start Shopping
-                </Button>
-              </motion.div>
-            ) : (
-              <div className="space-y-6">
-                {orders.map((order, index) => {
-                  const statusDisplay = getOrderStatusDisplay(order.status);
-                  return (
-                    <motion.div
-                      key={order._id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: index * 0.1 }}
-                    >
-                      <Card className="shadow-md hover:shadow-lg transition-shadow">
-                        <CardHeader className="pb-2">
-                          <div className="flex justify-between items-center">
-                            <CardTitle className="text-lg">
-                              Order #{order._id.slice(-8).toUpperCase()}
-                            </CardTitle>
-                            <div className={`flex items-center ${statusDisplay.color} px-3 py-1 rounded-full text-xs`}>
-                              {statusDisplay.icon}
-                              <span className="ml-2 font-medium">{statusDisplay.label}</span>
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="pt-2">
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                            <div>
-                              <p className="text-gray-500">Date</p>
-                              <p className="font-medium">{formatDate(order.createdAt)}</p>
-                            </div>
-                            <div>
-                              <p className="text-gray-500">Items</p>
-                              <p className="font-medium">{order.items.reduce((sum, item) => sum + item.quantity, 0)} items</p>
-                            </div>
-                            <div>
-                              <p className="text-gray-500">Total</p>
-                              <p className="font-medium">${order.total.toFixed(2)}</p>
-                            </div>
-                          </div>
-                        </CardContent>
-                        <CardFooter className="border-t bg-gray-50 flex justify-end">
-                          <Button 
-                            variant="ghost" 
-                            onClick={() => navigate(`/order-confirmation/${order._id}`)}
-                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
-                          >
-                            View Details
-                            <ChevronRight className="ml-2 h-4 w-4" />
-                          </Button>
-                        </CardFooter>
-                      </Card>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
-          </>
-        )}
-        
-        {!user && !showGuestLookup && (
-          <div className="mt-12 text-center">
-            <p className="text-gray-600 mb-4">
-              Don't have an account? You can still track your orders.
-            </p>
-            <Button onClick={() => setShowGuestLookup(true)} variant="outline">
-              Track as Guest
-            </Button>
-          </div>
-        )}
-        
-        {user && orders.length > 0 && showGuestLookup && (
-          <div className="mt-8">
-            <Button 
-              onClick={() => setShowGuestLookup(false)} 
-              variant="outline"
-              className="w-full"
-            >
-              Hide Guest Order Lookup
-            </Button>
+        {orders.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <PackageOpen className="h-16 w-16 text-gray-300 mb-4" />
+              <h2 className="text-xl font-semibold mb-2">No orders yet</h2>
+              <p className="text-gray-500 mb-6 text-center">
+                Looks like you haven't placed any orders yet.
+              </p>
+              <Button onClick={() => navigate('/shop')}>
+                Start Shopping
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {orders.map((order) => (
+              <OrderItem 
+                key={order._id} 
+                order={order} 
+                onViewDetails={handleViewOrderDetails}
+              />
+            ))}
           </div>
         )}
       </div>
+
+      {selectedOrder && (
+        <OrderDetailModal
+          order={selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+        />
+      )}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ShoppingBag } from 'lucide-react';
@@ -14,6 +14,24 @@ const CartSummary = ({ totals, onCheckout, isLoading }) => {
   const { updatePointsDiscount, removePointsDiscount } = useCartStore();
   const [pointsDiscount, setPointsDiscount] = useState(0);
   const [pointsUsed, setPointsUsed] = useState(0);
+
+  useEffect(() => {
+    // Load points discount from local storage
+    const savedPointsDiscount = localStorage.getItem('pointsDiscount');
+    const savedPointsUsed = localStorage.getItem('pointsUsed');
+  
+    if (savedPointsDiscount && savedPointsUsed) {
+      setPointsDiscount(parseFloat(savedPointsDiscount));
+      setPointsUsed(parseInt(savedPointsUsed));
+      updatePointsDiscount(parseInt(savedPointsUsed), parseFloat(savedPointsDiscount));
+    }
+  }, []);
+  
+  useEffect(() => {
+    // Save points discount to local storage
+    localStorage.setItem('pointsDiscount', pointsDiscount.toString());
+    localStorage.setItem('pointsUsed', pointsUsed.toString());
+  }, [pointsDiscount, pointsUsed]);
 
   // Calculate the final total without double-counting the discount
   const finalTotal = Math.max(0, totals.subtotal + totals.shipping + totals.tax - pointsDiscount).toFixed(2);

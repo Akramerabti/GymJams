@@ -26,88 +26,92 @@ const Cart = () => {
     removePointsDiscount();
   }, [removePointsDiscount]);
 
-  
+
   const getUserId = (user) => {
     return user?.user?.id || user?.id || '';
   };
 
   const handleCheckout = async () => {
-    try {
-      const isStockValid = await validateCartStock();
+  try {
+    const isStockValid = await validateCartStock();
 
-      if (!isStockValid) {
-        toast.error('Some items in your cart are out of stock or have insufficient quantity.');
-        return;
-      }
-
-      // If the user is logged in, proceed directly to checkout
-      if (user) {
-        const checkoutData = {
-          items: items.map((item) => ({
-            id: item.id,
-            quantity: item.quantity,
-          })),
-          shippingAddress: {
-            email: user.email, // Use the logged-in user's email
-          },
-          billingAddress: {},
-          shippingMethod: 'standard',
-          userId: getUserId(user),
-        };
-
-        const order = await initiateCheckout(checkoutData);
-        console.log('Checkout successful, redirecting to /shop-checkout', order);
-        navigate('/shop-checkout');
-        return;
-      }
-
-      // If the user is a guest, open the email modal
-      setIsEmailModalOpen(true);
-    } catch (error) {
-      console.error('Checkout failed:', error);
-      toast.error('An error occurred during checkout.');
+    if (!isStockValid) {
+      toast.error('Some items in your cart are out of stock or have insufficient quantity.');
+      return;
     }
-  };
 
-  const handleGuestCheckout = async () => {
-    try {
-      // Validate the email
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        toast.error('Please enter a valid email address.');
-        return;
-      }
-
-      const isStockValid = await validateCartStock();
-
-      if (!isStockValid) {
-        toast.error('Some items in your cart are out of stock or have insufficient quantity.');
-        return;
-      }
-
+    // If the user is logged in, proceed directly to checkout
+    if (user) {
       const checkoutData = {
         items: items.map((item) => ({
           id: item.id,
           quantity: item.quantity,
         })),
         shippingAddress: {
-          email: email, // Use the email provided by the guest user
+          email: user.email, // Use the logged-in user's email
         },
         billingAddress: {},
         shippingMethod: 'standard',
-        userId: null, // No user ID for guest checkout
+        userId: getUserId(user),
+        pointsUsed: cartStore.pointsUsed, // Include pointsUsed
+        pointsDiscount: cartStore.pointsDiscount, // Include pointsDiscount
       };
 
       const order = await initiateCheckout(checkoutData);
       console.log('Checkout successful, redirecting to /shop-checkout', order);
       navigate('/shop-checkout');
-    } catch (error) {
-      console.error('Checkout failed:', error);
-      toast.error('An error occurred during checkout.');
-    } finally {
-      setIsEmailModalOpen(false); // Close the email modal
+      return;
     }
-  };
+
+    // If the user is a guest, open the email modal
+    setIsEmailModalOpen(true);
+  } catch (error) {
+    console.error('Checkout failed:', error);
+    toast.error('An error occurred during checkout.');
+  }
+};
+
+const handleGuestCheckout = async () => {
+  try {
+    // Validate the email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast.error('Please enter a valid email address.');
+      return;
+    }
+
+    const isStockValid = await validateCartStock();
+
+    if (!isStockValid) {
+      toast.error('Some items in your cart are out of stock or have insufficient quantity.');
+      return;
+    }
+
+    const checkoutData = {
+      items: items.map((item) => ({
+        id: item.id,
+        quantity: item.quantity,
+      })),
+      shippingAddress: {
+        email: email, // Use the email provided by the guest user
+      },
+      billingAddress: {},
+      shippingMethod: 'standard',
+      userId: null, // No user ID for guest checkout
+      pointsUsed: cartStore.pointsUsed, // Include pointsUsed
+      pointsDiscount: cartStore.pointsDiscount, // Include pointsDiscount
+    };
+
+    const order = await initiateCheckout(checkoutData);
+    console.log('Checkout successful, redirecting to /shop-checkout', order);
+    navigate('/shop-checkout');
+  } catch (error) {
+    console.error('Checkout failed:', error);
+    toast.error('An error occurred during checkout.');
+  } finally {
+    setIsEmailModalOpen(false); // Close the email modal
+  }
+};
 
   if (items.length === 0) {
     return (

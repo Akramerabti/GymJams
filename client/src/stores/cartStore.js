@@ -4,7 +4,7 @@ import api from '../services/api';
 import { toast } from 'sonner';
 import inventoryService from '../services/inventory.service';
 import { usePoints } from '../hooks/usePoints';
-
+import { stripe } from '../lib/stripe';
 
 const calculateTotals = (items, pointsDiscount = 0) => {
   // Fixed calculation to properly account for item quantities
@@ -218,40 +218,22 @@ const useCartStore = create(
             shippingMethod: checkoutData.shippingMethod || 'standard',
             userId: checkoutData.userId || null,
             isGuest: !checkoutData.userId,
-            pointsUsed: pointsUsed || 0,
-            pointsDiscount: pointsDiscount || 0
+            pointsUsed: pointsUsed || 0, // Ensure pointsUsed is passed
+            pointsDiscount: pointsDiscount || 0, // Ensure pointsDiscount is passed
           };
       
           let response;
       
           // If we have an existing orderId, try to update the order
           if (existingOrderId) {
-            try {
-              response = await retryWithBackoff(() =>
-                api({
-                  method: 'put',
-                  url: `/orders/${existingOrderId}`,
-                  data: requestData,
-                })
-              );
-              console.log('Order updated successfully:', response.data);
-            } catch (updateError) {
-              // If the update fails with a 404 error, fall back to creating a new order
-              if (updateError.response?.status === 404) {
-                console.warn('Order not found, creating a new order...');
-                response = await retryWithBackoff(() =>
-                  api({
-                    method: 'post',
-                    url: '/orders',
-                    data: requestData,
-                  })
-                );
-                console.log('New order created successfully:', response.data);
-              } else {
-                // Re-throw the error if it's not a 404
-                throw updateError;
-              }
-            }
+            response = await retryWithBackoff(() =>
+              api({
+                method: 'put',
+                url: `/orders/${existingOrderId}`,
+                data: requestData,
+              })
+            );
+            console.log('Order updated successfully:', response.data);
           } else {
             // If there's no existing orderId, create a new order
             response = await retryWithBackoff(() =>
@@ -277,6 +259,7 @@ const useCartStore = create(
           set({ loading: false });
         }
       },
+
 
       processPayment: async (paymentIntentId) => {
   // Prevent concurrent payment processing
@@ -304,13 +287,12 @@ const useCartStore = create(
         // Fetch the current points balance
         const currentBalance = usePoints.getState().balance;
 
-        // Ensure the user has enough points to deduct
-        if (currentBalance < pointsUsed) {
-          throw new Error('Insufficient points to complete the transaction');
-        }
+        console.log('Current points balance:', currentBalance);
+         
+        const newBalance = currentBalance - pointsUsed;
 
         // Update points in the backend
-        await usePoints.getState().updatePointsInBackend(-pointsUsed);
+        await usePoints.getState().updatePointsInBackend(newBalance);
 
         // Update local points state
         usePoints.getState().subtractPoints(pointsUsed);

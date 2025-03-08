@@ -1,507 +1,362 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../stores/authStore';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Loader2, CheckCircle2, AlertCircle, Package, Truck, Coins } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import api from '../services/api';
 import orderService from '../services/order.service';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { CheckCircle, Package, Truck, Calendar, ChevronRight, Copy, ArrowLeft } from 'lucide-react';
-import { toast } from 'sonner';
-import { motion } from 'framer-motion';
-import { Input } from '../components/ui/input';
+import { useAuth } from '../stores/authStore';
+import { usePoints } from '../hooks/usePoints';
 
 const OrderConfirmation = () => {
   const { orderId } = useParams();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { user } = useAuth();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [guestEmail, setGuestEmail] = useState('');
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { balance, fetchPoints } = usePoints();
 
-  const getUserId = (user) => {
-    return user?.user?.id || user?.id || '';
-  };
+  // Parse URL parameters for points info
+  const searchParams = new URLSearchParams(location.search);
+  const pointsUsed = parseInt(searchParams.get('pointsUsed')) || 0;
+  const pointsDiscount = parseFloat(searchParams.get('pointsDiscount')) || 0;
+  
+  // Parse URL parameters for payment success
+  const paymentSuccess = searchParams.get('success') === 'true';
 
-
-  // Updated useEffect to handle multiple ways of getting the order ID
+  // Mark order as ready to display
   useEffect(() => {
-    const fetchOrderData = async () => {
+    // Set a flag in localStorage to prevent redirect after payment success
+    localStorage.setItem('paymentComplete', 'true');
+    
+    // Clean up on component unmount
+    return () => {
+      localStorage.removeItem('paymentComplete');
+    };
+  }, []);
+
+  // Clear the cart if payment was successful
+  useEffect(() => {
+    // Remove from sessionStorage/localStorage any items related to the cart
+    if (paymentSuccess) {
+      localStorage.removeItem('cart-storage');
+      sessionStorage.removeItem('checkoutData');
+    }
+  }, [paymentSuccess]);
+
+  // Refresh points balance if user is logged in
+  useEffect(() => {
+    if (user) {
+      fetchPoints();
+    }
+  }, [user, fetchPoints]);
+
+  // Fetch order details
+  useEffect(() => {
+    const fetchOrderDetails = async () => {
+      if (!orderId) {
+        setError('Order ID is missing');
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
+        setError(null);
+
+        let orderData;
         
-        // Try multiple sources to get the order ID
-        const finalOrderId = orderId || 
-                   location.state?.orderId || 
-                   new URLSearchParams(location.search).get('orderId') ||
-                   localStorage.getItem('lastOrderId') ||
-                   localStorage.getItem('lastCompletedOrderId'); // Added for backup
-        
-        console.log('Final order ID:', finalOrderId);
-        
-        // If we have order data directly from state, use it
-        if (location.state?.order) {
-          setOrder(location.state.order);
-          // Also cache the order for future reference if we have an ID
-          if (finalOrderId) {
-            localStorage.setItem(`order_${finalOrderId}`, JSON.stringify(location.state.order));
-          }
-          setLoading(false);
-          return;
-        }
-        
-        // Look for payment success indicators
-        const paymentComplete = localStorage.getItem('paymentComplete');
-        const fromPayment = location.state?.fromPayment;
-        
-        // If we have a valid order ID, try to fetch the order
-        if (finalOrderId) {
-          try {
-            // Try to get from localStorage cache first (for both guests and logged-in users)
-            const cachedOrderKey = `order_${finalOrderId}`;
-            if (localStorage.getItem(cachedOrderKey)) {
-              try {
-                console.log('Getting order from localStorage:', cachedOrderKey);
-                const cachedOrder = JSON.parse(localStorage.getItem(cachedOrderKey));
-                if (cachedOrder) {
-                  setOrder(cachedOrder);
-                  setLoading(false);
-                  return;
-                }
-              } catch (cacheError) {
-                console.error('Error parsing cached order:', cacheError);
-                // Continue to other methods
-              }
-            }
-            
-            // For logged-in users
-            if (user && (getUserId(user))) {
-              console.log('Fetching order for logged-in user');
-              const response = await orderService.getOrder(finalOrderId);
-              console.log('Order response:', response);
-              
-              if (response && (response.order || response.data?.order)) {
-                const orderData = response.order || response.data?.order;
-                setOrder(orderData);
-                setLoading(false);
-                return;
-              }
-            }
-            
-            // For guest users coming directly from payment
-            // Skip email verification if coming from payment or if payment was just completed
-            if (fromPayment || paymentComplete) {
-              try {
-                console.log('Attempting to fetch order directly after payment');
-                const response = await orderService.getOrder(finalOrderId);
-                
-                if (response && (response.order || response.data?.order)) {
-                  const orderData = response.order || response.data?.order;
-                  setOrder(orderData);
-                  
-                  // Cache it for future reference
-                  localStorage.setItem(`order_${finalOrderId}`, JSON.stringify(orderData));
-                  
-                  setLoading(false);
-                  return;
-                }
-              } catch (directFetchError) {
-                console.error('Error fetching order directly after payment:', directFetchError);
-                // Continue to next options
-              }
-            }
-          } catch (fetchError) {
-            console.error('Error fetching order for logged-in user:', fetchError);
-            // Continue to error state
-          }
-        }
-          
-        // If we reach here, we couldn't find the order
-        setError('To view this order, please enter the email used during checkout.');
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching order:', error);
-        if (error.response?.status === 404) {
-          setError('Order not found. Please check your order number and try again.');
+        // If user is logged in, fetch order from user orders
+        if (user) {
+          orderData = await orderService.getOrder(orderId);
         } else {
-          setError('Failed to load order information. Please try again later.');
+          // If guest checkout, try to find order by ID and email (if available)
+          const email = localStorage.getItem('guestEmail');
+          if (email) {
+            try {
+              orderData = await orderService.getGuestOrder(orderId, email);
+            } catch (err) {
+              console.error('Guest order lookup failed:', err);
+              // If guest lookup fails, we'll still show generic confirmation
+            }
+          }
         }
+
+        // If we have order data, update it
+        if (orderData) {
+          setOrder(orderData);
+        }
+
+      } catch (error) {
+        console.error('Error fetching order details:', error);
+        setError('Failed to fetch order details. Please try again later.');
+      } finally {
         setLoading(false);
       }
     };
 
-    fetchOrderData();
-  }, [orderId, location.state, location.search, user]);
+    fetchOrderDetails();
+  }, [orderId, user]);
 
-  const handleGuestLookup = async (e) => {
-    e.preventDefault();
-    
-    if (!guestEmail || !guestEmail.includes('@')) {
-      toast.error('Please enter a valid email address');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      console.log(`Looking up order ${orderId} with email ${guestEmail}`);
-      
-      // First, try using the guest order lookup endpoint
-      try {
-        const response = await orderService.getGuestOrder(orderId, guestEmail);
-        console.log('Guest order lookup response:', response);
-        
-        if (response?.order) {
-          setOrder(response.order);
-          
-          // Cache the order data for future reference
-          localStorage.setItem(`order_${orderId}`, JSON.stringify(response.order));
-          setError(null);
-          return;
-        }
-      } catch (guestLookupError) {
-        console.error('Error with guest order lookup:', guestLookupError);
-        // Continue to fallback approach
-      }
-      
-      // Fallback: try fetching the order directly
-      try {
-        const regularResponse = await orderService.getOrder(orderId);
-        console.log('Regular order lookup response:', regularResponse);
-        
-        if (regularResponse?.order) {
-          // Verify the email matches
-          const orderEmail = regularResponse.order.email || 
-                            regularResponse.order.shippingAddress?.email;
-                            
-          if (orderEmail && orderEmail.toLowerCase() === guestEmail.toLowerCase()) {
-            setOrder(regularResponse.order);
-            
-            // Cache the order data for future reference
-            localStorage.setItem(`order_${orderId}`, JSON.stringify(regularResponse.order));
-            setError(null);
-            return;
-          }
-        }
-      } catch (regularLookupError) {
-        console.error('Error with regular order lookup:', regularLookupError);
-      }
-      
-      // If we reach here, no order was found
-      toast.error('No order found for this email and order ID');
-    } catch (error) {
-      console.error('Error fetching guest order:', error);
-      toast.error('No order found for this email and order ID');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const copyOrderId = () => {
-    navigator.clipboard.writeText(orderId);
-    toast.success('Order ID copied to clipboard');
-  };
-
+  // Format date for display
   const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
     });
   };
 
-  const expectedDeliveryDate = (order) => {
-    if (!order) return 'N/A';
-    
-    if (order.estimatedDeliveryDate) {
-      return formatDate(order.estimatedDeliveryDate);
-    }
-    
-    // Calculate estimated delivery date: 3-5 days for standard, 1-2 for express
-    const orderDate = new Date(order.createdAt);
-    const deliveryDays = order.shippingMethod === 'express' ? 2 : 5;
-    const estimatedDate = new Date(orderDate);
-    estimatedDate.setDate(orderDate.getDate() + deliveryDays);
-    
-    return formatDate(estimatedDate);
-  };
-
-  const getOrderStatusDisplay = (status) => {
-    switch (status) {
-      case 'pending':
-        return { color: 'text-yellow-600 bg-yellow-100', label: 'Pending' };
-      case 'processing':
-        return { color: 'text-blue-600 bg-blue-100', label: 'Processing' };
-      case 'shipped':
-        return { color: 'text-green-600 bg-green-100', label: 'Shipped' };
-      case 'delivered':
-        return { color: 'text-green-800 bg-green-100', label: 'Delivered' };
-      case 'cancelled':
-        return { color: 'text-red-600 bg-red-100', label: 'Cancelled' };
-      default:
-        return { color: 'text-gray-600 bg-gray-100', label: status || 'Unknown' };
+  // Calculate estimated delivery date
+  const getEstimatedDelivery = () => {
+    const today = new Date();
+    if (order?.shippingMethod === 'express') {
+      // 1-2 business days
+      const estimatedDate = new Date(today);
+      estimatedDate.setDate(today.getDate() + 2);
+      return formatDate(estimatedDate);
+    } else {
+      // 3-5 business days
+      const estimatedDate = new Date(today);
+      estimatedDate.setDate(today.getDate() + 5);
+      return formatDate(estimatedDate);
     }
   };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  // Guest lookup form
-  if (error && !user && !order) {
-    return (
-      <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-xl mx-auto">
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/shop')}
-            className="mb-4 flex items-center"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Continue Shopping
-          </Button>
-          
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-2xl font-bold text-center">Retrieve Your Order</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4 text-center">
-                Please enter the email address you used during checkout to view your order information.
-              </p>
-              <form onSubmit={handleGuestLookup} className="space-y-4">
-                <Input
-                  type="email"
-                  placeholder="Email address"
-                  value={guestEmail}
-                  onChange={(e) => setGuestEmail(e.target.value)}
-                  className="w-full"
-                  required
-                />
-                <Button 
-                  type="submit"
-                  className="w-full bg-primary hover:bg-primary/90"
-                >
-                  Find My Order
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Loading order confirmation...</p>
         </div>
       </div>
     );
   }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-xl mx-auto text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Oops! Something went wrong</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <Button onClick={() => navigate('/shop')}>Continue Shopping</Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!order) {
-    return (
-      <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-xl mx-auto text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Order Not Found</h2>
-          <p className="text-gray-600 mb-6">We couldn't find any order with the provided information.</p>
-          <Button onClick={() => navigate('/shop')}>Continue Shopping</Button>
-        </div>
-      </div>
-    );
-  }
-
-  const statusDisplay = getOrderStatusDisplay(order.status);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/shop')}
-          className="mb-4 flex items-center"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Continue Shopping
-        </Button>
-        
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <Card className="shadow-lg mb-8 overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 text-white">
-              <div className="flex items-center">
-                <CheckCircle className="w-8 h-8 mr-3" />
-                <div>
-                  <h1 className="text-2xl font-bold">Order Confirmed!</h1>
-                  <p className="opacity-80">Thank you for your purchase.</p>
-                </div>
-              </div>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="container mx-auto px-4">
+        <Card className="max-w-4xl mx-auto">
+          <CardHeader className="bg-green-50 border-b">
+            <div className="flex items-center mb-2">
+              <CheckCircle2 className="h-6 w-6 text-green-600 mr-2" />
+              <CardTitle>Order Confirmation</CardTitle>
             </div>
-            
-            <CardContent className="p-6">
-              <div className="flex flex-col md:flex-row justify-between mb-6 pb-6 border-b">
-                <div className="mb-4 md:mb-0">
-                  <p className="text-sm text-gray-500 mb-1">Order Number</p>
-                  <div className="flex items-center">
-                    <p className="font-semibold">{orderId}</p>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={copyOrderId}
-                      className="ml-2 h-8 w-8"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                
-                <div className="mb-4 md:mb-0">
-                  <p className="text-sm text-gray-500 mb-1">Order Date</p>
-                  <p className="font-semibold">{formatDate(order.createdAt)}</p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Status</p>
-                  <span className={`${statusDisplay.color} px-3 py-1 rounded-full text-sm font-medium`}>
-                    {statusDisplay.label}
-                  </span>
-                </div>
-              </div>
-              
-              <div className="mb-6">
-                <h2 className="text-lg font-semibold mb-4">Order Items</h2>
-                <div className="space-y-4">
-                  {order.items && order.items.map((item, index) => (
-                    <div 
-                      key={index} 
-                      className="flex items-center border-b pb-4"
-                    >
-                      <div className="bg-gray-100 p-3 rounded-lg mr-4">
-                        {item.product && item.product.images && item.product.images[0] ? (
-                          <img 
-                            src={item.product.images[0]} 
-                            alt={item.product.name || 'Product'} 
-                            className="w-12 h-12 object-cover"
-                          />
-                        ) : (
-                          <Package className="w-6 h-6 text-gray-500" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium">{item.product?.name || 'Product'}</p>
-                        <p className="text-sm text-gray-500">Quantity: {item.quantity}</p>
-                      </div>
-                      <p className="font-semibold">${((item.price || 0) * item.quantity).toFixed(2)}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div>
-                  <h2 className="text-lg font-semibold mb-4">Shipping Information</h2>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="flex items-center mb-2">
-                      <Truck className="w-5 h-5 text-gray-500 mr-2" />
-                      <p className="font-medium">{order.shippingMethod === 'express' ? 'Express Shipping' : 'Standard Shipping'}</p>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-2">
-                      {order.shippingAddress?.firstName} {order.shippingAddress?.lastName}
-                    </p>
-                    <p className="text-sm text-gray-600 mb-2">
-                      {order.shippingAddress?.street}
-                    </p>
-                    <p className="text-sm text-gray-600 mb-2">
-                      {order.shippingAddress?.city}, {order.shippingAddress?.state} {order.shippingAddress?.zipCode}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {order.shippingAddress?.country}
-                    </p>
-                  </div>
-                </div>
-                
-                <div>
-                  <h2 className="text-lg font-semibold mb-4">Payment Summary</h2>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="flex justify-between py-2">
-                      <span className="text-gray-600">Subtotal</span>
-                      <span>${order.items?.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0).toFixed(2) || '0.00'}</span>
-                    </div>
-                    <div className="flex justify-between py-2">
-                      <span className="text-gray-600">Shipping</span>
-                      <span>${order.shippingCost?.toFixed(2) || '0.00'}</span>
-                    </div>
-                    <div className="flex justify-between py-2">
-                      <span className="text-gray-600">Tax</span>
-                      <span>${(
-                        (order.total || 0) - (
-                          (order.items?.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0) || 0) + 
-                          (order.shippingCost || 0)
-                        )
-                      ).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-t mt-2">
-                      <span className="font-semibold">Total</span>
-                      <span className="font-semibold">${(order.total || 0).toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-blue-50 p-4 rounded-lg mb-6">
-                <div className="flex items-center">
-                  <Calendar className="w-5 h-5 text-blue-500 mr-2" />
-                  <p className="text-blue-800">
-                    <span className="font-medium">Estimated Delivery:</span> {expectedDeliveryDate(order)}
+            <CardDescription>
+              {order ? `Order #${order._id.substring(order._id.length - 8).toUpperCase()} has been placed successfully!` : 'Your order has been placed successfully!'}
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="p-6">
+            {error ? (
+              <Alert variant="destructive" className="mb-6">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : (
+              <div className="space-y-6">
+                {/* Order Details */}
+                <div className="bg-green-50 p-4 rounded-lg border border-green-100 mb-6">
+                  <p className="text-green-800">
+                    Thank you for your order! We'll send you a confirmation email with your order details shortly.
                   </p>
                 </div>
-              </div>
-              
-              {order.trackingNumber && (
-                <div className="mb-6 bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-1">Tracking Number</p>
-                  <p className="font-medium">{order.trackingNumber}</p>
+
+                {/* Order Summary */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Order Summary</h3>
+                  
+                  {order ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <div className="flex items-center mb-2">
+                            <Package className="h-5 w-5 text-gray-500 mr-2" />
+                            <h4 className="font-medium">Order Details</h4>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-1">
+                            <span className="font-medium">Order Number:</span> #{order._id.substring(order._id.length - 8).toUpperCase()}
+                          </p>
+                          <p className="text-sm text-gray-600 mb-1">
+                            <span className="font-medium">Date:</span> {formatDate(order.createdAt)}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            <span className="font-medium">Status:</span> {order.status}
+                          </p>
+                        </div>
+
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <div className="flex items-center mb-2">
+                            <Truck className="h-5 w-5 text-gray-500 mr-2" />
+                            <h4 className="font-medium">Shipping Details</h4>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-1">
+                            <span className="font-medium">Method:</span> {order.shippingMethod === 'express' ? 'Express (1-2 days)' : 'Standard (3-5 days)'}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            <span className="font-medium">Estimated Delivery:</span> {getEstimatedDelivery()}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Items */}
+                      <div className="mt-6">
+                        <h4 className="font-medium mb-2">Items</h4>
+                        <div className="border rounded-lg overflow-hidden">
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Product
+                                  </th>
+                                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Price
+                                  </th>
+                                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Quantity
+                                  </th>
+                                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Total
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {order.items.map((item, index) => (
+                                  <tr key={index}>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                      {item.product ? item.product.name : 'Product'}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                                      ${item.price.toFixed(2)}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                                      {item.quantity}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                                      ${(item.price * item.quantity).toFixed(2)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Order Totals */}
+                      <div className="mt-6 flex justify-end">
+                        <div className="w-full max-w-xs">
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span>Subtotal</span>
+                              <span>${order.subtotal.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Shipping</span>
+                              <span>${order.shippingCost.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Tax</span>
+                              <span>${order.tax.toFixed(2)}</span>
+                            </div>
+                            
+                            {/* Show points discount if available */}
+                            {(order.pointsUsed > 0 || pointsUsed > 0) && (
+                              <div className="flex justify-between text-sm text-green-600">
+                                <span className="flex items-center">
+                                  <Coins className="h-4 w-4 mr-1" />
+                                  Points Discount ({order.pointsUsed || pointsUsed})
+                                </span>
+                                <span>-${(order.pointsDiscount || pointsDiscount).toFixed(2)}</span>
+                              </div>
+                            )}
+                            
+                            <div className="border-t border-gray-200 pt-2 mt-2">
+                              <div className="flex justify-between font-semibold">
+                                <span>Total</span>
+                                <span>${order.total.toFixed(2)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    // Generic confirmation when order details aren't available
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <p className="text-gray-600">
+                        Your order has been placed successfully. 
+                        {pointsUsed > 0 && (
+                          <span className="flex items-center text-green-600 mt-2">
+                            <Coins className="h-4 w-4 mr-1" />
+                            You used {pointsUsed} points for a ${pointsDiscount.toFixed(2)} discount
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </CardContent>
-            
-            <CardFooter className="bg-gray-50 p-6">
-              <div className="w-full flex flex-col sm:flex-row justify-between gap-4">
-                <Button 
-                  variant="outline" 
-                  onClick={() => window.print()}
-                  className="justify-center sm:justify-start"
-                >
-                  Print Receipt
-                </Button>
-                
-                {user && (
-                  <Button 
-                    onClick={() => navigate('/orders')}
-                    className="justify-center sm:justify-start flex items-center"
-                  >
-                    View All Orders
-                    <ChevronRight className="ml-2 w-4 h-4" />
-                  </Button>
+
+                {/* Shipping Address */}
+                {order && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Shipping Address</h3>
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <p className="text-sm">{order.shippingAddress.firstName} {order.shippingAddress.lastName}</p>
+                      <p className="text-sm">{order.shippingAddress.address}</p>
+                      {order.shippingAddress.apartment && <p className="text-sm">{order.shippingAddress.apartment}</p>}
+                      <p className="text-sm">{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zipCode}</p>
+                      <p className="text-sm">{order.shippingAddress.country}</p>
+                    </div>
+                  </div>
                 )}
+
+                {/* Points earned notification for logged in users */}
+                {user && (
+                  <div className="mt-6">
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                      <div className="flex items-center">
+                        <Coins className="h-5 w-5 text-blue-600 mr-2" />
+                        <div>
+                          <h4 className="font-medium text-blue-800">Rewards Update</h4>
+                          <p className="text-sm text-blue-700">
+                            {order?.pointsUsed > 0 ? 
+                              `You used ${order.pointsUsed} points to save ${order.pointsDiscount.toFixed(2)} on this order.` :
+                              pointsUsed > 0 ?
+                              `You used ${pointsUsed} points to save ${pointsDiscount.toFixed(2)} on this order.` :
+                              'Purchase points have been added to your account.'}
+                          </p>
+                          <p className="text-sm text-blue-700 mt-1">
+                            Your current balance: <span className="font-semibold">{balance} points</span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-4 justify-between mt-8">
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate('/orders')}
+                  >
+                    View Orders
+                  </Button>
+                  <Button
+                    onClick={() => navigate('/shop')}
+                  >
+                    Continue Shopping
+                  </Button>
+                </div>
               </div>
-            </CardFooter>
-          </Card>
-        </motion.div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

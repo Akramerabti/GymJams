@@ -161,15 +161,13 @@ const generateOrderPDF = async (order) => {
       doc.on('end', () => resolve(Buffer.concat(buffers)));
       doc.on('error', err => reject(err));
       
-      // Add company logo
-      // doc.image('public/logo.png', 50, 45, { width: 150 });
-      
-      // Add receipt title
-      doc.fontSize(20).text('ORDER RECEIPT', { align: 'center' });
-      doc.moveDown();
+      // Add order receipt title with styled header
+      doc.rect(50, 45, doc.page.width - 100, 60).fill('#f0f9ff');
+      doc.fontSize(22).fillColor('#2563eb').text('ORDER RECEIPT', { align: 'center', y: 60 });
+      doc.moveDown(2);
       
       // Add order details
-      doc.fontSize(12);
+      doc.fontSize(12).fillColor('#000');
       
       // Order information
       doc.font('Helvetica-Bold').text('Order Information', { underline: true });
@@ -202,12 +200,12 @@ const generateOrderPDF = async (order) => {
       
       // Shipping method
       doc.font('Helvetica-Bold').text('Shipping Method', { underline: true });
-      doc.font('Helvetica').text(`${order.shippingMethod === 'express' ? 'Express Shipping' : 'Standard Shipping'}`);
+      doc.font('Helvetica').text(`${order.shippingMethod === 'express' ? 'Express Shipping (1-2 business days)' : 'Standard Shipping (3-5 business days)'}`);
       doc.moveDown(2);
       
-      // Order items table
+      // Order items table with improved styling
       const tableData = {
-        headers: ['Item', 'Quantity', 'Price', 'Total'],
+        headers: ['Item', 'Quantity', 'Unit Price', 'Total'],
         rows: order.items.map(item => [
           item.product.name || 'Product',
           item.quantity.toString(),
@@ -216,19 +214,39 @@ const generateOrderPDF = async (order) => {
         ])
       };
       
+      // Style the table headers with a blue background
       doc.table(tableData, {
-        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10),
-        prepareRow: () => doc.font('Helvetica').fontSize(10),
-        width: 500
+        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10).fillColor('#fff'),
+        prepareRow: () => doc.font('Helvetica').fontSize(10).fillColor('#000'),
+        width: 500,
+        columnSpacing: 10,
+        headerHeight: 25,
+        backgroundColor: (i, node, rowIndex) => {
+          return (rowIndex % 2 === 0) ? '#f8fafc' : null;
+        },
+        beforeDrawTable: (doc, table) => {
+          // Draw the header background
+          doc.rect(table.x, table.y, table.width, table.headerHeight)
+            .fill('#3b82f6');
+        }
       });
       
       doc.moveDown();
       
-      // Order summary
-      const summaryX = 370;
-      const summaryStartY = doc.y;
+      // Order summary with improved layout
+      const summaryX = 350; // Moved to the right
+      const summaryStartY = doc.y + 10;
       
-      doc.font('Helvetica').fontSize(10).text('Subtotal:', summaryX, summaryStartY);
+      // Draw a light gray box for the summary section
+      doc.rect(summaryX - 10, summaryStartY - 10, 160, 120).fill('#f8fafc');
+      
+      // Points discount (if used)
+      let extraRowsHeight = 0;
+      if (order.pointsUsed > 0 && order.pointsDiscount > 0) {
+        extraRowsHeight = 20;
+      }
+      
+      doc.font('Helvetica').fontSize(10).fillColor('#000').text('Subtotal:', summaryX, summaryStartY);
       doc.font('Helvetica').fontSize(10).text(formatCurrency(order.subtotal), 500, summaryStartY, { align: 'right' });
       
       doc.font('Helvetica').fontSize(10).text('Shipping:', summaryX, summaryStartY + 20);
@@ -237,15 +255,36 @@ const generateOrderPDF = async (order) => {
       doc.font('Helvetica').fontSize(10).text('Tax:', summaryX, summaryStartY + 40);
       doc.font('Helvetica').fontSize(10).text(formatCurrency(order.tax), 500, summaryStartY + 40, { align: 'right' });
       
-      doc.moveTo(summaryX, summaryStartY + 60).lineTo(500, summaryStartY + 60).stroke();
+      // Add points discount if applicable
+      if (order.pointsUsed > 0 && order.pointsDiscount > 0) {
+        doc.font('Helvetica').fontSize(10).fillColor('#059669').text(`Points Discount (${order.pointsUsed} pts):`, summaryX, summaryStartY + 60);
+        doc.font('Helvetica').fontSize(10).fillColor('#059669').text(`-${formatCurrency(order.pointsDiscount)}`, 500, summaryStartY + 60, { align: 'right' });
+      }
       
-      doc.font('Helvetica-Bold').fontSize(12).text('Total:', summaryX, summaryStartY + 70);
-      doc.font('Helvetica-Bold').fontSize(12).text(formatCurrency(order.total), 500, summaryStartY + 70, { align: 'right' });
+      // Draw a separator line
+      doc.moveTo(summaryX, summaryStartY + 60 + extraRowsHeight).lineTo(500, summaryStartY + 60 + extraRowsHeight).stroke();
       
-      // Footer
-      doc.moveDown(3);
-      doc.fontSize(10).text('Thank you for your purchase!', { align: 'center' });
-      doc.fontSize(8).text('If you have any questions, please contact our customer support at support@example.com', { align: 'center' });
+      // Total
+      doc.font('Helvetica-Bold').fontSize(12).fillColor('#000').text('Total:', summaryX, summaryStartY + 70 + extraRowsHeight);
+      doc.font('Helvetica-Bold').fontSize(12).text(formatCurrency(order.total), 500, summaryStartY + 70 + extraRowsHeight, { align: 'right' });
+      
+      // Add reward points summary if applicable
+      if (order.user && !order.pointsUsed) {
+        doc.moveDown(2);
+        doc.font('Helvetica-Bold').fontSize(10).fillColor('#3b82f6').text('🎁 You earned points with this purchase!', { align: 'center' });
+        doc.font('Helvetica').fontSize(9).fillColor('#4b5563').text(`Your purchase of ${formatCurrency(order.total)} has earned you points that can be used on your next purchase.`, { align: 'center' });
+      }
+      
+      // Footer with brand info and contact details
+      doc.moveDown(4);
+      
+      // Draw footer box
+      doc.rect(50, doc.y, doc.page.width, 60).fill('#f0f9ff');
+      
+      // Add thank you message in footer
+      doc.fontSize(11).fillColor('#2563eb').text('Thank you for your purchase!', { align: 'center', y: doc.y + 15 });
+      doc.fontSize(9).fillColor('#4b5563').text('If you have any questions, please contact our customer support at support@gymtonic.ca', { align: 'center' });
+      doc.fontSize(8).fillColor('#6b7280').text('© 2024 GymTonic. All rights reserved.', { align: 'center' });
       
       // Finalize the PDF
       doc.end();
@@ -300,8 +339,8 @@ export const sendOrderConfirmationEmail = async (order, email) => {
       ],
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
-          <div style="text-align: center; padding: 20px; background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-            <h1 style="color: #2b6cb0; margin: 0;">Order Confirmation</h1>
+          <div style="text-align: center; padding: 20px; background-color: #f0f9ff; border-bottom: 1px solid #bfdbfe;">
+            <h1 style="color: #2563eb; margin: 0;">Order Confirmation</h1>
             <p style="color: #4a5568; font-size: 18px; margin-top: 10px;">Thank you for your purchase!</p>
           </div>
           
@@ -337,7 +376,7 @@ export const sendOrderConfirmationEmail = async (order, email) => {
               </table>
               
               <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
-                <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                <tr style="background-color: #3b82f6; color: white; font-weight: bold;">
                   <th style="padding: 10px; text-align: left;">Product</th>
                   <th style="padding: 10px; text-align: center;">Quantity</th>
                   <th style="padding: 10px; text-align: right;">Price</th>
@@ -346,7 +385,7 @@ export const sendOrderConfirmationEmail = async (order, email) => {
                 ${formattedItems}
               </table>
               
-              <table style="width: 100%; max-width: 300px; margin-left: auto; border-collapse: collapse;">
+              <table style="width: 100%; max-width: 300px; margin-left: auto; border-collapse: collapse; background-color: #f8fafc; padding: 15px; border-radius: 8px;">
                 <tr>
                   <td style="padding: 5px 0; text-align: left;">Subtotal:</td>
                   <td style="padding: 5px 0; text-align: right;">$${order.subtotal.toFixed(2)}</td>
@@ -359,11 +398,26 @@ export const sendOrderConfirmationEmail = async (order, email) => {
                   <td style="padding: 5px 0; text-align: left;">Tax:</td>
                   <td style="padding: 5px 0; text-align: right;">$${order.tax.toFixed(2)}</td>
                 </tr>
+                
+                ${order.pointsUsed > 0 && order.pointsDiscount > 0 ? `
+                <tr>
+                  <td style="padding: 5px 0; text-align: left; color: #059669;">Points Discount (${order.pointsUsed} pts):</td>
+                  <td style="padding: 5px 0; text-align: right; color: #059669;">-$${order.pointsDiscount.toFixed(2)}</td>
+                </tr>
+                ` : ''}
+                
                 <tr style="font-weight: bold; font-size: 18px;">
                   <td style="padding: 10px 0 5px; text-align: left; border-top: 2px solid #e2e8f0;">Total:</td>
                   <td style="padding: 10px 0 5px; text-align: right; border-top: 2px solid #e2e8f0;">$${order.total.toFixed(2)}</td>
                 </tr>
               </table>
+              
+              ${!order.pointsUsed && order.user ? `
+              <div style="margin-top: 20px; background-color: #dbeafe; padding: 10px; border-radius: 6px; text-align: center;">
+                <p style="color: #2563eb; margin: 0; font-weight: bold;">🎁 You earned points with this purchase!</p>
+                <p style="color: #4b5563; margin-top: 5px; font-size: 14px;">Your purchase of $${order.total.toFixed(2)} has earned you points that can be used on your next purchase.</p>
+              </div>
+              ` : ''}
             </div>
             
             <div style="display: flex; margin-bottom: 30px;">
@@ -383,7 +437,7 @@ export const sendOrderConfirmationEmail = async (order, email) => {
             
             <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
               <p style="margin-bottom: 10px;">You can track your order status by visiting:</p>
-              <a href="${process.env.CLIENT_URL}/orders?orderId=${orderIdString}" style="display: inline-block; padding: 10px 20px; background-color: #3182ce; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+              <a href="${process.env.CLIENT_URL}/orders?orderId=${orderIdString}" style="display: inline-block; padding: 10px 20px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
                 Track Your Order
               </a>
               <p style="margin-top: 20px; color: #718096; font-size: 14px;">
@@ -392,9 +446,9 @@ export const sendOrderConfirmationEmail = async (order, email) => {
             </div>
           </div>
           
-          <div style="background-color: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0;">
-            <p style="margin: 0 0 10px 0; color: #718096; font-size: 14px;">Questions about your order?</p>
-            <p style="margin: 0; color: #718096; font-size: 14px;">Contact us at <a href="mailto:support@gymtonic.ca" style="color: #3182ce;">support@gymtonic.ca</a></p>
+          <div style="background-color: #f0f9ff; padding: 20px; text-align: center; border-top: 1px solid #bfdbfe;">
+            <p style="margin: 0 0 10px 0; color: #2563eb; font-size: 14px; font-weight: bold;">Questions about your order?</p>
+            <p style="margin: 0; color: #718096; font-size: 14px;">Contact us at <a href="mailto:support@gymtonic.ca" style="color: #3b82f6;">support@gymtonic.ca</a></p>
           </div>
           
           <div style="padding: 20px; text-align: center; font-size: 12px; color: #a0aec0;">
@@ -423,19 +477,25 @@ export const sendOrderUpdateEmail = async (order, email, updateType) => {
         subject: `Your Order #${orderIdString.slice(-8).toUpperCase()} Has Shipped!`,
         title: 'Your Order Has Shipped',
         message: 'Good news! Your order is on its way to you.',
-        details: `Your order #${orderIdString.slice(-8).toUpperCase()} has been shipped and is on its way to you. You can track your package using the tracking information below.`
+        details: `Your order #${orderIdString.slice(-8).toUpperCase()} has been shipped and is on its way to you. You can track your package using the tracking information below.`,
+        color: '#3b82f6',
+        icon: '🚚'
       },
       delivered: {
         subject: `Your Order #${orderIdString.slice(-8).toUpperCase()} Has Been Delivered`,
         title: 'Order Delivered',
         message: 'Your order has been delivered!',
-        details: `Your order #${orderIdString.slice(-8).toUpperCase()} has been delivered. We hope you enjoy your purchase!`
+        details: `Your order #${orderIdString.slice(-8).toUpperCase()} has been delivered. We hope you enjoy your purchase!`,
+        color: '#10b981',
+        icon: '✅'
       },
       cancelled: {
         subject: `Your Order #${orderIdString.slice(-8).toUpperCase()} Has Been Cancelled`,
         title: 'Order Cancelled',
         message: 'Your order has been cancelled.',
-        details: `Your order #${orderIdString.slice(-8).toUpperCase()} has been cancelled. If you have any questions, please contact our customer service.`
+        details: `Your order #${orderIdString.slice(-8).toUpperCase()} has been cancelled. If you have any questions, please contact our customer service.`,
+        color: '#ef4444',
+        icon: '❌'
       }
     };
 

@@ -5,6 +5,8 @@ import { handleApiError } from '../utils/helpers';
 // Initialize Stripe with public key
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
+export const stripe = stripePromise;
+
 export const processPayment = async ({ amount, currency = 'USD', paymentMethod, orderId }) => {
   try {
     const stripe = await stripePromise;

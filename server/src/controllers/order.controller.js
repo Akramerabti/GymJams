@@ -84,49 +84,20 @@ export const createOrder = async (req, res) => {
   try {
     const { items, shippingAddress, billingAddress, shippingMethod = 'standard', userId, pointsUsed = 0, pointsDiscount = 0 } = req.body;
 
-    const isGuest = !userId;
-
-    if (!items || !items.length) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ message: 'No items provided' });
-    }
-
-    if (!shippingAddress) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ message: 'Shipping address is required' });
-    }
-
-    // Validate items and check stock
+    // Validate items and calculate subtotal
     const orderItems = [];
     let subtotal = 0;
 
     for (const item of items) {
-      if (!item.id) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).json({ message: 'Product ID is required for all items' });
-      }
-
       const product = await Product.findById(item.id).session(session);
-
       if (!product) {
         await session.abortTransaction();
         session.endSession();
         return res.status(404).json({ message: `Product not found: ${item.id}` });
       }
 
-      if (product.stockQuantity < item.quantity) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).json({
-          message: `Insufficient stock for ${product.name}. Available: ${product.stockQuantity}, Requested: ${item.quantity}`,
-        });
-      }
-
       let price = product.price;
-      if (product.discount && product.discount.percentage && new Date(product.discount.startDate) <= new Date() && new Date(product.discount.endDate) >= new Date()) {
+      if (product.discount) {
         const discountAmount = (price * product.discount.percentage) / 100;
         price = price - discountAmount;
       }
@@ -140,60 +111,17 @@ export const createOrder = async (req, res) => {
       subtotal += price * item.quantity;
     }
 
-    // Validate points usage if points are being used
-    if (pointsUsed > 0 && userId) {
-      const user = await User.findById(userId).session(session);
-      
-      if (!user) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).json({ message: 'User not found' });
-      }
-      
-      if (user.points < pointsUsed) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).json({ message: 'Insufficient points' });
-      }
-      
-      // Verify the points-to-discount conversion (200 points = $1)
-      const expectedDiscount = Math.floor(pointsUsed / 200);
-      
-      if (Math.abs(expectedDiscount - pointsDiscount) > 0.01) { // Small tolerance for floating point issues
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).json({ message: 'Invalid points conversion' });
-      }
-    } else if (pointsUsed > 0 && !userId) {
-      // Guest users can't use points
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ message: 'Guest users cannot use points' });
-    }
-
+    // Calculate shipping, tax, and total
     const shippingCost = parseFloat(calculateShippingCost(subtotal, shippingMethod).toFixed(2));
-    const tax = parseFloat((subtotal * 0.08).toFixed(2)); // 8% tax, rounded to 2 decimal places
-
-    // Calculate the order total before discount
+    const tax = parseFloat((subtotal * 0.08).toFixed(2)); // 8% tax
     const orderTotalBeforeDiscount = parseFloat((subtotal + shippingCost + tax).toFixed(2));
-
-    // Make sure points discount doesn't exceed the order total
     const adjustedPointsDiscount = parseFloat(Math.min(pointsDiscount, orderTotalBeforeDiscount).toFixed(2));
-
-    // If the discount was adjusted, recalculate the points used
-    let adjustedPointsUsed = pointsUsed;
-    if (adjustedPointsDiscount < pointsDiscount) {
-      adjustedPointsUsed = Math.floor(adjustedPointsDiscount * 200); // 200 points = $1
-      logger.warn(`Points discount adjusted from ${pointsDiscount} to ${adjustedPointsDiscount} for order ${orderId}`);
-    }
-
-    // Apply points discount to the total
     const total = parseFloat(Math.max(0, orderTotalBeforeDiscount - adjustedPointsDiscount).toFixed(2));
 
-    // Create the order with points information
+    // Create the order
     const order = new Order({
-      user: userId, // Will be null for guest checkout
-      email: shippingAddress.email || null, // Allow null for guest orders
+      user: userId,
+      email: shippingAddress.email || null,
       items: orderItems,
       shippingAddress,
       billingAddress: billingAddress || shippingAddress,
@@ -201,30 +129,35 @@ export const createOrder = async (req, res) => {
       subtotal,
       shippingCost,
       tax,
-      total, // Ensure the total includes the points discount
+      total,
       status: 'pending',
       paymentStatus: 'pending',
-      guestOrder: isGuest,
-      pointsUsed: adjustedPointsUsed || 0,
-      pointsDiscount: adjustedPointsDiscount || 0
+      pointsUsed: pointsUsed || 0,
+      pointsDiscount: adjustedPointsDiscount || 0,
     });
 
     await order.save({ session });
 
-    // Create a payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(total * 100), // Convert to cents
-      currency: 'usd',
-      metadata: {
-        orderId: order._id.toString(),
-        userId: userId ? userId.toString() : 'guest',
-        pointsUsed: pointsUsed.toString(),
-      },
-    });
+    // Create or update the payment intent
+    let paymentIntent;
+    if (order.paymentIntentId) {
+      paymentIntent = await stripe.paymentIntents.update(order.paymentIntentId, {
+        amount: Math.round(total * 100), // Convert to cents
+      });
+    } else {
+      paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(total * 100), // Convert to cents
+        currency: 'usd',
+        metadata: {
+          orderId: order._id.toString(),
+          userId: userId ? userId.toString() : 'guest',
+          pointsUsed: pointsUsed.toString(),
+        },
+      });
 
-    // Update the order with the payment intent ID
-    order.paymentIntentId = paymentIntent.id;
-    await order.save({ session });
+      order.paymentIntentId = paymentIntent.id;
+      await order.save({ session });
+    }
 
     await session.commitTransaction();
     session.endSession();
@@ -232,6 +165,7 @@ export const createOrder = async (req, res) => {
     res.status(201).json({
       order,
       clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id, // Ensure this is included
     });
   } catch (error) {
     await session.abortTransaction();
@@ -275,7 +209,7 @@ export const processPayment = async (req, res) => {
       const orderId = paymentIntent.metadata.orderId;
 
       if (!orderId) {
-        logger.error('No order ID found in payment metadata');
+
         await session.abortTransaction();
         session.endSession();
         return res.status(400).json({ message: 'No order ID found in payment metadata' });
@@ -306,7 +240,7 @@ export const processPayment = async (req, res) => {
         const user = await User.findById(order.user).session(session);
         
         if (!user) {
-          logger.error(`User ${order.user} not found during points redemption`);
+      
           throw new Error(`User ${order.user} not found`);
         }
         
@@ -326,11 +260,8 @@ export const processPayment = async (req, res) => {
           await order.save({ session });
         }
         
-        // Deduct points from user
-        user.points -= pointsToDeduct;
         await user.save({ session });
-        
-        logger.info(`Deducted ${pointsToDeduct} points from user ${order.user} for a ${order.pointsDiscount} discount`);
+
       }
 
       // Update order status
@@ -841,7 +772,7 @@ export const updateOrder = async (req, res) => {
 
   try {
     const { id } = req.params;
-    const { items, shippingAddress, billingAddress, shippingMethod = 'standard', userId } = req.body;
+    const { items, shippingAddress, billingAddress, shippingMethod = 'standard', userId, pointsUsed = 0, pointsDiscount = 0 } = req.body;
 
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       await session.abortTransaction();
@@ -928,20 +859,26 @@ export const updateOrder = async (req, res) => {
 
     const shippingCost = calculateShippingCost(order.subtotal || 0, order.shippingMethod);
     const tax = Math.round((order.subtotal || 0) * 0.08 * 100) / 100; // 8% tax
-    const total = (order.subtotal || 0) + shippingCost + tax;
+    const orderTotalBeforeDiscount = parseFloat((order.subtotal + shippingCost + tax).toFixed(2));
+    const adjustedPointsDiscount = parseFloat(Math.min(pointsDiscount, orderTotalBeforeDiscount).toFixed(2));
+    const total = parseFloat(Math.max(0, orderTotalBeforeDiscount - adjustedPointsDiscount).toFixed(2));
 
     order.shippingCost = shippingCost;
     order.tax = tax;
     order.total = total;
+    order.pointsUsed = pointsUsed || 0;
+    order.pointsDiscount = adjustedPointsDiscount || 0;
 
     await order.save({ session });
 
+    // Update the payment intent in Stripe
     if (order.paymentIntentId) {
       await stripe.paymentIntents.update(order.paymentIntentId, {
         amount: Math.round(total * 100), // Convert to cents
         metadata: {
           orderId: order._id.toString(),
           userId: userId ? userId.toString() : 'guest',
+          pointsUsed: pointsUsed.toString(),
         },
       });
     } else {
