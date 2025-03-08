@@ -254,8 +254,12 @@ const generateOrderPDF = async (order) => {
     }
   });
 };
+
 export const sendOrderConfirmationEmail = async (order, email) => {
   try {
+    // Convert order._id to string
+    const orderIdString = order._id.toString();
+
     // Generate the PDF receipt
     const pdfBuffer = await generateOrderPDF(order);
     
@@ -287,10 +291,10 @@ export const sendOrderConfirmationEmail = async (order, email) => {
     await resend.emails.send({
       from: 'GYMTONIC <orders@gymtonic.ca>',
       to: email,
-      subject: `Order Confirmation #${order._id.slice(-8).toUpperCase()}`,
+      subject: `Order Confirmation #${orderIdString.slice(-8).toUpperCase()}`,
       attachments: [
         {
-          filename: `Order_${order._id.slice(-8).toUpperCase()}_Receipt.pdf`,
+          filename: `Order_${orderIdString.slice(-8).toUpperCase()}_Receipt.pdf`,
           content: pdfBuffer,
         },
       ],
@@ -311,7 +315,7 @@ export const sendOrderConfirmationEmail = async (order, email) => {
                 <tr>
                   <td style="padding: 5px 0; width: 50%; vertical-align: top;">
                     <p style="margin: 0 0 5px 0; color: #718096; font-size: 14px;">Order Number:</p>
-                    <p style="margin: 0; font-weight: bold;">#${order._id.slice(-8).toUpperCase()}</p>
+                    <p style="margin: 0; font-weight: bold;">#${orderIdString.slice(-8).toUpperCase()}</p>
                   </td>
                   <td style="padding: 5px 0; width: 50%; vertical-align: top; text-align: right;">
                     <p style="margin: 0 0 5px 0; color: #718096; font-size: 14px;">Order Date:</p>
@@ -379,7 +383,7 @@ export const sendOrderConfirmationEmail = async (order, email) => {
             
             <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
               <p style="margin-bottom: 10px;">You can track your order status by visiting:</p>
-              <a href="${process.env.CLIENT_URL}/orders?orderId=${order._id}" style="display: inline-block; padding: 10px 20px; background-color: #3182ce; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+              <a href="${process.env.CLIENT_URL}/orders?orderId=${orderIdString}" style="display: inline-block; padding: 10px 20px; background-color: #3182ce; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
                 Track Your Order
               </a>
               <p style="margin-top: 20px; color: #718096; font-size: 14px;">
@@ -401,7 +405,7 @@ export const sendOrderConfirmationEmail = async (order, email) => {
       `,
     });
 
-    logger.info(`Order confirmation email sent to ${email} for order ${order._id}`);
+    logger.info(`Order confirmation email sent to ${email} for order ${orderIdString}`);
     return true;
   } catch (error) {
     logger.error(`Error sending order confirmation email: ${error}`);
@@ -411,32 +415,35 @@ export const sendOrderConfirmationEmail = async (order, email) => {
 
 export const sendOrderUpdateEmail = async (order, email, updateType) => {
   try {
+    // Convert order._id to string
+    const orderIdString = order._id.toString();
+
     const updateMessages = {
       shipping: {
-        subject: `Your Order #${order._id.slice(-8).toUpperCase()} Has Shipped!`,
+        subject: `Your Order #${orderIdString.slice(-8).toUpperCase()} Has Shipped!`,
         title: 'Your Order Has Shipped',
         message: 'Good news! Your order is on its way to you.',
-        details: `Your order #${order._id.slice(-8).toUpperCase()} has been shipped and is on its way to you. You can track your package using the tracking information below.`
+        details: `Your order #${orderIdString.slice(-8).toUpperCase()} has been shipped and is on its way to you. You can track your package using the tracking information below.`
       },
       delivered: {
-        subject: `Your Order #${order._id.slice(-8).toUpperCase()} Has Been Delivered`,
+        subject: `Your Order #${orderIdString.slice(-8).toUpperCase()} Has Been Delivered`,
         title: 'Order Delivered',
         message: 'Your order has been delivered!',
-        details: `Your order #${order._id.slice(-8).toUpperCase()} has been delivered. We hope you enjoy your purchase!`
+        details: `Your order #${orderIdString.slice(-8).toUpperCase()} has been delivered. We hope you enjoy your purchase!`
       },
       cancelled: {
-        subject: `Your Order #${order._id.slice(-8).toUpperCase()} Has Been Cancelled`,
+        subject: `Your Order #${orderIdString.slice(-8).toUpperCase()} Has Been Cancelled`,
         title: 'Order Cancelled',
         message: 'Your order has been cancelled.',
-        details: `Your order #${order._id.slice(-8).toUpperCase()} has been cancelled. If you have any questions, please contact our customer service.`
+        details: `Your order #${orderIdString.slice(-8).toUpperCase()} has been cancelled. If you have any questions, please contact our customer service.`
       }
     };
 
     const update = updateMessages[updateType] || {
-      subject: `Order #${order._id.slice(-8).toUpperCase()} Status Update`,
+      subject: `Order #${orderIdString.slice(-8).toUpperCase()} Status Update`,
       title: 'Order Status Update',
       message: 'Your order status has been updated.',
-      details: `Your order #${order._id.slice(-8).toUpperCase()} status has been updated to ${order.status}.`
+      details: `Your order #${orderIdString.slice(-8).toUpperCase()} status has been updated to ${order.status}.`
     };
 
     await resend.emails.send({
@@ -454,7 +461,7 @@ export const sendOrderUpdateEmail = async (order, email, updateType) => {
             <p>${update.details}</p>
             
             <div style="margin: 30px 0; text-align: center;">
-              <a href="${process.env.CLIENT_URL}/orders?orderId=${order._id}" style="display: inline-block; padding: 10px 20px; background-color: #3182ce; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+              <a href="${process.env.CLIENT_URL}/orders?orderId=${orderIdString}" style="display: inline-block; padding: 10px 20px; background-color: #3182ce; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
                 View Order Details
               </a>
             </div>
@@ -485,7 +492,7 @@ export const sendOrderUpdateEmail = async (order, email, updateType) => {
       `,
     });
 
-    logger.info(`Order update email (${updateType}) sent to ${email} for order ${order._id}`);
+    logger.info(`Order update email (${updateType}) sent to ${email} for order ${orderIdString}`);
     return true;
   } catch (error) {
     logger.error(`Error sending order update email: ${error}`);

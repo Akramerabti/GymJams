@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
+import { authenticate, optionalAuthenticate, isTaskforce } from '../middleware/auth.middleware.js';
 import {
   getOrders,
   getOrderDetails,
@@ -9,7 +9,8 @@ import {
   cancelOrder,
   handleStripeWebhook,
   getGuestOrder,
-  updateOrderEmail
+  updateOrderEmail,
+  updateOrderStatus,
 } from '../controllers/order.controller.js';
 
 const router = express.Router();
@@ -43,6 +44,15 @@ router.post('/payment', optionalAuthenticate, processPayment);
 router.post('/:id/cancel', optionalAuthenticate, cancelOrder);
 
 router.put('/:id/email', optionalAuthenticate, updateOrderEmail);
+
+// Update order status
+router.patch('/:id/status', authenticate, isTaskforce, updateOrderStatus);
+
+// Add this route for guest order lookup (just after the processPayment route)
+router.post('/guest/lookup', getGuestOrder);
+
+// Add this route for updating a guest order's email
+router.patch('/:id/email', updateOrderEmail);
 
 
 export default router;

@@ -5,6 +5,7 @@ import stripe from '../config/stripe.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
 import InventoryTransaction from '../models/InventoryTransaction.js';
+import { sendOrderConfirmationEmail, sendOrderUpdateEmail } from '../services/email.service.js';
 
 // Get all orders for the current user
 export const getOrders = async (req, res) => {
@@ -223,7 +224,7 @@ export const processPayment = async (req, res) => {
       }
 
       const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-      logger.debug(`Retrieved payment intent: ${JSON.stringify(paymentIntent)}`);
+      
 
       if (!paymentIntent || paymentIntent.status !== 'succeeded') {
         logger.error('Payment not successful or payment intent not found');
@@ -233,7 +234,6 @@ export const processPayment = async (req, res) => {
       }
 
       const orderId = paymentIntent.metadata.orderId;
-      logger.debug(`Order ID from payment intent metadata: ${orderId}`);
 
       if (!orderId) {
         logger.error('No order ID found in payment metadata');
@@ -242,13 +242,8 @@ export const processPayment = async (req, res) => {
         return res.status(400).json({ message: 'No order ID found in payment metadata' });
       }
 
-      // Use findOne instead of findById to have more control over the query
-      // IMPORTANT: We're now explicitly looking for the order by _id
-      // and not checking paymentStatus, because we want to update the existing order
       const order = await Order.findById(orderId).session(session);
       
-      logger.debug(`Retrieved order: ${JSON.stringify(order)}`);
-
       if (!order) {
         logger.warn('Order not found');
         await session.abortTransaction();
@@ -343,6 +338,26 @@ export const processPayment = async (req, res) => {
       await session.commitTransaction();
       session.endSession();
       logger.debug('Transaction committed successfully');
+
+      // Send order confirmation email with PDF receipt
+      try {
+        // Get the email address - either from user or from order.email for guest
+        const emailAddress = order.email || (order.user ? await User.findById(order.user).then(u => u.email) : null);
+
+        if (emailAddress) {
+          // Populate product details for the email
+          const populatedOrder = await Order.findById(order._id).populate('items.product');
+
+          await sendOrderConfirmationEmail(populatedOrder, emailAddress);
+          logger.info(`Order confirmation email sent for order ${order._id}`);
+        } else {
+          logger.warn(`No email address found for order ${order._id}, skipping confirmation email`);
+        }
+      } catch (emailError) {
+        // Don't fail the transaction if email sending fails
+        logger.error(`Failed to send order confirmation email: ${emailError}`);
+      }
+
 
       return res.status(200).json({ 
         order, 
@@ -515,6 +530,27 @@ const handleSuccessfulPayment = async (paymentIntent) => {
       await session.commitTransaction();
       logger.info(`Webhook: Payment processed successfully for order ${orderId}`);
       session.endSession();
+
+      // Send order confirmation email
+      try {
+        // Since we've closed the session, get a fresh copy of the order with populated products
+        const populatedOrder = await Order.findById(orderId).populate('items.product');
+
+        // Get the email address from either the order.email field or the user record
+        const emailAddress = populatedOrder.email || 
+          (populatedOrder.user ? await User.findById(populatedOrder.user).then(u => u.email) : null);
+
+        if (emailAddress) {
+          await sendOrderConfirmationEmail(populatedOrder, emailAddress);
+          logger.info(`Order confirmation email sent for order ${orderId} via webhook`);
+        } else {
+          logger.warn(`No email address found for order ${orderId}, skipping confirmation email from webhook`);
+        }
+      } catch (emailError) {
+        // Don't fail if email sending fails
+        logger.error(`Failed to send order confirmation email from webhook: ${emailError}`);
+      }
+
       return;
       
     } catch (error) {
@@ -945,5 +981,95 @@ export const updateOrderEmail = async (req, res) => {
 
     logger.error('Error updating order email:', error);
     res.status(500).json({ message: 'Error updating order email' });
+  }
+};
+
+// Add this new controller function to order.controller.js
+
+export const updateOrderStatus = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { id } = req.params;
+    const { status, trackingNumber, estimatedDeliveryDate } = req.body;
+
+    // Validate order ID
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'Invalid order ID format' });
+    }
+
+    // Validate status
+    const validStatuses = ['processing', 'shipped', 'delivered', 'cancelled'];
+    if (!status || !validStatuses.includes(status)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    // Find the order
+    const order = await Order.findById(id).session(session);
+
+    if (!order) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Update order status
+    const previousStatus = order.status;
+    order.status = status;
+
+    // If shipping status, add tracking info
+    if (status === 'shipped') {
+      if (!trackingNumber) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: 'Tracking number is required for shipped status' });
+      }
+      order.trackingNumber = trackingNumber;
+      
+      if (estimatedDeliveryDate) {
+        order.estimatedDeliveryDate = new Date(estimatedDeliveryDate);
+      }
+    }
+
+    await order.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    // Send status update email if status has changed
+    if (previousStatus !== status) {
+      try {
+        // Get the email address
+        const emailAddress = order.email || 
+          (order.user ? await User.findById(order.user).then(u => u.email) : null);
+        
+        if (emailAddress) {
+          // Get a populated version of the order for the email
+          const populatedOrder = await Order.findById(id).populate('items.product');
+          
+          await sendOrderUpdateEmail(populatedOrder, emailAddress, status);
+          logger.info(`Order status update email sent for order ${id}`);
+        }
+      } catch (emailError) {
+        logger.error(`Failed to send order status update email: ${emailError}`);
+        // Don't fail the request if email sending fails
+      }
+    }
+
+    res.status(200).json({
+      message: 'Order status updated successfully',
+      order: await Order.findById(id).populate('items.product')
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    
+    logger.error('Error updating order status:', error);
+    res.status(500).json({ message: 'Error updating order status' });
   }
 };
