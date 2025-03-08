@@ -82,7 +82,7 @@ export const createOrder = async (req, res) => {
   session.startTransaction();
 
   try {
-    const { items, shippingAddress, billingAddress, shippingMethod = 'standard', userId } = req.body;
+    const { items, shippingAddress, billingAddress, shippingMethod = 'standard', userId, pointsUsed = 0, pointsDiscount = 0 } = req.body;
 
     const isGuest = !userId;
 
@@ -140,11 +140,57 @@ export const createOrder = async (req, res) => {
       subtotal += price * item.quantity;
     }
 
-    const shippingCost = calculateShippingCost(subtotal, shippingMethod);
-    const tax = Math.round(subtotal * 0.08 * 100) / 100; // 8% tax
-    const total = subtotal + shippingCost + tax;
+    // Validate points usage if points are being used
+    if (pointsUsed > 0 && userId) {
+      const user = await User.findById(userId).session(session);
+      
+      if (!user) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: 'User not found' });
+      }
+      
+      if (user.points < pointsUsed) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: 'Insufficient points' });
+      }
+      
+      // Verify the points-to-discount conversion (200 points = $1)
+      const expectedDiscount = Math.floor(pointsUsed / 200);
+      
+      if (Math.abs(expectedDiscount - pointsDiscount) > 0.01) { // Small tolerance for floating point issues
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: 'Invalid points conversion' });
+      }
+    } else if (pointsUsed > 0 && !userId) {
+      // Guest users can't use points
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'Guest users cannot use points' });
+    }
 
-    // Create the order without requiring an email for guest users
+    const shippingCost = parseFloat(calculateShippingCost(subtotal, shippingMethod).toFixed(2));
+    const tax = parseFloat((subtotal * 0.08).toFixed(2)); // 8% tax, rounded to 2 decimal places
+
+    // Calculate the order total before discount
+    const orderTotalBeforeDiscount = parseFloat((subtotal + shippingCost + tax).toFixed(2));
+
+    // Make sure points discount doesn't exceed the order total
+    const adjustedPointsDiscount = parseFloat(Math.min(pointsDiscount, orderTotalBeforeDiscount).toFixed(2));
+
+    // If the discount was adjusted, recalculate the points used
+    let adjustedPointsUsed = pointsUsed;
+    if (adjustedPointsDiscount < pointsDiscount) {
+      adjustedPointsUsed = Math.floor(adjustedPointsDiscount * 200); // 200 points = $1
+      logger.warn(`Points discount adjusted from ${pointsDiscount} to ${adjustedPointsDiscount} for order ${orderId}`);
+    }
+
+    // Apply points discount to the total
+    const total = parseFloat(Math.max(0, orderTotalBeforeDiscount - adjustedPointsDiscount).toFixed(2));
+
+    // Create the order with points information
     const order = new Order({
       user: userId, // Will be null for guest checkout
       email: shippingAddress.email || null, // Allow null for guest orders
@@ -155,10 +201,12 @@ export const createOrder = async (req, res) => {
       subtotal,
       shippingCost,
       tax,
-      total,
+      total, // Ensure the total includes the points discount
       status: 'pending',
       paymentStatus: 'pending',
       guestOrder: isGuest,
+      pointsUsed: adjustedPointsUsed || 0,
+      pointsDiscount: adjustedPointsDiscount || 0
     });
 
     await order.save({ session });
@@ -170,6 +218,7 @@ export const createOrder = async (req, res) => {
       metadata: {
         orderId: order._id.toString(),
         userId: userId ? userId.toString() : 'guest',
+        pointsUsed: pointsUsed.toString(),
       },
     });
 
@@ -198,36 +247,26 @@ export const processPayment = async (req, res) => {
   let retryCount = 0;
   let lastError = null;
 
-  logger.debug(`Starting payment processing for request: ${JSON.stringify(req.body)}`);
-
   while (retryCount < maxRetries) {
     const session = await mongoose.startSession();
     
     try {
-      // Start transaction with proper concurrency control
       session.startTransaction({
         readConcern: { level: 'snapshot' },
         writeConcern: { w: 'majority' }
       });
 
-      logger.debug(`Starting transaction (attempt ${retryCount + 1})`);
-
-      const { paymentIntentId } = req.body;
-
-      logger.debug(`Processing payment intent: ${paymentIntentId}`);
+      const { paymentIntentId, pointsUsed } = req.body;
 
       if (!paymentIntentId) {
-        logger.error('Payment intent ID is required');
         await session.abortTransaction();
         session.endSession();
         return res.status(400).json({ message: 'Payment intent ID is required' });
       }
 
       const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-      
 
       if (!paymentIntent || paymentIntent.status !== 'succeeded') {
-        logger.error('Payment not successful or payment intent not found');
         await session.abortTransaction();
         session.endSession();
         return res.status(400).json({ message: 'Payment not successful' });
@@ -245,15 +284,12 @@ export const processPayment = async (req, res) => {
       const order = await Order.findById(orderId).session(session);
       
       if (!order) {
-        logger.warn('Order not found');
         await session.abortTransaction();
         session.endSession();
         return res.status(404).json({ message: 'Order not found' });
       }
 
-      // Only proceed if the order hasn't already been paid
       if (order.paymentStatus === 'paid') {
-        logger.info('Order already marked as paid, returning success');
         await session.abortTransaction();
         session.endSession();
         return res.status(200).json({ 
@@ -262,10 +298,49 @@ export const processPayment = async (req, res) => {
         });
       }
 
+      if (order.user && order.pointsUsed > 0) {
+        // Verify that points match what was requested during order creation
+        const pointsToDeduct = order.pointsUsed;
+        
+        // Check if user has enough points
+        const user = await User.findById(order.user).session(session);
+        
+        if (!user) {
+          logger.error(`User ${order.user} not found during points redemption`);
+          throw new Error(`User ${order.user} not found`);
+        }
+        
+        if (user.points < pointsToDeduct) {
+          logger.error(`User ${order.user} has insufficient points: ${user.points} < ${pointsToDeduct}`);
+          throw new Error('Insufficient points for redemption');
+        }
+        
+        // Verify points conversion (200 points = $1)
+        const expectedDiscount = (pointsToDeduct / 200).toFixed(2);
+        const actualDiscount = order.pointsDiscount.toFixed(2);
+        
+        if (expectedDiscount !== actualDiscount) {
+          logger.error(`Points conversion mismatch: expected ${expectedDiscount} but got ${actualDiscount}`);
+          logger.warn(`Adjusting points discount from ${actualDiscount} to ${expectedDiscount}`);
+          order.pointsDiscount = parseFloat(expectedDiscount);
+          await order.save({ session });
+        }
+        
+        // Deduct points from user
+        user.points -= pointsToDeduct;
+        await user.save({ session });
+        
+        logger.info(`Deducted ${pointsToDeduct} points from user ${order.user} for a ${order.pointsDiscount} discount`);
+      }
+
       // Update order status
       order.paymentStatus = 'paid';
       order.status = 'processing';
       
+      const orderTotalBeforeDiscount = parseFloat((order.subtotal + order.shippingCost + order.tax).toFixed(2));
+      const adjustedPointsDiscount = parseFloat(Math.min(order.pointsDiscount, orderTotalBeforeDiscount).toFixed(2));
+      order.total = parseFloat(Math.max(0, orderTotalBeforeDiscount - adjustedPointsDiscount).toFixed(2));
+
       // Get charge ID if available
       if (paymentIntent.charges?.data?.length > 0) {
         order.stripeChargeId = paymentIntent.charges.data[0].id;
@@ -357,7 +432,6 @@ export const processPayment = async (req, res) => {
         // Don't fail the transaction if email sending fails
         logger.error(`Failed to send order confirmation email: ${emailError}`);
       }
-
 
       return res.status(200).json({ 
         order, 

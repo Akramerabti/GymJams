@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import useCartStore from '../stores/cartStore';
 import CartItem from '../components/cart/CartItem';
 import CartSummary from '../components/cart/CartSummary';
@@ -7,19 +7,26 @@ import { ShoppingBag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import useAuthStore from '../stores/authStore';
-import { Input } from '../components/ui/input'; // Import Input component
-import { Label } from '../components/ui/label'; // Import Label component
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog'; // Import Dialog components
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
 
 const Cart = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const cartStore = useCartStore();
-  const { items, getCartTotals, initiateCheckout, validateCartStock } = cartStore;
+  const { items, getCartTotals, initiateCheckout, validateCartStock, removePointsDiscount } = cartStore;
 
-  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false); // State to control email modal
-  const [email, setEmail] = useState(''); // State to store the user's email
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [email, setEmail] = useState('');
 
+
+  useEffect(() => {
+    // Reset points discount when returning to the cart page
+    removePointsDiscount();
+  }, [removePointsDiscount]);
+
+  
   const getUserId = (user) => {
     return user?.user?.id || user?.id || '';
   };

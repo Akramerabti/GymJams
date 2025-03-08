@@ -541,7 +541,7 @@ const renderHeader = () => {
   }
 
   if (!isAuthenticated) {
-    console.log('[GymBros] User not authenticated, showing setup form');
+
     return <GymBrosSetup onProfileCreated={handleProfileCreated} />;
   }
 

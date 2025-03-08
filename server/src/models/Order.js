@@ -94,6 +94,16 @@ const orderSchema = new mongoose.Schema({
   trackingNumber: String,
   estimatedDeliveryDate: Date,
   notes: String,
+  pointsUsed: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  pointsDiscount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
   refundStatus: {
     status: {
       type: String,
@@ -115,13 +125,14 @@ orderSchema.virtual('calculatedSubtotal').get(function() {
   return this.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 });
 
-// Virtual to calculate total with shipping if it's not set
 orderSchema.virtual('calculatedTotal').get(function() {
   if (this.total) return this.total;
-  return this.calculatedSubtotal + this.shippingCost + (this.tax || 0);
+  const subtotal = this.calculatedSubtotal;
+  const pointsDiscount = this.pointsDiscount || 0;
+  const total = Math.max(0, subtotal + this.shippingCost + (this.tax || 0) - pointsDiscount);
+  return parseFloat(total.toFixed(2)); // Round to 2 decimal places
 });
 
-// Ensure virtual properties are included in JSON output
 orderSchema.set('toJSON', { virtuals: true });
 orderSchema.set('toObject', { virtuals: true });
 

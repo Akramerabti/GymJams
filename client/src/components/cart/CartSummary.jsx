@@ -1,46 +1,91 @@
-import React from 'react';
-import { Button } from '../ui/button';
-import { Card, CardContent } from '../ui/card';
-import { Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Loader2, ShoppingBag } from 'lucide-react';
+import PointsRedemption from './PointsRedemption';
+import PointsPromotion from './PointsPromotion';
+import { useAuth } from '@/stores/authStore';
+import { useNavigate } from 'react-router-dom';
+import useCartStore from '@/stores/cartStore';
 
 const CartSummary = ({ totals, onCheckout, isLoading }) => {
-  const { subtotal, shipping, tax, total } = totals;
-  
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { updatePointsDiscount, removePointsDiscount } = useCartStore();
+  const [pointsDiscount, setPointsDiscount] = useState(0);
+  const [pointsUsed, setPointsUsed] = useState(0);
+
+  // Calculate the final total without double-counting the discount
+  const finalTotal = Math.max(0, totals.subtotal + totals.shipping + totals.tax - pointsDiscount).toFixed(2);
+
+  const handleApplyDiscount = (points, discountAmount) => {
+    setPointsUsed(points);
+    setPointsDiscount(discountAmount);
+    updatePointsDiscount(points, discountAmount);
+  };
+
+  const handleRemoveDiscount = () => {
+    setPointsUsed(0);
+    setPointsDiscount(0);
+    removePointsDiscount();
+  };
+
   return (
-    <Card className="bg-white rounded-lg shadow-md overflow-hidden">
-      <CardContent className="p-6">
-        <h2 className="text-lg font-semibold mb-4">Order Summary</h2>
-        
-        <div className="space-y-3">
-          <div className="flex justify-between">
-            <span className="text-gray-600">Subtotal</span>
-            <span className="font-medium">${subtotal.toFixed(2)}</span>
+    <Card>
+      <CardHeader>
+        <CardTitle>Order Summary</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex justify-between">
+          <span>Subtotal</span>
+          <span>${totals.subtotal.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Shipping</span>
+          <span>
+            {totals.shipping === 0 ? 'FREE' : `$${totals.shipping.toFixed(2)}`}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span>Tax</span>
+          <span>${totals.tax.toFixed(2)}</span>
+        </div>
+
+        {/* Points Discount */}
+        {pointsDiscount > 0 && (
+          <div className="flex justify-between text-green-600">
+            <span>Points Discount</span>
+            <span>-${pointsDiscount.toFixed(2)}</span>
           </div>
-          
-          <div className="flex justify-between">
-            <span className="text-gray-600">Shipping</span>
-            <span className="font-medium">
-              {shipping === 0 ? 'Free' : `$${shipping.toFixed(2)}`}
-            </span>
-          </div>
-          
-          <div className="flex justify-between">
-            <span className="text-gray-600">Tax</span>
-            <span className="font-medium">${tax.toFixed(2)}</span>
-          </div>
-          
-          <div className="border-t pt-3 mt-3">
-            <div className="flex justify-between font-semibold text-lg">
-              <span>Total</span>
-              <span>${total.toFixed(2)}</span>
-            </div>
+        )}
+
+        <div className="border-t pt-4">
+          <div className="flex justify-between font-semibold">
+            <span>Total</span>
+            <span>${finalTotal}</span>
           </div>
         </div>
-        
-        <Button 
-          className="w-full mt-6"
+      </CardContent>
+
+      {/* Points Redemption or Promotion Section */}
+      <div className="px-6 pb-2">
+        {user ? (
+          <PointsRedemption
+            onApplyDiscount={handleApplyDiscount}
+            onRemoveDiscount={handleRemoveDiscount}
+            disabled={isLoading}
+            cartTotal={totals.subtotal + totals.shipping + totals.tax} // Pass the cart total before discount
+          />
+        ) : (
+          <PointsPromotion />
+        )}
+      </div>
+
+      <CardFooter className="flex flex-col space-y-2">
+        <Button
           onClick={onCheckout}
           disabled={isLoading}
+          className="w-full"
         >
           {isLoading ? (
             <>
@@ -48,10 +93,20 @@ const CartSummary = ({ totals, onCheckout, isLoading }) => {
               Processing...
             </>
           ) : (
-            'Proceed to Checkout'
+            <>
+              <ShoppingBag className="mr-2 h-4 w-4" />
+              Checkout
+            </>
           )}
         </Button>
-      </CardContent>
+        <Button
+          variant="outline"
+          onClick={() => navigate('/shop')}
+          className="w-full"
+        >
+          Continue Shopping
+        </Button>
+      </CardFooter>
     </Card>
   );
 };

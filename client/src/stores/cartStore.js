@@ -1,28 +1,27 @@
-// stores/cartStore.js
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import api from '../services/api';
 import { toast } from 'sonner';
 import inventoryService from '../services/inventory.service';
+import { usePoints } from '../hooks/usePoints';
 
-/**
- * Calculate cart totals including subtotal, shipping, tax and grand total
- * @param {Array} items - The cart items with price and quantity
- * @returns {Object} - Calculated cart totals
- */
-const calculateTotals = (items) => {
+
+const calculateTotals = (items, pointsDiscount = 0) => {
   // Fixed calculation to properly account for item quantities
   const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   // Determine shipping cost based on subtotal
   const shipping = subtotal > 100 ? 0 : 10; // Free shipping over $100
   const tax = subtotal * 0.08; // 8% tax rate
-  const total = subtotal + shipping + tax;
-
+  
+  // Apply points discount to the total
+  const discountedTotal = Math.max(0, subtotal + shipping + tax - pointsDiscount);
+  
   return {
     subtotal,
     shipping,
     tax,
-    total,
+    pointsDiscount: pointsDiscount || 0,
+    total: discountedTotal,
   };
 };
 
@@ -69,12 +68,9 @@ const useCartStore = create(
       stockWarnings: [],
       checkoutData: null,
       processingPayment: false,
-      
-      /**
-       * Add an item to the cart
-       * @param {Object} product - The product to add
-       * @param {Number} quantity - Quantity to add
-       */
+      pointsDiscount: 0,
+      pointsUsed: 0,
+    
       addItem: (product, quantity = 1) => {
         const { items } = get();
         const existingItem = items.find((item) => item.id === product.id);
@@ -93,10 +89,20 @@ const useCartStore = create(
         toast.success(`${product.name} has been added to your cart.`);
       },
 
-      /**
-       * Remove an item from the cart
-       * @param {String} productId - ID of the product to remove
-       */
+      updatePointsDiscount: (points, discountAmount) => {
+        set({ 
+          pointsUsed: points,
+          pointsDiscount: discountAmount 
+        });
+      },
+      
+      removePointsDiscount: () => {
+        set({ 
+          pointsUsed: 0,
+          pointsDiscount: 0 
+        });
+      },
+
       removeItem: (productId) => {
         const { items } = get();
         set({ items: items.filter(item => item.id !== productId) });
@@ -190,14 +196,8 @@ const useCartStore = create(
         }
       },
 
-      /**
-       * Initiate checkout process
-       * @param {Object} checkoutData - Checkout data including addresses
-       * @returns {Object} - The order and payment info
-       */
-      // Modified initiateCheckout function in cartStore.js
       initiateCheckout: async (checkoutData) => {
-        const { items, validateCartStock } = get();
+        const { items, validateCartStock, pointsUsed, pointsDiscount } = get();
         set({ loading: true, error: null });
       
         try {
@@ -210,32 +210,61 @@ const useCartStore = create(
           // Check if we already have an orderId stored in state
           const existingOrderId = get().checkoutData?.order?._id;
       
-          let endpoint = '/orders';
-          let method = 'post';
+          // Add points discount information to the request
+          const requestData = {
+            items: items.map(({ id, quantity }) => ({ id, quantity })),
+            shippingAddress: checkoutData.shippingAddress || {},
+            billingAddress: checkoutData.billingAddress || {},
+            shippingMethod: checkoutData.shippingMethod || 'standard',
+            userId: checkoutData.userId || null,
+            isGuest: !checkoutData.userId,
+            pointsUsed: pointsUsed || 0,
+            pointsDiscount: pointsDiscount || 0
+          };
       
-          // If we already have an order, update it instead of creating a new one
+          let response;
+      
+          // If we have an existing orderId, try to update the order
           if (existingOrderId) {
-            endpoint = `/orders/${existingOrderId}`;
-            method = 'put';
+            try {
+              response = await retryWithBackoff(() =>
+                api({
+                  method: 'put',
+                  url: `/orders/${existingOrderId}`,
+                  data: requestData,
+                })
+              );
+              console.log('Order updated successfully:', response.data);
+            } catch (updateError) {
+              // If the update fails with a 404 error, fall back to creating a new order
+              if (updateError.response?.status === 404) {
+                console.warn('Order not found, creating a new order...');
+                response = await retryWithBackoff(() =>
+                  api({
+                    method: 'post',
+                    url: '/orders',
+                    data: requestData,
+                  })
+                );
+                console.log('New order created successfully:', response.data);
+              } else {
+                // Re-throw the error if it's not a 404
+                throw updateError;
+              }
+            }
+          } else {
+            // If there's no existing orderId, create a new order
+            response = await retryWithBackoff(() =>
+              api({
+                method: 'post',
+                url: '/orders',
+                data: requestData,
+              })
+            );
+            console.log('New order created successfully:', response.data);
           }
       
-          // Create or update order with retry logic
-          const response = await retryWithBackoff(() =>
-            api({
-              method: method,
-              url: endpoint,
-              data: {
-                items: items.map(({ id, quantity }) => ({ id, quantity })),
-                shippingAddress: checkoutData.shippingAddress || {},
-                billingAddress: checkoutData.billingAddress || {},
-                shippingMethod: checkoutData.shippingMethod || 'standard',
-                userId: checkoutData.userId || null,
-                isGuest: !checkoutData.userId, // Mark as guest if no userId is provided
-              },
-            })
-          );
-      
-          console.log('Order created/updated successfully:', response.data);
+          // Update the state with the new checkout data
           set({ checkoutData: response.data });
           return response.data;
         } catch (error) {
@@ -249,39 +278,61 @@ const useCartStore = create(
         }
       },
 
-      /**
-       * Process payment for an order
-       * @param {String} paymentIntentId - Stripe payment intent ID
-       * @returns {Object} - The processed order data
-       */
       processPayment: async (paymentIntentId) => {
-        // Prevent concurrent payment processing
-        if (get().processingPayment) {
-          throw new Error('Payment already in progress');
+  // Prevent concurrent payment processing
+  if (get().processingPayment) {
+    throw new Error('Payment already in progress');
+  }
+
+  set({ loading: true, error: null, processingPayment: true });
+
+  try {
+    const { pointsUsed } = get();
+
+    // Use retry pattern with exponential backoff
+    const response = await retryWithBackoff(
+      () => api.post('/orders/payment', { 
+        paymentIntentId,
+        pointsUsed: pointsUsed || 0
+      }),
+      { maxRetries: 5, baseDelay: 300 } // Increase retries and delay for payment processing
+    );
+
+    // If points were used, deduct them from the user's balance
+    if (pointsUsed > 0) {
+      try {
+        // Fetch the current points balance
+        const currentBalance = usePoints.getState().balance;
+
+        // Ensure the user has enough points to deduct
+        if (currentBalance < pointsUsed) {
+          throw new Error('Insufficient points to complete the transaction');
         }
-        
-        set({ loading: true, error: null, processingPayment: true });
-        
-        try {
-          // Use retry pattern with exponential backoff
-          const response = await retryWithBackoff(
-            () => api.post('/orders/payment', { paymentIntentId }),
-            { maxRetries: 5, baseDelay: 300 } // Increase retries and delay for payment processing
-          );
-          
-          // Success! Clear cart
-          get().clearCart();
-          
-          return response.data;
-        } catch (error) {
-          const message = error.response?.data?.message || error.message || 'Payment processing failed';
-          set({ error: message });
-          toast.error(message);
-          throw error;
-        } finally {
-          set({ loading: false, processingPayment: false });
-        }
-      },
+
+        // Update points in the backend
+        await usePoints.getState().updatePointsInBackend(-pointsUsed);
+
+        // Update local points state
+        usePoints.getState().subtractPoints(pointsUsed);
+      } catch (pointsError) {
+        console.error('Error updating points:', pointsError);
+        // Don't fail the payment if points update fails
+      }
+    }
+
+    // Success! Clear cart
+    get().clearCart();
+
+    return response.data;
+  } catch (error) {
+    const message = error.response?.data?.message || error.message || 'Payment processing failed';
+    set({ error: message });
+    toast.error(message);
+    throw error;
+  } finally {
+    set({ loading: false, processingPayment: false });
+  }
+},
 
       updateGuestEmail: async (email) => {
         const { checkoutData } = get();
@@ -336,11 +387,9 @@ const useCartStore = create(
         }
       },
 
-      // Cart Getters
       getCartTotals: () => {
-        const { items } = get();
-        
-        return calculateTotals(items);
+        const { items, pointsDiscount } = get();
+        return calculateTotals(items, pointsDiscount);
       },
 
       getItemCount: () => {
@@ -387,7 +436,9 @@ const useCartStore = create(
         error: null, 
         stockWarnings: [], 
         checkoutData: null,
-        processingPayment: false
+        processingPayment: false,
+        pointsDiscount: 0,
+        pointsUsed: 0
       })
     }),
     {
@@ -395,6 +446,8 @@ const useCartStore = create(
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         items: state.items,
+        pointsDiscount: state.pointsDiscount,
+        pointsUsed: state.pointsUsed,
       }),
     }
   )
@@ -402,13 +455,14 @@ const useCartStore = create(
 
 export default useCartStore;
 
-// Hook for using cart functionality in components
 export const useCart = () => {
   const {
     items,
     loading,
     error,
     stockWarnings,
+    pointsDiscount,
+    pointsUsed,
     addItem,
     removeItem,
     updateQuantity,
@@ -420,10 +474,11 @@ export const useCart = () => {
     validateCartStock,
     initiateCheckout,
     processPayment,
-    cancelOrder
+    cancelOrder,
+    updatePointsDiscount,
+    removePointsDiscount
   } = useCartStore();
 
-  // Calculate totals using the fixed calculation method
   const totals = getCartTotals();
   
   return {
@@ -431,11 +486,13 @@ export const useCart = () => {
     loading,
     error,
     stockWarnings,
+    pointsDiscount,
+    pointsUsed,
     addItem,
     removeItem,
     updateQuantity,
     clearCart,
-    total: totals.total,  // Make the total directly available
+    total: totals.total,
     subtotal: totals.subtotal,
     shipping: totals.shipping,
     tax: totals.tax,
@@ -445,6 +502,8 @@ export const useCart = () => {
     validateCartStock,
     initiateCheckout,
     processPayment,
-    cancelOrder
+    cancelOrder,
+    updatePointsDiscount,
+    removePointsDiscount
   };
 };
