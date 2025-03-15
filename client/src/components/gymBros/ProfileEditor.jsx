@@ -1,392 +1,371 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { 
-  PlusCircle, Camera, MapPin, Award, Clock, 
-  Calendar, Target, ArrowLeft, ArrowRight, 
-  User, Trash2, Upload, Dumbbell
+  Camera, ChevronLeft, Plus, Trash2, Share2, Link, User,
+  PauseCircle, LogOut, MapPin, Calendar, Award, X, Save
 } from 'lucide-react';
 import api from '../../services/api';
-import debounce from 'lodash/debounce';
+import EnhancedProfileCard from './EnhancedProfileCard';
 
-// Define workout types, experience levels, and preferred times
-const workoutTypes = [
-  'Weightlifting', 'Cardio', 'Yoga', 'CrossFit', 'Pilates',
-  'HIIT', 'Calisthenics', 'Running', 'Swimming', 'Cycling'
-];
-
-const experienceLevels = ['Beginner', 'Intermediate', 'Advanced'];
-const timePreferences = ['Morning', 'Afternoon', 'Evening', 'Late Night', 'Weekends Only', 'Flexible'];
-
-const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
-  const [profileData, setProfileData] = useState({
-    name: '',
-    age: '',
-    bio: '',
-    workoutTypes: [],
-    experienceLevel: '',
-    preferredTime: '',
-    goals: '',
-    location: {
-      address: '',
-    },
-    images: []
-  });
-  
-  const [isSaving, setIsSaving] = useState(false);
-  const [isImageUploading, setIsImageUploading] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
+  const [formData, setFormData] = useState(userProfile || {});
+  const [errors, setErrors] = useState({});
+  const [activeSection, setActiveSection] = useState('main');
+  const [fieldInFocus, setFieldInFocus] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isScrolling, setIsScrolling] = useState(false);
+  const [showSaveButton, setShowSaveButton] = useState(false);
+  const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
-
-  // Initialize profile data when userProfile changes
+  
   useEffect(() => {
     if (userProfile) {
-      setProfileData({
-        name: userProfile.name || '',
-        age: userProfile.age || '',
-        bio: userProfile.bio || '',
-        workoutTypes: userProfile.workoutTypes || [],
-        experienceLevel: userProfile.experienceLevel || '',
-        preferredTime: userProfile.preferredTime || '',
-        goals: userProfile.goals || '',
-        location: {
-          address: userProfile.location?.address || '',
-        },
-        images: userProfile.images || []
-      });
+      setFormData(userProfile);
     }
   }, [userProfile]);
 
-  // Create a debounced save function
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const debouncedSave = useCallback(
-    debounce(async (data) => {
-      setIsSaving(true);
+  // Auto-save when field loses focus
+  const handleBlur = async (field) => {
+    setFieldInFocus(null);
+    
+    // Check if field changed
+    if (JSON.stringify(formData[field]) !== JSON.stringify(userProfile[field])) {
+      // For this field only, prepare update
+      const update = { [field]: formData[field] };
+      
       try {
-        const response = await api.put('/gym-bros/profile', data);
-        
-        // Only show toast after successful save
-        toast.success('Profile updated', {
-          duration: 2000,
-          position: 'bottom-right',
-        });
-        
-        if (onProfileUpdated) {
-          onProfileUpdated(response.data);
-        }
+        // Only update this specific field
+        const response = await api.patch('/gym-bros/profile', update);
+        onProfileUpdated(response.data);
+        toast.success(`Updated ${field}`);
       } catch (error) {
-        console.error('Error updating profile:', error);
-        toast.error('Failed to update profile', {
-          description: error.message || 'Please try again',
-        });
-      } finally {
-        setIsSaving(false);
+        console.error(`Error updating ${field}:`, error);
+        toast.error(`Failed to update ${field}`);
+        // Reset to original value
+        setFormData(prev => ({ ...prev, [field]: userProfile[field] }));
       }
-    }, 1000),
-    []
-  );
-
-  // Handle input changes
-  const handleChange = (field, value) => {
-    let updatedData;
-    
-    if (field === 'location') {
-      updatedData = {
-        ...profileData,
-        location: {
-          ...profileData.location,
-          ...value,
-        },
-      };
-    } else {
-      updatedData = {
-        ...profileData,
-        [field]: value,
-      };
     }
-    
-    setProfileData(updatedData);
-    debouncedSave(updatedData);
   };
 
-  // Toggle workout type selection
-  const handleWorkoutTypeToggle = (type) => {
-    const updatedWorkoutTypes = profileData.workoutTypes.includes(type)
-      ? profileData.workoutTypes.filter(t => t !== type)
-      : [...profileData.workoutTypes, type];
-      
-    handleChange('workoutTypes', updatedWorkoutTypes);
+  // Update form data for any field
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setShowSaveButton(true);
+    
+    // Clear error for this field
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: null }));
+    }
   };
 
-  // Handle image upload
-  const handleImageUpload = async (e) => {
-    const files = Array.from(e.target.files);
-    if (!files.length) return;
+  // Special handler for nested objects
+  const handleNestedChange = (objectName, propertyName, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [objectName]: {
+        ...(prev[objectName] || {}),
+        [propertyName]: value
+      }
+    }));
+    setShowSaveButton(true);
+  };
+
+  // Handle multi-select changes like workout types
+  const handleMultiSelectChange = (name, value) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setShowSaveButton(true);
     
-    // Check if adding these files would exceed the 6 image limit
-    if (profileData.images.length + files.length > 6) {
-      toast.error('Maximum 6 images allowed', {
-        description: `You can only upload ${6 - profileData.images.length} more images`
-      });
+    // Clear error
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: null }));
+    }
+  };
+
+  // Toggle the selection of an item in a multi-select
+  const toggleSelection = (field, item) => {
+    const currentValues = formData[field] || [];
+    const newValues = currentValues.includes(item)
+      ? currentValues.filter(val => val !== item)
+      : [...currentValues, item];
+    
+    handleMultiSelectChange(field, newValues);
+  };
+
+  // Save all changes at once
+  const handleSaveAll = async () => {
+    try {
+      const response = await api.post('/gym-bros/profile', formData);
+      onProfileUpdated(response.data);
+      toast.success('Profile updated successfully');
+      setShowSaveButton(false);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast.error('Failed to update profile');
+    }
+  };
+
+  // Photo upload handling
+  const handleAddPhoto = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // Basic validation
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
       return;
     }
     
-    // Check file types
-    for (const file of files) {
-      if (!file.type.match('image.*')) {
-        toast.error('Invalid file type', {
-          description: 'Please select only image files'
-        });
-        return;
-      }
-      
-      // Check file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('File too large', {
-          description: 'Image size should be less than 5MB'
-        });
-        return;
-      }
+    // Max 5MB
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be less than 5MB');
+      return;
     }
     
-    setIsImageUploading(true);
+    setIsUploading(true);
     
     try {
-      const formData = new FormData();
-      files.forEach(file => {
-        formData.append('images', file);
-      });
+      const formDataObj = new FormData();
+      formDataObj.append('photo', file);
       
-      const response = await api.post('/gym-bros/profile-images', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response = await api.post('/gym-bros/profile/photo', formDataObj);
       
-      // Update profile with new images
-      const updatedImages = [...profileData.images, ...response.data.imageUrls];
-      handleChange('images', updatedImages);
+      // Update photos array or create new one
+      const updatedPhotos = [...(formData.photos || []), response.data.photoUrl];
+      setFormData(prev => ({ ...prev, photos: updatedPhotos }));
       
-      toast.success(`${files.length > 1 ? 'Images' : 'Image'} uploaded successfully`);
+      // Main profile photo if none exists
+      if (!formData.profileImage) {
+        setFormData(prev => ({ ...prev, profileImage: response.data.photoUrl }));
+      }
+      
+      toast.success('Photo added');
+      handleSaveAll(); // Save changes
     } catch (error) {
-      console.error('Error uploading images:', error);
-      toast.error('Failed to upload images');
+      console.error('Error uploading photo:', error);
+      toast.error('Failed to upload photo');
     } finally {
-      setIsImageUploading(false);
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      setIsUploading(false);
     }
   };
 
-  // Handle image deletion
-  const handleDeleteImage = async (index) => {
-    if (profileData.images.length <= 1) {
-      toast.error('You must keep at least one profile image');
-      return;
-    }
-    
+  const handleDeletePhoto = async (photoUrl) => {
     try {
-      const imageUrl = profileData.images[index];
-      const imageId = imageUrl.split('/').pop().split('.')[0]; // Extract ID from URL
+      await api.delete('/gym-bros/profile/photo', { data: { photoUrl } });
       
-      await api.delete(`/gym-bros/profile-image/${imageId}`);
+      // Update photos list
+      const updatedPhotos = formData.photos.filter(url => url !== photoUrl);
+      setFormData(prev => ({ ...prev, photos: updatedPhotos }));
       
-      const updatedImages = profileData.images.filter((_, i) => i !== index);
-      handleChange('images', updatedImages);
-      
-      // Update current index if needed
-      if (currentImageIndex >= updatedImages.length) {
-        setCurrentImageIndex(updatedImages.length - 1);
+      // If main profile pic is deleted, set to next available
+      if (formData.profileImage === photoUrl && updatedPhotos.length > 0) {
+        setFormData(prev => ({ ...prev, profileImage: updatedPhotos[0] }));
+      } else if (formData.profileImage === photoUrl) {
+        setFormData(prev => ({ ...prev, profileImage: null }));
       }
       
-      toast.success('Image deleted');
+      toast.success('Photo deleted');
+      handleSaveAll(); // Save changes
     } catch (error) {
-      console.error('Error deleting image:', error);
-      toast.error('Failed to delete image');
+      console.error('Error deleting photo:', error);
+      toast.error('Failed to delete photo');
     }
   };
 
-  // Navigation for image carousel
-  const nextImage = () => {
-    if (currentImageIndex < profileData.images.length - 1) {
-      setCurrentImageIndex(currentImageIndex + 1);
+  const handleSetMainPhoto = (photoUrl) => {
+    setFormData(prev => ({ ...prev, profileImage: photoUrl }));
+    handleSaveAll(); // Save changes
+  };
+
+  // Specialized action handlers
+  const handleDeleteAccount = async () => {
+    if (window.confirm('Are you sure you want to delete your GymBros profile? This action cannot be undone.')) {
+      try {
+        await api.delete('/gym-bros/profile');
+        toast.success('Profile deleted successfully');
+        window.location.reload(); // Force reload to show profile creation
+      } catch (error) {
+        console.error('Error deleting profile:', error);
+        toast.error('Failed to delete profile');
+      }
+    }
+  };
+
+  const handlePauseAccount = async () => {
+    try {
+      await api.post('/gym-bros/profile/pause');
+      setFormData(prev => ({ ...prev, paused: !prev.paused }));
+      toast.success(formData.paused ? 'Profile activated' : 'Profile paused');
+    } catch (error) {
+      console.error('Error toggling profile status:', error);
+      toast.error('Failed to update profile status');
+    }
+  };
+
+  const handleShareProfile = () => {
+    // Generate a shareable link with the user's ID
+    const shareUrl = `${window.location.origin}/gymbros/profile/${userProfile._id}`;
+    
+    // Use Web Share API if available
+    if (navigator.share) {
+      navigator.share({
+        title: 'Check out my GymBros profile',
+        text: `Connect with me on GymBros!`,
+        url: shareUrl,
+      })
+      .catch(err => {
+        console.error('Error sharing:', err);
+        // Fallback to copying to clipboard
+        copyToClipboard(shareUrl);
+      });
     } else {
-      setCurrentImageIndex(0); // Loop back to the first image
+      // Fallback to copying to clipboard
+      copyToClipboard(shareUrl);
     }
   };
 
-  const prevImage = () => {
-    if (currentImageIndex > 0) {
-      setCurrentImageIndex(currentImageIndex - 1);
-    } else {
-      setCurrentImageIndex(profileData.images.length - 1); // Loop to the last image
-    }
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text)
+      .then(() => toast.success('Link copied to clipboard'))
+      .catch(err => {
+        console.error('Failed to copy:', err);
+        toast.error('Failed to copy link');
+      });
   };
 
-  // Trigger file input click
-  const triggerFileInput = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
+  // Workout types options
+  const workoutTypes = [
+    'Weightlifting', 'Cardio', 'CrossFit', 'Yoga', 'Pilates', 
+    'Running', 'Swimming', 'Cycling', 'HIIT', 'Boxing',
+    'Martial Arts', 'Bodyweight', 'Powerlifting', 'Functional Training'
+  ];
+  
+  // Experience level options
+  const experienceLevels = ['Beginner', 'Intermediate', 'Advanced', 'Professional'];
+  
+  // Preferred time options
+  const preferredTimes = ['Morning', 'Afternoon', 'Evening', 'Night', 'Flexible'];
 
-  return (
-    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-      {/* Images Carousel Header */}
-      <div className="relative h-80 overflow-hidden">
-        {profileData.images.length > 0 ? (
-          <>
-            {/* Main Image */}
-            <img 
-              src={profileData.images[currentImageIndex]} 
-              alt={`Profile ${currentImageIndex + 1}`} 
-              className="w-full h-full object-cover"
-            />
-            
-            {/* Image Counter Indicator */}
-            <div className="absolute top-4 right-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-full text-sm">
-              {currentImageIndex + 1} / {profileData.images.length}
-            </div>
-            
-            {/* Navigation Arrows */}
-            <button 
-              onClick={prevImage}
-              className="absolute top-1/2 left-4 -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-all"
-            >
-              <ArrowLeft size={20} />
-            </button>
-            <button 
-              onClick={nextImage}
-              className="absolute top-1/2 right-4 -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-all"
-            >
-              <ArrowRight size={20} />
-            </button>
-            
-            {/* Delete Current Image Button */}
-            <button 
-              onClick={() => handleDeleteImage(currentImageIndex)}
-              className="absolute bottom-4 right-4 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-all"
-            >
-              <Trash2 size={20} />
-            </button>
-          </>
-        ) : (
-          <div className="w-full h-full bg-gray-200 flex flex-col items-center justify-center">
-            <Camera size={48} className="text-gray-400 mb-2" />
-            <p className="text-gray-500">No profile images yet</p>
+  // Editable text field that saves on blur
+  const EditableField = ({ label, name, value, placeholder, textarea = false }) => {
+    const [fieldValue, setFieldValue] = useState(value || '');
+    const [isEditing, setIsEditing] = useState(false);
+    
+    useEffect(() => {
+      setFieldValue(value || '');
+    }, [value]);
+    
+    return (
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700">{label}</label>
+        {!isEditing ? (
+          <div 
+            className="mt-1 p-3 border border-gray-300 rounded-md bg-gray-50 min-h-[40px] cursor-text"
+            onClick={() => setIsEditing(true)}
+          >
+            {fieldValue || placeholder}
           </div>
-        )}
-        
-        {/* Upload New Image Button */}
-        <button 
-          onClick={triggerFileInput}
-          disabled={isImageUploading}
-          className="absolute bottom-4 left-4 bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600 transition-all flex items-center space-x-2"
-        >
-          {isImageUploading ? (
-            <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
-          ) : (
-            <PlusCircle size={20} />
-          )}
-        </button>
-        <input 
-          ref={fileInputRef}
-          type="file" 
-          accept="image/*"
-          onChange={handleImageUpload}
-          className="hidden"
-          multiple
-        />
-      </div>
-      
-      {/* Thumbnail Navigation */}
-      <div className="flex justify-center space-x-2 py-2 bg-gray-100">
-        {profileData.images.map((image, index) => (
-          <button 
-            key={index}
-            onClick={() => setCurrentImageIndex(index)}
-            className={`w-10 h-10 rounded-md overflow-hidden border-2 transition-all ${
-              currentImageIndex === index ? 'border-blue-500 scale-110' : 'border-transparent opacity-70'
-            }`}
-          >
-            <img 
-              src={image} 
-              alt={`Thumbnail ${index + 1}`}
-              className="w-full h-full object-cover"
+        ) : (
+          textarea ? (
+            <textarea
+              name={name}
+              value={fieldValue}
+              onChange={(e) => setFieldValue(e.target.value)}
+              onBlur={() => {
+                setIsEditing(false);
+                handleMultiSelectChange(name, fieldValue);
+                handleBlur(name);
+              }}
+              placeholder={placeholder}
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              rows={4}
+              autoFocus
             />
-          </button>
-        ))}
-        {profileData.images.length < 6 && (
-          <button 
-            onClick={triggerFileInput}
-            className="w-10 h-10 rounded-md bg-gray-200 flex items-center justify-center hover:bg-gray-300 transition-all"
-          >
-            <Upload size={16} className="text-gray-500" />
-          </button>
-        )}
-      </div>
-      
-      {/* Profile Content */}
-      <div className="p-6 space-y-6">
-        {/* Name and Age (inline editing) */}
-        <div className="space-y-4">
-          <div className="flex items-center space-x-2">
-            <User className="w-5 h-5 text-gray-500" />
+          ) : (
             <input
               type="text"
-              value={profileData.name}
-              onChange={(e) => handleChange('name', e.target.value)}
-              placeholder="Your Name"
-              className="flex-1 text-xl font-bold border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-1 transition-colors"
+              name={name}
+              value={fieldValue}
+              onChange={(e) => setFieldValue(e.target.value)}
+              onBlur={() => {
+                setIsEditing(false);
+                handleMultiSelectChange(name, fieldValue);
+                handleBlur(name);
+              }}
+              placeholder={placeholder}
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              autoFocus
             />
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <Calendar className="w-5 h-5 text-gray-500" />
-            <input
-              type="number"
-              value={profileData.age}
-              onChange={(e) => handleChange('age', e.target.value)}
-              placeholder="Your Age"
-              min="18"
-              max="99"
-              className="w-20 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-1 transition-colors"
-            />
-            <span className="text-gray-500">years old</span>
-          </div>
-        </div>
+          )
+        )}
+      </div>
+    );
+  };
 
-        {/* Bio */}
-        <div className="space-y-2">
-          <label className="flex items-center text-sm font-medium text-gray-700">
-            About Me
-          </label>
-          <textarea
-            value={profileData.bio}
-            onChange={(e) => handleChange('bio', e.target.value)}
-            placeholder="Tell potential gym partners a bit about yourself..."
-            rows="3"
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all hover:border-gray-400"
+  // Main profile view
+  const renderMainProfile = () => (
+    <>
+      {/* Profile Picture Section */}
+      <div 
+        className="relative w-full aspect-square bg-gray-100 mb-4 cursor-pointer"
+        onClick={() => setActiveSection('photos')}
+      >
+        {formData.profileImage ? (
+          <img 
+            src={formData.profileImage} 
+            alt="Profile" 
+            className="w-full h-full object-cover"
           />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <User size={64} className="text-gray-400" />
+          </div>
+        )}
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
+          <div className="flex items-end">
+            <div className="flex-1 text-white">
+              <h1 className="text-2xl font-bold">{formData.name || 'Your Name'}, {formData.age || '?'}</h1>
+              {formData.location?.address && (
+                <div className="flex items-center text-white/80">
+                  <MapPin size={16} className="mr-1" />
+                  <span>{formData.location.address}</span>
+                </div>
+              )}
+            </div>
+            <div className="bg-white/20 rounded-full p-2 mr-2">
+              <Camera size={24} className="text-white" />
+            </div>
+          </div>
         </div>
+      </div>
 
-        {/* Workout Types */}
-        <div className="space-y-2">
-          <label className="flex items-center text-sm font-medium text-gray-700">
-            <Dumbbell className="w-5 h-5 text-gray-500 mr-2" />
-            Workout Types
-          </label>
+      {/* Basic Info Section */}
+      <div className="px-4 space-y-6 pb-20">
+        <EditableField 
+          label="About Me" 
+          name="bio" 
+          value={formData.bio} 
+          placeholder="Tell others about yourself and your fitness journey..."
+          textarea={true}
+        />
+
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-2">Workout Types</h3>
           <div className="flex flex-wrap gap-2">
-            {workoutTypes.map((type) => (
+            {workoutTypes.map(type => (
               <button
                 key={type}
                 type="button"
-                onClick={() => handleWorkoutTypeToggle(type)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  profileData.workoutTypes.includes(type)
+                onClick={() => toggleSelection('workoutTypes', type)}
+                className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                  (formData.workoutTypes || []).includes(type)
                     ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    : 'bg-gray-200 text-gray-700'
                 }`}
               >
                 {type}
@@ -395,86 +374,226 @@ const GymBrosEnhancedProfile = ({ userProfile, onProfileUpdated }) => {
           </div>
         </div>
 
-        {/* Experience Level */}
-        <div className="space-y-2">
-          <label className="flex items-center text-sm font-medium text-gray-700">
-            <Award className="w-5 h-5 text-gray-500 mr-2" />
-            Experience Level
-          </label>
-          <select
-            value={profileData.experienceLevel}
-            onChange={(e) => handleChange('experienceLevel', e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all hover:border-gray-400"
-          >
-            <option value="">Select Experience Level</option>
-            {experienceLevels.map((level) => (
-              <option key={level} value={level}>
-                {level}
-              </option>
-            ))}
-          </select>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">Experience Level</label>
+            <select
+              name="experienceLevel"
+              value={formData.experienceLevel || ''}
+              onChange={handleChange}
+              onBlur={() => handleBlur('experienceLevel')}
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-md"
+            >
+              <option value="">Select Level</option>
+              {experienceLevels.map(level => (
+                <option key={level} value={level}>{level}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">Preferred Time</label>
+            <select
+              name="preferredTime"
+              value={formData.preferredTime || ''}
+              onChange={handleChange}
+              onBlur={() => handleBlur('preferredTime')}
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-md"
+            >
+              <option value="">Select Time</option>
+              {preferredTimes.map(time => (
+                <option key={time} value={time}>{time}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {/* Preferred Time */}
-        <div className="space-y-2">
-          <label className="flex items-center text-sm font-medium text-gray-700">
-            <Clock className="w-5 h-5 text-gray-500 mr-2" />
-            Preferred Workout Time
-          </label>
-          <select
-            value={profileData.preferredTime}
-            onChange={(e) => handleChange('preferredTime', e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all hover:border-gray-400"
-          >
-            <option value="">Select Preferred Time</option>
-            {timePreferences.map((time) => (
-              <option key={time} value={time}>
-                {time}
-              </option>
-            ))}
-          </select>
-        </div>
+        <EditableField 
+          label="Fitness Goals" 
+          name="fitnessGoals" 
+          value={formData.fitnessGoals} 
+          placeholder="What are your fitness goals?"
+          textarea={true}
+        />
 
-        {/* Goals */}
-        <div className="space-y-2">
-          <label className="flex items-center text-sm font-medium text-gray-700">
-            <Target className="w-5 h-5 text-gray-500 mr-2" />
-            Fitness Goals
-          </label>
-          <textarea
-            value={profileData.goals}
-            onChange={(e) => handleChange('goals', e.target.value)}
-            placeholder="What are your fitness goals?"
-            rows="3"
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all hover:border-gray-400"
-          />
-        </div>
+        <EditableField 
+          label="Achievements" 
+          name="achievements" 
+          value={formData.achievements} 
+          placeholder="Any certifications or fitness achievements?"
+          textarea={true}
+        />
 
-        {/* Location */}
-        <div className="space-y-2">
-          <label className="flex items-center text-sm font-medium text-gray-700">
-            <MapPin className="w-5 h-5 text-gray-500 mr-2" />
-            Location
-          </label>
-          <input
-            type="text"
-            value={profileData.location.address}
-            onChange={(e) => handleChange('location', { address: e.target.value })}
-            placeholder="Your location"
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all hover:border-gray-400"
-          />
+        {/* Settings */}
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold mb-4">Settings</h3>
+          
+          <div className="space-y-3">
+            <button 
+              onClick={handleShareProfile}
+              className="w-full flex items-center p-3 rounded-md bg-gray-100 hover:bg-gray-200"
+            >
+              <Share2 size={20} className="mr-3 text-gray-600" />
+              <span>Share Profile</span>
+            </button>
+            
+            <button 
+              onClick={handlePauseAccount}
+              className="w-full flex items-center p-3 rounded-md bg-gray-100 hover:bg-gray-200"
+            >
+              <PauseCircle size={20} className="mr-3 text-gray-600" />
+              <span>{formData.paused ? 'Activate Profile' : 'Pause Profile'}</span>
+            </button>
+            
+            <button 
+              onClick={handleDeleteAccount}
+              className="w-full flex items-center p-3 rounded-md bg-red-50 hover:bg-red-100 text-red-600"
+            >
+              <Trash2 size={20} className="mr-3" />
+              <span>Delete Profile</span>
+            </button>
+          </div>
         </div>
       </div>
+    </>
+  );
 
-      {/* Saving indicator */}
-      {isSaving && (
-        <div className="fixed bottom-4 right-4 bg-blue-500 text-white py-2 px-4 rounded-lg shadow-lg flex items-center">
-          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-          <span>Saving changes...</span>
+  // Photo gallery section
+  const renderPhotoGallery = () => (
+    <>
+      <div className="sticky top-0 z-10 bg-white p-4 border-b flex items-center">
+        <button 
+          className="p-2 rounded-full bg-gray-100"
+          onClick={() => setActiveSection('main')}
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <h2 className="ml-4 text-xl font-semibold">Edit Photos</h2>
+      </div>
+      
+      <div className="p-4">
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-2">Profile Picture</h3>
+          <div className="bg-gray-100 w-32 h-32 rounded-full overflow-hidden mx-auto mb-2">
+            {formData.profileImage ? (
+              <img 
+                src={formData.profileImage} 
+                alt="Profile" 
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <User size={32} className="text-gray-400" />
+              </div>
+            )}
+          </div>
+          <p className="text-sm text-center text-gray-500">
+            Your main profile picture
+          </p>
         </div>
-      )}
+
+        <h3 className="text-lg font-semibold mb-2">Your Photos</h3>
+        <div className="grid grid-cols-3 gap-2">
+          {/* Current photos */}
+          {(formData.photos || []).map((photo, index) => (
+            <div key={index} className="aspect-square relative rounded overflow-hidden">
+              <img 
+                src={photo} 
+                alt={`Photo ${index + 1}`} 
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 flex flex-col justify-between opacity-0 hover:opacity-100 transition-opacity bg-black/40 p-2">
+                <div className="flex justify-end">
+                  <button 
+                    className="p-1 bg-red-500 rounded-full"
+                    onClick={() => handleDeletePhoto(photo)}
+                  >
+                    <X size={16} className="text-white" />
+                  </button>
+                </div>
+                <button 
+                  className="w-full py-1 bg-blue-500 text-white text-xs rounded-sm"
+                  onClick={() => handleSetMainPhoto(photo)}
+                  disabled={formData.profileImage === photo}
+                >
+                  {formData.profileImage === photo ? 'Main Photo' : 'Set as Main'}
+                </button>
+              </div>
+            </div>
+          ))}
+          
+          {/* Add photo button */}
+          {(formData.photos || []).length < 6 && (
+            <div className="aspect-square bg-gray-100 rounded flex items-center justify-center">
+              <button 
+                className="w-full h-full flex flex-col items-center justify-center text-gray-500 hover:text-gray-700"
+                onClick={handleAddPhoto}
+                disabled={isUploading}
+              >
+                <Plus size={32} />
+                <span className="text-xs mt-1">Add Photo</span>
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handlePhotoChange}
+                className="hidden"
+                accept="image/*"
+              />
+            </div>
+          )}
+          
+          {/* Empty slots */}
+          {Array.from({ length: Math.max(0, 6 - (formData.photos?.length || 0) - 1) }).map((_, index) => (
+            <div 
+              key={`empty-${index}`} 
+              className="aspect-square bg-gray-100 rounded"
+            />
+          ))}
+        </div>
+        
+        <div className="mt-4 text-sm text-gray-500 text-center">
+          Add up to 6 photos to showcase your fitness journey.
+        </div>
+      </div>
+    </>
+  );
+  
+  return (
+    <div className="h-full overflow-y-auto relative bg-white rounded-lg">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeSection}
+          initial={{ opacity: 0, x: activeSection === 'main' ? -20 : 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: activeSection === 'main' ? 20 : -20 }}
+          transition={{ duration: 0.3 }}
+        >
+          {activeSection === 'main' ? renderMainProfile() : renderPhotoGallery()}
+        </motion.div>
+      </AnimatePresence>
+      
+      {/* Floating save button - appears when changes are made */}
+      <AnimatePresence>
+        {showSaveButton && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-16 right-4 z-50"
+          >
+            <button
+              onClick={handleSaveAll}
+              className="flex items-center bg-blue-500 text-white px-4 py-2 rounded-full shadow-lg"
+            >
+              <Save size={18} className="mr-2" />
+              Save Changes
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
 
-export default GymBrosEnhancedProfile;
+export default EnhancedGymBrosProfile;

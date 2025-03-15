@@ -8,6 +8,9 @@
  * @returns {Number} - Score between 0-100
  */
 export const calculateMatchScore = (userProfile, candidateProfile) => {
+
+  console.log(`Calculating match score between ${userProfile.userId} and ${candidateProfile.userId}`);
+
     // Initialize base score
     let score = 0;
     let weightSum = 0;
@@ -44,15 +47,28 @@ export const calculateMatchScore = (userProfile, candidateProfile) => {
     score += locationScore * 25;
     weightSum += 25;
     
+    console.log(`Match component scores for ${candidateProfile.name}:`, {
+      workoutTypeScore: workoutTypeScore.toFixed(2),
+      experienceScore: experienceScore.toFixed(2),
+      scheduleScore: scheduleScore.toFixed(2),
+      locationScore: locationScore.toFixed(2),
+      finalScore: ((score / weightSum) * 100).toFixed(2)
+    });
+  
+    
     // Normalize the score to be between 0-100
     return (score / weightSum) * 100;
   };
   
-  /**
-   * Calculate compatibility score based on workout types
-   * @returns {Number} - Score between 0-1
-   */
   const calculateWorkoutTypeCompatibility = (userWorkouts, candidateWorkouts) => {
+    if (!userWorkouts || !candidateWorkouts) {
+      console.warn('Missing workout types in compatibility calculation');
+      return 0;
+    }
+    
+    if (!Array.isArray(userWorkouts)) userWorkouts = [];
+    if (!Array.isArray(candidateWorkouts)) candidateWorkouts = [];
+    
     if (!userWorkouts.length || !candidateWorkouts.length) return 0;
     
     // Count matching workout types
@@ -62,15 +78,21 @@ export const calculateMatchScore = (userProfile, candidateProfile) => {
     
     // Calculate Jaccard similarity: intersection / union
     const union = new Set([...userWorkouts, ...candidateWorkouts]);
-    return matchingWorkouts.length / union.size;
+    
+    const score = matchingWorkouts.length / union.size;
+    console.log(`Workout compatibility: ${matchingWorkouts.length} matches out of ${union.size} types = ${score.toFixed(2)}`);
+    return score;
   };
   
-  /**
-   * Calculate compatibility score based on experience level
-   * @returns {Number} - Score between 0-1
-   */
+ 
   const calculateExperienceCompatibility = (userLevel, candidateLevel) => {
     const levels = ['Beginner', 'Intermediate', 'Advanced'];
+    
+    // Handle missing data gracefully
+    if (!userLevel || !candidateLevel) {
+      console.warn('Missing experience levels:', { userLevel, candidateLevel });
+      return 0.5; // Return neutral score when data is missing
+    }
     
     // If identical experience level, perfect match
     if (userLevel === candidateLevel) return 1;
@@ -78,16 +100,19 @@ export const calculateMatchScore = (userProfile, candidateProfile) => {
     // Calculate distance between experience levels
     const userIndex = levels.indexOf(userLevel);
     const candidateIndex = levels.indexOf(candidateLevel);
+    
+    // Handle invalid experience levels
+    if (userIndex === -1 || candidateIndex === -1) {
+      console.warn('Invalid experience levels:', { userLevel, candidateLevel });
+      return 0.5;
+    }
+    
     const levelDistance = Math.abs(userIndex - candidateIndex);
     
     // Normalize to 0-1 (closer experience levels are better matches)
     return 1 - (levelDistance / (levels.length - 1));
   };
-  
-  /**
-   * Calculate compatibility score based on preferred workout time
-   * @returns {Number} - Score between 0-1
-   */
+
   const calculateScheduleCompatibility = (userTime, candidateTime) => {
     // If either prefers "Flexible" or times match exactly, perfect score
     if (userTime === 'Flexible' || candidateTime === 'Flexible' || userTime === candidateTime) {
@@ -131,11 +156,15 @@ export const calculateMatchScore = (userProfile, candidateProfile) => {
     return Math.max(0, 1 - (distance / maxDistance));
   };
   
-  /**
-   * Calculate distance between two coordinates using Haversine formula
-   * @returns {Number} - Distance in miles
-   */
+
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    // Validate inputs to prevent NaN results
+    if (!isValidCoordinate(lat1) || !isValidCoordinate(lon1) || 
+        !isValidCoordinate(lat2) || !isValidCoordinate(lon2)) {
+      console.warn('Invalid coordinates in distance calculation:', { lat1, lon1, lat2, lon2 });
+      return 999; // Return large distance for invalid coordinates
+    }
+    
     const R = 3958.8; // Earth's radius in miles
     const dLat = toRadians(lat2 - lat1);
     const dLon = toRadians(lon2 - lon1);
@@ -147,6 +176,10 @@ export const calculateMatchScore = (userProfile, candidateProfile) => {
     
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
+  };
+  
+  const isValidCoordinate = (coord) => {
+    return typeof coord === 'number' && !isNaN(coord) && isFinite(coord);
   };
   
   const toRadians = (degrees) => {

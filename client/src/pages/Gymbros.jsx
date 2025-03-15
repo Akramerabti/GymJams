@@ -15,7 +15,7 @@ import GymBrosSetup from '../components/gymBros/GymBrosSetup';
 import GymBrosMatches from '../components/gymBros/GymBrosMatches';
 import GymBrosFilters from '../components/gymBros/GymBrosFilters';
 import GymBrosSettings from '../components/gymBros/GymBrosSettings';
-import GymBrosEnhancedProfile from '../components/gymBros/ProfileEditor';
+import EnhancedGymBrosProfile  from '../components/gymBros/ProfileEditor';
 
 import { useLocation } from 'react-router-dom';
 
@@ -381,10 +381,12 @@ const GymBros = () => {
   const handleProfileUpdated = (updatedProfile) => {
     console.log('[GymBros] Profile updated:', updatedProfile);
     setUserProfile(updatedProfile);
+    setShowSettings(false);
     
-    // Refresh profiles
+    // Refresh profiles with updated preferences
     fetchProfiles();
   };
+  
 
 
 const renderHeader = () => {
@@ -646,16 +648,16 @@ const renderHeader = () => {
           </div>
         );
       
-      case 'profile':
-        return (
-          <div className="h-[calc(100vh-136px)] p-4 overflow-y-auto pb-16">
-            <GymBrosEnhancedProfile
-              userProfile={userProfile}
-              onProfileUpdated={handleProfileUpdated}
-            />
-          </div>
-        );
-        
+        case 'profile':
+  return (
+    <div className="h-[65vh] overflow-y-auto">
+      {/* Import and use the TinderStyleGymBrosProfile component */}
+      <EnhancedGymBrosProfile
+        userProfile={userProfile}
+        onProfileUpdated={handleProfileUpdated}
+      />
+    </div>
+  );
       default:
         return null;
     }

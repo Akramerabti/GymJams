@@ -1,14 +1,11 @@
-import { calculateDistance } from './gymBrosMatchingService.js';
+import { calculateMatchScore, calculateDistance } from './gymBrosMatchingService.js';
 
-/**
- * Get recommended profiles for a user
- * @param {Object} userProfile - Current user's profile
- * @param {Array} candidateProfiles - All potential matches
- * @param {Object} options - Recommendation options 
- * @returns {Array} - Sorted list of recommended profiles
- */
 export const getRecommendedProfiles = async (userProfile, candidateProfiles, options = {}) => {
-  // Set default options
+  
+  console.log(`Getting recommendations for user: ${userProfile.userId}`);
+  console.log(`Found ${candidateProfiles.length} initial candidate profiles`);
+  console.log(`Options:`, options);
+
   const defaultOptions = {
     limit: 20,                  // Number of recommendations to return
     diversityFactor: 0.2,       // How much to emphasize diversity (0-1)
@@ -29,6 +26,8 @@ export const getRecommendedProfiles = async (userProfile, candidateProfiles, opt
     );
     return distance <= settings.maxDistance;
   });
+
+  console.log(`${filteredCandidates.length} candidates after distance filtering`);
   
   // Calculate scores for each candidate
   const scoredCandidates = filteredCandidates.map(profile => {
@@ -48,6 +47,18 @@ export const getRecommendedProfiles = async (userProfile, candidateProfiles, opt
       activityScore * settings.activityWeight
     );
     
+    const topMatches = sortedCandidates.slice(0, 3);
+  console.log('Top 3 matches with scores:', topMatches.map(m => ({
+    profileId: m.profile.userId,
+    name: m.profile.name,
+    compatibility: m.scores.compatibility.toFixed(2),
+    finalScore: m.finalScore.toFixed(2),
+    distance: calculateDistance(
+      userProfile.location.lat, userProfile.location.lng,
+      m.profile.location.lat, m.profile.location.lng
+    ).toFixed(1) + ' miles'
+  })));
+  
     return {
       profile,
       scores: {

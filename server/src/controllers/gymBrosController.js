@@ -162,6 +162,8 @@ export const deleteProfileImage = async (req, res) => {
 export const getGymBrosProfiles = async (req, res, next) => {
   try {
     const userId = req.user.id;
+    console.log(`Fetching profiles for user: ${userId || 'guest'}`);
+    console.log(`Query parameters:`, req.query);
 
     // Get user's profile
     const userProfile = await GymBrosProfile.findOne({ userId });
@@ -196,6 +198,8 @@ export const getGymBrosProfiles = async (req, res, next) => {
         preferredTime: preferredTime || undefined
       }
     };
+    
+    console.log('Applying filters:', recommendationOptions.filters);
 
     // Get recommended profiles
     const recommendations = await getRecommendedProfiles(
