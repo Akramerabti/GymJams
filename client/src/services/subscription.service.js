@@ -353,31 +353,38 @@ async submitQuestionnaire(answers, accessToken = null) {
 
   async sendMessage(subscriptionId, senderId, receiverId, content, timestamp, file) {
     try {
-      // Validate required parameters to avoid backend errors
+      // Validate required parameters
       if (!subscriptionId || !senderId || !receiverId) {
         throw new Error('Missing required parameters for sendMessage');
       }
 
-      console.log('Sending message via API:', {
-        subscriptionId,
-        senderId,
-        receiverId,
-        hasContent: !!content,
-        timestamp,
-        hasFiles: Array.isArray(file) ? file.length : 0
-      });
 
-      // Make API request
-      const response = await api.post(`/subscription/${subscriptionId}/send-message`, {
-        senderId,
-        receiverId,
-        content,
-        timestamp,
-        file
-      });
-
-      // Return the updated subscription data
-      return response.data;
+      // Make API request with retry logic
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        try {
+          const response = await api.post(`/subscription/${subscriptionId}/send-message`, {
+            senderId,
+            receiverId,
+            content: content || '',
+            timestamp: timestamp || new Date().toISOString(),
+            file: Array.isArray(file) ? file : []
+          });
+          
+          return response.data;
+        } catch (error) {
+          retryCount++;
+          
+          // If we've reached max retries, throw the error
+          if (retryCount >= maxRetries) throw error;
+          
+          // Otherwise wait with exponential backoff
+          const delay = Math.pow(2, retryCount) * 500;
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
     } catch (error) {
       console.error('Failed to send message:', error);
       throw error;
@@ -387,7 +394,6 @@ async submitQuestionnaire(answers, accessToken = null) {
   async fetchMessages(subscriptionId, options = {}) {
     const MAX_RETRIES = 3;
     let retryCount = 0;
-    let lastError = null;
     
     while (retryCount < MAX_RETRIES) {
       try {
@@ -395,30 +401,25 @@ async submitQuestionnaire(answers, accessToken = null) {
           throw new Error('Subscription ID is required');
         }
 
-        // Prepare query parameters
         const params = {
           limit: options.limit || 100,
           offset: options.offset || 0,
           unreadOnly: options.unreadOnly || false
         };
 
-        console.log(`Fetching messages for subscription ${subscriptionId}`, params);
-
-        // Make API request
         const response = await api.get(`/subscription/${subscriptionId}/messages`, { params });
-        
-        // Handle different response formats
+ 
+
         if (Array.isArray(response.data)) {
+          const readMessages = response.data.filter(msg => msg.read);   
           return response.data;
         } else if (response.data && Array.isArray(response.data.messages)) {
           return response.data.messages;
         } else {
-          // If neither format matches, return an empty array
           console.warn('Unexpected response format from messages API:', response.data);
           return [];
         }
       } catch (error) {
-        lastError = error;
         retryCount++;
         
         if (retryCount < MAX_RETRIES) {
@@ -426,12 +427,12 @@ async submitQuestionnaire(answers, accessToken = null) {
           const delay = Math.pow(2, retryCount) * 500;
           console.log(`Retry ${retryCount}/${MAX_RETRIES} for fetchMessages after ${delay}ms`);
           await new Promise(resolve => setTimeout(resolve, delay));
+        } else {
+          console.error(`Failed to fetch messages after ${MAX_RETRIES} attempts:`, error);
+          throw error;
         }
       }
     }
-    
-    console.error(`Failed to fetch messages after ${MAX_RETRIES} attempts:`, lastError);
-    throw lastError || new Error('Failed to fetch messages after multiple attempts');
   },
 
   async markMessagesAsRead(subscriptionId, messageIds, readerId) {
@@ -440,16 +441,31 @@ async submitQuestionnaire(answers, accessToken = null) {
         throw new Error('Subscription ID and message IDs are required');
       }
 
-      console.log(`Marking ${messageIds.length} messages as read in subscription ${subscriptionId}`);
-
-      // Include readerId if provided
+      // Include readerId if provided (useful for guest users)
       const requestData = { messageIds };
       if (readerId) {
         requestData.readerId = readerId;
       }
-
-      const response = await api.put(`/subscription/${subscriptionId}/mark-read`, requestData);
-      return response.data;
+      
+      // Make API request with retry logic
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        try {
+          const response = await api.put(`/subscription/${subscriptionId}/mark-read`, requestData);
+          return response.data;
+        } catch (error) {
+          retryCount++;
+          
+          // If we've reached max retries, throw the error
+          if (retryCount >= maxRetries) throw error;
+          
+          // Otherwise wait with exponential backoff
+          const delay = Math.pow(2, retryCount) * 500;
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
     } catch (error) {
       console.error('Failed to mark messages as read:', error);
       throw error;
@@ -479,20 +495,39 @@ async submitQuestionnaire(answers, accessToken = null) {
         };
       }
 
-      const response = await api.post('/user/upload', formData, config);
-
-      if (!response.data || !Array.isArray(response.data.files)) {
-        console.warn('Unexpected response format from file upload API:', response.data);
-        return [];
+      // Make API request with retry for network issues (but not for validation errors)
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        try {
+          const response = await api.post('/user/upload', formData, config);
+          
+          if (!response.data || !Array.isArray(response.data.files)) {
+            console.warn('Unexpected response format from file upload API:', response.data);
+            return [];
+          }
+          
+          return response.data.files;
+        } catch (error) {
+          // Only retry on network errors, not on validation errors
+          if (error.response && error.response.status >= 400 && error.response.status < 500) {
+            throw error; // Don't retry client errors
+          }
+          
+          retryCount++;
+          
+          if (retryCount >= maxRetries) throw error;
+          
+          const delay = Math.pow(2, retryCount) * 500;
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
       }
-
-      return response.data.files;
     } catch (error) {
       console.error('Error uploading files:', error);
       throw error;
     }
   },
-
 };
 
 
