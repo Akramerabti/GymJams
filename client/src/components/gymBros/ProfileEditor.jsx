@@ -12,11 +12,8 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
   const [formData, setFormData] = useState(userProfile || {});
   const [errors, setErrors] = useState({});
   const [activeSection, setActiveSection] = useState('main');
-  const [fieldInFocus, setFieldInFocus] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [isScrolling, setIsScrolling] = useState(false);
   const [showSaveButton, setShowSaveButton] = useState(false);
-  const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
   
   useEffect(() => {
@@ -24,29 +21,6 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
       setFormData(userProfile);
     }
   }, [userProfile]);
-
-  // Auto-save when field loses focus
-  const handleBlur = async (field) => {
-    setFieldInFocus(null);
-    
-    // Check if field changed
-    if (JSON.stringify(formData[field]) !== JSON.stringify(userProfile[field])) {
-      // For this field only, prepare update
-      const update = { [field]: formData[field] };
-      
-      try {
-        // Only update this specific field
-        const response = await api.patch('/gym-bros/profile', update);
-        onProfileUpdated(response.data);
-        toast.success(`Updated ${field}`);
-      } catch (error) {
-        console.error(`Error updating ${field}:`, error);
-        toast.error(`Failed to update ${field}`);
-        // Reset to original value
-        setFormData(prev => ({ ...prev, [field]: userProfile[field] }));
-      }
-    }
-  };
 
   // Update form data for any field
   const handleChange = (e) => {
@@ -145,7 +119,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
       }
       
       toast.success('Photo added');
-      handleSaveAll(); // Save changes
+      setShowSaveButton(true); // Show save button after adding photo
     } catch (error) {
       console.error('Error uploading photo:', error);
       toast.error('Failed to upload photo');
@@ -170,7 +144,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
       }
       
       toast.success('Photo deleted');
-      handleSaveAll(); // Save changes
+      setShowSaveButton(true); // Show save button after deleting photo
     } catch (error) {
       console.error('Error deleting photo:', error);
       toast.error('Failed to delete photo');
@@ -179,7 +153,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
 
   const handleSetMainPhoto = (photoUrl) => {
     setFormData(prev => ({ ...prev, profileImage: photoUrl }));
-    handleSaveAll(); // Save changes
+    setShowSaveButton(true); // Show save button after setting main photo
   };
 
   // Specialized action handlers
@@ -201,6 +175,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
       await api.post('/gym-bros/profile/pause');
       setFormData(prev => ({ ...prev, paused: !prev.paused }));
       toast.success(formData.paused ? 'Profile activated' : 'Profile paused');
+      setShowSaveButton(true); // Show save button after pausing/unpausing
     } catch (error) {
       console.error('Error toggling profile status:', error);
       toast.error('Failed to update profile status');
@@ -251,7 +226,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
   // Preferred time options
   const preferredTimes = ['Morning', 'Afternoon', 'Evening', 'Night', 'Flexible'];
 
-  // Editable text field that saves on blur
+  // Editable text field
   const EditableField = ({ label, name, value, placeholder, textarea = false }) => {
     const [fieldValue, setFieldValue] = useState(value || '');
     const [isEditing, setIsEditing] = useState(false);
@@ -276,11 +251,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
               name={name}
               value={fieldValue}
               onChange={(e) => setFieldValue(e.target.value)}
-              onBlur={() => {
-                setIsEditing(false);
-                handleMultiSelectChange(name, fieldValue);
-                handleBlur(name);
-              }}
+              onBlur={() => setIsEditing(false)}
               placeholder={placeholder}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               rows={4}
@@ -292,11 +263,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
               name={name}
               value={fieldValue}
               onChange={(e) => setFieldValue(e.target.value)}
-              onBlur={() => {
-                setIsEditing(false);
-                handleMultiSelectChange(name, fieldValue);
-                handleBlur(name);
-              }}
+              onBlur={() => setIsEditing(false)}
               placeholder={placeholder}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               autoFocus
@@ -381,7 +348,6 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
               name="experienceLevel"
               value={formData.experienceLevel || ''}
               onChange={handleChange}
-              onBlur={() => handleBlur('experienceLevel')}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-md"
             >
               <option value="">Select Level</option>
@@ -397,7 +363,6 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
               name="preferredTime"
               value={formData.preferredTime || ''}
               onChange={handleChange}
-              onBlur={() => handleBlur('preferredTime')}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-md"
             >
               <option value="">Select Time</option>

@@ -1,7 +1,7 @@
 import { Server } from 'socket.io';
 
 // Store active users and their socket connections
-const activeUsers = new Map();
+export const activeUsers = new Map();
 let ioInstance;
 
 export const initializeSocket = (server) => {
@@ -22,9 +22,7 @@ export const initializeSocket = (server) => {
       console.log(`User ${userId} registered with socket ID ${socket.id}`);
     });
 
-    // Listen for incoming messages
     socket.on('sendMessage', async ({ senderId, receiverId, content, timestamp, file }) => {
-
       try {
         // Validate the files field
         if (file && !Array.isArray(file)) {
@@ -42,20 +40,43 @@ export const initializeSocket = (server) => {
         const receiverSocketId = activeUsers.get(receiverId);
 
         if (receiverSocketId) {
-          // Emit the message to the receiver
           ioInstance.to(receiverSocketId).emit('receiveMessage', {
+            _id: new mongoose.Types.ObjectId().toString(), // Generate a unique _id
             senderId,
             content: content || '', // Optional content
             file: file || [], // Ensure files is always an array
             timestamp: timestamp, // Use ISO string for consistency
           });
-
           console.log(`Message sent from ${senderId} to ${receiverId}`);
         } else {
           console.log(`Receiver ${receiverId} is offline`);
         }
       } catch (error) {
         console.error('Error handling sendMessage event:', error);
+      }
+    });
+
+    // Listen for typing events
+    socket.on('typing', ({ senderId, receiverId, isTyping }) => {
+      const receiverSocketId = activeUsers.get(receiverId);
+      if (receiverSocketId) {
+        ioInstance.to(receiverSocketId).emit('typing', {
+          senderId,
+          isTyping,
+        });
+        console.log(`Typing event: ${senderId} is ${isTyping ? 'typing' : 'not typing'}`);
+      }
+    });
+
+    // Listen for messagesRead event
+    socket.on('messagesRead', ({ subscriptionId, messageIds }) => {
+      const senderSocketId = activeUsers.get(senderId);
+      if (senderSocketId) {
+        ioInstance.to(senderSocketId).emit('messagesRead', {
+          subscriptionId,
+          messageIds,
+        });
+        console.log(`Messages read event sent to ${senderSocketId}`);
       }
     });
 

@@ -215,9 +215,9 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
       try {
         setLoading(true);
         if (isBasicPlan) {
-          // Simulate a delay for the basic plan
           setTimeout(async () => {
             const response = await subscriptionService.assignRandomCoach();
+            console.log('Random Coach Response:', response);
             setSelectedCoach(response.coach);
             setAssignmentStatus('assigned');
             await new Promise(resolve => setTimeout(resolve, 7000));
@@ -225,10 +225,22 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
           }, 8000);
         } else {
           const response = await subscriptionService.getCoaches();
-          setCoaches(response.coaches);
+          console.log('Coaches Response:', response); // Debugging log
+    
+          // Ensure response is an array
+          if (Array.isArray(response)) {
+            console.log('Number of Coaches:', response.length); // Debugging log
+            setCoaches(response); // Set the coaches array directly
+          } else {
+            console.error('Invalid coaches data:', response);
+            setError('No coaches available. Please try again later.');
+            setCoaches([]);
+          }
         }
       } catch (error) {
+        console.error('Error fetching coaches:', error);
         setError('Failed to assign coach. Please try again.');
+        setCoaches([]);
       } finally {
         setLoading(false);
       }
@@ -552,22 +564,23 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {coaches.map((coach) => (
-            <motion.div
-              key={coach.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              whileHover={{ 
-                scale: 1.05,
-                boxShadow: "0 10px 25px rgba(0,0,0,0.1)"
-              }}
-              transition={{ type: "spring", stiffness: 300 }}
-              className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 group relative cursor-pointer"
-              onClick={() => {
-                setTempSelectedCoach(coach);
-                setShowConfirmationModal(true);
-              }}
-            >
+        {coaches && coaches.length > 0 ? (
+  coaches.map((coach) => (
+    <motion.div
+      key={coach.id}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ 
+        scale: 1.05,
+        boxShadow: "0 10px 25px rgba(0,0,0,0.1)"
+      }}
+      transition={{ type: "spring", stiffness: 300 }}
+      className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 group relative cursor-pointer"
+      onClick={() => {
+        setTempSelectedCoach(coach);
+        setShowConfirmationModal(true);
+      }}
+    >
               <div className="flex flex-col items-center">
                 {coach.profileImage ? (
                   <motion.img
@@ -622,8 +635,11 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
                   </div>
                 </div>
               </div>
-            </motion.div>
-          ))}
+              </motion.div>
+  ))
+) : (
+  <p className="text-gray-500">No coaches available.</p>
+)}
         </div>
       </CardContent>
   

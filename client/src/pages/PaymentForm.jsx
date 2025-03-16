@@ -274,11 +274,11 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError }) => {
         type="submit"
         disabled={!stripe || isLoading || !isChecked || (!user && !guestEmail)}
         className="w-full bg-primary text-white py-2 px-4 sm:py-3 sm:px-6 rounded-lg text-xs sm:text-sm font-semibold 
-                 hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                 hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-blue-500"
       >
         {isLoading ? (
           <div className="flex items-center justify-center">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" />
+            <Loader2 className="h-5 w-5 animate-spin mr-2 " />
             <span>Processing...</span>
           </div>
         ) : (

@@ -60,7 +60,7 @@ const Footer = () => {
             </ul>
           </div>
 
-          {/* Contact Info */}
+          {/* Contact Info 
           <div className="col-span-1">
             <h3 className="text-lg font-semibold mb-4">Contact Us</h3>
             <ul className="space-y-2">
@@ -71,7 +71,7 @@ const Footer = () => {
                 Gym City, GC 12345
               </li>
             </ul>
-          </div>
+          </div>*/}
         </div>
 
         {/* Bottom Bar */}

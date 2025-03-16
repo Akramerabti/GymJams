@@ -650,7 +650,7 @@ const renderHeader = () => {
       
         case 'profile':
   return (
-    <div className="h-[65vh] overflow-y-auto">
+    <div className="h-full mb-10 overflow-y-auto">
       {/* Import and use the TinderStyleGymBrosProfile component */}
       <EnhancedGymBrosProfile
         userProfile={userProfile}
@@ -666,7 +666,7 @@ const renderHeader = () => {
   return (
     <>
       <FooterHider />
-      <div className="max-w-xl mx-auto flex flex-col h-screen">
+      <div className="max-w-xl mx-auto flex flex-col ">
         {/* Dynamic Header Bar - Positioned right under the main navbar */}
         <div className="sticky top-16 left-0 right-0 z-10">
           <div className="max-w-xl mx-auto">

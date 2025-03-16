@@ -6,7 +6,7 @@ import logger from '../utils/logger.js';
 import { sendSubscriptionReceipt } from '../services/email.service.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
-import { getIoInstance } from '../socketServer.js';
+import { getIoInstance, activeUsers } from '../socketServer.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -863,9 +863,7 @@ export const handleWebhook = async (event) => {
 export const messaging = async (req, res) => {
   try {
     const { subscriptionId } = req.params;
-    const { senderId, receiverId, content, timestamp, file} = req.body;
-
-    
+    const { senderId, receiverId, content, timestamp, file } = req.body;
 
     console.log('Received message:', {
       subscriptionId,
@@ -873,7 +871,7 @@ export const messaging = async (req, res) => {
       receiverId,
       content,
       timestamp,
-      file
+      file,
     });
 
     // Validate required fields
@@ -895,16 +893,17 @@ export const messaging = async (req, res) => {
       return res.status(400).json({ message: 'Invalid timestamp' });
     }
 
-    // Create the message object
+    // Create the message object with a unique _id
     const message = {
+      _id: new mongoose.Types.ObjectId(), // Generate a unique _id
       sender: new mongoose.Types.ObjectId(senderId),
-      content: content?.trim() || "", // Optional content (default to empty string)
+      content: content?.trim() || '', // Optional content (default to empty string)
       timestamp: parsedTimestamp,
       read: false,
       file: file.map((files) => {
         // Ensure file.type is always set
         const type = files.type
-          ? files.type
+          ? files.type.startsWith('image')
             ? 'image'
             : 'video'
           : 'unknown'; // Default to 'unknown' if mimetype is missing
@@ -930,15 +929,68 @@ export const messaging = async (req, res) => {
       console.error('Socket.io instance is not initialized');
       return res.status(500).json({ message: 'Socket.io instance is not initialized' });
     }
-    io.to(receiverId).emit('receiveMessage', {
-      ...message,
-      sender: senderId, // Include sender ID for the frontend
-    });
+
+    // Emit the message to the receiver
+    const receiverSocketId = activeUsers.get(receiverId); // Use activeUsers here
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit('receiveMessage', {
+        ...message,
+        sender: senderId, // Include sender ID for the frontend
+      });
+    }
 
     res.status(200).json(updatedSubscription);
   } catch (error) {
     console.error('Error sending message:', error);
     res.status(500).json({ message: 'Error sending message', error });
+  }
+};
+
+export const markMessagesAsRead = async (req, res) => {
+  try {
+    const { subscriptionId } = req.params;
+    const { messageIds } = req.body;
+
+    // Validate required fields
+    if (!subscriptionId || !messageIds || !Array.isArray(messageIds)) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    // Validate messageIds
+    if (messageIds.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
+      return res.status(400).json({ message: 'Invalid message IDs' });
+    }
+
+    // Update only the specified messages to mark them as read
+    const result = await Subscription.updateOne(
+      { _id: subscriptionId, 'messages._id': { $in: messageIds } },
+      { $set: { 'messages.$[elem].read': true } },
+      { arrayFilters: [{ 'elem._id': { $in: messageIds } }] }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: 'Subscription or messages not found' });
+    }
+
+    // Emit a socket event to notify the sender that their messages have been read
+    const io = getIoInstance();
+    if (io) {
+      const subscription = await Subscription.findById(subscriptionId);
+      if (subscription) {
+        const senderSocketId = activeUsers.get(subscription.assignedCoach);
+        if (senderSocketId) {
+          io.to(senderSocketId).emit('messagesRead', {
+            subscriptionId,
+            messageIds,
+          });
+        }
+      }
+    }
+
+    res.status(200).json({ message: 'Messages marked as read', result });
+  } catch (error) {
+    console.error('Error marking messages as read:', error);
+    res.status(500).json({ message: 'Error marking messages as read', error });
   }
 };
 

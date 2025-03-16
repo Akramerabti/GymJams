@@ -68,6 +68,7 @@ const SubscriptionCheckout = () => {
   const [clientSecret, setClientSecret] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [currentPlan, setCurrentPlan] = useState(
     location.state?.plan || PLANS[0]
   );
@@ -77,6 +78,15 @@ const SubscriptionCheckout = () => {
       if (!currentPlan) {
         navigate('/');
         return;
+      }
+
+      const savedTheme = localStorage.getItem('siteTheme');
+      if (savedTheme) {
+        setIsDarkMode(savedTheme === 'dark');
+      } else {
+        // Check system preference
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        setIsDarkMode(prefersDark);
       }
 
       try {

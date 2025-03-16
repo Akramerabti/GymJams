@@ -1,6 +1,10 @@
 import mongoose from 'mongoose';
 
 const messageSchema = new mongoose.Schema({
+  _id: {
+    type: mongoose.Schema.Types.ObjectId,
+    auto: true, // Automatically generate a unique ObjectId
+  },
   sender: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -25,6 +29,7 @@ const messageSchema = new mongoose.Schema({
     },
   ],
 });
+
 const subscriptionSchema = new mongoose.Schema(
   {
     user: {
@@ -156,13 +161,9 @@ subscriptionSchema.methods.isEligibleForRefund = function () {
   return daysSinceStart <= 10;
 };
 
-// Method to send and store messages
 subscriptionSchema.methods.sendMessage = async function (message) {
-  // Add the message to the messages array
   this.messages.push(message);
-  await this.save(); // Save the updated subscription
-
-  // Return the updated subscription
+  await this.save();
   return this;
 };
 
