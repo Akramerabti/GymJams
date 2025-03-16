@@ -1,5 +1,6 @@
 import { Server } from 'socket.io';
 import mongoose from 'mongoose';
+import logger from './utils/logger.js';
 
 // Store active users and their socket connections
 export const activeUsers = new Map();
@@ -11,39 +12,46 @@ export const initializeSocket = (server) => {
       origin: [process.env.CLIENT_URL, 'http://localhost:5173', 'http://localhost:3000'], // Allow client URLs
       methods: ['GET', 'POST'],
       credentials: true,
-    }
+    },
+    pingTimeout: 60000, // Increase timeout to prevent frequent disconnections
+    pingInterval: 25000, // More frequent pings to keep connections alive
   });
 
   ioInstance.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
+    logger.info('A user connected:', socket.id);
 
     // Listen for user registration (when a user logs in)
     socket.on('register', (userId) => {
       if (!userId) {
-        console.warn('Attempted to register socket with invalid userId:', userId);
+        logger.warn('Attempted to register socket with invalid userId:', userId);
         return;
       }
       
+      // Store the previous socket ID if it exists
+      const previousSocketId = activeUsers.get(userId);
+      
+      // If there was a previous socket, log it
+      if (previousSocketId && previousSocketId !== socket.id) {
+        logger.info(`User ${userId} was already registered with socket ID ${previousSocketId}, updating to ${socket.id}`);
+      }
+      
+      // Update the socket ID for this user
       activeUsers.set(userId, socket.id);
-      console.log(`User ${userId} registered with socket ID ${socket.id}`);
-      console.log('Current active users:', Array.from(activeUsers.entries()));
+      logger.info(`User ${userId} registered with socket ID ${socket.id}`);
+      
+      // Immediately acknowledge registration success to the client
+      socket.emit('registrationSuccess', { userId });
     });
 
     // Handle sending a message
-    socket.on('sendMessage', async ({ senderId, receiverId, content, timestamp, file }) => {
+    socket.on('sendMessage', async ({ senderId, receiverId, content, timestamp, file, subscriptionId }) => {
       try {
-        // Log incoming data for debugging
-        console.log('sendMessage event received:', { senderId, receiverId });
-        
         // Basic validation
         if (!senderId || !receiverId) {
-          console.error('Missing required fields in sendMessage event');
+          logger.error('Missing required fields in sendMessage event');
+          socket.emit('messageError', { error: 'Missing required fields' });
           return;
         }
-
-        // Find the receiver's socket ID
-        const receiverSocketId = activeUsers.get(receiverId);
-        console.log(`Receiver ${receiverId} socket ID:`, receiverSocketId);
 
         // Generate a unique ID for the message
         const messageId = new mongoose.Types.ObjectId().toString();
@@ -62,18 +70,35 @@ export const initializeSocket = (server) => {
         socket.emit('messageSent', {
           messageId,
           receiverId,
-          status: 'delivered'
+          status: 'sent',
+          subscriptionId
         });
 
+        // Find the receiver's socket ID
+        const receiverSocketId = activeUsers.get(receiverId);
+        logger.info(`Receiver ${receiverId} socket ID:`, receiverSocketId);
+
         if (receiverSocketId) {
-          // Emit the message to the receiver
-          ioInstance.to(receiverSocketId).emit('receiveMessage', messageObj);
-          console.log(`Message sent from ${senderId} to ${receiverId}`);
+          // Emit the message to the receiver with the subscriptionId
+          ioInstance.to(receiverSocketId).emit('receiveMessage', {
+            ...messageObj,
+            subscriptionId
+          });
+          
+          // Update message status to delivered
+          socket.emit('messageSent', {
+            messageId,
+            receiverId,
+            status: 'delivered',
+            subscriptionId
+          });
+          
+          logger.info(`Message ${messageId} sent from ${senderId} to ${receiverId} in subscription ${subscriptionId}`);
         } else {
-          console.log(`Receiver ${receiverId} is offline, message will be delivered when they reconnect`);
+          logger.info(`Receiver ${receiverId} is offline, message will be delivered when they reconnect`);
         }
       } catch (error) {
-        console.error('Error handling sendMessage event:', error);
+        logger.error('Error handling sendMessage event:', error);
         socket.emit('messageError', { error: error.message });
       }
     });
@@ -81,12 +106,11 @@ export const initializeSocket = (server) => {
     // Handle typing events
     socket.on('typing', ({ senderId, receiverId, isTyping }) => {
       if (!senderId || !receiverId) {
-        console.error('Missing required fields in typing event');
+        logger.error('Missing required fields in typing event');
         return;
       }
       
       const receiverSocketId = activeUsers.get(receiverId);
-      console.log(`Typing event: ${senderId} is ${isTyping ? 'typing' : 'not typing'} for ${receiverId}`);
       
       if (receiverSocketId) {
         ioInstance.to(receiverSocketId).emit('typing', {
@@ -94,37 +118,63 @@ export const initializeSocket = (server) => {
           isTyping,
           timestamp: Date.now() // Add timestamp for freshness
         });
-        console.log(`Typing event sent to socket ${receiverSocketId}`);
+        logger.debug(`Typing event (${isTyping ? 'started' : 'stopped'}) sent from ${senderId} to ${receiverId}`);
       } else {
-        console.log(`Receiver ${receiverId} is offline, typing event not delivered`);
+        logger.debug(`Cannot send typing event: Receiver ${receiverId} is offline`);
       }
     });
 
-    // Listen for messagesRead event
+    // Listen for messagesRead event with immediate socket relay
     socket.on('messagesRead', ({ subscriptionId, messageIds, receiverId }) => {
-      if (!subscriptionId || !messageIds || !Array.isArray(messageIds)) {
-        console.error('Invalid messagesRead event data');
+      if (!subscriptionId || !messageIds || !Array.isArray(messageIds) || !messageIds.length) {
+        logger.error('Invalid messagesRead event data');
         return;
       }
 
       if (!receiverId) {
-        console.error('Missing receiverId in messagesRead event');
+        logger.error('Missing receiverId in messagesRead event');
         return;
       }
 
-      const receiverSocketId = activeUsers.get(receiverId);
-      console.log(`Messages read event: Subscription ${subscriptionId}, messages: ${messageIds.join(', ')}`);
-      console.log(`Receiver ${receiverId} socket ID:`, receiverSocketId);
+      const readerId = socket.userId || socket.handshake.auth.userId;
       
+      // Log for debugging
+      logger.info(`Read receipt requested: Subscription: ${subscriptionId}, Messages: ${messageIds.length}, To: ${receiverId}, From: ${readerId || 'unknown'}`);
+
+      const receiverSocketId = activeUsers.get(receiverId);
+      
+      // Send read receipt to the sender of the message first (important for real-time updates)
       if (receiverSocketId) {
+        // Extract the sender ID from the socket or request
+        const senderId = readerId || 'unknown';
+        
+        // Send the read receipt to the message sender
         ioInstance.to(receiverSocketId).emit('messagesRead', {
           subscriptionId,
           messageIds,
+          readerId: senderId,
           timestamp: Date.now()
         });
-        console.log(`Read receipts sent to ${receiverId}`);
+        
+        logger.info(`Read receipts sent to ${receiverId} for ${messageIds.length} messages in subscription ${subscriptionId}`);
+        
+        // Also send confirmation back to the reader
+        socket.emit('readReceiptSent', {
+          subscriptionId,
+          messageIds,
+          receiverId,
+          success: true
+        });
       } else {
-        console.log(`Receiver ${receiverId} is offline, read receipts not delivered`);
+        logger.info(`Receiver ${receiverId} is offline, read receipts will be delivered when they reconnect`);
+        
+        // Send a failed confirmation back to the reader
+        socket.emit('readReceiptSent', {
+          subscriptionId, 
+          messageIds,
+          receiverId,
+          success: false
+        });
       }
     });
 
@@ -135,13 +185,26 @@ export const initializeSocket = (server) => {
       for (const [userId, socketId] of activeUsers.entries()) {
         if (socketId === socket.id) {
           disconnectedUser = userId;
-          activeUsers.delete(userId);
-          console.log(`User ${userId} disconnected`);
           break;
         }
       }
       
-      console.log('Active users after disconnect:', Array.from(activeUsers.entries()));
+      if (disconnectedUser) {
+        // Do not remove the user from activeUsers immediately
+        // This allows the user to reconnect without losing their registered status
+        logger.info(`User ${disconnectedUser} disconnected, but keeping record for potential reconnection`);
+        
+        // Set a timeout to remove the user if they don't reconnect within 5 minutes
+        setTimeout(() => {
+          // Only remove if the socket ID still matches
+          if (activeUsers.get(disconnectedUser) === socket.id) {
+            activeUsers.delete(disconnectedUser);
+            logger.info(`User ${disconnectedUser} removed after timeout`);
+          }
+        }, 5 * 60 * 1000); // 5 minutes
+      }
+      
+      logger.info('Socket disconnected:', socket.id);
     });
   });
 

@@ -353,27 +353,30 @@ async submitQuestionnaire(answers, accessToken = null) {
 
   async sendMessage(subscriptionId, senderId, receiverId, content, timestamp, file) {
     try {
-  
-      console.log('Sending message:', {
+      // Validate required parameters to avoid backend errors
+      if (!subscriptionId || !senderId || !receiverId) {
+        throw new Error('Missing required parameters for sendMessage');
+      }
+
+      console.log('Sending message via API:', {
         subscriptionId,
+        senderId,
+        receiverId,
+        hasContent: !!content,
+        timestamp,
+        hasFiles: Array.isArray(file) ? file.length : 0
+      });
+
+      // Make API request
+      const response = await api.post(`/subscription/${subscriptionId}/send-message`, {
         senderId,
         receiverId,
         content,
         timestamp,
-        file,
+        file
       });
-  
-      // Send the POST request to the backend
-      const response = await api.post(`/subscription/${subscriptionId}/send-message`,{
-        senderId: senderId, // Ensure this is a string (e.g., user ID)
-        receiverId: receiverId, // Ensure this is a string (e.g., coach ID)
-        content: content, // Ensure content is a non-empty string
-        timestamp: timestamp, // Ensure timestamp is a valid Date object
-        file: file, // Optional file attachment (if any)
-      }
-       );
-  
-      // Return the response data
+
+      // Return the updated subscription data
       return response.data;
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -382,38 +385,70 @@ async submitQuestionnaire(answers, accessToken = null) {
   },
   
   async fetchMessages(subscriptionId, options = {}) {
-    try {
-      if (!subscriptionId) {
-        throw new Error('Subscription ID is required');
+    const MAX_RETRIES = 3;
+    let retryCount = 0;
+    let lastError = null;
+    
+    while (retryCount < MAX_RETRIES) {
+      try {
+        if (!subscriptionId) {
+          throw new Error('Subscription ID is required');
+        }
+
+        // Prepare query parameters
+        const params = {
+          limit: options.limit || 100,
+          offset: options.offset || 0,
+          unreadOnly: options.unreadOnly || false
+        };
+
+        console.log(`Fetching messages for subscription ${subscriptionId}`, params);
+
+        // Make API request
+        const response = await api.get(`/subscription/${subscriptionId}/messages`, { params });
+        
+        // Handle different response formats
+        if (Array.isArray(response.data)) {
+          return response.data;
+        } else if (response.data && Array.isArray(response.data.messages)) {
+          return response.data.messages;
+        } else {
+          // If neither format matches, return an empty array
+          console.warn('Unexpected response format from messages API:', response.data);
+          return [];
+        }
+      } catch (error) {
+        lastError = error;
+        retryCount++;
+        
+        if (retryCount < MAX_RETRIES) {
+          // Add exponential backoff delay between retries
+          const delay = Math.pow(2, retryCount) * 500;
+          console.log(`Retry ${retryCount}/${MAX_RETRIES} for fetchMessages after ${delay}ms`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
       }
-
-      // Prepare query parameters
-      const params = {
-        limit: options.limit || 50,
-        offset: options.offset || 0,
-        unreadOnly: options.unreadOnly || false
-      };
-
-      // Fetch messages
-      const response = await api.get(`/subscription/${subscriptionId}/messages`, { params });
-
-      return response.data.messages || response.data || [];
-    } catch (error) {
-      console.error('Failed to fetch messages:', error);
-      throw error;
     }
+    
+    console.error(`Failed to fetch messages after ${MAX_RETRIES} attempts:`, lastError);
+    throw lastError || new Error('Failed to fetch messages after multiple attempts');
   },
 
-  async markMessagesAsRead(subscriptionId, messageIds) {
+  async markMessagesAsRead(subscriptionId, messageIds, readerId) {
     try {
-      if (!subscriptionId) {
-        throw new Error('Subscription ID is required');
-      }
-      if (!messageIds || messageIds.length === 0) {
-        throw new Error('At least one message ID is required');
+      if (!subscriptionId || !messageIds || !messageIds.length) {
+        throw new Error('Subscription ID and message IDs are required');
       }
 
-      const response = await api.put(`/subscription/${subscriptionId}/mark-read`, { messageIds });
+      console.log(`Marking ${messageIds.length} messages as read in subscription ${subscriptionId}`);
+
+      // Include readerId if provided
+      const requestData = { messageIds };
+      if (readerId) {
+        requestData.readerId = readerId;
+      }
+
+      const response = await api.put(`/subscription/${subscriptionId}/mark-read`, requestData);
       return response.data;
     } catch (error) {
       console.error('Failed to mark messages as read:', error);
@@ -421,29 +456,42 @@ async submitQuestionnaire(answers, accessToken = null) {
     }
   },
 
-  async uploadFiles(files) {
+  async uploadFiles(files, onProgress) {
     try {
+      if (!files || !files.length) {
+        return [];
+      }
+
       const formData = new FormData();
       files.forEach((file) => {
-        formData.append('files', file); // Append each file to the form data
+        formData.append('files', file);
       });
 
-      const response = await api.post('/user/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data', // Ensure proper content type for file uploads
-        },
-      });
+      const config = {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      };
+
+      // Add progress tracking if callback provided
+      if (typeof onProgress === 'function') {
+        config.onUploadProgress = (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress(percentCompleted);
+        };
+      }
+
+      const response = await api.post('/user/upload', formData, config);
 
       if (!response.data || !Array.isArray(response.data.files)) {
-        throw new Error('Invalid response from the server');
+        console.warn('Unexpected response format from file upload API:', response.data);
+        return [];
       }
-  
-      return response.data.files; // Return the array of uploaded file metadata
+
+      return response.data.files;
     } catch (error) {
       console.error('Error uploading files:', error);
       throw error;
     }
-  }
+  },
 
 };
 

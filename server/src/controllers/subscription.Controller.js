@@ -860,8 +860,10 @@ export const handleWebhook = async (event) => {
   }
 };
 
-// Updated messaging function in subscription.Controller.js
 export const messaging = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { subscriptionId } = req.params;
     const { senderId, receiverId, content, timestamp, file } = req.body;
@@ -870,28 +872,38 @@ export const messaging = async (req, res) => {
       subscriptionId,
       senderId,
       receiverId,
-      content,
       timestamp,
-      file,
+      hasContent: !!content,
+      hasFiles: Array.isArray(file) ? file.length : 0
     });
 
     // Validate required fields
-    if (!subscriptionId || !senderId || !receiverId || !timestamp) {
+    if (!subscriptionId || !senderId || !receiverId) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
     // Validate ObjectIds
-    if (!mongoose.Types.ObjectId.isValid(senderId)) {
-      return res.status(400).json({ message: 'Invalid senderId' });
-    }
-    if (!mongoose.Types.ObjectId.isValid(receiverId)) {
-      return res.status(400).json({ message: 'Invalid receiverId' });
+    if (!mongoose.Types.ObjectId.isValid(subscriptionId) || 
+        !mongoose.Types.ObjectId.isValid(senderId) || 
+        !mongoose.Types.ObjectId.isValid(receiverId)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'Invalid IDs provided' });
     }
 
     // Validate timestamp
-    const parsedTimestamp = new Date(timestamp);
-    if (isNaN(parsedTimestamp.getTime())) {
-      return res.status(400).json({ message: 'Invalid timestamp' });
+    let parsedTimestamp;
+    try {
+      parsedTimestamp = timestamp ? new Date(timestamp) : new Date();
+      if (isNaN(parsedTimestamp.getTime())) {
+        throw new Error('Invalid timestamp format');
+      }
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'Invalid timestamp format' });
     }
 
     // Create the message object with a unique _id
@@ -900,136 +912,261 @@ export const messaging = async (req, res) => {
       sender: new mongoose.Types.ObjectId(senderId),
       content: content?.trim() || '', // Optional content (default to empty string)
       timestamp: parsedTimestamp,
-      read: false,
+      read: false, // Initially unread
       file: Array.isArray(file) ? file.map((fileItem) => {
-        // Ensure file.type is always set
-        const type = fileItem.type
-          ? fileItem.type.startsWith('image') ? 'image' : 'video'
-          : 'unknown'; // Default to 'unknown' if mimetype is missing
+        // Handle file type
+        let fileType = 'unknown';
+        if (fileItem.type) {
+          fileType = fileItem.type;
+        } else if (fileItem.path) {
+          // Try to infer type from path if needed
+          const path = fileItem.path.toLowerCase();
+          if (path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.png') || path.endsWith('.gif')) {
+            fileType = 'image';
+          } else if (path.endsWith('.mp4') || path.endsWith('.mov') || path.endsWith('.avi')) {
+            fileType = 'video';
+          }
+        }
         return {
-          path: fileItem.path, // Save the file path
-          type, // Determine file type
+          path: fileItem.path, // File path
+          type: fileType, // File type
         };
       }) : [],
     };
 
-    // Find the subscription
-    const subscription = await Subscription.findById(subscriptionId);
+    // Find the subscription and update it with the new message
+    const subscription = await Subscription.findById(subscriptionId).session(session);
     if (!subscription) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: 'Subscription not found' });
     }
 
-    // Use the sendMessage method to save the message
-    const updatedSubscription = await subscription.sendMessage(message);
+    // Add the message to the subscription's messages array
+    subscription.messages.push(message);
+    
+    // Make sure messages are sorted by timestamp
+    subscription.messages.sort((a, b) => a.timestamp - b.timestamp);
 
-    // Get the io instance and emit the message via WebSocket
-    const io = getIoInstance();
-    if (!io) {
-      console.error('Socket.io instance is not initialized');
-      return res.status(500).json({ message: 'Socket.io instance is not initialized' });
-    }
+    // Save the updated subscription
+    await subscription.save({ session });
+    
+    await session.commitTransaction();
+    session.endSession();
 
-    // Emit the message to the receiver
-    const receiverSocketId = activeUsers.get(receiverId.toString()); // Convert ObjectId to string
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit('receiveMessage', {
-        ...message.toJSON ? message.toJSON() : message,
-        _id: message._id.toString(), // Convert ObjectId to string
-        sender: senderId, // Include sender ID for the frontend
-      });
-      console.log(`Real-time message sent to socket ${receiverSocketId}`);
-    } else {
-      console.log(`Receiver ${receiverId} is not online, message stored for later delivery`);
-    }
+    // Get populated subscription (can be done outside the transaction)
+    const populatedSubscription = await Subscription.findById(subscriptionId)
+      .populate('user', 'firstName lastName email profileImage')
+      .populate('assignedCoach', 'firstName lastName email profileImage');
 
-    res.status(200).json(updatedSubscription);
+    // Return the updated subscription
+    res.status(200).json(populatedSubscription);
+
   } catch (error) {
-    console.error('Error sending message:', error);
+    await session.abortTransaction();
+    session.endSession();
+    logger.error('Error sending message:', error);
     res.status(500).json({ message: 'Error sending message', error: error.message });
   }
 };
 
 export const markMessagesAsRead = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { subscriptionId } = req.params;
     const { messageIds } = req.body;
+    
+    // Get the reader's ID (either from the token or the request body)
+    const readerId = req.user?.id || req.body.readerId;
 
     // Validate required fields
-    if (!subscriptionId || !messageIds || !Array.isArray(messageIds)) {
-      return res.status(400).json({ message: 'Missing required fields' });
+    if (!subscriptionId || !messageIds || !Array.isArray(messageIds) || messageIds.length === 0) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'Missing or invalid required fields' });
     }
 
-    // Validate messageIds
-    if (messageIds.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
-      return res.status(400).json({ message: 'Invalid message IDs' });
+    // Validate IDs
+    if (!mongoose.Types.ObjectId.isValid(subscriptionId)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: 'Invalid subscription ID format' });
     }
 
-    // Update only the specified messages to mark them as read
-    const result = await Subscription.updateOne(
-      { _id: subscriptionId, 'messages._id': { $in: messageIds.map(id => new mongoose.Types.ObjectId(id)) } },
-      { $set: { 'messages.$[elem].read': true } },
-      { arrayFilters: [{ 'elem._id': { $in: messageIds.map(id => new mongoose.Types.ObjectId(id)) } }] }
-    );
-
-    if (result.matchedCount === 0) {
-      return res.status(404).json({ message: 'Subscription or messages not found' });
+    // Find the subscription
+    const subscription = await Subscription.findById(subscriptionId).session(session);
+    if (!subscription) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: 'Subscription not found' });
     }
 
-    // Emit a socket event to notify the sender that their messages have been read
-    const io = getIoInstance();
-    if (io) {
-      // Need to find the subscription to identify the message sender
-      const subscription = await Subscription.findById(subscriptionId)
-        .populate('user')
-        .populate('assignedCoach');
+    // Get the sender IDs of the messages being marked as read
+    const senderIds = new Set();
+    const validMessageIds = [];
+    
+    // Verify message IDs and collect sender information
+    for (const id of messageIds) {
+      // Skip invalid IDs
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        logger.warn(`Invalid message ID format: ${id}`);
+        continue;
+      }
       
-      if (subscription) {
-        // Find the messages that were marked as read
-        const messages = subscription.messages.filter(msg => 
-          messageIds.includes(msg._id.toString())
-        );
-        
-        if (messages && messages.length > 0) {
-          // Get the sender of the first message as receiver of the read receipt
-          const firstMessage = messages[0];
-          const senderId = firstMessage.sender.toString();
-          
-          // Find the socket ID of the message sender
-          const senderSocketId = activeUsers.get(senderId);
-          if (senderSocketId) {
-            io.to(senderSocketId).emit('messagesRead', {
-              subscriptionId,
-              messageIds
-            });
-            
-            console.log(`Read receipt sent to ${senderId} for messages:`, messageIds);
-          }
+      validMessageIds.push(id);
+      
+      // Find the message in the subscription
+      const message = subscription.messages.find(m => m._id.toString() === id);
+      
+      // If message exists and has a sender, add it to the set
+      if (message && message.sender) {
+        senderIds.add(message.sender.toString());
+      }
+    }
+
+    // Count how many messages were updated
+    let updatedCount = 0;
+    const now = new Date();
+
+    // Update the 'read' status of each message
+    subscription.messages = subscription.messages.map(msg => {
+      const msgId = msg._id.toString();
+      if (validMessageIds.includes(msgId) && !msg.read) {
+        updatedCount++;
+        return { 
+          ...msg.toObject(),
+          read: true, 
+          readAt: now 
+        };
+      }
+      return msg;
+    });
+
+    // Reset the appropriate unread counter if reader ID is provided
+    if (readerId) {
+      // If reader is the user, reset user's unread count
+      if (subscription.user && readerId === subscription.user.toString()) {
+        if (subscription.unreadCounts) {
+          subscription.unreadCounts.user = 0;
+        }
+      } 
+      // If reader is the coach, reset coach's unread count
+      else if (subscription.assignedCoach && readerId === subscription.assignedCoach.toString()) {
+        if (subscription.unreadCounts) {
+          subscription.unreadCounts.coach = 0;
         }
       }
     }
 
+    // Only save if changes were made
+    if (updatedCount > 0) {
+      await subscription.save({ session });
+      logger.info(`Marked ${updatedCount} messages as read in subscription ${subscriptionId}`);
+    } else {
+      logger.info('No messages needed to be marked as read');
+    }
+
+    await session.commitTransaction();
+    session.endSession();
+
+    // Send immediate response for better UX
     res.status(200).json({ 
       message: 'Messages marked as read', 
-      result,
-      affectedCount: result.modifiedCount
+      updatedCount,
+      subscriptionId
     });
+    
+    // After database update is committed, emit socket events
+    try {
+      // Determine the receiver of the read receipts
+      let receiversToNotify = Array.from(senderIds);
+      
+      // Filter out the reader from recipients (no need to notify yourself)
+      if (readerId) {
+        receiversToNotify = receiversToNotify.filter(id => id !== readerId);
+      }
+      
+      const io = getIoInstance();
+      if (io && receiversToNotify.length > 0) {
+        // Log for debugging
+        logger.info(`Sending read receipts via socket to: ${receiversToNotify.join(', ')}`);
+        
+        for (const receiverId of receiversToNotify) {
+          const receiverSocketId = activeUsers.get(receiverId);
+          
+          if (receiverSocketId) {
+            io.to(receiverSocketId).emit('messagesRead', {
+              subscriptionId,
+              messageIds: validMessageIds,
+              readerId,
+              timestamp: now.toISOString()
+            });
+            logger.info(`Sent read receipt to user ${receiverId} for ${validMessageIds.length} messages`);
+          } else {
+            logger.info(`User ${receiverId} is offline, read receipts will be delivered later`);
+          }
+        }
+      }
+    } catch (socketError) {
+      // Don't block the request for socket errors, just log them
+      logger.error('Error sending socket notification for read messages:', socketError);
+    }
+    
   } catch (error) {
-    console.error('Error marking messages as read:', error);
+    await session.abortTransaction();
+    session.endSession();
+    logger.error('Error marking messages as read:', error);
     res.status(500).json({ message: 'Error marking messages as read', error: error.message });
   }
 };
 
-
- export const getMessages = async (req, res) => {
+export const getMessages = async (req, res) => {
   try {
-    const subscription = await Subscription.findById(req.params.subscriptionId);
+    const { subscriptionId } = req.params;
+    const { limit = 100, offset = 0, unreadOnly = false } = req.query;
+    
+    // Validate subscription ID
+    if (!mongoose.Types.ObjectId.isValid(subscriptionId)) {
+      return res.status(400).json({ message: 'Invalid subscription ID format' });
+    }
+    
+    // Find the subscription
+    const subscription = await Subscription.findById(subscriptionId)
+      .select('messages')
+      .lean();
+      
     if (!subscription) {
       return res.status(404).json({ message: 'Subscription not found' });
     }
-    res.status(200).json({ messages: subscription.messages });
+    
+    // Extract messages and ensure it's an array
+    let messages = subscription.messages || [];
+    
+    // Filter unread messages if requested
+    if (unreadOnly === 'true') {
+      messages = messages.filter(msg => !msg.read);
+    }
+    
+    // Sort messages by timestamp (newest first)
+    messages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    // Apply pagination if requested
+    if (limit !== 'all') {
+      const start = parseInt(offset, 10);
+      const end = start + parseInt(limit, 10);
+      messages = messages.slice(start, end);
+    }
+    
+    // Return the messages
+    res.status(200).json(messages);
+    
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching messages', error });
+    logger.error('Error fetching messages:', error);
+    res.status(500).json({ 
+      message: 'Error fetching messages', 
+      error: error.message 
+    });
   }
 };
-
-

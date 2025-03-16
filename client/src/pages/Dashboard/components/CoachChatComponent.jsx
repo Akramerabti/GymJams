@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSocket } from '../../../SocketContext';
 import { useAuth } from '../../../stores/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Send, User, X, Image, Video, Eye } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isToday, isYesterday } from 'date-fns';
 import subscriptionService from '../../../services/subscription.service';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -23,9 +23,14 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
   const chatContainerRef = useRef(null);
   const [pendingMessages, setPendingMessages] = useState([]);
   const [socketConnected, setSocketConnected] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   
-  // Track which messages have been processed to avoid duplicates
+  // Track processed message IDs to prevent duplicates
   const processedMessageIds = useRef(new Set());
+  // Track last read timestamp to avoid unnecessary mark-as-read calls
+  const lastReadTimestamp = useRef(0);
+  // Use a ref to track whether a mark-as-read operation is in progress
+  const markingAsRead = useRef(false);
 
   const getUserId = () => {
     return user?.id || user?.user?.id;
@@ -33,6 +38,23 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
 
   const userId = getUserId();
   const clientId = selectedClient?.userId || selectedClient?.id;
+
+  // Format timestamp in a user-friendly way
+  const formatTimestamp = (timestamp) => {
+    try {
+      const date = parseISO(timestamp);
+      if (isToday(date)) {
+        return format(date, 'HH:mm');
+      } else if (isYesterday(date)) {
+        return 'Yesterday ' + format(date, 'HH:mm');
+      } else {
+        return format(date, 'MMM d, HH:mm');
+      }
+    } catch (error) {
+      console.error('Error formatting timestamp:', error);
+      return '';
+    }
+  };
 
   // Check socket connection
   useEffect(() => {
@@ -59,6 +81,64 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
     }
   }, [socket]);
 
+  // Load messages when client changes
+  useEffect(() => {
+    const fetchMessages = async () => {
+      if (!selectedClient?.id) return;
+      
+      try {
+        setIsLoading(true);
+        console.log('Coach fetching messages for client:', selectedClient.id);
+        const response = await subscriptionService.fetchMessages(selectedClient.id);
+        
+        // Reset processed IDs when loading a new set of messages
+        processedMessageIds.current.clear();
+        
+        // Create a new array for de-duplicated messages
+        const uniqueMessages = [];
+        const messageIds = new Set();
+        
+        // Use the actual messages array from the response
+        const fetchedMessages = Array.isArray(response) ? response : 
+                               (response.messages ? response.messages : []);
+        
+        fetchedMessages.forEach(msg => {
+          if (!messageIds.has(msg._id)) {
+            messageIds.add(msg._id);
+            processedMessageIds.current.add(msg._id);
+            uniqueMessages.push(msg);
+          }
+        });
+        
+        setMessages(uniqueMessages);
+        
+        // After initial load, check for unread messages without race conditions
+        setTimeout(() => {
+          const unreadMessages = uniqueMessages.filter(
+            msg => !msg.read && msg.sender !== userId
+          );
+          
+          if (unreadMessages.length > 0) {
+            markMessagesAsRead(unreadMessages.map(msg => msg._id));
+          }
+        }, 500);
+      } catch (error) {
+        console.error('Error fetching messages:', error);
+        toast.error('Failed to load messages');
+        setMessages([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMessages();
+    // Reset state when client changes
+    return () => {
+      setMessages([]);
+      processedMessageIds.current.clear();
+    };
+  }, [selectedClient?.id, userId]);
+
   // Scroll to bottom of chat
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -72,15 +152,12 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
   };
 
   // Mark messages as read
-  const markMessagesAsRead = async () => {
+  const markMessagesAsRead = async (messageIds) => {
+    // Return if there are no messages to mark, already marking, or not connected
+    if (!messageIds || messageIds.length === 0 || markingAsRead.current || !selectedClient?.id) return;
+    
     try {
-      const unreadMessages = messages.filter(
-        msg => !msg.read && msg.sender !== userId
-      );
-      
-      if (unreadMessages.length === 0) return;
-      
-      const messageIds = unreadMessages.map(msg => msg._id);
+      markingAsRead.current = true;
       console.log('Coach marking messages as read:', messageIds);
       
       // Update local state immediately for better UX
@@ -89,6 +166,9 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
           messageIds.includes(msg._id) ? { ...msg, read: true } : msg
         )
       );
+      
+      // Update read timestamp
+      lastReadTimestamp.current = Date.now();
       
       // Send to server
       await subscriptionService.markMessagesAsRead(selectedClient.id, messageIds);
@@ -100,63 +180,25 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
           messageIds,
           receiverId: clientId
         });
-        console.log('Read receipt sent from coach via socket for messages:', messageIds);
+        console.log('Read receipt sent via socket for messages:', messageIds);
       }
     } catch (error) {
       console.error('Failed to mark messages as read:', error);
+    } finally {
+      markingAsRead.current = false;
     }
   };
-
-  // Fetch messages for the selected client
-  const fetchMessages = async () => {
-    if (!selectedClient?.id) return;
-    
-    try {
-      console.log('Coach fetching messages for client:', selectedClient.id);
-      const fetchedMessages = await subscriptionService.fetchMessages(selectedClient.id);
-      
-      // Clear processed IDs when loading new messages
-      processedMessageIds.current.clear();
-      
-      // Add all message IDs to the processed set
-      fetchedMessages.forEach(msg => {
-        processedMessageIds.current.add(msg._id);
-      });
-      
-      setMessages(fetchedMessages);
-      
-      // Mark messages as read on initial load
-      setTimeout(() => {
-        const unreadMessages = fetchedMessages.filter(
-          msg => !msg.read && msg.sender !== userId
-        );
-        
-        if (unreadMessages.length > 0) {
-          markMessagesAsRead();
-        }
-      }, 500);
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-      toast.error('Failed to load messages');
-      setMessages([]);
-    }
-  };
-
-  // Load messages when client changes
-  useEffect(() => {
-    fetchMessages();
-  }, [selectedClient?.id]);
 
   // Check for unread messages when scrolling
   useEffect(() => {
     const handleScroll = () => {
       if (isAtBottom()) {
-        const unreadMessages = messages.filter(
-          msg => !msg.read && msg.sender !== userId
-        );
+        const unreadMessages = messages
+          .filter(msg => !msg.read && msg.sender !== userId)
+          .map(msg => msg._id);
         
         if (unreadMessages.length > 0) {
-          markMessagesAsRead();
+          markMessagesAsRead(unreadMessages);
         }
       }
     };
@@ -166,16 +208,28 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
       container.addEventListener('scroll', handleScroll);
       return () => container.removeEventListener('scroll', handleScroll);
     }
-  }, [messages, chatContainerRef.current]);
+  }, [messages, userId]);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when messages change if at bottom
   useEffect(() => {
-    scrollToBottom();
+      scrollToBottom();
   }, [messages, otherUserTyping]);
 
-  // Socket connection and event handling
+  const handleMessagesRead = useCallback((data) => {
+    console.log('Coach received messages read event:', data);
+    
+    if (data.subscriptionId === selectedClient?.id) {
+      setMessages(prev => 
+        prev.map(msg => 
+          data.messageIds.includes(msg._id) ? { ...msg, read: true } : msg
+        )
+      );
+    }
+  }, [selectedClient?.id]);
+
+  // Socket event listeners
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !selectedClient) return;
     
     console.log('Setting up socket event listeners in Coach Chat component');
     
@@ -183,17 +237,17 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
     const handleReceiveMessage = (message) => {
       console.log('Coach received message via socket:', message);
       
-      // Prevent duplicate messages by tracking processed IDs
+      // Check if we've already processed this message ID
       if (processedMessageIds.current.has(message._id)) {
-        console.log('Skipping duplicate message:', message._id);
+        console.log('Coach skipping duplicate message:', message._id);
         return;
       }
       
-      // Add to processed messages set
+      // Add to processed set
       processedMessageIds.current.add(message._id);
       
       setMessages(prev => {
-        // Double-check if message already exists to prevent duplicates
+        // Double-check it's not already in the messages array
         if (prev.some(m => m._id === message._id)) {
           return prev;
         }
@@ -201,9 +255,15 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
         // Add new message
         const newMessages = [...prev, message];
         
-        // Mark as read immediately if at bottom
+        // Check if we should mark as read (only if at bottom of chat)
         if (message.sender !== userId && isAtBottom()) {
-          markMessagesAsRead();
+          // Debounce the mark as read to avoid multiple rapid calls
+          const now = Date.now();
+          if (now - lastReadTimestamp.current > 1000) {
+            setTimeout(() => {
+              markMessagesAsRead([message._id]);
+            }, 300);
+          }
         }
         
         return newMessages;
@@ -218,36 +278,10 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
       }
     };
     
-    // Handle message read receipts
-    const handleMessagesRead = (data) => {
-      console.log('Coach received messages read event:', data);
-      
-      if (data.subscriptionId === selectedClient.id) {
-        setMessages(prev => 
-          prev.map(msg => 
-            data.messageIds.includes(msg._id) ? { ...msg, read: true } : msg
-          )
-        );
-      }
-    };
-    
-    // Handle message sent confirmation
-    const handleMessageSent = (data) => {
-      console.log('Coach received message sent confirmation:', data);
-      
-      // Remove from pending messages if it was delivered
-      if (data.status === 'delivered') {
-        setPendingMessages(prev => 
-          prev.filter(msg => msg._id !== data.messageId)
-        );
-      }
-    };
-    
     // Register event listeners
     socket.on('receiveMessage', handleReceiveMessage);
     socket.on('typing', handleTypingEvent);
     socket.on('messagesRead', handleMessagesRead);
-    socket.on('messageSent', handleMessageSent);
     
     // Register user with socket when component mounts
     if (userId) {
@@ -261,9 +295,8 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
       socket.off('receiveMessage', handleReceiveMessage);
       socket.off('typing', handleTypingEvent);
       socket.off('messagesRead', handleMessagesRead);
-      socket.off('messageSent', handleMessageSent);
     };
-  }, [socket, userId, clientId, selectedClient?.id]);
+  }, [socket, userId, clientId, selectedClient?.id, handleMessagesRead]);
 
   // Handle typing indicator with debounce
   useEffect(() => {
@@ -272,7 +305,7 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
       clearTimeout(typingTimeoutRef.current);
     }
     
-    if (!socket || !socketConnected) return;
+    if (!socket || !socketConnected || !clientId) return;
     
     if (newMessage.trim()) {
       // Start typing indicator
@@ -283,7 +316,6 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
           receiverId: clientId,
           isTyping: true
         });
-        console.log('Coach sent typing:true event to client');
       }
       
       // Set timer to stop typing indicator after inactivity
@@ -294,7 +326,6 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
           receiverId: clientId,
           isTyping: false
         });
-        console.log('Coach sent typing:false event to client after timeout');
       }, 2000);
     } else {
       // If message is empty, immediately stop typing indicator
@@ -305,7 +336,6 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
           receiverId: clientId,
           isTyping: false
         });
-        console.log('Coach sent typing:false event to client (empty message)');
       }
     }
     
@@ -351,16 +381,16 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Send a message
+  // Send message handler
   const sendMessage = async (e) => {
     e.preventDefault();
-    
-    if ((!newMessage.trim() && files.length === 0) || !socket) return;
-    
+
+    if ((!newMessage.trim() && files.length === 0) || !socket || !selectedClient?.id) return;
+
     try {
       const timestamp = new Date().toISOString();
       const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
+
       // Create temporary message for immediate display
       const tempMessage = {
         _id: tempId,
@@ -371,11 +401,12 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
         pending: true,
         file: [] // Will be updated after upload
       };
-      
+
       // Add to pending messages and display immediately
       setPendingMessages(prev => [...prev, tempMessage]);
       setMessages(prev => [...prev, tempMessage]);
-      
+      processedMessageIds.current.add(tempId);
+
       // Clear input field and reset typing state
       setNewMessage('');
       if (isTyping) {
@@ -383,40 +414,34 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
         socket.emit('typing', {
           senderId: userId,
           receiverId: clientId,
-          isTyping: false
+          isTyping: false,
         });
       }
-      
+
       // Upload files if any
       let uploadedFiles = [];
       if (files.length > 0) {
-        toast.promise(
-          subscriptionService.uploadFiles(files),
-          {
-            loading: 'Uploading files...',
-            success: (result) => {
-              uploadedFiles = result;
-              return 'Files uploaded successfully';
-            },
-            error: 'Failed to upload files'
-          }
-        );
+        try {
+          uploadedFiles = await subscriptionService.uploadFiles(files);
+          console.log('Files uploaded:', uploadedFiles);
+
+          // Update temporary message with files right away for real-time display
+          const fileAttachments = uploadedFiles.map(file => ({
+            path: file.path,
+            type: file.type,
+          }));
+
+          setMessages(prev =>
+            prev.map(msg =>
+              msg._id === tempId ? { ...msg, file: fileAttachments } : msg
+            )
+          );
+        } catch (error) {
+          console.error('Failed to upload files:', error);
+          toast.error('Failed to upload files');
+        }
       }
-      
-      // When files are uploaded, update temporary message
-      if (uploadedFiles.length > 0) {
-        const fileAttachments = uploadedFiles.map(file => ({
-          path: file.path,
-          type: file.type
-        }));
-        
-        setMessages(prev => 
-          prev.map(msg => 
-            msg._id === tempId ? { ...msg, file: fileAttachments } : msg
-          )
-        );
-      }
-      
+
       // Emit via socket for real-time delivery
       if (socketConnected) {
         socket.emit('sendMessage', {
@@ -426,14 +451,15 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
           timestamp: timestamp,
           file: uploadedFiles.map(file => ({
             path: file.path,
-            type: file.type
-          }))
+            type: file.type,
+          })),
+          subscriptionId: selectedClient.id
         });
-        console.log('Coach message sent via socket');
+        console.log('Message sent via socket');
       } else {
         toast.error('Socket disconnected, message will be sent when connection is restored');
       }
-      
+
       // Make API call to ensure message is stored
       const updatedSubscription = await subscriptionService.sendMessage(
         selectedClient.id,
@@ -443,57 +469,75 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
         timestamp,
         uploadedFiles.map(file => ({
           path: file.path,
-          type: file.type
+          type: file.type,
         }))
       );
-      
+
       // Replace temporary message with the actual saved message
-      setMessages(prev => {
-        // Remove the temporary message
-        const filteredMessages = prev.filter(msg => msg._id !== tempId);
-        
-        // Get the new messages from the API response, avoiding duplicates
-        const existingIds = new Set(filteredMessages.map(msg => msg._id));
-        const newApiMessages = updatedSubscription.messages.filter(msg => !existingIds.has(msg._id));
-        
-        // Add to processed IDs set to prevent future duplicates
-        newApiMessages.forEach(msg => {
-          processedMessageIds.current.add(msg._id);
+      if (updatedSubscription && updatedSubscription.messages) {
+        setMessages(prev => {
+          // Remove the temporary message
+          const filteredMessages = prev.filter(msg => msg._id !== tempId);
+          
+          // Get the new messages from the API response
+          const newMessages = updatedSubscription.messages;
+          const latestMessage = newMessages[newMessages.length - 1];
+          
+          // Add the new message ID to the processed set
+          if (latestMessage && latestMessage._id) {
+            processedMessageIds.current.add(latestMessage._id);
+          }
+          
+          // Only add the latest message if it's not already in the filtered messages
+          if (latestMessage && !filteredMessages.some(msg => msg._id === latestMessage._id)) {
+            return [...filteredMessages, latestMessage];
+          }
+          
+          return filteredMessages;
         });
-        
-        return [...filteredMessages, ...newApiMessages];
-      });
-      
+      }
+
       // Remove from pending messages
       setPendingMessages(prev => prev.filter(msg => msg._id !== tempId));
-      
+
       // Clear files after sending
       setFiles([]);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      
+
       // Scroll to bottom
       scrollToBottom();
     } catch (error) {
-      console.error('Coach failed to send message:', error);
+      console.error('Failed to send message:', error);
       toast.error('Failed to send message. Please try again.');
     }
   };
 
   // All messages including pending ones, ensuring unique IDs and proper sorting
   const allMessages = React.useMemo(() => {
-    // Create a map to deduplicate messages by ID
     const messagesMap = new Map();
     
-    // Add all messages to the map (newer versions will overwrite older ones)
-    [...messages].forEach(msg => {
+    // Add all messages to a map, with the ID as key to ensure uniqueness
+    messages.forEach(msg => {
       messagesMap.set(msg._id, msg);
     });
     
-    // Convert the map back to an array and sort by timestamp
+    // Convert back to array and sort by timestamp
     return Array.from(messagesMap.values()).sort((a, b) => {
       return new Date(a.timestamp) - new Date(b.timestamp);
     });
   }, [messages]);
+
+  // Get the last read message from the current user
+  // This function now correctly selects the most recently sent message by the coach that has been read
+  const lastSeenMessage = React.useMemo(() => {
+    // Get all messages from the coach that have been read, sorted by timestamp (newest first)
+    const coachMessages = allMessages
+      .filter(msg => msg.sender === userId && !msg.pending && msg.read)
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    // Return the most recent read message (first one in the sorted array)
+    return coachMessages[0];
+  }, [allMessages, userId]);
 
   return (
     <motion.div
@@ -534,89 +578,148 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
           className="flex-1 overflow-y-auto p-4 bg-gray-50"
           onScroll={() => {
             if (isAtBottom()) {
-              const unreadMessages = messages.filter(
-                msg => !msg.read && msg.sender !== userId
-              );
+              const unreadMessages = messages
+                .filter(msg => !msg.read && msg.sender !== userId)
+                .map(msg => msg._id);
+              
               if (unreadMessages.length > 0) {
-                markMessagesAsRead();
+                markMessagesAsRead(unreadMessages);
               }
             }
           }}
         >
-          {allMessages.length === 0 ? (
+          {isLoading ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            </div>
+          ) : allMessages.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <p className="text-gray-500 text-center">No messages yet. Start the conversation!</p>
             </div>
           ) : (
             <AnimatePresence>
-              {allMessages.map((message) => (
-                <motion.div
-                  key={`${message._id}-${message.timestamp}`}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.2 }}
-                  className={`flex ${message.sender === userId ? 'justify-end' : 'justify-start'} mb-4`}
-                >
-                  <div
-                    className={`max-w-[70%] p-3 rounded-2xl shadow-sm ${
-                      message.sender === userId
-                        ? 'bg-gradient-to-br from-indigo-600 to-purple-600 text-white'
-                        : 'bg-white border text-gray-800'
-                    } ${message.pending ? 'opacity-70' : ''}`}
-                  >
-                    {/* Display files if they exist */}
-                    {message.file && message.file.length > 0 && (
-                      <div className="mb-2">
-                        {message.file.map((file, idx) => (
-                          <div key={`${message._id}-file-${idx}`}>
-                            {file.type?.startsWith('image') ? (
-                              <img
-                                src={`${import.meta.env.VITE_API_URL}/${file.path}`}
-                                alt="uploaded"
-                                className="max-w-full h-auto rounded-lg"
-                                loading="lazy"
-                              />
-                            ) : file.type?.startsWith('video') ? (
-                              <video controls className="max-w-full h-auto rounded-lg">
-                                <source src={`${import.meta.env.VITE_API_URL}/${file.path}`} type={file.type} />
-                                Your browser does not support the video tag.
-                              </video>
-                            ) : null}
+              {/* Group messages by date */}
+              {(() => {
+                let currentDate = null;
+                return allMessages.map((message, index) => {
+                  // Check if we need to display a date separator
+                  const msgDate = new Date(message.timestamp);
+                  const messageDate = format(msgDate, 'yyyy-MM-dd');
+                  const showDateSeparator = currentDate !== messageDate;
+                  
+                  // Update current date
+                  if (showDateSeparator) {
+                    currentDate = messageDate;
+                  }
+                  
+                  return (
+                    <React.Fragment key={`${message._id}-${index}`}>
+                      {showDateSeparator && (
+                        <div className="flex justify-center my-4">
+                          <div className="bg-gray-200 rounded-full px-3 py-1 text-xs text-gray-600">
+                            {isToday(msgDate) 
+                              ? 'Today' 
+                              : isYesterday(msgDate) 
+                                ? 'Yesterday' 
+                                : format(msgDate, 'MMMM d, yyyy')}
                           </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Display message content if it exists */}
-                    {message.content && <p className="break-words">{message.content}</p>}
-
-                    {/* Display timestamp and status */}
-                    <div className="flex items-center justify-end mt-1 space-x-1">
-                      <small className={`text-xs opacity-70 ${
-                        message.sender === userId ? 'text-gray-200' : 'text-gray-500'
-                      }`}>
-                        {format(parseISO(message.timestamp), 'HH:mm')}
-                      </small>
-                      
-                      {/* Message status indicators */}
-                      {message.sender === userId && (
-                        <>
-                          {message.pending && (
-                            <svg className="w-3 h-3 text-gray-200 animate-spin" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                          )}
-                          
-                          {!message.pending && message.read && (
-                            <Eye className="w-3 h-3 text-gray-200" />
-                          )}
-                        </>
+                        </div>
                       )}
-                    </div>
+                  
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.2 }}
+                        className={`flex ${message.sender === userId ? 'justify-end' : 'justify-start'} mb-4`}
+                      >
+                        <div
+                          className={`max-w-[70%] p-3 rounded-2xl shadow-sm ${
+                            message.sender === userId
+                              ? 'bg-gradient-to-br from-indigo-600 to-purple-600 text-white'
+                              : 'bg-white border text-gray-800'
+                          } ${message.pending ? 'opacity-70' : ''}`}
+                        >
+                          {/* Display files if they exist */}
+                          {message.file && message.file.length > 0 && (
+                            <div className="mb-2">
+                              {message.file.map((file, idx) => {
+                                // Create proper URL with fallback
+                                const fileUrl = file.path ? 
+                                  (file.path.startsWith('http') ? file.path : `${import.meta.env.VITE_API_URL}/${file.path.replace(/^\//, '')}`) : 
+                                  '';
+                                
+                                return (
+                                  <div key={`${message._id}-file-${idx}`}>
+                                    {file.type?.startsWith('image') ? (
+                                      <img
+                                        src={fileUrl}
+                                        alt="uploaded"
+                                        className="max-w-full h-auto rounded-lg"
+                                        loading="lazy"
+                                        onError={(e) => {
+                                          console.error('Image failed to load:', fileUrl);
+                                          e.target.src = 'https://via.placeholder.com/200?text=Image+Error';
+                                        }}
+                                      />
+                                    ) : file.type?.startsWith('video') ? (
+                                      <video controls className="max-w-full h-auto rounded-lg">
+                                        <source src={fileUrl} type={file.type} />
+                                        Your browser does not support the video tag.
+                                      </video>
+                                    ) : (
+                                      <div className="p-2 bg-gray-100 rounded-lg">
+                                        <p className="text-xs">File: {file.path.split('/').pop()}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Display message content if it exists */}
+                          {message.content && <p className="break-words">{message.content}</p>}
+
+                          {/* Display timestamp */}
+                          <small className={`text-xs opacity-70 ${
+                            message.sender === userId ? 'text-gray-200' : 'text-gray-500'
+                          }`}>
+                            {formatTimestamp(message.timestamp)}
+                          </small>
+                        </div>
+                      </motion.div>
+                    </React.Fragment>
+                  );
+                });
+              })()}
+
+              {/* Read indicator - Instagram-like behavior for the most recent read message */}
+              {lastSeenMessage && (
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex justify-end mt-1 pr-2"
+                >
+                  <div className="flex items-center text-gray-400 text-xs">
+                    <Eye className="w-3 h-3 mr-1" />
+                    <span>Seen</span>
                   </div>
                 </motion.div>
-              ))}
+              )}
+
+              {/* Pending messages indicator */}
+              {pendingMessages.length > 0 && (
+                <div className="flex justify-end mt-1 pr-2">
+                  <div className="flex items-center text-gray-400 text-xs">
+                    <svg className="w-3 h-3 mr-1 animate-spin" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Sending...</span>
+                  </div>
+                </div>
+              )}
 
               {/* Typing indicator */}
               {otherUserTyping && (
@@ -694,6 +797,7 @@ const CoachChatComponent = ({ onClose, selectedClient, isChatOpen }) => {
             <Button
               type="submit"
               className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-2 w-10 h-10 flex items-center justify-center"
+              disabled={(!newMessage.trim() && files.length === 0) || !socketConnected}
             >
               <Send className="w-5 h-5" />
             </Button>
