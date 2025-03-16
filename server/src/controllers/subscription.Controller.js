@@ -860,12 +860,13 @@ export const handleWebhook = async (event) => {
   }
 };
 
+// Updated messaging function in subscription.Controller.js
 export const messaging = async (req, res) => {
   try {
     const { subscriptionId } = req.params;
     const { senderId, receiverId, content, timestamp, file } = req.body;
 
-    console.log('Received message:', {
+    console.log('Received message request:', {
       subscriptionId,
       senderId,
       receiverId,
@@ -900,18 +901,16 @@ export const messaging = async (req, res) => {
       content: content?.trim() || '', // Optional content (default to empty string)
       timestamp: parsedTimestamp,
       read: false,
-      file: file.map((files) => {
+      file: Array.isArray(file) ? file.map((fileItem) => {
         // Ensure file.type is always set
-        const type = files.type
-          ? files.type.startsWith('image')
-            ? 'image'
-            : 'video'
+        const type = fileItem.type
+          ? fileItem.type.startsWith('image') ? 'image' : 'video'
           : 'unknown'; // Default to 'unknown' if mimetype is missing
         return {
-          path: files.path, // Save the file path
+          path: fileItem.path, // Save the file path
           type, // Determine file type
         };
-      }),
+      }) : [],
     };
 
     // Find the subscription
@@ -931,18 +930,22 @@ export const messaging = async (req, res) => {
     }
 
     // Emit the message to the receiver
-    const receiverSocketId = activeUsers.get(receiverId); // Use activeUsers here
+    const receiverSocketId = activeUsers.get(receiverId.toString()); // Convert ObjectId to string
     if (receiverSocketId) {
       io.to(receiverSocketId).emit('receiveMessage', {
-        ...message,
+        ...message.toJSON ? message.toJSON() : message,
+        _id: message._id.toString(), // Convert ObjectId to string
         sender: senderId, // Include sender ID for the frontend
       });
+      console.log(`Real-time message sent to socket ${receiverSocketId}`);
+    } else {
+      console.log(`Receiver ${receiverId} is not online, message stored for later delivery`);
     }
 
     res.status(200).json(updatedSubscription);
   } catch (error) {
     console.error('Error sending message:', error);
-    res.status(500).json({ message: 'Error sending message', error });
+    res.status(500).json({ message: 'Error sending message', error: error.message });
   }
 };
 
@@ -963,9 +966,9 @@ export const markMessagesAsRead = async (req, res) => {
 
     // Update only the specified messages to mark them as read
     const result = await Subscription.updateOne(
-      { _id: subscriptionId, 'messages._id': { $in: messageIds } },
+      { _id: subscriptionId, 'messages._id': { $in: messageIds.map(id => new mongoose.Types.ObjectId(id)) } },
       { $set: { 'messages.$[elem].read': true } },
-      { arrayFilters: [{ 'elem._id': { $in: messageIds } }] }
+      { arrayFilters: [{ 'elem._id': { $in: messageIds.map(id => new mongoose.Types.ObjectId(id)) } }] }
     );
 
     if (result.matchedCount === 0) {
@@ -975,24 +978,47 @@ export const markMessagesAsRead = async (req, res) => {
     // Emit a socket event to notify the sender that their messages have been read
     const io = getIoInstance();
     if (io) {
-      const subscription = await Subscription.findById(subscriptionId);
+      // Need to find the subscription to identify the message sender
+      const subscription = await Subscription.findById(subscriptionId)
+        .populate('user')
+        .populate('assignedCoach');
+      
       if (subscription) {
-        const senderSocketId = activeUsers.get(subscription.assignedCoach);
-        if (senderSocketId) {
-          io.to(senderSocketId).emit('messagesRead', {
-            subscriptionId,
-            messageIds,
-          });
+        // Find the messages that were marked as read
+        const messages = subscription.messages.filter(msg => 
+          messageIds.includes(msg._id.toString())
+        );
+        
+        if (messages && messages.length > 0) {
+          // Get the sender of the first message as receiver of the read receipt
+          const firstMessage = messages[0];
+          const senderId = firstMessage.sender.toString();
+          
+          // Find the socket ID of the message sender
+          const senderSocketId = activeUsers.get(senderId);
+          if (senderSocketId) {
+            io.to(senderSocketId).emit('messagesRead', {
+              subscriptionId,
+              messageIds
+            });
+            
+            console.log(`Read receipt sent to ${senderId} for messages:`, messageIds);
+          }
         }
       }
     }
 
-    res.status(200).json({ message: 'Messages marked as read', result });
+    res.status(200).json({ 
+      message: 'Messages marked as read', 
+      result,
+      affectedCount: result.modifiedCount
+    });
   } catch (error) {
     console.error('Error marking messages as read:', error);
-    res.status(500).json({ message: 'Error marking messages as read', error });
+    res.status(500).json({ message: 'Error marking messages as read', error: error.message });
   }
 };
+
 
  export const getMessages = async (req, res) => {
   try {
