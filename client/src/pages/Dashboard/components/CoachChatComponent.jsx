@@ -712,15 +712,22 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.9 }}
                           transition={{ duration: 0.2 }}
-                          className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
+                          className="message-container mb-4"
                         >
-                          <div className="message-container">
+                          <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
                             <div 
-                              className={`max-w-[75%] p-3 rounded-lg shadow-sm ${
+                              className={`max-w-[80%] p-3 rounded-lg shadow-sm ${
                                 isCurrentUser 
                                   ? 'bg-gradient-to-br from-indigo-600 to-purple-600 text-white'
                                   : 'bg-white border text-gray-800'
                               } ${message.pending ? 'opacity-70' : ''}`}
+                              title={format(parseISO(message.timestamp), 'MMMM d, yyyy HH:mm')}
+                              onClick={(e) => {
+                                // Show timestamp on mobile devices on tap
+                                if (window.innerWidth <= 768) {
+                                  alert(format(parseISO(message.timestamp), 'MMMM d, yyyy HH:mm'));
+                                }
+                              }}
                             >
                               {/* File attachments */}
                               {message.file && message.file.length > 0 && (
@@ -762,28 +769,36 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
                               {/* Message content */}
                               {message.content && <p className="break-words">{message.content}</p>}
 
-                              {/* Timestamp */}
-                              <small className={`text-xs opacity-70 ${
-                                isCurrentUser ? 'text-gray-200' : 'text-gray-500'
-                              }`}>
-                                {format(parseISO(message.timestamp), 'HH:mm')}
-                              </small>
+                              {/* Timestamp - Hidden by default, visible on hover via title attribute */}
+                              <div className="flex justify-end mt-1">
+                                <small className={`text-xs opacity-70 ${
+                                  isCurrentUser ? 'text-gray-200' : 'text-gray-500'
+                                }`}>
+                                  {format(parseISO(message.timestamp), 'HH:mm')}
+                                </small>
+                              </div>
                             </div>
-                            
-                            {/* Read receipt indicator */}
-                            {message._id === lastReadMessageId && (
-                              <div className="flex items-center ml-2" key={`read-${message._id}`}>
-                                <Eye className="w-4 h-4 text-gray-400" />
-                              </div>
-                            )}
-                            
-                            {/* Message sending indicator */}
-                            {message.pending && (
-                              <div className="flex items-center ml-2" key={`pending-${message._id}`}>
-                                <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
-                              </div>
-                            )}
                           </div>
+                          
+                          {/* Read receipt indicator - now below the message like in Chat.jsx */}
+                          {message._id === lastReadMessageId && (
+                            <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} mt-1 pr-2`} key={`read-${message._id}`}>
+                              <div className="flex items-center text-gray-500 text-xs">
+                                <Eye className="w-3 h-3 mr-1" />
+                                <span>Seen</span>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Message sending indicator */}
+                          {message.pending && (
+                            <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} mt-1 pr-2`} key={`pending-${message._id}`}>
+                              <div className="flex items-center text-gray-500 text-xs">
+                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                <span>Sending...</span>
+                              </div>
+                            </div>
+                          )}
                         </motion.div>
                       );
                     })}
