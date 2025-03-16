@@ -860,6 +860,10 @@ export const handleWebhook = async (event) => {
   }
 };
 
+/**
+ * Send a message within a subscription
+ * @route POST /subscription/:subscriptionId/send-message
+ */
 export const messaging = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -868,12 +872,12 @@ export const messaging = async (req, res) => {
     const { subscriptionId } = req.params;
     const { senderId, receiverId, content, timestamp, file } = req.body;
 
-    console.log('Received message request:', {
+    logger.info('Received message request:', {
       subscriptionId,
       senderId,
       receiverId,
-      timestamp,
       hasContent: !!content,
+      timestamp: timestamp ? new Date(timestamp).toISOString() : 'not provided',
       hasFiles: Array.isArray(file) ? file.length : 0
     });
 
@@ -893,7 +897,7 @@ export const messaging = async (req, res) => {
       return res.status(400).json({ message: 'Invalid IDs provided' });
     }
 
-    // Validate timestamp
+    // Parse and validate timestamp
     let parsedTimestamp;
     try {
       parsedTimestamp = timestamp ? new Date(timestamp) : new Date();
@@ -934,7 +938,7 @@ export const messaging = async (req, res) => {
       }) : [],
     };
 
-    // Find the subscription and update it with the new message
+    // Find the subscription
     const subscription = await Subscription.findById(subscriptionId).session(session);
     if (!subscription) {
       await session.abortTransaction();
@@ -948,13 +952,28 @@ export const messaging = async (req, res) => {
     // Make sure messages are sorted by timestamp
     subscription.messages.sort((a, b) => a.timestamp - b.timestamp);
 
+    // Update unread counts
+    if (!subscription.unreadCounts) {
+      subscription.unreadCounts = { user: 0, coach: 0 };
+    }
+
+    // If sender is user, increment coach's unread count, and vice versa
+    const isUserSender = subscription.user && senderId === subscription.user.toString();
+    const isCoachSender = subscription.assignedCoach && senderId === subscription.assignedCoach.toString();
+
+    if (isUserSender) {
+      subscription.unreadCounts.coach = (subscription.unreadCounts.coach || 0) + 1;
+    } else if (isCoachSender) {
+      subscription.unreadCounts.user = (subscription.unreadCounts.user || 0) + 1;
+    }
+
     // Save the updated subscription
     await subscription.save({ session });
     
     await session.commitTransaction();
     session.endSession();
 
-    // Get populated subscription (can be done outside the transaction)
+    // Get populated subscription for response
     const populatedSubscription = await Subscription.findById(subscriptionId)
       .populate('user', 'firstName lastName email profileImage')
       .populate('assignedCoach', 'firstName lastName email profileImage');
@@ -962,6 +981,34 @@ export const messaging = async (req, res) => {
     // Return the updated subscription
     res.status(200).json(populatedSubscription);
 
+    // After successful save, emit socket event to receiver if online
+    try {
+      const io = getIoInstance();
+      if (io) {
+        const receiverSocketId = activeUsers.get(receiverId);
+        
+        if (receiverSocketId) {
+
+          const messageForSocket = {
+            _id: message._id.toString(),
+            sender: senderId,
+            content: message.content,
+            timestamp: message.timestamp,
+            read: message.read,
+            file: message.file,
+            subscriptionId // Add subscription ID for proper routing
+          };
+          
+          io.to(receiverSocketId).emit('receiveMessage', messageForSocket);
+          logger.info(`Message sent via socket to recipient ${receiverId}`);
+        } else {
+          logger.info(`Recipient ${receiverId} is offline, message will be delivered when they connect`);
+        }
+      }
+    } catch (socketError) {
+      // Just log the error and continue - the message is already saved in the database
+      logger.error('Error sending message via socket:', socketError);
+    }
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
@@ -1044,19 +1091,21 @@ export const markMessagesAsRead = async (req, res) => {
       return msg;
     });
 
-    // Reset the appropriate unread counter if reader ID is provided
+    // Reset unread counters if reader ID is provided
     if (readerId) {
       // If reader is the user, reset user's unread count
       if (subscription.user && readerId === subscription.user.toString()) {
-        if (subscription.unreadCounts) {
-          subscription.unreadCounts.user = 0;
-        }
+        subscription.unreadCounts = {
+          ...subscription.unreadCounts,
+          user: 0
+        };
       } 
       // If reader is the coach, reset coach's unread count
       else if (subscription.assignedCoach && readerId === subscription.assignedCoach.toString()) {
-        if (subscription.unreadCounts) {
-          subscription.unreadCounts.coach = 0;
-        }
+        subscription.unreadCounts = {
+          ...subscription.unreadCounts,
+          coach: 0
+        };
       }
     }
 
@@ -1080,30 +1129,59 @@ export const markMessagesAsRead = async (req, res) => {
     
     // After database update is committed, emit socket events
     try {
-      // Determine the receiver of the read receipts
-      let receiversToNotify = Array.from(senderIds);
+      // Determine the receivers of the read receipts (senders of the original messages)
+      const receiversToNotify = Array.from(senderIds);
       
       // Filter out the reader from recipients (no need to notify yourself)
-      if (readerId) {
-        receiversToNotify = receiversToNotify.filter(id => id !== readerId);
-      }
+      const filteredReceivers = readerId ? 
+        receiversToNotify.filter(id => id !== readerId) : 
+        receiversToNotify;
       
       const io = getIoInstance();
-      if (io && receiversToNotify.length > 0) {
-        // Log for debugging
-        logger.info(`Sending read receipts via socket to: ${receiversToNotify.join(', ')}`);
+      if (io && filteredReceivers.length > 0) {
+        logger.info(`Sending read receipts via socket to: ${filteredReceivers.join(', ')}`);
         
-        for (const receiverId of receiversToNotify) {
+        // Find the last read message for each sender
+        const senderLastReadMsgMap = new Map();
+        
+        for (const msgId of validMessageIds) {
+          const msg = subscription.messages.find(m => m._id.toString() === msgId);
+          if (!msg) continue;
+          
+          const senderId = msg.sender.toString();
+          const currentLastMsg = senderLastReadMsgMap.get(senderId);
+          
+          // If we don't have a message for this sender yet, or this message is newer
+          if (!currentLastMsg || new Date(msg.timestamp) > new Date(currentLastMsg.timestamp)) {
+            senderLastReadMsgMap.set(senderId, msg);
+          }
+        }
+        
+        // For each receiver, send their specific read receipt with the most recent message
+        for (const receiverId of filteredReceivers) {
           const receiverSocketId = activeUsers.get(receiverId);
           
           if (receiverSocketId) {
-            io.to(receiverSocketId).emit('messagesRead', {
-              subscriptionId,
-              messageIds: validMessageIds,
-              readerId,
-              timestamp: now.toISOString()
-            });
-            logger.info(`Sent read receipt to user ${receiverId} for ${validMessageIds.length} messages`);
+            // Get this receiver's last read message
+            const lastReadMsg = senderLastReadMsgMap.get(receiverId);
+            
+            // Only send if we have a message
+            if (lastReadMsg) {
+              io.to(receiverSocketId).emit('messagesRead', {
+                subscriptionId,
+                messageIds: [lastReadMsg._id.toString()], // Only send the last message ID
+                readerId,
+                timestamp: now.toISOString(),
+                // Include information about which message was the last read
+                lastReadMessage: {
+                  _id: lastReadMsg._id.toString(),
+                  timestamp: lastReadMsg.timestamp
+                }
+              });
+              logger.info(`Sent read receipt to user ${receiverId} for message ${lastReadMsg._id}`);
+            } else {
+              logger.info(`No messages from user ${receiverId} were marked as read`);
+            }
           } else {
             logger.info(`User ${receiverId} is offline, read receipts will be delivered later`);
           }
@@ -1121,6 +1199,7 @@ export const markMessagesAsRead = async (req, res) => {
     res.status(500).json({ message: 'Error marking messages as read', error: error.message });
   }
 };
+
 
 export const getMessages = async (req, res) => {
   try {
@@ -1145,7 +1224,7 @@ export const getMessages = async (req, res) => {
     let messages = subscription.messages || [];
     
     // Filter unread messages if requested
-    if (unreadOnly === 'true') {
+    if (unreadOnly === 'true' || unreadOnly === true) {
       messages = messages.filter(msg => !msg.read);
     }
     
@@ -1153,14 +1232,30 @@ export const getMessages = async (req, res) => {
     messages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     
     // Apply pagination if requested
+    let paginatedMessages = messages;
+    
     if (limit !== 'all') {
-      const start = parseInt(offset, 10);
-      const end = start + parseInt(limit, 10);
-      messages = messages.slice(start, end);
+      const limitNum = parseInt(limit, 10);
+      const offsetNum = parseInt(offset, 10);
+      paginatedMessages = messages.slice(offsetNum, offsetNum + limitNum);
     }
     
+    // Sort back to chronological order for display (oldest first)
+    paginatedMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    
+    // Add pagination metadata
+    const response = {
+      messages: paginatedMessages,
+      pagination: {
+        total: messages.length,
+        limit: limit === 'all' ? messages.length : parseInt(limit, 10),
+        offset: parseInt(offset, 10),
+        hasMore: limit !== 'all' && parseInt(offset, 10) + parseInt(limit, 10) < messages.length
+      }
+    };
+    
     // Return the messages
-    res.status(200).json(messages);
+    res.status(200).json(response);
     
   } catch (error) {
     logger.error('Error fetching messages:', error);
