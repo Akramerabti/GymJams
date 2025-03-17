@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, Calendar, MessageSquare, Clock, Settings, ArrowRight, 
   TrendingUp, User, ChevronDown, Bell, Filter, Dumbbell, 
-  BarChart2, CheckCircle, X, PlusCircle, Download, Upload
+  BarChart2, CheckCircle, X, PlusCircle, Download, Upload, AlertCircle
 } from 'lucide-react';
 import subscriptionService from '../../services/subscription.service';
 import { useAuth } from '../../stores/authStore';
@@ -42,6 +42,7 @@ const DashboardCoach = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [hasMadeChanges, setHasMadeChanges] = useState(false);
+  const [error, setError] = useState(null);
 
   // Ref for tab content to scroll to
   const tabContentRef = useRef(null);
@@ -64,17 +65,34 @@ const DashboardCoach = () => {
     const fetchDashboardData = async () => {
       try {
         setIsLoading(true);
-        const data = await subscriptionService.getCoachDashboardData();
+        setError(null);
         
-        setStats({
-          activeClients: data.stats?.activeClients || 0,
-          pendingRequests: data.stats?.pendingRequests || 0,
-          upcomingSessions: data.stats?.upcomingSessions || 0,
-          messageThreads: data.stats?.messageThreads || 0,
-        });
+        // Try to get clients from the API
+        let clientsData = [];
+        let pendingRequestsData = [];
         
-        // Process client data to standardize format and add additional required information
-        const processedClients = (data.recentClients || []).map(client => ({
+        try {
+          clientsData = await clientService.getCoachClients();
+        } catch (clientError) {
+          console.error('Error fetching clients:', clientError);
+          // Set specific error for clients
+          setError('Could not load client data. Please try again later.');
+          clientsData = [];
+        }
+        
+        try {
+          pendingRequestsData = await clientService.getPendingRequests();
+        } catch (requestsError) {
+          console.error('Error fetching pending requests:', requestsError);
+          pendingRequestsData = [];
+        }
+        
+        // Make sure we have arrays even if the API didn't return anything
+        clientsData = Array.isArray(clientsData) ? clientsData : [];
+        pendingRequestsData = Array.isArray(pendingRequestsData) ? pendingRequestsData : [];
+        
+        // Process client data to standardize format and add additional information
+        const processedClients = clientsData.map(client => ({
           ...client,
           unreadMessages: client.unreadCount || 0,
           lastActive: client.lastActive || 'N/A',
@@ -83,22 +101,43 @@ const DashboardCoach = () => {
         }));
         
         setClients(processedClients);
+        setPendingRequests(pendingRequestsData);
         
-        // Upcoming sessions would come from a future API endpoint
-        // For now, we'll create mock data from client information
+        // Calculate metrics
+        const upcomingSessionsCount = processedClients.reduce((sum, client) => {
+          if (client.workouts && Array.isArray(client.workouts)) {
+            return sum + client.workouts.filter(w => !w.completed).length;
+          }
+          return sum;
+        }, 0);
+        
+        const messageThreadsCount = processedClients.filter(c => 
+          c.unreadMessages && c.unreadMessages > 0
+        ).length;
+        
+        // Update stats
+        setStats({
+          activeClients: processedClients.length,
+          pendingRequests: pendingRequestsData.length,
+          upcomingSessions: upcomingSessionsCount,
+          messageThreads: messageThreadsCount,
+        });
+        
+        // Generate sessions from actual client workout data if available
         if (processedClients.length > 0) {
-          const mockSessions = generateMockSessions(processedClients);
-          setUpcomingSessions(mockSessions);
+          const sessions = generateSessionsFromWorkouts(processedClients);
+          setUpcomingSessions(sessions);
+        } else {
+          setUpcomingSessions([]);
         }
-        
-        // Handle pending requests (in a production app, this would be from a separate API endpoint)
-        setPendingRequests(data.pendingRequests || []);
         
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
+        setError('Failed to load dashboard data. Please try again later.');
         toast.error('Failed to fetch dashboard data');
         setClients([]);
         setUpcomingSessions([]);
+        setPendingRequests([]);
       } finally {
         setIsLoading(false);
       }
@@ -116,36 +155,78 @@ const DashboardCoach = () => {
     return () => clearInterval(refreshInterval);
   }, [hasMadeChanges]);
 
-  // Generate mock sessions data (would be replaced with actual API data)
-  const generateMockSessions = (clients) => {
-    // Generate upcoming sessions for the next 7 days
+  // Generate sessions data from client workouts
+  const generateSessionsFromWorkouts = (clients) => {
     const sessions = [];
     const now = new Date();
     
     clients.forEach(client => {
-      // Create 1-3 sessions per client
-      const sessionCount = Math.floor(Math.random() * 3) + 1;
+      // Check if client has workout data
+      if (client.workouts && Array.isArray(client.workouts)) {
+        // Only include non-completed workouts with future dates
+        client.workouts.forEach(workout => {
+          if (workout.completed) return;
+          
+          try {
+            const workoutDate = new Date(`${workout.date}T${workout.time || '09:00'}`);
+            
+            // Only include future workouts
+            if (workoutDate > now) {
+              sessions.push({
+                id: workout.id,
+                clientId: client.id,
+                clientName: `${client.firstName} ${client.lastName || ''}`.trim(),
+                time: workout.time || '09:00',
+                date: workout.date,
+                dateObj: workoutDate,
+                duration: '60 minutes', // Default duration
+                type: workout.title
+              });
+            }
+          } catch (err) {
+            // Skip workouts with invalid dates
+            console.warn('Invalid workout date format:', workout.date);
+          }
+        });
+      }
+    });
+    
+    // If no actual workout data is available, use mock data
+    if (sessions.length === 0 && clients.length > 0) {
+      return generateMockSessions(clients);
+    }
+    
+    // Sort sessions by date
+    return sessions.sort((a, b) => a.dateObj - b.dateObj);
+  };
+
+  // Generate mock sessions data as a fallback
+  const generateMockSessions = (clients) => {
+    const sessions = [];
+    const now = new Date();
+    
+    clients.forEach(client => {
+      // Create 1-2 sessions per client
+      const sessionCount = Math.floor(Math.random() * 2) + 1;
       
       for (let i = 0; i < sessionCount; i++) {
-        const dayOffset = Math.floor(Math.random() * 7);
-        const hourOffset = Math.floor(Math.random() * 12) + 8; // Between 8am and 8pm
+        const dayOffset = Math.floor(Math.random() * 7) + 1; // Next 7 days
+        const hourOffset = Math.floor(Math.random() * 10) + 8; // Between 8am and 6pm
         
         const sessionDate = new Date(now);
         sessionDate.setDate(now.getDate() + dayOffset);
         sessionDate.setHours(hourOffset, 0, 0, 0);
         
-        if (sessionDate > now) { // Only future sessions
-          sessions.push({
-            id: `session-${client.id}-${i}`,
-            clientId: client.id,
-            clientName: `${client.firstName} ${client.lastName || ''}`.trim(),
-            time: sessionDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            date: sessionDate.toLocaleDateString(),
-            dateObj: sessionDate,
-            duration: '60 minutes',
-            type: ['Workout Review', 'Progress Check', 'Training Session'][Math.floor(Math.random() * 3)]
-          });
-        }
+        sessions.push({
+          id: `session-${client.id}-${i}`,
+          clientId: client.id,
+          clientName: `${client.firstName} ${client.lastName || ''}`.trim(),
+          time: sessionDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          date: sessionDate.toLocaleDateString(),
+          dateObj: sessionDate,
+          duration: '60 minutes',
+          type: ['Workout Review', 'Progress Check', 'Training Session'][Math.floor(Math.random() * 3)]
+        });
       }
     });
     
@@ -155,6 +236,8 @@ const DashboardCoach = () => {
 
   // Handle client search and filtering
   const filteredClients = () => {
+    if (!clients || !Array.isArray(clients)) return [];
+    
     return clients.filter(client => {
       // Apply status filter
       if (filterStatus !== 'all' && client.status !== filterStatus) {
@@ -175,8 +258,20 @@ const DashboardCoach = () => {
   };
 
   // Handle client selection
-  const handleClientClick = (client) => {
-    setSelectedClient(client);
+  const handleClientClick = async (client) => {
+    try {
+      setIsLoading(true);
+      // Get detailed client data
+      const detailedClient = await clientService.getClientById(client.id);
+      setSelectedClient(detailedClient);
+    } catch (error) {
+      console.error('Failed to get client details:', error);
+      toast.error('Failed to load client details');
+      // Fall back to using the summary data we already have
+      setSelectedClient(client);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Handle chat opening
@@ -191,7 +286,7 @@ const DashboardCoach = () => {
       setHasMadeChanges(true);
       
       // Call API to update client data
-      await subscriptionService.updateClientStats(clientId, updatedData);
+      await clientService.updateClientStats(clientId, updatedData);
       
       // Update local state
       setClients(prevClients => 
@@ -222,23 +317,120 @@ const DashboardCoach = () => {
     setIsProgressModalOpen(true);
   };
   
-  // Export client data
-  const handleExportClientData = (client) => {
+  // Handle updating client workouts
+  const handleUpdateWorkouts = async (clientId, workouts) => {
     try {
-      // Create a data object with client information
-      const exportData = {
-        personalInfo: {
-          id: client.id,
-          name: `${client.firstName} ${client.lastName || ''}`.trim(),
-          email: client.email,
-          joinDate: client.joinDate || 'N/A'
-        },
-        stats: client.stats || {},
-        progress: {
-          history: client.progressHistory || [],
-          current: client.stats?.monthlyProgress || 0
+      setHasMadeChanges(true);
+      
+      // Update workouts on the server
+      await clientService.updateClientWorkouts(clientId, workouts);
+      
+      // Update local client state
+      setClients(prevClients => 
+        prevClients.map(client => 
+          client.id === clientId
+            ? { ...client, workouts }
+            : client
+        )
+      );
+      
+      // If the selected client is this client, update that too
+      if (selectedClient && selectedClient.id === clientId) {
+        setSelectedClient(prev => ({
+          ...prev,
+          workouts
+        }));
+      }
+      
+      // Update upcoming sessions
+      setUpcomingSessions(prev => {
+        // Remove all sessions for this client
+        const filteredSessions = prev.filter(session => session.clientId !== clientId);
+        
+        // Generate new sessions for this client
+        const updatedClient = clients.find(client => client.id === clientId);
+        if (updatedClient) {
+          updatedClient.workouts = workouts;
+          const newSessions = generateSessionsFromWorkouts([updatedClient]);
+          
+          // Return combined sessions
+          return [...filteredSessions, ...newSessions].sort((a, b) => a.dateObj - b.dateObj);
         }
-      };
+        
+        return filteredSessions;
+      });
+      
+      toast.success('Client workouts updated successfully');
+      setHasMadeChanges(false);
+    } catch (error) {
+      console.error('Failed to update workouts:', error);
+      toast.error('Failed to update client workouts');
+    }
+  };
+
+  // Handle updating client progress
+  const handleUpdateProgress = async (clientId, progress) => {
+    try {
+      setHasMadeChanges(true);
+      
+      // Update progress on the server
+      await clientService.updateClientProgress(clientId, progress);
+      
+      // Update local client state
+      setClients(prevClients => 
+        prevClients.map(client => 
+          client.id === clientId
+            ? { ...client, progress }
+            : client
+        )
+      );
+      
+      // If the selected client is this client, update that too
+      if (selectedClient && selectedClient.id === clientId) {
+        setSelectedClient(prev => ({
+          ...prev,
+          progress
+        }));
+      }
+      
+      toast.success('Client progress updated successfully');
+      setHasMadeChanges(false);
+    } catch (error) {
+      console.error('Failed to update progress:', error);
+      toast.error('Failed to update client progress');
+    }
+  };
+  
+  // Export client data
+  const handleExportClientData = async (client) => {
+    try {
+      let exportData;
+      
+      // Try to get full client data from the server
+      try {
+        exportData = await clientService.exportClientData(client.id);
+      } catch (error) {
+        console.warn('Could not fetch export data from server, using local data:', error);
+        
+        // Fall back to local client data
+        exportData = {
+          personalInfo: {
+            id: client.id,
+            name: `${client.firstName} ${client.lastName || ''}`.trim(),
+            email: client.email,
+            joinDate: client.joinDate || new Date().toISOString()
+          },
+          stats: client.stats || {},
+          progress: client.progress || {
+            weightProgress: [],
+            strengthProgress: [],
+            cardioProgress: [],
+            bodyFatProgress: [],
+            customMetrics: []
+          },
+          workouts: client.workouts || []
+        };
+      }
       
       // Convert to JSON
       const jsonData = JSON.stringify(exportData, null, 2);
@@ -264,6 +456,10 @@ const DashboardCoach = () => {
 
   // Group upcoming sessions by date
   const groupedSessions = () => {
+    if (!upcomingSessions || !Array.isArray(upcomingSessions) || upcomingSessions.length === 0) {
+      return [];
+    }
+    
     const grouped = {};
     
     upcomingSessions.forEach(session => {
@@ -289,83 +485,142 @@ const DashboardCoach = () => {
     toast.info('This feature will be implemented in a future update');
   };
 
+  // Handle accepting a coaching request
+  const handleAcceptRequest = async (requestId) => {
+    try {
+      setIsLoading(true);
+      await clientService.acceptCoachingRequest(requestId);
+      
+      // Remove from pending requests
+      setPendingRequests(prev => prev.filter(req => req.id !== requestId));
+      
+      // Refresh client list
+      const updatedClients = await clientService.getCoachClients();
+      setClients(updatedClients);
+      
+      toast.success('Coaching request accepted successfully');
+    } catch (error) {
+      console.error('Failed to accept coaching request:', error);
+      toast.error('Failed to accept coaching request');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle declining a coaching request
+  const handleDeclineRequest = async (requestId) => {
+    try {
+      setIsLoading(true);
+      await clientService.declineCoachingRequest(requestId);
+      
+      // Remove from pending requests
+      setPendingRequests(prev => prev.filter(req => req.id !== requestId));
+      
+      toast.success('Coaching request declined');
+    } catch (error) {
+      console.error('Failed to decline coaching request:', error);
+      toast.error('Failed to decline coaching request');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Welcome Section */}
         <motion.div
-  initial={{ opacity: 0, y: 20 }}
-  animate={{ opacity: 1, y: 0 }}
-  className="p-4 sm:p-8 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
->
-  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-    <div>
-      <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-1 sm:mb-2">
-        Coach Dashboard
-      </h1>
-      <p className="text-blue-100 text-sm sm:text-base">
-        Welcome back, {user?.firstName || user?.user?.firstName || 'Coach'}!
-      </p>
-    </div>
-    <div className="flex flex-wrap gap-2">
-      <Button
-        variant="outline"
-        className="bg-white/20 hover:bg-white/30 text-white text-xs sm:text-sm py-1 px-2 sm:py-2 sm:px-3"
-        onClick={() => window.location.href = '/profile'}
-      >
-        <Settings className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-        <span className="hidden xs:inline">Profile Settings</span>
-        <span className="xs:hidden">Profile</span>
-      </Button>
-      <Button 
-        className="bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm py-1 px-2 sm:py-2 sm:px-3"
-        onClick={handleAddClient}
-      >
-        <PlusCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-        <span className="hidden xs:inline">New Client</span>
-        <span className="xs:hidden">Add</span>
-      </Button>
-    </div>
-  </div>
-</motion.div>
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 sm:p-8 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
+        >
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-1 sm:mb-2">
+                Coach Dashboard
+              </h1>
+              <p className="text-blue-100 text-sm sm:text-base">
+                Welcome back, {user?.firstName || user?.user?.firstName || 'Coach'}!
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                className="bg-white/20 hover:bg-white/30 text-white text-xs sm:text-sm py-1 px-2 sm:py-2 sm:px-3"
+                onClick={() => window.location.href = '/profile'}
+              >
+                <Settings className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="hidden xs:inline">Profile Settings</span>
+                <span className="xs:hidden">Profile</span>
+              </Button>
+              <Button 
+                className="bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm py-1 px-2 sm:py-2 sm:px-3"
+                onClick={handleAddClient}
+              >
+                <PlusCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="hidden xs:inline">New Client</span>
+                <span className="xs:hidden">Add</span>
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Error display */}
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-red-50 border border-red-200 rounded-md p-4"
+          >
+            <div className="flex items-center">
+              <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
+              <p className="text-red-700">{error}</p>
+            </div>
+          </motion.div>
+        )}
 
         {/* Stats Grid - Compact version for mobile */}
-<div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
-  <StatCard
-    title="Active Clients"
-    value={stats.activeClients}
-    icon={Users}
-    onClick={() => handleStatCardClick('clients')}
-  />
-  <StatCard 
-    title="Pending"
-    value={stats.pendingRequests} 
-    icon={Clock}
-    onClick={() => handleStatCardClick('requests')}
-  />
-  <StatCard 
-    title="Sessions" 
-    value={stats.upcomingSessions} 
-    icon={Calendar}
-    onClick={() => handleStatCardClick('schedule')}
-  />
-  <StatCard 
-    title="Messages" 
-    value={stats.messageThreads} 
-    icon={MessageSquare}
-    onClick={() => handleStatCardClick('messages')}
-  />
-</div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
+          <StatCard
+            title="Active Clients"
+            value={stats.activeClients}
+            icon={Users}
+            onClick={() => handleStatCardClick('clients')}
+          />
+          <StatCard 
+            title="Messages" 
+            value={stats.messageThreads} 
+            icon={MessageSquare}
+            onClick={() => handleStatCardClick('messages')}
+          />
+          <StatCard 
+            title="Sessions" 
+            value={stats.upcomingSessions} 
+            icon={Calendar}
+            onClick={() => handleStatCardClick('schedule')}
+          />
+          <StatCard 
+            title="Pending"
+            value={stats.pendingRequests} 
+            icon={Clock}
+            onClick={() => handleStatCardClick('requests')}
+          />
+          
+        </div>
 
         {/* Main Tabs Section */}
         <Card className="shadow-lg" ref={tabContentRef}>
-        <Tabs defaultValue="clients" value={activeTab} onValueChange={setActiveTab}>
+          <Tabs defaultValue="clients" value={activeTab} onValueChange={setActiveTab}>
             <CardHeader className="border-b pb-3">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <TabsList className="bg-gray-100">
                   <TabsTrigger value="clients" className="data-[state=active]:bg-white">
                     <Users className="w-4 h-4 mr-2" />
                     Clients
+                  </TabsTrigger>
+                  <TabsTrigger value="messages" className="data-[state=active]:bg-white">
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    Messages
                   </TabsTrigger>
                   <TabsTrigger value="schedule" className="data-[state=active]:bg-white">
                     <Calendar className="w-4 h-4 mr-2" />
@@ -375,10 +630,7 @@ const DashboardCoach = () => {
                     <Clock className="w-4 h-4 mr-2" />
                     Requests
                   </TabsTrigger>
-                  <TabsTrigger value="messages" className="data-[state=active]:bg-white">
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    Messages
-                  </TabsTrigger>
+                  
                 </TabsList>
                 
                 {/* Search and Filter */}
@@ -396,11 +648,10 @@ const DashboardCoach = () => {
                         <Users className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="relative">
+                    <div className="relative group">
                       <Button
                         variant="outline"
                         className="flex items-center space-x-1"
-                        onClick={() => {}}
                       >
                         <Filter className="w-4 h-4" />
                         <span className="hidden md:inline">Status:</span>
@@ -463,7 +714,7 @@ const DashboardCoach = () => {
                   </TabsContent>
                   
                   <TabsContent value="schedule" className="mt-0">
-                    {upcomingSessions.length > 0 ? (
+                    {groupedSessions().length > 0 ? (
                       <div className="space-y-8">
                         {groupedSessions().map((group) => (
                           <div key={group.date} className="space-y-4">
@@ -510,16 +761,29 @@ const DashboardCoach = () => {
                                   {request.name || 'New Client'}
                                 </p>
                                 <p className="text-sm text-gray-500">
-                                  Requested: {request.date || 'Recently'}
+                                  Requested: {request.date 
+                                    ? new Date(request.date).toLocaleDateString() 
+                                    : 'Recently'}
                                 </p>
                               </div>
                             </div>
                             <div className="flex items-center space-x-2">
-                              <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                                onClick={() => handleDeclineRequest(request.id)}
+                                disabled={isLoading}
+                              >
                                 <X className="w-4 h-4 mr-1" />
                                 Decline
                               </Button>
-                              <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                              <Button 
+                                size="sm" 
+                                className="bg-green-600 hover:bg-green-700"
+                                onClick={() => handleAcceptRequest(request.id)}
+                                disabled={isLoading}
+                              >
                                 <CheckCircle className="w-4 h-4 mr-1" />
                                 Accept
                               </Button>
@@ -559,16 +823,23 @@ const DashboardCoach = () => {
                                   {client.firstName} {client.lastName || ''}
                                 </p>
                                 <p className="text-sm text-gray-500">
-                                  Last message: {client.lastMessageTime || 'N/A'}
+                                  Last message: {client.lastMessageTime 
+                                    ? new Date(client.lastMessageTime).toLocaleString() 
+                                    : 'N/A'}
                                 </p>
                               </div>
                             </div>
                             <Button
                               onClick={() => handleChatClick(client)}
-                              className="bg-blue-600 hover:bg-blue-700"
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
                             >
                               <MessageSquare className="w-4 h-4 mr-2" />
                               Message
+                              {client.unreadMessages > 0 && (
+                                <span className="ml-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                                  {client.unreadMessages}
+                                </span>
+                              )}
                             </Button>
                           </motion.div>
                         ))
@@ -591,7 +862,7 @@ const DashboardCoach = () => {
           </Tabs>
         </Card>
 
-        {/* Client Stats Widget */}
+        {/* Client Stats Widget - Only show if there are clients */}
         {clients.length > 0 && (
           <ClientStatsWidget clients={clients} />
         )}
@@ -628,10 +899,7 @@ const DashboardCoach = () => {
           <ClientWorkoutsModal
             client={selectedClient}
             onClose={() => setIsWorkoutsModalOpen(false)}
-            onSave={(updatedWorkouts) => {
-              handleClientUpdate(selectedClient.id, { workouts: updatedWorkouts });
-              setIsWorkoutsModalOpen(false);
-            }}
+            onSave={(updatedWorkouts) => handleUpdateWorkouts(selectedClient.id, updatedWorkouts)}
           />
         )}
       </AnimatePresence>
@@ -642,10 +910,7 @@ const DashboardCoach = () => {
           <ClientProgressModal
             client={selectedClient}
             onClose={() => setIsProgressModalOpen(false)}
-            onSave={(updatedProgress) => {
-              handleClientUpdate(selectedClient.id, { ...updatedProgress });
-              setIsProgressModalOpen(false);
-            }}
+            onSave={(updatedProgress) => handleUpdateProgress(selectedClient.id, updatedProgress)}
           />
         )}
       </AnimatePresence>

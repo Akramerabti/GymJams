@@ -1,3 +1,4 @@
+// server/src/models/Subscription.js (updated)
 import mongoose from 'mongoose';
 
 const messageSchema = new mongoose.Schema({
@@ -28,6 +29,70 @@ const messageSchema = new mongoose.Schema({
       type: { type: String, required: true }, // File type (e.g., 'image' or 'video')
     },
   ],
+});
+
+// Exercise schema for workout plans
+const exerciseSchema = new mongoose.Schema({
+  id: String,
+  name: String,
+  sets: Number,
+  reps: Number,
+  weight: String,
+  notes: String
+});
+
+// Workout schema for client workout plans
+const workoutSchema = new mongoose.Schema({
+  id: String,
+  title: String,
+  date: String,
+  time: String,
+  type: {
+    type: String,
+    enum: ['strength', 'cardio', 'hiit', 'flexibility', 'recovery']
+  },
+  description: String,
+  exercises: [exerciseSchema],
+  completed: {
+    type: Boolean,
+    default: false
+  },
+  completedDate: Date,
+  feedback: String,
+  performance: {
+    type: String,
+    enum: ['excellent', 'good', 'fair', 'poor']
+  }
+});
+
+// Progress entry schema for tracking client metrics
+const progressEntrySchema = new mongoose.Schema({
+  date: String,
+  value: Number,
+  notes: String
+});
+
+// Custom metric schema for client progress
+const customMetricSchema = new mongoose.Schema({
+  id: String,
+  name: String,
+  unit: String,
+  target: Number,
+  current: Number,
+  trackingFrequency: {
+    type: String,
+    enum: ['daily', 'weekly', 'monthly']
+  },
+  data: [progressEntrySchema]
+});
+
+// Progress schema for client progress tracking
+const progressSchema = new mongoose.Schema({
+  weightProgress: [progressEntrySchema],
+  strengthProgress: [progressEntrySchema],
+  cardioProgress: [progressEntrySchema],
+  bodyFatProgress: [progressEntrySchema],
+  customMetrics: [customMetricSchema]
 });
 
 const subscriptionSchema = new mongoose.Schema(
@@ -119,6 +184,8 @@ const subscriptionSchema = new mongoose.Schema(
     coachAssignmentDate: {
       type: Date,
     },
+    coachDeclineReason: String,
+    coachDeclineDate: Date,
     coachPreferences: {
       specialties: [String],
       preferredGender: String,
@@ -142,8 +209,51 @@ const subscriptionSchema = new mongoose.Schema(
         type: Number,
         default: 0,
       },
+      weeklyTarget: {
+        type: Number,
+        default: 3
+      },
+      nutritionCompliance: {
+        type: Number,
+        default: 0
+      },
+      strengthProgress: {
+        type: Number,
+        default: 0
+      },
+      cardioProgress: {
+        type: Number,
+        default: 0
+      },
+      customGoalTitle: String,
+      customGoalTarget: String,
+      customGoalProgress: {
+        type: Number,
+        default: 0
+      },
+      customGoalDue: String,
+      strengthFocus: String
     },
     messages: [messageSchema], // Add messages field to store messages
+    workouts: [workoutSchema], // Client workout plan
+    progress: {
+      type: progressSchema,
+      default: () => ({})
+    },
+    coachNotes: String, // Coach's notes about the client
+    lastLogin: Date, // Last time client logged in
+    lastUpdated: Date, // Last time the subscription was updated
+    unreadCounts: {
+      user: {
+        type: Number,
+        default: 0
+      },
+      coach: {
+        type: Number,
+        default: 0
+      }
+    },
+    lastMessageTime: Date // Timestamp of the last message sent
   },
   {
     timestamps: true,
@@ -163,6 +273,7 @@ subscriptionSchema.methods.isEligibleForRefund = function () {
 
 subscriptionSchema.methods.sendMessage = async function (message) {
   this.messages.push(message);
+  this.lastMessageTime = new Date();
   await this.save();
   return this;
 };

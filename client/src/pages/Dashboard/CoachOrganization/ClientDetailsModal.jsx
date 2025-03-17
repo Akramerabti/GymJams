@@ -65,9 +65,19 @@ const ClientDetailsModal = ({ client, onClose, onSave, onOpenWorkouts, onOpenPro
     // Convert numeric fields from string to number
     const numericFields = ['workoutsCompleted', 'currentStreak', 'monthlyProgress', 'goalsAchieved', 'weeklyTarget', 'nutritionCompliance'];
     
+    // Convert to number if it's a numeric field
+    const processedValue = numericFields.includes(name) 
+      ? value === '' ? 0 : Number(value) 
+      : value;
+    
+    // Handle NaN values from invalid numeric input
+    const finalValue = typeof processedValue === 'number' && isNaN(processedValue) 
+      ? 0 
+      : processedValue;
+    
     setFormData({
       ...formData,
-      [name]: numericFields.includes(name) ? Number(value) : value
+      [name]: finalValue
     });
   };
 
