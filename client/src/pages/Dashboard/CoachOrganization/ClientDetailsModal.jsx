@@ -9,9 +9,9 @@ import {
   Download, MessageSquare, Calendar, ChevronDown, ChevronUp,
   Edit, CheckCircle, Award, Target, Activity, Clipboard
 } from 'lucide-react';
-import Progress from '@/components/ui/progress';
+import  Progress  from '@/components/ui/progress';
 
-const ClientDetailsModal = ({ client, onClose, onSave, onOpenWorkouts, onOpenProgress, onExportData }) => {
+const ClientDetailsModal = ({ client, onClose, onSave, onOpenWorkouts, onOpenProgress, onExportData, onChatClick = () => {} }) => {
   const [formData, setFormData] = useState({
     workoutsCompleted: 0,
     currentStreak: 0,
@@ -96,6 +96,43 @@ const ClientDetailsModal = ({ client, onClose, onSave, onOpenWorkouts, onOpenPro
       <Progress value={value} className="h-2" />
     </div>
   );
+
+  // Generate client goals based on current client data
+  const generateClientGoals = () => {
+    // Based on client data, generate realistic goals
+    const goals = [
+      { 
+        title: "Strength Improvement", 
+        target: `Increase ${client.stats?.strengthFocus || 'bench press'} by 10%`,
+        progress: Math.min(100, Math.max(0, (client.stats?.strengthProgress || 0) * 100)), 
+        due: "4 weeks",
+        icon: <Dumbbell className="w-6 h-6 text-blue-600" />
+      },
+      { 
+        title: "Consistency", 
+        target: `${formData.weeklyTarget || 3} workouts per week`,
+        progress: Math.min(100, Math.max(0, ((client.stats?.workoutsCompleted || 0) / (formData.weeklyTarget * 4)) * 100)),
+        due: "Ongoing",
+        icon: <Activity className="w-6 h-6 text-green-600" />
+      },
+      { 
+        title: "Nutrition Plan", 
+        target: "Follow meal plan consistently",
+        progress: formData.nutritionCompliance || 70,
+        due: "Ongoing",
+        icon: <Clipboard className="w-6 h-6 text-orange-600" />
+      },
+      { 
+        title: client.stats?.customGoalTitle || "Personal Best", 
+        target: client.stats?.customGoalTarget || "Complete 5K run",
+        progress: client.stats?.customGoalProgress || 50,
+        due: client.stats?.customGoalDue || "2 weeks",
+        icon: <Award className="w-6 h-6 text-purple-600" />
+      }
+    ];
+    
+    return goals;
+  };
   
   return (
     <motion.div
@@ -251,7 +288,7 @@ const ClientDetailsModal = ({ client, onClose, onSave, onOpenWorkouts, onOpenPro
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => handleChatClick(client)}
+                    onClick={() => onChatClick(client)}
                     className="flex items-center"
                   >
                     <MessageSquare className="w-4 h-4 mr-2" />
@@ -560,35 +597,3 @@ const ClientDetailsModal = ({ client, onClose, onSave, onOpenWorkouts, onOpenPro
 };
 
 export default ClientDetailsModal;
-
-  const   generateClientGoals = () => {
-    // Based on client data, generate realistic goals
-    const goals = [
-      { 
-        title: "Strength Improvement", 
-        target: `Increase ${client.stats?.strengthFocus || 'bench press'} by 10%`,
-        progress: Math.min(100, Math.max(0, (client.stats?.strengthProgress || 0) * 100)), 
-        due: "4 weeks"
-      },
-      { 
-        title: "Consistency", 
-        target: `${formData.weeklyTarget || 3} workouts per week`,
-        progress: Math.min(100, Math.max(0, ((client.stats?.workoutsCompleted || 0) / (formData.weeklyTarget * 4)) * 100)),
-        due: "Ongoing"
-      },
-      { 
-        title: "Nutrition Plan", 
-        target: "Follow meal plan consistently",
-        progress: formData.nutritionCompliance || 70,
-        due: "Ongoing"
-      },
-      { 
-        title: client.stats?.customGoalTitle || "Personal Best", 
-        target: client.stats?.customGoalTarget || "Complete 5K run",
-        progress: client.stats?.customGoalProgress || 50,
-        due: client.stats?.customGoalDue || "2 weeks"
-      }
-    ];
-    
-    return goals;
-  };
