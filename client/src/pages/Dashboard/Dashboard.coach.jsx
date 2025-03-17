@@ -60,87 +60,86 @@ const DashboardCoach = () => {
     }, 100);
   };
 
+  const fetchDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Try to get clients from the API
+      let clientsData = [];
+      let pendingRequestsData = [];
+      let sessionsData = [];
+      
+      try {
+        clientsData = await clientService.getCoachClients();
+      } catch (clientError) {
+        console.error('Error fetching clients:', clientError);
+        setError('Could not load client data. Please try again later.');
+        clientsData = [];
+      }
+      
+      try {
+        pendingRequestsData = await clientService.getPendingRequests();
+      } catch (requestsError) {
+        console.error('Error fetching pending requests:', requestsError);
+        pendingRequestsData = [];
+      }
+      
+      try {
+        const sessionResponse = await clientService.getCoachSessions();
+        sessionsData = sessionResponse.data || [];
+      } catch (sessionsError) {
+        console.error('Error fetching sessions:', sessionsError);
+        sessionsData = [];
+      }
+      
+      // Make sure we have arrays even if the API didn't return anything
+      clientsData = Array.isArray(clientsData) ? clientsData : [];
+      pendingRequestsData = Array.isArray(pendingRequestsData) ? pendingRequestsData : [];
+      sessionsData = Array.isArray(sessionsData) ? sessionsData : [];
+      
+      // Process client data to standardize format and add additional information
+      const processedClients = clientsData.map(client => ({
+        ...client,
+        unreadMessages: client.unreadCount || 0,
+        lastActive: client.lastActive || 'N/A',
+        progress: client.stats?.monthlyProgress || 0,
+        status: client.status || 'active'
+      }));
+      
+      setClients(processedClients);
+      setPendingRequests(pendingRequestsData);
+      setUpcomingSessions(sessionsData);
+      
+      // Calculate metrics
+      const upcomingSessionsCount = sessionsData.length;
+      
+      const messageThreadsCount = processedClients.filter(c => 
+        c.unreadMessages && c.unreadMessages > 0
+      ).length;
+      
+      // Update stats
+      setStats({
+        activeClients: processedClients.length,
+        pendingRequests: pendingRequestsData.length,
+        upcomingSessions: upcomingSessionsCount,
+        messageThreads: messageThreadsCount,
+      });
+      
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      setError('Failed to load dashboard data. Please try again later.');
+      toast.error('Failed to fetch dashboard data');
+      setClients([]);
+      setUpcomingSessions([]);
+      setPendingRequests([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Fetch dashboard data
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        // Try to get clients from the API
-        let clientsData = [];
-        let pendingRequestsData = [];
-        let sessionsData = [];
-        
-        try {
-          clientsData = await clientService.getCoachClients();
-        } catch (clientError) {
-          console.error('Error fetching clients:', clientError);
-          // Set specific error for clients
-          setError('Could not load client data. Please try again later.');
-          clientsData = [];
-        }
-        
-        try {
-          pendingRequestsData = await clientService.getPendingRequests();
-        } catch (requestsError) {
-          console.error('Error fetching pending requests:', requestsError);
-          pendingRequestsData = [];
-        }
-        
-        try {
-          const sessionResponse = await clientService.getCoachSessions();
-          sessionsData = sessionResponse.data || [];
-        } catch (sessionsError) {
-          console.error('Error fetching sessions:', sessionsError);
-          sessionsData = [];
-        }
-        
-        // Make sure we have arrays even if the API didn't return anything
-        clientsData = Array.isArray(clientsData) ? clientsData : [];
-        pendingRequestsData = Array.isArray(pendingRequestsData) ? pendingRequestsData : [];
-        sessionsData = Array.isArray(sessionsData) ? sessionsData : [];
-        
-        // Process client data to standardize format and add additional information
-        const processedClients = clientsData.map(client => ({
-          ...client,
-          unreadMessages: client.unreadCount || 0,
-          lastActive: client.lastActive || 'N/A',
-          progress: client.stats?.monthlyProgress || 0,
-          status: client.status || 'active'
-        }));
-        
-        setClients(processedClients);
-        setPendingRequests(pendingRequestsData);
-        setUpcomingSessions(sessionsData);
-        
-        // Calculate metrics
-        const upcomingSessionsCount = sessionsData.length;
-        
-        const messageThreadsCount = processedClients.filter(c => 
-          c.unreadMessages && c.unreadMessages > 0
-        ).length;
-        
-        // Update stats
-        setStats({
-          activeClients: processedClients.length,
-          pendingRequests: pendingRequestsData.length,
-          upcomingSessions: upcomingSessionsCount,
-          messageThreads: messageThreadsCount,
-        });
-        
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        setError('Failed to load dashboard data. Please try again later.');
-        toast.error('Failed to fetch dashboard data');
-        setClients([]);
-        setUpcomingSessions([]);
-        setPendingRequests([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
     fetchDashboardData();
     
     // Set up a refresh interval (every 5 minutes)
@@ -712,21 +711,18 @@ const DashboardCoach = () => {
                   </TabsContent>
                   
                   <TabsContent value="schedule" className="mt-0">
-  {isLoading ? (
-    <div className="flex items-center justify-center h-64">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-    </div>
-  ) : (
-    <Schedule 
-      clients={clients} 
-      onRefreshData={() => {
-        // Refresh the dashboard data when sessions are modified
-        fetchDashboardData();
-      }}
-    />
-  )}
-</TabsContent>
-                  
+                    {isLoading ? (
+                      <div className="flex items-center justify-center h-64">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                      </div>
+                    ) : (
+                      <Schedule 
+                        clients={clients} 
+                        onRefreshData={fetchDashboardData} // Pass the function here
+                      />
+                    )}
+                  </TabsContent>
+                                
                   <TabsContent value="requests" className="mt-0">
                     {pendingRequests.length > 0 ? (
                       <div className="space-y-4">

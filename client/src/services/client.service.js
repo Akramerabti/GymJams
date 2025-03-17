@@ -6,6 +6,7 @@ const clientService = {
   async getCoachClients() {
     try {
       const response = await api.get('/client/coach-clients');
+      console.log('response:', response);
       return response.data;
     } catch (error) {
       console.error('Error fetching coach clients:', error);
@@ -16,6 +17,7 @@ const clientService = {
   // Get a specific client by ID
   async getClientById(clientId) {
     try {
+      console.log('clientId:', clientId);
       const response = await api.get(`/client/${clientId}`);
       return response.data;
     } catch (error) {

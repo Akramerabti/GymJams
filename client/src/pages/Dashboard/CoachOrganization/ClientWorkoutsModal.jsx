@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import  Textarea  from '@/components/ui/textarea';
+import Textarea from '@/components/ui/textarea';
 import { 
-  X, Save, Plus, Check, Trash2, Award, 
+  X, Save, Plus, Check, Trash2, Award, Info,
   Dumbbell, Calendar, CheckCircle, Clock,
-  AlertTriangle
+  AlertTriangle, Activity, Target
 } from 'lucide-react';
 import {
   Select,
@@ -19,16 +19,19 @@ import {
 } from "@/components/ui/select";
 
 const ClientWorkoutsModal = ({ client, onClose, onSave }) => {
-  const [workouts, setWorkouts] = useState([]);
-  const [history, setHistory] = useState([]);
-  const [isAddingWorkout, setIsAddingWorkout] = useState(false);
-  const [activeTab, setActiveTab] = useState('upcoming');
-  const [newWorkout, setNewWorkout] = useState({
-    title: '',
-    date: '',
-    time: '',
-    type: 'strength',
+  const [workoutPrograms, setWorkoutPrograms] = useState([]);
+  const [workoutHistory, setWorkoutHistory] = useState([]);
+  const [isAddingProgram, setIsAddingProgram] = useState(false);
+  const [activeTab, setActiveTab] = useState('programs');
+  const [showClientProfile, setShowClientProfile] = useState(false);
+  const [newProgram, setNewProgram] = useState({
+    name: '',
     description: '',
+    workouts: []
+  });
+  const [newWorkout, setNewWorkout] = useState({
+    name: '',
+    muscleGroup: '',
     exercises: []
   });
   const [newExercise, setNewExercise] = useState({
@@ -39,62 +42,44 @@ const ClientWorkoutsModal = ({ client, onClose, onSave }) => {
     notes: ''
   });
 
-  // Initialize workouts from client prop
+  // Initialize workout programs and history from client prop
   useEffect(() => {
-    if (client && client.workouts) {
-      setWorkouts(client.workouts);
+    if (client && client.workoutPrograms) {
+      setWorkoutPrograms(client.workoutPrograms.filter(program => !program.completed));
+      setWorkoutHistory(client.workoutPrograms.filter(program => program.completed));
     } else {
-      // Set some default workouts if none exist
-      setWorkouts([
-        {
-          id: 'workout-1',
-          title: 'Upper Body Strength',
-          date: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
-          time: '09:00',
-          type: 'strength',
-          description: 'Focus on upper body strength and muscle development.',
-          exercises: [
-            { id: 'ex-1', name: 'Bench Press', sets: 3, reps: 10, weight: '135', notes: '' },
-            { id: 'ex-2', name: 'Shoulder Press', sets: 3, reps: 10, weight: '95', notes: '' },
-            { id: 'ex-3', name: 'Bicep Curls', sets: 3, reps: 12, weight: '30', notes: '' }
-          ],
-          completed: false
-        }
-      ]);
-    }
-
-    // Initialize workout history
-    if (client && client.workoutHistory) {
-      setHistory(client.workoutHistory);
-    } else {
-      // Set some example history if none exists
-      const today = new Date();
-      setHistory([
-        {
-          id: 'hist-1',
-          title: 'Lower Body Strength',
-          date: new Date(today.setDate(today.getDate() - 3)).toISOString().split('T')[0],
-          time: '10:00',
-          type: 'strength',
-          description: 'Focus on lower body strength and muscle development.',
-          exercises: [
-            { id: 'ex-1', name: 'Squats', sets: 3, reps: 10, weight: '185', notes: '' },
-            { id: 'ex-2', name: 'Deadlifts', sets: 3, reps: 8, weight: '225', notes: '' },
-            { id: 'ex-3', name: 'Leg Press', sets: 3, reps: 12, weight: '270', notes: '' }
-          ],
-          completed: true,
-          feedback: 'Great job! Increased weight on all exercises.',
-          performance: 'excellent'
-        }
-      ]);
+      // Set default data if none exists
+      setWorkoutPrograms([]);
+      setWorkoutHistory([]);
     }
   }, [client]);
 
+  // Add a new workout program
+  const handleAddProgram = () => {
+    if (!newProgram.name || newProgram.workouts.length === 0) return;
+
+    const programId = `program-${Date.now()}`;
+    const program = {
+      ...newProgram,
+      id: programId,
+      completed: false,
+      createdAt: new Date().toISOString()
+    };
+
+    setWorkoutPrograms([...workoutPrograms, program]);
+
+    // Reset form
+    setNewProgram({
+      name: '',
+      description: '',
+      workouts: []
+    });
+    setIsAddingProgram(false);
+  };
+
+  // Add a new workout to the program
   const handleAddWorkout = () => {
-    // Validate required fields
-    if (!newWorkout.title || !newWorkout.date || !newWorkout.time) {
-      return;
-    }
+    if (!newWorkout.name || !newWorkout.muscleGroup || newWorkout.exercises.length === 0) return;
 
     const workoutId = `workout-${Date.now()}`;
     const workout = {
@@ -103,34 +88,29 @@ const ClientWorkoutsModal = ({ client, onClose, onSave }) => {
       exercises: newWorkout.exercises.map((exercise, index) => ({
         ...exercise,
         id: `${workoutId}-ex-${index}`
-      })),
-      completed: false
+      }))
     };
 
-    setWorkouts([...workouts, workout]);
-    
-    // Reset form
+    setNewProgram({
+      ...newProgram,
+      workouts: [...newProgram.workouts, workout]
+    });
+
+    // Reset workout form
     setNewWorkout({
-      title: '',
-      date: '',
-      time: '',
-      type: 'strength',
-      description: '',
+      name: '',
+      muscleGroup: '',
       exercises: []
     });
-    
-    setIsAddingWorkout(false);
   };
 
+  // Add a new exercise to the workout
   const handleAddExercise = () => {
-    // Validate required fields
-    if (!newExercise.name) {
-      return;
-    }
+    if (!newExercise.name) return;
 
     const exercise = {
       ...newExercise,
-      id: `temp-ex-${Date.now()}`
+      id: `ex-${Date.now()}`
     };
 
     setNewWorkout({
@@ -148,6 +128,7 @@ const ClientWorkoutsModal = ({ client, onClose, onSave }) => {
     });
   };
 
+  // Remove an exercise from the workout
   const handleRemoveExercise = (exerciseId) => {
     setNewWorkout({
       ...newWorkout,
@@ -155,62 +136,31 @@ const ClientWorkoutsModal = ({ client, onClose, onSave }) => {
     });
   };
 
-  const handleCompleteWorkout = (workoutId) => {
-    // Move from workouts to history
-    const workout = workouts.find(w => w.id === workoutId);
-    if (!workout) return;
+  // Complete a workout program
+  const handleCompleteProgram = (programId) => {
+    const program = workoutPrograms.find(p => p.id === programId);
+    if (!program) return;
 
-    const completedWorkout = {
-      ...workout,
+    const completedProgram = {
+      ...program,
       completed: true,
-      completedDate: new Date().toISOString(),
-      feedback: '',
-      performance: 'good'
+      completedDate: new Date().toISOString()
     };
 
-    setHistory([completedWorkout, ...history]);
-    setWorkouts(workouts.filter(w => w.id !== workoutId));
+    setWorkoutHistory([completedProgram, ...workoutHistory]);
+    setWorkoutPrograms(workoutPrograms.filter(p => p.id !== programId));
   };
 
-  const handleDeleteWorkout = (workoutId) => {
-    setWorkouts(workouts.filter(workout => workout.id !== workoutId));
+  // Delete a workout program
+  const handleDeleteProgram = (programId) => {
+    setWorkoutPrograms(workoutPrograms.filter(program => program.id !== programId));
   };
 
+  // Save all changes
   const handleSaveAll = () => {
-    onSave({
-      workouts,
-      workoutHistory: history
-    });
-  };
-
-  const handleWorkoutInputChange = (e) => {
-    const { name, value } = e.target;
-    setNewWorkout({ ...newWorkout, [name]: value });
-  };
-
-  const handleExerciseInputChange = (e) => {
-    const { name, value } = e.target;
-    setNewExercise({ ...newExercise, [name]: value });
-  };
-  
-  const handleTypeChange = (value) => {
-    setNewWorkout({ ...newWorkout, type: value });
-  };
-  
-  const handlePerformanceChange = (workoutId, value) => {
-    setHistory(history.map(workout => 
-      workout.id === workoutId 
-        ? { ...workout, performance: value }
-        : workout
-    ));
-  };
-
-  const handleFeedbackChange = (workoutId, value) => {
-    setHistory(history.map(workout => 
-      workout.id === workoutId 
-        ? { ...workout, feedback: value }
-        : workout
-    ));
+    const allPrograms = [...workoutPrograms, ...workoutHistory];
+    onSave(allPrograms);
+    onClose();
   };
 
   return (
@@ -231,8 +181,17 @@ const ClientWorkoutsModal = ({ client, onClose, onSave }) => {
           <div className="flex items-center space-x-3">
             <Dumbbell className="w-6 h-6 text-blue-600" />
             <h2 className="text-2xl font-bold">
-              {client.firstName}'s Workouts
+              {client.firstName}'s Workout Programs
             </h2>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowClientProfile(!showClientProfile)}
+              className="ml-2"
+            >
+              <Info className="w-4 h-4 mr-2" />
+              {showClientProfile ? 'Hide Profile' : 'View Profile'}
+            </Button>
           </div>
           <Button
             variant="ghost"
@@ -244,17 +203,69 @@ const ClientWorkoutsModal = ({ client, onClose, onSave }) => {
           </Button>
         </div>
 
+        {/* Client Profile Section (Collapsible) */}
+        {showClientProfile && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-blue-50 border-b border-blue-100 p-4"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <h3 className="text-sm font-semibold text-blue-800 mb-2">Fitness Profile</h3>
+                <div className="space-y-1 text-black text-sm">
+                  <p><span className="font-medium">Level:</span> {client.fitnessProfile?.level || 'Not specified'}</p>
+                  <p><span className="font-medium">Experience:</span> {client.fitnessProfile?.experience || 'Not specified'}</p>
+                  <p><span className="font-medium">Equipment:</span> {client.fitnessProfile?.hasEquipment ? 'Yes' : 'No'}</p>
+                  <p><span className="font-medium">Energy:</span> {client.fitnessProfile?.energyLevel || 'Medium'}/10</p>
+                  <p><span className="font-medium">Sleep:</span> {client.fitnessProfile?.sleepHours || '7-8'} hours</p>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-blue-800 mb-2">Goals & Preferences</h3>
+                <div className="space-y-1 text-black text-sm">
+                  <p><span className="font-medium">Goals:</span> {(client.fitnessProfile?.goals || []).join(', ') || 'Not specified'}</p>
+                  <p><span className="font-medium">Training Days:</span> {client.fitnessProfile?.frequency || 3} per week</p>
+                  <p><span className="font-medium">Preferred Times:</span> {(client.fitnessProfile?.preferredTimes || []).join(', ') || 'Not specified'}</p>
+                  <p><span className="font-medium">Weekly Target:</span> {client.stats?.weeklyTarget || 3} workouts</p>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-blue-800 mb-2">Recommendations</h3>
+                <div className="space-y-1 text-black text-sm">
+                  <p><span className="font-medium">Recommended:</span> {(client.fitnessProfile?.recommendedWorkouts || []).join(', ') || 'Strength training'}</p>
+                  <p><span className="font-medium">Schedule:</span> {client.fitnessProfile?.preferredSchedule || 'Morning workouts'}</p>
+                  <p><span className="font-medium">Nutrition:</span> {client.fitnessProfile?.nutritionProfile || 'Balanced diet'}</p>
+                  <p className="flex items-center">
+                    <span className="font-medium mr-1">Adherence Risk:</span> 
+                    <span className={`${
+                      client.stats?.adherenceRisk === 'high' ? 'text-red-600' : 
+                      client.stats?.adherenceRisk === 'medium' ? 'text-amber-600' : 
+                      'text-green-600'
+                    }`}>
+                      {client.stats?.adherenceRisk || 'Low'}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
           {/* Tab Navigation */}
           <div className="flex space-x-2 mb-6">
             <Button
-              variant={activeTab === 'upcoming' ? 'default' : 'outline'}
-              onClick={() => setActiveTab('upcoming')}
+              variant={activeTab === 'programs' ? 'default' : 'outline'}
+              onClick={() => setActiveTab('programs')}
               className="flex items-center"
             >
               <Calendar className="w-4 h-4 mr-2" />
-              Upcoming Workouts
+              Workout Programs
             </Button>
             <Button
               variant={activeTab === 'history' ? 'default' : 'outline'}
@@ -266,126 +277,81 @@ const ClientWorkoutsModal = ({ client, onClose, onSave }) => {
             </Button>
           </div>
 
-          {/* Upcoming Workouts Tab */}
-          {activeTab === 'upcoming' && (
+          {/* Workout Programs Tab */}
+          {activeTab === 'programs' && (
             <div className="space-y-6">
               <div className="flex justify-between items-center">
-                <h3 className="text-xl font-semibold">Scheduled Workouts</h3>
+                <h3 className="text-xl font-semibold">Workout Programs</h3>
                 <Button
-                  onClick={() => setIsAddingWorkout(true)}
+                  onClick={() => setIsAddingProgram(true)}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
-                  disabled={isAddingWorkout}
+                  disabled={isAddingProgram}
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Add Workout
+                  Add Program
                 </Button>
               </div>
 
-              {/* Add New Workout Form */}
-              {isAddingWorkout && (
+              {/* Add New Program Form */}
+              {isAddingProgram && (
                 <motion.div
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="bg-blue-50 p-4 rounded-lg border border-blue-100"
                 >
-                  <h4 className="font-semibold text-lg mb-4 text-blue-800">Add New Workout</h4>
+                  <h4 className="font-semibold text-lg mb-4 text-blue-800">Add New Workout Program</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Title*
+                        Program Name*
                       </label>
                       <Input
                         type="text"
-                        name="title"
-                        value={newWorkout.title}
-                        onChange={handleWorkoutInputChange}
-                        placeholder="e.g., Upper Body Strength"
+                        value={newProgram.name}
+                        onChange={(e) => setNewProgram({ ...newProgram, name: e.target.value })}
+                        placeholder="e.g., Full Body Strength"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Type
-                      </label>
-                      <Select
-                        value={newWorkout.type}
-                        onValueChange={handleTypeChange}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select workout type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            <SelectLabel>Workout Type</SelectLabel>
-                            <SelectItem value="strength">Strength</SelectItem>
-                            <SelectItem value="cardio">Cardio</SelectItem>
-                            <SelectItem value="hiit">HIIT</SelectItem>
-                            <SelectItem value="flexibility">Flexibility</SelectItem>
-                            <SelectItem value="recovery">Recovery</SelectItem>
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Date*
-                      </label>
-                      <Input
-                        type="date"
-                        name="date"
-                        value={newWorkout.date}
-                        onChange={handleWorkoutInputChange}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Time*
-                      </label>
-                      <Input
-                        type="time"
-                        name="time"
-                        value={newWorkout.time}
-                        onChange={handleWorkoutInputChange}
-                        required
-                      />
-                    </div>
-                    <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Description
                       </label>
                       <Textarea
-                        name="description"
-                        value={newWorkout.description}
-                        onChange={handleWorkoutInputChange}
-                        placeholder="Describe the workout objectives..."
+                        value={newProgram.description}
+                        onChange={(e) => setNewProgram({ ...newProgram, description: e.target.value })}
+                        placeholder="Describe the program objectives..."
                         rows={3}
                       />
                     </div>
                   </div>
 
-                  {/* Exercises Section */}
+                  {/* Workouts Section */}
                   <div className="mb-4">
-                    <h5 className="font-medium text-gray-800 mb-2">Exercises</h5>
+                    <div className="flex justify-between items-center mb-2">
+                      <h5 className="font-medium text-gray-800">Workouts</h5>
+                    </div>
                     
-                    {newWorkout.exercises.length > 0 && (
+                    {newProgram.workouts.length > 0 && (
                       <div className="space-y-2 mb-4">
-                        {newWorkout.exercises.map((exercise, index) => (
+                        {newProgram.workouts.map((workout) => (
                           <div 
-                            key={exercise.id} 
+                            key={workout.id} 
                             className="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm"
                           >
                             <div>
-                              <p className="font-medium">{exercise.name}</p>
+                              <p className="font-medium">{workout.name}</p>
                               <p className="text-sm text-gray-600">
-                                {exercise.sets} sets × {exercise.reps} reps
-                                {exercise.weight && ` @ ${exercise.weight} lbs`}
+                                {workout.muscleGroup}
                               </p>
                             </div>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleRemoveExercise(exercise.id)}
+                              onClick={() => setNewProgram({
+                                ...newProgram,
+                                workouts: newProgram.workouts.filter(w => w.id !== workout.id)
+                              })}
                               className="text-red-500 hover:text-red-700 hover:bg-red-50"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -395,70 +361,156 @@ const ClientWorkoutsModal = ({ client, onClose, onSave }) => {
                       </div>
                     )}
                     
-                    {/* Add Exercise Form */}
+                    {/* Add Workout Form */}
                     <div className="bg-white p-3 rounded-lg border">
-                      <h6 className="font-medium text-gray-800 mb-2">Add Exercise</h6>
-                      <div className="grid grid-cols-2 gap-2 mb-3">
-                        <div className="col-span-2">
+                      <h6 className="font-medium text-gray-800 mb-2">Add Workout</h6>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
+                        <div>
                           <Input
                             type="text"
-                            name="name"
-                            value={newExercise.name}
-                            onChange={handleExerciseInputChange}
-                            placeholder="Exercise name"
+                            value={newWorkout.name}
+                            onChange={(e) => setNewWorkout({ ...newWorkout, name: e.target.value })}
+                            placeholder="Workout name"
                             className="w-full"
                           />
                         </div>
                         <div>
-                          <div className="flex items-center space-x-2">
-                            <Input
-                              type="number"
-                              name="sets"
-                              value={newExercise.sets}
-                              onChange={handleExerciseInputChange}
-                              placeholder="Sets"
-                              min="1"
-                              className="w-full"
-                            />
-                            <span className="text-gray-500">sets</span>
-                          </div>
+                          <Select
+                            value={newWorkout.muscleGroup}
+                            onValueChange={(value) => setNewWorkout({ ...newWorkout, muscleGroup: value })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select muscle group" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Legs">Legs</SelectItem>
+                              <SelectItem value="Chest">Chest</SelectItem>
+                              <SelectItem value="Arms">Arms</SelectItem>
+                              <SelectItem value="Back">Back</SelectItem>
+                              <SelectItem value="Shoulders">Shoulders</SelectItem>
+                              <SelectItem value="Core">Core</SelectItem>
+                              <SelectItem value="Full Body">Full Body</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <Input
-                              type="number"
-                              name="reps"
-                              value={newExercise.reps}
-                              onChange={handleExerciseInputChange}
-                              placeholder="Reps"
-                              min="1"
-                              className="w-full"
-                            />
-                            <span className="text-gray-500">reps</span>
-                          </div>
+                      </div>
+
+                      {/* Exercises Section */}
+                      <div className="mb-4">
+                        <div className="flex justify-between items-center mb-2">
+                          <h6 className="font-medium text-gray-800">Exercises</h6>
                         </div>
-                        <div>
-                          <div className="flex items-center space-x-2">
+                        
+                        {newWorkout.exercises.length > 0 && (
+                          <div className="space-y-2 mb-4">
+                            {newWorkout.exercises.map((exercise) => (
+                              <div 
+                                key={exercise.id} 
+                                className="flex items-center justify-between bg-gray-50 p-3 rounded-lg"
+                              >
+                                <div>
+                                  <p className="font-medium">{exercise.name}</p>
+                                  <p className="text-sm text-gray-600">
+                                    {exercise.sets} sets × {exercise.reps} reps
+                                    {exercise.weight && ` @ ${exercise.weight}`}
+                                  </p>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setNewWorkout({
+                                    ...newWorkout,
+                                    exercises: newWorkout.exercises.filter(e => e.id !== exercise.id)
+                                  })}
+                                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {/* Add Exercise Form */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
+                          <div>
                             <Input
                               type="text"
-                              name="weight"
-                              value={newExercise.weight}
-                              onChange={handleExerciseInputChange}
-                              placeholder="Weight (optional)"
+                              value={newExercise.name}
+                              onChange={(e) => setNewExercise({ ...newExercise, name: e.target.value })}
+                              placeholder="Exercise name"
                               className="w-full"
                             />
-                            <span className="text-gray-500">lbs</span>
+                          </div>
+                          <div>
+                            <div className="flex items-center space-x-2">
+                              <Input
+                                type="number"
+                                value={newExercise.sets}
+                                onChange={(e) => setNewExercise({ ...newExercise, sets: e.target.value })}
+                                placeholder="Sets"
+                                min="1"
+                                className="w-full"
+                              />
+                              <span className="text-gray-500">sets</span>
+                            </div>
+                          </div>
+                          <div>
+                            <div className="flex items-center space-x-2">
+                              <Input
+                                type="number"
+                                value={newExercise.reps}
+                                onChange={(e) => setNewExercise({ ...newExercise, reps: e.target.value })}
+                                placeholder="Reps"
+                                min="1"
+                                className="w-full"
+                              />
+                              <span className="text-gray-500">reps</span>
+                            </div>
+                          </div>
+                          <div>
+                            <div className="flex items-center space-x-2">
+                              <Input
+                                type="text"
+                                value={newExercise.weight}
+                                onChange={(e) => setNewExercise({ ...newExercise, weight: e.target.value })}
+                                placeholder="Weight (optional)"
+                                className="w-full"
+                              />
+                              <span className="text-gray-500">lbs</span>
+                            </div>
+                          </div>
+                          <div>
+                            <Button 
+                              onClick={handleAddExercise}
+                              className="w-full bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              <Plus className="w-4 h-4 mr-2" />
+                              Add Exercise
+                            </Button>
                           </div>
                         </div>
-                        <div>
-                          <Button 
-                            onClick={handleAddExercise}
-                            className="w-full bg-green-600 hover:bg-green-700 text-white"
-                          >
-                            <Plus className="w-4 h-4 mr-2" />
-                            Add
-                          </Button>
-                        </div>
+                      </div>
+
+                      <div className="flex justify-end space-x-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setNewWorkout({
+                            name: '',
+                            muscleGroup: '',
+                            exercises: []
+                          })}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleAddWorkout}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                          disabled={!newWorkout.name || !newWorkout.muscleGroup || newWorkout.exercises.length === 0}
+                        >
+                          <Save className="w-4 h-4 mr-2" />
+                          Save Workout
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -466,222 +518,159 @@ const ClientWorkoutsModal = ({ client, onClose, onSave }) => {
                   <div className="flex justify-end space-x-2">
                     <Button
                       variant="outline"
-                      onClick={() => setIsAddingWorkout(false)}
+                      onClick={() => setIsAddingProgram(false)}
                     >
                       Cancel
                     </Button>
                     <Button
-                      onClick={handleAddWorkout}
+                      onClick={handleAddProgram}
                       className="bg-blue-600 hover:bg-blue-700 text-white"
-                      disabled={!newWorkout.title || !newWorkout.date || !newWorkout.time}
+                      disabled={!newProgram.name || newProgram.workouts.length === 0}
                     >
                       <Save className="w-4 h-4 mr-2" />
-                      Save Workout
+                      Save Program
                     </Button>
                   </div>
                 </motion.div>
               )}
 
-              {/* Workouts List */}
-              {workouts.length > 0 ? (
+              {/* Workout Programs List */}
+              {workoutPrograms.length > 0 ? (
                 <div className="space-y-4">
-                  {workouts
-                    .sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time))
-                    .map((workout) => (
-                      <motion.div
-                        key={workout.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-white p-4 rounded-lg border shadow-sm"
-                      >
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
-                          <div>
-                            <h4 className="font-semibold text-lg">{workout.title}</h4>
-                            <div className="flex items-center space-x-3 text-sm text-gray-600">
-                              <span className="flex items-center">
-                                <Calendar className="w-4 h-4 mr-1" />
-                                {new Date(workout.date).toLocaleDateString()}
-                              </span>
-                              <span className="flex items-center">
-                                <Clock className="w-4 h-4 mr-1" />
-                                {workout.time}
-                              </span>
-                              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-                                {workout.type.charAt(0).toUpperCase() + workout.type.slice(1)}
-                              </span>
+                  {workoutPrograms.map((program) => (
+                    <motion.div
+                      key={program.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-white p-4 rounded-lg border shadow-sm"
+                    >
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
+                        <div>
+                          <h4 className="font-semibold text-lg">{program.name}</h4>
+                          <p className="text-sm text-gray-600">{program.description}</p>
+                        </div>
+                        <div className="flex mt-4 md:mt-0 space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCompleteProgram(program.id)}
+                            className="text-green-600 border-green-200 hover:bg-green-50 hover:border-green-300"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Complete
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteProgram(program.id)}
+                            className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                          >
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        {program.workouts.map((workout) => (
+                          <div
+                            key={workout.id}
+                            className="bg-gray-50 p-3 rounded-lg"
+                          >
+                            <p className="font-medium">{workout.name}</p>
+                            <p className="text-sm text-gray-600">{workout.muscleGroup}</p>
+                            <div className="space-y-2 mt-2">
+                              {workout.exercises.map((exercise) => (
+                                <div
+                                  key={exercise.id}
+                                  className="bg-white p-2 rounded-lg"
+                                >
+                                  <p className="font-medium">{exercise.name}</p>
+                                  <p className="text-sm text-gray-600">
+                                    {exercise.sets} sets × {exercise.reps} reps
+                                    {exercise.weight && ` @ ${exercise.weight}`}
+                                  </p>
+                                </div>
+                              ))}
                             </div>
                           </div>
-                          <div className="flex mt-4 md:mt-0 space-x-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleCompleteWorkout(workout.id)}
-                              className="text-green-600 border-green-200 hover:bg-green-50 hover:border-green-300"
-                            >
-                              <CheckCircle className="w-4 h-4 mr-1" />
-                              Complete
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDeleteWorkout(workout.id)}
-                              className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
-                            >
-                              <Trash2 className="w-4 h-4 mr-1" />
-                              Delete
-                            </Button>
-                          </div>
-                        </div>
-                        
-                        {workout.description && (
-                          <p className="text-gray-600 mb-4">{workout.description}</p>
-                        )}
-                        
-                        <div className="space-y-2">
-                          {workout.exercises.map((exercise) => (
-                            <div
-                              key={exercise.id}
-                              className="bg-gray-50 p-3 rounded-lg"
-                            >
-                              <p className="font-medium">{exercise.name}</p>
-                              <p className="text-sm text-gray-600">
-                                {exercise.sets} sets × {exercise.reps} reps
-                                {exercise.weight && ` @ ${exercise.weight} lbs`}
-                              </p>
-                              {exercise.notes && (
-                                <p className="text-sm text-gray-500 mt-1">{exercise.notes}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </motion.div>
-                    ))}
+                        ))}
+                      </div>
+                    </motion.div>
+                  ))}
                 </div>
               ) : (
                 <div className="text-center py-12 bg-gray-50 rounded-lg">
                   <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Calendar className="w-8 h-8 text-gray-400" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-600 mb-2">No Workouts Scheduled</h3>
+                  <h3 className="text-lg font-semibold text-gray-600 mb-2">No Workout Programs</h3>
                   <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                    Add a new workout to build a schedule for this client.
+                    Add a new workout program to get started.
                   </p>
                   <Button
-                    onClick={() => setIsAddingWorkout(true)}
+                    onClick={() => setIsAddingProgram(true)}
                     className="bg-blue-600 hover:bg-blue-700 text-white"
                   >
                     <Plus className="w-4 h-4 mr-2" />
-                    Add Workout
+                    Add Program
                   </Button>
                 </div>
               )}
             </div>
           )}
 
-          {/* History Tab */}
+          {/* Workout History Tab */}
           {activeTab === 'history' && (
             <div className="space-y-6">
               <h3 className="text-xl font-semibold">Workout History</h3>
               
-              {history.length > 0 ? (
+              {workoutHistory.length > 0 ? (
                 <div className="space-y-4">
-                  {history
-                    .sort((a, b) => new Date(b.date) - new Date(a.date))
-                    .map((workout) => (
-                      <motion.div
-                        key={workout.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-white p-4 rounded-lg border shadow-sm"
-                      >
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
-                          <div>
-                            <h4 className="font-semibold text-lg">{workout.title}</h4>
-                            <div className="flex items-center space-x-3 text-sm text-gray-600">
-                              <span className="flex items-center">
-                                <Calendar className="w-4 h-4 mr-1" />
-                                {new Date(workout.date).toLocaleDateString()}
-                              </span>
-                              <span className="flex items-center">
-                                <Clock className="w-4 h-4 mr-1" />
-                                {workout.time}
-                              </span>
-                              <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs">
-                                {workout.type.charAt(0).toUpperCase() + workout.type.slice(1)}
-                              </span>
+                  {workoutHistory.map((program) => (
+                    <motion.div
+                      key={program.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-white p-4 rounded-lg border shadow-sm"
+                    >
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
+                        <div>
+                          <h4 className="font-semibold text-lg">{program.name}</h4>
+                          <p className="text-sm text-gray-600">{program.description}</p>
+                          <p className="text-sm text-gray-600">
+                            Completed on: {new Date(program.completedDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        {program.workouts.map((workout) => (
+                          <div
+                            key={workout.id}
+                            className="bg-gray-50 p-3 rounded-lg"
+                          >
+                            <p className="font-medium">{workout.name}</p>
+                            <p className="text-sm text-gray-600">{workout.muscleGroup}</p>
+                            <div className="space-y-2 mt-2">
+                              {workout.exercises.map((exercise) => (
+                                <div
+                                  key={exercise.id}
+                                  className="bg-white p-2 rounded-lg"
+                                >
+                                  <p className="font-medium">{exercise.name}</p>
+                                  <p className="text-sm text-gray-600">
+                                    {exercise.sets} sets × {exercise.reps} reps
+                                    {exercise.weight && ` @ ${exercise.weight}`}
+                                  </p>
+                                </div>
+                              ))}
                             </div>
                           </div>
-                          
-                          <div className="mt-4 md:mt-0">
-                            <Select
-                              value={workout.performance || 'good'}
-                              onValueChange={(value) => handlePerformanceChange(workout.id, value)}
-                            >
-                              <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="Performance" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="excellent" className="text-green-600">
-                                  <div className="flex items-center">
-                                    <Award className="w-4 h-4 mr-2" />
-                                    Excellent
-                                  </div>
-                                </SelectItem>
-                                <SelectItem value="good" className="text-blue-600">
-                                  <div className="flex items-center">
-                                    <CheckCircle className="w-4 h-4 mr-2" />
-                                    Good
-                                  </div>
-                                </SelectItem>
-                                <SelectItem value="fair" className="text-orange-600">
-                                  <div className="flex items-center">
-                                    <AlertTriangle className="w-4 h-4 mr-2" />
-                                    Fair
-                                  </div>
-                                </SelectItem>
-                                <SelectItem value="poor" className="text-red-600">
-                                  <div className="flex items-center">
-                                    <X className="w-4 h-4 mr-2" />
-                                    Poor
-                                  </div>
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2 mb-4">
-                          {workout.exercises.map((exercise) => (
-                            <div
-                              key={exercise.id}
-                              className="bg-gray-50 p-3 rounded-lg"
-                            >
-                              <p className="font-medium">{exercise.name}</p>
-                              <p className="text-sm text-gray-600">
-                                {exercise.sets} sets × {exercise.reps} reps
-                                {exercise.weight && ` @ ${exercise.weight} lbs`}
-                              </p>
-                              {exercise.notes && (
-                                <p className="text-sm text-gray-500 mt-1">{exercise.notes}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                        
-                        <div className="mt-4">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Feedback
-                          </label>
-                          <Textarea
-                            value={workout.feedback || ''}
-                            onChange={(e) => handleFeedbackChange(workout.id, e.target.value)}
-                            placeholder="Add feedback on this workout..."
-                            rows={3}
-                            className="w-full"
-                          />
-                        </div>
-                      </motion.div>
-                    ))}
+                        ))}
+                      </div>
+                    </motion.div>
+                  ))}
                 </div>
               ) : (
                 <div className="text-center py-12 bg-gray-50 rounded-lg">
@@ -690,7 +679,7 @@ const ClientWorkoutsModal = ({ client, onClose, onSave }) => {
                   </div>
                   <h3 className="text-lg font-semibold text-gray-600 mb-2">No Workout History</h3>
                   <p className="text-gray-500 max-w-md mx-auto">
-                    Complete some workouts to build a history for this client.
+                    Complete some workout programs to build a history.
                   </p>
                 </div>
               )}

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { 
   Calendar, Clock, User, 
-  PlusCircle, X, Check, Edit, Trash2
+  PlusCircle, X, Check, Edit, Trash2, AlertTriangle
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
@@ -16,7 +16,7 @@ import {
 import clientService from '../../../services/client.service'; // Import the client service
 import { toast } from 'sonner';
 
-const Schedule = ({ clients = [], onRefreshData }) => {
+const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
   const [sessions, setSessions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -31,6 +31,8 @@ const Schedule = ({ clients = [], onRefreshData }) => {
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [editedSession, setEditedSession] = useState(null);
   const [groupedSessions, setGroupedSessions] = useState([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState(null);
 
   // Fetch sessions from backend on component mount
   useEffect(() => {
@@ -155,6 +157,42 @@ const Schedule = ({ clients = [], onRefreshData }) => {
     }
   };
 
+  
+  const openDeleteDialog = (sessionId) => {
+    setSessionToDelete(sessionId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Send delete request to backend
+      await clientService.deleteSession(sessionToDelete);
+      
+      toast.success('Session deleted successfully');
+      await fetchSessions(); // Refresh the sessions list
+      
+      // Refresh parent component if needed
+      if (onRefreshData) {
+        onRefreshData();
+      }
+    } catch (error) {
+      console.error('Failed to delete session:', error);
+      toast.error('Failed to delete session');
+    } finally {
+      setIsLoading(false);
+      setDeleteDialogOpen(false);
+      setSessionToDelete(null);
+    }
+  };
+
+  const cancelDelete = () => {
+    setDeleteDialogOpen(false);
+    setSessionToDelete(null);
+  };
+
+
   const handleEditClick = (session) => {
     setEditingSessionId(session.id);
     setEditedSession({...session});
@@ -260,18 +298,74 @@ const Schedule = ({ clients = [], onRefreshData }) => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
       {/* Add Session Button */}
       <div className="flex justify-end mb-4">
         <Button
           onClick={handleAddClick}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
+          className={`${darkMode ? 'bg-blue-700 hover:bg-blue-800' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
           disabled={isLoading}
         >
           <PlusCircle className="w-4 h-4 mr-2" />
           Add Session
         </Button>
       </div>
+
+      {/* Custom Delete Confirmation Dialog */}
+      <AnimatePresence>
+        {deleteDialogOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full"
+            >
+              <div className="flex items-start mb-4">
+                <div className="bg-red-100 p-2 rounded-full mr-4">
+                  <AlertTriangle className="h-6 w-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Delete Session</h3>
+                  <p className="text-gray-600">Are you sure you want to delete this session? This action cannot be undone.</p>
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3 mt-6">
+                <Button 
+                  variant="outline" 
+                  onClick={cancelDelete}
+                  className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={confirmDelete}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <span className="flex items-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Deleting...
+                    </span>
+                  ) : (
+                    'Delete Session'
+                  )}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Add Session Form */}
       {isAdding && (
@@ -288,9 +382,9 @@ const Schedule = ({ clients = [], onRefreshData }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select a client" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent >
                   {clients.map(client => (
-                    <SelectItem key={client.id} value={client.id}>
+                    <SelectItem key={client.id} value={client.id} >
                       {`${client.firstName} ${client.lastName || ''}`.trim()}
                     </SelectItem>
                   ))}
@@ -533,14 +627,14 @@ const Schedule = ({ clients = [], onRefreshData }) => {
                               <Edit className="w-4 h-4" />
                             </Button>
                             <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleDeleteClick(session.id)}
-                              className="text-red-600 hover:bg-red-50"
-                              disabled={isLoading}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                             variant="ghost" 
+                             size="sm"
+                             onClick={() => openDeleteDialog(session.id)}
+                             className="text-red-600 hover:bg-red-50"
+                             disabled={isLoading}
+                           >
+                             <Trash2 className="w-4 h-4" />
+                           </Button>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2 text-sm text-gray-500">

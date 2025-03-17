@@ -1,6 +1,9 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Users, MessageSquare, ArrowRight, Star, Clock, Bell, Check, Calendar } from 'lucide-react';
+import { 
+  Users, MessageSquare, ArrowRight, Star, Clock, Bell, 
+  Check, Calendar, Activity, AlertTriangle, BarChart2
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Progress from '@/components/ui/progress';
 
@@ -10,9 +13,7 @@ const ClientList = ({ clients, onClientClick, onChatClick }) => {
     hidden: { opacity: 0 },
     visible: { 
       opacity: 1,
-      transition: { 
-        staggerChildren: 0.1 
-      } 
+      transition: { staggerChildren: 0.1 } 
     }
   };
 
@@ -43,12 +44,41 @@ const ClientList = ({ clients, onClientClick, onChatClick }) => {
       paused: "bg-red-100 text-red-800"
     };
     
+    const icons = {
+      active: <Check className="inline-block w-3 h-3 mr-1" />,
+      inactive: <Clock className="inline-block w-3 h-3 mr-1" />,
+      pending: <Clock className="inline-block w-3 h-3 mr-1" />,
+      paused: <Bell className="inline-block w-3 h-3 mr-1" />
+    };
+    
     return (
       <span className={`px-2 py-1 rounded-full text-xs ${styles[status] || styles.active}`}>
-        {status === 'active' && <Check className="inline-block w-3 h-3 mr-1" />}
-        {status === 'pending' && <Clock className="inline-block w-3 h-3 mr-1" />}
-        {status === 'paused' && <Bell className="inline-block w-3 h-3 mr-1" />}
+        {icons[status] || icons.active}
         <span className="capitalize">{status}</span>
+      </span>
+    );
+  };
+
+  // Get risk level indicator
+  const getRiskIndicator = (adherenceRisk) => {
+    if (!adherenceRisk) return null;
+    
+    const styles = {
+      low: "bg-green-100 text-green-800",
+      medium: "bg-yellow-100 text-yellow-800",
+      high: "bg-red-100 text-red-800"
+    };
+    
+    const icons = {
+      low: <Check className="inline-block w-3 h-3 mr-1" />,
+      medium: <AlertTriangle className="inline-block w-3 h-3 mr-1" />,
+      high: <AlertTriangle className="inline-block w-3 h-3 mr-1" />
+    };
+    
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs ${styles[adherenceRisk] || styles.medium}`}>
+        {icons[adherenceRisk] || icons.medium}
+        <span className="capitalize">{adherenceRisk} risk</span>
       </span>
     );
   };
@@ -91,15 +121,17 @@ const ClientList = ({ clients, onClientClick, onChatClick }) => {
                     <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
                       <span className="flex items-center">
                         <Clock className="w-3 h-3 mr-1" />
-                        Last active: {client.lastActive}
+                        {client.lastActive || 'N/A'}
                       </span>
-                      {client.rating && (
-                        <span className="flex items-center">
-                          <Star className="w-3 h-3 mr-1 text-yellow-500" />
-                          Rating: {client.rating}
+                      {client.fitnessProfile?.level && (
+                        <span className="flex items-center px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full">
+                          <Activity className="w-3 h-3 mr-1" />
+                          {client.fitnessProfile.level}
                         </span>
                       )}
                       {getStatusBadge(client.status || 'active')}
+                      {client.stats?.adherenceRisk && 
+                        getRiskIndicator(client.stats.adherenceRisk)}
                     </div>
                   </div>
                 </div>
@@ -135,7 +167,7 @@ const ClientList = ({ clients, onClientClick, onChatClick }) => {
               </div>
               
               {/* Quick Stats */}
-              <div className="grid grid-cols-3 gap-2 mt-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
                 <div className="bg-gray-50 p-2 rounded text-center">
                   <p className="text-xs text-gray-500">Workouts</p>
                   <p className="font-medium text-gray-800">{client.stats?.workoutsCompleted || 0}</p>
@@ -145,10 +177,33 @@ const ClientList = ({ clients, onClientClick, onChatClick }) => {
                   <p className="font-medium text-gray-800">{client.stats?.currentStreak || 0} days</p>
                 </div>
                 <div className="bg-gray-50 p-2 rounded text-center">
+                  <p className="text-xs text-gray-500">Weekly Goal</p>
+                  <p className="font-medium text-gray-800">{client.stats?.weeklyTarget || 3}</p>
+                </div>
+                <div className="bg-gray-50 p-2 rounded text-center">
                   <p className="text-xs text-gray-500">Next Session</p>
-                  <p className="font-medium text-gray-800">{client.nextSession || 'N/A'}</p>
+                  <p className="font-medium text-gray-800 text-xs truncate">
+                    {client.nextSession ? (
+                      new Date(client.nextSession).toLocaleDateString()
+                    ) : (
+                      'Not scheduled'
+                    )}
+                  </p>
                 </div>
               </div>
+              
+              {/* Fitness Profile Summary */}
+              {client.fitnessProfile && (
+                <div className="mt-3 p-2 bg-blue-50 rounded-lg">
+                  <div className="flex items-start">
+                    <BarChart2 className="w-4 h-4 text-blue-500 mt-0.5 mr-1 flex-shrink-0" />
+                    <p className="text-xs text-blue-800 line-clamp-2">
+                      {client.fitnessProfile.summary || 
+                      `${client.firstName} is focusing on ${(client.fitnessProfile.goals || []).join(', ') || 'fitness improvement'}.`}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
         ))
