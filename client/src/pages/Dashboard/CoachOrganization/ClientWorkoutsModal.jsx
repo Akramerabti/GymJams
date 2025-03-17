@@ -196,7 +196,7 @@ const ClientWorkoutsModal = ({ client, onClose, onSave }) => {
           <Button
             variant="ghost"
             size="icon"
-            onClick={onClose}
+            onClick={(e) => onClose(e)}
             className="text-gray-500 hover:text-gray-700"
           >
             <X className="w-6 h-6" />

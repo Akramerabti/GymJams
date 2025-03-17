@@ -44,6 +44,13 @@ const DashboardCoach = () => {
   const [hasMadeChanges, setHasMadeChanges] = useState(false);
   const [error, setError] = useState(null);
 
+
+  const [modalState, setModalState] = useState({
+    detailsOpen: false,
+    workoutsOpen: false,
+    progressOpen: false,
+    currentClient: null
+  });
   // Ref for tab content to scroll to
   const tabContentRef = useRef(null);
 
@@ -254,22 +261,35 @@ const DashboardCoach = () => {
     });
   };
 
-  // Handle client selection
   const handleClientClick = async (client) => {
     try {
       setIsLoading(true);
       // Get detailed client data
       const detailedClient = await clientService.getClientById(client.id);
-      setSelectedClient(detailedClient);
+      
+      // Clear all modal states and set only details modal to open
+      setModalState({
+        detailsOpen: true,
+        workoutsOpen: false,
+        progressOpen: false,
+        currentClient: detailedClient
+      });
     } catch (error) {
       console.error('Failed to get client details:', error);
       toast.error('Failed to load client details');
-      // Fall back to using the summary data we already have
-      setSelectedClient(client);
+      // Fall back to using the summary data
+      setModalState({
+        detailsOpen: true,
+        workoutsOpen: false,
+        progressOpen: false,
+        currentClient: client
+      });
     } finally {
       setIsLoading(false);
     }
   };
+
+  
 
   // Handle chat opening
   const handleChatClick = (client) => {
@@ -302,16 +322,18 @@ const DashboardCoach = () => {
     }
   };
 
-  // Handle client workouts
-  const handleOpenWorkouts = (client) => {
-    setSelectedClient(client);
-    setIsWorkoutsModalOpen(true);
+  const handleOpenWorkouts = () => {
+    setModalState(prev => ({
+      ...prev,
+      workoutsOpen: true
+    }));
   };
-
-  // Handle client progress
-  const handleOpenProgress = (client) => {
-    setSelectedClient(client);
-    setIsProgressModalOpen(true);
+  
+  const handleOpenProgress = () => {
+    setModalState(prev => ({
+      ...prev,
+      progressOpen: true
+    }));
   };
   
   // Handle updating client workouts
@@ -851,17 +873,29 @@ const DashboardCoach = () => {
 
       {/* Client Details Modal */}
       <AnimatePresence>
-        {selectedClient && (
-          <ClientDetailsModal
-            client={selectedClient}
-            onClose={() => setSelectedClient(null)}
-            onSave={(updatedData) => handleClientUpdate(selectedClient.id, updatedData)}
-            onOpenWorkouts={() => handleOpenWorkouts(selectedClient)}
-            onOpenProgress={() => handleOpenProgress(selectedClient)}
-            onExportData={() => handleExportClientData(selectedClient)}
-          />
-        )}
-      </AnimatePresence>
+  {modalState.detailsOpen && modalState.currentClient && (
+    <div 
+      className="fixed inset-0 z-40 bg-black bg-opacity-50 flex items-center justify-center"
+      onClick={(e) => {
+        // Only close if clicking the backdrop directly
+        if (e.target === e.currentTarget) {
+          setModalState(prev => ({...prev, detailsOpen: false}));
+        }
+      }}
+    >
+      <div onClick={e => e.stopPropagation()}>
+        <ClientDetailsModal
+          client={modalState.currentClient}
+          onClose={() => setModalState(prev => ({...prev, detailsOpen: false}))}
+          onSave={(updatedData) => handleClientUpdate(modalState.currentClient.id, updatedData)}
+          onOpenWorkouts={handleOpenWorkouts}
+          onOpenProgress={handleOpenProgress}
+          onExportData={() => handleExportClientData(modalState.currentClient)}
+        />
+      </div>
+    </div>
+  )}
+</AnimatePresence>
 
       {/* Chat Modal */}
       <AnimatePresence>
@@ -876,25 +910,49 @@ const DashboardCoach = () => {
 
       {/* Client Workouts Modal */}
       <AnimatePresence>
-        {isWorkoutsModalOpen && selectedClient && (
-          <ClientWorkoutsModal
-            client={selectedClient}
-            onClose={() => setIsWorkoutsModalOpen(false)}
-            onSave={(updatedWorkouts) => handleUpdateWorkouts(selectedClient.id, updatedWorkouts)}
-          />
-        )}
-      </AnimatePresence>
+  {modalState.workoutsOpen && modalState.currentClient && (
+    <div 
+      className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center"
+      onClick={(e) => {
+        // Only close if clicking the backdrop directly
+        if (e.target === e.currentTarget) {
+          setModalState(prev => ({...prev, workoutsOpen: false}));
+        }
+      }}
+    >
+      <div onClick={e => e.stopPropagation()}>
+        <ClientWorkoutsModal
+          client={modalState.currentClient}
+          onClose={() => setModalState(prev => ({...prev, workoutsOpen: false}))}
+          onSave={(updatedWorkouts) => handleUpdateWorkouts(modalState.currentClient.id, updatedWorkouts)}
+        />
+      </div>
+    </div>
+  )}
+</AnimatePresence>
 
       {/* Client Progress Modal */}
       <AnimatePresence>
-        {isProgressModalOpen && selectedClient && (
-          <ClientProgressModal
-            client={selectedClient}
-            onClose={() => setIsProgressModalOpen(false)}
-            onSave={(updatedProgress) => handleUpdateProgress(selectedClient.id, updatedProgress)}
-          />
-        )}
-      </AnimatePresence>
+  {modalState.progressOpen && modalState.currentClient && (
+    <div 
+      className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center"
+      onClick={(e) => {
+        // Only close if clicking the backdrop directly
+        if (e.target === e.currentTarget) {
+          setModalState(prev => ({...prev, progressOpen: false}));
+        }
+      }}
+    >
+      <div onClick={e => e.stopPropagation()}>
+        <ClientProgressModal
+          client={modalState.currentClient}
+          onClose={() => setModalState(prev => ({...prev, progressOpen: false}))}
+          onSave={(updatedProgress) => handleUpdateProgress(modalState.currentClient.id, updatedProgress)}
+        />
+      </div>
+    </div>
+  )}
+</AnimatePresence>
     </div>
   );
 };
