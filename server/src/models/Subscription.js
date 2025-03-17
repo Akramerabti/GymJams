@@ -260,6 +260,7 @@ const subscriptionSchema = new mongoose.Schema(
   }
 );
 
+
 // Virtual for checking if subscription is active
 subscriptionSchema.virtual('isActive').get(function () {
   return this.status === 'active' && (!this.endDate || this.endDate > new Date());
