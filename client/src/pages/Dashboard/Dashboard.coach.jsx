@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -42,6 +42,22 @@ const DashboardCoach = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [hasMadeChanges, setHasMadeChanges] = useState(false);
+
+  // Ref for tab content to scroll to
+  const tabContentRef = useRef(null);
+
+  const handleStatCardClick = (tabValue) => {
+    setActiveTab(tabValue);
+    
+    // Wait for tab content to render, then scroll
+    setTimeout(() => {
+      if (tabContentRef.current) {
+        const yOffset = -70; // Adjust based on your header height
+        const y = tabContentRef.current.getBoundingClientRect().top + window.pageYOffset + yOffset;
+        window.scrollTo({top: y, behavior: 'smooth'});
+      }
+    }, 100);
+  };
 
   // Fetch dashboard data
   useEffect(() => {
@@ -278,68 +294,72 @@ const DashboardCoach = () => {
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Welcome Section */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="p-8 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
-        >
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">Coach Dashboard</h1>
-              <p className="text-blue-100">
-                Welcome back, {user?.firstName || user?.user?.firstName || 'Coach'}!
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                className="bg-white/20 hover:bg-white/30 text-white"
-                onClick={() => window.location.href = '/profile'}
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Profile Settings
-              </Button>
-              <Button 
-                className="bg-green-600 hover:bg-green-700 text-white"
-                onClick={handleAddClient}
-              >
-                <PlusCircle className="w-4 h-4 mr-2" />
-                New Client
-              </Button>
-            </div>
-          </div>
-        </motion.div>
+  initial={{ opacity: 0, y: 20 }}
+  animate={{ opacity: 1, y: 0 }}
+  className="p-4 sm:p-8 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
+>
+  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div>
+      <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-1 sm:mb-2">
+        Coach Dashboard
+      </h1>
+      <p className="text-blue-100 text-sm sm:text-base">
+        Welcome back, {user?.firstName || user?.user?.firstName || 'Coach'}!
+      </p>
+    </div>
+    <div className="flex flex-wrap gap-2">
+      <Button
+        variant="outline"
+        className="bg-white/20 hover:bg-white/30 text-white text-xs sm:text-sm py-1 px-2 sm:py-2 sm:px-3"
+        onClick={() => window.location.href = '/profile'}
+      >
+        <Settings className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+        <span className="hidden xs:inline">Profile Settings</span>
+        <span className="xs:hidden">Profile</span>
+      </Button>
+      <Button 
+        className="bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm py-1 px-2 sm:py-2 sm:px-3"
+        onClick={handleAddClient}
+      >
+        <PlusCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+        <span className="hidden xs:inline">New Client</span>
+        <span className="xs:hidden">Add</span>
+      </Button>
+    </div>
+  </div>
+</motion.div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          <StatCard
-            title="Active Clients"
-            value={stats.activeClients}
-            icon={Users}
-            onClick={() => setActiveTab('clients')}
-          />
-          <StatCard 
-            title="Pending Requests" 
-            value={stats.pendingRequests} 
-            icon={Clock}
-            onClick={() => setActiveTab('requests')}
-          />
-          <StatCard 
-            title="Upcoming Sessions" 
-            value={stats.upcomingSessions} 
-            icon={Calendar}
-            onClick={() => setActiveTab('schedule')}
-          />
-          <StatCard 
-            title="Messages" 
-            value={stats.messageThreads} 
-            icon={MessageSquare}
-            onClick={() => setActiveTab('messages')}
-          />
-        </div>
+        {/* Stats Grid - Compact version for mobile */}
+<div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
+  <StatCard
+    title="Active Clients"
+    value={stats.activeClients}
+    icon={Users}
+    onClick={() => handleStatCardClick('clients')}
+  />
+  <StatCard 
+    title="Pending"
+    value={stats.pendingRequests} 
+    icon={Clock}
+    onClick={() => handleStatCardClick('requests')}
+  />
+  <StatCard 
+    title="Sessions" 
+    value={stats.upcomingSessions} 
+    icon={Calendar}
+    onClick={() => handleStatCardClick('schedule')}
+  />
+  <StatCard 
+    title="Messages" 
+    value={stats.messageThreads} 
+    icon={MessageSquare}
+    onClick={() => handleStatCardClick('messages')}
+  />
+</div>
 
         {/* Main Tabs Section */}
-        <Card className="shadow-lg">
-          <Tabs defaultValue="clients" value={activeTab} onValueChange={setActiveTab}>
+        <Card className="shadow-lg" ref={tabContentRef}>
+        <Tabs defaultValue="clients" value={activeTab} onValueChange={setActiveTab}>
             <CardHeader className="border-b pb-3">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <TabsList className="bg-gray-100">
