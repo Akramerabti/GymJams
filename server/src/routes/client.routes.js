@@ -1,4 +1,4 @@
-// server/src/routes/client.routes.js
+// Add these routes to server/src/routes/client.routes.js
 import express from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
 import {
@@ -11,7 +11,12 @@ import {
   exportClientData,
   getPendingRequests,
   acceptCoachingRequest,
-  declineCoachingRequest
+  declineCoachingRequest,
+  // Add these new controller functions
+  getCoachSessions,
+  createSession,
+  updateSession,
+  deleteSession
 } from '../controllers/client.controller.js';
 
 const router = express.Router();
@@ -32,5 +37,11 @@ router.put('/:clientId/workouts', updateClientWorkouts);
 router.put('/:clientId/notes', updateClientNotes);
 router.put('/:clientId/stats', updateClientStats);
 router.get('/:clientId/export', exportClientData);
+
+// Session management routes
+router.get('/sessions', getCoachSessions);
+router.post('/sessions', createSession);
+router.put('/sessions/:sessionId', updateSession);
+router.delete('/sessions/:sessionId', deleteSession);
 
 export default router;

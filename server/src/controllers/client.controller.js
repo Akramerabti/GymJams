@@ -1,5 +1,6 @@
 // server/src/controllers/client.controller.js
 import User from '../models/User.js';
+import Session from '../models/Session.js'
 import Subscription from '../models/Subscription.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
@@ -486,5 +487,221 @@ export const declineCoachingRequest = async (req, res) => {
   } catch (error) {
     logger.error('Error declining coaching request:', error);
     res.status(500).json({ error: 'Failed to decline coaching request' });
+  }
+};
+
+
+export const getCoachSessions = async (req, res) => {
+  try {
+    // Ensure the user is a coach
+    if (req.user.role !== 'coach') {
+      return res.status(403).json({ error: 'Only coaches can access session data' });
+    }
+
+    // Find all sessions where this coach is the owner
+    const sessions = await Session.find({ coachId: req.user.id })
+      .populate('subscription', 'user guestEmail')
+      .populate({
+        path: 'subscription',
+        populate: {
+          path: 'user',
+          select: 'firstName lastName email'
+        }
+      })
+      .sort({ date: 1, time: 1 });
+
+    // Format session data for the frontend
+    const formattedSessions = sessions.map(session => ({
+      id: session._id,
+      clientId: session.subscription._id, // Use subscription ID as client reference
+      clientName: session.subscription.user 
+        ? `${session.subscription.user.firstName} ${session.subscription.user.lastName || ''}`.trim() 
+        : (session.subscription.guestEmail || 'Guest User'),
+      date: session.date,
+      time: session.time,
+      type: session.sessionType,
+      duration: session.duration,
+      notes: session.notes || ''
+    }));
+
+    res.status(200).json(formattedSessions);
+  } catch (error) {
+    logger.error('Error fetching coach sessions:', error);
+    res.status(500).json({ error: 'Failed to fetch session data' });
+  }
+}
+
+// Create a new session
+export const createSession = async (req, res) => {
+  try {
+    // Ensure the user is a coach
+    if (req.user.role !== 'coach') {
+      return res.status(403).json({ error: 'Only coaches can create sessions' });
+    }
+
+    const { clientId, date, time, type, duration, notes } = req.body;
+
+    // Validate required fields
+    if (!clientId || !date || !time || !type) {
+      return res.status(400).json({ error: 'Missing required session fields' });
+    }
+
+    // Validate client ID (which is a subscription ID)
+    if (!mongoose.Types.ObjectId.isValid(clientId)) {
+      return res.status(400).json({ error: 'Invalid client ID format' });
+    }
+
+    // Find the subscription to verify it exists and the coach has access
+    const subscription = await Subscription.findById(clientId);
+    
+    if (!subscription) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // Ensure the coach has access to this client
+    if (subscription.assignedCoach.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'You do not have access to this client' });
+    }
+
+    // Create new session
+    const newSession = new Session({
+      coachId: req.user.id,
+      subscription: clientId,
+      date,
+      time,
+      sessionType: type,
+      duration: duration || '60 minutes',
+      notes: notes || ''
+    });
+
+    await newSession.save();
+
+    res.status(201).json({
+      message: 'Session created successfully',
+      session: {
+        id: newSession._id,
+        clientId,
+        date,
+        time,
+        type,
+        duration,
+        notes: notes || ''
+      }
+    });
+  } catch (error) {
+    logger.error('Error creating session:', error);
+    res.status(500).json({ error: 'Failed to create session' });
+  }
+}
+
+// Update a session
+export const updateSession = async (req, res) => {
+  try {
+    // Ensure the user is a coach
+    if (req.user.role !== 'coach') {
+      return res.status(403).json({ error: 'Only coaches can update sessions' });
+    }
+
+    const { sessionId } = req.params;
+    const { clientId, date, time, type, duration, notes } = req.body;
+
+    // Validate required fields
+    if (!clientId || !date || !time || !type) {
+      return res.status(400).json({ error: 'Missing required session fields' });
+    }
+
+    // Validate IDs
+    if (!mongoose.Types.ObjectId.isValid(sessionId) || !mongoose.Types.ObjectId.isValid(clientId)) {
+      return res.status(400).json({ error: 'Invalid ID format' });
+    }
+
+    // Find the session
+    const session = await Session.findById(sessionId);
+    
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Ensure the coach owns this session
+    if (session.coachId.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'You do not have access to this session' });
+    }
+
+    // Find the subscription to verify it exists and the coach has access
+    const subscription = await Subscription.findById(clientId);
+    
+    if (!subscription) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // Ensure the coach has access to this client
+    if (subscription.assignedCoach.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'You do not have access to this client' });
+    }
+
+    // Update session
+    session.subscription = clientId;
+    session.date = date;
+    session.time = time;
+    session.sessionType = type;
+    session.duration = duration || '60 minutes';
+    session.notes = notes || '';
+    
+    await session.save();
+
+    res.status(200).json({
+      message: 'Session updated successfully',
+      session: {
+        id: session._id,
+        clientId,
+        date,
+        time,
+        type,
+        duration,
+        notes: notes || ''
+      }
+    });
+  } catch (error) {
+    logger.error('Error updating session:', error);
+    res.status(500).json({ error: 'Failed to update session' });
+  }
+}
+
+// Delete a session
+export const deleteSession = async (req, res) => {
+  try {
+    // Ensure the user is a coach
+    if (req.user.role !== 'coach') {
+      return res.status(403).json({ error: 'Only coaches can delete sessions' });
+    }
+
+    const { sessionId } = req.params;
+
+    // Validate session ID
+    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+      return res.status(400).json({ error: 'Invalid session ID format' });
+    }
+
+    // Find the session
+    const session = await Session.findById(sessionId);
+    
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Ensure the coach owns this session
+    if (session.coachId.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'You do not have access to this session' });
+    }
+
+    // Delete the session
+    await Session.findByIdAndDelete(sessionId);
+
+    res.status(200).json({
+      message: 'Session deleted successfully'
+    });
+  } catch (error) {
+    logger.error('Error deleting session:', error);
+    res.status(500).json({ error: 'Failed to delete session' });
   }
 };

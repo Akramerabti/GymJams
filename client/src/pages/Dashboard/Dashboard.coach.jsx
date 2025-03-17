@@ -70,6 +70,7 @@ const DashboardCoach = () => {
         // Try to get clients from the API
         let clientsData = [];
         let pendingRequestsData = [];
+        let sessionsData = [];
         
         try {
           clientsData = await clientService.getCoachClients();
@@ -87,9 +88,18 @@ const DashboardCoach = () => {
           pendingRequestsData = [];
         }
         
+        try {
+          const sessionResponse = await clientService.getCoachSessions();
+          sessionsData = sessionResponse.data || [];
+        } catch (sessionsError) {
+          console.error('Error fetching sessions:', sessionsError);
+          sessionsData = [];
+        }
+        
         // Make sure we have arrays even if the API didn't return anything
         clientsData = Array.isArray(clientsData) ? clientsData : [];
         pendingRequestsData = Array.isArray(pendingRequestsData) ? pendingRequestsData : [];
+        sessionsData = Array.isArray(sessionsData) ? sessionsData : [];
         
         // Process client data to standardize format and add additional information
         const processedClients = clientsData.map(client => ({
@@ -102,14 +112,10 @@ const DashboardCoach = () => {
         
         setClients(processedClients);
         setPendingRequests(pendingRequestsData);
+        setUpcomingSessions(sessionsData);
         
         // Calculate metrics
-        const upcomingSessionsCount = processedClients.reduce((sum, client) => {
-          if (client.workouts && Array.isArray(client.workouts)) {
-            return sum + client.workouts.filter(w => !w.completed).length;
-          }
-          return sum;
-        }, 0);
+        const upcomingSessionsCount = sessionsData.length;
         
         const messageThreadsCount = processedClients.filter(c => 
           c.unreadMessages && c.unreadMessages > 0
@@ -122,14 +128,6 @@ const DashboardCoach = () => {
           upcomingSessions: upcomingSessionsCount,
           messageThreads: messageThreadsCount,
         });
-        
-        // Generate sessions from actual client workout data if available
-        if (processedClients.length > 0) {
-          const sessions = generateSessionsFromWorkouts(processedClients);
-          setUpcomingSessions(sessions);
-        } else {
-          setUpcomingSessions([]);
-        }
         
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -714,33 +712,20 @@ const DashboardCoach = () => {
                   </TabsContent>
                   
                   <TabsContent value="schedule" className="mt-0">
-                    {groupedSessions().length > 0 ? (
-                      <div className="space-y-8">
-                        {groupedSessions().map((group) => (
-                          <div key={group.date} className="space-y-4">
-                            <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">
-                              {group.date}
-                            </h3>
-                            <Schedule sessions={group.sessions} />
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-16">
-                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Calendar className="w-8 h-8 text-gray-400" />
-                        </div>
-                        <h3 className="text-lg font-semibold text-gray-600 mb-2">No upcoming sessions</h3>
-                        <p className="text-gray-500 mb-6">
-                          You have no scheduled sessions for the upcoming week
-                        </p>
-                        <Button>
-                          <PlusCircle className="w-4 h-4 mr-2" />
-                          Schedule Session
-                        </Button>
-                      </div>
-                    )}
-                  </TabsContent>
+  {isLoading ? (
+    <div className="flex items-center justify-center h-64">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    </div>
+  ) : (
+    <Schedule 
+      clients={clients} 
+      onRefreshData={() => {
+        // Refresh the dashboard data when sessions are modified
+        fetchDashboardData();
+      }}
+    />
+  )}
+</TabsContent>
                   
                   <TabsContent value="requests" className="mt-0">
                     {pendingRequests.length > 0 ? (
