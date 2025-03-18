@@ -374,7 +374,7 @@ const StatsUpdateDialog = ({
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] z-[100]">
         <DialogHeader>
           <DialogTitle>Update Your Stats</DialogTitle>
         </DialogHeader>

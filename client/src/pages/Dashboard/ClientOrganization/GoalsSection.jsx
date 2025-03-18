@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { 
   Target, Dumbbell, Activity, Calendar, ArrowRight, 
   CheckCircle, Shield, Award, Zap, 
-  AlertTriangle, Coins, Info
+  AlertTriangle, Coins, Info, Clock
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,8 @@ import Progress from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/alert';
+import subscriptionService from '../../../services/subscription.service';
+import { toast } from 'sonner';
 
 // Helper function for formatting dates
 const formatDate = (dateString) => {
@@ -61,6 +63,36 @@ const GoalCard = ({ goal, onComplete }) => {
   const difficultyConfig = GOAL_DIFFICULTY[difficulty];
   const icon = goal.icon || getGoalIcon(type);
   
+  const renderActionButton = () => {
+    if (goal.completed || goal.status === 'completed') {
+      return (
+        <div className="flex items-center text-green-600 text-xs">
+          <CheckCircle className="w-4 h-4 mr-1" />
+          <span>Completed {goal.completedDate ? `on ${formatDate(goal.completedDate)}` : ''}</span>
+        </div>
+      );
+    } else if (goal.status === 'pending_approval' || goal.clientRequestedCompletion) {
+      return (
+        <div className="flex items-center text-amber-600 text-xs">
+          <Clock className="w-4 h-4 mr-1" />
+          <span>Awaiting Coach Approval</span>
+        </div>
+      );
+    } else {
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onComplete(goal.id)}
+          className="text-green-600 border-green-200 hover:bg-green-50 hover:text-green-700"
+        >
+          <CheckCircle className="w-4 h-4 mr-1" />
+          Request Completion
+        </Button>
+      );
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -127,6 +159,10 @@ const GoalCard = ({ goal, onComplete }) => {
           </div>
         </div>
       </div>
+      <div className="flex justify-between items-center mt-3">
+        <p className="text-xs text-gray-500">Due: {due}</p>
+        {renderActionButton()}
+      </div>
     </motion.div>
   );
 };
@@ -181,15 +217,43 @@ const CompletionDialog = ({ isOpen, onClose, onConfirm, goal }) => {
 };
 
 // Main goals section component
-const GoalsSection = ({ goals, onCompleteGoal, onViewAll }) => {
+const GoalsSection = ({ goals: initialGoals, onCompleteGoal, onViewAll, subscription }) => {
+  const [goals, setGoals] = useState(initialGoals);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
-  
-  const handleCompleteGoal = (goalId) => {
-    const goal = goals.find(g => g.id === goalId);
-    if (goal) {
-      setSelectedGoal(goal);
-      setIsDialogOpen(true);
+
+  const handleRequestCompletion = async (goalId) => {
+    try {
+      // Get the goal to be completed
+      const goal = goals.find(g => g.id === goalId);
+      if (!goal) {
+        toast.error('Goal not found');
+        return;
+      }
+      
+      // Update the goal status to pending_approval
+      const updatedGoal = {
+        ...goal,
+        status: 'pending_approval',
+        clientRequestedCompletion: true,
+        clientCompletionRequestDate: new Date().toISOString(),
+        progress: 100 // Set progress to 100% to indicate client believes it's complete
+      };
+      
+      // Update goals array for UI
+      const updatedGoals = goals.map(g => 
+        g.id === goalId ? updatedGoal : g
+      );
+      
+      setGoals(updatedGoals);
+      
+      // Send update to backend
+      await subscriptionService.updateClientGoal(subscription._id, updatedGoal);
+      
+      toast.success('Completion request sent to your coach for approval!');
+    } catch (error) {
+      console.error('Failed to request goal completion:', error);
+      toast.error('Failed to submit completion request');
     }
   };
   
@@ -226,7 +290,7 @@ const GoalsSection = ({ goals, onCompleteGoal, onViewAll }) => {
                 <GoalCard 
                   key={goal.id} 
                   goal={goal} 
-                  onComplete={handleCompleteGoal} 
+                  onComplete={handleRequestCompletion} 
                 />
               ))
             ) : (

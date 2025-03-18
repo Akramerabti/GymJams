@@ -14,6 +14,13 @@ import {
   messaging,
   getMessages,
   markMessagesAsRead, 
+  addGoal,
+  updateGoal,
+  deleteGoal,
+  requestGoalCompletion,
+  approveGoalCompletion,
+  rejectGoalCompletion,
+  saveQuestionnaireDerivedGoals
 } from '../controllers/subscription.Controller.js';
 import stripe from '../config/stripe.js';
 import upload from '../config/multer.js';
@@ -32,6 +39,14 @@ router.post('/assign-coach', optionalAuthenticate, assignCoach);
 router.post('/:subscriptionId/send-message', upload.array('files', 10), messaging);
 router.get('/:subscriptionId/messages', getMessages);
 router.put('/:subscriptionId/mark-read', optionalAuthenticate, markMessagesAsRead);
+
+router.post('/:subscriptionId/goals', optionalAuthenticate, addGoal);
+router.put('/:subscriptionId/goals/:goalId', optionalAuthenticate, updateGoal);
+router.delete('/:subscriptionId/goals/:goalId', optionalAuthenticate, deleteGoal);
+router.post('/:subscriptionId/goals/:goalId/request-completion', optionalAuthenticate, requestGoalCompletion);
+router.post('/:subscriptionId/goals/:goalId/approve', optionalAuthenticate, approveGoalCompletion);
+router.post('/:subscriptionId/goals/:goalId/reject', optionalAuthenticate, rejectGoalCompletion);
+router.post('/:subscriptionId/questionnaire-goals', optionalAuthenticate, saveQuestionnaireDerivedGoals);
 
 router.post('/webhook', express.raw({ type: 'application/json' }),  async (req, res) => {
     const sig = req.headers['stripe-signature'];

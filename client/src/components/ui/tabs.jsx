@@ -1,10 +1,13 @@
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { cn } from "@/lib/utils"; // Ensure you have a class utility function
+import React from "react"; // Import React for forwardRef
 
 export const Tabs = TabsPrimitive.Root;
+
 export const TabsList = ({ className, ...props }) => (
   <TabsPrimitive.List className={cn("flex border-b border-gray-200", className)} {...props} />
 );
+
 export const TabsTrigger = ({ className, ...props }) => (
   <TabsPrimitive.Trigger
     className={cn(
@@ -15,6 +18,15 @@ export const TabsTrigger = ({ className, ...props }) => (
     {...props}
   />
 );
-export const TabsContent = ({ className, ...props }) => (
-  <TabsPrimitive.Content className={cn("p-4", className)} {...props} />
-);
+
+// Wrap TabsContent with React.forwardRef
+export const TabsContent = React.forwardRef(({ className, ...props }, ref) => (
+  <TabsPrimitive.Content
+    ref={ref} // Forward the ref to the underlying DOM element
+    className={cn("p-4", className)}
+    {...props}
+  />
+));
+
+// Set a display name for the component (optional but recommended for debugging)
+TabsContent.displayName = "TabsContent";

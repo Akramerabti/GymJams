@@ -5,7 +5,7 @@ import subscriptionService from '../../services/subscription.service';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Award, Crown, Zap, Calendar, BarChart2, Dumbbell, Activity, User, CheckCircle, MessageSquare, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from 'sonner';
 import { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { usePoints } from '../../hooks/usePoints';
@@ -100,127 +100,117 @@ const ClientDashboard = () => {
   const progressRef = useRef(null);
   const profileRef = useRef(null);
 
-  // Generate client goals from subscription data
-  const generateGoals = (subscriptionData) => {
+  const generateGoals = async (subscriptionData) => {
     const generatedGoals = [];
-
-    // Check if subscription has goals
-    if (subscriptionData.goals && Array.isArray(subscriptionData.goals)) {
+  
+    // Check if subscription already has goals
+    if (subscriptionData.goals && Array.isArray(subscriptionData.goals) && subscriptionData.goals.length > 0) {
       // Use existing goals
-      subscriptionData.goals.forEach(goal => {
+      setGoals(subscriptionData.goals);
+      return;
+    } 
+    
+    // Generate default goals based on questionnaire
+    if (questionnaire?.data?.goals) {
+      const userGoals = Array.isArray(questionnaire.data.goals)
+        ? questionnaire.data.goals
+        : [];
+  
+      if (userGoals.includes('strength')) {
         generatedGoals.push({
-          id: goal.id,
-          title: goal.title,
-          target: goal.target,
-          progress: goal.progress,
-          due: formatDate(goal.dueDate),
-          icon: getGoalIcon(goal.type),
+          title: 'Strength Improvement',
+          type: 'strength',
+          target: 'Increase bench press by 10%',
+          progress: Math.min(100, Math.max(0, (subscriptionData.stats?.strengthProgress || 0) * 100)),
+          difficulty: 'medium',
+          dueDate: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000), // 4 weeks from now
+          icon: <Dumbbell className="w-6 h-6 text-blue-600" />,
         });
-      });
-    } else {
-      // Generate default goals based on questionnaire
-      if (questionnaire?.data?.goals) {
-        const userGoals = Array.isArray(questionnaire.data.goals)
-          ? questionnaire.data.goals
-          : [];
-
-        if (userGoals.includes('strength')) {
-          generatedGoals.push({
-            id: 'strength-goal',
-            title: 'Strength Improvement',
-            target: 'Increase bench press by 10%',
-            progress: Math.min(100, Math.max(0, (subscriptionData.stats?.strengthProgress || 0) * 100)),
-            due: '4 weeks',
-            icon: <Dumbbell className="w-6 h-6 text-blue-600" />,
-          });
-        }
-
-        if (userGoals.includes('endurance')) {
-          generatedGoals.push({
-            id: 'endurance-goal',
-            title: 'Endurance Improvement',
-            target: 'Increase cardio capacity by 15%',
-            progress: Math.min(100, Math.max(0, (subscriptionData.stats?.cardioProgress || 0) * 100)),
-            due: '6 weeks',
-            icon: <Activity className="w-6 h-6 text-green-600" />,
-          });
-        }
-
-        if (userGoals.includes('weight')) {
-          generatedGoals.push({
-            id: 'weight-goal',
-            title: 'Weight Management',
-            target: 'Lose 5% body fat',
-            progress: Math.min(100, Math.max(0, (subscriptionData.stats?.weightProgress || 0) * 100)),
-            due: '8 weeks',
-            icon: <Target className="w-6 h-6 text-red-600" />,
-          });
-        }
       }
-
-      // Add default consistency goal
-      generatedGoals.push({
-        id: 'consistency-goal',
-        title: 'Workout Consistency',
-        target: `${subscriptionData.stats?.weeklyTarget || 3} workouts per week`,
-        progress: Math.min(100, Math.max(0, ((subscriptionData.stats?.workoutsCompleted || 0) / ((subscriptionData.stats?.weeklyTarget || 3) * 4)) * 100)),
-        due: 'Ongoing',
-        icon: <Calendar className="w-6 h-6 text-purple-600" />,
-      });
+  
+      if (userGoals.includes('endurance')) {
+        generatedGoals.push({
+          title: 'Endurance Improvement',
+          type: 'cardio',
+          target: 'Increase cardio capacity by 15%',
+          progress: Math.min(100, Math.max(0, (subscriptionData.stats?.cardioProgress || 0) * 100)),
+          difficulty: 'medium',
+          dueDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000), // 6 weeks from now
+          icon: <Activity className="w-6 h-6 text-green-600" />,
+        });
+      }
+  
+      if (userGoals.includes('weight')) {
+        generatedGoals.push({
+          title: 'Weight Management',
+          type: 'weight',
+          target: 'Lose 5% body fat',
+          progress: Math.min(100, Math.max(0, (subscriptionData.stats?.weightProgress || 0) * 100)),
+          difficulty: 'hard',
+          dueDate: new Date(Date.now() + 56 * 24 * 60 * 60 * 1000), // 8 weeks from now
+          icon: <Target className="w-6 h-6 text-red-600" />,
+        });
+      }
     }
-
+  
+    // Add default consistency goal
+    generatedGoals.push({
+      title: 'Workout Consistency',
+      type: 'consistency',
+      target: `${subscriptionData.stats?.weeklyTarget || 3} workouts per week`,
+      progress: Math.min(100, Math.max(0, ((subscriptionData.stats?.workoutsCompleted || 0) / ((subscriptionData.stats?.weeklyTarget || 3) * 4)) * 100)),
+      difficulty: 'easy',
+      dueDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // Ongoing (90 days)
+      icon: <Calendar className="w-6 h-6 text-purple-600" />,
+    });
+  
+    // Set goals in the state
     setGoals(generatedGoals);
+    
+    // Save the generated goals to the backend
+    try {
+      // Remove icon property as it can't be serialized
+      const goalsForBackend = generatedGoals.map(({ icon, ...goal }) => goal);
+      await subscriptionService.saveQuestionnaireDerivedGoals(subscriptionData._id, goalsForBackend);
+      console.log('Goals saved to backend successfully');
+    } catch (error) {
+      console.error('Failed to save goals to backend:', error);
+      // Don't show error to user as this is happening in the background
+    }
   };
 
-  const handleCompleteGoal = async (goal) => {
+  const handleRequestGoalCompletion = async (goalId) => {
     try {
-      // Get the difficulty and corresponding points
-      const difficulty = goal.difficulty || 'medium';
-      const pointsToAward = {
-        easy: 50,
-        medium: 100,
-        hard: 200
-      }[difficulty] || 100;
+      const goal = goals.find(g => g.id === goalId);
+      if (!goal) {
+        toast.error('Goal not found');
+        return;
+      }
       
-      // Set goal as completed
+      // Update local state to show pending approval
       const updatedGoals = goals.map(g => 
-        g.id === goal.id 
+        g.id === goalId 
           ? { 
               ...g, 
-              completed: true, 
-              completedDate: formatDate(new Date()),
-              progress: 100 
+              status: 'pending_approval',
+              clientRequestedCompletion: true,
+              clientCompletionRequestDate: new Date().toISOString(),
+              progress: 100
             } 
           : g
       );
       
       setGoals(updatedGoals);
       
-      // Update stats
-      const updatedStats = {
-        ...subscription.stats,
-        goalsAchieved: (subscription.stats?.goalsAchieved || 0) + 1,
-      };
+      // Send request to the backend
+      await subscriptionService.requestGoalCompletion(subscription._id, goalId);
       
-      // Update subscription with new stats
-      setSubscription(prev => ({
-        ...prev,
-        stats: updatedStats,
-      }));
-      
-      // Save updates to server
-      await subscriptionService.updateClientStats(subscription._id, updatedStats);
-      
-      // Award points to the user
-      addPoints(pointsToAward);
-      await updatePointsInBackend((user.points || 0) + pointsToAward);
-      
-      toast.success(`Goal completed! You earned ${pointsToAward} points!`, {
-        icon: '🎉',
+      toast.success('Completion request sent to your coach!', {
+        description: 'Your coach will review and approve this goal.'
       });
     } catch (error) {
-      console.error('Failed to complete goal:', error);
-      toast.error('Failed to update goal status');
+      console.error('Failed to request goal completion:', error);
+      toast.error('Failed to send completion request');
     }
   };
 
@@ -570,7 +560,9 @@ const ClientDashboard = () => {
               <GoalsSection
                 goals={goals}
                 onUpdateGoal={handleUpdateGoal}
+                onCompleteGoal={handleRequestGoalCompletion} // Changed from handleCompleteGoal
                 onViewAll={() => handleTabChange('progress')}
+                subscription={subscription}
               />
 
               {/* Workouts Section */}

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Target, Dumbbell, Activity, Calendar, Edit, Plus, Save, X, AlertTriangle, 
-  CheckCircle, Award, Shield, Zap
+  CheckCircle, Award, Shield, Zap, Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -186,6 +186,75 @@ const ConfirmationDialog = ({ isOpen, onClose, onConfirm, title, message }) => {
   );
 };
 
+const PendingApprovalsSection = ({ pendingGoals, onApprove, onReject }) => {
+    if (!pendingGoals || pendingGoals.length === 0) return null;
+    
+    return (
+      <div className="mt-6 space-y-4">
+        <div className="flex items-center space-x-2">
+          <Clock className="w-5 h-5 text-amber-500" />
+          <h3 className="text-lg font-semibold">Pending Approvals</h3>
+        </div>
+        
+        <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+          <Alert variant="warning" className="mb-3">
+            <AlertTriangle className="h-4 w-4" />
+            <p>The following goals are awaiting your approval. Please review the client's progress before approving.</p>
+          </Alert>
+          
+          <div className="space-y-4">
+            {pendingGoals.map(goal => (
+              <div key={goal.id} className="bg-white p-4 rounded-lg border shadow-sm">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-start space-x-3">
+                    <div className="mt-1">
+                      {getGoalIcon(goal.type)}
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-lg">{goal.title}</h4>
+                      <p className="text-sm text-gray-600 mb-1">{goal.target}</p>
+                      <p className="text-xs text-gray-500">
+                        Requested: {formatDate(goal.clientCompletionRequestDate || new Date())}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-3 flex items-center justify-between border-t pt-3">
+                  <div className="text-sm">
+                    <span className="font-medium text-amber-700">
+                      Approve to award {GOAL_DIFFICULTY[goal.difficulty || 'medium'].points} points
+                    </span>
+                  </div>
+                  
+                  <div className="flex space-x-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                      onClick={() => onReject(goal.id)}
+                    >
+                      <X className="w-4 h-4 mr-1" />
+                      Reject
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={() => onApprove(goal.id)}
+                    >
+                      <CheckCircle className="w-4 h-4 mr-1" />
+                      Approve
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
 // Main goals component for coach
 const GoalManager = ({ 
   client, 
@@ -193,7 +262,8 @@ const GoalManager = ({
   onAddGoal, 
   onUpdateGoal, 
   onDeleteGoal, 
-  onCompleteGoal 
+  onCompleteGoal,
+  onAwardPoints   
 }) => {
   const [isAddGoalOpen, setIsAddGoalOpen] = useState(false);
   const [isEditGoalOpen, setIsEditGoalOpen] = useState(false);
@@ -202,6 +272,10 @@ const GoalManager = ({
   const [selectedGoal, setSelectedGoal] = useState(null);
   const [goalToDelete, setGoalToDelete] = useState(null);
   const [goalToComplete, setGoalToComplete] = useState(null);
+
+  const activeGoals = goals.filter(goal => !goal.completed && goal.status !== 'pending_approval' && !goal.clientRequestedCompletion);
+  const pendingGoals = goals.filter(goal => goal.status === 'pending_approval' || goal.clientRequestedCompletion);
+  const completedGoals = goals.filter(goal => goal.completed || goal.status === 'completed');
   
   // Weekly goal limit check
   const currentWeekGoals = goals.filter(goal => {
@@ -279,10 +353,45 @@ const GoalManager = ({
     }
     setSelectedGoal(null);
   };
+
+  const handleApproveGoal = async (goalId) => {
+    try {
+      const goal = goals.find(g => g.id === goalId);
+      if (!goal) return;
+      
+      // Calculate points to award
+      const difficulty = goal.difficulty || 'medium';
+      const pointsToAward = GOAL_DIFFICULTY[difficulty].points;
+      
+      // Call parent component method to approve goal and award points
+      await onCompleteGoal(goalId, pointsToAward, true);
+      
+      toast.success(`Goal approved! Client awarded ${pointsToAward} points.`);
+    } catch (error) {
+      console.error('Error approving goal:', error);
+      toast.error('Failed to approve goal');
+    }
+  };
   
-  // Group goals by status
-  const activeGoals = goals.filter(goal => !goal.completed);
-  const completedGoals = goals.filter(goal => goal.completed);
+  // Handle goal rejection
+  const handleRejectGoal = async (goalId) => {
+    try {
+      const updatedGoal = goals.find(g => g.id === goalId);
+      if (!updatedGoal) return;
+      
+      // Reset goal status
+      updatedGoal.status = 'active';
+      updatedGoal.clientRequestedCompletion = false;
+      updatedGoal.clientCompletionRequestDate = null;
+      
+      await onUpdateGoal(updatedGoal);
+      
+      toast.success('Goal completion request rejected');
+    } catch (error) {
+      console.error('Error rejecting goal:', error);
+      toast.error('Failed to reject goal');
+    }
+  };
   
   return (
     <div className="space-y-4">
@@ -307,6 +416,15 @@ const GoalManager = ({
           </Button>
         </div>
       </div>
+      
+      {/* Pending Approvals Section */}
+      {pendingGoals.length > 0 && (
+        <PendingApprovalsSection 
+          pendingGoals={pendingGoals}
+          onApprove={handleApproveGoal}
+          onReject={handleRejectGoal}
+        />
+      )}
       
       {/* Active Goals */}
       <div className="space-y-4">

@@ -1265,3 +1265,290 @@ export const getMessages = async (req, res) => {
     });
   }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export const addGoal = async (req, res) => {
+  try {
+    const { subscriptionId } = req.params;
+    const goalData = req.body;
+    
+    // Find the subscription
+    const subscription = await Subscription.findById(subscriptionId);
+    
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+    
+    // Ensure the goal has a unique ID
+    if (!goalData.id) {
+      goalData.id = `goal-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    }
+    
+    // Set default values for the goal
+    const newGoal = {
+      ...goalData,
+      createdAt: new Date().toISOString(),
+      status: 'active',
+      progress: goalData.progress || 0
+    };
+    
+    // Add the goal to the subscription
+    if (!subscription.goals) {
+      subscription.goals = [];
+    }
+    
+    subscription.goals.push(newGoal);
+    await subscription.save();
+    
+    res.status(201).json(newGoal);
+  } catch (error) {
+    logger.error('Error adding goal:', error);
+    res.status(500).json({ error: 'Failed to add goal' });
+  }
+};
+
+// Update an existing goal
+export const updateGoal = async (req, res) => {
+  try {
+    const { subscriptionId, goalId } = req.params;
+    const goalData = req.body;
+    
+    // Find the subscription
+    const subscription = await Subscription.findById(subscriptionId);
+    
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+    
+    // Find the goal
+    const goalIndex = subscription.goals.findIndex(g => g.id === goalId);
+    
+    if (goalIndex === -1) {
+      return res.status(404).json({ error: 'Goal not found' });
+    }
+    
+    // Update the goal
+    subscription.goals[goalIndex] = {
+      ...subscription.goals[goalIndex],
+      ...goalData
+    };
+    
+    await subscription.save();
+    
+    res.json(subscription.goals[goalIndex]);
+  } catch (error) {
+    logger.error('Error updating goal:', error);
+    res.status(500).json({ error: 'Failed to update goal' });
+  }
+};
+
+// Delete a goal
+export const deleteGoal = async (req, res) => {
+  try {
+    const { subscriptionId, goalId } = req.params;
+    
+    // Find the subscription
+    const subscription = await Subscription.findById(subscriptionId);
+    
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+    
+    // Remove the goal
+    subscription.goals = subscription.goals.filter(g => g.id !== goalId);
+    
+    await subscription.save();
+    
+    res.json({ message: 'Goal deleted successfully' });
+  } catch (error) {
+    logger.error('Error deleting goal:', error);
+    res.status(500).json({ error: 'Failed to delete goal' });
+  }
+};
+
+// Request goal completion (client side)
+export const requestGoalCompletion = async (req, res) => {
+  try {
+    const { subscriptionId, goalId } = req.params;
+    
+    // Find the subscription
+    const subscription = await Subscription.findById(subscriptionId);
+    
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+    
+    // Find the goal
+    const goalIndex = subscription.goals.findIndex(g => g.id === goalId);
+    
+    if (goalIndex === -1) {
+      return res.status(404).json({ error: 'Goal not found' });
+    }
+    
+    // Update the goal status
+    subscription.goals[goalIndex] = {
+      ...subscription.goals[goalIndex],
+      status: 'pending_approval',
+      clientRequestedCompletion: true,
+      clientCompletionRequestDate: new Date().toISOString(),
+      progress: 100
+    };
+    
+    await subscription.save();
+    
+    res.json(subscription.goals[goalIndex]);
+  } catch (error) {
+    logger.error('Error requesting goal completion:', error);
+    res.status(500).json({ error: 'Failed to request goal completion' });
+  }
+};
+
+// Approve a goal completion request (coach side)
+export const approveGoalCompletion = async (req, res) => {
+  try {
+    const { subscriptionId, goalId } = req.params;
+    const { pointsAwarded } = req.body;
+    
+    // Find the subscription
+    const subscription = await Subscription.findById(subscriptionId);
+    
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+    
+    // Find the goal
+    const goalIndex = subscription.goals.findIndex(g => g.id === goalId);
+    
+    if (goalIndex === -1) {
+      return res.status(404).json({ error: 'Goal not found' });
+    }
+    
+    // Update the goal
+    subscription.goals[goalIndex] = {
+      ...subscription.goals[goalIndex],
+      status: 'completed',
+      completed: true,
+      completedDate: new Date().toISOString(),
+      coachApproved: true,
+      coachApprovalDate: new Date().toISOString(),
+      pointsAwarded: pointsAwarded || 0
+    };
+    
+    // Update subscription stats
+    if (!subscription.stats) {
+      subscription.stats = {};
+    }
+    
+    subscription.stats.goalsAchieved = (subscription.stats.goalsAchieved || 0) + 1;
+    
+    // Award points to the user if they exist
+    if (subscription.user) {
+      const user = await User.findById(subscription.user);
+      
+      if (user) {
+        user.points = (user.points || 0) + (pointsAwarded || 0);
+        await user.save();
+      }
+    }
+    
+    await subscription.save();
+    
+    res.json({
+      goal: subscription.goals[goalIndex],
+      pointsAwarded
+    });
+  } catch (error) {
+    logger.error('Error approving goal completion:', error);
+    res.status(500).json({ error: 'Failed to approve goal completion' });
+  }
+};
+
+// Reject a goal completion request (coach side)
+export const rejectGoalCompletion = async (req, res) => {
+  try {
+    const { subscriptionId, goalId } = req.params;
+    
+    // Find the subscription
+    const subscription = await Subscription.findById(subscriptionId);
+    
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+    
+    // Find the goal
+    const goalIndex = subscription.goals.findIndex(g => g.id === goalId);
+    
+    if (goalIndex === -1) {
+      return res.status(404).json({ error: 'Goal not found' });
+    }
+    
+    // Reset the goal status
+    subscription.goals[goalIndex] = {
+      ...subscription.goals[goalIndex],
+      status: 'active',
+      clientRequestedCompletion: false,
+      clientCompletionRequestDate: null
+    };
+    
+    await subscription.save();
+    
+    res.json(subscription.goals[goalIndex]);
+  } catch (error) {
+    logger.error('Error rejecting goal completion:', error);
+    res.status(500).json({ error: 'Failed to reject goal completion' });
+  }
+};
+
+// Save goals generated from questionnaire data
+export const saveQuestionnaireDerivedGoals = async (req, res) => {
+  try {
+    const { subscriptionId } = req.params;
+    const { goals } = req.body;
+    
+    // Find the subscription
+    const subscription = await Subscription.findById(subscriptionId);
+    
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+    
+    // Only add goals if they don't exist yet
+    if (!subscription.goals || subscription.goals.length === 0) {
+      // Create properly formatted goals
+      const formattedGoals = goals.map(goal => ({
+        id: `goal-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        title: goal.title,
+        description: goal.description || '',
+        type: goal.type || 'custom',
+        target: goal.target,
+        difficulty: goal.difficulty || 'medium',
+        dueDate: goal.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+        createdAt: new Date().toISOString(),
+        status: 'active',
+        progress: goal.progress || 0,
+        createdFromQuestionnaire: true
+      }));
+      
+      // Add the goals to the subscription
+      subscription.goals = formattedGoals;
+      await subscription.save();
+    }
+    
+    res.json(subscription.goals);
+  } catch (error) {
+    logger.error('Error saving questionnaire-derived goals:', error);
+    res.status(500).json({ error: 'Failed to save questionnaire-derived goals' });
+  }
+};

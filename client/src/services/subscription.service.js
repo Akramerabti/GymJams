@@ -528,6 +528,94 @@ async submitQuestionnaire(answers, accessToken = null) {
       throw error;
     }
   },
+
+  async updateClientGoal(subscriptionId, goal) {
+    try {
+      const response = await api.put(`/subscription/${subscriptionId}/goals/${goal.id}`, goal);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update goal:', error);
+      throw error;
+    }
+  },
+  
+  // Add a new goal to a subscription
+  async addClientGoal(subscriptionId, goal) {
+    try {
+      const response = await api.post(`/subscription/${subscriptionId}/goals`, goal);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to add goal:', error);
+      throw error;
+    }
+  },
+  
+  // Delete a goal from a subscription
+  async deleteClientGoal(subscriptionId, goalId) {
+    try {
+      const response = await api.delete(`/subscription/${subscriptionId}/goals/${goalId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to delete goal:', error);
+      throw error;
+    }
+  },
+  
+  // Request goal completion (client side)
+  async requestGoalCompletion(subscriptionId, goalId) {
+    try {
+      const response = await api.post(`/subscription/${subscriptionId}/goals/${goalId}/request-completion`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to request goal completion:', error);
+      throw error;
+    }
+  },
+  
+  // Approve a goal completion request (coach side)
+  async approveGoalCompletion(subscriptionId, goalId, pointsAwarded) {
+    try {
+      const response = await api.post(`/subscription/${subscriptionId}/goals/${goalId}/approve`, {
+        pointsAwarded
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to approve goal completion:', error);
+      throw error;
+    }
+  },
+  
+  // Reject a goal completion request (coach side)
+  async rejectGoalCompletion(subscriptionId, goalId) {
+    try {
+      const response = await api.post(`/subscription/${subscriptionId}/goals/${goalId}/reject`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to reject goal completion:', error);
+      throw error;
+    }
+  },
+  
+  // Save goals generated from questionnaire data
+  async saveQuestionnaireDerivedGoals(subscriptionId, goals) {
+    try {
+      const response = await api.post(`/subscription/${subscriptionId}/questionnaire-goals`, {
+        goals
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to save questionnaire-derived goals:', error);
+      throw error;
+    }
+  },
+  
+
+
+
+
+
+
+
 };
 
 

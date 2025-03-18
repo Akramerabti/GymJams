@@ -81,7 +81,9 @@ useEffect(() => {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (modalRef.current && !modalRef.current.contains(event.target)) {
+      // Only close if clicked outside AND no child modals are open
+      if (modalRef.current && !modalRef.current.contains(event.target) && 
+          !isWorkoutsModalOpen && !isProgressModalOpen) {
         onClose();
       }
     };
@@ -89,7 +91,7 @@ useEffect(() => {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [onClose]);
+  }, [onClose, isWorkoutsModalOpen, isProgressModalOpen]); 
 
   
   const handleInputChange = (e) => {

@@ -67,10 +67,11 @@ const DashboardCoach = () => {
     }
   };
 
-  const handleCompleteClientGoal = async (clientId, goalId) => {
+  const handleCompleteClientGoal = async (clientId, goalId, pointsToAward, isApproval = false) => {
     try {
       setIsLoading(true);
       
+      // Find the client and their goal
       const client = clients.find(c => c.id === clientId);
       if (!client || !client.goals) {
         toast.error('Client or goal not found');
@@ -83,43 +84,83 @@ const DashboardCoach = () => {
         return;
       }
       
-      const difficulty = goal.difficulty || 'medium';
-      const pointsToAward = {
-        easy: 50,
-        medium: 100,
-        hard: 200
-      }[difficulty] || 100;
-      
-      const updatedGoals = client.goals.map(g => 
-        g.id === goalId 
-          ? { 
-              ...g, 
-              completed: true, 
-              completedDate: new Date().toISOString(),
-              progress: 100 
-            } 
-          : g
-      );
-      
-      const updatedStats = {
-        ...client.stats,
-        goalsAchieved: (client.stats?.goalsAchieved || 0) + 1,
-      };
-      
-      setClients(prevClients => 
-        prevClients.map(c => 
-          c.id === clientId
+      // If this is a direct completion (not an approval of client request)
+      // this is used when the coach directly marks a goal as complete
+      if (!isApproval) {
+        // Update the goal status
+        const updatedGoals = client.goals.map(g => 
+          g.id === goalId 
             ? { 
-                ...c, 
-                goals: updatedGoals,
-                stats: updatedStats
-              }
-            : c
-        )
-      );
+                ...g, 
+                status: 'completed',
+                completed: true, 
+                completedDate: new Date().toISOString(),
+                coachApproved: true,
+                coachApprovalDate: new Date().toISOString(),
+                pointsAwarded: pointsToAward,
+                progress: 100 
+              } 
+            : g
+        );
+        
+        // Update client stats
+        const updatedStats = {
+          ...client.stats,
+          goalsAchieved: (client.stats?.goalsAchieved || 0) + 1,
+        };
+        
+        // Update client in the state
+        setClients(prevClients => 
+          prevClients.map(c => 
+            c.id === clientId
+              ? { 
+                  ...c, 
+                  goals: updatedGoals,
+                  stats: updatedStats
+                }
+              : c
+          )
+        );
+        
+        // Save updates to server
+        await clientService.updateClientGoals(clientId, updatedGoals);
+        await clientService.updateClientStats(clientId, updatedStats);
+      } else {
+        // This is an approval of a client's completion request
+        // Call the approval endpoint
+        await subscriptionService.approveGoalCompletion(clientId, goalId, pointsToAward);
+        
+        // Update local state
+        setClients(prevClients => 
+          prevClients.map(c => 
+            c.id === clientId
+              ? { 
+                  ...c, 
+                  goals: c.goals.map(g => 
+                    g.id === goalId 
+                      ? { 
+                          ...g, 
+                          status: 'completed',
+                          completed: true, 
+                          completedDate: new Date().toISOString(),
+                          coachApproved: true,
+                          coachApprovalDate: new Date().toISOString(),
+                          pointsAwarded: pointsToAward,
+                          progress: 100 
+                        } 
+                      : g
+                  ),
+                  stats: {
+                    ...c.stats,
+                    goalsAchieved: (c.stats?.goalsAchieved || 0) + 1,
+                  }
+                }
+              : c
+          )
+        );
+      }
       
-      await clientService.updateClientGoals(clientId, updatedGoals);
-      await clientService.updateClientStats(clientId, updatedStats);
+      // Award points to the client
       await clientService.awardClientPoints(clientId, pointsToAward);
       
       toast.success(`Goal marked as complete! Client was awarded ${pointsToAward} points.`);
@@ -130,6 +171,44 @@ const DashboardCoach = () => {
       setIsLoading(false);
     }
   };
+
+  const handleRejectGoalCompletion = async (clientId, goalId) => {
+    try {
+      setIsLoading(true);
+      
+      // Call the reject endpoint
+      await subscriptionService.rejectGoalCompletion(clientId, goalId);
+      
+      // Update local state
+      setClients(prevClients => 
+        prevClients.map(c => 
+          c.id === clientId
+            ? { 
+                ...c, 
+                goals: c.goals.map(g => 
+                  g.id === goalId 
+                    ? { 
+                        ...g, 
+                        status: 'active',
+                        clientRequestedCompletion: false,
+                        clientCompletionRequestDate: null
+                      } 
+                    : g
+                )
+              }
+            : c
+        )
+      );
+      
+      toast.success('Goal completion request rejected');
+    } catch (error) {
+      console.error('Failed to reject goal completion:', error);
+      toast.error('Failed to reject goal completion');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
   
   const filteredClients = () => {
     if (!clients || !Array.isArray(clients)) return [];
@@ -686,6 +765,8 @@ const DashboardCoach = () => {
             onClose={() => setSelectedClient(null)}
             onSave={(updatedData) => handleClientUpdate(selectedClient.id, updatedData)}
             onExportData={() => handleExportClientData(selectedClient)}
+            onCompleteGoal={handleCompleteClientGoal} // Add this prop
+            onRejectGoal={handleRejectGoalCompletion} // Add this prop
           />
         )}
       </AnimatePresence>
