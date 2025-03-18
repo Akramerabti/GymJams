@@ -1,3 +1,5 @@
+
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,8 +18,6 @@ import ClientList from './CoachOrganization/ClientList';
 import Schedule from './CoachOrganization/Schedule';
 import ClientDetailsModal from './CoachOrganization/ClientDetailsModal';
 import CoachChatComponent from './components/CoachChatComponent';
-import ClientWorkoutsModal from './CoachOrganization/ClientWorkoutsModal';
-import ClientProgressModal from './CoachOrganization/ClientProgressModal';
 import ClientStatsWidget from './CoachOrganization/ClientStatsWidget';
 import clientService from '../../services/client.service';
 
@@ -34,8 +34,6 @@ const DashboardCoach = () => {
   const [selectedClient, setSelectedClient] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatClient, setChatClient] = useState(null);
-  const [isWorkoutsModalOpen, setIsWorkoutsModalOpen] = useState(false);
-  const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [upcomingSessions, setUpcomingSessions] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -44,13 +42,6 @@ const DashboardCoach = () => {
   const [hasMadeChanges, setHasMadeChanges] = useState(false);
   const [error, setError] = useState(null);
 
-
-  const [modalState, setModalState] = useState({
-    detailsOpen: false,
-    workoutsOpen: false,
-    progressOpen: false,
-    currentClient: null
-  });
   // Ref for tab content to scroll to
   const tabContentRef = useRef(null);
 
@@ -67,94 +58,106 @@ const DashboardCoach = () => {
     }, 100);
   };
 
-   const onAwardPoints = async (clientId, points) => {
-      try {
-        // This would call your API to award points to the client
-        await clientService.awardClientPoints(clientId, points);
-      } catch (error) {
-        console.error('Failed to award points:', error);
-        toast.error('Failed to award points to client');
-      }
-    };
+  const onAwardPoints = async (clientId, points) => {
+    try {
+      await clientService.awardClientPoints(clientId, points);
+    } catch (error) {
+      console.error('Failed to award points:', error);
+      toast.error('Failed to award points to client');
+    }
+  };
 
-    const handleCompleteClientGoal = async (clientId, goalId) => {
-      try {
-        setIsLoading(true);
-        
-        // Find the client and their goal
-        const client = clients.find(c => c.id === clientId);
-        if (!client || !client.goals) {
-          toast.error('Client or goal not found');
-          return;
-        }
-        
-        const goal = client.goals.find(g => g.id === goalId);
-        if (!goal) {
-          toast.error('Goal not found');
-          return;
-        }
-        
-        // Get the difficulty and corresponding points
-        const difficulty = goal.difficulty || 'medium';
-        const pointsToAward = {
-          easy: 50,
-          medium: 100,
-          hard: 200
-        }[difficulty] || 100;
-        
-        // Update the goal status
-        const updatedGoals = client.goals.map(g => 
-          g.id === goalId 
-            ? { 
-                ...g, 
-                completed: true, 
-                completedDate: new Date().toISOString(),
-                progress: 100 
-              } 
-            : g
-        );
-        
-        // Update client stats
-        const updatedStats = {
-          ...client.stats,
-          goalsAchieved: (client.stats?.goalsAchieved || 0) + 1,
-        };
-        
-        // Update client in the state
-        setClients(prevClients => 
-          prevClients.map(c => 
-            c.id === clientId
-              ? { 
-                  ...c, 
-                  goals: updatedGoals,
-                  stats: updatedStats
-                }
-              : c
-          )
-        );
-        
-        // Save updates to server
-        await clientService.updateClientGoals(clientId, updatedGoals);
-        await clientService.updateClientStats(clientId, updatedStats);
-        
-        // Award points to the client (this would be handled by the backend)
-        await clientService.awardClientPoints(clientId, pointsToAward);
-        
-        toast.success(`Goal marked as complete! Client was awarded ${pointsToAward} points.`);
-      } catch (error) {
-        console.error('Failed to complete goal:', error);
-        toast.error('Failed to update goal status');
-      } finally {
-        setIsLoading(false);
+  const handleCompleteClientGoal = async (clientId, goalId) => {
+    try {
+      setIsLoading(true);
+      
+      const client = clients.find(c => c.id === clientId);
+      if (!client || !client.goals) {
+        toast.error('Client or goal not found');
+        return;
       }
-    };
+      
+      const goal = client.goals.find(g => g.id === goalId);
+      if (!goal) {
+        toast.error('Goal not found');
+        return;
+      }
+      
+      const difficulty = goal.difficulty || 'medium';
+      const pointsToAward = {
+        easy: 50,
+        medium: 100,
+        hard: 200
+      }[difficulty] || 100;
+      
+      const updatedGoals = client.goals.map(g => 
+        g.id === goalId 
+          ? { 
+              ...g, 
+              completed: true, 
+              completedDate: new Date().toISOString(),
+              progress: 100 
+            } 
+          : g
+      );
+      
+      const updatedStats = {
+        ...client.stats,
+        goalsAchieved: (client.stats?.goalsAchieved || 0) + 1,
+      };
+      
+      setClients(prevClients => 
+        prevClients.map(c => 
+          c.id === clientId
+            ? { 
+                ...c, 
+                goals: updatedGoals,
+                stats: updatedStats
+              }
+            : c
+        )
+      );
+      
+      await clientService.updateClientGoals(clientId, updatedGoals);
+      await clientService.updateClientStats(clientId, updatedStats);
+      await clientService.awardClientPoints(clientId, pointsToAward);
+      
+      toast.success(`Goal marked as complete! Client was awarded ${pointsToAward} points.`);
+    } catch (error) {
+      console.error('Failed to complete goal:', error);
+      toast.error('Failed to update goal status');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const filteredClients = () => {
+    if (!clients || !Array.isArray(clients)) return [];
     
+    return clients.filter(client => {
+      // Apply status filter
+      if (filterStatus !== 'all' && client.status !== filterStatus) {
+        return false;
+      }
+      
+      // Apply search filter
+      if (searchTerm) {
+        const fullName = `${client.firstName} ${client.lastName || ''}`.toLowerCase();
+        const email = (client.email || '').toLowerCase();
+        const searchLower = searchTerm.toLowerCase();
+        
+        return fullName.includes(searchLower) || email.includes(searchLower);
+      }
+      
+      return true;
+    });
+  };
+
   const fetchDashboardData = async () => {
     try {
       setIsLoading(true);
       setError(null);
       
-      // Try to get clients from the API
       let clientsData = [];
       let pendingRequestsData = [];
       let sessionsData = [];
@@ -182,12 +185,10 @@ const DashboardCoach = () => {
         sessionsData = [];
       }
       
-      // Make sure we have arrays even if the API didn't return anything
       clientsData = Array.isArray(clientsData) ? clientsData : [];
       pendingRequestsData = Array.isArray(pendingRequestsData) ? pendingRequestsData : [];
       sessionsData = Array.isArray(sessionsData) ? sessionsData : [];
       
-      // Process client data to standardize format and add additional information
       const processedClients = clientsData.map(client => ({
         ...client,
         unreadMessages: client.unreadCount || 0,
@@ -200,14 +201,11 @@ const DashboardCoach = () => {
       setPendingRequests(pendingRequestsData);
       setUpcomingSessions(sessionsData);
       
-      // Calculate metrics
       const upcomingSessionsCount = sessionsData.length;
-      
       const messageThreadsCount = processedClients.filter(c => 
         c.unreadMessages && c.unreadMessages > 0
       ).length;
       
-      // Update stats
       setStats({
         activeClients: processedClients.length,
         pendingRequests: pendingRequestsData.length,
@@ -227,13 +225,11 @@ const DashboardCoach = () => {
     }
   };
 
-  // Fetch dashboard data
   useEffect(() => {
     fetchDashboardData();
     
-    // Set up a refresh interval (every 5 minutes)
     const refreshInterval = setInterval(() => {
-      if (!hasMadeChanges) { // Only auto-refresh if no unsaved changes
+      if (!hasMadeChanges) {
         fetchDashboardData();
       }
     }, 5 * 60 * 1000);
@@ -241,149 +237,30 @@ const DashboardCoach = () => {
     return () => clearInterval(refreshInterval);
   }, [hasMadeChanges]);
 
-  // Generate sessions data from client workouts
-  const generateSessionsFromWorkouts = (clients) => {
-    const sessions = [];
-    const now = new Date();
-    
-    clients.forEach(client => {
-      // Check if client has workout data
-      if (client.workouts && Array.isArray(client.workouts)) {
-        // Only include non-completed workouts with future dates
-        client.workouts.forEach(workout => {
-          if (workout.completed) return;
-          
-          try {
-            const workoutDate = new Date(`${workout.date}T${workout.time || '09:00'}`);
-            
-            // Only include future workouts
-            if (workoutDate > now) {
-              sessions.push({
-                id: workout.id,
-                clientId: client.id,
-                clientName: `${client.firstName} ${client.lastName || ''}`.trim(),
-                time: workout.time || '09:00',
-                date: workout.date,
-                dateObj: workoutDate,
-                duration: '60 minutes', // Default duration
-                type: workout.title
-              });
-            }
-          } catch (err) {
-            // Skip workouts with invalid dates
-            console.warn('Invalid workout date format:', workout.date);
-          }
-        });
-      }
-    });
-    
-    // If no actual workout data is available, use mock data
-    if (sessions.length === 0 && clients.length > 0) {
-      return generateMockSessions(clients);
-    }
-    
-    // Sort sessions by date
-    return sessions.sort((a, b) => a.dateObj - b.dateObj);
-  };
-
-  // Generate mock sessions data as a fallback
-  const generateMockSessions = (clients) => {
-    const sessions = [];
-    const now = new Date();
-    
-    clients.forEach(client => {
-      // Create 1-2 sessions per client
-      const sessionCount = Math.floor(Math.random() * 2) + 1;
-      
-      for (let i = 0; i < sessionCount; i++) {
-        const dayOffset = Math.floor(Math.random() * 7) + 1; // Next 7 days
-        const hourOffset = Math.floor(Math.random() * 10) + 8; // Between 8am and 6pm
-        
-        const sessionDate = new Date(now);
-        sessionDate.setDate(now.getDate() + dayOffset);
-        sessionDate.setHours(hourOffset, 0, 0, 0);
-        
-        sessions.push({
-          id: `session-${client.id}-${i}`,
-          clientId: client.id,
-          clientName: `${client.firstName} ${client.lastName || ''}`.trim(),
-          time: sessionDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          date: sessionDate.toLocaleDateString(),
-          dateObj: sessionDate,
-          duration: '60 minutes',
-          type: ['Workout Review', 'Progress Check', 'Training Session'][Math.floor(Math.random() * 3)]
-        });
-      }
-    });
-    
-    // Sort by date
-    return sessions.sort((a, b) => a.dateObj - b.dateObj);
-  };
-
-  // Handle client search and filtering
-  const filteredClients = () => {
-    if (!clients || !Array.isArray(clients)) return [];
-    
-    return clients.filter(client => {
-      // Apply status filter
-      if (filterStatus !== 'all' && client.status !== filterStatus) {
-        return false;
-      }
-      
-      // Apply search filter
-      if (searchTerm) {
-        const fullName = `${client.firstName} ${client.lastName || ''}`.toLowerCase();
-        const email = (client.email || '').toLowerCase();
-        const searchLower = searchTerm.toLowerCase();
-        
-        return fullName.includes(searchLower) || email.includes(searchLower);
-      }
-      
-      return true;
-    });
-  };
-
   const handleClientClick = async (client) => {
     try {
       setIsLoading(true);
       const detailedClient = await clientService.getClientById(client.id);
-      setModalState({
-        detailsOpen: true,
-        workoutsOpen: false,
-        progressOpen: false,
-        currentClient: detailedClient
-      });
+      setSelectedClient(detailedClient);
     } catch (error) {
       console.error('Failed to get client details:', error);
       toast.error('Failed to load client details');
-      setModalState({
-        detailsOpen: true,
-        workoutsOpen: false,
-        progressOpen: false,
-        currentClient: client
-      });
+      setSelectedClient(client);
     } finally {
       setIsLoading(false);
     }
   };
 
-  
-
-  // Handle chat opening
   const handleChatClick = (client) => {
     setChatClient(client);
     setIsChatOpen(true);
   };
 
-  // Handle client updates
   const handleClientUpdate = async (clientId, updatedData) => {
     try {
       setHasMadeChanges(true);
-      
-      // Call API to update client data
       await clientService.updateClientStats(clientId, updatedData);
       
-      // Update local state
       setClients(prevClients => 
         prevClients.map(client => 
           client.id === clientId
@@ -400,120 +277,14 @@ const DashboardCoach = () => {
     }
   };
 
-  const handleOpenWorkouts = () => {
-    setModalState(prev => ({
-      ...prev,
-      detailsOpen: false,
-      workoutsOpen: true,
-      progressOpen: false
-    }));
-  };
-  
-  const handleOpenProgress = () => {
-    setModalState(prev => ({
-      ...prev,
-      detailsOpen: false,
-      workoutsOpen: false,
-      progressOpen: true
-    }));
-  };
-  
-  // Handle updating client workouts
-  const handleUpdateWorkouts = async (clientId, workouts) => {
-    try {
-      setHasMadeChanges(true);
-      
-      // Update workouts on the server
-      await clientService.updateClientWorkouts(clientId, workouts);
-      
-      // Update local client state
-      setClients(prevClients => 
-        prevClients.map(client => 
-          client.id === clientId
-            ? { ...client, workouts }
-            : client
-        )
-      );
-      
-      // If the selected client is this client, update that too
-      if (selectedClient && selectedClient.id === clientId) {
-        setSelectedClient(prev => ({
-          ...prev,
-          workouts
-        }));
-      }
-      
-      // Update upcoming sessions
-      setUpcomingSessions(prev => {
-        // Remove all sessions for this client
-        const filteredSessions = prev.filter(session => session.clientId !== clientId);
-        
-        // Generate new sessions for this client
-        const updatedClient = clients.find(client => client.id === clientId);
-        if (updatedClient) {
-          updatedClient.workouts = workouts;
-          const newSessions = generateSessionsFromWorkouts([updatedClient]);
-          
-          // Return combined sessions
-          return [...filteredSessions, ...newSessions].sort((a, b) => a.dateObj - b.dateObj);
-        }
-        
-        return filteredSessions;
-      });
-      
-      toast.success('Client workouts updated successfully');
-      setHasMadeChanges(false);
-    } catch (error) {
-      console.error('Failed to update workouts:', error);
-      toast.error('Failed to update client workouts');
-    }
-  };
-
-  // Handle updating client progress
-  const handleUpdateProgress = async (clientId, progress) => {
-    try {
-      setHasMadeChanges(true);
-      
-      // Update progress on the server
-      await clientService.updateClientProgress(clientId, progress);
-      
-      // Update local client state
-      setClients(prevClients => 
-        prevClients.map(client => 
-          client.id === clientId
-            ? { ...client, progress }
-            : client
-        )
-      );
-      
-      // If the selected client is this client, update that too
-      if (selectedClient && selectedClient.id === clientId) {
-        setSelectedClient(prev => ({
-          ...prev,
-          progress
-        }));
-      }
-      
-      toast.success('Client progress updated successfully');
-      setHasMadeChanges(false);
-    } catch (error) {
-      console.error('Failed to update progress:', error);
-      toast.error('Failed to update client progress');
-    }
-  };
-  
-  // Export client data
   const handleExportClientData = async (client) => {
     try {
       let exportData;
       
-      // Try to get full client data from the server
       try {
         exportData = await clientService.exportClientData(client.id);
       } catch (error) {
         console.warn('Could not fetch export data from server, using local data:', error);
-        
-        // Fall back to local client data
         exportData = {
           personalInfo: {
             id: client.id,
@@ -533,17 +304,12 @@ const DashboardCoach = () => {
         };
       }
       
-      // Convert to JSON
       const jsonData = JSON.stringify(exportData, null, 2);
-      
-      // Create a blob and download link
       const blob = new Blob([jsonData], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `client-data-${client.id}.json`;
-      
-      // Trigger download
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -555,50 +321,21 @@ const DashboardCoach = () => {
     }
   };
 
-  // Group upcoming sessions by date
-  const groupedSessions = () => {
-    if (!upcomingSessions || !Array.isArray(upcomingSessions) || upcomingSessions.length === 0) {
-      return [];
-    }
-    
-    const grouped = {};
-    
-    upcomingSessions.forEach(session => {
-      if (!grouped[session.date]) {
-        grouped[session.date] = [];
-      }
-      grouped[session.date].push(session);
-    });
-    
-    return Object.entries(grouped).map(([date, sessions]) => ({
-      date,
-      sessions
-    }));
-  };
-
-  // Handle status change
   const handleStatusChange = (status) => {
     setFilterStatus(status);
   };
 
-  // Handle new client addition
   const handleAddClient = () => {
     toast.info('This feature will be implemented in a future update');
   };
 
-  // Handle accepting a coaching request
   const handleAcceptRequest = async (requestId) => {
     try {
       setIsLoading(true);
       await clientService.acceptCoachingRequest(requestId);
-      
-      // Remove from pending requests
       setPendingRequests(prev => prev.filter(req => req.id !== requestId));
-      
-      // Refresh client list
       const updatedClients = await clientService.getCoachClients();
       setClients(updatedClients);
-      
       toast.success('Coaching request accepted successfully');
     } catch (error) {
       console.error('Failed to accept coaching request:', error);
@@ -608,15 +345,11 @@ const DashboardCoach = () => {
     }
   };
 
-  // Handle declining a coaching request
   const handleDeclineRequest = async (requestId) => {
     try {
       setIsLoading(true);
       await clientService.declineCoachingRequest(requestId);
-      
-      // Remove from pending requests
       setPendingRequests(prev => prev.filter(req => req.id !== requestId));
-      
       toast.success('Coaching request declined');
     } catch (error) {
       console.error('Failed to decline coaching request:', error);
@@ -680,7 +413,7 @@ const DashboardCoach = () => {
           </motion.div>
         )}
 
-        {/* Stats Grid - Compact version for mobile */}
+        {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
           <StatCard
             title="Active Clients"
@@ -706,7 +439,6 @@ const DashboardCoach = () => {
             icon={Clock}
             onClick={() => handleStatCardClick('requests')}
           />
-          
         </div>
 
         {/* Main Tabs Section */}
@@ -731,7 +463,6 @@ const DashboardCoach = () => {
                     <Clock className="w-4 h-4 mr-2" />
                     Requests
                   </TabsTrigger>
-                  
                 </TabsList>
                 
                 {/* Search and Filter */}
@@ -815,16 +546,10 @@ const DashboardCoach = () => {
                   </TabsContent>
                   
                   <TabsContent value="schedule" className="mt-0">
-                    {isLoading ? (
-                      <div className="flex items-center justify-center h-64">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                      </div>
-                    ) : (
-                      <Schedule 
-                        clients={clients} 
-                        onRefreshData={fetchDashboardData} // Pass the function here
-                      />
-                    )}
+                    <Schedule 
+                      clients={clients} 
+                      onRefreshData={fetchDashboardData}
+                    />
                   </TabsContent>
                                 
                   <TabsContent value="requests" className="mt-0">
@@ -947,7 +672,7 @@ const DashboardCoach = () => {
           </Tabs>
         </Card>
 
-        {/* Client Stats Widget - Only show if there are clients */}
+        {/* Client Stats Widget */}
         {clients.length > 0 && (
           <ClientStatsWidget clients={clients} />
         )}
@@ -955,27 +680,13 @@ const DashboardCoach = () => {
 
       {/* Client Details Modal */}
       <AnimatePresence>
-        {modalState.detailsOpen && modalState.currentClient && (
-          <div 
-            className="fixed inset-0 z-40 bg-black bg-opacity-50 flex items-center justify-center"
-            onClick={(e) => {
-              // Only close if clicking the backdrop directly
-              if (e.target === e.currentTarget) {
-                setModalState(prev => ({...prev, detailsOpen: false}));
-              }
-            }}
-          >
-            <div onClick={e => e.stopPropagation()}>
-              <ClientDetailsModal
-                client={modalState.currentClient}
-                onClose={() => setModalState(prev => ({...prev, detailsOpen: false}))}
-                onSave={(updatedData) => handleClientUpdate(modalState.currentClient.id, updatedData)}
-                onOpenWorkouts={handleOpenWorkouts} // Pass the handler
-                onOpenProgress={handleOpenProgress} // Pass the handler
-                onExportData={() => handleExportClientData(modalState.currentClient)}
-              />
-            </div>
-          </div>
+        {selectedClient && (
+          <ClientDetailsModal
+            client={selectedClient}
+            onClose={() => setSelectedClient(null)}
+            onSave={(updatedData) => handleClientUpdate(selectedClient.id, updatedData)}
+            onExportData={() => handleExportClientData(selectedClient)}
+          />
         )}
       </AnimatePresence>
 
@@ -989,53 +700,6 @@ const DashboardCoach = () => {
           />
         )}
       </AnimatePresence>
-
-      {/* Client Workouts Modal */}
-     
-    <AnimatePresence>
-      {modalState.workoutsOpen && modalState.currentClient && (
-        <div 
-          className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center"
-          onClick={(e) => {
-            // Only close if clicking the backdrop directly
-            if (e.target === e.currentTarget) {
-              setModalState(prev => ({...prev, workoutsOpen: false}));
-            }
-          }}
-        >
-          <div onClick={e => e.stopPropagation()}>
-            <ClientWorkoutsModal
-              client={modalState.currentClient}
-              onClose={() => setModalState(prev => ({...prev, workoutsOpen: false}))}
-              onSave={(updatedWorkouts) => handleUpdateWorkouts(modalState.currentClient.id, updatedWorkouts)}
-            />
-          </div>
-        </div>
-      )}
-    </AnimatePresence>
-
-      {/* Client Progress Modal */}
-      <AnimatePresence>
-      {modalState.progressOpen && modalState.currentClient && (
-        <div 
-          className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center"
-          onClick={(e) => {
-            // Only close if clicking the backdrop directly
-            if (e.target === e.currentTarget) {
-              setModalState(prev => ({...prev, progressOpen: false}));
-            }
-          }}
-        >
-          <div onClick={e => e.stopPropagation()}>
-            <ClientProgressModal
-              client={modalState.currentClient}
-              onClose={() => setModalState(prev => ({...prev, progressOpen: false}))}
-              onSave={(updatedProgress) => handleUpdateProgress(modalState.currentClient.id, updatedProgress)}
-            />
-          </div>
-        </div>
-      )}
-    </AnimatePresence>
     </div>
   );
 };

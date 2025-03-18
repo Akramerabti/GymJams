@@ -169,12 +169,19 @@ const ClientWorkoutsModal = ({ client, onClose, onSave }) => {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4 overflow-y-auto"
+      onClick={(e) => {
+        // Close only if clicking the backdrop (not the modal content)
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
     >
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         className="bg-white rounded-xl overflow-hidden shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
@@ -194,13 +201,16 @@ const ClientWorkoutsModal = ({ client, onClose, onSave }) => {
             </Button>
           </div>
           <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e) => onClose(e)}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            <X className="w-6 h-6" />
-          </Button>
+          variant="ghost"
+          size="icon"
+          onClick={(e) => {
+            e.stopPropagation(); // Stop event propagation
+            onClose();
+          }}
+          className="text-gray-500 hover:text-gray-700"
+        >
+          <X className="w-6 h-6" />
+        </Button>
         </div>
 
         {/* Client Profile Section (Collapsible) */}

@@ -13,8 +13,10 @@ import {
 import Progress from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import GoalManager from './GoalManager';
+import ClientWorkoutsModal from './ClientWorkoutsModal';
+import ClientProgressModal from './ClientProgressModal';
 
-const ClientDetailsModal = ({ client, onClose, onSave, onOpenWorkouts, onOpenProgress, onExportData }) => {
+const ClientDetailsModal = ({ client, onClose, onSave, onExportData }) => {
   const [formData, setFormData] = useState({
     workoutsCompleted: 0,
     currentStreak: 0,
@@ -28,7 +30,9 @@ const ClientDetailsModal = ({ client, onClose, onSave, onOpenWorkouts, onOpenPro
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [isExpanded, setIsExpanded] = useState(false);
-  
+  const [isWorkoutsModalOpen, setIsWorkoutsModalOpen] = useState(false);
+  const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
+
   const modalRef = useRef(null);
   
   // Determine if client is premium or elite
@@ -75,14 +79,12 @@ useEffect(() => {
     }
   }, [client]);
 
-  // Handle clicking outside modal to close
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (modalRef.current && !modalRef.current.contains(event.target)) {
         onClose();
       }
     };
-    
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
@@ -90,24 +92,15 @@ useEffect(() => {
   }, [onClose]);
 
   
-  
-  // Handle form input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    
-    // Convert numeric fields from string to number
     const numericFields = ['workoutsCompleted', 'currentStreak', 'monthlyProgress', 'goalsAchieved', 'weeklyTarget', 'nutritionCompliance'];
-    
-    // Convert to number if it's a numeric field
     const processedValue = numericFields.includes(name) 
       ? value === '' ? 0 : Number(value) 
       : value;
-    
-    // Handle NaN values from invalid numeric input
     const finalValue = typeof processedValue === 'number' && isNaN(processedValue) 
       ? 0 
       : processedValue;
-    
     setFormData({
       ...formData,
       [name]: finalValue
@@ -131,10 +124,19 @@ useEffect(() => {
     setIsEditing(false);
   };
   
-  // Handle update stats button click
   const handleUpdateStatsClick = () => {
     setActiveTab('stats');
     setIsEditing(true);
+  };
+
+  // Handle opening Workouts modal
+  const handleOpenWorkouts = () => {
+    setIsWorkoutsModalOpen(true);
+  };
+
+  // Handle opening Progress modal
+  const handleOpenProgress = () => {
+    setIsProgressModalOpen(true);
   };
 
   const handleAddGoal = (newGoal) => {
@@ -231,12 +233,12 @@ useEffect(() => {
         return {
           id: goal.id,
           title: goal.name,
-          target: goal.description,
+          description: goal.description, // Renamed to "description"
           progress: progressPercent,
           due: formattedDeadline,
           icon,
           current: goal.currentValue,
-          target: goal.targetValue,
+          target: goal.targetValue, // Keep this as "target"
           unit: goal.type === 'body_composition' ? '%' : goal.type === 'endurance' ? 'min' : 'kg'
         };
       });
@@ -290,6 +292,7 @@ useEffect(() => {
   return (
     <AnimatePresence>
       <motion.div
+        key="client-details-modal"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -481,7 +484,7 @@ useEffect(() => {
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={onOpenWorkouts}
+                    onClick={handleOpenWorkouts}
                     className="flex items-center"
                   >
                     <Dumbbell className="w-4 h-4 mr-2" />
@@ -489,7 +492,7 @@ useEffect(() => {
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={onOpenProgress}
+                    onClick={handleOpenProgress}
                     className="flex items-center"
                   >
                     <BarChart2 className="w-4 h-4 mr-2" />
@@ -1115,6 +1118,36 @@ useEffect(() => {
           </div>
         </motion.div>
       </motion.div>
+
+    {/* Workouts Modal */}
+    <AnimatePresence>
+        {isWorkoutsModalOpen && (
+          <ClientWorkoutsModal
+            key="workouts-modal" 
+            client={client}
+            onClose={() => setIsWorkoutsModalOpen(false)}
+            onSave={(updatedWorkouts) => {
+              onSave({ workouts: updatedWorkouts });
+              setIsWorkoutsModalOpen(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Progress Modal */}
+      <AnimatePresence>
+        {isProgressModalOpen && (
+          <ClientProgressModal
+            key="progress-modal"
+            client={client}
+            onClose={() => setIsProgressModalOpen(false)}
+            onSave={(updatedProgress) => {
+              onSave({ progress: updatedProgress });
+              setIsProgressModalOpen(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </AnimatePresence>
   );
 };
