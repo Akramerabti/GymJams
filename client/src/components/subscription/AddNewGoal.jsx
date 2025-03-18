@@ -120,15 +120,17 @@ const AddNewGoal = ({ isOpen, onClose, onSave, goal = null }) => {
 
     // Prepare the goal object
     const newGoal = {
-      ...formData,
-      dueDate: new Date(formData.dueDate),
-      createdAt: goal?.createdAt || new Date(),
-      progress: formData.progress || 0,
-      status: formData.status || 'active',
-      clientRequestedCompletion: formData.clientRequestedCompletion || false,
-      coachApproved: formData.coachApproved || false,
-      pointsAwarded: formData.pointsAwarded || 0,
-    };
+        ...formData,
+        id: formData.id || `goal-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        dueDate: new Date(formData.dueDate),
+        due: formatDate(new Date(formData.dueDate)), // Add formatted date for display
+        createdAt: goal?.createdAt || new Date().toISOString(),
+        progress: parseInt(formData.progress) || 0,
+        status: formData.status || 'active', // Ensure status is set
+        clientRequestedCompletion: formData.clientRequestedCompletion || false,
+        coachApproved: formData.coachApproved || false,
+        pointsAwarded: formData.pointsAwarded || 0,
+      };
 
     // Call the onSave function with the new goal
     onSave(newGoal);

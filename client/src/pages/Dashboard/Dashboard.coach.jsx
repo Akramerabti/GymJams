@@ -21,6 +21,35 @@ import CoachChatComponent from './components/CoachChatComponent';
 import ClientStatsWidget from './CoachOrganization/ClientStatsWidget';
 import clientService from '../../services/client.service';
 
+const PendingGoalAlert = ({ count, onClick }) => {
+  if (!count || count === 0) return null;
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 flex justify-between items-center"
+    >
+      <div className="flex items-center">
+        <Bell className="w-5 h-5 text-amber-600 mr-3" />
+        <div>
+          <p className="font-medium text-amber-800">Pending Goal Approvals</p>
+          <p className="text-sm text-amber-600">
+            You have {count} goal {count === 1 ? 'completion' : 'completions'} waiting for approval
+          </p>
+        </div>
+      </div>
+      <Button
+        onClick={onClick}
+        className="bg-amber-600 hover:bg-amber-700 text-white"
+      >
+        Review Goals
+      </Button>
+    </motion.div>
+  );
+};
+
+
 const DashboardCoach = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState({
@@ -41,6 +70,7 @@ const DashboardCoach = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [hasMadeChanges, setHasMadeChanges] = useState(false);
   const [error, setError] = useState(null);
+  const [pendingGoalCount, setPendingGoalCount] = useState(0);
 
   // Ref for tab content to scroll to
   const tabContentRef = useRef(null);
@@ -208,7 +238,7 @@ const DashboardCoach = () => {
       setIsLoading(false);
     }
   };
-  
+
   
   const filteredClients = () => {
     if (!clients || !Array.isArray(clients)) return [];
@@ -292,6 +322,14 @@ const DashboardCoach = () => {
         messageThreads: messageThreadsCount,
       });
       
+      const pendingGoalRequests = processedClients.reduce((count, client) => {
+        const pendingGoals = (client.goals || []).filter(
+          goal => goal.status === 'pending_approval' || goal.clientRequestedCompletion
+        );
+        return count + pendingGoals.length;
+      }, 0);
+      setPendingGoalCount(pendingGoalRequests);
+
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       setError('Failed to load dashboard data. Please try again later.');
@@ -478,19 +516,26 @@ const DashboardCoach = () => {
           </div>
         </motion.div>
 
-        {/* Error display */}
-        {error && (
-          <motion.div 
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-red-50 border border-red-200 rounded-md p-4"
-          >
-            <div className="flex items-center">
-              <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
-              <p className="text-red-700">{error}</p>
-            </div>
-          </motion.div>
-        )}
+        {/* Pending Goal Alert */}
+        <PendingGoalAlert 
+          count={pendingGoalCount} 
+          onClick={() => handleStatCardClick('clients')} 
+        />
+
+         {/* Error display */}
+         {error && (
+           <motion.div 
+             initial={{ opacity: 0, y: -10 }}
+             animate={{ opacity: 1, y: 0 }}
+             className="bg-red-50 border border-red-200 rounded-md p-4"
+           >
+             <div className="flex items-center">
+               <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
+               <p className="text-red-700">{error}</p>
+             </div>
+           </motion.div>
+         )}
+
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">

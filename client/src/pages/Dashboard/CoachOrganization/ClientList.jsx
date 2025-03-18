@@ -59,6 +59,12 @@ const ClientList = ({ clients, onClientClick, onChatClick }) => {
     );
   };
 
+  const hasPendingGoals = (client) => {
+    return (client.goals || []).some(
+      goal => goal.status === 'pending_approval' || goal.clientRequestedCompletion
+    );
+  };
+  
   // Get risk level indicator
   const getRiskIndicator = (adherenceRisk) => {
     if (!adherenceRisk) return null;
@@ -134,6 +140,14 @@ const ClientList = ({ clients, onClientClick, onChatClick }) => {
                         getRiskIndicator(client.stats.adherenceRisk)}
                     </div>
                   </div>
+                  {hasPendingGoals(client) && (
+            <div className="ml-2">
+              <Badge className="bg-amber-100 text-amber-800 border-amber-200 flex items-center">
+                <Target className="w-3 h-3 mr-1" />
+                <span>Goal Approval</span>
+              </Badge>
+            </div>
+          )}
                 </div>
                 
                 <div className="flex items-center justify-between md:justify-end w-full md:w-auto">
