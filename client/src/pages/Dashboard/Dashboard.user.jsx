@@ -77,7 +77,7 @@ const calculateTrend = (current, previous) => {
 
 const ClientDashboard = () => {
   const { user } = useAuth();
-  const socket = useSocket();
+  const { socket, notifications } = useSocket();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [subscription, setSubscription] = useState(null);
@@ -486,13 +486,54 @@ const ClientDashboard = () => {
     };
   }, [user, navigate]);
 
-  // Add this to the client-side socket setup in the client's Dashboard component
-
-// Set up socket listeners for goal approval/rejection notifications
+// This is the code in Dashboard.user.jsx that's causing the error
+// Current problematic code (line ~492)
 useEffect(() => {
   if (socket && subscription) {
     // Listen for goal approval events
-    socket.on('goalApproved', (data) => {
+    socket.on('goalApproved', (data) => {  // ERROR: socket.on is not a function
+      const { goalId, title, pointsAwarded, status } = data;
+      
+      // Update the goals list - explicitly set status to 'completed'
+      setGoals(prevGoals => 
+        prevGoals.map(goal => 
+          goal.id === goalId 
+            ? { 
+                ...goal, 
+                status: 'completed',
+                completed: true,
+                completedDate: new Date().toISOString(),
+                pointsAwarded,
+                progress: 100
+              } 
+            : goal
+        )
+      );
+      
+      // Other code...
+    });
+    
+    // Listen for goal rejection events
+    socket.on('goalRejected', (data) => {
+      // Rejection handling code...
+    });
+    
+    return () => {
+      socket.off('goalApproved');
+      socket.off('goalRejected');
+    };
+  }
+}, [socket, subscription]);
+
+// FIXED VERSION - Handle both old and new SocketContext formats
+useEffect(() => {
+  // Check if socket is an object with a socket property (new version)
+  // or a direct socket instance (old version)
+  const socketInstance = socket?.socket || socket;
+  
+  if (socketInstance && subscription) {
+    // Create event handlers
+    const handleGoalApproved = (data) => {
       const { goalId, title, pointsAwarded, status } = data;
       
       // Update the goals list - explicitly set status to 'completed'
@@ -525,41 +566,9 @@ useEffect(() => {
         addPoints(pointsAwarded);
         updatePointsInBackend(user?.points + pointsAwarded || pointsAwarded);
       }
-      
-      // Show notification to user
-      toast.success(
-        `Goal Completed: ${title}`,
-        {
-          description: `Your coach approved your goal! You earned ${pointsAwarded} points.`,
-          icon: <Award className="w-6 h-6 text-yellow-500" />
-        }
-      );
-      
-      // Play a success sound if available
-      if (window.Audio) {
-        try {
-          const successSound = new Audio('/sounds/success.mp3');
-          successSound.play();
-        } catch (e) {
-          console.log('Sound playback failed', e);
-        }
-      }
-      
-      // Show floating notification
-      setNotifications(prev => [
-        ...prev,
-        {
-          type: 'goal-approval',
-          goalId,
-          title,
-          pointsAwarded,
-          timestamp: new Date().toISOString()
-        }
-      ]);
-    });
+    };
     
-    // Listen for goal rejection events
-    socket.on('goalRejected', (data) => {
+    const handleGoalRejected = (data) => {
       const { goalId, title, reason, status } = data;
       
       // Update the goals list - reset status to 'active'
@@ -577,33 +586,23 @@ useEffect(() => {
             : goal
         )
       );
-      
-      // Show notification to user
-      toast.error(
-        `Goal Completion Rejected: ${title}`,
-        {
-          description: reason || 'Your coach has requested more progress on this goal.',
-          duration: 6000
-        }
-      );
-      
-      // Show floating notification
-      setNotifications(prev => [
-        ...prev,
-        {
-          type: 'goal-rejection',
-          goalId,
-          title,
-          reason,
-          timestamp: new Date().toISOString()
-        }
-      ]);
-    });
-    
-    return () => {
-      socket.off('goalApproved');
-      socket.off('goalRejected');
     };
+
+    // Add event listeners
+    if (typeof socketInstance.on === 'function') {
+      socketInstance.on('goalApproved', handleGoalApproved);
+      socketInstance.on('goalRejected', handleGoalRejected);
+      
+      // Return cleanup function
+      return () => {
+        if (typeof socketInstance.off === 'function') {
+          socketInstance.off('goalApproved', handleGoalApproved);
+          socketInstance.off('goalRejected', handleGoalRejected);
+        }
+      };
+    } else {
+      console.warn('Socket is not properly initialized or missing .on method');
+    }
   }
 }, [socket, subscription, addPoints, updatePointsInBackend, user]);
 

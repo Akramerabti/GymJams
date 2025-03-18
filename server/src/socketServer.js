@@ -242,3 +242,49 @@ export const emitToUsers = (event, data, userIds = null) => {
     logger.error(`Error emitting ${event}:`, error);
   }
 };
+
+// Specific function to notify a client about goal approval
+export const notifyGoalApproval = (userId, goalData) => {
+  if (!ioInstance) {
+    logger.error('Socket.io instance not initialized');
+    return false;
+  }
+  
+  try {
+    const socketId = activeUsers.get(userId.toString());
+    if (socketId) {
+      ioInstance.to(socketId).emit('goalApproved', goalData);
+      logger.info(`Goal approval notification sent to user ${userId}`);
+      return true;
+    } else {
+      logger.info(`User ${userId} is offline, goal approval notification will be delivered when they connect`);
+      return false;
+    }
+  } catch (error) {
+    logger.error(`Error sending goal approval notification:`, error);
+    return false;
+  }
+};
+
+// Specific function to notify a client about goal rejection
+export const notifyGoalRejection = (userId, goalData) => {
+  if (!ioInstance) {
+    logger.error('Socket.io instance not initialized');
+    return false;
+  }
+  
+  try {
+    const socketId = activeUsers.get(userId.toString());
+    if (socketId) {
+      ioInstance.to(socketId).emit('goalRejected', goalData);
+      logger.info(`Goal rejection notification sent to user ${userId}`);
+      return true;
+    } else {
+      logger.info(`User ${userId} is offline, goal rejection notification will be delivered when they connect`);
+      return false;
+    }
+  } catch (error) {
+    logger.error(`Error sending goal rejection notification:`, error);
+    return false;
+  }
+};

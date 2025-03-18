@@ -1,9 +1,9 @@
-import React, { useState, useEffect} from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Target, Dumbbell, Activity, Calendar, ArrowRight, 
   CheckCircle, Shield, Award, Zap, 
-  AlertTriangle, Coins, Info, Clock
+  AlertTriangle, Coins, Info, Clock, RefreshCcw
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/alert';
 import subscriptionService from '../../../services/subscription.service';
 import { toast } from 'sonner';
+import { useSocket } from '../../../SocketContext';
+import { usePoints } from '../../../hooks/usePoints';
 
 // Helper function for formatting dates
 const formatDate = (dateString) => {
@@ -58,20 +60,23 @@ const getGoalIcon = (type) => {
 };
 
 // Individual goal card component
-const GoalCard = ({ goal, onComplete }) => {
-  const { id, title, target, progress, due, type, difficulty = 'medium', completed } = goal;
+const GoalCard = ({ goal, onComplete, subscription }) => {
+  const { id, title, target, progress, due, type, difficulty = 'medium', completed, status } = goal;
   const difficultyConfig = GOAL_DIFFICULTY[difficulty];
   const icon = goal.icon || getGoalIcon(type);
   
+  const isPendingApproval = status === 'pending_approval' || goal.clientRequestedCompletion;
+  const isRejected = status === 'rejected' || goal.rejectedAt;
+  
   const renderActionButton = () => {
-    if (goal.completed || goal.status === 'completed') {
+    if (completed || status === 'completed') {
       return (
         <div className="flex items-center text-green-600 text-xs">
           <CheckCircle className="w-4 h-4 mr-1" />
           <span>Completed {goal.completedDate ? `on ${formatDate(goal.completedDate)}` : ''}</span>
         </div>
       );
-    } else if (goal.status === 'pending_approval' || goal.clientRequestedCompletion) {
+    } else if (isPendingApproval) {
       return (
         <div className="flex items-center text-amber-600 text-xs">
           <Clock className="w-4 h-4 mr-1" />
@@ -98,7 +103,9 @@ const GoalCard = ({ goal, onComplete }) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className={`bg-white p-4 rounded-lg border shadow-sm ${
-        completed ? 'border-green-200 bg-green-50' : ''
+        completed || status === 'completed' ? 'border-green-200 bg-green-50' : 
+        isPendingApproval ? 'border-amber-200 bg-amber-50' : 
+        isRejected ? 'border-red-200 bg-red-50' : ''
       }`}
     >
       <div className="flex items-start space-x-4">
@@ -116,10 +123,24 @@ const GoalCard = ({ goal, onComplete }) => {
                     <span className="ml-1">{difficultyConfig.label}</span>
                   </span>
                 </Badge>
+                
+                {isPendingApproval && (
+                  <Badge className="bg-amber-100 text-amber-800 border-amber-200">
+                    <Clock className="w-3 h-3 mr-1" />
+                    <span>Pending Approval</span>
+                  </Badge>
+                )}
+                
+                {isRejected && (
+                  <Badge className="bg-red-100 text-red-800 border-red-200">
+                    <AlertTriangle className="w-3 h-3 mr-1" />
+                    <span>Needs Review</span>
+                  </Badge>
+                )}
               </div>
               <p className="text-sm text-gray-600 mb-2">{target}</p>
             </div>
-            {!completed && (
+            {!completed && !isPendingApproval && (
               <div className="mt-2 sm:mt-0 flex items-center">
                 <Coins className="w-4 h-4 text-yellow-500 mr-1" />
                 <span className="text-xs text-gray-600">{difficultyConfig.points} points on completion</span>
@@ -135,33 +156,33 @@ const GoalCard = ({ goal, onComplete }) => {
             <Progress value={progress} className="h-2" />
           </div>
           
+          {isRejected && goal.rejectionReason && (
+            <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-xs text-red-700">
+                <AlertTriangle className="inline w-3 h-3 mr-1" />
+                Coach feedback: {goal.rejectionReason}
+              </p>
+            </div>
+          )}
+          
           <div className="flex justify-between items-center mt-3">
             <p className="text-xs text-gray-500">Due: {due}</p>
             
-            {!completed && (
+            {isRejected && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => onComplete(id)}
-                className="text-green-600 border-green-200 hover:bg-green-50 hover:text-green-700"
+                className="text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700"
               >
-                <CheckCircle className="w-4 h-4 mr-1" />
-                Mark Complete
+                <RefreshCcw className="w-4 h-4 mr-1" />
+                Resubmit
               </Button>
             )}
             
-            {completed && (
-              <div className="flex items-center text-green-600 text-xs">
-                <CheckCircle className="w-4 h-4 mr-1" />
-                <span>Completed {goal.completedDate ? `on ${formatDate(goal.completedDate)}` : ''}</span>
-              </div>
-            )}
+            {!isRejected && renderActionButton()}
           </div>
         </div>
-      </div>
-      <div className="flex justify-between items-center mt-3">
-        <p className="text-xs text-gray-500">Due: {due}</p>
-        {renderActionButton()}
       </div>
     </motion.div>
   );
@@ -193,7 +214,7 @@ const CompletionDialog = ({ isOpen, onClose, onConfirm, goal }) => {
             <div className="ml-2">
               <p className="text-blue-800 font-medium">Reward for completion</p>
               <p className="text-blue-700 text-sm">
-                You will earn <span className="font-semibold">{difficultyConfig.points} points</span> for completing this {difficultyConfig.label.toLowerCase()} goal.
+                Your coach will review and approve this goal. You will earn <span className="font-semibold">{difficultyConfig.points} points</span> when approved.
               </p>
             </div>
           </Alert>
@@ -208,7 +229,7 @@ const CompletionDialog = ({ isOpen, onClose, onConfirm, goal }) => {
             className="bg-green-600 hover:bg-green-700"
           >
             <CheckCircle className="w-4 h-4 mr-2" />
-            Complete Goal
+            Submit for Approval
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -226,57 +247,143 @@ const GoalsSection = ({
   const [goals, setGoals] = useState(initialGoals);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
+  const { socket } = useSocket();
+  const { addPoints } = usePoints();
+
+  // Handle socket events for goal approvals and rejections
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleGoalApproved = (data) => {
+      console.log('Goal approved socket event received:', data);
+      const { goalId, pointsAwarded } = data;
+      
+      // Update the goals array
+      setGoals(currentGoals => 
+        currentGoals.map(goal => 
+          goal.id === goalId
+            ? { 
+                ...goal, 
+                status: 'completed',
+                completed: true,
+                completedDate: new Date().toISOString(),
+                pointsAwarded,
+                progress: 100
+              }
+            : goal
+        )
+      );
+      
+      // Add points to user's total
+      if (addPoints && pointsAwarded) {
+        addPoints(pointsAwarded);
+      }
+    };
+    
+    const handleGoalRejected = (data) => {
+      console.log('Goal rejected socket event received:', data);
+      const { goalId, reason } = data;
+      
+      // Update the goals array
+      setGoals(currentGoals => 
+        currentGoals.map(goal => 
+          goal.id === goalId
+            ? { 
+                ...goal, 
+                status: 'active', // Reset to active
+                clientRequestedCompletion: false,
+                clientCompletionRequestDate: null,
+                rejectedAt: new Date().toISOString(),
+                rejectionReason: reason || 'Your coach has requested more progress',
+                progress: Math.min(90, goal.progress) // Cap at 90% if rejected
+              }
+            : goal
+        )
+      );
+    };
+    
+    // Add event listeners
+    socket.on('goalApproved', handleGoalApproved);
+    socket.on('goalRejected', handleGoalRejected);
+    
+    // Cleanup
+    return () => {
+      socket.off('goalApproved', handleGoalApproved);
+      socket.off('goalRejected', handleGoalRejected);
+    };
+  }, [socket, addPoints]);
 
   useEffect(() => {
     setGoals(initialGoals);
   }, [initialGoals]);
 
-  const handleRequestCompletion = async (goalId) => {
+  const handleRequestGoalCompletion = async (goalId) => {
     try {
-      // Get the goal to be completed
+      // Find the goal to be completed
       const goal = goals.find(g => g.id === goalId);
       if (!goal) {
         toast.error('Goal not found');
         return;
       }
       
-      // Update the goal status to pending_approval
-      const updatedGoal = {
-        ...goal,
-        status: 'pending_approval',
-        clientRequestedCompletion: true,
-        clientCompletionRequestDate: new Date().toISOString(),
-        progress: 100 // Set progress to 100% to indicate client believes it's complete
-      };
-      
-      // Update goals array for UI
+      // Set dialog states for confirmation
+      setSelectedGoal(goal);
+      setIsDialogOpen(true);
+    } catch (error) {
+      console.error('Failed to prepare goal completion request:', error);
+      toast.error('Failed to prepare completion request');
+    }
+  };
+  
+  const confirmComplete = async () => {
+    if (!selectedGoal) return;
+    
+    try {
+      // Optimistic UI update
       const updatedGoals = goals.map(g => 
-        g.id === goalId ? updatedGoal : g
+        g.id === selectedGoal.id 
+          ? { 
+              ...g, 
+              status: 'pending_approval',
+              clientRequestedCompletion: true,
+              clientCompletionRequestDate: new Date().toISOString(),
+              progress: 100
+            } 
+          : g
       );
       
       setGoals(updatedGoals);
       
-      // Send update to backend
-      await subscriptionService.updateClientGoal(subscription._id, updatedGoal);
+      // Send request to the backend
+      await subscriptionService.requestGoalCompletion(subscription._id, selectedGoal.id);
       
-      toast.success('Completion request sent to your coach for approval!');
-    } catch (error) {
-      console.error('Failed to request goal completion:', error);
-      toast.error('Failed to submit completion request');
-    }
-  };
-  
-  const confirmComplete = () => {
-    if (selectedGoal) {
-      onCompleteGoal(selectedGoal);
+      toast.success('Completion request sent to your coach!', {
+        description: 'Your coach will review and approve this goal.'
+      });
+      
       setIsDialogOpen(false);
       setSelectedGoal(null);
+      
+    } catch (error) {
+      console.error('Failed to request goal completion:', error);
+      toast.error('Failed to send completion request');
+      
+      // Revert optimistic update
+      setGoals(initialGoals);
     }
   };
   
   // Filter active and completed goals
-  const activeGoals = goals.filter(goal => !goal.completed);
-  const completedGoals = goals.filter(goal => goal.completed);
+  const activeGoals = goals.filter(goal => !goal.completed && goal.status !== 'completed');
+  const completedGoals = goals.filter(goal => goal.completed || goal.status === 'completed');
+  
+  // Further filter active goals
+  const pendingGoals = activeGoals.filter(
+    goal => goal.status === 'pending_approval' || goal.clientRequestedCompletion
+  );
+  const regularActiveGoals = activeGoals.filter(
+    goal => goal.status !== 'pending_approval' && !goal.clientRequestedCompletion
+  );
   
   return (
     <>
@@ -293,34 +400,62 @@ const GoalsSection = ({
         </Button>
       </CardHeader>
         <CardContent>
+          {/* Pending Approval Section */}
+          {pendingGoals.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-medium flex items-center text-amber-800 mb-3">
+                <Clock className="w-4 h-4 mr-2" />
+                Awaiting Coach Approval
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {pendingGoals.slice(0, 2).map(goal => (
+                  <GoalCard 
+                    key={goal.id} 
+                    goal={goal} 
+                    onComplete={() => {}} // No-op for pending goals
+                    subscription={subscription}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Active Goals */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {activeGoals.length > 0 ? (
-              activeGoals.slice(0, 4).map(goal => (
+            {regularActiveGoals.length > 0 ? (
+              regularActiveGoals.slice(0, 4 - pendingGoals.length).map(goal => (
                 <GoalCard 
                   key={goal.id} 
                   goal={goal} 
-                  onComplete={handleRequestCompletion} 
+                  onComplete={handleRequestGoalCompletion} 
+                  subscription={subscription}
                 />
               ))
             ) : (
-              <div className="col-span-2 text-center py-8">
-                <Target className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-                <h3 className="text-xl font-medium text-gray-700">No active goals</h3>
-                <p className="text-gray-500 mt-2">Your coach will assign goals for you to work on.</p>
-              </div>
+              pendingGoals.length === 0 && (
+                <div className="col-span-2 text-center py-8">
+                  <Target className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+                  <h3 className="text-xl font-medium text-gray-700">No active goals</h3>
+                  <p className="text-gray-500 mt-2">Your coach will assign goals for you to work on.</p>
+                </div>
+              )
             )}
           </div>
           
           {/* Show recently completed goals if there are any */}
           {completedGoals.length > 0 && (
             <div className="mt-6">
-              <h3 className="text-lg font-medium mb-4">Recently Completed</h3>
+              <h3 className="text-sm font-medium flex items-center text-green-800 mb-3">
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Recently Completed
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {completedGoals.slice(0, 2).map(goal => (
                   <GoalCard 
                     key={goal.id} 
                     goal={goal} 
                     onComplete={() => {}} // No-op for completed goals
+                    subscription={subscription}
                   />
                 ))}
               </div>

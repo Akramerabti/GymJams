@@ -416,17 +416,6 @@ const StatsUpdateDialog = ({
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="goals-achieved">Goals Achieved</Label>
-              <Input
-                id="goals-achieved"
-                type="number"
-                min="0"
-                value={updatedStats.goalsAchieved}
-                onChange={(e) => handleChange('goalsAchieved', e.target.value)}
-              />
-            </div>
-            
-            <div className="space-y-2">
               <Label htmlFor="weekly-target">Weekly Target</Label>
               <Input
                 id="weekly-target"

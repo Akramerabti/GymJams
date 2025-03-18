@@ -1,15 +1,25 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './stores/authStore';
+import { toast } from 'sonner';
+import { Award, AlertTriangle } from 'lucide-react';
 
-const SocketContext = createContext(null);
+// Create context with a default value
+const SocketContext = createContext({
+  socket: null,
+  notifications: []
+});
 
-export const useSocket = () => useContext(SocketContext);
+// Separate named export for the hook - this is important for Fast Refresh
+export function useSocket() {
+  return useContext(SocketContext);
+}
 
 export const SocketProvider = ({ children }) => {
-  const [socket, setSocket] = useState(null);
+  const [socketState, setSocketState] = useState(null);
   const { user, isAuthenticated } = useAuth();
   const socketRef = useRef(null); // Keep a stable reference to socket
+  const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
     // Initialize socket connection only once
@@ -67,9 +77,73 @@ export const SocketProvider = ({ children }) => {
         console.error('Socket error:', error);
       });
       
+      // Add listeners for goal approvals and rejections
+      socketInstance.on('goalApproved', (data) => {
+        console.log('Goal approved event received:', data);
+        const { goalId, title, pointsAwarded } = data;
+        
+        // Show toast notification
+        toast.success(
+          `Goal Completed: ${title}`,
+          {
+            description: `Your coach approved your goal! You earned ${pointsAwarded} points.`,
+            icon: <Award className="w-6 h-6 text-yellow-500" />,
+            duration: 6000
+          }
+        );
+        
+        // Play success sound if available
+        if (window.Audio) {
+          try {
+            const successSound = new Audio('/sounds/success.mp3');
+            successSound.play().catch(e => console.log('Sound play failed:', e));
+          } catch (e) {
+            console.log('Sound initialization failed:', e);
+          }
+        }
+        
+        // Add notification
+        setNotifications(prev => [
+          ...prev,
+          {
+            type: 'goal-approval',
+            goalId,
+            title,
+            pointsAwarded,
+            timestamp: new Date().toISOString()
+          }
+        ]);
+      });
+      
+      socketInstance.on('goalRejected', (data) => {
+        console.log('Goal rejected event received:', data);
+        const { goalId, title, reason } = data;
+        
+        // Show toast notification
+        toast.error(
+          `Goal Completion Rejected: ${title}`,
+          {
+            description: reason || 'Your coach has requested more progress on this goal.',
+            duration: 6000
+          }
+        );
+        
+        // Add notification
+        setNotifications(prev => [
+          ...prev,
+          {
+            type: 'goal-rejection',
+            goalId,
+            title,
+            reason,
+            timestamp: new Date().toISOString()
+          }
+        ]);
+      });
+      
       // Store in both state and ref
       socketRef.current = socketInstance;
-      setSocket(socketInstance);
+      setSocketState(socketInstance);
     }
 
     // Cleanup function - only runs when component unmounts
@@ -106,8 +180,14 @@ export const SocketProvider = ({ children }) => {
     }
   }, [isAuthenticated, user]);
 
+  // Create the context value object
+  const contextValue = {
+    socket: socketRef.current,
+    notifications
+  };
+
   return (
-    <SocketContext.Provider value={socketRef.current}>
+    <SocketContext.Provider value={contextValue}>
       {children}
     </SocketContext.Provider>
   );

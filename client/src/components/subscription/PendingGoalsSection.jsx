@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  Target, CheckCircle, X, Award, Clock, Shield, Zap 
+  Target, Clock, CheckCircle, X, Award, Shield, Zap, User, AlertTriangle, Info
 } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Alert } from '@/components/ui/alert';
+import Progress from '@/components/ui/progress';
 import { toast } from 'sonner';
+import TextArea from '../ui/TextArea.jsx';
 
 // Goal difficulty configuration
 const GOAL_DIFFICULTY = {
@@ -30,192 +34,315 @@ const GOAL_DIFFICULTY = {
   }
 };
 
-// Format date helper
+// Helper function to format date
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A';
   const date = new Date(dateString);
   return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
-const GoalApprovalItem = ({ client, goal, onApprove, onReject, isLoading }) => {
-  const [isApproving, setIsApproving] = useState(false);
-  const [isRejecting, setIsRejecting] = useState(false);
+// Rejection dialog component
+const RejectionDialog = ({ isOpen, onClose, onConfirm, goalTitle }) => {
+  const [reason, setReason] = useState('');
   
-  // Get difficulty config for this goal
-  const difficultyConfig = GOAL_DIFFICULTY[goal.difficulty || 'medium'];
-  const pointsToAward = difficultyConfig.points;
-  
-  const handleApprove = async () => {
-    try {
-      setIsApproving(true);
-      await onApprove(client.id, goal.id, pointsToAward, true);
-    } catch (error) {
-      console.error('Error approving goal:', error);
-      toast.error('Failed to approve goal');
-    } finally {
-      setIsApproving(false);
-    }
-  };
-  
-  const handleReject = async () => {
-    try {
-      setIsRejecting(true);
-      await onReject(client.id, goal.id);
-    } catch (error) {
-      console.error('Error rejecting goal:', error);
-      toast.error('Failed to reject goal');
-    } finally {
-      setIsRejecting(false);
-    }
+  const handleConfirm = () => {
+    onConfirm(reason);
+    setReason('');
   };
   
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="mb-4"
-    >
-      <Card className="border-amber-200">
-        <CardContent className="pt-6">
-          <div className="flex justify-between items-start">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
-                <Target className="w-5 h-5 text-amber-600" />
-              </div>
-              <div>
-                <div className="flex items-center">
-                  <h3 className="font-medium">{client.firstName} {client.lastName}</h3>
-                  <Badge className="ml-2 bg-amber-100 text-amber-800 border-amber-200">
-                    <Clock className="w-3 h-3 mr-1" /> 
-                    Pending
-                  </Badge>
-                </div>
-                <p className="text-sm text-gray-500">
-                  Requested: {formatDate(goal.clientCompletionRequestDate || new Date())}
-                </p>
-              </div>
-            </div>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Reject Goal Completion</DialogTitle>
+        </DialogHeader>
+        
+        <div className="py-4 space-y-4">
+          <p>
+            You are about to reject the completion request for:
+            <span className="font-medium block mt-1">{goalTitle}</span>
+          </p>
+          
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Reason for rejection (optional)</label>
+            <TextArea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Provide feedback to help the client understand why the goal wasn't completed"
+              className="min-h-32"
+            />
           </div>
           
-          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-            <div className="flex justify-between items-center mb-2">
-              <h4 className="font-semibold">{goal.title}</h4>
-              <Badge className={difficultyConfig.color}>
-                <span className="flex items-center">
-                  {difficultyConfig.icon}
-                  <span className="ml-1">{difficultyConfig.label}</span>
-                </span>
-              </Badge>
+          <Alert variant="warning" className="bg-amber-50 border-amber-200">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <div className="ml-2">
+              <p className="text-amber-800 font-medium">Important</p>
+              <p className="text-amber-700 text-sm">
+                The client will be notified that their goal completion request was rejected and will need to resubmit when ready.
+              </p>
             </div>
-            <p className="text-gray-700 mb-2">{goal.target}</p>
-            <p className="text-sm text-gray-600">
-              Due: {formatDate(goal.dueDate)}
+          </Alert>
+        </div>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleConfirm}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            <X className="w-4 h-4 mr-2" />
+            Reject Request
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Confirmation dialog component
+const ConfirmationDialog = ({ isOpen, onClose, onConfirm, goal }) => {
+  if (!goal) return null;
+  
+  const difficultyConfig = GOAL_DIFFICULTY[goal.difficulty || 'medium'];
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Approve Goal Completion</DialogTitle>
+        </DialogHeader>
+        
+        <div className="py-4 space-y-4">
+          <p>
+            You are about to approve completion for:
+            <span className="font-medium block mt-1">{goal.title}</span>
+          </p>
+          
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="font-medium">{goal.title}</h3>
+            <p className="text-sm text-gray-600 mb-2">{goal.target}</p>
+            <p className="text-xs text-gray-500">
+              Difficulty: {difficultyConfig.label}
             </p>
           </div>
           
-          <div className="flex justify-between items-center mt-4">
-            <div className="flex items-center">
-              <Award className="w-5 h-5 text-yellow-500 mr-2" />
-              <span className="font-medium">{pointsToAward} points will be awarded</span>
+          <Alert className="bg-blue-50 border-blue-200">
+            <Info className="h-4 w-4 text-blue-600" />
+            <div className="ml-2">
+              <p className="text-blue-800 font-medium">Reward for completion</p>
+              <p className="text-blue-700 text-sm">
+                Approving will award the client <span className="font-semibold">{difficultyConfig.points} points</span> for completing this {difficultyConfig.label.toLowerCase()} goal.
+              </p>
             </div>
-            <div className="flex space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleReject}
-                disabled={isLoading || isApproving || isRejecting}
-                className="border-red-200 text-red-600 hover:bg-red-50"
-              >
-                {isRejecting ? (
-                  <span className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Rejecting...
-                  </span>
-                ) : (
-                  <>
-                    <X className="w-4 h-4 mr-2" />
-                    Reject
-                  </>
-                )}
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleApprove}
-                disabled={isLoading || isApproving || isRejecting}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {isApproving ? (
-                  <span className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Approving...
-                  </span>
-                ) : (
-                  <>
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Approve + Award Points
-                  </>
-                )}
-              </Button>
-            </div>
+          </Alert>
+        </div>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={() => onConfirm(difficultyConfig.points)}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            <CheckCircle className="w-4 h-4 mr-2" />
+            Approve & Award Points
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Individual goal approval card
+const PendingGoalCard = ({ client, goal, onApprove, onReject }) => {
+  const difficultyConfig = GOAL_DIFFICULTY[goal.difficulty || 'medium'];
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-white p-4 rounded-lg shadow border border-amber-200"
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center">
+          <div className="bg-amber-100 p-2 rounded-full mr-3">
+            <User className="w-5 h-5 text-amber-600" />
           </div>
-        </CardContent>
-      </Card>
+          <div>
+            <h3 className="font-medium">{client.firstName} {client.lastName}</h3>
+            <p className="text-sm text-gray-500">{client.email}</p>
+          </div>
+        </div>
+        <Badge className="bg-amber-100 text-amber-800 border-amber-200">
+          <Clock className="w-3 h-3 mr-1" />
+          <span>Pending Approval</span>
+        </Badge>
+      </div>
+      
+      <div className="bg-amber-50 p-3 rounded-lg mb-3">
+        <div className="flex justify-between items-start">
+          <div>
+            <h4 className="font-medium flex items-center">
+              <Target className="w-4 h-4 mr-2 text-amber-700" />
+              {goal.title}
+            </h4>
+            <p className="text-sm text-gray-600 mt-1">{goal.target}</p>
+          </div>
+          <Badge className={difficultyConfig.color}>
+            <span className="flex items-center">
+              {difficultyConfig.icon}
+              <span className="ml-1">{difficultyConfig.label}</span>
+            </span>
+          </Badge>
+        </div>
+        
+        <div className="mt-3">
+          <div className="flex justify-between text-xs text-gray-600 mb-1">
+            <span>Client reports</span>
+            <span>{goal.progress}% complete</span>
+          </div>
+          <Progress value={goal.progress} className="h-2" />
+        </div>
+        
+        <p className="text-xs text-gray-500 mt-2">
+          <Clock className="inline w-3 h-3 mr-1" />
+          Requested: {formatDate(goal.clientCompletionRequestDate || new Date())}
+        </p>
+      </div>
+      
+      <div className="flex justify-between items-center">
+        <div className="flex items-center text-sm text-amber-700">
+          <Award className="w-4 h-4 mr-1" />
+          <span>{difficultyConfig.points} points will be awarded</span>
+        </div>
+        <div className="flex space-x-2">
+          <Button 
+            variant="outline" 
+            className="text-red-600 border-red-200 hover:bg-red-50"
+            onClick={() => onReject(client.id, goal.id, goal.title)}
+          >
+            <X className="w-4 h-4 mr-1" />
+            Reject
+          </Button>
+          <Button 
+            className="bg-green-600 hover:bg-green-700"
+            onClick={() => onApprove(client.id, goal.id, goal)}
+          >
+            <CheckCircle className="w-4 h-4 mr-1" />
+            Approve
+          </Button>
+        </div>
+      </div>
     </motion.div>
   );
 };
 
-const PendingGoalsSection = ({ 
-    pendingGoalApprovals, 
-    handleCompleteClientGoal, 
-    handleRejectGoalCompletion, 
-    isLoading 
-  }) => {
-    if (pendingGoalApprovals.length === 0) return null;
+// Main component
+const PendingGoalsSection = ({ pendingGoalApprovals, handleCompleteClientGoal, handleRejectGoalCompletion, isLoading }) => {
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [rejectionDialogOpen, setRejectionDialogOpen] = useState(false);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [selectedGoal, setSelectedGoal] = useState(null);
+  const [selectedGoalId, setSelectedGoalId] = useState(null);
+  const [selectedGoalTitle, setSelectedGoalTitle] = useState('');
   
-    // Flatten goals for easy counting
-    const totalPendingGoals = pendingGoalApprovals.reduce((total, client) => {
-      const pendingGoals = (client.goals || []).filter(
-        goal => goal.status === 'pending_approval' || goal.clientRequestedCompletion
-      );
-      return total + pendingGoals.length;
-    }, 0);
+  // Handle goal approval
+  const handleApproveClick = (clientId, goalId, goal) => {
+    setSelectedClient(clientId);
+    setSelectedGoalId(goalId);
+    setSelectedGoal(goal);
+    setConfirmDialogOpen(true);
+  };
   
-    return (
-      <Card className="shadow-lg mb-6">
+  // Handle goal rejection
+  const handleRejectClick = (clientId, goalId, goalTitle) => {
+    setSelectedClient(clientId);
+    setSelectedGoalId(goalId);
+    setSelectedGoalTitle(goalTitle);
+    setRejectionDialogOpen(true);
+  };
+  
+  // Confirm goal approval
+  const confirmApproval = (pointsToAward) => {
+    handleCompleteClientGoal(selectedClient, selectedGoalId, pointsToAward, true);
+    setConfirmDialogOpen(false);
+    setSelectedClient(null);
+    setSelectedGoalId(null);
+    setSelectedGoal(null);
+  };
+  
+  // Confirm goal rejection
+  const confirmRejection = (reason) => {
+    handleRejectGoalCompletion(selectedClient, selectedGoalId, reason);
+    setRejectionDialogOpen(false);
+    setSelectedClient(null);
+    setSelectedGoalId(null);
+    setSelectedGoalTitle('');
+  };
+  
+  // Check if there are no pending approvals
+  if (!pendingGoalApprovals || pendingGoalApprovals.length === 0) {
+    return null;
+  }
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mb-6"
+    >
+      <Card className="shadow border-amber-200">
         <CardHeader className="bg-amber-50 border-b border-amber-200">
           <CardTitle className="flex items-center text-amber-800">
             <Clock className="w-5 h-5 mr-2 text-amber-600" />
-            Pending Goal Approvals ({totalPendingGoals})
+            Pending Goal Approvals
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-4 sm:p-6">
-          <div className="space-y-4">
-            {pendingGoalApprovals.map((client) => {
-              const pendingGoals = (client.goals || []).filter(
-                goal => goal.status === 'pending_approval' || goal.clientRequestedCompletion
-              );
-              
-              return pendingGoals.map((goal) => (
-                <GoalApprovalItem
+        <CardContent className="p-4 divide-y divide-amber-100">
+          <Alert className="mb-4 bg-amber-50 border-amber-200">
+            <Info className="h-4 w-4 text-amber-600" />
+            <div className="ml-2">
+              <p className="text-amber-800 text-sm">
+                {pendingGoalApprovals.length} {pendingGoalApprovals.length === 1 ? 'client has' : 'clients have'} submitted goals for your approval.
+              </p>
+            </div>
+          </Alert>
+          
+          <div className="space-y-4 pt-4">
+            {pendingGoalApprovals.map((client) => (
+              client.pendingGoals.map((goal) => (
+                <PendingGoalCard
                   key={`${client.id}-${goal.id}`}
                   client={client}
                   goal={goal}
-                  onApprove={handleCompleteClientGoal}
-                  onReject={handleRejectGoalCompletion}
-                  isLoading={isLoading}
+                  onApprove={handleApproveClick}
+                  onReject={handleRejectClick}
                 />
-              ));
-            })}
+              ))
+            ))}
           </div>
         </CardContent>
       </Card>
-    );
-  };
+      
+      {/* Dialogs */}
+      <ConfirmationDialog
+        isOpen={confirmDialogOpen}
+        onClose={() => setConfirmDialogOpen(false)}
+        onConfirm={confirmApproval}
+        goal={selectedGoal}
+      />
+      
+      <RejectionDialog
+        isOpen={rejectionDialogOpen}
+        onClose={() => setRejectionDialogOpen(false)}
+        onConfirm={confirmRejection}
+        goalTitle={selectedGoalTitle}
+      />
+    </motion.div>
+  );
+};
 
 export default PendingGoalsSection;

@@ -1438,6 +1438,9 @@ export const approveGoalCompletion = async (req, res) => {
       return res.status(404).json({ error: 'Goal not found' });
     }
     
+    // Get the goal title for notifications
+    const goalTitle = subscription.goals[goalIndex].title || 'Goal';
+    
     // Update the goal status to completed
     subscription.goals[goalIndex] = {
       ...subscription.goals[goalIndex],
@@ -1482,23 +1485,14 @@ export const approveGoalCompletion = async (req, res) => {
       }
     }
     
-    // Get socket instance to notify the client if they're online
-    const io = getIoInstance();
-    const activeUsersMap = activeUsers || new Map();
-    
-    if (io && subscription.user) {
-      const userSocketId = activeUsersMap.get(subscription.user.toString());
-      
-      if (userSocketId) {
-        io.to(userSocketId).emit('goalApproved', {
-          goalId,
-          title: subscription.goals[goalIndex].title,
-          pointsAwarded: pointsAwarded || 0,
-          status: 'completed'
-        });
-        
-        logger.info(`Notified user ${subscription.user} about goal approval via socket`);
-      }
+    // Notify client via socket if they're online
+    if (subscription.user) {
+      notifyGoalApproval(subscription.user.toString(), {
+        goalId,
+        title: goalTitle,
+        pointsAwarded: pointsAwarded || 0,
+        status: 'completed'
+      });
     }
     
     res.json({
@@ -1534,6 +1528,9 @@ export const rejectGoalCompletion = async (req, res) => {
       return res.status(404).json({ error: 'Goal not found' });
     }
     
+    // Get the goal title for notifications
+    const goalTitle = subscription.goals[goalIndex].title || 'Goal';
+    
     // Reset the goal status - don't change to completed
     subscription.goals[goalIndex] = {
       ...subscription.goals[goalIndex],
@@ -1546,23 +1543,14 @@ export const rejectGoalCompletion = async (req, res) => {
     
     await subscription.save();
     
-    // Get socket instance to notify the client if they're online
-    const io = getIoInstance();
-    const activeUsersMap = activeUsers || new Map();
-    
-    if (io && subscription.user) {
-      const userSocketId = activeUsersMap.get(subscription.user.toString());
-      
-      if (userSocketId) {
-        io.to(userSocketId).emit('goalRejected', {
-          goalId,
-          title: subscription.goals[goalIndex].title,
-          reason: reason || 'Goal completion rejected by coach',
-          status: 'active'
-        });
-        
-        logger.info(`Notified user ${subscription.user} about goal rejection via socket`);
-      }
+    // Notify client via socket if they're online
+    if (subscription.user) {
+      notifyGoalRejection(subscription.user.toString(), {
+        goalId,
+        title: goalTitle,
+        reason: reason || 'Goal completion rejected by coach',
+        status: 'active'
+      });
     }
     
     res.json({
