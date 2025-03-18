@@ -20,7 +20,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
-import Textarea from "@/components/ui/textarea";
+import Textarea from "@/components/ui/TextArea";
 
 // Constants for metric configuration
 const METRIC_CONFIG = {

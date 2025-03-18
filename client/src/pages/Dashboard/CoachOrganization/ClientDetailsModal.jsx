@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
-import Textarea from '@/components/ui/textarea';
+import Textarea from '@/components/ui/TextArea';
 import { 
   User, X, Save, FileText, BarChart2, Dumbbell, 
   Download, Calendar, ChevronDown, ChevronUp,
