@@ -1,29 +1,28 @@
+// Dashboard.user.jsx (refactored)
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../stores/authStore';
 import subscriptionService from '../../services/subscription.service';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Calendar, ChevronDown, ChevronUp, Medal, 
-  MessageSquare, Dumbbell, BarChart2, Target, 
-  Activity, User, Clock, ArrowRight, Edit3, 
-  Download, ChevronLeft, ChevronRight, Info,
-  Bell, CheckCircle, X, Plus, Award, Heart,Crown, Zap
-} from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { Bell, Award, Crown, Zap, Calendar, BarChart2, Dumbbell, Activity, User, CheckCircle, MessageSquare} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import  Progress from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { Card, CardHeader, CardFooter, 
+  CardTitle, 
+  CardDescription, 
+  CardContent } from '@/components/ui/card';
+// Import components
+import WelcomeHeader from './ClientOrganization/WelcomeHeader';
+import StatisticsGrid from './ClientOrganization/StatisticsGrid';
+import GoalsSection from './ClientOrganization/GoalsSection';
+import WorkoutSection from './ClientOrganization/WorkoutSection';
+import ProgressSection from './ClientOrganization/ProgressSection';
+import ProfileSection from './ClientOrganization/ProfileSection';
 import Chat from './components/Chat';
 
-// Helper function for formatting dates
-const formatDate = (dateString) => {
-  if (!dateString) return 'N/A';
-  const date = new Date(dateString);
-  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-};
+// Import utility functions
+import { calculateTrend } from '../../utils/calculateTrend';
 
 // Subscription tier configuration with features
 const SUBSCRIPTION_TIERS = {
@@ -50,259 +49,6 @@ const SUBSCRIPTION_TIERS = {
   }
 };
 
-// Custom UI Components
-const StatCard = ({ title, value, icon: Icon, trend, onClick }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.5 }}
-    className="bg-white rounded-xl shadow-lg overflow-hidden p-6"
-    onClick={onClick}
-  >
-    <div className="flex items-center justify-between mb-4">
-      <div className="p-2 rounded-lg bg-blue-50">
-        <Icon className="w-5 h-5 text-blue-600" />
-      </div>
-      {trend && (
-        <div className={`flex items-center ${trend > 0 ? 'text-green-500' : 'text-red-500'}`}>
-          {trend > 0 ? <ChevronUp className="w-4 h-4" /> : <ChevronUp className="w-4 h-4 transform rotate-180" />}
-          <span className="ml-1">{Math.abs(trend)}%</span>
-        </div>
-      )}
-    </div>
-    <h3 className="text-sm text-gray-600 mb-1">{title}</h3>
-    <p className="text-2xl font-bold">{value}</p>
-  </motion.div>
-);
-
-const ProgressRing = ({ progress, size = 120, strokeWidth = 12 }) => {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-  const progressOffset = circumference - (progress / 100) * circumference;
-
-  return (
-    <div className="relative inline-flex items-center justify-center">
-      <svg
-        className="transform -rotate-90"
-        width={size}
-        height={size}
-      >
-        <circle
-          className="text-gray-200"
-          strokeWidth={strokeWidth}
-          stroke="currentColor"
-          fill="transparent"
-          r={radius}
-          cx={size / 2}
-          cy={size / 2}
-        />
-        <circle
-          className="text-blue-600 transition-all duration-1000 ease-out"
-          strokeWidth={strokeWidth}
-          strokeDasharray={circumference}
-          strokeDashoffset={progressOffset}
-          strokeLinecap="round"
-          stroke="currentColor"
-          fill="transparent"
-          r={radius}
-          cx={size / 2}
-          cy={size / 2}
-        />
-      </svg>
-      <span className="absolute text-2xl font-bold">{progress}%</span>
-    </div>
-  );
-};
-
-const WorkoutCard = ({ workout, onComplete }) => {
-  const isCompleted = workout.completed;
-  const workoutDate = new Date(workout.date);
-  const isToday = new Date().toDateString() === workoutDate.toDateString();
-  const isPast = workoutDate < new Date() && !isToday;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`bg-white rounded-lg shadow-sm border p-4 ${isCompleted ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}
-    >
-      <div className="flex justify-between items-start mb-2">
-        <div>
-          <h3 className="font-medium text-lg">{workout.title}</h3>
-          <p className="text-sm text-gray-600">
-            {formatDate(workout.date)} {workout.time && `• ${workout.time}`}
-          </p>
-        </div>
-        <Badge 
-          className={`
-            ${isCompleted 
-              ? 'bg-green-100 text-green-800 border-green-200' 
-              : isToday 
-                ? 'bg-blue-100 text-blue-800 border-blue-200' 
-                : isPast 
-                  ? 'bg-amber-100 text-amber-800 border-amber-200'
-                  : 'bg-gray-100 text-gray-800 border-gray-200'
-            }
-          `}
-        >
-          {isCompleted 
-            ? 'Completed' 
-            : isToday 
-              ? 'Today' 
-              : isPast 
-                ? 'Missed' 
-                : formatDate(workout.date)}
-        </Badge>
-      </div>
-      
-      <p className="text-sm text-gray-600 mb-3">
-        {workout.description || `${workout.type || 'General'} workout with ${workout.exercises?.length || 0} exercises`}
-      </p>
-      
-      {workout.exercises && workout.exercises.length > 0 && (
-        <div className="space-y-2 mb-3">
-          {workout.exercises.slice(0, 3).map((exercise, idx) => (
-            <div key={idx} className="flex justify-between text-sm">
-              <span>{exercise.name}</span>
-              <span className="text-gray-600">{exercise.sets} × {exercise.reps}</span>
-            </div>
-          ))}
-          {workout.exercises.length > 3 && (
-            <p className="text-xs text-gray-500 text-center">
-              +{workout.exercises.length - 3} more exercises
-            </p>
-          )}
-        </div>
-      )}
-      
-      {!isCompleted && (
-        <div className="flex justify-end">
-          <Button 
-            onClick={() => onComplete(workout)} 
-            size="sm"
-            className={isToday ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-600 hover:bg-gray-700"}
-          >
-            <CheckCircle className="w-4 h-4 mr-2" />
-            {isToday ? "Complete" : "Mark Complete"}
-          </Button>
-        </div>
-      )}
-    </motion.div>
-  );
-};
-
-const GoalCard = ({ goal }) => {
-  const { title, target, progress, due, icon: Icon } = goal;
-  
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white p-4 rounded-lg border shadow-sm"
-    >
-      <div className="flex items-start space-x-4">
-        <div className="bg-blue-50 p-2 rounded-full">
-          {Icon || <Target className="w-6 h-6 text-blue-600" />}
-        </div>
-        <div className="flex-1">
-          <h4 className="font-semibold">{title}</h4>
-          <p className="text-sm text-gray-600 mb-2">{target}</p>
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs text-gray-600">
-              <span>Progress</span>
-              <span>{progress}%</span>
-            </div>
-            <Progress value={progress} className="h-2" />
-          </div>
-          <p className="text-xs text-gray-500 mt-2">Due: {due}</p>
-        </div>
-      </div>
-    </motion.div>
-  );
-};
-
-const MetricCard = ({ title, data, unit, change, color = 'blue', isPositiveGood = true, children }) => {
-  // Determine if the change is "good" based on the metric type
-  const isGoodChange = (change > 0 && isPositiveGood) || (change < 0 && !isPositiveGood);
-  
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white p-4 rounded-lg border shadow-sm"
-    >
-      <div className="flex justify-between items-center mb-3">
-        <h3 className="font-medium text-gray-700">{title}</h3>
-        {change !== undefined && (
-          <div className={`flex items-center ${isGoodChange ? 'text-green-600' : 'text-red-600'}`}>
-            {change > 0 ? (
-              <ChevronUp className="w-4 h-4 mr-1" />
-            ) : (
-              <ChevronDown className="w-4 h-4 mr-1" />
-            )}
-            <span className="text-xs">{Math.abs(change).toFixed(1)}{unit}</span>
-          </div>
-        )}
-      </div>
-      
-      {children || (
-        <>
-          {data && data.length > 1 ? (
-            <div className="h-32 relative">
-              {/* Simple line chart visualization */}
-              <svg width="100%" height="100%" className="overflow-visible">
-                {data.map((point, i) => {
-                  const x = (i / (data.length - 1)) * 100 + "%";
-                  const min = Math.min(...data.map(d => d.value));
-                  const max = Math.max(...data.map(d => d.value));
-                  const range = max - min || 1;
-                  const y = (1 - ((point.value - min) / range)) * 100 + "%";
-                  
-                  return (
-                    <g key={i}>
-                      {i > 0 && (
-                        <line 
-                          x1={(i-1) / (data.length - 1) * 100 + "%"}
-                          y1={(1 - ((data[i-1].value - min) / range)) * 100 + "%"}
-                          x2={x}
-                          y2={y}
-                          stroke={`var(--${color}-500)`}
-                          strokeWidth="2"
-                        />
-                      )}
-                      <circle
-                        cx={x}
-                        cy={y}
-                        r="3"
-                        fill="white"
-                        stroke={`var(--${color}-500)`}
-                        strokeWidth="2"
-                      />
-                    </g>
-                  );
-                })}
-              </svg>
-              
-              <div className="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-gray-500">
-                <span>{formatDate(data[0].date)}</span>
-                <span>{formatDate(data[data.length - 1].date)}</span>
-              </div>
-              
-              <div className="absolute top-0 right-0 text-xl font-bold">
-                {data[data.length - 1].value}{unit}
-              </div>
-            </div>
-          ) : (
-            <div className="h-32 flex items-center justify-center text-gray-400">
-              No data available
-            </div>
-          )}
-        </>
-      )}
-    </motion.div>
-  );
-};
-
 const ClientDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -316,6 +62,7 @@ const ClientDashboard = () => {
   const [assignedCoach, setAssignedCoach] = useState(null);
   const [showChat, setShowChat] = useState(false);
   const [upcomingWorkout, setUpcomingWorkout] = useState(null);
+  const [historicalStats, setHistoricalStats] = useState(null);
   const [healthMetrics, setHealthMetrics] = useState({
     weight: [],
     bodyFat: [],
@@ -356,6 +103,15 @@ const ClientDashboard = () => {
           navigate('/coaching');
           return;
         }
+
+        // Store a copy of the stats for historical comparison
+        // In a real app, you would fetch historical data from the server
+        setHistoricalStats({
+          workoutsCompleted: Math.max(0, (subData.stats?.workoutsCompleted || 0) - 2),
+          currentStreak: Math.max(0, (subData.stats?.currentStreak || 0) - 1),
+          monthlyProgress: Math.max(0, (subData.stats?.monthlyProgress || 0) - 5),
+          goalsAchieved: Math.max(0, (subData.stats?.goalsAchieved || 0)),
+        });
 
         setSubscription(subData);
         setQuestionnaire(questionnaireData);
@@ -490,28 +246,6 @@ const ClientDashboard = () => {
     setGoals(generatedGoals);
   };
   
-  const getGoalIcon = (type) => {
-    switch (type) {
-      case 'strength':
-        return <Dumbbell className="w-6 h-6 text-blue-600" />;
-      case 'endurance':
-        return <Activity className="w-6 h-6 text-green-600" />;
-      case 'weight':
-        return <Target className="w-6 h-6 text-red-600" />;
-      case 'nutrition':
-        return <Apple className="w-6 h-6 text-amber-600" />;
-      case 'consistency':
-        return <Calendar className="w-6 h-6 text-purple-600" />;
-      default:
-        return <Award className="w-6 h-6 text-blue-600" />;
-    }
-  };
-  
-  // Get user first name
-  const getUserFirstName = () => {
-    return user?.user?.firstName || user?.firstName || '';
-  };
-  
   // Mark workout as complete
   const handleCompleteWorkout = async (workout) => {
     try {
@@ -531,12 +265,98 @@ const ClientDashboard = () => {
         workoutsCompleted: (subscription.stats?.workoutsCompleted || 0) + 1,
       };
       
+      // Update subscription with new stats
+      setSubscription(prev => ({
+        ...prev,
+        stats: updatedStats
+      }));
+      
       await subscriptionService.updateClientStats(subscription._id, updatedStats);
       
       toast.success('Workout completed! Great job!');
     } catch (error) {
       console.error('Failed to mark workout as complete:', error);
       toast.error('Failed to update workout status');
+    }
+  };
+  
+  // Update a goal
+  const handleUpdateGoal = async (updatedGoal) => {
+    try {
+      // Update goals in local state
+      const updatedGoals = goals.map(goal => 
+        goal.id === updatedGoal.id ? updatedGoal : goal
+      );
+      
+      setGoals(updatedGoals);
+      
+      // If this were a real app, you would update the goal on the server
+      // For now, we'll just simulate it with a toast
+      toast.success('Goal progress updated successfully!');
+    } catch (error) {
+      console.error('Failed to update goal:', error);
+      toast.error('Failed to update goal progress');
+    }
+  };
+  
+  // Update stats
+  const handleUpdateStats = async (updatedStats) => {
+    try {
+      // Update subscription with new stats
+      const newSubscription = {
+        ...subscription,
+        stats: {
+          ...subscription.stats,
+          ...updatedStats
+        }
+      };
+      
+      setSubscription(newSubscription);
+      
+      // Update stats on server
+      await subscriptionService.updateClientStats(subscription._id, updatedStats);
+      
+      toast.success('Stats updated successfully!');
+    } catch (error) {
+      console.error('Failed to update stats:', error);
+      toast.error('Failed to update stats');
+    }
+  };
+  
+  const handleAddMetricEntry = async (entryData) => {
+    try {
+      const { metricType, value, date, notes } = entryData;
+  
+      // Create new entry
+      const newEntry = {
+        date,
+        value,
+        notes
+      };
+  
+      // Update health metrics in local state
+      const updatedHealthMetrics = {
+        ...healthMetrics,
+        [metricType]: [...(Array.isArray(healthMetrics[metricType]) ? healthMetrics[metricType] : []), newEntry].sort((a, b) => new Date(a.date) - new Date(b.date))
+      };
+  
+      setHealthMetrics(updatedHealthMetrics);
+  
+      // Update progress data
+      const updatedProgress = {
+        ...progress,
+        [`${metricType}Progress`]: updatedHealthMetrics[metricType]
+      };
+  
+      setProgress(updatedProgress);
+  
+      // Update progress on server
+      await subscriptionService.updateClientProgress(subscription._id, updatedProgress);
+  
+      toast.success('Metric entry added successfully!');
+    } catch (error) {
+      console.error('Failed to add metric entry:', error);
+      toast.error('Failed to add metric entry');
     }
   };
   
@@ -548,6 +368,10 @@ const ClientDashboard = () => {
         subscription: subscription 
       }
     });
+  };
+  
+  const handleManageSubscription = () => {
+    navigate('/subscription-management');
   };
   
   const handleUpgradeClick = () => {
@@ -578,6 +402,30 @@ const ClientDashboard = () => {
   
   // Get subscription tier
   const currentTier = SUBSCRIPTION_TIERS[subscription?.subscription || 'basic'];
+
+  // Calculate trends for stats based on historical data
+  const calculateStatTrends = () => {
+    if (!subscription || !historicalStats) return {};
+    
+    return {
+      workoutsCompleted: calculateTrend(
+        subscription.stats?.workoutsCompleted || 0,
+        historicalStats.workoutsCompleted
+      ),
+      currentStreak: calculateTrend(
+        subscription.stats?.currentStreak || 0,
+        historicalStats.currentStreak
+      ),
+      monthlyProgress: calculateTrend(
+        subscription.stats?.monthlyProgress || 0,
+        historicalStats.monthlyProgress
+      ),
+      goalsAchieved: calculateTrend(
+        subscription.stats?.goalsAchieved || 0,
+        historicalStats.goalsAchieved
+      )
+    };
+  };
   
   if (loading) {
     return (
@@ -594,79 +442,14 @@ const ClientDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Welcome Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={`p-8 rounded-2xl bg-gradient-to-r ${currentTier.color} text-white shadow-lg`}
-        >
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-6 sm:space-y-0">
-            {/* Left Side: Welcome Message and Coach Info */}
-            <div className="text-center sm:text-left">
-              <h1 className="text-3xl font-bold mb-2">
-                Welcome back{getUserFirstName() ? `, ${getUserFirstName()}` : ''}! 👋
-              </h1>
-              <div className="flex items-center justify-center sm:justify-start">
-                {currentTier.icon}
-                <span className="ml-2 text-lg">{currentTier.name} Plan</span>
-              </div>
-              
-              {/* Display Assigned Coach */}
-              {assignedCoach && (
-                <div className="mt-4 flex items-center space-x-3 justify-center sm:justify-start">
-                  <div className="p-2 bg-white/20 rounded-full">
-                    <User className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold">
-                      Coach: {assignedCoach.firstName} {assignedCoach.lastName}
-                    </h3>
-                    <p className="text-sm text-white/80">
-                      Specialties: {assignedCoach.specialties?.join(', ') || 'Fitness Training'}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Right Side: Buttons */}
-            <div className="flex flex-col items-center sm:items-end space-y-4 w-full sm:w-auto">
-              {/* Message Coach Button */}
-              {assignedCoach && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="w-full sm:w-auto"
-                >
-                  <Button
-                    onClick={() => setShowChat(true)}
-                    className="w-full sm:w-auto bg-white/20 hover:bg-white/30 text-white"
-                  >
-                    <MessageSquare className="w-5 h-5 mr-2" />
-                    Message Coach
-                  </Button>
-                </motion.div>
-              )}
-              
-              {/* Upgrade Button */}
-              {currentTier.upgrade && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="w-full sm:w-auto"
-                >
-                  <Button
-                    onClick={handleUpgradeClick}
-                    className="w-full sm:w-auto bg-white/20 hover:bg-white/30 text-white"
-                  >
-                    Upgrade to {SUBSCRIPTION_TIERS[currentTier.upgrade].name}
-                    <ArrowRight className="ml-2 w-4 h-4" />
-                  </Button>
-                </motion.div>
-              )}
-            </div>
-          </div>
-        </motion.div>
+        {/* Welcome Header */}
+        <WelcomeHeader
+          user={user}
+          subscription={subscription}
+          assignedCoach={assignedCoach}
+          onChatOpen={() => setShowChat(true)}
+          onUpgradeClick={handleUpgradeClick}
+        />
         
         {/* Notification Banner for upcoming workout */}
         {upcomingWorkout && (
@@ -720,80 +503,26 @@ const ClientDashboard = () => {
           <TabsContent value="overview" ref={overviewRef}>
             <div className="space-y-6">
               {/* Stats Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <StatCard
-                  title="Workouts Completed"
-                  value={subscription?.stats?.workoutsCompleted || 0}
-                  icon={Dumbbell}
-                  trend={12}
-                />
-                <StatCard
-                  title="Current Streak"
-                  value={`${subscription?.stats?.currentStreak || 0} days`}
-                  icon={Activity}
-                  trend={8}
-                />
-                <StatCard
-                  title="Monthly Progress"
-                  value={`${subscription?.stats?.monthlyProgress || 0}%`}
-                  icon={BarChart2}
-                  trend={15}
-                />
-                <StatCard
-                  title="Goals Achieved"
-                  value={subscription?.stats?.goalsAchieved || 0}
-                  icon={Target}
-                  trend={5}
-                />
-              </div>
-          
+              <StatisticsGrid 
+                stats={subscription?.stats || {}} 
+                historicalStats={historicalStats || {}}
+                onStatClick={(tab) => handleTabChange(tab)}
+              />
+              
               {/* Goals Section */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>Current Goals</CardTitle>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => handleTabChange('progress')}
-                  >
-                    View All
-                    <ArrowRight className="ml-2 w-4 h-4" />
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {goals.slice(0, 2).map(goal => (
-                      <GoalCard key={goal.id} goal={goal} />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-          
-              {/* Recent Workouts */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>Recent & Upcoming Workouts</CardTitle>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => handleTabChange('workouts')}
-                  >
-                    View All
-                    <ArrowRight className="ml-2 w-4 h-4" />
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {workouts.slice(0, 3).map(workout => (
-                      <WorkoutCard 
-                        key={workout.id} 
-                        workout={workout} 
-                        onComplete={handleCompleteWorkout} 
-                      />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+              <GoalsSection 
+                goals={goals} 
+                onUpdateGoal={handleUpdateGoal} 
+                onViewAll={() => handleTabChange('progress')}
+              />
+              
+              {/* Workouts Section */}
+              <WorkoutSection 
+                workouts={workouts} 
+                stats={subscription?.stats || {}} 
+                onCompleteWorkout={handleCompleteWorkout} 
+                onViewAll={() => handleTabChange('workouts')} 
+              />
               
               {/* Subscription Features */}
               <Card>
@@ -826,297 +555,39 @@ const ClientDashboard = () => {
           
           {/* Workouts Tab */}
           <TabsContent value="workouts" ref={workoutsRef}>
-            <div className="space-y-6">
-              {/* Workout calendar/timeline */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Your Workout Plan</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {workouts.length > 0 ? (
-                    <div className="space-y-4">
-                      {workouts.map(workout => (
-                        <WorkoutCard 
-                          key={workout.id} 
-                          workout={workout} 
-                          onComplete={handleCompleteWorkout}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <Dumbbell className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-                      <h3 className="text-xl font-medium text-gray-700">No workouts yet</h3>
-                      <p className="text-gray-500 mt-2">Your coach will add workouts to your plan soon.</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-              
-              {/* Workout statistics */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Workout Statistics</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <p className="text-sm text-gray-500 mb-1">Completion Rate</p>
-                      <p className="text-2xl font-bold">
-                        {workouts.length > 0 
-                          ? Math.round((workouts.filter(w => w.completed).length / workouts.length) * 100) 
-                          : 0}%
-                      </p>
-                      <div className="mt-2">
-                        <Progress 
-                          value={workouts.length > 0 
-                            ? (workouts.filter(w => w.completed).length / workouts.length) * 100 
-                            : 0
-                          } 
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <p className="text-sm text-gray-500 mb-1">Weekly Target</p>
-                      <p className="text-2xl font-bold">
-                        {subscription?.stats?.weeklyTarget || 3} workouts
-                      </p>
-                      <p className="text-sm text-gray-500 mt-2">
-                        {subscription?.stats?.currentStreak || 0} day streak
-                      </p>
-                    </div>
-                    
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <p className="text-sm text-gray-500 mb-1">Total Completed</p>
-                      <p className="text-2xl font-bold">
-                        {subscription?.stats?.workoutsCompleted || 0}
-                      </p>
-                      <p className="text-sm text-gray-500 mt-2">
-                        Since {formatDate(subscription?.startDate)}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <WorkoutSection 
+              workouts={workouts} 
+              stats={subscription?.stats || {}} 
+              onCompleteWorkout={handleCompleteWorkout} 
+              showAll={true}
+            />
           </TabsContent>
           
           {/* Progress Tab */}
           <TabsContent value="progress" ref={progressRef}>
-            <div className="space-y-6">
-              {/* Overall Progress */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Overall Progress</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col items-center">
-                    <ProgressRing progress={subscription?.stats?.monthlyProgress || 0} />
-                    <p className="mt-4 text-gray-600">
-                      You're making great progress!
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              {/* Goals */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>Fitness Goals</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {goals.map(goal => (
-                      <GoalCard key={goal.id} goal={goal} />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-              
-              {/* Health Metrics */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Health Metrics</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <MetricCard 
-                      title="Weight Tracking" 
-                      data={healthMetrics.weight} 
-                      unit="lbs" 
-                      change={healthMetrics.weight.length >= 2 
-                        ? healthMetrics.weight[healthMetrics.weight.length-1].value - healthMetrics.weight[0].value 
-                        : undefined}
-                      color="blue"
-                      isPositiveGood={false} // For weight, lower is typically better
-                    />
-                    
-                    <MetricCard 
-                      title="Body Fat" 
-                      data={healthMetrics.bodyFat} 
-                      unit="%" 
-                      change={healthMetrics.bodyFat.length >= 2 
-                        ? healthMetrics.bodyFat[healthMetrics.bodyFat.length-1].value - healthMetrics.bodyFat[0].value 
-                        : undefined}
-                      color="amber"
-                      isPositiveGood={false} // For body fat, lower is typically better
-                    />
-                    
-                    <MetricCard 
-                      title="Strength" 
-                      data={healthMetrics.strength} 
-                      unit="lbs" 
-                      change={healthMetrics.strength.length >= 2 
-                        ? healthMetrics.strength[healthMetrics.strength.length-1].value - healthMetrics.strength[0].value 
-                        : undefined}
-                      color="green"
-                      isPositiveGood={true} // For strength, higher is better
-                    />
-                    
-                    <MetricCard 
-                      title="Cardio Fitness" 
-                      data={healthMetrics.cardio} 
-                      unit="min" 
-                      change={healthMetrics.cardio.length >= 2 
-                        ? healthMetrics.cardio[healthMetrics.cardio.length-1].value - healthMetrics.cardio[0].value 
-                        : undefined}
-                      color="red"
-                      isPositiveGood={false} // For cardio time, lower is better
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <ProgressSection 
+              stats={subscription?.stats || {}} 
+              healthMetrics={healthMetrics} 
+              onUpdateStats={handleUpdateStats}
+              onAddMetricEntry={handleAddMetricEntry}
+            />
           </TabsContent>
           
           {/* Profile Tab */}
           <TabsContent value="profile" ref={profileRef}>
-            <div className="space-y-6">
-              {/* Subscription Details */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Subscription Details</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="font-medium">Plan</span>
-                      <span className="flex items-center">
-                        {currentTier.icon && <span className="w-5 h-5 mr-2">{currentTier.icon}</span>}
-                        {currentTier.name}
-                      </span>
-                    </div>
-                    
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="font-medium">Status</span>
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        {subscription?.status === 'active' ? 'Active' : subscription?.status}
-                      </Badge>
-                    </div>
-                    
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="font-medium">Start Date</span>
-                      <span>{formatDate(subscription?.startDate)}</span>
-                    </div>
-                    
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="font-medium">Next Billing</span>
-                      <span>{formatDate(subscription?.currentPeriodEnd)}</span>
-                    </div>
-                    
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium">Auto-Renewal</span>
-                      <Badge 
-                        variant="outline" 
-                        className={subscription?.cancelAtPeriodEnd 
-                          ? "bg-amber-50 text-amber-700 border-amber-200" 
-                          : "bg-green-50 text-green-700 border-green-200"}
-                      >
-                        {subscription?.cancelAtPeriodEnd ? 'Off' : 'On'}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="flex justify-end space-x-2">
-                  <Button 
-                    variant="outline"
-                    onClick={() => navigate('/subscription-management')}
-                  >
-                    Manage Subscription
-                  </Button>
-                  {currentTier.upgrade && (
-                    <Button 
-                      onClick={handleUpgradeClick}
-                      className="bg-blue-600 hover:bg-blue-700"
-                    >
-                      Upgrade Plan
-                    </Button>
-                  )}
-                </CardFooter>
-              </Card>
-              
-              {/* Fitness Profile */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>Fitness Profile</CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleEditQuestionnaire}
-                  >
-                    <Edit3 className="w-4 h-4 mr-2" />
-                    Edit Profile
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  {questionnaire && questionnaire.data && Object.keys(questionnaire.data).length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {Object.entries(questionnaire.data)
-                        .filter(([key, value]) => {
-                          // Filter out null, undefined, empty strings, and empty arrays
-                          if (value === null || value === undefined || value === '') return false;
-                          if (Array.isArray(value) && value.length === 0) return false;
-                          return true;
-                        })
-                        .map(([key, value]) => (
-                          <div key={key} className="p-4 bg-gray-50 rounded-lg">
-                            <h3 className="text-sm font-medium text-gray-600 mb-2">
-                              {key.charAt(0).toUpperCase() + key.slice(1)}
-                            </h3>
-                            <p className="text-gray-900">
-                              {Array.isArray(value) ? value.join(', ') : value}
-                            </p>
-                          </div>
-                        ))}
-                    </div>
-                  ) : (
-                    <p className="text-gray-600">No fitness profile data available.</p>
-                  )}
-                </CardContent>
-              </Card>
-              
-              {/* Export Data */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Data Export</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600 mb-4">
-                    Download your fitness data including workouts, progress metrics, and goals.
-                  </p>
-                  <Button variant="outline">
-                    <Download className="w-4 h-4 mr-2" />
-                    Export Data
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
+            <ProfileSection 
+              subscription={subscription} 
+              questionnaire={questionnaire} 
+              currentTier={currentTier} 
+              onEditQuestionnaire={handleEditQuestionnaire} 
+              onManageSubscription={handleManageSubscription} 
+              onUpgradeClick={handleUpgradeClick} 
+            />
           </TabsContent>
         </Tabs>
       </div>
       
-      {/* Floating Chat Icon */}
+      {/* Floating Chat Icon and Chat Modal */}
       {assignedCoach && (
         <>
           <motion.div

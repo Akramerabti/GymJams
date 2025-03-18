@@ -3,9 +3,9 @@ import { motion } from 'framer-motion';
 import { Target, Dumbbell, Activity, Calendar, Edit, ArrowRight, Plus, Save, X } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
+import  Progress  from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
-import { Slider } from '@/components/ui/slider';
+import  Slider  from '@/components/ui/slider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 
