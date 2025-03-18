@@ -24,6 +24,16 @@ const clientService = {
     }
   },
 
+  async awardClientPoints (clientId, points) {
+    try {
+      const response = await api.post(`/client/${clientId}/award-points`, { points });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to award points:', error);
+      throw error;
+    }
+  },
+
   // Update client stats
   async updateClientStats(clientId, statsData) {
     try {

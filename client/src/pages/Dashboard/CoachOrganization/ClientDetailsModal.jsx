@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import Progress from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import GoalManager from './GoalManager';
 
 const ClientDetailsModal = ({ client, onClose, onSave, onOpenWorkouts, onOpenProgress, onExportData }) => {
   const [formData, setFormData] = useState({
@@ -27,6 +28,7 @@ const ClientDetailsModal = ({ client, onClose, onSave, onOpenWorkouts, onOpenPro
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [isExpanded, setIsExpanded] = useState(false);
+  
   const modalRef = useRef(null);
   
   // Determine if client is premium or elite
@@ -123,7 +125,8 @@ useEffect(() => {
       notes: formData.notes,
       nextSession: formData.nextSession,
       weeklyTarget: formData.weeklyTarget,
-      nutritionCompliance: formData.nutritionCompliance
+      nutritionCompliance: formData.nutritionCompliance,
+      goals: formData.goals
     });
     setIsEditing(false);
   };
@@ -132,6 +135,54 @@ useEffect(() => {
   const handleUpdateStatsClick = () => {
     setActiveTab('stats');
     setIsEditing(true);
+  };
+
+  const handleAddGoal = (newGoal) => {
+    const updatedClient = {
+      ...client,
+      goals: [...(client.goals || []), newGoal]
+    };
+    onSave(updatedClient);
+  };
+
+  const handleDeleteGoal = (goalId) => {
+    const updatedClient = {
+      ...client,
+      goals: (client.goals || []).filter(g => g.id !== goalId)
+    };
+    onSave(updatedClient);
+  };
+
+  const handleCompleteGoal = (goalId) => {
+    const updatedClient = {
+      ...client,
+      goals: (client.goals || []).map(g => 
+        g.id === goalId ? { ...g, completed: true, completedDate: new Date().toISOString() } : g
+      ),
+      stats: {
+        ...client.stats,
+        goalsAchieved: (client.stats?.goalsAchieved || 0) + 1
+      }
+    };
+    onSave(updatedClient);
+  };
+
+  const handleUpdateGoal = async (updatedGoal) => {
+    try {
+      // Update goals in local state
+      const updatedGoals = goals.map(goal =>
+        goal.id === updatedGoal.id ? updatedGoal : goal
+      );
+
+      setGoals(updatedGoals);
+
+      // If this were a real app, you would update the goal on the server
+      // For now, we'll just simulate it with a toast
+      toast.success('Goal progress updated successfully!');
+    } catch (error) {
+      console.error('Failed to update goal:', error);
+      toast.error('Failed to update goal progress');
+    }
   };
   
   // Render a progress bar with label
@@ -252,8 +303,8 @@ useEffect(() => {
           className={`bg-white rounded-xl shadow-2xl overflow-auto max-h-[90vh] ${isExpanded ? 'w-full max-w-4xl' : 'w-full max-w-2xl'}`}
         >
           <div className="sticky top-0 z-10 bg-white">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 sm:p-6 border-b">
+             {/* Header */}
+             <div className="flex items-center justify-between p-4 sm:p-6 border-b">
               <div className="flex items-center space-x-4">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-full flex items-center justify-center">
                   <User className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
@@ -266,16 +317,6 @@ useEffect(() => {
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                {/* Subscription badge */}
-                <Badge 
-                  className={`hidden sm:flex ${
-                    isElite ? "bg-amber-100 text-amber-800 border-amber-200" :
-                    isPremium ? "bg-purple-100 text-purple-800 border-purple-200" :
-                    "bg-blue-100 text-blue-800 border-blue-200"
-                  }`}
-                >
-                  {client.subscription?.charAt(0).toUpperCase() + client.subscription?.slice(1) || 'Basic'}
-                </Badge>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -295,41 +336,28 @@ useEffect(() => {
               </div>
             </div>
 
+
             {/* Tab Navigation */}
             <div className="px-4 sm:px-6 pt-2 border-b overflow-x-auto">
               <Tabs>
-              <TabsList className="bg-gray-100 w-full justify-start">
-                <TabsTrigger value="overview" onClick={() => setActiveTab('overview')} className="data-[state=active]:bg-white">
-                  <User className="w-4 h-4 mr-2" />
-                  <span className="min-w-max">Overview</span>
-                </TabsTrigger>
-                <TabsTrigger value="goals" onClick={() => setActiveTab('goals')} className="data-[state=active]:bg-white">
-                  <Target className="w-4 h-4 mr-2" />
-                  <span className="min-w-max">Goals</span>
-                </TabsTrigger>
-                <TabsTrigger value="stats" onClick={() => setActiveTab('stats')} className="data-[state=active]:bg-white">
-                  <BarChart2 className="w-4 h-4 mr-2" />
-                  <span className="min-w-max">Stats</span>
-                </TabsTrigger>
-                <TabsTrigger value="notes" onClick={() => setActiveTab('notes')} className="data-[state=active]:bg-white">
-                  <FileText className="w-4 h-4 mr-2" />
-                  <span className="min-w-max">Notes</span>
-                </TabsTrigger>
-                {/* Show nutrition tab for premium & elite clients */}
-                {hasAdvancedFeatures && (
-                  <TabsTrigger value="nutrition" onClick={() => setActiveTab('nutrition')} className="data-[state=active]:bg-white">
-                    <Cookie className="w-4 h-4 mr-2" />
-                    <span className="min-w-max">Nutrition</span>
+                <TabsList className="bg-gray-100 w-full justify-start">
+                  <TabsTrigger value="overview" onClick={() => setActiveTab('overview')} className="data-[state=active]:bg-white">
+                    <User className="w-4 h-4 mr-2" />
+                    <span className="min-w-max">Overview</span>
                   </TabsTrigger>
-                )}
-                {/* Show recovery tab for elite clients */}
-                {isElite && (
-                  <TabsTrigger value="recovery" onClick={() => setActiveTab('recovery')} className="data-[state=active]:bg-white">
-                    <Heart className="w-4 h-4 mr-2" />
-                    <span className="min-w-max">Recovery</span>
+                  <TabsTrigger value="goals" onClick={() => setActiveTab('goals')} className="data-[state=active]:bg-white">
+                    <Target className="w-4 h-4 mr-2" />
+                    <span className="min-w-max">Goals</span>
                   </TabsTrigger>
-                )}
-              </TabsList>
+                  <TabsTrigger value="stats" onClick={() => setActiveTab('stats')} className="data-[state=active]:bg-white">
+                    <BarChart2 className="w-4 h-4 mr-2" />
+                    <span className="min-w-max">Stats</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="notes" onClick={() => setActiveTab('notes')} className="data-[state=active]:bg-white">
+                    <FileText className="w-4 h-4 mr-2" />
+                    <span className="min-w-max">Notes</span>
+                  </TabsTrigger>
+                </TabsList>
               </Tabs>
             </div>
           </div>
@@ -479,69 +507,14 @@ useEffect(() => {
               </TabsContent>
 
               <TabsContent value="goals" className="mt-0">
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-semibold">Client Goals</h3>
-                    {hasAdvancedFeatures && (
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                        {isElite ? 'Elite' : 'Premium'} Goals
-                      </Badge>
-                    )}
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {generateClientGoals().map((goal, index) => (
-                      <div key={index} className="bg-white p-4 rounded-lg border shadow-sm">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center">
-                            <div className="mr-3">
-                              {goal.icon}
-                            </div>
-                            <div>
-                              <h4 className="font-semibold text-lg">{goal.title}</h4>
-                              <p className="text-sm text-gray-600">{goal.target}</p>
-                              
-                              {/* Show current and target values for advanced goals */}
-                              {goal.current !== undefined && (
-                                <p className="text-sm font-medium mt-1">
-                                  {goal.current}{goal.unit} 
-                                  <span className="text-gray-400 mx-2">→</span> 
-                                  {goal.target}{goal.unit}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 whitespace-nowrap">
-                            {goal.due}
-                          </span>
-                        </div>
-                        
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-xs text-gray-600">
-                            <span>Progress</span>
-                            <span>{goal.progress}%</span>
-                          </div>
-                          <Progress value={goal.progress} className="h-2" />
-                        </div>
-                        
-                        {/* Show checkpoints for advanced goals */}
-                        {goal.checkpoints && (
-                          <div className="mt-3 pt-3 border-t border-gray-100">
-                            <p className="text-xs font-medium text-gray-600 mb-2">Checkpoints:</p>
-                            <div className="space-y-2">
-                              {goal.checkpoints.map((checkpoint, idx) => (
-                                <div key={idx} className="flex justify-between text-xs">
-                                  <span>{formatDate(checkpoint.date)}</span>
-                                  <span className="font-medium">{checkpoint.value}{goal.unit}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <GoalManager
+                  client={client}
+                  goals={client.goals || []}
+                  onAddGoal={handleAddGoal}
+                  onUpdateGoal={handleUpdateGoal}
+                  onDeleteGoal={handleDeleteGoal}
+                  onCompleteGoal={handleCompleteGoal}
+                />
               </TabsContent>
 
               <TabsContent value="stats" className="mt-0">

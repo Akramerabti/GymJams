@@ -31,6 +31,45 @@ const messageSchema = new mongoose.Schema({
   ],
 });
 
+// Goal schema for subscription
+const goalSchema = new mongoose.Schema({
+  id: String,
+  title: String,
+  description: String,
+  type: {
+    type: String,
+    enum: ['strength', 'cardio', 'weight', 'consistency', 'custom']
+  },
+  target: String,
+  difficulty: {
+    type: String,
+    enum: ['easy', 'medium', 'hard'],
+    default: 'medium'
+  },
+  dueDate: Date,
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  status: {
+    type: String,
+    enum: ['active', 'pending_approval', 'completed', 'expired', 'cancelled'],
+    default: 'active'
+  },
+  progress: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100
+  },
+  completedDate: Date,
+  clientRequestedCompletion: Boolean,
+  clientCompletionRequestDate: Date,
+  coachApproved: Boolean,
+  coachApprovalDate: Date,
+  pointsAwarded: Number
+});
+
 // Exercise schema for workout plans
 const exerciseSchema = new mongoose.Schema({
   id: String,
@@ -192,7 +231,9 @@ const subscriptionSchema = new mongoose.Schema(
       preferredLanguages: [String],
       timeZone: String,
     },
+    goals: [goalSchema],
     stats: {
+      
       workoutsCompleted: {
         type: Number,
         default: 0,

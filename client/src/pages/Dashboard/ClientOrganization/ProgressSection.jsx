@@ -62,116 +62,112 @@ const ProgressRing = ({ progress, size = 140, strokeWidth = 12 }) => {
 };
 
 
-// Fix the path generation in the MetricCard component
 const MetricCard = ({ title, data = [], unit, change, color = 'blue', isPositiveGood = true, onAddEntry }) => {
-    // Ensure `data` is always an array
-    const safeData = Array.isArray(data) ? data : [];
+  // Ensure `data` is always an array
+  const safeData = Array.isArray(data) ? data : [];
   
-    // Determine if the change is "good" based on the metric type
-    const isGoodChange = (change > 0 && isPositiveGood) || (change < 0 && !isPositiveGood);
-    
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white p-4 rounded-lg border shadow-sm"
-      >
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="font-medium text-gray-700">{title}</h3>
-          <div className="flex items-center space-x-2">
-            {change !== undefined && (
-              <div className={`flex items-center ${isGoodChange ? 'text-green-600' : 'text-red-600'}`}>
-                {change > 0 ? (
-                  <ChevronUp className="w-4 h-4 mr-1" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 mr-1" />
-                )}
-                <span className="text-xs">{Math.abs(change).toFixed(1)}{unit}</span>
-              </div>
-            )}
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="h-8 w-8 p-0" 
-              onClick={onAddEntry}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-        
-        {safeData.length > 1 ? (
-          <div className="h-32 relative">
-            {/* Simple line chart visualization */}
-            <svg width="100%" height="100%" className="overflow-visible">
-              <defs>
-                <linearGradient id={`gradient-${color}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor={`var(--${color}-500)`} stopOpacity="0.2" />
-                  <stop offset="100%" stopColor={`var(--${color}-500)`} stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              
-              {safeData.length > 1 && (
-                <path
-                  d={`
-                    M ${0} ${(1 - ((safeData[0].value - Math.min(...safeData.map(d => d.value))) / (Math.max(...safeData.map(d => d.value)) - Math.min(...safeData.map(d => d.value)) || 1))) * 100}
-                    ${safeData.slice(1).map((point, i) => {
-                      const x = ((i + 1) / (safeData.length - 1)) * 100;
-                      const min = Math.min(...safeData.map(d => d.value));
-                      const max = Math.max(...safeData.map(d => d.value));
-                      const range = max - min || 1;
-                      const y = (1 - ((point.value - min) / range)) * 100;
-                      return `L ${x} ${y}`;
-                    }).join(' ')}
-                    V 100 H 0 Z
-                  `}
-                  fill={`url(#gradient-${color})`}
-                />
+  // Skip rendering line chart if we don't have enough data points
+  const hasEnoughData = safeData.length >= 2;
+  
+  // Determine if the change is "good" based on the metric type
+  const isGoodChange = (change > 0 && isPositiveGood) || (change < 0 && !isPositiveGood);
+  
+  // Get min and max values for scaling
+  const values = safeData.map(d => d.value);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const valueRange = maxValue - minValue || 1; // Avoid division by zero
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-white p-4 rounded-lg border shadow-sm"
+    >
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="font-medium text-gray-700">{title}</h3>
+        <div className="flex items-center space-x-2">
+          {change !== undefined && (
+            <div className={`flex items-center ${isGoodChange ? 'text-green-600' : 'text-red-600'}`}>
+              {change > 0 ? (
+                <ChevronUp className="w-4 h-4 mr-1" />
+              ) : (
+                <ChevronDown className="w-4 h-4 mr-1" />
               )}
+              <span className="text-xs">{Math.abs(change).toFixed(1)}{unit}</span>
+            </div>
+          )}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-8 w-8 p-0" 
+            onClick={onAddEntry}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+      
+      <div className="h-32 relative">
+        {hasEnoughData ? (
+          <svg width="100%" height="100%" className="overflow-visible">
+            {/* Gradient fill for area under line */}
+            <defs>
+              <linearGradient id={`gradient-${color}-${title.replace(/\s+/g, '-').toLowerCase()}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor={getColorValue(color, 500)} stopOpacity="0.2" />
+                <stop offset="100%" stopColor={getColorValue(color, 500)} stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            
+            {/* Area fill under the line */}
+            <path
+              d={generateAreaPath(safeData, minValue, maxValue)}
+              fill={`url(#gradient-${color}-${title.replace(/\s+/g, '-').toLowerCase()})`}
+            />
+            
+            {/* Line segments */}
+            {safeData.map((point, i) => {
+              if (i === 0) return null; // Skip first point, it's just the starting point
               
-              {safeData.map((point, i) => {
-                const x = (i / (safeData.length - 1)) * 100 + "%";
-                const min = Math.min(...safeData.map(d => d.value));
-                const max = Math.max(...safeData.map(d => d.value));
-                const range = max - min || 1;
-                const y = (1 - ((point.value - min) / range)) * 100 + "%";
-                
-                return (
-                  <g key={i}>
-                    {i > 0 && (
-                      <line 
-                        x1={(i-1) / (safeData.length - 1) * 100 + "%"}
-                        y1={(1 - ((safeData[i-1].value - min) / range)) * 100 + "%"}
-                        x2={x}
-                        y2={y}
-                        stroke={`var(--${color}-500)`}
-                        strokeWidth="2"
-                      />
-                    )}
-                    <circle
-                      cx={x}
-                      cy={y}
-                      r="3"
-                      fill="white"
-                      stroke={`var(--${color}-500)`}
-                      strokeWidth="2"
-                    />
-                  </g>
-                );
-              })}
-            </svg>
+              const prevPoint = safeData[i - 1];
+              const x1 = ((i - 1) / (safeData.length - 1)) * 100;
+              const y1 = 100 - ((prevPoint.value - minValue) / valueRange * 100);
+              const x2 = (i / (safeData.length - 1)) * 100;
+              const y2 = 100 - ((point.value - minValue) / valueRange * 100);
+              
+              return (
+                <line
+                  key={`line-${i}`}
+                  x1={`${x1}%`}
+                  y1={`${y1}%`}
+                  x2={`${x2}%`}
+                  y2={`${y2}%`}
+                  stroke={getColorValue(color, 500)}
+                  strokeWidth="2"
+                />
+              );
+            })}
             
-            <div className="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-gray-500">
-              <span>{formatDate(safeData[0].date)}</span>
-              <span>{formatDate(safeData[safeData.length - 1].date)}</span>
-            </div>
-            
-            <div className="absolute top-0 right-0 text-xl font-bold">
-              {safeData[safeData.length - 1].value}{unit}
-            </div>
-          </div>
+            {/* Data points */}
+            {safeData.map((point, i) => {
+              const x = (i / (safeData.length - 1)) * 100;
+              const y = 100 - ((point.value - minValue) / valueRange * 100);
+              
+              return (
+                <circle
+                  key={`circle-${i}`}
+                  cx={`${x}%`}
+                  cy={`${y}%`}
+                  r="3"
+                  fill="white"
+                  stroke={getColorValue(color, 500)}
+                  strokeWidth="2"
+                />
+              );
+            })}
+          </svg>
         ) : (
-          <div className="h-32 flex items-center justify-center text-gray-400">
+          <div className="h-full flex items-center justify-center text-gray-400">
             {safeData.length === 1 ? (
               <div className="text-center">
                 <div className="text-xl font-bold mb-2">{safeData[0].value}{unit}</div>
@@ -183,20 +179,79 @@ const MetricCard = ({ title, data = [], unit, change, color = 'blue', isPositive
           </div>
         )}
         
-        {safeData.length > 0 && (
-          <div className="mt-3 text-xs text-right">
-            <Button 
-              variant="link" 
-              className="h-8 p-0 text-xs text-blue-600" 
-              size="sm"
-            >
-              View History
-            </Button>
-          </div>
+        {hasEnoughData && (
+          <>
+            {/* X-axis labels */}
+            <div className="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-gray-500">
+              <span>{formatDate(safeData[0].date)}</span>
+              <span>{formatDate(safeData[safeData.length - 1].date)}</span>
+            </div>
+            
+            {/* Latest value */}
+            <div className="absolute top-0 right-0 text-lg font-bold">
+              {safeData[safeData.length - 1].value}{unit}
+            </div>
+          </>
         )}
-      </motion.div>
-    );
+      </div>
+      
+      {safeData.length > 0 && (
+        <div className="mt-3 text-xs text-right">
+          <Button 
+            variant="link" 
+            className="h-8 p-0 text-xs text-blue-600" 
+            size="sm"
+          >
+            View History
+          </Button>
+        </div>
+      )}
+    </motion.div>
+  );
+};
+
+// Helper function to generate the path for the area under the line
+function generateAreaPath(data, minValue, maxValue) {
+  if (data.length < 2) return '';
+  
+  const valueRange = maxValue - minValue || 1;
+  let path = `M 0 ${100 - ((data[0].value - minValue) / valueRange * 100)}`;
+  
+  // Add line segments
+  for (let i = 1; i < data.length; i++) {
+    const x = (i / (data.length - 1)) * 100;
+    const y = 100 - ((data[i].value - minValue) / valueRange * 100);
+    path += ` L ${x} ${y}`;
+  }
+  
+  // Complete the area by adding bottom corners
+  path += ` L 100 100 L 0 100 Z`;
+  
+  return path;
+}
+
+// Helper function to get color values
+function getColorValue(color, shade) {
+  const colorMap = {
+    blue: {
+      500: '#3b82f6',
+    },
+    green: {
+      500: '#22c55e',
+    },
+    red: {
+      500: '#ef4444',
+    },
+    amber: {
+      500: '#f59e0b',
+    },
+    purple: {
+      500: '#8b5cf6',
+    },
   };
+  
+  return colorMap[color]?.[shade] || colorMap.blue[500];
+}
 
 // Metric Entry Dialog Component
 const MetricEntryDialog = ({ 

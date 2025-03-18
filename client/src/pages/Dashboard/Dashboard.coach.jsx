@@ -67,6 +67,88 @@ const DashboardCoach = () => {
     }, 100);
   };
 
+   const onAwardPoints = async (clientId, points) => {
+      try {
+        // This would call your API to award points to the client
+        await clientService.awardClientPoints(clientId, points);
+      } catch (error) {
+        console.error('Failed to award points:', error);
+        toast.error('Failed to award points to client');
+      }
+    };
+
+    const handleCompleteClientGoal = async (clientId, goalId) => {
+      try {
+        setIsLoading(true);
+        
+        // Find the client and their goal
+        const client = clients.find(c => c.id === clientId);
+        if (!client || !client.goals) {
+          toast.error('Client or goal not found');
+          return;
+        }
+        
+        const goal = client.goals.find(g => g.id === goalId);
+        if (!goal) {
+          toast.error('Goal not found');
+          return;
+        }
+        
+        // Get the difficulty and corresponding points
+        const difficulty = goal.difficulty || 'medium';
+        const pointsToAward = {
+          easy: 50,
+          medium: 100,
+          hard: 200
+        }[difficulty] || 100;
+        
+        // Update the goal status
+        const updatedGoals = client.goals.map(g => 
+          g.id === goalId 
+            ? { 
+                ...g, 
+                completed: true, 
+                completedDate: new Date().toISOString(),
+                progress: 100 
+              } 
+            : g
+        );
+        
+        // Update client stats
+        const updatedStats = {
+          ...client.stats,
+          goalsAchieved: (client.stats?.goalsAchieved || 0) + 1,
+        };
+        
+        // Update client in the state
+        setClients(prevClients => 
+          prevClients.map(c => 
+            c.id === clientId
+              ? { 
+                  ...c, 
+                  goals: updatedGoals,
+                  stats: updatedStats
+                }
+              : c
+          )
+        );
+        
+        // Save updates to server
+        await clientService.updateClientGoals(clientId, updatedGoals);
+        await clientService.updateClientStats(clientId, updatedStats);
+        
+        // Award points to the client (this would be handled by the backend)
+        await clientService.awardClientPoints(clientId, pointsToAward);
+        
+        toast.success(`Goal marked as complete! Client was awarded ${pointsToAward} points.`);
+      } catch (error) {
+        console.error('Failed to complete goal:', error);
+        toast.error('Failed to update goal status');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
   const fetchDashboardData = async () => {
     try {
       setIsLoading(true);
@@ -264,10 +346,7 @@ const DashboardCoach = () => {
   const handleClientClick = async (client) => {
     try {
       setIsLoading(true);
-      // Get detailed client data
       const detailedClient = await clientService.getClientById(client.id);
-      
-      // Clear all modal states and set only details modal to open
       setModalState({
         detailsOpen: true,
         workoutsOpen: false,
@@ -277,7 +356,6 @@ const DashboardCoach = () => {
     } catch (error) {
       console.error('Failed to get client details:', error);
       toast.error('Failed to load client details');
-      // Fall back to using the summary data
       setModalState({
         detailsOpen: true,
         workoutsOpen: false,
@@ -325,13 +403,17 @@ const DashboardCoach = () => {
   const handleOpenWorkouts = () => {
     setModalState(prev => ({
       ...prev,
-      workoutsOpen: true
+      detailsOpen: false,
+      workoutsOpen: true,
+      progressOpen: false
     }));
   };
   
   const handleOpenProgress = () => {
     setModalState(prev => ({
       ...prev,
+      detailsOpen: false,
+      workoutsOpen: false,
       progressOpen: true
     }));
   };
@@ -873,29 +955,29 @@ const DashboardCoach = () => {
 
       {/* Client Details Modal */}
       <AnimatePresence>
-  {modalState.detailsOpen && modalState.currentClient && (
-    <div 
-      className="fixed inset-0 z-40 bg-black bg-opacity-50 flex items-center justify-center"
-      onClick={(e) => {
-        // Only close if clicking the backdrop directly
-        if (e.target === e.currentTarget) {
-          setModalState(prev => ({...prev, detailsOpen: false}));
-        }
-      }}
-    >
-      <div onClick={e => e.stopPropagation()}>
-        <ClientDetailsModal
-          client={modalState.currentClient}
-          onClose={() => setModalState(prev => ({...prev, detailsOpen: false}))}
-          onSave={(updatedData) => handleClientUpdate(modalState.currentClient.id, updatedData)}
-          onOpenWorkouts={handleOpenWorkouts}
-          onOpenProgress={handleOpenProgress}
-          onExportData={() => handleExportClientData(modalState.currentClient)}
-        />
-      </div>
-    </div>
-  )}
-</AnimatePresence>
+        {modalState.detailsOpen && modalState.currentClient && (
+          <div 
+            className="fixed inset-0 z-40 bg-black bg-opacity-50 flex items-center justify-center"
+            onClick={(e) => {
+              // Only close if clicking the backdrop directly
+              if (e.target === e.currentTarget) {
+                setModalState(prev => ({...prev, detailsOpen: false}));
+              }
+            }}
+          >
+            <div onClick={e => e.stopPropagation()}>
+              <ClientDetailsModal
+                client={modalState.currentClient}
+                onClose={() => setModalState(prev => ({...prev, detailsOpen: false}))}
+                onSave={(updatedData) => handleClientUpdate(modalState.currentClient.id, updatedData)}
+                onOpenWorkouts={handleOpenWorkouts} // Pass the handler
+                onOpenProgress={handleOpenProgress} // Pass the handler
+                onExportData={() => handleExportClientData(modalState.currentClient)}
+              />
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Chat Modal */}
       <AnimatePresence>
@@ -909,50 +991,51 @@ const DashboardCoach = () => {
       </AnimatePresence>
 
       {/* Client Workouts Modal */}
-      <AnimatePresence>
-  {modalState.workoutsOpen && modalState.currentClient && (
-    <div 
-      className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center"
-      onClick={(e) => {
-        // Only close if clicking the backdrop directly
-        if (e.target === e.currentTarget) {
-          setModalState(prev => ({...prev, workoutsOpen: false}));
-        }
-      }}
-    >
-      <div onClick={e => e.stopPropagation()}>
-        <ClientWorkoutsModal
-          client={modalState.currentClient}
-          onClose={() => setModalState(prev => ({...prev, workoutsOpen: false}))}
-          onSave={(updatedWorkouts) => handleUpdateWorkouts(modalState.currentClient.id, updatedWorkouts)}
-        />
-      </div>
-    </div>
-  )}
-</AnimatePresence>
+     
+    <AnimatePresence>
+      {modalState.workoutsOpen && modalState.currentClient && (
+        <div 
+          className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center"
+          onClick={(e) => {
+            // Only close if clicking the backdrop directly
+            if (e.target === e.currentTarget) {
+              setModalState(prev => ({...prev, workoutsOpen: false}));
+            }
+          }}
+        >
+          <div onClick={e => e.stopPropagation()}>
+            <ClientWorkoutsModal
+              client={modalState.currentClient}
+              onClose={() => setModalState(prev => ({...prev, workoutsOpen: false}))}
+              onSave={(updatedWorkouts) => handleUpdateWorkouts(modalState.currentClient.id, updatedWorkouts)}
+            />
+          </div>
+        </div>
+      )}
+    </AnimatePresence>
 
       {/* Client Progress Modal */}
       <AnimatePresence>
-  {modalState.progressOpen && modalState.currentClient && (
-    <div 
-      className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center"
-      onClick={(e) => {
-        // Only close if clicking the backdrop directly
-        if (e.target === e.currentTarget) {
-          setModalState(prev => ({...prev, progressOpen: false}));
-        }
-      }}
-    >
-      <div onClick={e => e.stopPropagation()}>
-        <ClientProgressModal
-          client={modalState.currentClient}
-          onClose={() => setModalState(prev => ({...prev, progressOpen: false}))}
-          onSave={(updatedProgress) => handleUpdateProgress(modalState.currentClient.id, updatedProgress)}
-        />
-      </div>
-    </div>
-  )}
-</AnimatePresence>
+      {modalState.progressOpen && modalState.currentClient && (
+        <div 
+          className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center"
+          onClick={(e) => {
+            // Only close if clicking the backdrop directly
+            if (e.target === e.currentTarget) {
+              setModalState(prev => ({...prev, progressOpen: false}));
+            }
+          }}
+        >
+          <div onClick={e => e.stopPropagation()}>
+            <ClientProgressModal
+              client={modalState.currentClient}
+              onClose={() => setModalState(prev => ({...prev, progressOpen: false}))}
+              onSave={(updatedProgress) => handleUpdateProgress(modalState.currentClient.id, updatedProgress)}
+            />
+          </div>
+        </div>
+      )}
+    </AnimatePresence>
     </div>
   );
 };

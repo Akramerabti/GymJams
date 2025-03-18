@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { usePoints } from '../../hooks/usePoints';
 
 // Import components
 import WelcomeHeader from './ClientOrganization/WelcomeHeader';
@@ -91,6 +92,8 @@ const ClientDashboard = () => {
     cardio: [],
   });
 
+  const { addPoints, updatePointsInBackend } = usePoints();
+
   // Refs for scrolling
   const overviewRef = useRef(null);
   const workoutsRef = useRef(null);
@@ -167,6 +170,58 @@ const ClientDashboard = () => {
     }
 
     setGoals(generatedGoals);
+  };
+
+  const handleCompleteGoal = async (goal) => {
+    try {
+      // Get the difficulty and corresponding points
+      const difficulty = goal.difficulty || 'medium';
+      const pointsToAward = {
+        easy: 50,
+        medium: 100,
+        hard: 200
+      }[difficulty] || 100;
+      
+      // Set goal as completed
+      const updatedGoals = goals.map(g => 
+        g.id === goal.id 
+          ? { 
+              ...g, 
+              completed: true, 
+              completedDate: formatDate(new Date()),
+              progress: 100 
+            } 
+          : g
+      );
+      
+      setGoals(updatedGoals);
+      
+      // Update stats
+      const updatedStats = {
+        ...subscription.stats,
+        goalsAchieved: (subscription.stats?.goalsAchieved || 0) + 1,
+      };
+      
+      // Update subscription with new stats
+      setSubscription(prev => ({
+        ...prev,
+        stats: updatedStats,
+      }));
+      
+      // Save updates to server
+      await subscriptionService.updateClientStats(subscription._id, updatedStats);
+      
+      // Award points to the user
+      addPoints(pointsToAward);
+      await updatePointsInBackend((user.points || 0) + pointsToAward);
+      
+      toast.success(`Goal completed! You earned ${pointsToAward} points!`, {
+        icon: '🎉',
+      });
+    } catch (error) {
+      console.error('Failed to complete goal:', error);
+      toast.error('Failed to update goal status');
+    }
   };
 
   // Mark workout as complete
