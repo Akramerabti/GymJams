@@ -210,7 +210,106 @@ const clientService = {
       console.error(`Error adding physique assessment for client ${clientId}:`, error);
       throw error;
     }
-  }
+  },
+
+  async getClientSessions(subscriptionId) {
+    try {
+      if (!subscriptionId) {
+        throw new Error('Subscription ID is required');
+      }
+      
+      const response = await api.get(`/subscription/${subscriptionId}/sessions`);
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch client sessions:', error);
+      throw error;
+    }
+  },
+  
+
+  async addToCalendar(session) {
+    try {
+      if (!session || !session.date || !session.time) {
+        throw new Error('Session date and time are required');
+      }
+      
+      // This is a client-side only operation, no API call needed
+      // We'll just generate the Google Calendar URL
+      
+      const title = `Coaching Session: ${session.type || 'Coaching'}`;
+      const startDate = `${session.date}T${session.time}`;
+      
+      // Calculate end time (add 1 hour by default or use duration)
+      let endTime = session.time;
+      if (session.duration) {
+        // Parse duration like "60 minutes"
+        const durationMatch = session.duration.match(/(\d+)/);
+        if (durationMatch) {
+          const durationMinutes = parseInt(durationMatch[1], 10);
+          
+          // Split time into hours and minutes
+          const [hours, minutes] = session.time.split(':').map(Number);
+          
+          // Calculate new time
+          let newHours = hours + Math.floor(durationMinutes / 60);
+          let newMinutes = minutes + (durationMinutes % 60);
+          
+          // Adjust for overflow
+          if (newMinutes >= 60) {
+            newHours += 1;
+            newMinutes -= 60;
+          }
+          
+          // Format with leading zeros
+          endTime = `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`;
+        }
+      } else {
+        // Default: add 1 hour
+        const [hours, minutes] = session.time.split(':').map(Number);
+        endTime = `${String(hours + 1).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+      }
+      
+      const endDate = `${session.date}T${endTime}`;
+      const description = `Coaching session${session.type ? ': ' + session.type : ''}${session.notes ? '\n\nNotes: ' + session.notes : ''}`;
+      
+      // Create Google Calendar URL
+      const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${startDate.replace(/[-:]/g, '')}Z/${endDate.replace(/[-:]/g, '')}Z&details=${encodeURIComponent(description)}`;
+      
+      return googleCalendarUrl;
+    } catch (error) {
+      console.error('Failed to generate calendar URL:', error);
+      throw error;
+    }
+  },
+  
+  exportToCSV(sessions) {
+    try {
+      if (!sessions || !Array.isArray(sessions)) {
+        throw new Error('Sessions array is required');
+      }
+      
+      // Create CSV header
+      let csvContent = "Session Type,Date,Time,Duration,Coach,Notes\n";
+      
+      // Add each session as a row
+      sessions.forEach(session => {
+        const type = session.type ? `"${session.type.replace(/"/g, '""')}"` : '';
+        const date = session.date || '';
+        const time = session.time || '';
+        const duration = session.duration || '';
+        const coach = session.coachName ? `"${session.coachName.replace(/"/g, '""')}"` : '';
+        const notes = session.notes ? `"${session.notes.replace(/"/g, '""')}"` : '';
+        
+        csvContent += `${type},${date},${time},${duration},${coach},${notes}\n`;
+      });
+      
+      return csvContent;
+    } catch (error) {
+      console.error('Failed to generate CSV:', error);
+      throw error;
+    }
+  },
+
 };
 
 export default clientService;

@@ -16,17 +16,17 @@ import {
 import clientService from '../../../services/client.service'; // Import the client service
 import { toast } from 'sonner';
 
-const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
+const Schedule = ({ clients = [], onRefreshData, darkMode }) => {
   const [sessions, setSessions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [newSession, setNewSession] = useState({
     clientId: '',
-    clientName: '',
     date: '',
     time: '',
     type: '',
-    duration: '60 minutes'
+    duration: '60 minutes',
+    notes: ''
   });
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [editedSession, setEditedSession] = useState(null);
@@ -48,8 +48,13 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
   const fetchSessions = async () => {
     try {
       setIsLoading(true);
+      console.log('Fetching sessions...');
       const response = await clientService.getCoachSessions();
-      setSessions(response.data || []);
+      console.log('Sessions response:', response.data || response);
+      
+      // Handle both formats - response.data or direct response
+      const sessionsData = response.data || response;
+      setSessions(Array.isArray(sessionsData) ? sessionsData : []);
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
       toast.error('Failed to load scheduled sessions');
@@ -69,10 +74,13 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
     const grouped = {};
     
     sessions.forEach(session => {
-      if (!grouped[session.date]) {
-        grouped[session.date] = [];
+      // Ensure date is a string
+      const dateStr = typeof session.date === 'string' ? session.date : new Date(session.date).toISOString().split('T')[0];
+      
+      if (!grouped[dateStr]) {
+        grouped[dateStr] = [];
       }
-      grouped[session.date].push(session);
+      grouped[dateStr].push(session);
     });
     
     const formattedGroups = Object.entries(grouped).map(([date, sessions]) => ({
@@ -95,11 +103,11 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
     setIsAdding(true);
     setNewSession({
       clientId: '',
-      clientName: '',
       date: new Date().toISOString().split('T')[0], // Default to today
       time: '',
       type: '',
-      duration: '60 minutes'
+      duration: '60 minutes',
+      notes: ''
     });
   };
 
@@ -107,11 +115,11 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
     setIsAdding(false);
     setNewSession({
       clientId: '',
-      clientName: '',
       date: '',
       time: '',
       type: '',
-      duration: '60 minutes'
+      duration: '60 minutes',
+      notes: ''
     });
   };
 
@@ -131,13 +139,16 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
         date: newSession.date,
         time: newSession.time,
         type: newSession.type,
-        duration: newSession.duration
+        duration: newSession.duration,
+        notes: newSession.notes || ''
       };
+      
+      console.log('Creating new session with data:', sessionData);
       
       // Send to backend
       const response = await clientService.createSession(sessionData);
       
-      if (response.data) {
+      if (response.data || response) {
         toast.success('Session scheduled successfully');
         await fetchSessions(); // Refresh the sessions list
         
@@ -157,15 +168,18 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
     }
   };
 
-  
   const openDeleteDialog = (sessionId) => {
     setSessionToDelete(sessionId);
     setDeleteDialogOpen(true);
   };
 
   const confirmDelete = async () => {
+    if (!sessionToDelete) return;
+    
     try {
       setIsLoading(true);
+      
+      console.log('Deleting session:', sessionToDelete);
       
       // Send delete request to backend
       await clientService.deleteSession(sessionToDelete);
@@ -192,7 +206,6 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
     setSessionToDelete(null);
   };
 
-
   const handleEditClick = (session) => {
     setEditingSessionId(session.id);
     setEditedSession({...session});
@@ -217,18 +230,20 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
       
       // Prepare session data for API
       const sessionData = {
-        id: editedSession.id,
         clientId: editedSession.clientId,
         date: editedSession.date,
         time: editedSession.time,
         type: editedSession.type,
-        duration: editedSession.duration
+        duration: editedSession.duration,
+        notes: editedSession.notes || ''
       };
+      
+      console.log('Updating session with data:', sessionData);
       
       // Send to backend
       const response = await clientService.updateSession(editedSession.id, sessionData);
       
-      if (response.data) {
+      if (response.data || response) {
         toast.success('Session updated successfully');
         await fetchSessions(); // Refresh the sessions list
         
@@ -246,30 +261,6 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
       toast.error('Failed to update session');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleDeleteClick = async (sessionId) => {
-    if (window.confirm('Are you sure you want to delete this session?')) {
-      try {
-        setIsLoading(true);
-        
-        // Send delete request to backend
-        await clientService.deleteSession(sessionId);
-        
-        toast.success('Session deleted successfully');
-        await fetchSessions(); // Refresh the sessions list
-        
-        // Refresh parent component if needed
-        if (onRefreshData) {
-          onRefreshData();
-        }
-      } catch (error) {
-        console.error('Failed to delete session:', error);
-        toast.error('Failed to delete session');
-      } finally {
-        setIsLoading(false);
-      }
     }
   };
 
@@ -295,6 +286,18 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
         clientName: `${selectedClient.firstName} ${selectedClient.lastName || ''}`.trim()
       });
     }
+  };
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString(undefined, { 
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
   };
 
   return (
@@ -382,9 +385,9 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
                 <SelectTrigger>
                   <SelectValue placeholder="Select a client" />
                 </SelectTrigger>
-                <SelectContent >
+                <SelectContent>
                   {clients.map(client => (
-                    <SelectItem key={client.id} value={client.id} >
+                    <SelectItem key={client.id} value={client.id}>
                       {`${client.firstName} ${client.lastName || ''}`.trim()}
                     </SelectItem>
                   ))}
@@ -409,10 +412,12 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Date*</label>
               <Input
+                id="metric-date"
                 type="date"
                 value={newSession.date}
                 onChange={(e) => setNewSession({...newSession, date: e.target.value})}
                 required
+                min={new Date().toISOString().split('T')[0]}
               />
             </div>
             <div>
@@ -424,7 +429,7 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
                 required
               />
             </div>
-            <div className="md:col-span-2">
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Duration</label>
               <Select 
                 defaultValue="60 minutes"
@@ -441,6 +446,15 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
                   <SelectItem value="120 minutes">120 minutes</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <Input
+                type="text"
+                value={newSession.notes || ''}
+                onChange={(e) => setNewSession({...newSession, notes: e.target.value})}
+                placeholder="Optional notes about this session"
+              />
             </div>
           </div>
           <div className="flex justify-end space-x-2">
@@ -487,12 +501,7 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
           {groupedSessions.map((group) => (
             <div key={group.date} className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">
-                {new Date(group.date).toLocaleDateString(undefined, {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
+                {formatDate(group.date)}
               </h3>
               <div className="space-y-4">
                 {group.sessions.map((session) => (
@@ -547,6 +556,7 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
                             value={editedSession.date}
                             onChange={(e) => setEditedSession({...editedSession, date: e.target.value})}
                             required
+                            min={new Date().toISOString().split('T')[0]}
                           />
                         </div>
                         <div>
@@ -558,7 +568,7 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
                             required
                           />
                         </div>
-                        <div className="md:col-span-2">
+                        <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Duration</label>
                           <Select 
                             defaultValue={editedSession.duration || "60 minutes"}
@@ -576,30 +586,14 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="md:col-span-2 flex justify-end space-x-2 mt-2">
-                          <Button variant="outline" onClick={handleCancelEdit} disabled={isLoading}>
-                            Cancel
-                          </Button>
-                          <Button 
-                            className="bg-blue-600 hover:bg-blue-700" 
-                            onClick={handleSaveEdit}
-                            disabled={isLoading}
-                          >
-                            {isLoading ? (
-                              <span className="flex items-center">
-                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                Processing...
-                              </span>
-                            ) : (
-                              <>
-                                <Check className="w-4 h-4 mr-2" />
-                                Save Changes
-                              </>
-                            )}
-                          </Button>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                          <Input
+                            type="text"
+                            value={editedSession.notes || ''}
+                            onChange={(e) => setEditedSession({...editedSession, notes: e.target.value})}
+                            placeholder="Optional notes about this session"
+                          />
                         </div>
                       </div>
                     ) : (
@@ -641,8 +635,41 @@ const Schedule = ({ clients = [], onRefreshData, darkMode  }) => {
                           <div className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs">
                             {session.type}
                           </div>
+                          {session.notes && (
+                            <div className="text-xs text-gray-500">
+                              Notes: {session.notes}
+                            </div>
+                          )}
                         </div>
                       </>
+                    )}
+                    
+                    {editingSessionId === session.id && (
+                      <div className="mt-4 flex justify-end space-x-2">
+                        <Button variant="outline" onClick={handleCancelEdit} disabled={isLoading}>
+                          Cancel
+                        </Button>
+                        <Button 
+                          className="bg-blue-600 hover:bg-blue-700" 
+                          onClick={handleSaveEdit}
+                          disabled={isLoading}
+                        >
+                          {isLoading ? (
+                            <span className="flex items-center">
+                              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Processing...
+                            </span>
+                          ) : (
+                            <>
+                              <Check className="w-4 h-4 mr-2" />
+                              Save Changes
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     )}
                   </motion.div>
                 ))}

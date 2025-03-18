@@ -20,7 +20,7 @@ import ClientDetailsModal from './CoachOrganization/ClientDetailsModal';
 import CoachChatComponent from './components/CoachChatComponent';
 import ClientStatsWidget from './CoachOrganization/ClientStatsWidget';
 import clientService from '../../services/client.service';
-
+import PendingGoalsSection from '../../components/subscription/PendingGoalsSection.jsx';
 
 
 const DashboardCoach = () => {
@@ -61,22 +61,6 @@ const DashboardCoach = () => {
       }
     }, 100);
   };
-
-
-  const onAwardPoints = async (clientId, points) => {
-    try {
-      await clientService.awardClientPoints(clientId, points);
-    } catch (error) {
-      console.error('Failed to award points:', error);
-      toast.error('Failed to award points to client');
-    }
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-  };
   
 
   const handleCompleteClientGoal = async (clientId, goalId, pointsToAward, isApproval = false) => {
@@ -96,10 +80,46 @@ const DashboardCoach = () => {
         return;
       }
       
-      // If this is a direct completion (not an approval of client request)
-      // this is used when the coach directly marks a goal as complete
-      if (!isApproval) {
-        // Update the goal status
+      // If this is an approval of a client's completion request
+      if (isApproval) {
+        // Call the approval endpoint which will award points and update status on backend
+        const result = await subscriptionService.approveGoalCompletion(clientId, goalId, pointsToAward);
+        
+        if (result) {
+          // Success! Update local state to reflect changes
+          setClients(prevClients => 
+            prevClients.map(c => 
+              c.id === clientId
+                ? { 
+                    ...c, 
+                    goals: c.goals.map(g => 
+                      g.id === goalId 
+                        ? { 
+                            ...g, 
+                            status: 'completed',
+                            completed: true, 
+                            completedDate: new Date().toISOString(),
+                            coachApproved: true,
+                            coachApprovalDate: new Date().toISOString(),
+                            pointsAwarded: pointsToAward,
+                            progress: 100 
+                          } 
+                        : g
+                    ),
+                    stats: {
+                      ...c.stats,
+                      goalsAchieved: (c.stats?.goalsAchieved || 0) + 1,
+                    }
+                  }
+                : c
+            )
+          );
+          
+          toast.success(`Goal approved! Client was awarded ${pointsToAward} points.`);
+        }
+      } else {
+        // This is a direct completion (coach marks a goal as complete)
+        // Update the goal status locally
         const updatedGoals = client.goals.map(g => 
           g.id === goalId 
             ? { 
@@ -115,13 +135,13 @@ const DashboardCoach = () => {
             : g
         );
         
-        // Update client stats
+        // Update client stats locally
         const updatedStats = {
           ...client.stats,
           goalsAchieved: (client.stats?.goalsAchieved || 0) + 1,
         };
         
-        // Update client in the state
+        // Update client in the local state
         setClients(prevClients => 
           prevClients.map(c => 
             c.id === clientId
@@ -134,48 +154,30 @@ const DashboardCoach = () => {
           )
         );
         
-        // Save updates to server
-        await clientService.updateClientGoals(clientId, updatedGoals);
-        await clientService.updateClientStats(clientId, updatedStats);
-      } else {
-        // This is an approval of a client's completion request
-        // Call the approval endpoint
-        await subscriptionService.approveGoalCompletion(clientId, goalId, pointsToAward);
+        // Save goal updates to server
+        await subscriptionService.updateClientGoal(clientId, {
+          ...goal,
+          status: 'completed',
+          completed: true,
+          completedDate: new Date().toISOString(),
+          coachApproved: true,
+          coachApprovalDate: new Date().toISOString(),
+          pointsAwarded: pointsToAward,
+          progress: 100
+        });
         
-        // Update local state
-        setClients(prevClients => 
-          prevClients.map(c => 
-            c.id === clientId
-              ? { 
-                  ...c, 
-                  goals: c.goals.map(g => 
-                    g.id === goalId 
-                      ? { 
-                          ...g, 
-                          status: 'completed',
-                          completed: true, 
-                          completedDate: new Date().toISOString(),
-                          coachApproved: true,
-                          coachApprovalDate: new Date().toISOString(),
-                          pointsAwarded: pointsToAward,
-                          progress: 100 
-                        } 
-                      : g
-                  ),
-                  stats: {
-                    ...c.stats,
-                    goalsAchieved: (c.stats?.goalsAchieved || 0) + 1,
-                  }
-                }
-              : c
-          )
-        );
+        // Save stats updates to server
+        await subscriptionService.updateClientStats(clientId, updatedStats);
+        
+        // Award points to client through the dedicated endpoint
+        await clientService.awardClientPoints(clientId, pointsToAward);
+        
+        toast.success(`Goal marked as complete! Client was awarded ${pointsToAward} points.`);
       }
       
-      // Award points to the client
-      await clientService.awardClientPoints(clientId, pointsToAward);
+      // Refresh the client data to ensure everything is up to date
+      fetchDashboardData();
       
-      toast.success(`Goal marked as complete! Client was awarded ${pointsToAward} points.`);
     } catch (error) {
       console.error('Failed to complete goal:', error);
       toast.error('Failed to update goal status');
@@ -249,91 +251,52 @@ const DashboardCoach = () => {
       setIsLoading(true);
       setError(null);
   
-      let clientsData = [];
-      let pendingRequestsData = [];
-      let sessionsData = [];
+      // Fetch all necessary data in parallel
+      const [
+        clientsData,
+        pendingRequestsData,
+        sessionsData,
+        pendingGoalApprovalsData
+      ] = await Promise.all([
+        clientService.getCoachClients(),
+        clientService.getPendingRequests(),
+        clientService.getCoachSessions(),
+        subscriptionService.getPendingGoalApprovals()
+      ]);
   
-      try {
-        clientsData = await clientService.getCoachClients();
-      } catch (clientError) {
-        console.error('Error fetching clients:', clientError);
-        setError('Could not load client data. Please try again later.');
-        clientsData = [];
-      }
-  
-      try {
-        pendingRequestsData = await clientService.getPendingRequests();
-      } catch (requestsError) {
-        console.error('Error fetching pending requests:', requestsError);
-        pendingRequestsData = [];
-      }
-  
-      try {
-        const sessionResponse = await clientService.getCoachSessions();
-        sessionsData = sessionResponse.data || [];
-      } catch (sessionsError) {
-        console.error('Error fetching sessions:', sessionsError);
-        sessionsData = [];
-      }
-  
-      // Filter clients with pending goals from the newly fetched clientsData
-      const clientsWithPendingGoals = clientsData.filter(client => 
-        (client.goals || []).some(goal => 
-          goal.status === 'pending_approval' || goal.clientRequestedCompletion
-        )
-      );
-  
-      // Update state with clients that have pending goals
-      setPendingGoalApprovals(clientsWithPendingGoals);
+      // Process and update state
+      setClients(Array.isArray(clientsData) ? clientsData : []);
+      setPendingRequests(Array.isArray(pendingRequestsData) ? pendingRequestsData : []);
+      setUpcomingSessions(Array.isArray(sessionsData) ? sessionsData : []);
+      setPendingGoalApprovals(Array.isArray(pendingGoalApprovalsData) ? pendingGoalApprovalsData : []);
+
+      console.log('Pending goal approvals:', pendingGoalApprovalsData);
+      console.log('Pending  upcomingSessions:', upcomingSessions);
   
       // Update pending goal count
-      const pendingGoalCount = clientsWithPendingGoals.reduce((count, client) => {
-        const pendingGoals = (client.goals || []).filter(
-          goal => goal.status === 'pending_approval' || goal.clientRequestedCompletion
-        );
-        return count + pendingGoals.length;
-      }, 0);
+      const pendingGoalCount = (Array.isArray(pendingGoalApprovalsData) ? pendingGoalApprovalsData : [])
+        .reduce((count, client) => {
+          const pendingGoals = (client.goals || []).filter(
+            goal => goal.status === 'pending_approval' || goal.clientRequestedCompletion
+          );
+          return count + pendingGoals.length;
+        }, 0);
   
       setPendingGoalCount(pendingGoalCount);
   
-      // Process clientsData for the main clients state
-      clientsData = Array.isArray(clientsData) ? clientsData : [];
-      pendingRequestsData = Array.isArray(pendingRequestsData) ? pendingRequestsData : [];
-      sessionsData = Array.isArray(sessionsData) ? sessionsData : [];
-  
-      const processedClients = clientsData.map(client => ({
-        ...client,
-        unreadMessages: client.unreadCount || 0,
-        lastActive: client.lastActive || 'N/A',
-        progress: client.stats?.monthlyProgress || 0,
-        status: client.status || 'active'
-      }));
-  
-      // Update the main clients state
-      setClients(processedClients);
-      setPendingRequests(pendingRequestsData);
-      setUpcomingSessions(sessionsData);
-  
       // Update stats
-      const upcomingSessionsCount = sessionsData.length;
-      const messageThreadsCount = processedClients.filter(c => 
-        c.unreadMessages && c.unreadMessages > 0
-      ).length;
-  
       setStats({
-        activeClients: processedClients.length,
+        activeClients: clientsData.length,
         pendingRequests: pendingRequestsData.length,
-        upcomingSessions: upcomingSessionsCount,
-        messageThreads: messageThreadsCount,
+        upcomingSessions: sessionsData.length,
+        messageThreads: clientsData.filter(c => c.unreadMessages && c.unreadMessages > 0).length,
+        pendingGoals: pendingGoalCount
       });
   
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       setError('Failed to load dashboard data. Please try again later.');
       toast.error('Failed to fetch dashboard data');
-      setClients([]);
-      setUpcomingSessions([]);
-      setPendingRequests([]);
     } finally {
       setIsLoading(false);
     }
@@ -443,128 +406,169 @@ const DashboardCoach = () => {
     toast.info('This feature will be implemented in a future update');
   };
 
-  const PendingApprovalsSection = () => {
-    if (pendingGoalApprovals.length === 0) return null;
-  
-    return (
-      <Card className="shadow-lg mb-6">
-        <CardHeader className="bg-amber-50 border-b border-amber-200">
-          <CardTitle className="flex items-center text-amber-800">
-            <Clock className="w-5 h-5 mr-2 text-amber-600" />
-            Pending Goal Approvals
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-4 sm:p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {pendingGoalApprovals.map((client) => (
-              <motion.div
-                key={client.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className="border border-amber-200 rounded-lg bg-white hover:shadow-md transition-shadow"
-              >
-                <div className="p-4">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-2">
-                        <User className="w-4 h-4 text-blue-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-base sm:text-lg">
-                          {client.firstName} {client.lastName}
-                        </h3>
-                        <p className="text-xs sm:text-sm text-gray-600">
-                          {(client.goals || []).filter(
-                            (g) =>
-                              g.status === 'pending_approval' ||
-                              g.clientRequestedCompletion
-                          ).length}{' '}
-                          pending{' '}
-                          {(client.goals || []).filter(
-                            (g) =>
-                              g.status === 'pending_approval' ||
-                              g.clientRequestedCompletion
-                          ).length === 1
-                            ? 'goal'
-                            : 'goals'}
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      onClick={() => {
-                        setActiveTab('requests'); // Switch to the "Requests" tab
-                      }}
-                      className="bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
-                    >
-                      Review Goals
-                    </Button>
-                  </div>
-  
-                  <div className="space-y-2">
-                    {(client.goals || [])
-                      .filter(
-                        (g) =>
-                          g.status === 'pending_approval' ||
-                          g.clientRequestedCompletion
-                      )
-                      .map((goal) => (
-                        <div
-                          key={goal.id}
-                          className="bg-amber-50 p-2 sm:p-3 rounded-lg"
-                        >
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <p className="font-medium text-sm sm:text-base">
-                                {goal.title}
-                              </p>
-                              <p className="text-xs text-gray-600">
-                                {goal.target}
-                              </p>
-                            </div>
-                            <p className="text-xs text-amber-600 whitespace-nowrap">
-                              Requested:{' '}
-                              {formatDate(
-                                goal.clientCompletionRequestDate || new Date()
-                              )}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
-  const handleAcceptRequest = async (requestId) => {
+  const handleApproveGoal = async (clientId, goalId, pointsToAward) => {
     try {
       setIsLoading(true);
-      await clientService.acceptCoachingRequest(requestId);
-      setPendingRequests(prev => prev.filter(req => req.id !== requestId));
-      const updatedClients = await clientService.getCoachClients();
-      setClients(updatedClients);
-      toast.success('Coaching request accepted successfully');
+      
+      // Find the client and goal for UI updates
+      const client = clients.find(c => c.id === clientId);
+      if (!client) {
+        toast.error('Client not found');
+        return;
+      }
+      
+      const goal = client.goals?.find(g => g.id === goalId);
+      if (!goal) {
+        toast.error('Goal not found');
+        return;
+      }
+      
+      // Call the API to approve the goal - this will change status to completed
+      const result = await subscriptionService.approveGoalCompletion(clientId, goalId, pointsToAward);
+      
+      if (result) {
+        // Successfully approved in backend, update local state
+        
+        // Update the goal status in the client's goals array
+        const updatedClients = clients.map(c => {
+          if (c.id === clientId) {
+            // Update the goals array
+            const updatedGoals = (c.goals || []).map(g => {
+              if (g.id === goalId) {
+                return {
+                  ...g,
+                  status: 'completed', // Make sure status is explicitly set to completed
+                  completed: true,
+                  completedDate: new Date().toISOString(),
+                  coachApproved: true,
+                  coachApprovalDate: new Date().toISOString(),
+                  pointsAwarded
+                };
+              }
+              return g;
+            });
+            
+            // Update the stats
+            const updatedStats = {
+              ...c.stats,
+              goalsAchieved: (c.stats?.goalsAchieved || 0) + 1
+            };
+            
+            return {
+              ...c,
+              goals: updatedGoals,
+              stats: updatedStats
+            };
+          }
+          return c;
+        });
+        
+        // Update clients state
+        setClients(updatedClients);
+        
+        // Also update pendingGoalApprovals to remove this goal
+        const updatedPendingGoals = pendingGoalApprovals.map(c => {
+          if (c.id === clientId) {
+            // Filter out the approved goal
+            const filteredGoals = (c.goals || []).filter(g => g.id !== goalId);
+            return {
+              ...c,
+              goals: filteredGoals
+            };
+          }
+          return c;
+        }).filter(c => (c.goals || []).length > 0); // Remove clients with no pending goals
+        
+        setPendingGoalApprovals(updatedPendingGoals);
+        
+        // Update the pending goal count
+        setPendingGoalCount(prev => Math.max(0, prev - 1));
+        
+        toast.success(`Goal approved! ${pointsToAward} points awarded to client.`);
+      }
     } catch (error) {
-      console.error('Failed to accept coaching request:', error);
-      toast.error('Failed to accept coaching request');
+      console.error('Error approving goal:', error);
+      toast.error('Failed to approve goal');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleDeclineRequest = async (requestId) => {
+  const handleRejectGoal = async (clientId, goalId, reason = '') => {
     try {
       setIsLoading(true);
-      await clientService.declineCoachingRequest(requestId);
-      setPendingRequests(prev => prev.filter(req => req.id !== requestId));
-      toast.success('Coaching request declined');
+      
+      // Find the client and goal for UI updates
+      const client = clients.find(c => c.id === clientId);
+      if (!client) {
+        toast.error('Client not found');
+        return;
+      }
+      
+      const goal = client.goals?.find(g => g.id === goalId);
+      if (!goal) {
+        toast.error('Goal not found');
+        return;
+      }
+      
+      // Call the API to reject the goal - this will reset status to active
+      const result = await subscriptionService.rejectGoalCompletion(clientId, goalId, reason);
+      
+      if (result) {
+        // Successfully rejected in backend, update local state
+        
+        // Update the goal status in the client's goals array
+        const updatedClients = clients.map(c => {
+          if (c.id === clientId) {
+            // Update the goals array
+            const updatedGoals = (c.goals || []).map(g => {
+              if (g.id === goalId) {
+                return {
+                  ...g,
+                  status: 'active', // Reset status to active
+                  clientRequestedCompletion: false,
+                  clientCompletionRequestDate: null,
+                  rejectionReason: reason,
+                  rejectedAt: new Date().toISOString()
+                };
+              }
+              return g;
+            });
+            
+            return {
+              ...c,
+              goals: updatedGoals
+            };
+          }
+          return c;
+        });
+        
+        // Update clients state
+        setClients(updatedClients);
+        
+        // Also update pendingGoalApprovals to remove this goal
+        const updatedPendingGoals = pendingGoalApprovals.map(c => {
+          if (c.id === clientId) {
+            // Filter out the rejected goal
+            const filteredGoals = (c.goals || []).filter(g => g.id !== goalId);
+            return {
+              ...c,
+              goals: filteredGoals
+            };
+          }
+          return c;
+        }).filter(c => (c.goals || []).length > 0); // Remove clients with no pending goals
+        
+        setPendingGoalApprovals(updatedPendingGoals);
+        
+        // Update the pending goal count
+        setPendingGoalCount(prev => Math.max(0, prev - 1));
+        
+        toast.success('Goal rejected. Client has been notified.');
+      }
     } catch (error) {
-      console.error('Failed to decline coaching request:', error);
-      toast.error('Failed to decline coaching request');
+      console.error('Error rejecting goal:', error);
+      toast.error('Failed to reject goal');
     } finally {
       setIsLoading(false);
     }
@@ -611,7 +615,14 @@ const DashboardCoach = () => {
         </motion.div>
 
         {/* Pending Goal Alert */}
-        <PendingApprovalsSection />
+        {pendingGoalApprovals.length > 1 && (
+        <PendingGoalsSection
+          pendingGoalApprovals={pendingGoalApprovals}
+          handleCompleteClientGoal={handleCompleteClientGoal}
+          handleRejectGoalCompletion={handleRejectGoalCompletion}
+          isLoading={isLoading}
+        />
+      )}
 
          {/* Error display */}
          {error && (

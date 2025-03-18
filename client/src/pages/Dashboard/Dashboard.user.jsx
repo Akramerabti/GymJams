@@ -9,6 +9,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from 'sonner';
 import { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { usePoints } from '../../hooks/usePoints';
+import { useSocket } from '../../SocketContext';
+import Progress from '@/components/ui/progress';
 
 // Import components
 import WelcomeHeader from './ClientOrganization/WelcomeHeader';
@@ -17,6 +19,8 @@ import GoalsSection from './ClientOrganization/GoalsSection';
 import WorkoutSection from './ClientOrganization/WorkoutSection';
 import ProgressSection from './ClientOrganization/ProgressSection';
 import ProfileSection from './ClientOrganization/ProfileSection';
+import UpcomingSessions from './ClientOrganization/UpcomingSessions';
+import SessionsView from '../../components/subscription/SessionsView';
 import Chat from './components/Chat';
 
 // Subscription tier configuration with features
@@ -73,6 +77,7 @@ const calculateTrend = (current, previous) => {
 
 const ClientDashboard = () => {
   const { user } = useAuth();
+  const socket = useSocket();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [subscription, setSubscription] = useState(null);
@@ -91,7 +96,7 @@ const ClientDashboard = () => {
     strength: [],
     cardio: [],
   });
-
+  const [showAllSessions, setShowAllSessions] = useState(false);
   const { addPoints, updatePointsInBackend } = usePoints();
 
   // Refs for scrolling
@@ -481,6 +486,127 @@ const ClientDashboard = () => {
     };
   }, [user, navigate]);
 
+  // Add this to the client-side socket setup in the client's Dashboard component
+
+// Set up socket listeners for goal approval/rejection notifications
+useEffect(() => {
+  if (socket && subscription) {
+    // Listen for goal approval events
+    socket.on('goalApproved', (data) => {
+      const { goalId, title, pointsAwarded, status } = data;
+      
+      // Update the goals list - explicitly set status to 'completed'
+      setGoals(prevGoals => 
+        prevGoals.map(goal => 
+          goal.id === goalId 
+            ? { 
+                ...goal, 
+                status: 'completed',
+                completed: true,
+                completedDate: new Date().toISOString(),
+                pointsAwarded,
+                progress: 100
+              } 
+            : goal
+        )
+      );
+      
+      // Update subscription stats
+      setSubscription(prevSub => ({
+        ...prevSub,
+        stats: {
+          ...prevSub.stats,
+          goalsAchieved: (prevSub.stats?.goalsAchieved || 0) + 1
+        }
+      }));
+      
+      // Update points store if using hooks/usePoints.js
+      if (addPoints) {
+        addPoints(pointsAwarded);
+        updatePointsInBackend(user?.points + pointsAwarded || pointsAwarded);
+      }
+      
+      // Show notification to user
+      toast.success(
+        `Goal Completed: ${title}`,
+        {
+          description: `Your coach approved your goal! You earned ${pointsAwarded} points.`,
+          icon: <Award className="w-6 h-6 text-yellow-500" />
+        }
+      );
+      
+      // Play a success sound if available
+      if (window.Audio) {
+        try {
+          const successSound = new Audio('/sounds/success.mp3');
+          successSound.play();
+        } catch (e) {
+          console.log('Sound playback failed', e);
+        }
+      }
+      
+      // Show floating notification
+      setNotifications(prev => [
+        ...prev,
+        {
+          type: 'goal-approval',
+          goalId,
+          title,
+          pointsAwarded,
+          timestamp: new Date().toISOString()
+        }
+      ]);
+    });
+    
+    // Listen for goal rejection events
+    socket.on('goalRejected', (data) => {
+      const { goalId, title, reason, status } = data;
+      
+      // Update the goals list - reset status to 'active'
+      setGoals(prevGoals => 
+        prevGoals.map(goal => 
+          goal.id === goalId 
+            ? { 
+                ...goal, 
+                status: 'active',
+                clientRequestedCompletion: false,
+                clientCompletionRequestDate: null,
+                rejectionReason: reason,
+                rejectedAt: new Date().toISOString()
+              } 
+            : goal
+        )
+      );
+      
+      // Show notification to user
+      toast.error(
+        `Goal Completion Rejected: ${title}`,
+        {
+          description: reason || 'Your coach has requested more progress on this goal.',
+          duration: 6000
+        }
+      );
+      
+      // Show floating notification
+      setNotifications(prev => [
+        ...prev,
+        {
+          type: 'goal-rejection',
+          goalId,
+          title,
+          reason,
+          timestamp: new Date().toISOString()
+        }
+      ]);
+    });
+    
+    return () => {
+      socket.off('goalApproved');
+      socket.off('goalRejected');
+    };
+  }
+}, [socket, subscription, addPoints, updatePointsInBackend, user]);
+
   // Get subscription tier
   const currentTier = SUBSCRIPTION_TIERS[subscription?.subscription || 'basic'];
 
@@ -536,7 +662,7 @@ const ClientDashboard = () => {
         {/* Navigation Tabs */}
         <Tabs defaultValue="overview" value={activeTab} onValueChange={handleTabChange}>
           <div className="bg-white sticky top-0 z-10 border-b shadow-sm px-4 py-2 rounded-t-lg">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="overview">
                 <BarChart2 className="w-4 h-4 mr-2 inline-block" />
                 <span className="hidden sm:inline">Overview</span>
@@ -545,6 +671,10 @@ const ClientDashboard = () => {
                 <Dumbbell className="w-4 h-4 mr-2 inline-block" />
                 <span className="hidden sm:inline">Workouts</span>
               </TabsTrigger>
+              <TabsTrigger value="sessions">
+              <Calendar className="w-4 h-4 mr-2 inline-block" />
+              <span className="hidden sm:inline">Sessions</span>
+            </TabsTrigger>
               <TabsTrigger value="progress">
                 <Activity className="w-4 h-4 mr-2 inline-block" />
                 <span className="hidden sm:inline">Progress</span>
@@ -582,6 +712,16 @@ const ClientDashboard = () => {
                 onCompleteWorkout={handleCompleteWorkout}
                 onViewAll={() => handleTabChange('workouts')}
               />
+
+              {/* Sessions Section */}
+              <UpcomingSessions 
+                subscription={subscription}
+                onViewAll={() => {
+                  setActiveTab('sessions');
+                  setShowAllSessions(true);
+                }}
+              />
+
 
               {/* Subscription Features */}
               <Card>
@@ -630,6 +770,11 @@ const ClientDashboard = () => {
               onUpdateStats={handleUpdateStats}
               onAddMetricEntry={handleAddMetricEntry}
             />
+          </TabsContent>
+
+          {/* Session Tab */}
+          <TabsContent value="sessions">
+            <SessionsView subscription={subscription} />
           </TabsContent>
 
           {/* Profile Tab */}
@@ -737,7 +882,7 @@ const ClientDashboard = () => {
           {goals
             .filter(g => g.completed || g.status === 'completed')
             .map(goal => (
-              <div key={goal.id} className="bg-white p-4 rounded-lg border border-green-200 bg-green-50">
+              <div key={goal.id} className="bg-white p-4 rounded-lg border border-green-200 ">
                 <div className="flex items-center mb-2">
                   {goal.icon || getGoalIcon(goal.type)}
                   <h4 className="font-medium text-lg ml-2">{goal.title}</h4>

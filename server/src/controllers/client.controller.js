@@ -709,16 +709,14 @@ export const declineCoachingRequest = async (req, res) => {
 };
 
 
+// Get coach sessions using the Session model
 export const getCoachSessions = async (req, res) => {
   try {
-    
-    console.log(req.user.role);
-
     if (req.user.role !== 'coach') {
       return res.status(403).json({ error: 'Only coaches can access session data' });
     }
 
-    // Find all sessions where this coach is the owner
+    // Find all sessions where this coach is the owner using the Session model
     const sessions = await Session.find({ coachId: req.user.id })
       .populate('subscription', 'user guestEmail')
       .populate({
@@ -749,7 +747,7 @@ export const getCoachSessions = async (req, res) => {
     logger.error('Error fetching coach sessions:', error);
     res.status(500).json({ error: 'Failed to fetch session data' });
   }
-}
+};
 
 // Create a new session
 export const createSession = async (req, res) => {
@@ -783,7 +781,7 @@ export const createSession = async (req, res) => {
       return res.status(403).json({ error: 'You do not have access to this client' });
     }
 
-    // Create new session
+    // Create new session using the Session model
     const newSession = new Session({
       coachId: req.user.id,
       subscription: clientId,
@@ -795,6 +793,21 @@ export const createSession = async (req, res) => {
     });
 
     await newSession.save();
+
+    // Notify client about the new session if they're online
+    const io = getIoInstance();
+    if (io && subscription.user) {
+      const userSocketId = activeUsers.get(subscription.user.toString());
+      if (userSocketId) {
+        io.to(userSocketId).emit('sessionCreated', {
+          sessionId: newSession._id,
+          date: newSession.date,
+          time: newSession.time,
+          type: newSession.sessionType,
+          duration: newSession.duration
+        });
+      }
+    }
 
     res.status(201).json({
       message: 'Session created successfully',
@@ -812,7 +825,7 @@ export const createSession = async (req, res) => {
     logger.error('Error creating session:', error);
     res.status(500).json({ error: 'Failed to create session' });
   }
-}
+};
 
 // Update a session
 export const updateSession = async (req, res) => {

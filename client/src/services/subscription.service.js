@@ -611,17 +611,50 @@ async submitQuestionnaire(answers, accessToken = null) {
   },
   
   // Approve a goal completion request (coach side)
-  async approveGoalCompletion(subscriptionId, goalId, pointsAwarded) {
-    try {
-      const response = await api.post(`/subscription/${subscriptionId}/goals/${goalId}/approve`, {
-        pointsAwarded
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Failed to approve goal completion:', error);
-      throw error;
+async approveGoalCompletion(subscriptionId, goalId, pointsAwarded) {
+  try {
+    if (!subscriptionId || !goalId) {
+      throw new Error('Subscription ID and goal ID are required');
     }
-  },
+    
+    console.log(`Approving goal ${goalId} with ${pointsAwarded} points`);
+    
+    // Make API request with retry logic
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        const response = await api.post(`/subscription/${subscriptionId}/goals/${goalId}/approve`, {
+          pointsAwarded: pointsAwarded || 0
+        });
+        
+        // Log success
+        console.log('Goal approval response:', response.data);
+        
+        if (response.data.pointsAwardedSuccess) {
+          console.log(`Successfully awarded ${pointsAwarded} points to client`);
+        } else {
+          console.warn('Goal approved but points may not have been awarded');
+        }
+        
+        return response.data;
+      } catch (error) {
+        retryCount++;
+        
+        // If we've reached max retries, throw the error
+        if (retryCount >= maxRetries) throw error;
+        
+        // Otherwise wait with exponential backoff
+        const delay = Math.pow(2, retryCount) * 500;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  } catch (error) {
+    console.error('Failed to approve goal completion:', error);
+    throw error;
+  }
+},
   
   // Reject a goal completion request (coach side)
   async rejectGoalCompletion(subscriptionId, goalId) {

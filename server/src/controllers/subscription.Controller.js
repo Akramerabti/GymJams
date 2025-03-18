@@ -7,6 +7,7 @@ import { sendSubscriptionReceipt } from '../services/email.service.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { getIoInstance, activeUsers } from '../socketServer.js';
+import Session from '../models/Session.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -1421,6 +1422,8 @@ export const approveGoalCompletion = async (req, res) => {
     const { subscriptionId, goalId } = req.params;
     const { pointsAwarded } = req.body;
     
+    logger.info(`Approving goal completion: ${goalId} for subscription ${subscriptionId} with ${pointsAwarded} points`);
+    
     // Find the subscription
     const subscription = await Subscription.findById(subscriptionId);
     
@@ -1435,7 +1438,7 @@ export const approveGoalCompletion = async (req, res) => {
       return res.status(404).json({ error: 'Goal not found' });
     }
     
-    // Update the goal
+    // Update the goal status to completed
     subscription.goals[goalIndex] = {
       ...subscription.goals[goalIndex],
       status: 'completed',
@@ -1453,21 +1456,55 @@ export const approveGoalCompletion = async (req, res) => {
     
     subscription.stats.goalsAchieved = (subscription.stats.goalsAchieved || 0) + 1;
     
+    // Save subscription changes first to ensure goal is marked as completed
+    await subscription.save();
+    
     // Award points to the user if they exist
+    let pointsAwardedSuccess = false;
+    
     if (subscription.user) {
-      const user = await User.findById(subscription.user);
-      
-      if (user) {
-        user.points = (user.points || 0) + (pointsAwarded || 0);
-        await user.save();
+      try {
+        const user = await User.findById(subscription.user);
+        
+        if (user) {
+          // Calculate current points and add the new points
+          const currentPoints = user.points || 0;
+          user.points = currentPoints + (pointsAwarded || 0);
+          
+          await user.save();
+          
+          logger.info(`Awarded ${pointsAwarded} points to user ${user._id}. New total: ${user.points}`);
+          pointsAwardedSuccess = true;
+        }
+      } catch (pointsError) {
+        logger.error('Error awarding points to user:', pointsError);
+        // Continue even if points award fails
       }
     }
     
-    await subscription.save();
+    // Get socket instance to notify the client if they're online
+    const io = getIoInstance();
+    const activeUsersMap = activeUsers || new Map();
+    
+    if (io && subscription.user) {
+      const userSocketId = activeUsersMap.get(subscription.user.toString());
+      
+      if (userSocketId) {
+        io.to(userSocketId).emit('goalApproved', {
+          goalId,
+          title: subscription.goals[goalIndex].title,
+          pointsAwarded: pointsAwarded || 0,
+          status: 'completed'
+        });
+        
+        logger.info(`Notified user ${subscription.user} about goal approval via socket`);
+      }
+    }
     
     res.json({
       goal: subscription.goals[goalIndex],
-      pointsAwarded
+      pointsAwarded,
+      pointsAwardedSuccess
     });
   } catch (error) {
     logger.error('Error approving goal completion:', error);
@@ -1479,6 +1516,9 @@ export const approveGoalCompletion = async (req, res) => {
 export const rejectGoalCompletion = async (req, res) => {
   try {
     const { subscriptionId, goalId } = req.params;
+    const { reason } = req.body;
+    
+    logger.info(`Rejecting goal completion: ${goalId} for subscription ${subscriptionId}`);
     
     // Find the subscription
     const subscription = await Subscription.findById(subscriptionId);
@@ -1494,17 +1534,41 @@ export const rejectGoalCompletion = async (req, res) => {
       return res.status(404).json({ error: 'Goal not found' });
     }
     
-    // Reset the goal status
+    // Reset the goal status - don't change to completed
     subscription.goals[goalIndex] = {
       ...subscription.goals[goalIndex],
       status: 'active',
       clientRequestedCompletion: false,
-      clientCompletionRequestDate: null
+      clientCompletionRequestDate: null,
+      rejectionReason: reason || 'Goal completion rejected by coach',
+      rejectedAt: new Date().toISOString()
     };
     
     await subscription.save();
     
-    res.json(subscription.goals[goalIndex]);
+    // Get socket instance to notify the client if they're online
+    const io = getIoInstance();
+    const activeUsersMap = activeUsers || new Map();
+    
+    if (io && subscription.user) {
+      const userSocketId = activeUsersMap.get(subscription.user.toString());
+      
+      if (userSocketId) {
+        io.to(userSocketId).emit('goalRejected', {
+          goalId,
+          title: subscription.goals[goalIndex].title,
+          reason: reason || 'Goal completion rejected by coach',
+          status: 'active'
+        });
+        
+        logger.info(`Notified user ${subscription.user} about goal rejection via socket`);
+      }
+    }
+    
+    res.json({
+      goal: subscription.goals[goalIndex],
+      message: 'Goal completion request rejected'
+    });
   } catch (error) {
     logger.error('Error rejecting goal completion:', error);
     res.status(500).json({ error: 'Failed to reject goal completion' });
@@ -1611,5 +1675,65 @@ export const getSubscriptionGoals = async (req, res) => {
   } catch (error) {
     logger.error('Error fetching subscription goals:', error);
     res.status(500).json({ error: 'Failed to fetch subscription goals' });
+  }
+};
+
+export const getClientSessions = async (req, res) => {
+  try {
+    const { subscriptionId } = req.params;
+    
+    // Validate subscriptionId
+    if (!mongoose.Types.ObjectId.isValid(subscriptionId)) {
+      return res.status(400).json({ error: 'Invalid subscription ID format' });
+    }
+    
+    // Find the subscription to check access rights
+    const subscription = await Subscription.findById(subscriptionId);
+    
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+    
+    // Check if the user has access to this subscription
+    if (req.user) {
+      // For logged-in users, check if the subscription belongs to them
+      if (subscription.user && subscription.user.toString() !== req.user.id) {
+        return res.status(403).json({ error: 'You do not have access to this subscription' });
+      }
+    } else {
+      // For guest users, check if they have the access token
+      const { accessToken } = req.query;
+      if (!accessToken || subscription.accessToken !== accessToken) {
+        return res.status(403).json({ error: 'Invalid access token' });
+      }
+    }
+    
+    // Find all sessions for this subscription
+    const sessions = await Session.find({ subscription: subscriptionId })
+      .sort({ date: 1, time: 1 })
+      .lean();
+      
+    // Get coach details for display
+    if (subscription.assignedCoach) {
+      const coach = await User.findById(subscription.assignedCoach)
+        .select('firstName lastName')
+        .lean();
+        
+      if (coach) {
+        // Add coach name to each session
+        sessions.forEach(session => {
+          session.coachName = `${coach.firstName} ${coach.lastName || ''}`.trim();
+        });
+      }
+    }
+    
+    // Return the sessions data
+    res.status(200).json({
+      data: sessions,
+      count: sessions.length
+    });
+  } catch (error) {
+    logger.error('Error fetching client sessions:', error);
+    res.status(500).json({ error: 'Failed to fetch sessions' });
   }
 };
