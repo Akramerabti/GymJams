@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { 
   Users, MessageSquare, ArrowRight, Star, Clock, Bell, 
-  Check, Calendar, Activity, AlertTriangle, BarChart2
+  Check, Calendar, Activity, AlertTriangle, BarChart2, Badge, Target
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Progress from '@/components/ui/progress';

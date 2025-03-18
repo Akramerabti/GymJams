@@ -529,6 +529,42 @@ async submitQuestionnaire(answers, accessToken = null) {
     }
   },
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  async getClientGoals(subscriptionId) {
+    try {
+      const response = await api.get(`/subscription/${subscriptionId}/goals`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch client goals:', error);
+      throw error;
+    }
+  },
+  
+  // Get all pending goal approvals for a coach
+  async getPendingGoalApprovals() {
+    try {
+      const response = await api.get('/subscription/pending-goal-approvals');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch pending goal approvals:', error);
+      throw error;
+    }
+  },
+
   async updateClientGoal(subscriptionId, goal) {
     try {
       const response = await api.put(`/subscription/${subscriptionId}/goals/${goal.id}`, goal);
@@ -565,6 +601,8 @@ async submitQuestionnaire(answers, accessToken = null) {
   async requestGoalCompletion(subscriptionId, goalId) {
     try {
       const response = await api.post(`/subscription/${subscriptionId}/goals/${goalId}/request-completion`);
+      
+      // Return the updated goal with proper status
       return response.data;
     } catch (error) {
       console.error('Failed to request goal completion:', error);
@@ -608,7 +646,7 @@ async submitQuestionnaire(answers, accessToken = null) {
       throw error;
     }
   },
-  
+
 
 
 

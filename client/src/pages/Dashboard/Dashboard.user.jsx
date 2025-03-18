@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../stores/authStore';
 import subscriptionService from '../../services/subscription.service';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Award, Crown, Zap, Calendar, BarChart2, Dumbbell, Activity, User, CheckCircle, MessageSquare, Target } from 'lucide-react';
+import { Bell, Award, Crown, Zap, Calendar, BarChart2, Dumbbell, Activity,Clock, Badge, User, CheckCircle, MessageSquare, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from 'sonner';
@@ -99,16 +99,10 @@ const ClientDashboard = () => {
   const workoutsRef = useRef(null);
   const progressRef = useRef(null);
   const profileRef = useRef(null);
+  const goalsRef = useRef(null);
 
-  const generateGoals = async (subscriptionData) => {
+  const generateFallbackGoals = async (subscriptionData) => {
     const generatedGoals = [];
-  
-    // Check if subscription already has goals
-    if (subscriptionData.goals && Array.isArray(subscriptionData.goals) && subscriptionData.goals.length > 0) {
-      // Use existing goals
-      setGoals(subscriptionData.goals);
-      return;
-    } 
     
     // Generate default goals based on questionnaire
     if (questionnaire?.data?.goals) {
@@ -118,49 +112,67 @@ const ClientDashboard = () => {
   
       if (userGoals.includes('strength')) {
         generatedGoals.push({
-          id: `goal-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Add unique ID
+          id: `goal-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
           title: 'Strength Improvement',
           type: 'strength',
           target: 'Increase bench press by 10%',
           progress: Math.min(100, Math.max(0, (subscriptionData.stats?.strengthProgress || 0) * 100)),
           difficulty: 'medium',
-          dueDate: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000), // 4 weeks from now
-          due: formatDate(new Date(Date.now() + 28 * 24 * 60 * 60 * 1000)), // Format for display
-          status: 'active', // Add explicit status
+          dueDate: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000),
+          due: formatDate(new Date(Date.now() + 28 * 24 * 60 * 60 * 1000)),
+          status: 'active',
           createdAt: new Date().toISOString(),
-          icon: <Dumbbell className="w-6 h-6 text-blue-600" />,
+          icon: getGoalIcon('strength'),
         });
       }
-  
-      // ... [similar changes for other goal types]
+      
+      // Add consistency goal
+      generatedGoals.push({
+        id: `goal-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        title: 'Workout Consistency',
+        type: 'consistency',
+        target: `${subscriptionData.stats?.weeklyTarget || 3} workouts per week`,
+        progress: Math.min(100, Math.max(0, ((subscriptionData.stats?.workoutsCompleted || 0) / ((subscriptionData.stats?.weeklyTarget || 3) * 4)) * 100)),
+        difficulty: 'easy',
+        dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        due: formatDate(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)),
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        icon: getGoalIcon('consistency'),
+      });
     }
-  
-    // Add default consistency goal
-    generatedGoals.push({
-      id: `goal-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Add unique ID
-      title: 'Workout Consistency',
-      type: 'consistency',
-      target: `${subscriptionData.stats?.weeklyTarget || 3} workouts per week`,
-      progress: Math.min(100, Math.max(0, ((subscriptionData.stats?.workoutsCompleted || 0) / ((subscriptionData.stats?.weeklyTarget || 3) * 4)) * 100)),
-      difficulty: 'easy',
-      dueDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // Ongoing (90 days)
-      due: formatDate(new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)), // Format for display
-      status: 'active', // Add explicit status
-      createdAt: new Date().toISOString(),
-      icon: <Calendar className="w-6 h-6 text-purple-600" />,
-    });
   
     // Set goals in the state
     setGoals(generatedGoals);
     
-    // Save the generated goals to the backend
+    // Save generated goals to the server
     try {
-      // Strip React elements before sending to backend
-      const goalsForBackend = generatedGoals.map(({ icon, ...goal }) => goal);
-      await subscriptionService.saveQuestionnaireDerivedGoals(subscriptionData._id, goalsForBackend);
+      await subscriptionService.saveQuestionnaireDerivedGoals(subscriptionData._id, generatedGoals);
       console.log('Goals saved to backend successfully');
     } catch (error) {
       console.error('Failed to save goals to backend:', error);
+    }
+  };
+
+
+  const fetchGoals = async (subscriptionData) => {
+    try {
+      // First try to get goals from the server
+      const response = await subscriptionService.getClientGoals(subscriptionData._id);
+      
+      if (response && Array.isArray(response) && response.length > 0) {
+        // Use goals from server
+        setGoals(response);
+        console.log('Goals fetched from server:', response);
+        return;
+      }
+      
+      // If no goals from server, generate them locally
+      generateFallbackGoals(subscriptionData);
+    } catch (error) {
+      console.error('Failed to fetch goals:', error);
+      // Fall back to local generation
+      generateFallbackGoals(subscriptionData);
     }
   };
 
@@ -173,34 +185,42 @@ const ClientDashboard = () => {
         return;
       }
       
-      // Update local state to show pending approval
+      // Optimistic UI update
       const updatedGoals = goals.map(g => 
         g.id === goalId 
           ? { 
               ...g, 
-              status: 'pending_approval', // Ensure status is explicitly set to pending_approval
+              status: 'pending_approval',
               clientRequestedCompletion: true,
               clientCompletionRequestDate: new Date().toISOString(),
-              progress: 100 // Set progress to 100% to indicate client believes it's complete
+              progress: 100
             } 
           : g
       );
       
       setGoals(updatedGoals);
       
-      // Send request to the backend - include all necessary fields
-      const goalToUpdate = updatedGoals.find(g => g.id === goalId);
-      await subscriptionService.requestGoalCompletion(subscription._id, goalId);
+      // Send request to the backend
+      const updatedGoal = await subscriptionService.requestGoalCompletion(subscription._id, goalId);
       
-      // Also update the goal directly since some implementations might need full goal data
-      await subscriptionService.updateClientGoal(subscription._id, goalToUpdate);
+      // Update with server response to ensure consistency
+      if (updatedGoal) {
+        setGoals(goals.map(g => g.id === goalId ? updatedGoal : g));
+      }
       
       toast.success('Completion request sent to your coach!', {
         description: 'Your coach will review and approve this goal.'
       });
+      
+      // Refresh goals from server to ensure sync
+      setTimeout(() => fetchGoals(subscription), 1000);
+      
     } catch (error) {
       console.error('Failed to request goal completion:', error);
       toast.error('Failed to send completion request');
+      
+      // Revert optimistic update
+      fetchGoals(subscription);
     }
   };
 
@@ -437,8 +457,8 @@ const ClientDashboard = () => {
           });
         }
 
-        // Generate goals from subscription data
-        generateGoals(subData);
+        await fetchGoals(subData);
+
       } catch (error) {
         console.error('Failed to load dashboard data:', error);
 
@@ -550,8 +570,8 @@ const ClientDashboard = () => {
               <GoalsSection
                 goals={goals}
                 onUpdateGoal={handleUpdateGoal}
-                onCompleteGoal={handleRequestGoalCompletion} // Changed from handleCompleteGoal
-                onViewAll={() => handleTabChange('progress')}
+                onCompleteGoal={handleRequestGoalCompletion}
+                onViewAll={() => handleTabChange('goals')} 
                 subscription={subscription}
               />
 
@@ -623,6 +643,128 @@ const ClientDashboard = () => {
               onUpgradeClick={handleUpgradeClick}
             />
           </TabsContent>
+
+          <TabsContent value="goals" ref={goalsRef}>
+  <div className="space-y-6">
+    <h2 className="text-2xl font-bold">Your Goals</h2>
+    
+    {/* Pending Approvals Section */}
+    {goals.filter(g => g.status === 'pending_approval' || g.clientRequestedCompletion).length > 0 && (
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+        <h3 className="flex items-center text-lg font-semibold text-amber-800 mb-2">
+          <Clock className="w-5 h-5 mr-2" />
+          Pending Coach Approval
+        </h3>
+        <p className="text-amber-700 mb-4">
+          These goals are waiting for your coach's review and approval.
+        </p>
+        
+        <div className="space-y-3">
+          {goals
+            .filter(g => g.status === 'pending_approval' || g.clientRequestedCompletion)
+            .map(goal => (
+              <div key={goal.id} className="bg-white p-4 rounded-lg border border-amber-200">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium text-lg">{goal.title}</h4>
+                  <Badge className="bg-amber-100 text-amber-800 border-amber-200">
+                    Awaiting Approval
+                  </Badge>
+                </div>
+                <p className="text-gray-600 mb-3">{goal.target}</p>
+                <p className="text-sm text-gray-500">
+                  Submitted: {formatDate(goal.clientCompletionRequestDate || new Date())}
+                </p>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    )}
+    
+    {/* Active Goals Section */}
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold">Active Goals</h3>
+      
+      {goals.filter(g => !g.completed && g.status === 'active').length > 0 ? (
+        <div className="space-y-4">
+          {goals
+            .filter(g => !g.completed && g.status === 'active')
+            .map(goal => (
+              <div key={goal.id} className="bg-white p-4 rounded-lg border shadow-sm">
+                <div className="flex items-center mb-2">
+                  {goal.icon || getGoalIcon(goal.type)}
+                  <h4 className="font-medium text-lg ml-2">{goal.title}</h4>
+                </div>
+                <p className="text-gray-600 mb-3">{goal.target}</p>
+                
+                <div className="space-y-1 mb-3">
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>Progress</span>
+                    <span>{goal.progress}%</span>
+                  </div>
+                  <Progress value={goal.progress} className="h-2" />
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <p className="text-sm text-gray-500">Due: {goal.due}</p>
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={() => handleRequestGoalCompletion(goal.id)}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Request Completion
+                  </Button>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      ) : (
+        <div className="text-center py-8 bg-gray-50 rounded-lg">
+          <Target className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+          <h3 className="text-xl font-medium text-gray-700 mb-2">No active goals</h3>
+          <p className="text-gray-500">Your coach will assign goals for you to work on.</p>
+        </div>
+      )}
+    </div>
+    
+    {/* Completed Goals Section */}
+    {goals.filter(g => g.completed || g.status === 'completed').length > 0 && (
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Completed Goals</h3>
+        <div className="space-y-4">
+          {goals
+            .filter(g => g.completed || g.status === 'completed')
+            .map(goal => (
+              <div key={goal.id} className="bg-white p-4 rounded-lg border border-green-200 bg-green-50">
+                <div className="flex items-center mb-2">
+                  {goal.icon || getGoalIcon(goal.type)}
+                  <h4 className="font-medium text-lg ml-2">{goal.title}</h4>
+                  <Badge className="ml-2 bg-green-100 text-green-800 border-green-200">
+                    Completed
+                  </Badge>
+                </div>
+                <p className="text-gray-600 mb-2">{goal.target}</p>
+                <p className="text-sm text-green-600">
+                  <CheckCircle className="w-4 h-4 inline mr-1" /> 
+                  Completed on {formatDate(goal.completedDate)}
+                </p>
+                {goal.pointsAwarded > 0 && (
+                  <p className="text-sm text-amber-600 mt-1">
+                    <Award className="w-4 h-4 inline mr-1" />
+                    Earned {goal.pointsAwarded} points
+                  </p>
+                )}
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    )}
+  </div>
+</TabsContent>
+
         </Tabs>
       </div>
 

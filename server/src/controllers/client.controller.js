@@ -8,7 +8,7 @@ import { subscriptionEnhancements,generateFitnessSummary,determineFitnessLevel,c
 ,determinePreferredSchedule,assessAdherenceRisk,createNutritionProfile,getRecommendedWorkoutTypes
  } from '../utils/subscriptionEnhancements.js';
 
-export const getCoachClients = async (req, res) => {
+ export const getCoachClients = async (req, res) => {
   try {
     // Ensure the user is a coach
     if (req.user.role !== 'coach') {
@@ -215,6 +215,19 @@ export const getCoachClients = async (req, res) => {
         totalMessages: subscription.messages?.length || 0,
         hasQuestionnaireCompleted: subscription.hasCompletedQuestionnaire,
         questionnaireData: questionnaire,
+        // Additional fields
+        goals: subscription.goals || [],
+        progressMetrics: {
+          weightProgress: subscription.progress?.weightProgress || [],
+          strengthProgress: subscription.progress?.strengthProgress || [],
+          cardioProgress: subscription.progress?.cardioProgress || [],
+          bodyFatProgress: subscription.progress?.bodyFatProgress || [],
+          customMetrics: subscription.progress?.customMetrics || []
+        },
+        communicationPreferences: questionnaire.communicationPreferences || 'email',
+        sessionHistory: sessions.filter(session => session.subscription.toString() === subscription._id.toString()),
+        feedback: subscription.feedback || [],
+        achievements: subscription.achievements || []
       };
     }));
 
@@ -505,7 +518,6 @@ export const exportClientData = async (req, res) => {
   }
 };
 
-// Get pending coaching requests
 export const getPendingRequests = async (req, res) => {
   try {
     // Ensure the user is a coach
@@ -513,32 +525,45 @@ export const getPendingRequests = async (req, res) => {
       return res.status(403).json({ error: 'Only coaches can access pending requests' });
     }
 
-    // Find all subscriptions with pending coach assignment
-    const pendingRequests = await Subscription.find({
-      coachAssignmentStatus: 'pending',
-      // Either no coach assigned yet or this specific coach should see it
-      $or: [
-        { assignedCoach: { $exists: false } },
-        { assignedCoach: null },
-        { assignedCoach: req.user.id }
-      ]
+    // Find all subscriptions with pending goals
+    const subscriptionsWithPendingGoals = await Subscription.find({
+      assignedCoach: req.user.id, // Only fetch clients assigned to this coach
+      status: 'active',
+      goals: {
+        $elemMatch: {
+          status: 'pending_approval' // Filter for goals with pending approval
+        }
+      }
     })
     .populate('user', 'firstName lastName email')
     .sort({ createdAt: -1 }); // Newest first
 
-    if (!pendingRequests || pendingRequests.length === 0) {
+    if (!subscriptionsWithPendingGoals || subscriptionsWithPendingGoals.length === 0) {
       return res.status(200).json([]);
     }
 
-    // Format pending requests
-    const formattedRequests = pendingRequests.map(request => ({
-      id: request._id,
-      name: request.user ? `${request.user.firstName} ${request.user.lastName}`.trim() : 'Guest User',
-      email: request.user?.email || request.guestEmail || 'No email',
-      date: request.createdAt,
-      subscriptionType: request.subscription,
-      questionnaireData: request.questionnaireData || null
-    }));
+    // Format pending requests with pending goals
+    const formattedRequests = subscriptionsWithPendingGoals.map(subscription => {
+      const pendingGoals = subscription.goals.filter(
+        goal => goal.status === 'pending_approval'
+      );
+
+      return {
+        id: subscription._id,
+        name: subscription.user ? `${subscription.user.firstName} ${subscription.user.lastName}`.trim() : 'Guest User',
+        email: subscription.user?.email || subscription.guestEmail || 'No email',
+        date: subscription.createdAt,
+        subscriptionType: subscription.subscription,
+        pendingGoals: pendingGoals.map(goal => ({
+          id: goal._id,
+          title: goal.title,
+          description: goal.description,
+          status: goal.status,
+          progress: goal.progress,
+          clientRequestedCompletion: goal.clientRequestedCompletion
+        }))
+      };
+    });
 
     res.status(200).json(formattedRequests);
   } catch (error) {
@@ -547,14 +572,13 @@ export const getPendingRequests = async (req, res) => {
   }
 };
 
-// Accept a coaching request
 export const acceptCoachingRequest = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
-  
+
   try {
     const { requestId } = req.params;
-    
+
     // Validate requestId
     if (!mongoose.Types.ObjectId.isValid(requestId)) {
       await session.abortTransaction();
@@ -571,7 +595,6 @@ export const acceptCoachingRequest = async (req, res) => {
 
     // Find the subscription
     const subscription = await Subscription.findById(requestId).session(session);
-    
     if (!subscription) {
       await session.abortTransaction();
       session.endSession();
@@ -580,7 +603,6 @@ export const acceptCoachingRequest = async (req, res) => {
 
     // Check if coach can accept more clients
     const coach = await User.findById(req.user.id).session(session);
-    
     if (!coach) {
       await session.abortTransaction();
       session.endSession();
@@ -597,24 +619,35 @@ export const acceptCoachingRequest = async (req, res) => {
     subscription.assignedCoach = req.user.id;
     subscription.coachAssignmentStatus = 'assigned';
     subscription.coachAssignmentDate = new Date();
-    
+
+    // Check for pending goals and approve them
+    if (subscription.goals && subscription.goals.length > 0) {
+      subscription.goals.forEach(goal => {
+        if (goal.status === 'pending_approval') {
+          goal.status = 'active'; // Approve the goal
+          goal.coachApproved = true;
+          goal.coachApprovalDate = new Date();
+        }
+      });
+    }
+
     await subscription.save({ session });
 
     // Update coach's client count and subscription list
     coach.availability.currentClients += 1;
     coach.coachingSubscriptions.push(subscription._id);
-    
+
     // Update coach status if max clients reached
     if (coach.availability.currentClients >= coach.availability.maxClients) {
       coach.coachStatus = 'full';
     }
-    
+
     await coach.save({ session });
 
     await session.commitTransaction();
     session.endSession();
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Coaching request accepted successfully',
       client: {
         id: subscription._id,
@@ -631,12 +664,11 @@ export const acceptCoachingRequest = async (req, res) => {
   }
 };
 
-// Decline a coaching request
 export const declineCoachingRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
     const { reason } = req.body;
-    
+
     // Validate requestId
     if (!mongoose.Types.ObjectId.isValid(requestId)) {
       return res.status(400).json({ error: 'Invalid request ID' });
@@ -644,7 +676,6 @@ export const declineCoachingRequest = async (req, res) => {
 
     // Find the subscription
     const subscription = await Subscription.findById(requestId);
-    
     if (!subscription) {
       return res.status(404).json({ error: 'Request not found' });
     }
@@ -654,10 +685,21 @@ export const declineCoachingRequest = async (req, res) => {
     subscription.assignedCoach = null; // Remove coach assignment if was previously assigned
     subscription.coachDeclineReason = reason || 'No reason provided';
     subscription.coachDeclineDate = new Date();
-    
+
+    // Check for pending goals and cancel them
+    if (subscription.goals && subscription.goals.length > 0) {
+      subscription.goals.forEach(goal => {
+        if (goal.status === 'pending_approval') {
+          goal.status = 'cancelled'; // Cancel the goal
+          goal.coachApproved = false;
+          goal.coachApprovalDate = new Date();
+        }
+      });
+    }
+
     await subscription.save();
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Coaching request declined successfully'
     });
   } catch (error) {

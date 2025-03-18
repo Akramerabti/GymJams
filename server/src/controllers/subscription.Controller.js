@@ -1552,3 +1552,64 @@ export const saveQuestionnaireDerivedGoals = async (req, res) => {
     res.status(500).json({ error: 'Failed to save questionnaire-derived goals' });
   }
 };
+
+export const getPendingGoalApprovals = async (req, res) => {
+  try {
+    // Ensure the user is a coach
+    if (req.user.role !== 'coach') {
+      return res.status(403).json({ error: 'Only coaches can access pending goal approvals' });
+    }
+
+    // Find all subscriptions where this coach is assigned
+    const subscriptions = await Subscription.find({ 
+      assignedCoach: req.user.id,
+      status: 'active'
+    }).populate('user', 'firstName lastName email profileImage');
+
+    if (!subscriptions || subscriptions.length === 0) {
+      return res.status(200).json([]);
+    }
+
+    // Filter clients with pending goals
+    const clientsWithPendingGoals = subscriptions
+      .map(subscription => {
+        const pendingGoals = (subscription.goals || []).filter(
+          goal => goal.status === 'pending_approval' || goal.clientRequestedCompletion
+        );
+        return {
+          id: subscription._id,
+          userId: subscription.user?._id || null,
+          firstName: subscription.user?.firstName || 'Guest',
+          lastName: subscription.user?.lastName || '',
+          email: subscription.user?.email || subscription.guestEmail || 'No email',
+          profileImage: subscription.user?.profileImage || null,
+          pendingGoals: pendingGoals
+        };
+      })
+      .filter(client => client.pendingGoals.length > 0);
+
+    res.status(200).json(clientsWithPendingGoals);
+  } catch (error) {
+    logger.error('Error fetching pending goal approvals:', error);
+    res.status(500).json({ error: 'Failed to fetch pending goal approvals' });
+  }
+};
+
+export const getSubscriptionGoals = async (req, res) => {
+  try {
+    const { subscriptionId } = req.params;
+
+    // Find the subscription
+    const subscription = await Subscription.findById(subscriptionId);
+
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+
+    // Return all goals
+    res.json(subscription.goals || []);
+  } catch (error) {
+    logger.error('Error fetching subscription goals:', error);
+    res.status(500).json({ error: 'Failed to fetch subscription goals' });
+  }
+};

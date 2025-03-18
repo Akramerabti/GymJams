@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
+import { authenticate, optionalAuthenticate, isCoach } from '../middleware/auth.middleware.js';
 import {
   getCurrentSubscription,
   createSetupIntent,
@@ -20,7 +20,9 @@ import {
   requestGoalCompletion,
   approveGoalCompletion,
   rejectGoalCompletion,
-  saveQuestionnaireDerivedGoals
+  saveQuestionnaireDerivedGoals,
+  getSubscriptionGoals,
+  getPendingGoalApprovals
 } from '../controllers/subscription.Controller.js';
 import stripe from '../config/stripe.js';
 import upload from '../config/multer.js';
@@ -47,6 +49,11 @@ router.post('/:subscriptionId/goals/:goalId/request-completion', optionalAuthent
 router.post('/:subscriptionId/goals/:goalId/approve', optionalAuthenticate, approveGoalCompletion);
 router.post('/:subscriptionId/goals/:goalId/reject', optionalAuthenticate, rejectGoalCompletion);
 router.post('/:subscriptionId/questionnaire-goals', optionalAuthenticate, saveQuestionnaireDerivedGoals);
+router.get('/:subscriptionId/goals', optionalAuthenticate, getSubscriptionGoals);
+router.get('/pending-goal-approvals', authenticate, isCoach, getPendingGoalApprovals);
+router.post('/:subscriptionId/goals/:goalId/request-completion', optionalAuthenticate, requestGoalCompletion);
+router.post('/:subscriptionId/goals/:goalId/approve', optionalAuthenticate, isCoach, approveGoalCompletion);
+router.post('/:subscriptionId/goals/:goalId/reject', optionalAuthenticate, isCoach, rejectGoalCompletion);
 
 router.post('/webhook', express.raw({ type: 'application/json' }),  async (req, res) => {
     const sig = req.headers['stripe-signature'];

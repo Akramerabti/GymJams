@@ -75,6 +75,7 @@ const getGoalIcon = (type) => {
   return goalType ? goalType.icon : <Target className="w-4 h-4 mr-2" />;
 };
 
+
 // Individual goal card component
 const GoalCard = ({ goal, onEdit, onDelete, onMarkComplete }) => {
   const difficulty = goal.difficulty || 'medium';
@@ -193,7 +194,7 @@ const PendingApprovalsSection = ({ pendingGoals, onApprove, onReject }) => {
       <div className="mt-6 space-y-4">
         <div className="flex items-center space-x-2">
           <Clock className="w-5 h-5 text-amber-500" />
-          <h3 className="text-lg font-semibold">Pending Approvals</h3>
+          <h3 className="text-lg font-semibold">Pending Goal Approvals</h3>
         </div>
         
         <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
@@ -216,6 +217,13 @@ const PendingApprovalsSection = ({ pendingGoals, onApprove, onReject }) => {
                       <p className="text-xs text-gray-500">
                         Requested: {formatDate(goal.clientCompletionRequestDate || new Date())}
                       </p>
+                      <div className="space-y-1 mt-2">
+                        <div className="flex justify-between text-xs text-gray-600">
+                          <span>Client reports:</span>
+                          <span>{goal.progress}% complete</span>
+                        </div>
+                        <Progress value={goal.progress} className="h-1.5" />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -425,7 +433,7 @@ const GoalManager = ({
           onReject={handleRejectGoal}
         />
       )}
-      
+
       {/* Active Goals */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">Active Goals</h3>

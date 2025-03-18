@@ -11,12 +11,14 @@ import {
   Droplet, Heart, Zap, Cookie, Brain, ArrowRight
 } from 'lucide-react';
 import Progress from '@/components/ui/progress';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import GoalManager from './GoalManager';
 import ClientWorkoutsModal from './ClientWorkoutsModal';
 import ClientProgressModal from './ClientProgressModal';
+import subscriptionService from '../../../services/subscription.service';
 
-const ClientDetailsModal = ({ client, onClose, onSave, onExportData }) => {
+const ClientDetailsModal = ({ client, onClose, onSave, onExportData}) => {
   const [formData, setFormData] = useState({
     workoutsCompleted: 0,
     currentStreak: 0,
@@ -32,6 +34,7 @@ const ClientDetailsModal = ({ client, onClose, onSave, onExportData }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isWorkoutsModalOpen, setIsWorkoutsModalOpen] = useState(false);
   const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
+  const [goals, setGoals] = useState([]);
 
   const modalRef = useRef(null);
   
@@ -57,13 +60,21 @@ const ClientDetailsModal = ({ client, onClose, onSave, onExportData }) => {
     }
   };
   
-  // In ClientDetailsModal.jsx
-useEffect(() => {
-  // Reset to the 'overview' tab whenever the client changes
-  setActiveTab('overview');
-}, [client]); // Dependency on client prop
+  const fetchGoals = async () => {
+    try {
+      
+      const goals = await subscriptionService.getClientGoals(client.id);
+      setGoals(goals);
+    } catch (error) {
+      console.error('Failed to fetch goals:', error);
+      toast.error('Failed to fetch goals');
+    }
+  };
 
-  // Initialize form data from client prop
+  useEffect(() => {
+    setActiveTab('overview');
+  }, [client]); 
+
   useEffect(() => {
     if (client && client.stats) {
       setFormData({
@@ -77,11 +88,12 @@ useEffect(() => {
         nutritionCompliance: client.stats.nutritionCompliance || 0
       });
     }
+
+    fetchGoals();
   }, [client]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      // Only close if clicked outside AND no child modals are open
       if (modalRef.current && !modalRef.current.contains(event.target) && 
           !isWorkoutsModalOpen && !isProgressModalOpen) {
         onClose();
@@ -109,7 +121,6 @@ useEffect(() => {
     });
   };
 
-  // Handle form submission
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave({
@@ -131,64 +142,58 @@ useEffect(() => {
     setIsEditing(true);
   };
 
-  // Handle opening Workouts modal
   const handleOpenWorkouts = () => {
     setIsWorkoutsModalOpen(true);
   };
 
-  // Handle opening Progress modal
   const handleOpenProgress = () => {
     setIsProgressModalOpen(true);
   };
 
-  const handleAddGoal = (newGoal) => {
-    const updatedClient = {
-      ...client,
-      goals: [...(client.goals || []), newGoal]
-    };
-    onSave(updatedClient);
+  const handleAddGoal = async (newGoal) => {
+    try {
+      const addedGoal = await subscriptionService.addClientGoal(client.subscriptionId, newGoal);
+      setGoals([...goals, addedGoal]);
+      toast.success('Goal added successfully!');
+    } catch (error) {
+      console.error('Failed to add goal:', error);
+      toast.error('Failed to add goal');
+    }
   };
 
-  const handleDeleteGoal = (goalId) => {
-    const updatedClient = {
-      ...client,
-      goals: (client.goals || []).filter(g => g.id !== goalId)
-    };
-    onSave(updatedClient);
+  const handleDeleteGoal = async (goalId) => {
+    try {
+      await subscriptionService.deleteClientGoal(client.subscriptionId, goalId);
+      setGoals(goals.filter(g => g.id !== goalId));
+      toast.success('Goal deleted successfully!');
+    } catch (error) {
+      console.error('Failed to delete goal:', error);
+      toast.error('Failed to delete goal');
+    }
   };
 
-  const handleCompleteGoal = (goalId) => {
-    const updatedClient = {
-      ...client,
-      goals: (client.goals || []).map(g => 
-        g.id === goalId ? { ...g, completed: true, completedDate: new Date().toISOString() } : g
-      ),
-      stats: {
-        ...client.stats,
-        goalsAchieved: (client.stats?.goalsAchieved || 0) + 1
-      }
-    };
-    onSave(updatedClient);
+  const handleCompleteGoal = async (goalId) => {
+    try {
+      const updatedGoal = await subscriptionService.requestGoalCompletion(client.subscriptionId, goalId);
+      setGoals(goals.map(g => g.id === goalId ? updatedGoal : g));
+      toast.success('Goal completion requested!');
+    } catch (error) {
+      console.error('Failed to request goal completion:', error);
+      toast.error('Failed to request goal completion');
+    }
   };
 
   const handleUpdateGoal = async (updatedGoal) => {
     try {
-      // Update goals in local state
-      const updatedGoals = goals.map(goal =>
-        goal.id === updatedGoal.id ? updatedGoal : goal
-      );
-
-      setGoals(updatedGoals);
-
-      // If this were a real app, you would update the goal on the server
-      // For now, we'll just simulate it with a toast
-      toast.success('Goal progress updated successfully!');
+      const goal = await subscriptionService.updateClientGoal(client.subscriptionId, updatedGoal);
+      setGoals(goals.map(g => g.id === goal.id ? goal : g));
+      toast.success('Goal updated successfully!');
     } catch (error) {
       console.error('Failed to update goal:', error);
-      toast.error('Failed to update goal progress');
+      toast.error('Failed to update goal');
     }
   };
-  
+
   // Render a progress bar with label
   const renderProgressBar = (value, label) => (
     <div className="space-y-1">
@@ -200,7 +205,6 @@ useEffect(() => {
     </div>
   );
 
-  // Generate client goals based on subscription type and data
   const generateClientGoals = () => {
     // If client has advanced goals (premium or elite), use those
     if (hasAdvancedFeatures && client.advancedGoals && client.advancedGoals.length > 0) {
@@ -279,7 +283,6 @@ useEffect(() => {
     ];
   };
   
-  // Format date
   const formatDate = (dateString) => {
     if (!dateString) return 'Not set';
     
@@ -443,35 +446,34 @@ useEffect(() => {
                   </div>
                   
                   {/* Display first goal from the list */}
-                  {(() => {
-                    const goals = generateClientGoals();
-                    if (goals.length > 0) {
-                      const featuredGoal = goals[0];
-                      return (
-                        <div className="flex items-start space-x-4">
-                          <div className="bg-blue-50 p-2 rounded-full">
-                            {featuredGoal.icon}
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-semibold">{featuredGoal.title}</h4>
-                            <p className="text-sm text-gray-600 mb-2">{featuredGoal.target}</p>
-                            <div className="space-y-1">
-                              <div className="flex justify-between text-xs text-gray-600">
-                                <span>Progress</span>
-                                <span>{featuredGoal.progress}%</span>
-                              </div>
-                              <Progress value={featuredGoal.progress} className="h-2" />
-                            </div>
-                            <p className="text-xs text-gray-500 mt-2">Due: {featuredGoal.due}</p>
-                          </div>
+                {(() => {
+                  if (goals.length > 0) {
+                    const featuredGoal = goals[0];
+                    return (
+                      <div className="flex items-start space-x-4">
+                        <div className="bg-blue-50 p-2 rounded-full">
+                          {featuredGoal.icon || <Target className="w-6 h-6 text-blue-600" />}
                         </div>
-                      );
-                    } else {
-                      return (
-                        <p className="text-gray-500 text-sm">No goals set yet.</p>
-                      );
-                    }
-                  })()}
+                        <div className="flex-1">
+                          <h4 className="font-semibold">{featuredGoal.title}</h4>
+                          <p className="text-sm text-gray-600 mb-2">{featuredGoal.target}</p>
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs text-gray-600">
+                              <span>Progress</span>
+                              <span>{featuredGoal.progress}%</span>
+                            </div>
+                            <Progress value={featuredGoal.progress} className="h-2" />
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">Due: {featuredGoal.due}</p>
+                        </div>
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <p className="text-gray-500 text-sm">No goals set yet.</p>
+                    );
+                  }
+                })()}
                 </div>
 
                 {/* Quick Actions */}
@@ -514,7 +516,7 @@ useEffect(() => {
               <TabsContent value="goals" className="mt-0">
                 <GoalManager
                   client={client}
-                  goals={client.goals || []}
+                  goals={goals}
                   onAddGoal={handleAddGoal}
                   onUpdateGoal={handleUpdateGoal}
                   onDeleteGoal={handleDeleteGoal}

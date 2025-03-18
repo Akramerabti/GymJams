@@ -21,33 +21,6 @@ import CoachChatComponent from './components/CoachChatComponent';
 import ClientStatsWidget from './CoachOrganization/ClientStatsWidget';
 import clientService from '../../services/client.service';
 
-const PendingGoalAlert = ({ count, onClick }) => {
-  if (!count || count === 0) return null;
-  
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 flex justify-between items-center"
-    >
-      <div className="flex items-center">
-        <Bell className="w-5 h-5 text-amber-600 mr-3" />
-        <div>
-          <p className="font-medium text-amber-800">Pending Goal Approvals</p>
-          <p className="text-sm text-amber-600">
-            You have {count} goal {count === 1 ? 'completion' : 'completions'} waiting for approval
-          </p>
-        </div>
-      </div>
-      <Button
-        onClick={onClick}
-        className="bg-amber-600 hover:bg-amber-700 text-white"
-      >
-        Review Goals
-      </Button>
-    </motion.div>
-  );
-};
 
 
 const DashboardCoach = () => {
@@ -71,6 +44,7 @@ const DashboardCoach = () => {
   const [hasMadeChanges, setHasMadeChanges] = useState(false);
   const [error, setError] = useState(null);
   const [pendingGoalCount, setPendingGoalCount] = useState(0);
+  const [pendingGoalApprovals, setPendingGoalApprovals] = useState([]);
 
   // Ref for tab content to scroll to
   const tabContentRef = useRef(null);
@@ -88,6 +62,7 @@ const DashboardCoach = () => {
     }, 100);
   };
 
+
   const onAwardPoints = async (clientId, points) => {
     try {
       await clientService.awardClientPoints(clientId, points);
@@ -96,6 +71,13 @@ const DashboardCoach = () => {
       toast.error('Failed to award points to client');
     }
   };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+  
 
   const handleCompleteClientGoal = async (clientId, goalId, pointsToAward, isApproval = false) => {
     try {
@@ -266,11 +248,11 @@ const DashboardCoach = () => {
     try {
       setIsLoading(true);
       setError(null);
-      
+  
       let clientsData = [];
       let pendingRequestsData = [];
       let sessionsData = [];
-      
+  
       try {
         clientsData = await clientService.getCoachClients();
       } catch (clientError) {
@@ -278,14 +260,14 @@ const DashboardCoach = () => {
         setError('Could not load client data. Please try again later.');
         clientsData = [];
       }
-      
+  
       try {
         pendingRequestsData = await clientService.getPendingRequests();
       } catch (requestsError) {
         console.error('Error fetching pending requests:', requestsError);
         pendingRequestsData = [];
       }
-      
+  
       try {
         const sessionResponse = await clientService.getCoachSessions();
         sessionsData = sessionResponse.data || [];
@@ -293,11 +275,32 @@ const DashboardCoach = () => {
         console.error('Error fetching sessions:', sessionsError);
         sessionsData = [];
       }
-      
+  
+      // Filter clients with pending goals from the newly fetched clientsData
+      const clientsWithPendingGoals = clientsData.filter(client => 
+        (client.goals || []).some(goal => 
+          goal.status === 'pending_approval' || goal.clientRequestedCompletion
+        )
+      );
+  
+      // Update state with clients that have pending goals
+      setPendingGoalApprovals(clientsWithPendingGoals);
+  
+      // Update pending goal count
+      const pendingGoalCount = clientsWithPendingGoals.reduce((count, client) => {
+        const pendingGoals = (client.goals || []).filter(
+          goal => goal.status === 'pending_approval' || goal.clientRequestedCompletion
+        );
+        return count + pendingGoals.length;
+      }, 0);
+  
+      setPendingGoalCount(pendingGoalCount);
+  
+      // Process clientsData for the main clients state
       clientsData = Array.isArray(clientsData) ? clientsData : [];
       pendingRequestsData = Array.isArray(pendingRequestsData) ? pendingRequestsData : [];
       sessionsData = Array.isArray(sessionsData) ? sessionsData : [];
-      
+  
       const processedClients = clientsData.map(client => ({
         ...client,
         unreadMessages: client.unreadCount || 0,
@@ -305,31 +308,25 @@ const DashboardCoach = () => {
         progress: client.stats?.monthlyProgress || 0,
         status: client.status || 'active'
       }));
-      
+  
+      // Update the main clients state
       setClients(processedClients);
       setPendingRequests(pendingRequestsData);
       setUpcomingSessions(sessionsData);
-      
+  
+      // Update stats
       const upcomingSessionsCount = sessionsData.length;
       const messageThreadsCount = processedClients.filter(c => 
         c.unreadMessages && c.unreadMessages > 0
       ).length;
-      
+  
       setStats({
         activeClients: processedClients.length,
         pendingRequests: pendingRequestsData.length,
         upcomingSessions: upcomingSessionsCount,
         messageThreads: messageThreadsCount,
       });
-      
-      const pendingGoalRequests = processedClients.reduce((count, client) => {
-        const pendingGoals = (client.goals || []).filter(
-          goal => goal.status === 'pending_approval' || goal.clientRequestedCompletion
-        );
-        return count + pendingGoals.length;
-      }, 0);
-      setPendingGoalCount(pendingGoalRequests);
-
+  
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       setError('Failed to load dashboard data. Please try again later.');
@@ -344,7 +341,7 @@ const DashboardCoach = () => {
 
   useEffect(() => {
     fetchDashboardData();
-    
+
     const refreshInterval = setInterval(() => {
       if (!hasMadeChanges) {
         fetchDashboardData();
@@ -446,6 +443,103 @@ const DashboardCoach = () => {
     toast.info('This feature will be implemented in a future update');
   };
 
+  const PendingApprovalsSection = () => {
+    if (pendingGoalApprovals.length === 0) return null;
+  
+    return (
+      <Card className="shadow-lg mb-6">
+        <CardHeader className="bg-amber-50 border-b border-amber-200">
+          <CardTitle className="flex items-center text-amber-800">
+            <Clock className="w-5 h-5 mr-2 text-amber-600" />
+            Pending Goal Approvals
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pendingGoalApprovals.map((client) => (
+              <motion.div
+                key={client.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="border border-amber-200 rounded-lg bg-white hover:shadow-md transition-shadow"
+              >
+                <div className="p-4">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-2">
+                        <User className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-base sm:text-lg">
+                          {client.firstName} {client.lastName}
+                        </h3>
+                        <p className="text-xs sm:text-sm text-gray-600">
+                          {(client.goals || []).filter(
+                            (g) =>
+                              g.status === 'pending_approval' ||
+                              g.clientRequestedCompletion
+                          ).length}{' '}
+                          pending{' '}
+                          {(client.goals || []).filter(
+                            (g) =>
+                              g.status === 'pending_approval' ||
+                              g.clientRequestedCompletion
+                          ).length === 1
+                            ? 'goal'
+                            : 'goals'}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => {
+                        setActiveTab('requests'); // Switch to the "Requests" tab
+                      }}
+                      className="bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
+                    >
+                      Review Goals
+                    </Button>
+                  </div>
+  
+                  <div className="space-y-2">
+                    {(client.goals || [])
+                      .filter(
+                        (g) =>
+                          g.status === 'pending_approval' ||
+                          g.clientRequestedCompletion
+                      )
+                      .map((goal) => (
+                        <div
+                          key={goal.id}
+                          className="bg-amber-50 p-2 sm:p-3 rounded-lg"
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="font-medium text-sm sm:text-base">
+                                {goal.title}
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                {goal.target}
+                              </p>
+                            </div>
+                            <p className="text-xs text-amber-600 whitespace-nowrap">
+                              Requested:{' '}
+                              {formatDate(
+                                goal.clientCompletionRequestDate || new Date()
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
   const handleAcceptRequest = async (requestId) => {
     try {
       setIsLoading(true);
@@ -517,10 +611,7 @@ const DashboardCoach = () => {
         </motion.div>
 
         {/* Pending Goal Alert */}
-        <PendingGoalAlert 
-          count={pendingGoalCount} 
-          onClick={() => handleStatCardClick('clients')} 
-        />
+        <PendingApprovalsSection />
 
          {/* Error display */}
          {error && (
@@ -812,6 +903,7 @@ const DashboardCoach = () => {
             onExportData={() => handleExportClientData(selectedClient)}
             onCompleteGoal={handleCompleteClientGoal} // Add this prop
             onRejectGoal={handleRejectGoalCompletion} // Add this prop
+          
           />
         )}
       </AnimatePresence>

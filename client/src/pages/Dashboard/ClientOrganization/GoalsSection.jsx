@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect} from 'react';
 import { motion } from 'framer-motion';
 import { 
   Target, Dumbbell, Activity, Calendar, ArrowRight, 
@@ -217,10 +217,19 @@ const CompletionDialog = ({ isOpen, onClose, onConfirm, goal }) => {
 };
 
 // Main goals section component
-const GoalsSection = ({ goals: initialGoals, onCompleteGoal, onViewAll, subscription }) => {
+const GoalsSection = ({ 
+  goals: initialGoals, 
+  onCompleteGoal,
+  onViewAll,
+  subscription 
+}) => {
   const [goals, setGoals] = useState(initialGoals);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
+
+  useEffect(() => {
+    setGoals(initialGoals);
+  }, [initialGoals]);
 
   const handleRequestCompletion = async (goalId) => {
     try {
@@ -272,17 +281,17 @@ const GoalsSection = ({ goals: initialGoals, onCompleteGoal, onViewAll, subscrip
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Current Goals</CardTitle>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={onViewAll}
-          >
-            View All
-            <ArrowRight className="ml-2 w-4 h-4" />
-          </Button>
-        </CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>Current Goals</CardTitle>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={onViewAll} // This now correctly navigates to goals tab
+        >
+          View All
+          <ArrowRight className="ml-2 w-4 h-4" />
+        </Button>
+      </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {activeGoals.length > 0 ? (
