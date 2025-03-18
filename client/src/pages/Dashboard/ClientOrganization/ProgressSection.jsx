@@ -62,6 +62,7 @@ const ProgressRing = ({ progress, size = 140, strokeWidth = 12 }) => {
 };
 
 
+// Fix the path generation in the MetricCard component
 const MetricCard = ({ title, data = [], unit, change, color = 'blue', isPositiveGood = true, onAddEntry }) => {
     // Ensure `data` is always an array
     const safeData = Array.isArray(data) ? data : [];
@@ -113,7 +114,7 @@ const MetricCard = ({ title, data = [], unit, change, color = 'blue', isPositive
               {safeData.length > 1 && (
                 <path
                   d={`
-                    M ${0} ${(1 - ((safeData[0].value - Math.min(...safeData.map(d => d.value))) / Math.max(...safeData.map(d => d.value) - Math.min(...safeData.map(d => d.value)) || 1))) * 100}
+                    M ${0} ${(1 - ((safeData[0].value - Math.min(...safeData.map(d => d.value))) / (Math.max(...safeData.map(d => d.value)) - Math.min(...safeData.map(d => d.value)) || 1))) * 100}
                     ${safeData.slice(1).map((point, i) => {
                       const x = ((i + 1) / (safeData.length - 1)) * 100;
                       const min = Math.min(...safeData.map(d => d.value));

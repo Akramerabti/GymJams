@@ -1,17 +1,14 @@
-// Dashboard.user.jsx (refactored)
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../stores/authStore';
 import subscriptionService from '../../services/subscription.service';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Award, Crown, Zap, Calendar, BarChart2, Dumbbell, Activity, User, CheckCircle, MessageSquare} from 'lucide-react';
+import { Bell, Award, Crown, Zap, Calendar, BarChart2, Dumbbell, Activity, User, CheckCircle, MessageSquare, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Card, CardHeader, CardFooter, 
-  CardTitle, 
-  CardDescription, 
-  CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+
 // Import components
 import WelcomeHeader from './ClientOrganization/WelcomeHeader';
 import StatisticsGrid from './ClientOrganization/StatisticsGrid';
@@ -20,9 +17,6 @@ import WorkoutSection from './ClientOrganization/WorkoutSection';
 import ProgressSection from './ClientOrganization/ProgressSection';
 import ProfileSection from './ClientOrganization/ProfileSection';
 import Chat from './components/Chat';
-
-// Import utility functions
-import { calculateTrend } from '../../utils/calculateTrend';
 
 // Subscription tier configuration with features
 const SUBSCRIPTION_TIERS = {
@@ -49,6 +43,33 @@ const SUBSCRIPTION_TIERS = {
   }
 };
 
+// Helper function for formatting dates
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+};
+
+// Helper function to get goal icon
+const getGoalIcon = (type) => {
+  switch (type) {
+    case 'strength':
+      return <Dumbbell className="w-6 h-6 text-blue-600" />;
+    case 'cardio':
+      return <Activity className="w-6 h-6 text-green-600" />;
+    case 'weight':
+      return <BarChart2 className="w-6 h-6 text-red-600" />;
+    default:
+      return <Calendar className="w-6 h-6 text-purple-600" />;
+  }
+};
+
+// Helper function to calculate trend
+const calculateTrend = (current, previous) => {
+  if (!previous || previous === 0) return 0;
+  return ((current - previous) / previous) * 100;
+};
+
 const ClientDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -69,13 +90,239 @@ const ClientDashboard = () => {
     strength: [],
     cardio: [],
   });
-  
+
   // Refs for scrolling
   const overviewRef = useRef(null);
   const workoutsRef = useRef(null);
   const progressRef = useRef(null);
   const profileRef = useRef(null);
-  
+
+  // Generate client goals from subscription data
+  const generateGoals = (subscriptionData) => {
+    const generatedGoals = [];
+
+    // Check if subscription has goals
+    if (subscriptionData.goals && Array.isArray(subscriptionData.goals)) {
+      // Use existing goals
+      subscriptionData.goals.forEach(goal => {
+        generatedGoals.push({
+          id: goal.id,
+          title: goal.title,
+          target: goal.target,
+          progress: goal.progress,
+          due: formatDate(goal.dueDate),
+          icon: getGoalIcon(goal.type),
+        });
+      });
+    } else {
+      // Generate default goals based on questionnaire
+      if (questionnaire?.data?.goals) {
+        const userGoals = Array.isArray(questionnaire.data.goals)
+          ? questionnaire.data.goals
+          : [];
+
+        if (userGoals.includes('strength')) {
+          generatedGoals.push({
+            id: 'strength-goal',
+            title: 'Strength Improvement',
+            target: 'Increase bench press by 10%',
+            progress: Math.min(100, Math.max(0, (subscriptionData.stats?.strengthProgress || 0) * 100)),
+            due: '4 weeks',
+            icon: <Dumbbell className="w-6 h-6 text-blue-600" />,
+          });
+        }
+
+        if (userGoals.includes('endurance')) {
+          generatedGoals.push({
+            id: 'endurance-goal',
+            title: 'Endurance Improvement',
+            target: 'Increase cardio capacity by 15%',
+            progress: Math.min(100, Math.max(0, (subscriptionData.stats?.cardioProgress || 0) * 100)),
+            due: '6 weeks',
+            icon: <Activity className="w-6 h-6 text-green-600" />,
+          });
+        }
+
+        if (userGoals.includes('weight')) {
+          generatedGoals.push({
+            id: 'weight-goal',
+            title: 'Weight Management',
+            target: 'Lose 5% body fat',
+            progress: Math.min(100, Math.max(0, (subscriptionData.stats?.weightProgress || 0) * 100)),
+            due: '8 weeks',
+            icon: <Target className="w-6 h-6 text-red-600" />,
+          });
+        }
+      }
+
+      // Add default consistency goal
+      generatedGoals.push({
+        id: 'consistency-goal',
+        title: 'Workout Consistency',
+        target: `${subscriptionData.stats?.weeklyTarget || 3} workouts per week`,
+        progress: Math.min(100, Math.max(0, ((subscriptionData.stats?.workoutsCompleted || 0) / ((subscriptionData.stats?.weeklyTarget || 3) * 4)) * 100)),
+        due: 'Ongoing',
+        icon: <Calendar className="w-6 h-6 text-purple-600" />,
+      });
+    }
+
+    setGoals(generatedGoals);
+  };
+
+  // Mark workout as complete
+  const handleCompleteWorkout = async (workout) => {
+    try {
+      // Update local state
+      const updatedWorkouts = workouts.map(w =>
+        w.id === workout.id ? { ...w, completed: true, completedDate: new Date().toISOString() } : w
+      );
+
+      setWorkouts(updatedWorkouts);
+
+      // Update workout data on server
+      await subscriptionService.updateClientWorkouts(subscription._id, updatedWorkouts);
+
+      // Update stats
+      const updatedStats = {
+        ...subscription.stats,
+        workoutsCompleted: (subscription.stats?.workoutsCompleted || 0) + 1,
+      };
+
+      // Update subscription with new stats
+      setSubscription(prev => ({
+        ...prev,
+        stats: updatedStats,
+      }));
+
+      await subscriptionService.updateClientStats(subscription._id, updatedStats);
+
+      toast.success('Workout completed! Great job!');
+    } catch (error) {
+      console.error('Failed to mark workout as complete:', error);
+      toast.error('Failed to update workout status');
+    }
+  };
+
+  // Update a goal
+  const handleUpdateGoal = async (updatedGoal) => {
+    try {
+      // Update goals in local state
+      const updatedGoals = goals.map(goal =>
+        goal.id === updatedGoal.id ? updatedGoal : goal
+      );
+
+      setGoals(updatedGoals);
+
+      // If this were a real app, you would update the goal on the server
+      // For now, we'll just simulate it with a toast
+      toast.success('Goal progress updated successfully!');
+    } catch (error) {
+      console.error('Failed to update goal:', error);
+      toast.error('Failed to update goal progress');
+    }
+  };
+
+  // Update stats
+  const handleUpdateStats = async (updatedStats) => {
+    try {
+      // Update subscription with new stats
+      const newSubscription = {
+        ...subscription,
+        stats: {
+          ...subscription.stats,
+          ...updatedStats,
+        },
+      };
+
+      setSubscription(newSubscription);
+
+      // Update stats on server
+      await subscriptionService.updateClientStats(subscription._id, updatedStats);
+
+      toast.success('Stats updated successfully!');
+    } catch (error) {
+      console.error('Failed to update stats:', error);
+      toast.error('Failed to update stats');
+    }
+  };
+
+  const handleAddMetricEntry = async (entryData) => {
+    try {
+      const { metricType, value, date, notes } = entryData;
+
+      // Create new entry
+      const newEntry = {
+        date,
+        value,
+        notes,
+      };
+
+      // Update health metrics in local state
+      const updatedHealthMetrics = {
+        ...healthMetrics,
+        [metricType]: [...(Array.isArray(healthMetrics[metricType]) ? healthMetrics[metricType] : []), newEntry].sort((a, b) => new Date(a.date) - new Date(b.date)),
+      };
+
+      setHealthMetrics(updatedHealthMetrics);
+
+      // Update progress data
+      const updatedProgress = {
+        ...progress,
+        [`${metricType}Progress`]: updatedHealthMetrics[metricType],
+      };
+
+      setProgress(updatedProgress);
+
+      // Update progress on server
+      await subscriptionService.updateClientProgress(subscription._id, updatedProgress);
+
+      toast.success('Metric entry added successfully!');
+    } catch (error) {
+      console.error('Failed to add metric entry:', error);
+      toast.error('Failed to add metric entry');
+    }
+  };
+
+  const handleEditQuestionnaire = () => {
+    navigate('/questionnaire', {
+      state: {
+        isEditing: true,
+        currentAnswers: questionnaire?.data,
+        subscription: subscription,
+      },
+    });
+  };
+
+  const handleManageSubscription = () => {
+    navigate('/subscription-management');
+  };
+
+  const handleUpgradeClick = () => {
+    navigate('/dashboard/upgrade', {
+      state: { subscription },
+    });
+  };
+
+  // Scroll to specific section
+  const scrollToSection = (section) => {
+    const refs = {
+      overview: overviewRef,
+      workouts: workoutsRef,
+      progress: progressRef,
+      profile: profileRef,
+    };
+
+    if (refs[section]?.current) {
+      refs[section].current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  // Handle tab change
+  const handleTabChange = (value) => {
+    setActiveTab(value);
+    scrollToSection(value);
+  };
+
   // Verify subscription and load data
   useEffect(() => {
     const verifyQuestionnaireAndSubscription = async () => {
@@ -115,7 +362,7 @@ const ClientDashboard = () => {
 
         setSubscription(subData);
         setQuestionnaire(questionnaireData);
-        
+
         // Get coach details if assigned
         if (subData.assignedCoach) {
           try {
@@ -128,38 +375,38 @@ const ClientDashboard = () => {
             console.error('Failed to fetch coach details:', error);
           }
         }
-        
+
         // Set workouts data
         if (subData.workouts && Array.isArray(subData.workouts)) {
           setWorkouts(subData.workouts);
-          
+
           // Find next upcoming workout
           const now = new Date();
           const upcoming = subData.workouts
             .filter(w => !w.completed && new Date(w.date) >= now)
             .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
-            
+
           setUpcomingWorkout(upcoming);
         }
-        
+
         // Set progress data
         if (subData.progress) {
           setProgress(subData.progress);
-          
-          // Set health metrics
+
+          // Set health metrics with fallbacks for undefined/null values
           setHealthMetrics({
-            weight: subData.progress.weightProgress || [],
-            bodyFat: subData.progress.bodyFatProgress || [],
-            strength: subData.progress.strengthProgress || [],
-            cardio: subData.progress.cardioProgress || [],
+            weight: Array.isArray(subData.progress.weightProgress) ? subData.progress.weightProgress : [],
+            bodyFat: Array.isArray(subData.progress.bodyFatProgress) ? subData.progress.bodyFatProgress : [],
+            strength: Array.isArray(subData.progress.strengthProgress) ? subData.progress.strengthProgress : [],
+            cardio: Array.isArray(subData.progress.cardioProgress) ? subData.progress.cardioProgress : [],
           });
         }
-        
+
         // Generate goals from subscription data
         generateGoals(subData);
       } catch (error) {
         console.error('Failed to load dashboard data:', error);
-        
+
         if (error.response?.status === 401) {
           toast.error('Session expired. Please log in again.');
           navigate('/login');
@@ -172,273 +419,28 @@ const ClientDashboard = () => {
     };
 
     verifyQuestionnaireAndSubscription();
-  }, [user, navigate]);
-  
-  // Generate client goals from subscription data
-  const generateGoals = (subscriptionData) => {
-    const generatedGoals = [];
-    
-    // Check if subscription has goals
-    if (subscriptionData.goals && Array.isArray(subscriptionData.goals)) {
-      // Use existing goals
-      subscriptionData.goals.forEach(goal => {
-        generatedGoals.push({
-          id: goal.id,
-          title: goal.title,
-          target: goal.target,
-          progress: goal.progress,
-          due: formatDate(goal.dueDate),
-          icon: getGoalIcon(goal.type),
-        });
-      });
-    } else {
-      // Generate default goals based on questionnaire
-      if (questionnaire?.data?.goals) {
-        const userGoals = Array.isArray(questionnaire.data.goals) 
-          ? questionnaire.data.goals 
-          : [];
-        
-        if (userGoals.includes('strength')) {
-          generatedGoals.push({
-            id: 'strength-goal',
-            title: 'Strength Improvement',
-            target: 'Increase bench press by 10%',
-            progress: Math.min(100, Math.max(0, (subscriptionData.stats?.strengthProgress || 0) * 100)),
-            due: '4 weeks',
-            icon: <Dumbbell className="w-6 h-6 text-blue-600" />,
-          });
-        }
-        
-        if (userGoals.includes('endurance')) {
-          generatedGoals.push({
-            id: 'endurance-goal',
-            title: 'Endurance Improvement',
-            target: 'Increase cardio capacity by 15%',
-            progress: Math.min(100, Math.max(0, (subscriptionData.stats?.cardioProgress || 0) * 100)),
-            due: '6 weeks',
-            icon: <Activity className="w-6 h-6 text-green-600" />,
-          });
-        }
-        
-        if (userGoals.includes('weight')) {
-          generatedGoals.push({
-            id: 'weight-goal',
-            title: 'Weight Management',
-            target: 'Lose 5% body fat',
-            progress: Math.min(100, Math.max(0, (subscriptionData.stats?.weightProgress || 0) * 100)),
-            due: '8 weeks',
-            icon: <Target className="w-6 h-6 text-red-600" />,
-          });
-        }
-      }
-      
-      // Add default consistency goal
-      generatedGoals.push({
-        id: 'consistency-goal',
-        title: 'Workout Consistency',
-        target: `${subscriptionData.stats?.weeklyTarget || 3} workouts per week`,
-        progress: Math.min(100, Math.max(0, ((subscriptionData.stats?.workoutsCompleted || 0) / ((subscriptionData.stats?.weeklyTarget || 3) * 4)) * 100)),
-        due: 'Ongoing',
-        icon: <Calendar className="w-6 h-6 text-purple-600" />,
-      });
-    }
-    
-    setGoals(generatedGoals);
-  };
-  
-  // Mark workout as complete
-  const handleCompleteWorkout = async (workout) => {
-    try {
-      // Update local state
-      const updatedWorkouts = workouts.map(w => 
-        w.id === workout.id ? { ...w, completed: true, completedDate: new Date().toISOString() } : w
-      );
-      
-      setWorkouts(updatedWorkouts);
-      
-      // Update workout data on server
-      await subscriptionService.updateClientWorkouts(subscription._id, updatedWorkouts);
-      
-      // Update stats
-      const updatedStats = {
-        ...subscription.stats,
-        workoutsCompleted: (subscription.stats?.workoutsCompleted || 0) + 1,
-      };
-      
-      // Update subscription with new stats
-      setSubscription(prev => ({
-        ...prev,
-        stats: updatedStats
-      }));
-      
-      await subscriptionService.updateClientStats(subscription._id, updatedStats);
-      
-      toast.success('Workout completed! Great job!');
-    } catch (error) {
-      console.error('Failed to mark workout as complete:', error);
-      toast.error('Failed to update workout status');
-    }
-  };
-  
-  // Update a goal
-  const handleUpdateGoal = async (updatedGoal) => {
-    try {
-      // Update goals in local state
-      const updatedGoals = goals.map(goal => 
-        goal.id === updatedGoal.id ? updatedGoal : goal
-      );
-      
-      setGoals(updatedGoals);
-      
-      // If this were a real app, you would update the goal on the server
-      // For now, we'll just simulate it with a toast
-      toast.success('Goal progress updated successfully!');
-    } catch (error) {
-      console.error('Failed to update goal:', error);
-      toast.error('Failed to update goal progress');
-    }
-  };
-  
-  // Update stats
-  const handleUpdateStats = async (updatedStats) => {
-    try {
-      // Update subscription with new stats
-      const newSubscription = {
-        ...subscription,
-        stats: {
-          ...subscription.stats,
-          ...updatedStats
-        }
-      };
-      
-      setSubscription(newSubscription);
-      
-      // Update stats on server
-      await subscriptionService.updateClientStats(subscription._id, updatedStats);
-      
-      toast.success('Stats updated successfully!');
-    } catch (error) {
-      console.error('Failed to update stats:', error);
-      toast.error('Failed to update stats');
-    }
-  };
-  
-  const handleAddMetricEntry = async (entryData) => {
-    try {
-      const { metricType, value, date, notes } = entryData;
-  
-      // Create new entry
-      const newEntry = {
-        date,
-        value,
-        notes
-      };
-  
-      // Update health metrics in local state
-      const updatedHealthMetrics = {
-        ...healthMetrics,
-        [metricType]: [...(Array.isArray(healthMetrics[metricType]) ? healthMetrics[metricType] : []), newEntry].sort((a, b) => new Date(a.date) - new Date(b.date))
-      };
-  
-      setHealthMetrics(updatedHealthMetrics);
-  
-      // Update progress data
-      const updatedProgress = {
-        ...progress,
-        [`${metricType}Progress`]: updatedHealthMetrics[metricType]
-      };
-  
-      setProgress(updatedProgress);
-  
-      // Update progress on server
-      await subscriptionService.updateClientProgress(subscription._id, updatedProgress);
-  
-      toast.success('Metric entry added successfully!');
-    } catch (error) {
-      console.error('Failed to add metric entry:', error);
-      toast.error('Failed to add metric entry');
-    }
-  };
-  
-  const handleEditQuestionnaire = () => {
-    navigate('/questionnaire', { 
-      state: { 
-        isEditing: true, 
-        currentAnswers: questionnaire?.data,
-        subscription: subscription 
-      }
-    });
-  };
-  
-  const handleManageSubscription = () => {
-    navigate('/subscription-management');
-  };
-  
-  const handleUpgradeClick = () => {
-    navigate('/dashboard/upgrade', {
-      state: { subscription },
-    });
-  };
-  
-  // Scroll to specific section
-  const scrollToSection = (section) => {
-    const refs = {
-      overview: overviewRef,
-      workouts: workoutsRef,
-      progress: progressRef,
-      profile: profileRef,
+
+    // Return cleanup function or nothing, not an object
+    return () => {
+      // Any cleanup logic here if needed
     };
-    
-    if (refs[section]?.current) {
-      refs[section].current.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-  
-  // Handle tab change
-  const handleTabChange = (value) => {
-    setActiveTab(value);
-    scrollToSection(value);
-  };
-  
+  }, [user, navigate]);
+
   // Get subscription tier
   const currentTier = SUBSCRIPTION_TIERS[subscription?.subscription || 'basic'];
 
-  // Calculate trends for stats based on historical data
-  const calculateStatTrends = () => {
-    if (!subscription || !historicalStats) return {};
-    
-    return {
-      workoutsCompleted: calculateTrend(
-        subscription.stats?.workoutsCompleted || 0,
-        historicalStats.workoutsCompleted
-      ),
-      currentStreak: calculateTrend(
-        subscription.stats?.currentStreak || 0,
-        historicalStats.currentStreak
-      ),
-      monthlyProgress: calculateTrend(
-        subscription.stats?.monthlyProgress || 0,
-        historicalStats.monthlyProgress
-      ),
-      goalsAchieved: calculateTrend(
-        subscription.stats?.goalsAchieved || 0,
-        historicalStats.goalsAchieved
-      )
-    };
-  };
-  
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <motion.div
           animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
           className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full"
         />
       </div>
     );
   }
-  
+
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -450,7 +452,7 @@ const ClientDashboard = () => {
           onChatOpen={() => setShowChat(true)}
           onUpgradeClick={handleUpgradeClick}
         />
-        
+
         {/* Notification Banner for upcoming workout */}
         {upcomingWorkout && (
           <motion.div
@@ -465,7 +467,7 @@ const ClientDashboard = () => {
                 <p className="text-sm text-blue-600">{formatDate(upcomingWorkout.date)} {upcomingWorkout.time && `at ${upcomingWorkout.time}`}</p>
               </div>
             </div>
-            <Button 
+            <Button
               onClick={() => {
                 handleTabChange('workouts');
               }}
@@ -498,32 +500,32 @@ const ClientDashboard = () => {
               </TabsTrigger>
             </TabsList>
           </div>
-          
+
           {/* Overview Tab */}
           <TabsContent value="overview" ref={overviewRef}>
             <div className="space-y-6">
               {/* Stats Grid */}
-              <StatisticsGrid 
-                stats={subscription?.stats || {}} 
+              <StatisticsGrid
+                stats={subscription?.stats || {}}
                 historicalStats={historicalStats || {}}
                 onStatClick={(tab) => handleTabChange(tab)}
               />
-              
+
               {/* Goals Section */}
-              <GoalsSection 
-                goals={goals} 
-                onUpdateGoal={handleUpdateGoal} 
+              <GoalsSection
+                goals={goals}
+                onUpdateGoal={handleUpdateGoal}
                 onViewAll={() => handleTabChange('progress')}
               />
-              
+
               {/* Workouts Section */}
-              <WorkoutSection 
-                workouts={workouts} 
-                stats={subscription?.stats || {}} 
-                onCompleteWorkout={handleCompleteWorkout} 
-                onViewAll={() => handleTabChange('workouts')} 
+              <WorkoutSection
+                workouts={workouts}
+                stats={subscription?.stats || {}}
+                onCompleteWorkout={handleCompleteWorkout}
+                onViewAll={() => handleTabChange('workouts')}
               />
-              
+
               {/* Subscription Features */}
               <Card>
                 <CardHeader>
@@ -541,7 +543,7 @@ const ClientDashboard = () => {
                 </CardContent>
                 {currentTier.upgrade && (
                   <CardFooter>
-                    <Button 
+                    <Button
                       onClick={handleUpgradeClick}
                       className="w-full bg-blue-600 hover:bg-blue-700"
                     >
@@ -552,41 +554,41 @@ const ClientDashboard = () => {
               </Card>
             </div>
           </TabsContent>
-          
+
           {/* Workouts Tab */}
           <TabsContent value="workouts" ref={workoutsRef}>
-            <WorkoutSection 
-              workouts={workouts} 
-              stats={subscription?.stats || {}} 
-              onCompleteWorkout={handleCompleteWorkout} 
+            <WorkoutSection
+              workouts={workouts}
+              stats={subscription?.stats || {}}
+              onCompleteWorkout={handleCompleteWorkout}
               showAll={true}
             />
           </TabsContent>
-          
+
           {/* Progress Tab */}
           <TabsContent value="progress" ref={progressRef}>
-            <ProgressSection 
-              stats={subscription?.stats || {}} 
-              healthMetrics={healthMetrics} 
+            <ProgressSection
+              stats={subscription?.stats || {}}
+              healthMetrics={healthMetrics}
               onUpdateStats={handleUpdateStats}
               onAddMetricEntry={handleAddMetricEntry}
             />
           </TabsContent>
-          
+
           {/* Profile Tab */}
           <TabsContent value="profile" ref={profileRef}>
-            <ProfileSection 
-              subscription={subscription} 
-              questionnaire={questionnaire} 
-              currentTier={currentTier} 
-              onEditQuestionnaire={handleEditQuestionnaire} 
-              onManageSubscription={handleManageSubscription} 
-              onUpgradeClick={handleUpgradeClick} 
+            <ProfileSection
+              subscription={subscription}
+              questionnaire={questionnaire}
+              currentTier={currentTier}
+              onEditQuestionnaire={handleEditQuestionnaire}
+              onManageSubscription={handleManageSubscription}
+              onUpgradeClick={handleUpgradeClick}
             />
           </TabsContent>
         </Tabs>
       </div>
-      
+
       {/* Floating Chat Icon and Chat Modal */}
       {assignedCoach && (
         <>
@@ -603,7 +605,7 @@ const ClientDashboard = () => {
               <MessageSquare className="w-6 h-6" />
             </Button>
           </motion.div>
-        
+
           {/* Chat Modal */}
           {showChat && (
             <Chat
