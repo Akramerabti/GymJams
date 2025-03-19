@@ -1,187 +1,374 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronDown, ChevronUp, Phone, Check } from 'lucide-react';
-import { 
-  countryCodes, 
-  formatPhoneForDisplay, 
-  formatE164, 
-  isValidPhoneNumber 
-} from '../utils/phoneUtils';
+import React, { useState, useRef, useEffect } from 'react';
+import { toast } from 'sonner';
+import { Phone, CheckCircle, Loader, ArrowRight, LogIn } from 'lucide-react';
+import api from '../services/api';
+import gymbrosService from '../services/gymbros.service';
+import useAuthStore from '../stores/authStore';
+import PhoneInput from '../pages/phoneinput'; // Import the PhoneInput component
 
-const PhoneInput = ({ 
-  value, 
+const PhoneVerification = ({ 
+  phone, 
   onChange, 
-  onValidChange,
-  autoFocus = false,
-  className = ''
+  onVerified, 
+  isLoginFlow = false,
+  onExistingAccountFound,
+  onContinueWithNewAccount
 }) => {
-  const [countryCode, setCountryCode] = useState('1'); // Default to US/Canada code
-  const [countryFlag, setCountryFlag] = useState('🇺🇸'); // Default to US flag
-  const [inputValue, setInputValue] = useState('');
-  const [formattedValue, setFormattedValue] = useState('');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isValid, setIsValid] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
-  const inputRef = useRef(null);
-  const dropdownRef = useRef(null);
-
-  // Initialize with a provided value if any
+  const { login, user } = useAuthStore();
+  const [verificationStep, setVerificationStep] = useState('input'); // 'input', 'verifying', 'verified'
+  const [isLoading, setIsLoading] = useState(false);
+  const [phoneError, setPhoneError] = useState('');
+  const [otpValues, setOtpValues] = useState(['', '', '', '', '', '']);
+  const [timer, setTimer] = useState(0);
+  const [verificationToken, setVerificationToken] = useState(null);
+  const [phoneExists, setPhoneExists] = useState(false);
+  const [autoVerified, setAutoVerified] = useState(false);
+  const inputRefs = useRef([]);
+  
+  // Auto-fill phone number for logged-in users and trigger verification
   useEffect(() => {
-    if (value) {
-      // Try to detect country code
-      const digits = value.replace(/\D/g, '');
+    // If we have a phone number from props (likely a logged-in user)
+    if (phone && phone.length > 5 && !autoVerified) {
+      console.log('Auto-sending verification code for logged-in user:', phone);
+      setAutoVerified(true); // Prevent multiple auto-verifications
       
-      if (digits.startsWith('1')) {
-        setCountryCode('1');
-        setCountryFlag('🇺🇸'); // Default to US
-        setInputValue(digits.substring(1)); // Remove country code
-      } else {
-        // Just use the value as is
-        setInputValue(digits);
-      }
+      // Small delay to ensure component is fully mounted
+      setTimeout(() => {
+        handleSendVerificationCode();
+      }, 500);
     }
-  }, [value]);
-
-  // Update formatted value when input or country changes
+  }, [phone]);
+  
   useEffect(() => {
-    const formatted = formatPhoneForDisplay(inputValue, countryCode);
-    setFormattedValue(formatted);
-    
-    // Check validity
-    const valid = isValidPhoneNumber(inputValue, countryCode);
-    setIsValid(valid);
-    
-    // Notify parent about validity change
-    if (onValidChange) {
-      onValidChange(valid);
+    let interval;
+    if (timer > 0) {
+      interval = setInterval(() => {
+        setTimer(prevTimer => prevTimer - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [timer]);
+  
+  const handleSendVerificationCode = async () => {
+    if (!phone || phone.trim() === '') {
+      setPhoneError('Please enter your phone number');
+      return;
     }
     
-    // Pass the E.164 formatted value to parent
-    if (onChange) {
-      const e164Value = formatE164(inputValue, countryCode);
-      onChange(e164Value);
-    }
-  }, [inputValue, countryCode]); // Remove onChange and onValidChange from dependencies
-
-  // Handle click outside to close dropdown
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsDropdownOpen(false);
-      }
-    };
+    setIsLoading(true);
+    setPhoneError('');
     
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  // Auto-focus the input if specified
-  useEffect(() => {
-    if (autoFocus && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [autoFocus]);
-
-  const handleInputChange = (e) => {
-    // Extract only digits
-    const digits = e.target.value.replace(/\D/g, '');
-    setInputValue(digits);
-  };
-
-  const handleCountrySelect = (code, flag) => {
-    setCountryCode(code);
-    setCountryFlag(flag);
-    setIsDropdownOpen(false);
-    
-    // Focus back on the input after selecting country
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  };
-
-  return (
-    <div className={`relative ${className}`}>
-      <div className={`flex items-center border rounded-lg overflow-hidden ${
-        isFocused ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-300'
-      } ${isValid ? 'bg-white' : 'bg-gray-50'}`}>
-        {/* Country dropdown button */}
-        <div className="relative" ref={dropdownRef}>
-          <button
-            type="button"
-            className="h-full px-3 py-2 flex items-center text-gray-600 hover:bg-gray-100 transition-colors"
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-          >
-            <span className="text-xl mr-1">{countryFlag}</span>
-            <span className="text-sm font-medium">+{countryCode}</span>
-            {isDropdownOpen ? 
-              <ChevronUp className="h-4 w-4 ml-1" /> : 
-              <ChevronDown className="h-4 w-4 ml-1" />
+    try {
+      // First check if phone already exists
+      const exists = await gymbrosService.checkPhoneExists(phone);
+      setPhoneExists(exists);
+      
+      if (exists && !isLoginFlow) {
+        // If this is not explicitly a login flow and phone exists, alert the user
+        toast.info(
+          'This phone is already registered',
+          {
+            description: 'Would you like to log in with this number?',
+            action: {
+              label: 'Yes, login',
+              onClick: () => onExistingAccountFound && onExistingAccountFound(phone)
             }
-          </button>
+          }
+        );
+        setIsLoading(false);
+        return;
+      }
+      
+      // Send verification code
+      const response = await gymbrosService.sendVerificationCode(phone);
+      
+      if (response.success) {
+        setVerificationStep('verifying');
+        setTimer(30); // 30 second countdown for resend
+        toast.success('Verification code sent!');
+        // Focus the first OTP input
+        setTimeout(() => {
+          if (inputRefs.current[0]) {
+            inputRefs.current[0].focus();
+          }
+        }, 100);
+        
+        // Display actual code in dev mode if available
+        if (response.devCode && process.env.NODE_ENV !== 'production') {
+          console.log('Verification code:', response.devCode);
+          toast.info(`Dev code: ${response.devCode}`, {
+            duration: 10000,
+          });
+        }
+      } else {
+        throw new Error(response.message || 'Failed to send verification code');
+      }
+    } catch (error) {
+      console.error('Error sending verification code:', error);
+      setPhoneError(error.response?.data?.message || 'Failed to send verification code');
+      toast.error('Failed to send verification code');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleVerifyCode = async () => {
+    const verificationCode = otpValues.join('');
+    
+    if (verificationCode.length !== 6 || !/^\d+$/.test(verificationCode)) {
+      toast.error('Please enter a valid 6-digit code');
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const response = await gymbrosService.verifyCode(phone, verificationCode);
+      
+      if (response.success) {
+        setVerificationToken(response.token);
+        setVerificationStep('verified');
+        
+        // If this is a login flow and phone exists, attempt login
+        if (isLoginFlow && phoneExists) {
+          try {
+            const loginData = await gymbrosService.loginWithPhone(phone, response.token);
+            
+            // Store the auth token and user data
+            await login(loginData.token, loginData.user);
+            toast.success('Logged in successfully!');
+            
+            // Fetch the GymBros profile after successful login
+            try {
+              const profileResponse = await api.get('/gym-bros/profile');
+              
+              // Return success to parent component with user data and profile
+              onVerified && onVerified(true, loginData.user, response.token, profileResponse.data);
+            } catch (profileError) {
+              console.error('Error fetching profile after login:', profileError);
+              // Even if profile fetch fails, still consider verification successful
+              onVerified && onVerified(true, loginData.user, response.token);
+            }
+          } catch (loginError) {
+            console.error('Error logging in with phone:', loginError);
+            toast.error(loginError.response?.data?.message || 'Failed to log in');
+            
+            // Still mark as verified since the phone verification worked
+            onVerified && onVerified(true, null, response.token);
+          }
+        } else {
+          // Just mark as verified for new account creation
+          onVerified && onVerified(true, null, response.token);
+        }
+      } else {
+        toast.error(response.message || 'Invalid verification code');
+      }
+    } catch (error) {
+      console.error('Error verifying code:', error);
+      toast.error(error.response?.data?.message || 'Failed to verify code');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleOtpChange = (index, value) => {
+    // Only allow numbers
+    if (value && !/^\d*$/.test(value)) return;
+    
+    // Update the OTP array
+    const newOtpValues = [...otpValues];
+    newOtpValues[index] = value.substring(0, 1); // Take only the first character
+    setOtpValues(newOtpValues);
+    
+    // Auto-focus next input if value is entered
+    if (value && index < 5) {
+      inputRefs.current[index + 1].focus();
+    }
+    
+    // If we've filled the last digit, attempt verification automatically
+    if (value && index === 5) {
+      const allFilled = newOtpValues.every(v => v !== '');
+      if (allFilled) {
+        setTimeout(() => handleVerifyCode(), 300);
+      }
+    }
+  };
+  
+  const handleOtpKeyDown = (index, e) => {
+    // Navigate between inputs with arrow keys
+    if (e.key === 'ArrowLeft' && index > 0) {
+      inputRefs.current[index - 1].focus();
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      inputRefs.current[index + 1].focus();
+    }
+    
+    // Handle backspace to navigate backwards and clear
+    if (e.key === 'Backspace') {
+      if (otpValues[index] === '') {
+        // If current input is empty, move to previous and clear it
+        if (index > 0) {
+          const newOtpValues = [...otpValues];
+          newOtpValues[index - 1] = '';
+          setOtpValues(newOtpValues);
+          inputRefs.current[index - 1].focus();
+        }
+      } else {
+        // Clear current input
+        const newOtpValues = [...otpValues];
+        newOtpValues[index] = '';
+        setOtpValues(newOtpValues);
+      }
+    }
+  };
+  
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').trim();
+    
+    // Check if pasted content is a 6-digit number
+    if (/^\d{6}$/.test(pastedData)) {
+      const newOtpValues = pastedData.split('');
+      setOtpValues(newOtpValues);
+      // Focus the last input
+      inputRefs.current[5].focus();
+      
+      // Auto-verify after a short delay
+      setTimeout(() => handleVerifyCode(), 300);
+    }
+  };
+
+  const handleContinueAsNewAccount = () => {
+    // User has chosen to continue creating a new account despite having an existing one
+    if (onContinueWithNewAccount) {
+      onContinueWithNewAccount(phone, verificationToken);
+    }
+  };
+  
+  return (
+    <div className="w-full space-y-4">
+      {verificationStep === 'input' && (
+        <>
+          <div className="relative">
+            <PhoneInput
+              value={phone}
+              onChange={onChange}
+              onValidChange={(isValid) => {
+                if (!isValid) {
+                  setPhoneError('Please enter a valid phone number');
+                } else {
+                  setPhoneError('');
+                }
+              }}
+              autoFocus={!phone} // Only autofocus if phone is not provided
+              className="w-full"
+            />
+            {phoneError && (
+              <p className="text-red-500 text-sm mt-2">{phoneError}</p>
+            )}
+          </div>
           
-          {/* Country dropdown menu */}
-          {isDropdownOpen && (
-            <div className="absolute z-10 left-0 mt-2 w-60 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 max-h-60 overflow-y-auto">
-              <div className="py-1">
-                {countryCodes.map((country) => (
-                  <button
-                    key={`${country.code}-${country.country}`}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center ${
-                      countryCode === country.code ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
-                    }`}
-                    onClick={() => handleCountrySelect(country.code, country.flag)}
-                  >
-                    <span className="text-xl mr-2">{country.flag}</span>
-                    <span>{country.name}</span>
-                    <span className="ml-1 text-gray-500">(+{country.code})</span>
-                    {countryCode === country.code && (
-                      <Check className="h-4 w-4 ml-auto text-blue-500" />
-                    )}
-                  </button>
-                ))}
-              </div>
+          <button
+            onClick={handleSendVerificationCode}
+            disabled={isLoading || phoneError}
+            className="w-full mt-4 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoading ? (
+              <Loader className="w-5 h-5 mr-2 animate-spin" />
+            ) : (
+              <Phone className="w-5 h-5 mr-2" />
+            )}
+            {isLoginFlow ? 'Login with Phone Number' : 'Verify Phone Number'}
+          </button>
+        </>
+      )}
+      
+      {verificationStep === 'verifying' && (
+        <>
+          <p className="text-center text-gray-600">
+            We've sent a 6-digit verification code to <span className="font-semibold">{phone}</span>
+          </p>
+          
+          <div className="flex items-center justify-center space-x-2 my-6">
+            {otpValues.map((digit, index) => (
+              <input
+                key={index}
+                ref={el => inputRefs.current[index] = el}
+                type="text"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleOtpChange(index, e.target.value)}
+                onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                onPaste={index === 0 ? handleOtpPaste : undefined}
+                className="w-12 h-14 text-center text-2xl font-bold border-2 border-gray-300 rounded-md focus:border-blue-500 focus:outline-none"
+              />
+            ))}
+          </div>
+          
+          <div className="flex flex-col items-center justify-center space-y-3">
+            <button
+              onClick={handleVerifyCode}
+              disabled={isLoading || otpValues.join('').length !== 6}
+              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? (
+                <Loader className="w-5 h-5 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle className="w-5 h-5 mr-2" />
+              )}
+              Verify Code
+            </button>
+            
+            <button
+              onClick={handleSendVerificationCode}
+              disabled={isLoading || timer > 0}
+              className="text-blue-600 hover:text-blue-800 text-sm"
+            >
+              {timer > 0 ? `Resend code in ${timer}s` : 'Resend code'}
+            </button>
+            
+            <button
+              onClick={() => setVerificationStep('input')}
+              className="text-gray-500 hover:text-gray-700 text-sm"
+            >
+              Change phone number
+            </button>
+          </div>
+        </>
+      )}
+      
+      {verificationStep === 'verified' && (
+        <div className="flex flex-col items-center justify-center py-4">
+          <div className="bg-green-100 rounded-full p-3 mb-4">
+            <CheckCircle className="w-10 h-10 text-green-600" />
+          </div>
+          <h3 className="text-xl font-bold text-green-600 mb-2">Phone Verified!</h3>
+          <p className="text-gray-600 text-center mb-4">
+            Your phone number has been successfully verified.
+          </p>
+          
+          {phoneExists && !isLoginFlow && (
+            <div className="w-full mt-4 space-y-3">
+              <button
+                onClick={handleContinueAsNewAccount}
+                className="w-full py-3 px-4 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center"
+              >
+                <ArrowRight className="w-5 h-5 mr-2" />
+                Continue with New Account
+              </button>
+              
+              <button
+                onClick={() => onExistingAccountFound && onExistingAccountFound(phone)}
+                className="w-full py-3 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center"
+              >
+                <LogIn className="w-5 h-5 mr-2" />
+                Log In to Existing Account
+              </button>
             </div>
           )}
         </div>
-        
-        {/* Divider */}
-        <div className="w-px h-6 bg-gray-300"></div>
-        
-        {/* Phone input */}
-        <div className="relative flex-grow">
-          <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-            <Phone className={`h-5 w-5 ${isFocused ? 'text-blue-500' : 'text-gray-400'}`} />
-          </div>
-          <input
-            ref={inputRef}
-            type="tel"
-            value={formattedValue}
-            onChange={handleInputChange}
-            className="w-full pl-10 pr-3 py-2 bg-transparent focus:outline-none"
-            placeholder="(555) 123-4567"
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-          />
-        </div>
-        
-        {/* Validity indicator */}
-        {inputValue.length > 0 && (
-          <div className="pr-3">
-            {isValid ? (
-              <div className="h-5 w-5 rounded-full bg-green-100 flex items-center justify-center">
-                <Check className="h-3 w-3 text-green-600" />
-              </div>
-            ) : (
-              <div className="h-5 w-5 rounded-full bg-red-100 flex items-center justify-center">
-                <span className="text-red-600 text-xs">!</span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 };
 
-export default PhoneInput;
+export default PhoneVerification;

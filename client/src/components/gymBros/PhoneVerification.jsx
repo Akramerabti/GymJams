@@ -22,7 +22,19 @@ const PhoneVerification = ({
   const [timer, setTimer] = useState(0);
   const [verificationToken, setVerificationToken] = useState(null);
   const [phoneExists, setPhoneExists] = useState(false);
+  const [hasAttemptedAutoSend, setHasAttemptedAutoSend] = useState(false);
   const inputRefs = useRef([]);
+  
+  // Auto-send verification code if phone is pre-filled from logged-in user
+  useEffect(() => {
+    if (phone && phone.trim() !== '' && verificationStep === 'input' && !hasAttemptedAutoSend) {
+      setHasAttemptedAutoSend(true);
+      // Small delay to ensure component is fully mounted
+      setTimeout(() => {
+        handleSendVerificationCode();
+      }, 300);
+    }
+  }, [phone, verificationStep, hasAttemptedAutoSend]);
   
   useEffect(() => {
     let interval;

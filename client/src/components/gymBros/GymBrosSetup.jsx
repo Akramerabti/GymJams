@@ -62,9 +62,8 @@ const GymBrosSetup = ({ onProfileCreated }) => {
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [verificationToken, setVerificationToken] = useState(null);
   const [authMode, setAuthMode] = useState('signup'); // 'signup' or 'login'
-  
-  // State to track if we're explicitly showing the phone verification for login
   const [showPhoneLogin, setShowPhoneLogin] = useState(true);
+  const [phoneStepIndex, setPhoneStepIndex] = useState(1); // Default index of phone step
 
   const toggleDarkMode = () => {
     const newMode = !darkMode;
@@ -177,10 +176,10 @@ const GymBrosSetup = ({ onProfileCreated }) => {
     // Go directly to phone verification step for login
     setShowPhoneLogin(true);
     
-    // Find the phone verification step index
-    const phoneVerificationIndex = steps.findIndex(step => step.id === 'phone');
-    if (phoneVerificationIndex !== -1) {
-      setCurrentStep(phoneVerificationIndex);
+    // Go to phone verification step
+    if (phoneStepIndex !== -1) {
+      setDirection(1);
+      setCurrentStep(phoneStepIndex);
     }
     
     toast.info(
@@ -194,10 +193,9 @@ const GymBrosSetup = ({ onProfileCreated }) => {
     setShowPhoneLogin(true);
     
     // Go to phone verification step
-    const phoneVerificationIndex = steps.findIndex(step => step.id === 'phone');
-    if (phoneVerificationIndex !== -1) {
+    if (phoneStepIndex !== -1) {
       setDirection(1);
-      setCurrentStep(phoneVerificationIndex);
+      setCurrentStep(phoneStepIndex);
     }
   };
   
@@ -254,7 +252,6 @@ const GymBrosSetup = ({ onProfileCreated }) => {
   };
   
   const buildSteps = () => {
-    
     let stepsList = [
       {
         id: 'name',
@@ -604,64 +601,96 @@ const GymBrosSetup = ({ onProfileCreated }) => {
       ] : [])
     ];
 
+    const phoneIndex = stepsList.findIndex(step => step.id === 'phone');
+    if (phoneIndex !== -1) {
+      setPhoneStepIndex(phoneIndex);
+    }
+
     return stepsList;
   };
   
-  const steps = buildSteps();
+const steps = buildSteps();
 
-  useEffect(() => {
-    if (user?.user) {
-      setProfileData(prev => ({
-        ...prev,
-        name: user.user.firstName || '',
-        phone: user.user.phone || '',
-        location: {
-          lat: user.user.location?.lat || null,
-          lng: user.user.location?.lng || null,
-          address: user.user.location?.address || '',
-        },
-      }));
-    }
-  }, [user]);
+useEffect(() => {
+  if (user?.user) {
+    // Pre-fill data from logged-in user
+    const userData = user.user;
+    setProfileData(prev => ({
+      ...prev,
+      name: userData.firstName || '',
+      phone: userData.phone || '',
+      location: {
+        lat: userData.location?.lat || null,
+        lng: userData.location?.lng || null,
+        address: userData.location?.address || '',
+      },
+    }));
 
-  useEffect(() => {
-    setProgress(((currentStep + 1) / steps.length) * 100);
-  }, [currentStep, steps.length]);
-
-  const goToNextStep = () => {
-    // In login mode, and if we've verified the phone, we've successfully logged in
-    if (authMode === 'login' && isPhoneVerified && currentStep === steps.findIndex(step => step.id === 'phone')) {
-      // Fetch the gym profile from the server - this is now handled in handlePhoneVerified
-      return;
-    }
-
-    const currentStepConfig = steps[currentStep];
-
-    // Validate current step
-    if (!currentStepConfig.isValid()) {
-      toast.error(`Please complete the "${currentStepConfig.title}" step`);
-      return;
-    }
-
-    if (currentStep < steps.length - 1) {
-      setDirection(1);
-      setCurrentStep(currentStep + 1);
-    } else if (currentStep === steps.length - 1) {
-      handleSubmit();
-    }
-  };
-
-  const goToPrevStep = () => {
-    if (currentStep > 0) {
-      setDirection(-1);
-      setCurrentStep(currentStep - 1);
-      
-      // If we're going back to the first step, ensure the login button is shown if it was previously shown
-      if (currentStep - 1 === 0 && authMode === 'login') {
-        setShowPhoneLogin(true);
+    // If the user has a phone number, automatically go to the phone verification step
+    if (userData.phone && userData.phone.trim() !== '') {
+      const phoneIndex = steps.findIndex(step => step.id === 'phone');
+      if (phoneIndex !== -1 && currentStep !== phoneIndex) {
+        // Use a timeout to ensure this occurs after initial render
+        setTimeout(() => {
+          setDirection(1);
+          setCurrentStep(phoneIndex);
+        }, 300);
       }
     }
-  };
+  }
+}, [user, steps]);
+
+useEffect(() => {
+  // If phone number is provided and not empty, and we're in input step
+  if (profileData.phone && profileData.phone.trim() !== '' && verificationStep === 'input') {
+    // Validate phone number first (simplified check)
+    const isValidPhone = /^\+\d{10,15}$/.test(profileData.phone);
+    
+    if (isValidPhone) {
+      // Automatically send verification code
+      handleSendVerificationCode();
+    }
+  }
+}, [profileData.phone, verificationStep]);
+
+useEffect(() => {
+  setProgress(((currentStep + 1) / steps.length) * 100);
+}, [currentStep, steps.length]);
+
+const goToNextStep = () => {
+  // In login mode, and if we've verified the phone, we've successfully logged in
+  if (authMode === 'login' && isPhoneVerified && currentStep === phoneStepIndex) {
+    return; // This is now handled in handlePhoneVerified
+  }
+
+  const currentStepConfig = steps[currentStep];
+
+  // Validate current step
+  if (!currentStepConfig.isValid()) {
+    toast.error(`Please complete the "${currentStepConfig.title}" step`);
+    return;
+  }
+
+  if (currentStep < steps.length - 1) {
+    setDirection(1);
+    setCurrentStep(currentStep + 1);
+  } else if (currentStep === steps.length - 1) {
+    handleSubmit();
+  }
+};
+
+const goToPrevStep = () => {
+  if (currentStep > 0) {
+    setDirection(-1);
+    setCurrentStep(currentStep - 1);
+    
+    // If we're going back to the first step, ensure the login button is shown if it was previously shown
+    if (currentStep - 1 === 0 && authMode === 'login') {
+      setShowPhoneLogin(true);
+    }
+  }
+};
+
 
   // Animation variants for smoother transitions
   const variants = {

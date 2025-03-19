@@ -6,11 +6,13 @@ import User from '../models/User.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken'; // Also add jwt for token generation
 import { getRecommendedProfiles } from '../services/gymBrosRecommendationService.js';
 import { processFeedback } from '../services/gymBrosFeedbackService.js';
 import { handleError } from '../middleware/error.middleware.js';
+import twilio from 'twilio';
+
 
 // Check if user has a GymBros profile
 export const checkGymBrosProfile = async (req, res) => {
@@ -533,9 +535,8 @@ const checkForMatch = async (userId, targetId) => {
   return false;
 };
 
-// server/src/controllers/gymBrosController.js (add these functions)
 
-// Check if a phone number exists in the system
+
 export const checkPhoneExists = async (req, res) => {
   try {
     const { phone } = req.body;
@@ -550,7 +551,7 @@ export const checkPhoneExists = async (req, res) => {
     return res.json({ exists: !!existingUser });
   } catch (error) {
     console.error('Error checking phone:', error);
-    handleError(error, req, res);
+    res.status(500).json({ message: 'Error checking phone number' });
   }
 };
 
@@ -571,6 +572,20 @@ export const sendVerificationCode = async (req, res) => {
       });
     }
     
+    // Rate limiting check - prevent abuse
+    const lastMinute = new Date(Date.now() - 60 * 1000);
+    const recentAttempts = await PhoneVerification.countDocuments({
+      phone,
+      createdAt: { $gte: lastMinute }
+    });
+    
+    if (recentAttempts >= 2) {
+      return res.status(429).json({
+        success: false,
+        message: 'Too many verification attempts. Please try again in a minute.'
+      });
+    }
+    
     // Generate a random 6-digit code
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
     
@@ -585,19 +600,16 @@ export const sendVerificationCode = async (req, res) => {
       { upsert: true, new: true }
     );
     
-    // Log the code during development (remove in production)
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`Verification code for ${phone}: ${verificationCode}`);
-    }
-    
-    // Send SMS using Twilio
+    // Get Twilio credentials
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
     
+    // Check for Twilio credentials
     if (!accountSid || !authToken || !twilioPhone) {
       // Fallback for development if Twilio credentials aren't set
       if (process.env.NODE_ENV !== 'production') {
+        console.log(`[DEV MODE] Verification code for ${phone}: ${verificationCode}`);
         return res.json({ 
           success: true, 
           message: 'Verification code generated (check server logs)',
@@ -608,34 +620,51 @@ export const sendVerificationCode = async (req, res) => {
       }
     }
     
-    // Initialize Twilio client
-    const twilioClient = require('twilio')(accountSid, authToken);
-    
-    // Send the SMS
-    await twilioClient.messages.create({
-      body: `Your GymBros verification code is: ${verificationCode}`,
-      from: twilioPhone,
-      to: phone
-    });
-    
-    res.json({ success: true, message: 'Verification code sent' });
+    try {
+      // Initialize Twilio client
+      const twilioClient = twilio(accountSid, authToken);
+      
+      // Send the SMS
+      await twilioClient.messages.create({
+        body: `Your GymBros verification code is: ${verificationCode}`,
+        from: twilioPhone,
+        to: phone
+      });
+      
+      console.log(`Verification SMS sent to ${phone}`);
+      
+      res.json({ success: true, message: 'Verification code sent' });
+    } catch (twilioError) {
+      console.error('Twilio error:', twilioError);
+      
+      // Provide specific error responses based on Twilio error codes
+      if (twilioError.code === 21211) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Invalid phone number format or unverified recipient' 
+        });
+      } else if (twilioError.code === 21608) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'This phone number is not a verified Twilio test number'
+        });
+      } else if (twilioError.code === 21610) {
+        return res.status(400).json({
+          success: false,
+          message: 'This phone number is unsubscribed from your Twilio account'
+        });
+      }
+      
+      throw twilioError;
+    }
   } catch (error) {
     console.error('Error sending verification code:', error);
     
-    // Provide more specific error messages
-    if (error.code === 21211) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Invalid phone number format or unverified recipient' 
-      });
-    } else if (error.code === 21608) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'This phone number is not a verified Twilio test number'
-      });
-    }
-    
-    handleError(error, req, res);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to send verification code',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
@@ -668,6 +697,9 @@ export const verifyCode = async (req, res) => {
       { expiresIn: '1h' }
     );
     
+    // Clear the used verification code to prevent reuse
+    await PhoneVerification.deleteOne({ _id: verification._id });
+    
     res.json({ 
       success: true,
       message: 'Phone verified successfully',
@@ -675,6 +707,9 @@ export const verifyCode = async (req, res) => {
     });
   } catch (error) {
     console.error('Error verifying code:', error);
-    handleError(error, req, res);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error verifying code'
+    });
   }
 };

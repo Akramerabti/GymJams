@@ -43,6 +43,7 @@
     "socket.io": "^4.8.1",
     "stripe": "^14.10.0",
     "swagger-ui-express": "^5.0.1",
+    "twilio": "^5.5.0",
     "uuid": "^9.0.1",
     "vite": "^6.2.2",
     "winston": "^3.11.0"
