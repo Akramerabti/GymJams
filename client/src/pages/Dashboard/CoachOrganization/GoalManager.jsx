@@ -346,20 +346,15 @@ const GoalManager = ({
     setGoalToComplete(null);
   };
   
-  // Handle save goal
   const handleSaveGoal = (goal) => {
     if (selectedGoal) {
-      onUpdateGoal(goal);
-      setIsEditGoalOpen(false);
+      onUpdateGoal(goal); // Update existing goal
     } else {
-      const newGoal = {
-        ...goal,
-        addedAt: new Date().toISOString(),
-      };
-      onAddGoal(newGoal);
-      setIsAddGoalOpen(false);
+      onAddGoal(goal); // Add new goal
     }
-    setSelectedGoal(null);
+    setIsAddGoalOpen(false); // Close the dialog after saving
+    setIsEditGoalOpen(false); // Close the dialog after saving
+    setSelectedGoal(null); // Reset selected goal
   };
 
   const handleApproveGoal = async (goalId) => {

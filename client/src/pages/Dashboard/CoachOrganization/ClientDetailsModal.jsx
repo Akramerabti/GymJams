@@ -1123,35 +1123,30 @@ const ClientDetailsModal = ({ client, onClose, onSave, onExportData}) => {
         </motion.div>
       </motion.div>
 
-    {/* Workouts Modal */}
     <AnimatePresence>
-        {isWorkoutsModalOpen && (
-          <ClientWorkoutsModal
-            key="workouts-modal" 
-            client={client}
-            onClose={() => setIsWorkoutsModalOpen(false)}
-            onSave={(updatedWorkouts) => {
-              onSave({ workouts: updatedWorkouts });
-              setIsWorkoutsModalOpen(false);
-            }}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Progress Modal */}
-      <AnimatePresence>
-        {isProgressModalOpen && (
-          <ClientProgressModal
-            key="progress-modal"
-            client={client}
-            onClose={() => setIsProgressModalOpen(false)}
-            onSave={(updatedProgress) => {
-              onSave({ progress: updatedProgress });
-              setIsProgressModalOpen(false);
-            }}
-          />
-        )}
-      </AnimatePresence>
+  {isWorkoutsModalOpen && (
+    <ClientWorkoutsModal
+      key="workouts-modal" 
+      client={client}
+      onClose={() => setIsWorkoutsModalOpen(false)}
+      onSave={(updatedWorkouts) => {
+        onSave({ workouts: updatedWorkouts });
+        setIsWorkoutsModalOpen(false);
+      }}
+    />
+  )}
+  {isProgressModalOpen && (
+    <ClientProgressModal
+      key="progress-modal"
+      client={client}
+      onClose={() => setIsProgressModalOpen(false)}
+      onSave={(updatedProgress) => {
+        onSave({ progress: updatedProgress });
+        setIsProgressModalOpen(false);
+      }}
+    />
+  )}
+</AnimatePresence>
     </AnimatePresence>
   );
 };

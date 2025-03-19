@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { sendVerificationEmail, sendPasswordResetEmail  } from '../services/email.service.js';
 import stripe from '../config/stripe.js'; 
 import Subscription from '../models/Subscription.js';
+import PhoneVerification from '../models/PhoneVerification.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
 import path from 'path';
@@ -16,15 +17,11 @@ import { subscribe } from 'diagnostics_channel';
 const __filename = fileURLToPath(import.meta.url); // Get the file path
 const __dirname = path.dirname(__filename); // Get the directory name
 
-
-
 export const logout = async (req, res) => {
   try {
-    // Get the user from the request (added by authenticate middleware)
     const userId = req.user?.id;
 
     if (userId) {
-      // Optional: Update last logout timestamp
       await User.findByIdAndUpdate(userId, {
         lastLogout: new Date()
       });
@@ -630,5 +627,156 @@ export const deleteAccount = async (req, res) => {
     res.status(500).json({ message: 'Failed to delete account' });
   } finally {
     session.endSession();
+  }
+};
+
+
+
+
+
+export const loginWithPhone = async (req, res) => {
+  try {
+    const { phone, verificationToken } = req.body;
+    
+    if (!phone || !verificationToken) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Phone number and verification token are required' 
+      });
+    }
+    
+    // Verify the token is valid
+    try {
+      const decodedToken = jwt.verify(verificationToken, process.env.JWT_SECRET);
+      
+      // Check if the token was issued for this phone number and is marked as verified
+      if (!decodedToken.phone || decodedToken.phone !== phone || !decodedToken.verified) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid verification token'
+        });
+      }
+    } catch (tokenError) {
+      logger.error('Token verification error:', tokenError);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired verification token'
+      });
+    }
+    
+    // Find user with this phone number
+    const user = await User.findOne({ phone }).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No account found with this phone number'
+      });
+    }
+    
+    // Generate authentication token
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    // Return user data and token
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        email: user.email,
+        role: user.role,
+        isEmailVerified: user.isEmailVerified
+      },
+      token
+    });
+  } catch (error) {
+    logger.error('Phone login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during phone login'
+    });
+  }
+};
+
+export const registerWithPhone = async (req, res) => {
+  try {
+    const { phone, verificationToken, userData } = req.body;
+    
+    if (!phone || !verificationToken) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Phone number and verification token are required' 
+      });
+    }
+    
+    // Verify the token is valid
+    try {
+      const decodedToken = jwt.verify(verificationToken, process.env.JWT_SECRET);
+      
+      // Check if the token was issued for this phone number and is marked as verified
+      if (!decodedToken.phone || decodedToken.phone !== phone || !decodedToken.verified) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid verification token'
+        });
+      }
+    } catch (tokenError) {
+      logger.error('Token verification error:', tokenError);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired verification token'
+      });
+    }
+    
+    // Check if a user with this phone already exists
+    const existingUser = await User.findOne({ phone });
+    
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: 'An account with this phone number already exists'
+      });
+    }
+    
+    // Create a temporary user record with the verified phone
+    // We'll update this with more information later in the registration process
+    const user = new User({
+      phone,
+      isPhoneVerified: true,
+      // Add any additional user data provided
+      ...userData
+    });
+    
+    await user.save();
+    
+    // Generate authentication token
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    // Return success response
+    res.status(201).json({
+      success: true,
+      message: 'Account created with verified phone',
+      user: {
+        id: user._id,
+        phone: user.phone,
+      },
+      token
+    });
+  } catch (error) {
+    logger.error('Phone registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during phone registration'
+    });
   }
 };

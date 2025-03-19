@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Target, Dumbbell, Activity, Calendar, Edit, Plus, Save, X, AlertTriangle, 
   CheckCircle, Award, Shield, Zap
@@ -51,6 +51,22 @@ const GOAL_TYPES = [
   { id: 'custom', label: 'Custom', icon: <Edit className="w-4 h-4 mr-2" /> },
 ];
 
+// Helper function to format date for display
+const formatDate = (dateString) => {
+  if (!dateString) return '';
+  
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString(undefined, { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  } catch (e) {
+    return dateString;
+  }
+};
+
 // Helper function to format date for input field
 const formatDateForInput = (date) => {
   if (!date) return '';
@@ -74,7 +90,13 @@ const getGoalIcon = (type) => {
 };
 
 // New goal dialog component
-const AddNewGoal = ({ isOpen, onClose, onSave, goal = null }) => {
+const AddNewGoal = ({ 
+  isOpen, 
+  onClose, 
+  onSave, 
+  goal = null 
+}) => {
+  const dialogContentRef = useRef(null);
   const [formData, setFormData] = useState({
     id: goal?.id || `goal-${Date.now()}`,
     title: goal?.title || '',
@@ -92,20 +114,53 @@ const AddNewGoal = ({ isOpen, onClose, onSave, goal = null }) => {
     pointsAwarded: goal?.pointsAwarded || 0,
   });
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  useEffect(() => {
+    if (isOpen) {
+      console.log('Dialog opened, resetting form data');
+      setFormData({
+        id: goal?.id || `goal-${Date.now()}`,
+        title: goal?.title || '',
+        description: goal?.description || '',
+        type: goal?.type || '',
+        target: goal?.target || '',
+        difficulty: goal?.difficulty || 'medium',
+        dueDate: goal?.dueDate ? formatDateForInput(goal.dueDate) : getFutureDateString(14),
+        status: goal?.status || 'active',
+        progress: goal?.progress || 0,
+        clientRequestedCompletion: goal?.clientRequestedCompletion || false,
+        clientCompletionRequestDate: goal?.clientCompletionRequestDate || null,
+        coachApproved: goal?.coachApproved || false,
+        coachApprovalDate: goal?.coachApprovalDate || null,
+        pointsAwarded: goal?.pointsAwarded || 0,
+      });
+      setError('');
+    }
+  }, [isOpen, goal]);
 
   const handleChange = (field, value) => {
-    setFormData({
-      ...formData,
+    console.log(`Form field "${field}" changed to:`, value);
+    setFormData(prevData => ({
+      ...prevData,
       [field]: value,
-    });
+    }));
   };
 
   const handleSubmit = (e) => {
-    e.preventDefault(); // Prevent default form submission behavior
+    if (e) {
+      e.preventDefault(); // Prevent default form submission behavior
+      e.stopPropagation(); // Stop event from bubbling up
+    }
+
+    console.log('Form submitted');
+    setIsSubmitting(true);
 
     // Validate required fields
     if (!formData.title || !formData.type || !formData.target || !formData.dueDate) {
+      console.log('Validation failed: Missing required fields');
       setError('Please fill in all required fields');
+      setIsSubmitting(false);
       return;
     }
 
@@ -114,7 +169,9 @@ const AddNewGoal = ({ isOpen, onClose, onSave, goal = null }) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (dueDate < today) {
+      console.log('Validation failed: Due date is in the past');
       setError('Due date cannot be in the past');
+      setIsSubmitting(false);
       return;
     }
 
@@ -133,13 +190,58 @@ const AddNewGoal = ({ isOpen, onClose, onSave, goal = null }) => {
       };
 
     // Call the onSave function with the new goal
+    console.log('Saving goal:', newGoal);
     onSave(newGoal);
     setError('');
+    setIsSubmitting(false);
+  };
+
+  // Specifically handle clicking the cancel button
+  const handleCancel = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    console.log('Cancel button clicked');
+    onClose();
+  };
+
+  // Safely handle dialog open change
+  const handleOpenChange = (open) => {
+    console.log('Dialog open state changed to:', open);
+    if (!open && !isSubmitting) {
+      console.log('Dialog closed');
+      onClose();
+    }
+  };
+
+  const handleContentClick = (e) => {
+    console.log('Dialog content clicked');
+    // Let the event bubble up if it's not inside a form control
+    const target = e.target;
+    const isFormElement = target.tagName === 'INPUT' || 
+                           target.tagName === 'SELECT' || 
+                           target.tagName === 'TEXTAREA' || 
+                           target.tagName === 'BUTTON' ||
+                           target.closest('[role="combobox"]') ||
+                           target.closest('[role="listbox"]');
+    
+    if (isFormElement) {
+      console.log('Form element clicked, stopping propagation');
+      e.stopPropagation();
+    }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[550px] z-[1000]">
+    <Dialog 
+      open={isOpen} 
+      onOpenChange={handleOpenChange}
+    >
+      <DialogContent 
+        ref={dialogContentRef} 
+        className="sm:max-w-[550px] z-[1000]"
+        onClick={handleContentClick}
+      >
         <DialogHeader>
           <DialogTitle>{goal ? 'Edit Goal' : 'Add New Goal'}</DialogTitle>
         </DialogHeader>
@@ -152,7 +254,10 @@ const AddNewGoal = ({ isOpen, onClose, onSave, goal = null }) => {
               <Input
                 id="goal-title"
                 value={formData.title}
-                onChange={(e) => handleChange('title', e.target.value)}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  handleChange('title', e.target.value);
+                }}
                 placeholder="E.g., Improve Bench Press"
               />
             </div>
@@ -163,7 +268,10 @@ const AddNewGoal = ({ isOpen, onClose, onSave, goal = null }) => {
               <Textarea
                 id="goal-description"
                 value={formData.description}
-                onChange={(e) => handleChange('description', e.target.value)}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  handleChange('description', e.target.value);
+                }}
                 placeholder="Describe the goal in detail..."
                 rows={3}
               />
@@ -200,7 +308,10 @@ const AddNewGoal = ({ isOpen, onClose, onSave, goal = null }) => {
               <Input
                 id="goal-target"
                 value={formData.target}
-                onChange={(e) => handleChange('target', e.target.value)}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  handleChange('target', e.target.value);
+                }}
                 placeholder="E.g., Increase bench press by 10kg"
               />
             </div>
@@ -237,7 +348,10 @@ const AddNewGoal = ({ isOpen, onClose, onSave, goal = null }) => {
                 id="goal-due-date"
                 type="date"
                 value={formData.dueDate}
-                onChange={(e) => handleChange('dueDate', e.target.value)}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  handleChange('dueDate', e.target.value);
+                }}
                 min={getFutureDateString(1)} // At least tomorrow
               />
             </div>
@@ -249,7 +363,10 @@ const AddNewGoal = ({ isOpen, onClose, onSave, goal = null }) => {
                 id="goal-progress"
                 type="number"
                 value={formData.progress}
-                onChange={(e) => handleChange('progress', e.target.value)}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  handleChange('progress', e.target.value);
+                }}
                 min="0"
                 max="100"
               />
@@ -286,11 +403,18 @@ const AddNewGoal = ({ isOpen, onClose, onSave, goal = null }) => {
             )}
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={onClose}>
+          <DialogFooter className="mt-6">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleCancel}
+            >
               Cancel
             </Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+            <Button 
+              type="submit" 
+              className="bg-blue-600 hover:bg-blue-700"
+            >
               {goal ? 'Update Goal' : 'Add Goal'}
             </Button>
           </DialogFooter>

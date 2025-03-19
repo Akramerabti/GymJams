@@ -6,7 +6,7 @@ import logger from '../utils/logger.js';
 import { sendSubscriptionReceipt } from '../services/email.service.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
-import { getIoInstance, activeUsers } from '../socketServer.js';
+import { getIoInstance, activeUsers, notifyGoalApproval, notifyGoalRejection } from '../socketServer.js';
 import Session from '../models/Session.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);

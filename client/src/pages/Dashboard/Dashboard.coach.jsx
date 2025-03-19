@@ -615,7 +615,7 @@ const DashboardCoach = () => {
         </motion.div>
 
         {/* Pending Goal Alert */}
-        {pendingGoalApprovals.length > 1 && (
+        {pendingGoalApprovals.length > 0 && (
         <PendingGoalsSection
           pendingGoalApprovals={pendingGoalApprovals}
           handleCompleteClientGoal={handleCompleteClientGoal}

@@ -23,7 +23,6 @@ import UpcomingSessions from './ClientOrganization/UpcomingSessions';
 import SessionsView from '../../components/subscription/SessionsView';
 import Chat from './components/Chat';
 
-// Subscription tier configuration with features
 const SUBSCRIPTION_TIERS = {
   basic: {
     name: 'Basic',
@@ -69,12 +68,6 @@ const getGoalIcon = (type) => {
   }
 };
 
-// Helper function to calculate trend
-const calculateTrend = (current, previous) => {
-  if (!previous || previous === 0) return 0;
-  return ((current - previous) / previous) * 100;
-};
-
 const ClientDashboard = () => {
   const { user } = useAuth();
   const { socket, notifications } = useSocket();
@@ -99,7 +92,6 @@ const ClientDashboard = () => {
   const [showAllSessions, setShowAllSessions] = useState(false);
   const { addPoints, updatePointsInBackend } = usePoints();
 
-  // Refs for scrolling
   const overviewRef = useRef(null);
   const workoutsRef = useRef(null);
   const progressRef = useRef(null);
@@ -363,7 +355,6 @@ const ClientDashboard = () => {
     });
   };
 
-  // Scroll to specific section
   const scrollToSection = (section) => {
     const refs = {
       overview: overviewRef,
@@ -383,7 +374,6 @@ const ClientDashboard = () => {
     scrollToSection(value);
   };
 
-  // Verify subscription and load data
   useEffect(() => {
     const verifyQuestionnaireAndSubscription = async () => {
       try {
@@ -486,57 +476,16 @@ const ClientDashboard = () => {
     };
   }, [user, navigate]);
 
-// This is the code in Dashboard.user.jsx that's causing the error
-// Current problematic code (line ~492)
-useEffect(() => {
-  if (socket && subscription) {
-    // Listen for goal approval events
-    socket.on('goalApproved', (data) => {  // ERROR: socket.on is not a function
-      const { goalId, title, pointsAwarded, status } = data;
-      
-      // Update the goals list - explicitly set status to 'completed'
-      setGoals(prevGoals => 
-        prevGoals.map(goal => 
-          goal.id === goalId 
-            ? { 
-                ...goal, 
-                status: 'completed',
-                completed: true,
-                completedDate: new Date().toISOString(),
-                pointsAwarded,
-                progress: 100
-              } 
-            : goal
-        )
-      );
-      
-      // Other code...
-    });
-    
-    // Listen for goal rejection events
-    socket.on('goalRejected', (data) => {
-      // Rejection handling code...
-    });
-    
-    return () => {
-      socket.off('goalApproved');
-      socket.off('goalRejected');
-    };
-  }
-}, [socket, subscription]);
 
-// FIXED VERSION - Handle both old and new SocketContext formats
-useEffect(() => {
-  // Check if socket is an object with a socket property (new version)
-  // or a direct socket instance (old version)
+  useEffect(() => {
+
   const socketInstance = socket?.socket || socket;
   
   if (socketInstance && subscription) {
-    // Create event handlers
+  
     const handleGoalApproved = (data) => {
       const { goalId, title, pointsAwarded, status } = data;
-      
-      // Update the goals list - explicitly set status to 'completed'
+ 
       setGoals(prevGoals => 
         prevGoals.map(goal => 
           goal.id === goalId 
@@ -552,7 +501,7 @@ useEffect(() => {
         )
       );
       
-      // Update subscription stats
+
       setSubscription(prevSub => ({
         ...prevSub,
         stats: {
@@ -561,7 +510,6 @@ useEffect(() => {
         }
       }));
       
-      // Update points store if using hooks/usePoints.js
       if (addPoints) {
         addPoints(pointsAwarded);
         updatePointsInBackend(user?.points + pointsAwarded || pointsAwarded);
@@ -571,7 +519,6 @@ useEffect(() => {
     const handleGoalRejected = (data) => {
       const { goalId, title, reason, status } = data;
       
-      // Update the goals list - reset status to 'active'
       setGoals(prevGoals => 
         prevGoals.map(goal => 
           goal.id === goalId 
@@ -588,12 +535,10 @@ useEffect(() => {
       );
     };
 
-    // Add event listeners
     if (typeof socketInstance.on === 'function') {
       socketInstance.on('goalApproved', handleGoalApproved);
       socketInstance.on('goalRejected', handleGoalRejected);
-      
-      // Return cleanup function
+    
       return () => {
         if (typeof socketInstance.off === 'function') {
           socketInstance.off('goalApproved', handleGoalApproved);
@@ -606,7 +551,6 @@ useEffect(() => {
   }
 }, [socket, subscription, addPoints, updatePointsInBackend, user]);
 
-  // Get subscription tier
   const currentTier = SUBSCRIPTION_TIERS[subscription?.subscription || 'basic'];
 
   if (loading) {

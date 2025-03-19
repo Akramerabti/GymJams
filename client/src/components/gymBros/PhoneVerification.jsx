@@ -1,14 +1,27 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Phone, CheckCircle, Loader } from 'lucide-react';
+import { Phone, CheckCircle, Loader, ArrowRight, LogIn } from 'lucide-react';
 import api from '../../services/api';
+import gymbrosService from '../../services/gymbros.service';
+import useAuthStore from '../../stores/authStore';
+import PhoneInput from '../../pages/phoneinput'; // Adjust the import path as necessary
 
-const PhoneVerification = ({ phone, onChange, onVerified }) => {
+const PhoneVerification = ({ 
+  phone, 
+  onChange, 
+  onVerified, 
+  isLoginFlow = false,
+  onExistingAccountFound,
+  onContinueWithNewAccount
+}) => {
+  const { login } = useAuthStore();
   const [verificationStep, setVerificationStep] = useState('input'); // 'input', 'verifying', 'verified'
   const [isLoading, setIsLoading] = useState(false);
   const [phoneError, setPhoneError] = useState('');
   const [otpValues, setOtpValues] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(0);
+  const [verificationToken, setVerificationToken] = useState(null);
+  const [phoneExists, setPhoneExists] = useState(false);
   const inputRefs = useRef([]);
   
   useEffect(() => {
@@ -32,17 +45,29 @@ const PhoneVerification = ({ phone, onChange, onVerified }) => {
     
     try {
       // First check if phone already exists
-      const phoneCheckResponse = await api.post('/gym-bros/check-phone', { phone });
-      if (phoneCheckResponse.data.exists) {
-        setPhoneError('This phone number is already in use.');
+      const exists = await gymbrosService.checkPhoneExists(phone);
+      setPhoneExists(exists);
+      
+      if (exists && !isLoginFlow) {
+        // If this is not explicitly a login flow and phone exists, alert the user
+        toast.info(
+          'This phone is already registered',
+          {
+            description: 'Would you like to log in with this number?',
+            action: {
+              label: 'Yes, login',
+              onClick: () => onExistingAccountFound && onExistingAccountFound(phone)
+            }
+          }
+        );
         setIsLoading(false);
         return;
       }
       
       // Send verification code
-      const response = await api.post('/gym-bros/send-verification', { phone });
+      const response = await gymbrosService.sendVerificationCode(phone);
       
-      if (response.data.success) {
+      if (response.success) {
         setVerificationStep('verifying');
         setTimer(30); // 30 second countdown for resend
         toast.success('Verification code sent!');
@@ -53,7 +78,7 @@ const PhoneVerification = ({ phone, onChange, onVerified }) => {
           }
         }, 100);
       } else {
-        throw new Error(response.data.message || 'Failed to send verification code');
+        throw new Error(response.message || 'Failed to send verification code');
       }
     } catch (error) {
       console.error('Error sending verification code:', error);
@@ -75,17 +100,36 @@ const PhoneVerification = ({ phone, onChange, onVerified }) => {
     setIsLoading(true);
     
     try {
-      const response = await api.post('/gym-bros/verify-code', { 
-        phone, 
-        code: verificationCode 
-      });
+      const response = await gymbrosService.verifyCode(phone, verificationCode);
       
-      if (response.data.success) {
+      if (response.success) {
+        setVerificationToken(response.token);
         setVerificationStep('verified');
-        onVerified(true);
-        toast.success('Phone number verified!');
+        
+        // If this is a login flow and phone exists, attempt login
+        if (isLoginFlow && phoneExists) {
+          try {
+            const loginData = await gymbrosService.loginWithPhone(phone, response.token);
+            
+            // Store the auth token and user data
+            login(loginData.token, loginData.user);
+            toast.success('Logged in successfully!');
+            
+            // Return success to parent component
+            onVerified && onVerified(true, loginData.user);
+          } catch (loginError) {
+            console.error('Error logging in with phone:', loginError);
+            toast.error(loginError.response?.data?.message || 'Failed to log in');
+            
+            // Still mark as verified since the phone verification worked
+            onVerified && onVerified(true);
+          }
+        } else {
+          // Just mark as verified for new account creation
+          onVerified && onVerified(true, null, response.token);
+        }
       } else {
-        toast.error(response.data.message || 'Invalid verification code');
+        toast.error(response.message || 'Invalid verification code');
       }
     } catch (error) {
       console.error('Error verifying code:', error);
@@ -144,19 +188,31 @@ const PhoneVerification = ({ phone, onChange, onVerified }) => {
       inputRefs.current[5].focus();
     }
   };
+
+  const handleContinueAsNewAccount = () => {
+    // User has chosen to continue creating a new account despite having an existing one
+    if (onContinueWithNewAccount) {
+      onContinueWithNewAccount(phone, verificationToken);
+    }
+  };
   
   return (
     <div className="w-full space-y-4">
       {verificationStep === 'input' && (
         <>
           <div className="relative">
-            <input
-              type="tel"
+            <PhoneInput
               value={phone}
-              onChange={(e) => onChange(e.target.value)}
-              className="w-full p-4 text-2xl bg-transparent border-b-2 border-primary focus:outline-none"
-              placeholder="Enter your phone number"
+              onChange={onChange}
+              onValidChange={(isValid) => {
+                if (!isValid) {
+                  setPhoneError('Please enter a valid phone number');
+                } else {
+                  setPhoneError('');
+                }
+              }}
               autoFocus
+              className="w-full"
             />
             {phoneError && (
               <p className="text-red-500 text-sm mt-2">{phoneError}</p>
@@ -165,7 +221,7 @@ const PhoneVerification = ({ phone, onChange, onVerified }) => {
           
           <button
             onClick={handleSendVerificationCode}
-            disabled={isLoading}
+            disabled={isLoading || phoneError}
             className="w-full mt-4 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
           >
             {isLoading ? (
@@ -173,7 +229,7 @@ const PhoneVerification = ({ phone, onChange, onVerified }) => {
             ) : (
               <Phone className="w-5 h-5 mr-2" />
             )}
-            Send Verification Code
+            {isLoginFlow ? 'Login with Phone Number' : 'Verify Phone Number'}
           </button>
         </>
       )}
@@ -238,9 +294,29 @@ const PhoneVerification = ({ phone, onChange, onVerified }) => {
             <CheckCircle className="w-10 h-10 text-green-600" />
           </div>
           <h3 className="text-xl font-bold text-green-600 mb-2">Phone Verified!</h3>
-          <p className="text-gray-600 text-center">
+          <p className="text-gray-600 text-center mb-4">
             Your phone number has been successfully verified.
           </p>
+          
+          {phoneExists && !isLoginFlow && (
+            <div className="w-full mt-4 space-y-3">
+              <button
+                onClick={handleContinueAsNewAccount}
+                className="w-full py-3 px-4 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center"
+              >
+                <ArrowRight className="w-5 h-5 mr-2" />
+                Continue with New Account
+              </button>
+              
+              <button
+                onClick={() => onExistingAccountFound && onExistingAccountFound(phone)}
+                className="w-full py-3 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center"
+              >
+                <LogIn className="w-5 h-5 mr-2" />
+                Log In to Existing Account
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
