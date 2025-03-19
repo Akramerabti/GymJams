@@ -1,7 +1,7 @@
 import express from 'express';
 import { verifyEmail, register, login, getCoach,deleteAccount , getCoachById, getProfile, 
     updateProfile, validateToken, resendVerificationEmail, validatePhone, forgotPassword,
-     resetPassword, logout, loginWithPhone, registerWithPhone} from '../controllers/auth.controller.js';
+     resetPassword, logout, loginWithPhone, registerWithPhone, loginWithTokenFORPHONE} from '../controllers/auth.controller.js';
 import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
 import { validateRegistration, validateLogin, validatePasswordReset } from '../middleware/validate.middleware.js';
 import upload from '../config/multer.js';
@@ -11,6 +11,7 @@ const router = express.Router();
 // Public routes
 router.post('/register', validateRegistration, register);
 router.post('/login', validateLogin, login);
+router.post('/loginwithtoken', loginWithTokenFORPHONE);
 router.get('/verify-email/:token', verifyEmail);
 router.post('/validate-phone', validatePhone);
 router.get('/validate', authenticate, validateToken);

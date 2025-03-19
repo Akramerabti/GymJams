@@ -94,7 +94,6 @@ const GymBros = () => {
     }
   };
 
-  // Check if user has a GymBros profile
   useEffect(() => {
     if (!isAuthenticated) {
       setLoading(false); // Immediately stop loading if not authenticated
@@ -142,14 +141,33 @@ const GymBros = () => {
   const checkUserProfile = async () => {
     try {
       setLoading(true);
-
+  
       if (!isAuthenticated) return;
-
-      // Use the service function to check for a profile
-      const response = await gymbrosService.getGymBrosProfile();
+  
+      // Check if we have a verified phone in localStorage
+      const verifiedPhone = localStorage.getItem('verifiedPhone');
+      const verificationToken = localStorage.getItem('verificationToken');
+      
+      let response;
+      
+      if (!isAuthenticated && verifiedPhone && verificationToken) {
+        // If not authenticated but we have verified phone info, use the by-phone endpoint
+        console.log('[GymBros] Checking profile with verified phone:', verifiedPhone);
+        response = await gymbrosService.checkProfileWithVerifiedPhone(verifiedPhone, verificationToken);
+        
+        // If successful, remove the temporary storage
+        if (response && (response.hasProfile || response.loginData)) {
+          localStorage.removeItem('verifiedPhone');
+          localStorage.removeItem('verificationToken');
+        }
+      } else {
+        // Normal flow - use the regular endpoint for authenticated users
+        console.log('[GymBros] Checking profile using authenticated endpoint');
+        response = await gymbrosService.getGymBrosProfile();
+      }
       
       console.log('[GymBros] Profile check response:', response);
-  
+    
       if (response.hasProfile) {
         setHasProfile(true);
         setUserProfile(response.profile);
@@ -190,7 +208,7 @@ const GymBros = () => {
       setLoading(false);
     }
   };
-
+  
   const fetchProfiles = async () => {
     try {
       console.log('[GymBros] Fetching profiles with filters:', filters);

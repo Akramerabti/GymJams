@@ -1,17 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, User, Mail, Phone, Lock } from 'lucide-react';
+import { Eye, EyeOff, User, Mail, Phone, Lock, ChevronDown, ChevronUp, Check } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../stores/authStore';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
+import { countryCodes, formatE164, isValidPhoneNumber } from '../utils/phoneUtils';
 
 const Register = () => {
   const navigate = useNavigate();
   const { register } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [countryCode, setCountryCode] = useState('1'); // Default to US/Canada code
+  const [countryFlag, setCountryFlag] = useState('🇺🇸'); // Default to US flag
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [phoneInputValue, setPhoneInputValue] = useState('');
+  const [isPhoneValid, setIsPhoneValid] = useState(false);
+  const dropdownRef = useRef(null);
+
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -20,19 +29,43 @@ const Register = () => {
     password: '',
     confirmPassword: ''
   });
+  
   const [errors, setErrors] = useState({});
 
-  // Function to format phone number
-  const formatPhoneNumber = (value) => {
-    if (!value) return value;
-    const phoneNumber = value.replace(/[^\d]/g, '');
-    const phoneNumberLength = phoneNumber.length;
-    if (phoneNumberLength < 4) return phoneNumber;
-    if (phoneNumberLength < 7) {
-      return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3)}`;
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    
+    // Add event listener
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    // Debugging - log dropdown state changes
+    console.log("Dropdown state changed:", isDropdownOpen);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isDropdownOpen]);
+
+  // Update formatted phone value when input or country changes
+  useEffect(() => {
+    // Check validity
+    const valid = isValidPhoneNumber(phoneInputValue, countryCode);
+    setIsPhoneValid(valid);
+    
+    // Pass the E.164 formatted value to form data
+    const e164Value = formatE164(phoneInputValue, countryCode);
+    setFormData(prev => ({ ...prev, phone: e164Value }));
+    
+    // Clear phone error if it becomes valid
+    if (valid && errors.phone) {
+      setErrors(prev => ({ ...prev, phone: '' }));
     }
-    return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
-  };
+  }, [phoneInputValue, countryCode]);
 
   // Form validation logic
   const validateForm = () => {
@@ -50,8 +83,8 @@ const Register = () => {
     }
     if (!formData.phone || !formData.phone.trim()) {
       newErrors.phone = 'Phone number is required';
-    } else if (!/^\d{3}-\d{3}-\d{4}$/.test(formData.phone)) {
-      newErrors.phone = 'Invalid phone number format (XXX-XXX-XXXX)';
+    } else if (!isPhoneValid) {
+      newErrors.phone = 'Invalid phone number format';
     }
     if (!formData.password) {
       newErrors.password = 'Password is required';
@@ -70,11 +103,20 @@ const Register = () => {
   // Handle input changes
   const handleChange = (e) => {
     const { name, value } = e.target;
-    const formattedValue = name === 'phone' ? formatPhoneNumber(value) : value;
+    
+    // Special handling for phone input
+    if (name === 'phone') {
+      // Extract only digits
+      const digits = value.replace(/\D/g, '');
+      setPhoneInputValue(digits);
+      return;
+    }
+    
     setFormData((prev) => ({
       ...prev,
-      [name]: formattedValue
+      [name]: value
     }));
+    
     if (errors[name]) {
       setErrors((prev) => ({
         ...prev,
@@ -83,14 +125,19 @@ const Register = () => {
     }
   };
 
+  const handleCountrySelect = (code, flag) => {
+    setCountryCode(code);
+    setCountryFlag(flag);
+    setIsDropdownOpen(false);
+  };
+
   // Handle form submission
-  const handleSubmit = async (e, retryCount = 0) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
     setLoading(true);
     try {
       const { confirmPassword, ...registrationData } = formData;
-      registrationData.phone = registrationData.phone.replace(/-/g, '');
       const response = await register(registrationData);
       if (response && (response.token || response.user)) {
         toast.success('Registration successful!', {
@@ -116,6 +163,25 @@ const Register = () => {
     }
   };
 
+  // Format the phone number for display based on country code
+  const formatPhoneDisplay = (phone, code) => {
+    if (!phone) return '';
+    
+    // For US/Canada format
+    if (code === '1') {
+      if (phone.length > 6) {
+        return `(${phone.slice(0, 3)}) ${phone.slice(3, 6)}-${phone.slice(6, 10)}`;
+      } else if (phone.length > 3) {
+        return `(${phone.slice(0, 3)}) ${phone.slice(3)}`;
+      } else if (phone.length > 0) {
+        return `(${phone}`;
+      }
+    }
+    
+    // For other countries, just return the raw digits
+    return phone;
+  };
+
   return (
     <div className="register-page relative overflow-hidden">
       {/* Floating Balls */}
@@ -133,7 +199,7 @@ const Register = () => {
           }}
         ></div>
       ))}
-<div className="register-card">
+      <div className="register-card">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center text-white">
             Create your account
@@ -178,15 +244,100 @@ const Register = () => {
               className="input-field"
             />
 
-            <Input
-              icon={<Phone className="w-5 h-5 icon" />}
-              name="phone"
-              placeholder="Phone Number (XXX-XXX-XXXX)"
-              value={formData.phone}
-              onChange={handleChange}
-              error={errors.phone}
-              className="input-field"
-            />
+            {/* Custom Phone Input with Country Code Dropdown */}
+            <div className="relative">
+              <div className={`flex h-10 w-full rounded-md border ${errors.phone ? 'border-red-500' : 'border-gray-300'} bg-white overflow-hidden`}>
+                {/* Country dropdown button */}
+                <div className="relative z-20" ref={dropdownRef}>
+                  <button
+                    type="button"
+                    className="h-full px-2 flex items-center text-gray-700 hover:bg-gray-100 transition-colors"
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  >
+                    <span className="text-base mr-1">{countryFlag}</span>
+                    <span className="text-xs font-medium">+{countryCode}</span>
+                    {isDropdownOpen ? 
+                      <ChevronUp className="h-3 w-3 ml-1" /> : 
+                      <ChevronDown className="h-3 w-3 ml-1" />
+                    }
+                  </button>
+                  
+                  {/* Country dropdown menu with AnimatePresence */}
+                  <AnimatePresence>
+                    {isDropdownOpen && (
+                      <motion.div 
+                        className="absolute z-50 left-0 top-full mt-1 w-64 rounded-md shadow-lg bg-white border border-gray-200 max-h-60 overflow-y-auto"
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        <div className="py-1">
+                          {countryCodes.map((country) => (
+                            <button
+                              key={`${country.code}-${country.country}`}
+                              className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-100 flex items-center ${
+                                countryCode === country.code ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                              }`}
+                              onClick={() => handleCountrySelect(country.code, country.flag)}
+                              type="button"
+                            >
+                              <span className="text-base mr-2">{country.flag}</span>
+                              <span>{country.name}</span>
+                              <span className="ml-1 text-gray-500">(+{country.code})</span>
+                              {countryCode === country.code && (
+                                <Check className="h-4 w-4 ml-auto text-blue-500" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+                
+                
+                {/* Divider */}
+                <div className="w-px h-6 self-center bg-gray-300"></div>
+                
+                {/* Phone input */}
+                <div className="relative flex-grow">
+                  <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
+                    <Phone className="h-4 w-4 text-gray-500" />
+                  </div>
+                  <input
+                    name="phone"
+                    type="tel"
+                    value={formatPhoneDisplay(phoneInputValue, countryCode)}
+                    onChange={(e) => {
+                      // Extract only digits
+                      const digits = e.target.value.replace(/\D/g, '');
+                      setPhoneInputValue(digits);
+                    }}
+                    className="w-full h-full pl-8 pr-8 text-sm border-0 focus:outline-none focus:ring-0"
+                    placeholder={countryCode === '1' ? "(555) 123-4567" : "Phone number"}
+                  />
+                </div>
+                
+                {/* Validity indicator */}
+                {phoneInputValue.length > 0 && (
+                  <div className="self-center pr-2">
+                    {isPhoneValid ? (
+                      <div className="h-5 w-5 rounded-full bg-green-100 flex items-center justify-center">
+                        <Check className="h-3 w-3 text-green-600" />
+                      </div>
+                    ) : (
+                      <div className="h-5 w-5 rounded-full bg-red-100 flex items-center justify-center">
+                        <span className="text-red-600 text-xs">!</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              {errors.phone && (
+                <p className="mt-1 text-sm text-red-500">{errors.phone}</p>
+              )}
+            </div>
 
             <div className="relative">
               <Input

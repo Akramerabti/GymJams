@@ -8,30 +8,162 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken'; // Also add jwt for token generation
-import { getRecommendedProfiles } from '../services/gymBrosRecommendationService.js';
-import { processFeedback } from '../services/gymBrosFeedbackService.js';
+import { getRecommendedProfiles, processFeedback } from '../services/gymBrosRecommendationService.js';
 import { handleError } from '../middleware/error.middleware.js';
 import twilio from 'twilio';
-
+import logger from '../utils/logger.js';
 
 // Check if user has a GymBros profile
 export const checkGymBrosProfile = async (req, res) => {
   try {
-    const userId = req.user.id;
-    console.log('Checking profile for user:', userId); 
-
-    const profile = await GymBrosProfile.findOne({ userId });
-
-    console.log('Profile found:', profile); 
-
-    if (profile) {
-      return res.json({ hasProfile: true, profile });
-    } else {
-      return res.json({ hasProfile: false, profile: null });
+    // If user is authenticated through token, use their ID
+    if (req.user && req.user.id) {
+      const userId = req.user.id;
+      console.log('Checking profile for authenticated user:', userId);
+      
+      const profile = await GymBrosProfile.findOne({ userId });
+      console.log('Profile found:', profile);
+      
+      if (profile) {
+        return res.json({ hasProfile: true, profile });
+      } else {
+        return res.json({ hasProfile: false, profile: null });
+      }
+    }
+    // If verifiedPhone is provided in the request body (for phone login flows)
+    else if (req.body && req.body.verifiedPhone) {
+      console.log('Checking profile by verified phone:', req.body.verifiedPhone);
+      
+      // First find the user by phone number
+      const user = await User.findOne({ phone: req.body.verifiedPhone });
+      
+      if (!user) {
+        return res.status(404).json({ 
+          message: 'No user found with this phone number',
+          hasProfile: false
+        });
+      }
+      
+      // Now find their GymBros profile
+      const profile = await GymBrosProfile.findOne({ userId: user._id });
+      console.log('Profile found by phone:', profile);
+      
+      if (profile) {
+        return res.json({ 
+          hasProfile: true, 
+          profile,
+          user: {
+            id: user._id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            phone: user.phone,
+            email: user.email
+          }
+        });
+      } else {
+        return res.json({ 
+          hasProfile: false, 
+          profile: null,
+          user: {
+            id: user._id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            phone: user.phone,
+            email: user.email
+          }
+        });
+      }
+    }
+    // No authentication and no phone verification
+    else {
+      return res.status(401).json({ message: 'Authentication required' });
     }
   } catch (error) {
-    console.error('Error in checkGymBrosProfile:', error); 
+    console.error('Error in checkGymBrosProfile:', error);
     handleError(error, req, res);
+  }
+};
+
+export const checkGymBrosProfileByPhone = async (req, res) => {
+  try {
+    const { verifiedPhone, verificationToken } = req.body;
+
+    console.log('Checking profile by phone:', verifiedPhone);
+    
+    if (!verifiedPhone || !verificationToken) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Phone number and verification token are required' 
+      });
+    }
+    
+  
+    try {
+      const decodedToken = jwt.verify(verificationToken, process.env.JWT_SECRET);
+      console.log('Decoded token:', decodedToken);
+      // Check if token was issued for this phone and is verified
+      if (!decodedToken.phone || decodedToken.phone !== verifiedPhone || !decodedToken.verified) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid verification token'
+        });
+      }
+    } catch (tokenError) {
+      logger.error('Token verification error:', tokenError);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired verification token'
+      });
+    }
+    
+    // Find user with this phone number
+    const user = await User.findOne({ phone: verifiedPhone });
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No account found with this phone number'
+      });
+    }
+    
+    // Update last login time
+    user.lastLogin = new Date();
+    await user.save();
+    
+    // Find GymBros profile if it exists
+    const profile = await GymBrosProfile.findOne({ userId: user._id });
+    
+    // Generate authentication token
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    // Return everything in one response - user data, token, and profile if it exists
+    res.json({
+      success: true,
+      hasProfile: !!profile,
+      profile: profile || null,
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        email: user.email,
+        role: user.role,
+        isEmailVerified: user.isEmailVerified,
+        points: user.points,
+        hasReceivedFirstLoginBonus: user.hasReceivedFirstLoginBonus
+      },
+      token
+    });
+  } catch (error) {
+    logger.error('Error in checkGymBrosProfileByPhone:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error when checking profile by phone'
+    });
   }
 };
 
@@ -160,67 +292,110 @@ export const deleteProfileImage = async (req, res) => {
   }
 };
 
-// Get recommended profiles for the user
 export const getGymBrosProfiles = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    console.log(`Fetching profiles for user: ${userId || 'guest'}`);
-    console.log(`Query parameters:`, req.query);
+    logger.info(`Fetching profiles for user: ${userId || 'guest'}`);
+    logger.info(`Query parameters:`, req.query);
 
     // Get user's profile
     const userProfile = await GymBrosProfile.findOne({ userId });
     if (!userProfile) {
-      throw { status: 404, message: "User profile not found" };
+      return res.status(404).json({ 
+        error: "User profile not found",
+        message: "Please complete your profile setup before browsing matches" 
+      });
     }
 
     // Get user's preferences
-    const userPreferences = await GymBrosPreference.findOne({ userId }) || 
-      new GymBrosPreference({ userId });
+    const userPreferences = await GymBrosPreference.findOne({ userId });
+    
+    // If no preferences exist yet, create default ones
+    const preferences = userPreferences || new GymBrosPreference({ userId });
 
-    // Get all candidate profiles (excluding already liked/disliked and the user)
+    // Build list of profiles to exclude (user, likes, dislikes)
     const excludedProfiles = [
       userId,
-      ...userPreferences.likedProfiles || [],
-      ...userPreferences.dislikedProfiles || []
+      ...(preferences.likedProfiles || []),
+      ...(preferences.dislikedProfiles || [])
     ];
 
+    // Get all candidate profiles (excluding already liked/disliked and the user)
     const candidateProfiles = await GymBrosProfile.find({
-      userId: { $nin: excludedProfiles }
+      userId: { $nin: excludedProfiles },
+      'location.lat': { $exists: true },
+      'location.lng': { $exists: true }
     });
 
     // Apply filters if provided
-    const { workoutTypes, experienceLevel, preferredTime, maxDistance } = req.query;
+    const { 
+      workoutTypes, 
+      experienceLevel, 
+      preferredTime, 
+      gender, 
+      minAge, 
+      maxAge,
+      maxDistance
+    } = req.query;
 
-    const recommendationOptions = {
-      maxDistance: maxDistance ? parseInt(maxDistance, 10) : 50,
-      userPreferences,
+    const filterOptions = {
+      maxDistance: maxDistance ? parseInt(maxDistance, 10) : preferences.maxDistance || 50,
+      userPreferences: preferences,
       filters: {
         workoutTypes: workoutTypes ? workoutTypes.split(',') : undefined,
         experienceLevel: experienceLevel || undefined,
-        preferredTime: preferredTime || undefined
+        preferredTime: preferredTime || undefined,
+        gender: gender || undefined,
+        ageRange: {
+          min: minAge ? parseInt(minAge, 10) : preferences.ageRange?.min || 18,
+          max: maxAge ? parseInt(maxAge, 10) : preferences.ageRange?.max || 99
+        }
       }
     };
     
-    console.log('Applying filters:', recommendationOptions.filters);
+    logger.info('Applying filters:', filterOptions.filters);
 
-    // Get recommended profiles
+    // Get recommended profiles using enhanced service
     const recommendations = await getRecommendedProfiles(
       userProfile, 
       candidateProfiles,
-      recommendationOptions
+      filterOptions
     );
 
-    res.json(recommendations);
+    const potentialMatches = await findPotentialMatches(userId);
+    
+    const sortedRecommendations = recommendations.sort((a, b) => {
+      // Prioritize users who've already liked this user
+      const aLikedUser = potentialMatches.includes(a.userId);
+      const bLikedUser = potentialMatches.includes(b.userId);
+      
+      if (aLikedUser && !bLikedUser) return -1;
+      if (!aLikedUser && bLikedUser) return 1;
+      
+      // Then sort by match score
+      if (a.matchScore !== b.matchScore) {
+        return b.matchScore - a.matchScore;
+      }
+      
+      // Finally sort by distance
+      return a.location.distance - b.location.distance;
+    });
+
+    // Save browsing session for analytics
+    saveBrowsingSession(userId, sortedRecommendations.map(profile => profile._id));
+
+    res.json(sortedRecommendations);
   } catch (error) {
-    // Ensure the error is properly formatted before passing it to handleError
-    if (!error.status) {
-      error.status = 500;
-    }
-    next(error);
+    logger.error('Error in getGymBrosProfiles:', error);
+    
+    // Properly formatted error response
+    return res.status(500).json({ 
+      error: "Failed to retrieve matches",
+      message: "An unexpected error occurred while finding gym partners"
+    });
   }
 };
 
-// Like a GymBros profile
 export const likeGymBrosProfile = async (req, res) => {
   try {
     const { profileId } = req.params;
@@ -235,7 +410,8 @@ export const likeGymBrosProfile = async (req, res) => {
     
     res.json({ success: result, match: isMatch });
   } catch (error) {
-    handleError(error, req, res);
+    logger.error('Error in likeGymBrosProfile:', error);
+    res.status(500).json({ error: 'Failed to process like' });
   }
 };
 
@@ -251,7 +427,8 @@ export const dislikeGymBrosProfile = async (req, res) => {
     
     res.json({ success: result });
   } catch (error) {
-    handleError(error, req, res);
+    logger.error('Error in dislikeGymBrosProfile:', error);
+    res.status(500).json({ error: 'Failed to process dislike' });
   }
 };
 
@@ -502,7 +679,6 @@ export const getUserPreferences = async (req, res) => {
   }
 };
 
-// Internal function to check for a match
 const checkForMatch = async (userId, targetId) => {
   // Check if the target user has liked the current user
   const targetPreferences = await GymBrosPreference.findOne({ userId: targetId });
@@ -534,7 +710,6 @@ const checkForMatch = async (userId, targetId) => {
   
   return false;
 };
-
 
 
 export const checkPhoneExists = async (req, res) => {
@@ -676,12 +851,15 @@ export const verifyCode = async (req, res) => {
       return res.status(400).json({ message: 'Phone and code are required' });
     }
     
+    console.log('Verifying code:', code);
+    console.log('For phone:', phone);
     // Find the verification record
     const verification = await PhoneVerification.findOne({ 
       phone,
       code,
       expiresAt: { $gt: new Date() } // Make sure it hasn't expired
     });
+
     
     if (!verification) {
       return res.status(400).json({ 
@@ -713,3 +891,26 @@ export const verifyCode = async (req, res) => {
     });
   }
 };
+
+
+
+
+async function findPotentialMatches(userId) {
+  try {
+    // Find all users who have liked this user
+    const usersWhoLikedCurrent = await GymBrosPreference.find({
+      likedProfiles: userId
+    }).select('userId');
+    
+    return usersWhoLikedCurrent.map(pref => pref.userId.toString());
+  } catch (error) {
+    logger.error('Error finding potential matches:', error);
+    return [];
+  }
+}
+
+async function saveBrowsingSession(userId, profileIds) {
+  // Implementation depends on your analytics strategy
+  // This is a placeholder for future implementation
+  // Could save to database, send to analytics service, etc.
+}

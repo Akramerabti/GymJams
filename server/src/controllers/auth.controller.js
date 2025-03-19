@@ -184,6 +184,64 @@ export const login = async (req, res) => {
   }
 };
 
+
+export const loginWithTokenFORPHONE = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    // Decode the token to extract phone and verified fields
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const { phone, verified } = decoded;
+
+    // Check if the token is verified
+    if (!verified) {
+      return res.status(401).json({ message: 'Token is not verified' });
+    }
+
+    // Find the user by phone number
+    const user = await User.findOne({ phone });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Generate a new token (optional, for security)
+    const newToken = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Return the user and new token
+    res.json({
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        points: user.points,
+        isEmailVerified: user.isEmailVerified,
+        hasReceivedFirstLoginBonus: user.hasReceivedFirstLoginBonus,
+        role: user.role,
+        subscription: user.subscription,
+      },
+      token: newToken,
+    });
+  } catch (error) {
+    console.error('Error in loginWithToken:', error);
+
+    // Handle specific JWT errors
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Token expired' });
+    }
+
+    res.status(500).json({ message: 'Error logging in with token' });
+  }
+};
+
 // auth.controller.js
 export const validateToken = async (req, res) => {
   try {
@@ -673,6 +731,10 @@ export const loginWithPhone = async (req, res) => {
         message: 'No account found with this phone number'
       });
     }
+    
+    // Update last login time
+    user.lastLogin = new Date();
+    await user.save();
     
     // Generate authentication token
     const token = jwt.sign(

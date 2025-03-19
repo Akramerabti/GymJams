@@ -1,38 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { 
-  Dumbbell, ChevronRight, ChevronLeft, CheckCircle, Award, Clock, 
-  MapPin, Moon, Sun, Target, Phone, LogIn, User
+  Dumbbell, ChevronRight, ChevronLeft, Moon, Sun
 } from 'lucide-react';
 import api from '../../services/api';
 import useAuthStore from '../../stores/authStore';
-import ImageUploader from './ImageUploader';
-import LocationPicker from './LocationPicker';
-import PhoneVerification from './PhoneVerification';
+import { buildSteps } from './buildSteps';
 import gymbrosService from '../../services/gymbros.service';
 
-const workoutTypes = [
-  'Strength Training', 'Cardio', 'HIIT', 'CrossFit', 'Bodybuilding',
-  'Yoga', 'Pilates', 'Calisthenics', 'Powerlifting', 'Olympic Lifting',
-  'Functional Training', 'Group Classes'
-];
-
-const experienceLevels = ['Beginner', 'Intermediate', 'Advanced'];
-const timePreferences = ['Morning', 'Afternoon', 'Evening', 'Late Night', 'Weekends Only', 'Flexible'];
-const genders = ['Male', 'Female', 'Other'];
-const heightUnits = ['cm', 'inches'];
-
-const interests = [
-  'Reading', 'Traveling', 'Cooking', 'Hiking', 'Cycling', 'Swimming',
-  'Painting', 'Photography', 'Music', 'Dancing', 'Gaming', 'Writing',
-  'Fitness', 'Yoga', 'Meditation', 'Movies', 'Theater', 'Art', 'Nature',
-  'Technology', 'Fashion', 'Foodie', 'Wine Tasting', 'Coffee Enthusiast'
-  // Shortened for brevity
-];
-
 const GymBrosSetup = ({ onProfileCreated }) => {
-  const { user, login, isAuthenticated } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
   const [currentStep, setCurrentStep] = useState(0);
   const [direction, setDirection] = useState(1);
   const [darkMode, setDarkMode] = useState(false);
@@ -62,9 +40,34 @@ const GymBrosSetup = ({ onProfileCreated }) => {
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [verificationToken, setVerificationToken] = useState(null);
   const [authMode, setAuthMode] = useState('signup'); // 'signup' or 'login'
-  
-  // State to track if we're explicitly showing the phone verification for login
-  const [showPhoneLogin, setShowPhoneLogin] = useState(true);
+  const [showPhoneLogin, setShowPhoneLogin] = useState(false);
+
+  // Initialize dark mode from localStorage
+  useEffect(() => {
+    const storedDarkMode = localStorage.getItem('gymBrosDarkMode') === 'true';
+    setDarkMode(storedDarkMode);
+  }, []);
+
+  // If user is authenticated, initialize profile data with user info
+  useEffect(() => {
+    if (user) {
+      console.log('Initializing profile data with user info:', user);
+      const userData = user.user || user;
+      
+      // Pre-fill data if user is logged in
+      setProfileData(prev => ({
+        ...prev,
+        name: userData.firstName ? `${userData.firstName} ${userData.lastName || ''}`.trim() : prev.name,
+        phone: userData.phone || prev.phone,
+      }));
+      
+      // If user has a phone number, consider it verified
+      if (userData.phone) {
+        setIsPhoneVerified(true);
+        console.log('User already has a phone number, marking as verified:', userData.phone);
+      }
+    }
+  }, [user]);
 
   const toggleDarkMode = () => {
     const newMode = !darkMode;
@@ -72,6 +75,18 @@ const GymBrosSetup = ({ onProfileCreated }) => {
     localStorage.setItem('gymBrosDarkMode', newMode.toString());
   };
 
+  // Handler functions for form inputs
+  const handleChange = (field, value) => {
+    if (field === 'location') {
+      setProfileData(prev => ({
+        ...prev,
+        location: { ...prev.location, ...value },
+      }));
+    } else {
+      setProfileData(prev => ({ ...prev, [field]: value }));
+    }
+  };
+  
   const handleWorkoutTypeToggle = (type) => {
     setProfileData(prev => {
       if (prev.workoutTypes.includes(type)) {
@@ -105,10 +120,55 @@ const GymBrosSetup = ({ onProfileCreated }) => {
   };
 
   const handlePhoneChange = (phone) => {
+    // Don't allow changing the phone if the user is logged in and has a phone
+    if (isAuthenticated && user && (user.phone || (user.user && user.user.phone))) {
+      toast.error("You can't change your phone number when logged in");
+      return;
+    }
+    
     setProfileData(prev => ({ ...prev, phone }));
     // Reset verification status when phone number changes
     setIsPhoneVerified(false);
     setVerificationToken(null);
+  };
+  
+  const handleLoginWithPhone = () => {
+    setAuthMode('login');
+    setShowPhoneLogin(true);
+    
+    // Go to phone verification step
+    const phoneVerificationIndex = steps.findIndex(step => step.id === 'phone');
+    if (phoneVerificationIndex !== -1) {
+      setDirection(1);
+      setCurrentStep(phoneVerificationIndex);
+    }
+  };
+  
+  const handleExistingAccountFound = (phone) => {
+    // Set auth mode to login
+    setAuthMode('login');
+    
+    // Go directly to phone verification step for login
+    setShowPhoneLogin(true);
+    
+    // Find the phone verification step index
+    const phoneVerificationIndex = steps.findIndex(step => step.id === 'phone');
+    if (phoneVerificationIndex !== -1) {
+      setCurrentStep(phoneVerificationIndex);
+    }
+    
+    toast.info(
+      'Account found with this phone number',
+      { description: 'Please verify to log in' }
+    );
+  };
+  
+  const handleContinueWithNewAccount = (phone, token) => {
+    setAuthMode('signup');
+    setShowPhoneLogin(false); // Hide the login button for new accounts
+    setVerificationToken(token);
+    setIsPhoneVerified(true);
+    goToNextStep();
   };
 
   const handlePhoneVerified = async (verified, userData = null, token = null, profileData = null) => {
@@ -138,16 +198,22 @@ const GymBrosSetup = ({ onProfileCreated }) => {
         onProfileCreated(profileData.profile);
         return; // Exit early as we're done
       }
-      
-      // No profile data, check if the user has a GymBros profile
+    
       try {
-        const gymBrosProfile = await gymbrosService.getGymBrosProfile();
-        
-        if (gymBrosProfile.hasProfile) {
-          // User has a profile, notify parent component
-          toast.success('Found your existing profile!');
-          onProfileCreated(gymBrosProfile.profile);
-          return; // Exit early as we're done
+        // Use the special function for phone verification flow instead of the regular endpoint
+        const verifiedPhone = profileData?.verifiedPhone || userData.phone;
+        if (verifiedPhone && token) {
+          console.log('Checking profile with verified phone:', verifiedPhone);
+          const gymBrosProfile = await gymbrosService.checkProfileWithVerifiedPhone(verifiedPhone, token);
+          
+          if (gymBrosProfile.hasProfile) {
+            // User has a profile, notify parent component
+            toast.success('Found your existing profile!');
+            onProfileCreated(gymBrosProfile.profile);
+            return; // Exit early as we're done
+          }
+        } else {
+          console.warn('Missing verified phone or token for profile check');
         }
       } catch (error) {
         console.error('Error checking for GymBros profile:', error);
@@ -158,57 +224,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
       goToNextStep();
     }
   };
-
-  const handleChange = (field, value) => {
-    if (field === 'location') {
-      setProfileData(prev => ({
-        ...prev,
-        location: { ...prev.location, ...value },
-      }));
-    } else {
-      setProfileData(prev => ({ ...prev, [field]: value }));
-    }
-  };
-
-  const handleExistingAccountFound = (phone) => {
-    // Set auth mode to login
-    setAuthMode('login');
-    
-    // Go directly to phone verification step for login
-    setShowPhoneLogin(true);
-    
-    // Find the phone verification step index
-    const phoneVerificationIndex = steps.findIndex(step => step.id === 'phone');
-    if (phoneVerificationIndex !== -1) {
-      setCurrentStep(phoneVerificationIndex);
-    }
-    
-    toast.info(
-      'Account found with this phone number',
-      { description: 'Please verify to log in' }
-    );
-  };
-
-  const handleLoginWithPhone = () => {
-    setAuthMode('login');
-    setShowPhoneLogin(true);
-    
-    // Go to phone verification step
-    const phoneVerificationIndex = steps.findIndex(step => step.id === 'phone');
-    if (phoneVerificationIndex !== -1) {
-      setDirection(1);
-      setCurrentStep(phoneVerificationIndex);
-    }
-  };
   
-  const handleContinueWithNewAccount = (phone, token) => {
-    setAuthMode('signup');
-    setShowPhoneLogin(false); // Hide the login button for new accounts
-    setVerificationToken(token);
-    setIsPhoneVerified(true);
-    goToNextStep();
-  };
-
   const handleSubmit = async () => {
     if (!isPhoneVerified) {
       toast.error('Please verify your phone number before proceeding.');
@@ -252,389 +268,8 @@ const GymBrosSetup = ({ onProfileCreated }) => {
       setLoading(false);
     }
   };
-  
-  const buildSteps = () => {
-    
-    let stepsList = [
-      {
-        id: 'name',
-        title: "What's your name?",
-        subtitle: "Let's start with the basics",
-        icon: <User size={24} />,
-        isValid: () => profileData.name.trim().length > 0,
-        component: (
-          <div className="w-full space-y-4">
-            <input 
-              type="text" 
-              value={profileData.name} 
-              onChange={(e) => handleChange('name', e.target.value)}
-              className="w-full p-4 text-2xl bg-transparent border-b-2 border-primary focus:outline-none" 
-              placeholder="Enter your name"
-              autoFocus
-            />
-            
-            {!isAuthenticated && (authMode === 'login' || showPhoneLogin) && (
-              <button
-                onClick={handleLoginWithPhone}
-                className="w-full mt-4 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
-              >
-                <LogIn className="w-5 h-5 mr-2" />
-                Log in with Phone Number
-              </button>
-            )}
-          </div>
-        )
-      },
-      {
-        id: 'phone',
-        title: authMode === 'login' ? "Log in with your phone" : "What's your phone number?",
-        subtitle: authMode === 'login' ? 
-          "We'll verify your identity" : 
-          "We'll send a verification code to this number",
-        icon: <Phone size={24} />,
-        isValid: () => isPhoneVerified,
-        component: (
-          <PhoneVerification
-            phone={profileData.phone}
-            onChange={handlePhoneChange}
-            onVerified={handlePhoneVerified}
-            isLoginFlow={authMode === 'login'}
-            onExistingAccountFound={handleExistingAccountFound}
-            onContinueWithNewAccount={handleContinueWithNewAccount}
-          />
-        )
-      },
-      // Only include these steps for signup
-      ...(authMode === 'signup' ? [
-        {
-          id: 'age',
-          title: "How old are you?",
-          subtitle: "Age helps find compatible gym partners",
-          icon: <CheckCircle size={24} />,
-          isValid: () => profileData.age >= 18 && profileData.age < 100,
-          component: (
-            <div className="w-full">
-              <input 
-                type="number" 
-                value={profileData.age} 
-                onChange={(e) => handleChange('age', e.target.value)}
-                className="w-full p-4 text-2xl bg-transparent border-b-2 border-primary focus:outline-none" 
-                placeholder="Enter your age"
-                min="18"
-                max="99"
-                autoFocus
-              />
-              <p className="text-sm mt-2 text-gray-500">Must be 18 or older</p>
-            </div>
-          )
-        },
-        {
-          id: 'gender',
-          title: "What's your gender?",
-          subtitle: "This helps us tailor your experience",
-          icon: <CheckCircle size={24} />,
-          isValid: () => profileData.gender !== '',
-          component: (
-            <div className="w-full">
-              <div className="flex flex-col gap-3">
-                {genders.map(gender => (
-                  <button
-                    key={gender}
-                    type="button"
-                    onClick={() => handleChange('gender', gender)}
-                    className={`px-6 py-4 rounded-xl text-lg flex items-center transition-all ${
-                      profileData.gender === gender
-                        ? 'bg-primary text-white bg-blue-700 scale-105'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {gender}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )
-        },
-        {
-          id: 'height',
-          title: "What's your height?",
-          subtitle: "This helps us tailor your experience",
-          icon: <CheckCircle size={24} />,
-          isValid: () => profileData.height !== '',
-          component: (
-            <div className="w-full">
-              <div className="flex flex-col gap-3">
-                <input 
-                  type="number" 
-                  value={profileData.height} 
-                  onChange={(e) => handleChange('height', e.target.value)}
-                  className="w-full p-4 text-2xl bg-transparent border-b-2 border-primary focus:outline-none" 
-                  placeholder="Enter your height"
-                  autoFocus
-                />
-                <div className="flex gap-2">
-                  {heightUnits.map(unit => (
-                    <button
-                      key={unit}
-                      type="button"
-                      onClick={() => handleChange('heightUnit', unit)}
-                      className={`px-4 py-2 rounded-xl text-md flex items-center transition-all ${
-                        profileData.heightUnit === unit
-                          ? 'bg-primary text-white bg-blue-700 scale-105'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      {unit}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )
-        },
-        {
-          id: 'interests',
-          title: "What are your interests?",
-          subtitle: "This helps us tailor your experience",
-          icon: <CheckCircle size={24} />,
-          isValid: () => profileData.interests.length > 0,
-          component: (
-            <div className="w-full">
-              <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto p-2">
-                {interests.map(interest => (
-                  <button
-                    key={interest}
-                    type="button"
-                    onClick={() => handleInterestToggle(interest)}
-                    className={`px-4 py-3 rounded-full text-sm font-medium transition-all ${
-                      profileData.interests.includes(interest)
-                        ? 'bg-primary text-white bg-blue-700 scale-105'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {interest}
-                  </button>
-                ))}
-              </div>
-              <p className="text-sm mt-4 text-gray-500">
-                Selected: {profileData.interests.length > 0 ? 
-                  profileData.interests.join(', ') : 
-                  'None yet - please select at least one'}
-              </p>
-            </div>
-          )
-        },
-        {
-          id: 'work',
-          title: "What's your work?",
-          subtitle: "This helps us tailor your experience",
-          icon: <CheckCircle size={24} />,
-          isValid: () => true, // Optional
-          component: (
-            <div className="w-full">
-              <input 
-                type="text" 
-                value={profileData.work} 
-                onChange={(e) => handleChange('work', e.target.value)}
-                className="w-full p-4 text-2xl bg-transparent border-b-2 border-primary focus:outline-none" 
-                placeholder="Enter your work"
-                autoFocus
-              />
-            </div>
-          )
-        },
-        {
-          id: 'studies',
-          title: "What are you studying?",
-          subtitle: "This helps us tailor your experience",
-          icon: <CheckCircle size={24} />,
-          isValid: () => true, // Optional
-          component: (
-            <div className="w-full">
-              <input 
-                type="text" 
-                value={profileData.studies} 
-                onChange={(e) => handleChange('studies', e.target.value)}
-                className="w-full p-4 text-2xl bg-transparent border-b-2 border-primary focus:outline-none" 
-                placeholder="Enter your studies"
-                autoFocus
-              />
-            </div>
-          )
-        },
-        {
-          id: 'images',
-          title: "Show off your gains",
-          subtitle: "Upload 2-6 images (16:9 ratio)",
-          icon: <CheckCircle size={24} />,
-          isValid: () => profileData.images.length >= 2,
-          component: (
-            <ImageUploader 
-              images={profileData.images}
-              onImagesChange={(images) => handleChange('images', images)}
-            />
-          )
-        },
-        {
-          id: 'workoutTypes',
-          title: "What workouts do you enjoy?",
-          subtitle: "Select all that apply",
-          icon: <Dumbbell size={24} />,
-          isValid: () => profileData.workoutTypes.length > 0,
-          component: (
-            <div className="w-full">
-              <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto p-2">
-                {workoutTypes.map(type => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => handleWorkoutTypeToggle(type)}
-                    className={`px-4 py-3 rounded-full text-sm font-medium transition-all ${
-                      profileData.workoutTypes.includes(type)
-                        ? 'bg-primary text-white bg-blue-700 scale-105'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {type}
-                  </button>
-                ))}
-              </div>
-              <p className="text-sm mt-4 text-gray-500">
-                Selected: {profileData.workoutTypes.length > 0 ? 
-                  profileData.workoutTypes.join(', ') : 
-                  'None yet - please select at least one'}
-              </p>
-            </div>
-          )
-        },
-        {
-          id: 'experienceLevel',
-          title: "What's your experience level?",
-          subtitle: "Be honest - we'll match you appropriately",
-          icon: <Award size={24} />,
-          isValid: () => profileData.experienceLevel !== '',
-          component: (
-            <div className="w-full">
-              <div className="flex flex-col gap-3">
-                {experienceLevels.map(level => (
-                  <button
-                    key={level}
-                    type="button"
-                    onClick={() => handleChange('experienceLevel', level)}
-                    className={`px-6 py-4 rounded-xl text-lg flex items-center transition-all ${
-                      profileData.experienceLevel === level
-                        ? 'bg-primary text-white bg-blue-700 scale-105'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    <Award 
-                      size={20} 
-                      className={`mr-3 ${profileData.experienceLevel === level ? 'text-white' : 'text-gray-500'}`} 
-                    />
-                    {level}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )
-        },
-        {
-          id: 'preferredTime',
-          title: "When do you prefer to work out?",
-          subtitle: "Find partners with similar schedules",
-          icon: <Clock size={24} />,
-          isValid: () => profileData.preferredTime !== '',
-          component: (
-            <div className="w-full">
-              <div className="grid grid-cols-2 gap-3">
-                {timePreferences.map(time => (
-                  <button
-                    key={time}
-                    type="button"
-                    onClick={() => handleChange('preferredTime', time)}
-                    className={`px-4 py-4 rounded-xl text-md flex items-center justify-center transition-all ${
-                      profileData.preferredTime === time
-                        ? 'bg-primary text-white bg-blue-700 scale-105'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    <Clock 
-                      size={16} 
-                      className={`mr-2 ${profileData.preferredTime === time ? 'text-white' : 'text-gray-500'}`} 
-                    />
-                    {time}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )
-        },
-        {
-          id: 'goals',
-          title: "What are your fitness goals?",
-          subtitle: "Find partners with similar ambitions",
-          icon: <Target size={24} />,
-          isValid: () => true, // Optional
-          component: (
-            <div className="w-full">
-              <input 
-                type="text" 
-                value={profileData.goals} 
-                onChange={(e) => handleChange('goals', e.target.value)}
-                className="w-full p-4 text-2xl bg-transparent border-b-2 border-primary focus:outline-none" 
-                placeholder="Enter your goals"
-                autoFocus
-              />
-            </div>
-          )
-        },
-        {
-          id: 'location',
-          title: "Where are you located?",
-          subtitle: "Find gym partners nearby",
-          icon: <MapPin size={24} />,
-          isValid: () => profileData.location.lat !== null && profileData.location.lng !== null,
-          component: (
-            <LocationPicker 
-              location={profileData.location}
-              onLocationChange={(location) => handleChange('location', location)}
-            />
-          )
-        },
-      ] : [])
-    ];
-
-    return stepsList;
-  };
-  
-  const steps = buildSteps();
-
-  useEffect(() => {
-    if (user?.user) {
-      setProfileData(prev => ({
-        ...prev,
-        name: user.user.firstName || '',
-        phone: user.user.phone || '',
-        location: {
-          lat: user.user.location?.lat || null,
-          lng: user.user.location?.lng || null,
-          address: user.user.location?.address || '',
-        },
-      }));
-    }
-  }, [user]);
-
-  useEffect(() => {
-    setProgress(((currentStep + 1) / steps.length) * 100);
-  }, [currentStep, steps.length]);
 
   const goToNextStep = () => {
-    // In login mode, and if we've verified the phone, we've successfully logged in
-    if (authMode === 'login' && isPhoneVerified && currentStep === steps.findIndex(step => step.id === 'phone')) {
-      // Fetch the gym profile from the server - this is now handled in handlePhoneVerified
-      return;
-    }
-
     const currentStepConfig = steps[currentStep];
 
     // Validate current step
@@ -651,17 +286,64 @@ const GymBrosSetup = ({ onProfileCreated }) => {
     }
   };
 
+  // Use the buildSteps function to create the steps
+  const steps = buildSteps({
+    isAuthenticated,
+    user,
+    profileData,
+    authMode,
+    showPhoneLogin,
+    isPhoneVerified,
+    handleChange,
+    handleLoginWithPhone,
+    handlePhoneChange,
+    handlePhoneVerified,
+    handleExistingAccountFound,
+    handleContinueWithNewAccount,
+    handleInterestToggle,
+    handleWorkoutTypeToggle,
+    goToNextStep,
+  });
+
+  // Add keyboard event listener for Enter key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Check if Enter key was pressed and not in a form input that should submit normally
+      if (e.key === 'Enter' && 
+          e.target.tagName !== 'TEXTAREA' && 
+          !e.target.matches('input[type="text"], input[type="number"]')) {
+        e.preventDefault();
+        goToNextStep();
+      }
+    };
+  
+    // Add event listener for keydown
+    window.addEventListener('keydown', handleKeyDown);
+    
+    // Clean up the event listener when component unmounts
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [currentStep]);
+
+  // Update progress bar based on current step
+  useEffect(() => {
+    setProgress(((currentStep + 1) / steps.length) * 100);
+  }, [currentStep, steps.length]);
+
   const goToPrevStep = () => {
     if (currentStep > 0) {
       setDirection(-1);
       setCurrentStep(currentStep - 1);
       
       // If we're going back to the first step, ensure the login button is shown if it was previously shown
-      if (currentStep - 1 === 0 && authMode === 'login') {
-        setShowPhoneLogin(true);
+      if (currentStep - 1 === 0 && !isAuthenticated) {
+        setShowPhoneLogin(false);
       }
     }
   };
+
+
 
   // Animation variants for smoother transitions
   const variants = {
@@ -692,7 +374,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
       {/* Progress bar */}
       <div className="w-full h-2 bg-gray-200 rounded-full mb-4">
         <div
-          className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
+          className="h-full bg-primary rounded-full transition-all duration-500 ease-out bg-blue-500"
           style={{ width: `${progress}%` }}
         />
       </div>
@@ -732,7 +414,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
         <button
           onClick={goToPrevStep}
           disabled={currentStep === 0}
-          className={`p-2 rounded-full ${darkModeClasses.button} transition-all`}
+          className={`p-2 rounded-full ${darkModeClasses.button} transition-all ${currentStep === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <ChevronLeft size={24} />
         </button>
@@ -751,7 +433,11 @@ const GymBrosSetup = ({ onProfileCreated }) => {
           className={`p-2 rounded-full ${darkModeClasses.buttonActive} transition-all`}
           disabled={loading}
         >
-          <ChevronRight size={24} />
+          {loading ? (
+            <span className="animate-spin">⏳</span>
+          ) : (
+            <ChevronRight size={24} />
+          )}
         </button>
       </div>
     </div>

@@ -15,9 +15,6 @@ const gymbrosService = {
     }
   },
 
-  /**
-   * Send verification code to a phone number
-   */
   async sendVerificationCode(phone) {
     try {
       const response = await api.post('/gym-bros/send-verification', { phone });
@@ -28,12 +25,15 @@ const gymbrosService = {
     }
   },
 
-  /**
-   * Verify the OTP code sent to phone
-   */
   async verifyCode(phone, code) {
     try {
-      const response = await api.post('/gym-bros/verify-code', { phone, code });
+
+  
+      // Send the phone number without the country code to the backend
+      const response = await api.post('/gym-bros/verify-code', { 
+        phone, 
+        code 
+      });
       return response.data;
     } catch (error) {
       console.error('Error verifying code:', error);
@@ -41,15 +41,22 @@ const gymbrosService = {
     }
   },
 
-  /**
-   * Login with a verified phone number and token
-   */
   async loginWithPhone(phone, verificationToken) {
     try {
       const response = await api.post('/auth/phone-login', { 
         phone, 
         verificationToken 
       });
+  
+      // If login is successful, update the authorization header
+      if (response.data.success && response.data.token) {
+        // Store the token in localStorage
+        localStorage.setItem('token', response.data.token);
+        
+        // Set the default Authorization header for all future requests
+        api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Error logging in with phone:', error);
@@ -57,9 +64,43 @@ const gymbrosService = {
     }
   },
 
-  /**
-   * Register a new account with a verified phone number
-   */
+async checkProfileWithVerifiedPhone(phone, verificationToken) {
+  try {
+    console.log('Checking profile with verified phone:', phone);
+    
+    // Call the endpoint that does everything in one step
+    const response = await api.post('/gym-bros/profile/by-phone', {
+      verifiedPhone: phone, 
+      verificationToken
+    });
+    
+    console.log('Profile by phone response:', response.data);
+    
+    // If the request was successful and we got a token
+    if (response.data.success && response.data.token) {
+      // Set the token in localStorage and update API headers
+      localStorage.setItem('token', response.data.token);
+      api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+      console.log('Auth token set:', response.data.token);
+      
+      // Clean up any temporary storage
+      localStorage.removeItem('verifiedPhone');
+      localStorage.removeItem('verificationToken');
+      
+      // Return the complete response
+      return response.data;
+    } else {
+      console.warn('Profile by phone request failed:', response.data);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error checking profile with verified phone:', error);
+    throw error;
+  }
+},
+
+ 
   async registerWithPhone(phone, verificationToken, userData) {
     try {
       const response = await api.post('/auth/phone-register', {

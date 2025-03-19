@@ -22,11 +22,21 @@ export const countryCodes = [
     { code: '39', country: 'IT', name: 'Italy', flag: '🇮🇹' },
   ];
   
-  /**
-   * Detect country from phone number
-   * @param {string} phoneNumber - The phone number to detect country from
-   * @returns {object|null} - Country code object or null if not found
-   */
+  export const removeCountryCode = (phoneNumber, countryCode) => {
+    if (!phoneNumber || !countryCode) return phoneNumber;
+  
+    // Remove all non-digit characters
+    const digits = phoneNumber.replace(/\D/g, '');
+  
+    // Remove the country code if it exists
+    if (digits.startsWith(countryCode)) {
+      return digits.substring(countryCode.length);
+    }
+  
+    return digits;
+  };
+
+  
   export const detectCountryFromPhone = (phoneNumber) => {
     if (!phoneNumber) return null;
     
@@ -45,12 +55,6 @@ export const countryCodes = [
     return null;
   };
   
-  /**
-   * Format a phone number for display based on country
-   * @param {string} phoneNumber - The phone number to format
-   * @param {string} countryCode - The country code
-   * @returns {string} - Formatted phone number
-   */
   export const formatPhoneForDisplay = (phoneNumber, countryCode) => {
     if (!phoneNumber) return '';
     

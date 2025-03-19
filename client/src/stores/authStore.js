@@ -17,6 +17,8 @@ const useAuthStore = create(
   persist(
     (set, get) => ({
       ...initialState,
+
+      // Existing methods...
       setUser: (user) => {
         set({ user, isAuthenticated: !!user });
 
@@ -37,7 +39,6 @@ const useAuthStore = create(
           set({ token: null, isAuthenticated: false });
         }
       },
-
 
       setLoading: (loading) => set({ loading }),
       setError: (error) => set({ error }),
@@ -64,6 +65,7 @@ const useAuthStore = create(
         }
       },
 
+      // Validate phone
       validatePhone: async (phone) => {
         const { user } = get();
         console.log('Validating phone:', phone); // Log the phone number
@@ -79,6 +81,7 @@ const useAuthStore = create(
         }
       },
 
+      // Update profile
       updateProfile: async (profileData) => {
         const { token, setLoading, setError, setUser } = get();
         setLoading(true);
@@ -111,6 +114,7 @@ const useAuthStore = create(
         }
       },
 
+      // Register
       register: async (userData) => {
         const { setLoading, setError } = get();
         setLoading(true);
@@ -128,13 +132,7 @@ const useAuthStore = create(
         }
       },
 
-      registerResetCallback: (callback) => {
-        if (!window.resetStores) {
-          window.resetStores = [];
-        }
-        window.resetStores.push(callback);
-      },
-  
+      // Verify email
       verifyEmail: async (token) => {
         const { setLoading, setError, setUser, setToken } = get();
         setLoading(true);
@@ -163,6 +161,7 @@ const useAuthStore = create(
         }
       },
 
+      // Resend verification email
       resendVerificationEmail: async (email) => {
         const { setLoading, setError } = get();
         setLoading(true);
@@ -180,7 +179,7 @@ const useAuthStore = create(
         }
       },
 
-      // Authentication Actions
+      // Login with email and password
       login: async (email, password) => {
         const { setLoading, setError, setUser, setToken } = get();
         setLoading(true);
@@ -214,6 +213,45 @@ const useAuthStore = create(
         }
       },
 
+      // Login with token
+      loginWithToken: async (token) => {
+        const { setLoading, setError, setUser, setToken } = get();
+        setLoading(true);
+        setError(null);
+      
+        try {
+          // Make API call to validate the token and fetch user data
+          const response = await api.post('/auth/loginwithtoken', { token });
+        
+          // Extract user and token from the response
+          const { user, token: newToken } = response.data;
+        
+          // Set user and token in the store
+          setToken(newToken);
+          setUser(user);
+        
+          // Update points balance
+          if (user.points !== undefined) {
+            usePoints.getState().setBalance(user.points);
+          }
+        
+          console.log('has received login bonus', user.hasReceivedFirstLoginBonus);
+          if (!user.hasReceivedFirstLoginBonus) {
+            set({ showOnboarding: true });
+            usePoints.getState().updatePointsInBackend(user.points + 100);
+          }
+        
+          return { token: newToken, user };
+        } catch (error) {
+          const message = error.response?.data?.message || 'Login with token failed';
+          setError(message);
+          throw error;
+        } finally {
+          setLoading(false);
+        }
+      },
+
+      // Logout
       logout: async () => {
         const { setLoading, setError, reset } = get();
         setLoading(true);
@@ -254,6 +292,7 @@ const useAuthStore = create(
         }
       },
 
+      // Check authentication
       checkAuth: async () => {
         const { token, setUser, isTokenValid } = get();
 
@@ -307,6 +346,7 @@ export const useAuth = () => {
     error: store.error,
     isTokenValid: store.isTokenValid, // Add isTokenValid to useAuth
     login: store.login,
+    loginWithToken: store.loginWithToken, // Add loginWithToken to useAuth
     logout: store.logout,
     checkAuth: store.checkAuth,
     validatePhone: store.validatePhone,

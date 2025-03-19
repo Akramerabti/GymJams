@@ -62,3 +62,4 @@ export const formatCurrency = (amount, currency = 'USD', locale = 'en-US') => {
     }
     return str.slice(0, maxLength) + '...';
   };
+  

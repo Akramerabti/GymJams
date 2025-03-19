@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
@@ -20,7 +20,8 @@ import {
   deleteProfileImage,
   checkPhoneExists,
   sendVerificationCode,
-  verifyCode 
+  verifyCode,
+  checkGymBrosProfileByPhone
 } from '../controllers/gymBrosController.js';
 
 import upload from '../config/multer.js';
@@ -28,8 +29,10 @@ import upload from '../config/multer.js';
 // Check if user has a GymBros profile
 router.get('/profile', authenticate, checkGymBrosProfile);
 
+router.post('/profile/by-phone', checkGymBrosProfileByPhone); 
+
 // Create or update GymBros profile
-router.post('/profile', authenticate, createOrUpdateGymBrosProfile);
+router.post('/profile', optionalAuthenticate, createOrUpdateGymBrosProfile);
 
 // Update GymBros profile with automatic saving (same endpoint as create)
 router.put('/profile', authenticate, createOrUpdateGymBrosProfile);
