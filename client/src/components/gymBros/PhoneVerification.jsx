@@ -1,12 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Phone, CheckCircle, Loader, ArrowRight, LogIn } from 'lucide-react';
-import api from '../../services/api';
 import gymbrosService from '../../services/gymbros.service';
 import useAuthStore from '../../stores/authStore';
-import PhoneInput from '../../pages/phoneinput'; // Import the PhoneInput component
+import PhoneInput from '../../pages/phoneinput';
 
-const PhoneVerification = ({ 
+const PhoneVerification = ({
   phone, 
   onChange, 
   onVerified, 
@@ -22,20 +21,9 @@ const PhoneVerification = ({
   const [timer, setTimer] = useState(0);
   const [verificationToken, setVerificationToken] = useState(null);
   const [phoneExists, setPhoneExists] = useState(false);
-  const [hasAttemptedAutoSend, setHasAttemptedAutoSend] = useState(false);
   const inputRefs = useRef([]);
   
-  // Auto-send verification code if phone is pre-filled from logged-in user
-  useEffect(() => {
-    if (phone && phone.trim() !== '' && verificationStep === 'input' && !hasAttemptedAutoSend) {
-      setHasAttemptedAutoSend(true);
-      // Small delay to ensure component is fully mounted
-      setTimeout(() => {
-        handleSendVerificationCode();
-      }, 300);
-    }
-  }, [phone, verificationStep, hasAttemptedAutoSend]);
-  
+  // Create effect for timer countdown
   useEffect(() => {
     let interval;
     if (timer > 0) {
@@ -46,7 +34,9 @@ const PhoneVerification = ({
     return () => clearInterval(interval);
   }, [timer]);
   
+  // Handle sending verification code
   const handleSendVerificationCode = async () => {
+    // Validate phone number
     if (!phone || phone.trim() === '') {
       setPhoneError('Please enter your phone number');
       return;
@@ -56,19 +46,25 @@ const PhoneVerification = ({
     setPhoneError('');
     
     try {
-      // First check if phone already exists
+      // First check if phone already exists in the system
       const exists = await gymbrosService.checkPhoneExists(phone);
+      console.log('Phone exists check:', exists);
       setPhoneExists(exists);
       
       if (exists && !isLoginFlow) {
-        // If this is not explicitly a login flow and phone exists, alert the user
+        // If phone exists and we're not explicitly in login mode, 
+        // ask the user if they want to log in instead
         toast.info(
           'This phone is already registered',
           {
             description: 'Would you like to log in with this number?',
             action: {
               label: 'Yes, login',
-              onClick: () => onExistingAccountFound && onExistingAccountFound(phone)
+              onClick: () => {
+                if (onExistingAccountFound) {
+                  onExistingAccountFound(phone);
+                }
+              }
             }
           }
         );
@@ -81,9 +77,10 @@ const PhoneVerification = ({
       
       if (response.success) {
         setVerificationStep('verifying');
-        setTimer(30); // 30 second countdown for resend
+        setTimer(60); // 60 second countdown for resend
         toast.success('Verification code sent!');
-        // Focus the first OTP input
+        
+        // Focus the first OTP input field
         setTimeout(() => {
           if (inputRefs.current[0]) {
             inputRefs.current[0].focus();
@@ -101,9 +98,11 @@ const PhoneVerification = ({
     }
   };
   
+  // Handle verification of the 6-digit code
   const handleVerifyCode = async () => {
     const verificationCode = otpValues.join('');
     
+    // Validate code format - must be 6 digits
     if (verificationCode.length !== 6 || !/^\d+$/.test(verificationCode)) {
       toast.error('Please enter a valid 6-digit code');
       return;
@@ -123,31 +122,46 @@ const PhoneVerification = ({
           try {
             const loginData = await gymbrosService.loginWithPhone(phone, response.token);
             
-            // Store the auth token and user data
-            await login(loginData.token, loginData.user);
-            toast.success('Logged in successfully!');
+            // Handle successful login
+            console.log('Login successful with phone:', loginData);
             
-            // Fetch the GymBros profile after successful login
-            try {
-              const profileResponse = await api.get('/gym-bros/profile');
+            // Store the auth token and user data
+            if (loginData.token && loginData.user) {
+              await login(loginData.token, loginData.user);
+              toast.success('Logged in successfully!');
               
-              // Return success to parent component with user data and profile
-              onVerified && onVerified(true, loginData.user, response.token, profileResponse.data);
-            } catch (profileError) {
-              console.error('Error fetching profile after login:', profileError);
-              // Even if profile fetch fails, still consider verification successful
-              onVerified && onVerified(true, loginData.user, response.token);
+              // Fetch the GymBros profile after successful login
+              try {
+                const profileResponse = await gymbrosService.getGymBrosProfile();
+                
+                // Return success to parent component with user data and profile
+                if (onVerified) {
+                  onVerified(true, loginData.user, response.token, profileResponse.data);
+                }
+              } catch (profileError) {
+                console.error('Error fetching profile after login:', profileError);
+                // Even if profile fetch fails, still consider verification successful
+                if (onVerified) {
+                  onVerified(true, loginData.user, response.token);
+                }
+              }
+            } else {
+              throw new Error('Invalid login response');
             }
           } catch (loginError) {
             console.error('Error logging in with phone:', loginError);
             toast.error(loginError.response?.data?.message || 'Failed to log in');
             
             // Still mark as verified since the phone verification worked
-            onVerified && onVerified(true, null, response.token);
+            if (onVerified) {
+              onVerified(true, null, response.token);
+            }
           }
         } else {
-          // Just mark as verified for new account creation
-          onVerified && onVerified(true, null, response.token);
+          // Mark as verified for new account creation
+          if (onVerified) {
+            onVerified(true, null, response.token);
+          }
         }
       } else {
         toast.error(response.message || 'Invalid verification code');
@@ -160,8 +174,9 @@ const PhoneVerification = ({
     }
   };
   
+  // Handle OTP input changes
   const handleOtpChange = (index, value) => {
-    // Only allow numbers
+    // Only allow numeric input
     if (value && !/^\d*$/.test(value)) return;
     
     // Update the OTP array
@@ -183,6 +198,7 @@ const PhoneVerification = ({
     }
   };
   
+  // Handle keyboard navigation between OTP inputs
   const handleOtpKeyDown = (index, e) => {
     // Navigate between inputs with arrow keys
     if (e.key === 'ArrowLeft' && index > 0) {
@@ -210,6 +226,7 @@ const PhoneVerification = ({
     }
   };
   
+  // Handle pasting OTP code
   const handleOtpPaste = (e) => {
     e.preventDefault();
     const pastedData = e.clipboardData.getData('text').trim();
@@ -226,9 +243,10 @@ const PhoneVerification = ({
     }
   };
 
+  // Handle creating a new account even though phone exists
   const handleContinueAsNewAccount = () => {
     // User has chosen to continue creating a new account despite having an existing one
-    if (onContinueWithNewAccount) {
+    if (onContinueWithNewAccount && verificationToken) {
       onContinueWithNewAccount(phone, verificationToken);
     }
   };
