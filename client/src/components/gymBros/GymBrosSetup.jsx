@@ -10,6 +10,7 @@ import useAuthStore from '../../stores/authStore';
 import ImageUploader from './ImageUploader';
 import LocationPicker from './LocationPicker';
 import PhoneVerification from './PhoneVerification';
+import gymbrosService from '../../services/gymbros.service';
 
 const workoutTypes = [
   'Strength Training', 'Cardio', 'HIIT', 'CrossFit', 'Bodybuilding',
@@ -110,7 +111,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
     setVerificationToken(null);
   };
 
-  const handlePhoneVerified = (verified, userData = null, token = null) => {
+  const handlePhoneVerified = async (verified, userData = null, token = null, profileData = null) => {
     setIsPhoneVerified(verified);
     
     if (token) {
@@ -130,7 +131,30 @@ const GymBrosSetup = ({ onProfileCreated }) => {
         }));
       }
       
-      // Move to next step after login
+      // If we also received profile data, the user already has a GymBros profile
+      if (profileData && profileData.hasProfile) {
+        // User already has a profile, notify parent component
+        toast.success('Found your existing profile!');
+        onProfileCreated(profileData.profile);
+        return; // Exit early as we're done
+      }
+      
+      // No profile data, check if the user has a GymBros profile
+      try {
+        const gymBrosProfile = await gymbrosService.getGymBrosProfile();
+        
+        if (gymBrosProfile.hasProfile) {
+          // User has a profile, notify parent component
+          toast.success('Found your existing profile!');
+          onProfileCreated(gymBrosProfile.profile);
+          return; // Exit early as we're done
+        }
+      } catch (error) {
+        console.error('Error checking for GymBros profile:', error);
+        // Continue with setup flow if we couldn't check for profile
+      }
+      
+      // No existing profile, move to next step in setup
       goToNextStep();
     }
   };
@@ -198,15 +222,32 @@ const GymBrosSetup = ({ onProfileCreated }) => {
         verificationToken, // Include the verification token
       };
   
-      const response = await api.post('/gym-bros/profile', payload, {
-        headers: { 'Content-Type': 'application/json' },
-      });
+      // If we're in login mode and have a verification token, check for existing profile
+      if (authMode === 'login' && verificationToken) {
+        try {
+          // Try to fetch existing profile
+          const profileResponse = await gymbrosService.getGymBrosProfile();
+          
+          if (profileResponse.hasProfile) {
+            // User already has a profile, notify parent component
+            toast.success('Profile found!');
+            onProfileCreated(profileResponse.profile);
+            return; // Exit early as we're done
+          }
+        } catch (profileError) {
+          console.error('Error checking for profile:', profileError);
+          // Continue with profile creation if profile check fails
+        }
+      }
+
+      // Create or update profile
+      const response = await gymbrosService.createOrUpdateProfile(payload);
   
       toast.success('Profile created successfully!');
-      onProfileCreated(response.data);
+      onProfileCreated(response);
     } catch (error) {
       console.error('Error creating profile:', error);
-      toast.error('Failed to create profile');
+      toast.error('Failed to create profile: ' + (error.response?.data?.message || error.message));
     } finally {
       setLoading(false);
     }

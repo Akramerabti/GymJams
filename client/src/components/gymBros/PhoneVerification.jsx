@@ -4,7 +4,7 @@ import { Phone, CheckCircle, Loader, ArrowRight, LogIn } from 'lucide-react';
 import api from '../../services/api';
 import gymbrosService from '../../services/gymbros.service';
 import useAuthStore from '../../stores/authStore';
-import PhoneInput from '../../pages/phoneinput'; // Adjust the import path as necessary
+import PhoneInput from '../../pages/phoneinput'; // Import the PhoneInput component
 
 const PhoneVerification = ({ 
   phone, 
@@ -112,17 +112,26 @@ const PhoneVerification = ({
             const loginData = await gymbrosService.loginWithPhone(phone, response.token);
             
             // Store the auth token and user data
-            login(loginData.token, loginData.user);
+            await login(loginData.token, loginData.user);
             toast.success('Logged in successfully!');
             
-            // Return success to parent component
-            onVerified && onVerified(true, loginData.user);
+            // Fetch the GymBros profile after successful login
+            try {
+              const profileResponse = await api.get('/gym-bros/profile');
+              
+              // Return success to parent component with user data and profile
+              onVerified && onVerified(true, loginData.user, response.token, profileResponse.data);
+            } catch (profileError) {
+              console.error('Error fetching profile after login:', profileError);
+              // Even if profile fetch fails, still consider verification successful
+              onVerified && onVerified(true, loginData.user, response.token);
+            }
           } catch (loginError) {
             console.error('Error logging in with phone:', loginError);
             toast.error(loginError.response?.data?.message || 'Failed to log in');
             
             // Still mark as verified since the phone verification worked
-            onVerified && onVerified(true);
+            onVerified && onVerified(true, null, response.token);
           }
         } else {
           // Just mark as verified for new account creation
@@ -152,6 +161,14 @@ const PhoneVerification = ({
     if (value && index < 5) {
       inputRefs.current[index + 1].focus();
     }
+    
+    // If we've filled the last digit, attempt verification automatically
+    if (value && index === 5) {
+      const allFilled = newOtpValues.every(v => v !== '');
+      if (allFilled) {
+        setTimeout(() => handleVerifyCode(), 300);
+      }
+    }
   };
   
   const handleOtpKeyDown = (index, e) => {
@@ -172,6 +189,11 @@ const PhoneVerification = ({
           setOtpValues(newOtpValues);
           inputRefs.current[index - 1].focus();
         }
+      } else {
+        // Clear current input
+        const newOtpValues = [...otpValues];
+        newOtpValues[index] = '';
+        setOtpValues(newOtpValues);
       }
     }
   };
@@ -186,6 +208,9 @@ const PhoneVerification = ({
       setOtpValues(newOtpValues);
       // Focus the last input
       inputRefs.current[5].focus();
+      
+      // Auto-verify after a short delay
+      setTimeout(() => handleVerifyCode(), 300);
     }
   };
 
@@ -222,7 +247,7 @@ const PhoneVerification = ({
           <button
             onClick={handleSendVerificationCode}
             disabled={isLoading || phoneError}
-            className="w-full mt-4 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+            className="w-full mt-4 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? (
               <Loader className="w-5 h-5 mr-2 animate-spin" />

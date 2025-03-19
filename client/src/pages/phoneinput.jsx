@@ -180,13 +180,6 @@ const PhoneInput = ({
           </div>
         )}
       </div>
-      
-      {/* Helper text */}
-      {inputValue.length > 0 && !isValid && (
-        <p className="mt-1 text-sm text-red-500">
-          Please enter a valid phone number
-        </p>
-      )}
     </div>
   );
 };

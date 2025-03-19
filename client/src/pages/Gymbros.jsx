@@ -7,15 +7,14 @@ import {
   ChevronLeft, ChevronRight, Edit, Sun, Moon
 } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
-import api from '../services/api';
+import gymbrosService from '../services/gymbros.service';
 
 import EnhancedProfileCard from '../components/gymBros/EnhancedProfileCard';
-import GymBrosProfile from '../components/gymBros/GymBrosProfile';
 import GymBrosSetup from '../components/gymBros/GymBrosSetup';
 import GymBrosMatches from '../components/gymBros/GymBrosMatches';
 import GymBrosFilters from '../components/gymBros/GymBrosFilters';
 import GymBrosSettings from '../components/gymBros/GymBrosSettings';
-import EnhancedGymBrosProfile  from '../components/gymBros/ProfileEditor';
+import EnhancedGymBrosProfile from '../components/gymBros/ProfileEditor';
 
 import { useLocation } from 'react-router-dom';
 
@@ -68,6 +67,7 @@ const GymBros = () => {
     return user?.user?.id || user?.id || '';
   };
 
+  // Initialize dark mode from localStorage or system preference
   useEffect(() => {
     const savedTheme = localStorage.getItem('siteTheme');
     if (savedTheme) {
@@ -94,16 +94,17 @@ const GymBros = () => {
     }
   };
 
+  // Check if user has a GymBros profile
   useEffect(() => {
     if (!isAuthenticated) {
       setLoading(false); // Immediately stop loading if not authenticated
+      return;
     }
     
     if (isAuthenticated) {
       console.log('[GymBros] Checking user profile for ID:', getUserId(user));
       checkUserProfile();
     }
-
   }, [isAuthenticated, user]);
 
   // Set view start time when profile changes
@@ -144,38 +145,36 @@ const GymBros = () => {
 
       if (!isAuthenticated) return;
 
-      const response = await api.get('/gym-bros/profile', {
-        params: {
-          userId: getUserId(user),
-        },
-      });
+      // Use the service function to check for a profile
+      const response = await gymbrosService.getGymBrosProfile();
       
-      console.log('[GymBros] Profile check response:', response.data);
+      console.log('[GymBros] Profile check response:', response);
   
-      if (response.data.hasProfile) {
+      if (response.hasProfile) {
         setHasProfile(true);
-        setUserProfile(response.data.profile);
+        setUserProfile(response.profile);
         
         // Initialize filters based on user profile preferences if available
-        if (response.data.profile) {
+        if (response.profile) {
           console.log('[GymBros] Setting initial filters from user profile');
           
           const initialFilters = {
-            workoutTypes: response.data.profile.workoutTypes || [],
-            experienceLevel: response.data.profile.experienceLevel || 'Any',
-            preferredTime: response.data.profile.preferredTime || 'Any',
-            genderPreference: response.data.profile.genderPreference || 'All',
+            workoutTypes: response.profile.workoutTypes || [],
+            experienceLevel: response.profile.experienceLevel || 'Any',
+            preferredTime: response.profile.preferredTime || 'Any',
+            genderPreference: response.profile.genderPreference || 'All',
             ageRange: { 
-              min: response.data.profile.ageRange?.min || 18, 
-              max: response.data.profile.ageRange?.max || 99 
+              min: response.profile.ageRange?.min || 18, 
+              max: response.profile.ageRange?.max || 99 
             },
-            maxDistance: response.data.profile.maxDistance || 50
+            maxDistance: response.profile.maxDistance || 50
           };
           
           console.log('[GymBros] Initial filters:', initialFilters);
           setFilters(initialFilters);
         }
         
+        // Fetch profiles and matches
         fetchProfiles();
         fetchMatches();
       } else {
@@ -183,55 +182,25 @@ const GymBros = () => {
         setHasProfile(false);
         setUserProfile(null);
       }
-     } catch (error) {
-    console.error('[GymBros] Error checking gym profile:', error);
-    setHasProfile(false);
-    setUserProfile(null);
-  } finally {
-    setLoading(false);
-  }
-};
+    } catch (error) {
+      console.error('[GymBros] Error checking gym profile:', error);
+      setHasProfile(false);
+      setUserProfile(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchProfiles = async () => {
     try {
       console.log('[GymBros] Fetching profiles with filters:', filters);
       setLoading(true);
       
-      // Build query parameters from filters
-      const queryParams = new URLSearchParams();
+      // Use the service function to get recommended profiles
+      const profiles = await gymbrosService.getRecommendedProfiles(filters);
       
-      if (filters.workoutTypes.length > 0) {
-        queryParams.append('workoutTypes', filters.workoutTypes.join(','));
-      }
-      
-      if (filters.experienceLevel && filters.experienceLevel !== 'Any') {
-        queryParams.append('experienceLevel', filters.experienceLevel);
-      }
-      
-      if (filters.preferredTime && filters.preferredTime !== 'Any') {
-        queryParams.append('preferredTime', filters.preferredTime);
-      }
-      
-      if (filters.genderPreference && filters.genderPreference !== 'All') {
-        queryParams.append('gender', filters.genderPreference);
-      }
-      
-      if (filters.ageRange) {
-        queryParams.append('minAge', filters.ageRange.min || 18);
-        queryParams.append('maxAge', filters.ageRange.max || 99);
-      }
-      
-      queryParams.append('maxDistance', filters.maxDistance || 50);
-      
-      // Add timestamp to prevent caching
-      queryParams.append('_t', Date.now());
-      
-      console.log('[GymBros] Query params:', queryParams.toString());
-      
-      const response = await api.get(`/gym-bros/profiles?${queryParams.toString()}`);
-      console.log('[GymBros] Received profiles:', response.data.length);
-      
-      setProfiles(response.data);
+      console.log('[GymBros] Received profiles:', profiles.length);
+      setProfiles(profiles);
       setCurrentIndex(0);
     } catch (error) {
       console.error('[GymBros] Error fetching profiles:', error);
@@ -244,9 +213,11 @@ const GymBros = () => {
   const fetchMatches = async () => {
     try {
       console.log('[GymBros] Fetching matches');
-      const response = await api.get('/gym-bros/matches');
-      console.log('[GymBros] Matches received:', response.data.length);
-      setMatches(response.data);
+      // Use the service function to get matches
+      const matchesData = await gymbrosService.getMatches();
+      
+      console.log('[GymBros] Matches received:', matchesData.length);
+      setMatches(matchesData);
     } catch (error) {
       console.error('[GymBros] Error fetching matches:', error);
       toast.error('Failed to load matches');
@@ -301,10 +272,11 @@ const GymBros = () => {
   const handleLike = async (profileId, viewDuration) => {
     try {
       console.log(`[GymBros] Sending like for profile ${profileId} with view duration ${viewDuration}ms`);
-      const response = await api.post(`/gym-bros/like/${profileId}`, { viewDuration });
+      // Use the service function to like a profile
+      const response = await gymbrosService.likeProfile(profileId, viewDuration);
       
-      if (response.data.match) {
-        console.log('[GymBros] Match created!', response.data);
+      if (response.match) {
+        console.log('[GymBros] Match created!', response);
         toast.success('It\'s a match! 🎉', {
           description: 'You can now message each other'
         });
@@ -321,7 +293,8 @@ const GymBros = () => {
   const handleDislike = async (profileId, viewDuration) => {
     try {
       console.log(`[GymBros] Sending dislike for profile ${profileId} with view duration ${viewDuration}ms`);
-      await api.post(`/gym-bros/dislike/${profileId}`, { viewDuration });
+      // Use the service function to dislike a profile
+      await gymbrosService.dislikeProfile(profileId, viewDuration);
     } catch (error) {
       console.error('[GymBros] Error disliking profile:', error);
     }
@@ -361,8 +334,8 @@ const GymBros = () => {
     try {
       console.log('[GymBros] Updating user preferences with new filters:', newFilters);
       
-      // Update profile preferences with new filter settings
-      await api.put('/gym-bros/preferences', {
+      // Use the service function to update preferences
+      await gymbrosService.updateUserPreferences({
         workoutTypes: newFilters.workoutTypes,
         experienceLevel: newFilters.experienceLevel !== 'Any' ? newFilters.experienceLevel : undefined,
         preferredTime: newFilters.preferredTime !== 'Any' ? newFilters.preferredTime : undefined,
@@ -386,61 +359,130 @@ const GymBros = () => {
     // Refresh profiles with updated preferences
     fetchProfiles();
   };
-  
 
+  // Render the GymBros header with tab navigation and action buttons
+  const renderHeader = () => {
+    // Common header title with logo
+    const headerTitle = (
+      <h1 className="text-xl font-bold flex items-center">
+        <Dumbbell className="mr-2 text-blue-500" /> GymMatch
+      </h1>
+    );
 
-const renderHeader = () => {
-  // Common header title with logo
-  const headerTitle = (
-    <h1 className="text-xl font-bold flex items-center">
-      <Dumbbell className="mr-2 text-blue-500" /> GymMatch
-    </h1>
-  );
-
-  const headerContent = (() => {
-    switch(activeTab) {
-      case 'discover':
-        return (
-          <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
-            {headerTitle}
-            <div className="flex space-x-2">
-              <button 
-                onClick={toggleDarkMode}
-                className={`p-2 rounded-full transition-colors ${
-                  isDarkMode ? 'bg-gray-800 text-yellow-300' : 'bg-gray-100 hover:bg-gray-200 text-blue-800'
-                }`}
-              >
-                {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-              </button>
-              <button 
-                onClick={() => setShowFilters(true)}
-                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
-              >
-                <Filter size={20} />
-              </button>
-              <button
-                onClick={() => {
-                  fetchMatches();
-                  setActiveTab('matches');
-                }}
-                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 relative"
-              >
-                <MessageCircle size={20} />
-                {matches.length > 0 && (
+    const headerContent = (() => {
+      switch(activeTab) {
+        case 'discover':
+          return (
+            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+              {headerTitle}
+              <div className="flex space-x-2">
+                <button 
+                  onClick={toggleDarkMode}
+                  className={`p-2 rounded-full transition-colors ${
+                    isDarkMode ? 'bg-gray-800 text-yellow-300' : 'bg-gray-100 hover:bg-gray-200 text-blue-800'
+                  }`}
+                >
+                  {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+                </button>
+                <button 
+                  onClick={() => setShowFilters(true)}
+                  className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
+                >
+                  <Filter size={20} />
+                </button>
+                <button
+                  onClick={() => {
+                    fetchMatches();
+                    setActiveTab('matches');
+                  }}
+                  className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 relative"
+                >
+                  <MessageCircle size={20} />
+                  {matches.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
+                      {matches.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+          );
+        
+        case 'matches':
+          return (
+            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+              {headerTitle}
+              <div className="flex space-x-2">
+                <button 
+                  onClick={toggleDarkMode}
+                  className={`p-2 rounded-full transition-colors ${
+                    isDarkMode ? 'bg-gray-800 text-yellow-300' : 'bg-gray-100 hover:bg-gray-200 text-blue-800'
+                  }`}
+                >
+                  {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+                </button>
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
+                >
+                  <Settings size={20} />
+                </button>
+              </div>
+            </div>
+          );
+          
+        case 'shop':
+          return (
+            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+              {headerTitle}
+              <div className="flex space-x-2">
+                <button 
+                  onClick={toggleDarkMode}
+                  className={`p-2 rounded-full transition-colors ${
+                    isDarkMode ? 'bg-gray-800 text-yellow-300' : 'bg-gray-100 hover:bg-gray-200 text-blue-800'
+                  }`}
+                >
+                  {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+                </button>
+                <button
+                  className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 relative"
+                >
+                  <ShoppingBag size={20} />
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
-                    {matches.length}
+                    0
                   </span>
-                )}
-              </button>
+                </button>
+              </div>
             </div>
-          </div>
-        );
-      
-      case 'matches':
-        return (
-          <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
-            {headerTitle}
-            <div className="flex space-x-2">
+          );
+          
+        case 'profile':
+          return (
+            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+              {headerTitle}
+              <div className="flex space-x-2">
+                <button 
+                  onClick={toggleDarkMode}
+                  className={`p-2 rounded-full transition-colors ${
+                    isDarkMode ? 'bg-gray-800 text-yellow-300' : 'bg-gray-100 hover:bg-gray-200 text-blue-800'
+                  }`}
+                >
+                  {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+                </button>
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
+                >
+                  <Settings size={20} />
+                </button>
+              </div>
+            </div>
+          );
+          
+        default:
+          return (
+            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+              {headerTitle}
               <button 
                 onClick={toggleDarkMode}
                 className={`p-2 rounded-full transition-colors ${
@@ -449,88 +491,19 @@ const renderHeader = () => {
               >
                 {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
               </button>
-              <button
-                onClick={() => setShowSettings(true)}
-                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
-              >
-                <Settings size={20} />
-              </button>
             </div>
-          </div>
-        );
-        
-      case 'shop':
-        return (
-          <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
-            {headerTitle}
-            <div className="flex space-x-2">
-              <button 
-                onClick={toggleDarkMode}
-                className={`p-2 rounded-full transition-colors ${
-                  isDarkMode ? 'bg-gray-800 text-yellow-300' : 'bg-gray-100 hover:bg-gray-200 text-blue-800'
-                }`}
-              >
-                {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-              </button>
-              <button
-                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 relative"
-              >
-                <ShoppingBag size={20} />
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
-                  0
-                </span>
-              </button>
-            </div>
-          </div>
-        );
-        
-      case 'profile':
-        return (
-          <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
-            {headerTitle}
-            <div className="flex space-x-2">
-              <button 
-                onClick={toggleDarkMode}
-                className={`p-2 rounded-full transition-colors ${
-                  isDarkMode ? 'bg-gray-800 text-yellow-300' : 'bg-gray-100 hover:bg-gray-200 text-blue-800'
-                }`}
-              >
-                {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-              </button>
-              <button
-                onClick={() => setShowSettings(true)}
-                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
-              >
-                <Settings size={20} />
-              </button>
-            </div>
-          </div>
-        );
-        
-      default:
-        return (
-          <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
-            {headerTitle}
-            <button 
-              onClick={toggleDarkMode}
-              className={`p-2 rounded-full transition-colors ${
-                isDarkMode ? 'bg-gray-800 text-yellow-300' : 'bg-gray-100 hover:bg-gray-200 text-blue-800'
-              }`}
-            >
-              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
-          </div>
-        );
-    }
-  })();
+          );
+      }
+    })();
 
-  return (
-    <div className={`transition-transform duration-300 ${headerVisible ? 'translate-y-0' : '-translate-y-full'}`}>
-      {headerContent}
-    </div>
-  );
-};
+    return (
+      <div className={`transition-transform duration-300 ${headerVisible ? 'translate-y-0' : '-translate-y-full'}`}>
+        {headerContent}
+      </div>
+    );
+  };
 
+  // Render different content based on the user's state and active tab
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -542,11 +515,12 @@ const renderHeader = () => {
     );
   }
 
+  // If not authenticated, show the GymBrosSetup component for account creation
   if (!isAuthenticated) {
-
     return <GymBrosSetup onProfileCreated={handleProfileCreated} />;
   }
 
+  // If authenticated but no profile, show the profile setup form
   if (!hasProfile) {
     console.log('[GymBros] User has no profile, showing setup form');
     return <GymBrosSetup onProfileCreated={handleProfileCreated} />;
