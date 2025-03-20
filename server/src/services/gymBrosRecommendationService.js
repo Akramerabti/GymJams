@@ -1,4 +1,6 @@
 // server/src/services/gymBrosRecommendationService.js
+// Updated to handle guest users and profiles without userId
+
 import GymBrosProfile from '../models/GymBrosProfile.js';
 import GymBrosPreference from '../models/GymBrosPreference.js';
 import logger from '../utils/logger.js';
@@ -36,9 +38,10 @@ const calculateDistance = (coords1, coords2) => {
  */
 export const getRecommendedProfiles = async (userProfile, candidateProfiles, options = {}) => {
   try {
-    console.log(`Getting recommendations for user: ${userProfile.userId}`);
+    // Determine the user identifier (userId for regular users, _id for guest users)
+    const userIdentifier = userProfile.userId || userProfile._id;
+    console.log(`Getting recommendations for user: ${userIdentifier}, isGuest: ${!userProfile.userId}`);
     console.log(`Found ${candidateProfiles.length} initial candidate profiles`);
-    console.log(`Options:`, options);
     
     if (!userProfile || !userProfile.location) {
       logger.error('User profile is missing or has no location data');
@@ -59,6 +62,12 @@ export const getRecommendedProfiles = async (userProfile, candidateProfiles, opt
     const withinDistanceCandidates = candidateProfiles.filter(profile => {
       if (!profile.location) return false;
       
+      // Filter out the user's own profile
+      const profileId = profile.userId || profile._id;
+      if (profileId.toString() === userIdentifier.toString()) {
+        return false;
+      }
+      
       const distance = calculateDistance(userProfile.location, profile.location);
       return distance <= mergedOptions.maxDistance;
     });
@@ -72,7 +81,8 @@ export const getRecommendedProfiles = async (userProfile, candidateProfiles, opt
     
     // Calculate match scores for each candidate
     const scoredCandidates = withinDistanceCandidates.map(profile => {
-      console.log(`Calculating match score between ${userProfile.userId} and ${profile.userId} `);
+      const profileIdentifier = profile.userId || profile._id;
+      console.log(`Calculating match score between ${userIdentifier} and ${profileIdentifier}`);
       
       // Calculate workout type compatibility
       const userWorkoutTypes = userProfile.workoutTypes || [];
@@ -132,24 +142,16 @@ export const getRecommendedProfiles = async (userProfile, candidateProfiles, opt
         locationScore * weights.location
       ) * 100;
       
-      // Log match components for debugging
-      console.log(`Match component scores for ${profile.name}: {
-  workoutTypeScore: '${workoutTypeScore.toFixed(2)}',
-  experienceScore: '${experienceScore.toFixed(2)}',
-  scheduleScore: '${scheduleScore.toFixed(2)}',
-  locationScore: '${locationScore.toFixed(2)}',
-  finalScore: '${finalScore.toFixed(2)}'
-}`);
-      
       // Apply custom filters if provided
       let passesFilters = true;
       
       if (mergedOptions.filters) {
         // Filter by workout types if specified
         if (mergedOptions.filters.workoutTypes && mergedOptions.filters.workoutTypes.length > 0) {
-          const hasMatchingWorkout = profile.workoutTypes.some(type => 
+          const hasMatchingWorkout = profile.workoutTypes?.some(type => 
             mergedOptions.filters.workoutTypes.includes(type)
-          );
+          ) || false;
+          
           passesFilters = passesFilters && hasMatchingWorkout;
         }
         
@@ -177,7 +179,7 @@ export const getRecommendedProfiles = async (userProfile, candidateProfiles, opt
       };
     });
     
-    // Now sort the candidates by score (highest first) - FIX: initialize before using
+    // Sort the candidates by score (highest first)
     const sortedCandidates = scoredCandidates
       .filter(candidate => candidate.passesFilters)
       .sort((a, b) => b.score - a.score);
@@ -199,49 +201,78 @@ export const getRecommendedProfiles = async (userProfile, candidateProfiles, opt
 
 /**
  * Process feedback from user interaction (like/dislike)
- * @param {String} userId - ID of the user giving feedback
- * @param {String} targetId - ID of the profile receiving feedback
+ * This function now handles both registered users and guest users
+ * @param {String} userIdentifier - ID of the user or profile giving feedback
+ * @param {String} targetIdentifier - ID of the profile receiving feedback
  * @param {String} feedbackType - Type of feedback ('like' or 'dislike')
  * @param {Number} viewDuration - How long the user viewed the profile in ms
+ * @param {Boolean} isGuest - Whether the user is a guest or registered user
  * @returns {Boolean} - Success status
  */
-export const processFeedback = async (userId, targetId, feedbackType, viewDuration = 0) => {
+export const processFeedback = async (userIdentifier, targetIdentifier, feedbackType, viewDuration = 0, isGuest = false) => {
   try {
-    // Find or create user preferences
-    let preferences = await GymBrosPreference.findOne({ userId });
+    // First, determine if the target is a user ID or profile ID
+    let targetProfileQuery = { userId: targetIdentifier };
+    let targetProfile = await GymBrosProfile.findOne(targetProfileQuery);
+    
+    // If not found by userId, try to find by _id
+    if (!targetProfile) {
+      targetProfile = await GymBrosProfile.findById(targetIdentifier);
+      if (targetProfile) {
+        targetIdentifier = targetProfile._id;
+      }
+    } else {
+      // Target found by userId
+      targetIdentifier = targetProfile.userId;
+    }
+    
+    if (!targetProfile) {
+      logger.error(`Target profile not found for ID: ${targetIdentifier}`);
+      return false;
+    }
+    
+    // Find or create preferences document based on user type
+    const prefQuery = isGuest 
+      ? { profileId: userIdentifier }
+      : { userId: userIdentifier };
+      
+    let preferences = await GymBrosPreference.findOne(prefQuery);
     
     if (!preferences) {
-      preferences = new GymBrosPreference({ userId });
+      preferences = new GymBrosPreference({
+        ...prefQuery,
+        likedProfiles: [],
+        dislikedProfiles: []
+      });
     }
     
     // Update appropriate array based on feedback type
     if (feedbackType === 'like') {
       // Add to liked profiles if not already there
-      if (!preferences.likedProfiles.includes(targetId)) {
-        preferences.likedProfiles.push(targetId);
+      if (!preferences.likedProfiles.includes(targetIdentifier)) {
+        preferences.likedProfiles.push(targetIdentifier);
       }
       
       // Update metrics for the target profile
       await GymBrosProfile.updateOne(
-        { userId: targetId },
+        { _id: targetProfile._id },
         { $inc: { 'metrics.likes': 1, 'metrics.views': 1 } }
       );
     } else if (feedbackType === 'dislike') {
       // Add to disliked profiles if not already there
-      if (!preferences.dislikedProfiles.includes(targetId)) {
-        preferences.dislikedProfiles.push(targetId);
+      if (!preferences.dislikedProfiles.includes(targetIdentifier)) {
+        preferences.dislikedProfiles.push(targetIdentifier);
       }
       
       // Update metrics for the target profile
       await GymBrosProfile.updateOne(
-        { userId: targetId },
+        { _id: targetProfile._id },
         { $inc: { 'metrics.dislikes': 1, 'metrics.views': 1 } }
       );
     }
     
     // Calculate popularity score for target profile
     // This helps with future recommendations
-    const targetProfile = await GymBrosProfile.findOne({ userId: targetId });
     if (targetProfile && targetProfile.metrics) {
       const { likes, dislikes, views } = targetProfile.metrics;
       
@@ -254,7 +285,7 @@ export const processFeedback = async (userId, targetId, feedbackType, viewDurati
       
       // Update popularity score
       await GymBrosProfile.updateOne(
-        { userId: targetId },
+        { _id: targetProfile._id },
         { $set: { 'metrics.popularityScore': popularityScore } }
       );
     }
@@ -269,55 +300,81 @@ export const processFeedback = async (userId, targetId, feedbackType, viewDurati
   }
 };
 
-/**
- * Get demographic information about the user's matches
- * Useful for analytics and improving matching algorithm
- * @param {String} userId - ID of the user
- * @returns {Object} - Match demographics statistics
- */
-export const getMatchDemographics = async (userId) => {
+export const checkForMatch = async (userIdentifier, targetIdentifier, isGuest = false) => {
   try {
-    // Get user's preferences
-    const preferences = await GymBrosPreference.findOne({ userId });
+    // First determine if target is a user ID or profile ID
+    let targetProfileQuery = { userId: targetIdentifier };
+    let targetProfile = await GymBrosProfile.findOne(targetProfileQuery);
     
-    if (!preferences || !preferences.likedProfiles.length) {
-      return null;
+    // If not found by userId, try to find by _id directly
+    if (!targetProfile) {
+      targetProfile = await GymBrosProfile.findById(targetIdentifier);
+      // Update targetIdentifier to be the profile ID
+      if (targetProfile) {
+        targetIdentifier = targetProfile._id;
+      }
     }
     
-    // Get profiles of matches
-    const matchedProfiles = await GymBrosProfile.find({
-      userId: { $in: preferences.likedProfiles }
-    });
+    if (!targetProfile) {
+      logger.error(`Target profile not found for ID: ${targetIdentifier}`);
+      return false;
+    }
     
-    // Calculate demographics
-    const demographics = {
-      totalMatches: matchedProfiles.length,
-      experienceLevels: {},
-      workoutTypes: {},
-      timePreferences: {},
-      averageDistance: 0
-    };
+    // Get target's preferences
+    const targetPrefQuery = targetProfile.userId 
+      ? { userId: targetProfile.userId }
+      : { profileId: targetProfile._id };
     
-    // Count experience levels
-    matchedProfiles.forEach(profile => {
-      // Experience level counts
-      const expLevel = profile.experienceLevel || 'Unknown';
-      demographics.experienceLevels[expLevel] = (demographics.experienceLevels[expLevel] || 0) + 1;
-      
-      // Workout type counts
-      (profile.workoutTypes || []).forEach(type => {
-        demographics.workoutTypes[type] = (demographics.workoutTypes[type] || 0) + 1;
+    const targetPreferences = await GymBrosPreference.findOne(targetPrefQuery);
+    
+    if (!targetPreferences) {
+      logger.warn(`No preferences found for profile: ${targetIdentifier}`);
+      return false;
+    }
+    
+    // Decide if the source identifier should be treated as profile ID or user ID
+    const sourceIdentifierToCheck = isGuest ? userIdentifier : userIdentifier;
+    
+    // Check if the target user has liked the current user
+    const hasMutualLike = targetPreferences.likedProfiles.some(id => 
+      id.toString() === sourceIdentifierToCheck.toString()
+    );
+    
+    if (hasMutualLike) {
+      // It's a match! Create a match record
+      const newMatch = new GymBrosMatch({
+        users: [userIdentifier, targetIdentifier],
+        createdAt: new Date(),
+        active: true
       });
       
-      // Time preference counts
-      const timePreference = profile.preferredTime || 'Unknown';
-      demographics.timePreferences[timePreference] = 
-        (demographics.timePreferences[timePreference] || 0) + 1;
-    });
+      await newMatch.save();
+      
+      // Update match count for source profile
+      const sourceProfile = isGuest 
+        ? await GymBrosProfile.findById(userIdentifier)
+        : await GymBrosProfile.findOne({ userId: userIdentifier });
+      
+      if (sourceProfile) {
+        await GymBrosProfile.updateOne(
+          { _id: sourceProfile._id },
+          { $inc: { 'metrics.matches': 1 } }
+        );
+      }
+      
+      // Update match count for target profile
+      await GymBrosProfile.updateOne(
+        { _id: targetProfile._id },
+        { $inc: { 'metrics.matches': 1 } }
+      );
+      
+      // Return true to indicate a match was created
+      return true;
+    }
     
-    return demographics;
+    return false;
   } catch (error) {
-    logger.error('Error getting match demographics:', error);
-    return null;
+    logger.error('Error checking for match:', error);
+    return false;
   }
 };

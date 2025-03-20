@@ -2,9 +2,33 @@
 import api from './api';
 
 const gymbrosService = {
-  /**
-   * Check if phone number already exists in the system
-   */
+ 
+  getGuestToken() {
+    return localStorage.getItem('gymbros_guest_token');
+  },
+  
+  setGuestToken(token) {
+    if (token) {
+      localStorage.setItem('gymbros_guest_token', token);
+      
+      // Also update API headers
+      api.defaults.headers.common['x-gymbros-guest-token'] = token;
+    } else {
+      localStorage.removeItem('gymbros_guest_token');
+      delete api.defaults.headers.common['x-gymbros-guest-token'];
+    }
+    return token;
+  },
+  
+  
+  clearGuestState() {
+    localStorage.removeItem('gymbros_guest_token');
+    localStorage.removeItem('verifiedPhone');
+    localStorage.removeItem('verificationToken');
+    delete api.defaults.headers.common['x-gymbros-guest-token'];
+  },
+
+  
   async checkPhoneExists(phone) {
     try {
       const response = await api.post('/gym-bros/check-phone', { phone });
@@ -27,13 +51,17 @@ const gymbrosService = {
 
   async verifyCode(phone, code) {
     try {
-
-  
-      // Send the phone number without the country code to the backend
       const response = await api.post('/gym-bros/verify-code', { 
         phone, 
         code 
       });
+      
+      // If verification was successful, save the token
+      if (response.data.success && response.data.token) {
+        localStorage.setItem('verificationToken', response.data.token);
+        localStorage.setItem('verifiedPhone', phone);
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Error verifying code:', error);
@@ -55,6 +83,9 @@ const gymbrosService = {
         
         // Set the default Authorization header for all future requests
         api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+        
+        // Clear any guest state
+        this.clearGuestState();
       }
       
       return response.data;
@@ -64,41 +95,45 @@ const gymbrosService = {
     }
   },
 
-async checkProfileWithVerifiedPhone(phone, verificationToken) {
-  try {
-    console.log('Checking profile with verified phone:', phone);
-    
-    // Call the endpoint that does everything in one step
-    const response = await api.post('/gym-bros/profile/by-phone', {
-      verifiedPhone: phone, 
-      verificationToken
-    });
-    
-    console.log('Profile by phone response:', response.data);
-    
-    // If the request was successful and we got a token
-    if (response.data.success && response.data.token) {
-      // Set the token in localStorage and update API headers
-      localStorage.setItem('token', response.data.token);
-      api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-      console.log('Auth token set:', response.data.token);
+  async checkProfileWithVerifiedPhone(phone, verificationToken) {
+    try {
+      console.log('Checking profile with verified phone:', phone);
       
-      // Clean up any temporary storage
-      localStorage.removeItem('verifiedPhone');
-      localStorage.removeItem('verificationToken');
+      // Call the endpoint that does everything in one step
+      const response = await api.post('/gym-bros/profile/by-phone', {
+        verifiedPhone: phone, 
+        verificationToken
+      });
       
-      // Return the complete response
+      console.log('Profile by phone response:', response.data);
+      
+      // If the request was successful and we got a token
+      if (response.data.success && response.data.token) {
+        // Set the token in localStorage and update API headers
+        localStorage.setItem('token', response.data.token);
+        api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+        console.log('Auth token set:', response.data.token);
+        
+        // Clean up any temporary storage
+        localStorage.removeItem('verifiedPhone');
+        localStorage.removeItem('verificationToken');
+        
+        // Return the complete response
+        return response.data;
+      } 
+      // If we got a guest token back
+      else if (response.data.guestToken) {
+        // Save the guest token for future requests
+        this.setGuestToken(response.data.guestToken);
+        console.log('Guest token set:', response.data.guestToken);
+      }
+      
       return response.data;
-    } else {
-      console.warn('Profile by phone request failed:', response.data);
+    } catch (error) {
+      console.error('Error checking profile with verified phone:', error);
+      throw error;
     }
-    
-    return response.data;
-  } catch (error) {
-    console.error('Error checking profile with verified phone:', error);
-    throw error;
-  }
-},
+  },
 
  
   async registerWithPhone(phone, verificationToken, userData) {
@@ -115,12 +150,19 @@ async checkProfileWithVerifiedPhone(phone, verificationToken) {
     }
   },
 
-  /**
-   * Get user's GymBros profile or check if one exists
-   */
   async getGymBrosProfile() {
     try {
-      const response = await api.get('/gym-bros/profile');
+      // Add guest token to query params if available
+      const guestToken = this.getGuestToken();
+      const params = guestToken ? { guestToken } : {};
+      
+      const response = await api.get('/gym-bros/profile', { params });
+      
+      // If we received a guest token in the response, update it
+      if (response.data.guestToken) {
+        this.setGuestToken(response.data.guestToken);
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Error fetching GymBros profile:', error);
@@ -128,13 +170,40 @@ async checkProfileWithVerifiedPhone(phone, verificationToken) {
     }
   },
 
-  /**
-   * Create or update a GymBros profile
-   */
   async createOrUpdateProfile(profileData) {
     console.log('Creating/updating GymBros profile:', profileData);
     try {
-      const response = await api.post('/gym-bros/profile', profileData);
+      // Check if we have verified phone data for a guest
+      const verificationToken = localStorage.getItem('verificationToken');
+      const verifiedPhone = localStorage.getItem('verifiedPhone');
+      
+      // Include verification token if available
+      if (verificationToken && verifiedPhone) {
+        profileData.verificationToken = verificationToken;
+        
+        // Make sure phone matches the verified one
+        if (!profileData.phone) {
+          profileData.phone = verifiedPhone;
+        }
+      }
+      
+      // Include guest token if available
+      const guestToken = this.getGuestToken();
+      const params = guestToken ? { guestToken } : {};
+      
+      const response = await api.post('/gym-bros/profile', profileData, { params });
+      
+      // Handle guest token if received
+      if (response.data.guestToken) {
+        this.setGuestToken(response.data.guestToken);
+      }
+      
+      // Clean up temporary verification data
+      if (response.data.success) {
+        localStorage.removeItem('verificationToken');
+        localStorage.removeItem('verifiedPhone');
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Error creating/updating GymBros profile:', error);
@@ -142,9 +211,6 @@ async checkProfileWithVerifiedPhone(phone, verificationToken) {
     }
   },
 
-  /**
-   * Get recommended GymBros profiles based on filters
-   */
   async getRecommendedProfiles(filters = {}) {
     try {
       // Build query string from filters
@@ -176,20 +242,34 @@ async checkProfileWithVerifiedPhone(phone, verificationToken) {
       // Add timestamp to prevent caching
       queryParams.append('_t', Date.now());
       
+      // Add guest token if available
+      const guestToken = this.getGuestToken();
+      if (guestToken) {
+        queryParams.append('guestToken', guestToken);
+      }
+      
       const response = await api.get(`/gym-bros/profiles?${queryParams.toString()}`);
-      return response.data;
+      
+      // Return the recommendations array
+      return response.data.recommendations || [];
     } catch (error) {
       console.error('Error fetching recommended profiles:', error);
       throw error;
     }
   },
 
-  /**
-   * Like a GymBros profile
-   */
   async likeProfile(profileId, viewDuration = 0) {
     try {
-      const response = await api.post(`/gym-bros/like/${profileId}`, { viewDuration });
+      // Add guest token if available
+      const guestToken = this.getGuestToken();
+      const params = guestToken ? { guestToken } : {};
+      
+      const response = await api.post(
+        `/gym-bros/like/${profileId}`, 
+        { viewDuration },
+        { params }
+      );
+      
       return response.data;
     } catch (error) {
       console.error('Error liking profile:', error);
@@ -197,12 +277,18 @@ async checkProfileWithVerifiedPhone(phone, verificationToken) {
     }
   },
 
-  /**
-   * Dislike a GymBros profile
-   */
   async dislikeProfile(profileId, viewDuration = 0) {
     try {
-      const response = await api.post(`/gym-bros/dislike/${profileId}`, { viewDuration });
+      // Add guest token if available
+      const guestToken = this.getGuestToken();
+      const params = guestToken ? { guestToken } : {};
+      
+      const response = await api.post(
+        `/gym-bros/dislike/${profileId}`, 
+        { viewDuration },
+        { params }
+      );
+      
       return response.data;
     } catch (error) {
       console.error('Error disliking profile:', error);
@@ -210,12 +296,13 @@ async checkProfileWithVerifiedPhone(phone, verificationToken) {
     }
   },
 
-  /**
-   * Get all matches for the current user
-   */
   async getMatches() {
     try {
-      const response = await api.get('/gym-bros/matches');
+      // Add guest token if available
+      const guestToken = this.getGuestToken();
+      const params = guestToken ? { guestToken } : {};
+      
+      const response = await api.get('/gym-bros/matches', { params });
       return response.data;
     } catch (error) {
       console.error('Error fetching matches:', error);
@@ -223,12 +310,13 @@ async checkProfileWithVerifiedPhone(phone, verificationToken) {
     }
   },
 
-  /**
-   * Get user preferences for GymBros
-   */
   async getUserPreferences() {
     try {
-      const response = await api.get('/gym-bros/preferences');
+      // Add guest token if available
+      const guestToken = this.getGuestToken();
+      const params = guestToken ? { guestToken } : {};
+      
+      const response = await api.get('/gym-bros/preferences', { params });
       return response.data;
     } catch (error) {
       console.error('Error fetching user preferences:', error);
@@ -236,12 +324,13 @@ async checkProfileWithVerifiedPhone(phone, verificationToken) {
     }
   },
 
-  /**
-   * Update user preferences for GymBros
-   */
   async updateUserPreferences(preferences) {
     try {
-      const response = await api.put('/gym-bros/preferences', preferences);
+      // Add guest token if available
+      const guestToken = this.getGuestToken();
+      const params = guestToken ? { guestToken } : {};
+      
+      const response = await api.put('/gym-bros/preferences', preferences, { params });
       return response.data;
     } catch (error) {
       console.error('Error updating user preferences:', error);
@@ -249,12 +338,13 @@ async checkProfileWithVerifiedPhone(phone, verificationToken) {
     }
   },
 
-  /**
-   * Get user settings for GymBros
-   */
   async getUserSettings() {
     try {
-      const response = await api.get('/gym-bros/settings');
+      // Add guest token if available
+      const guestToken = this.getGuestToken();
+      const params = guestToken ? { guestToken } : {};
+      
+      const response = await api.get('/gym-bros/settings', { params });
       return response.data;
     } catch (error) {
       console.error('Error fetching user settings:', error);
@@ -262,12 +352,13 @@ async checkProfileWithVerifiedPhone(phone, verificationToken) {
     }
   },
 
-  /**
-   * Update user settings for GymBros
-   */
   async updateUserSettings(settings) {
     try {
-      const response = await api.put('/gym-bros/settings', settings);
+      // Add guest token if available
+      const guestToken = this.getGuestToken();
+      const params = guestToken ? { guestToken } : {};
+      
+      const response = await api.put('/gym-bros/settings', settings, { params });
       return response.data;
     } catch (error) {
       console.error('Error updating user settings:', error);
@@ -275,15 +366,18 @@ async checkProfileWithVerifiedPhone(phone, verificationToken) {
     }
   },
 
-  /**
-   * Upload profile images
-   */
   async uploadProfileImages(images) {
     try {
       const formData = new FormData();
       images.forEach(image => {
         formData.append('images', image);
       });
+      
+      // Add guest token if available
+      const guestToken = this.getGuestToken();
+      if (guestToken) {
+        formData.append('guestToken', guestToken);
+      }
       
       const response = await api.post('/gym-bros/profile-images', formData, {
         headers: {
@@ -298,15 +392,37 @@ async checkProfileWithVerifiedPhone(phone, verificationToken) {
     }
   },
 
-  /**
-   * Delete profile image
-   */
   async deleteProfileImage(imageId) {
     try {
-      const response = await api.delete(`/gym-bros/profile-image/${imageId}`);
+      // Add guest token if available
+      const guestToken = this.getGuestToken();
+      const params = guestToken ? { guestToken } : {};
+      
+      const response = await api.delete(`/gym-bros/profile-image/${imageId}`, { params });
       return response.data;
     } catch (error) {
       console.error('Error deleting profile image:', error);
+      throw error;
+    }
+  },
+
+  async convertGuestToUser() {
+    try {
+      const guestToken = this.getGuestToken();
+      if (!guestToken) {
+        return { success: false, message: 'No guest token available' };
+      }
+      
+      const response = await api.post('/gym-bros/convert-guest', { guestToken });
+      
+      if (response.data.success) {
+        // Clear guest state
+        this.clearGuestState();
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error converting guest to user:', error);
       throw error;
     }
   }

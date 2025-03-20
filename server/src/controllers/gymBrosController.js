@@ -1,27 +1,30 @@
 import GymBrosProfile from '../models/GymBrosProfile.js';
 import GymBrosPreference from '../models/GymBrosPreference.js';
 import GymBrosMatch from '../models/GymBrosMatch.js';
-import PhoneVerification from '../models/PhoneVerification.js'; // Add this import
+import PhoneVerification from '../models/PhoneVerification.js';
 import User from '../models/User.js';
+import { getEffectiveUser, generateGuestToken } from '../middleware/guestUser.middleware.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-import jwt from 'jsonwebtoken'; // Also add jwt for token generation
-import { getRecommendedProfiles, processFeedback } from '../services/gymBrosRecommendationService.js';
+import jwt from 'jsonwebtoken';
+import { getRecommendedProfiles, processFeedback, checkForMatch } from '../services/gymBrosRecommendationService.js';
 import { handleError } from '../middleware/error.middleware.js';
 import twilio from 'twilio';
 import logger from '../utils/logger.js';
 
-// Check if user has a GymBros profile
+
 export const checkGymBrosProfile = async (req, res) => {
   try {
-    // If user is authenticated through token, use their ID
-    if (req.user && req.user.id) {
-      const userId = req.user.id;
-      console.log('Checking profile for authenticated user:', userId);
+    // Get effective user (either authenticated or guest)
+    const effectiveUser = getEffectiveUser(req);
+    
+    // Handle authenticated user
+    if (effectiveUser.userId) {
+      console.log('Checking profile for authenticated user:', effectiveUser.userId);
       
-      const profile = await GymBrosProfile.findOne({ userId });
+      const profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
       console.log('Profile found:', profile);
       
       if (profile) {
@@ -29,60 +32,35 @@ export const checkGymBrosProfile = async (req, res) => {
       } else {
         return res.json({ hasProfile: false, profile: null });
       }
-    }
-    // If verifiedPhone is provided in the request body (for phone login flows)
-    else if (req.body && req.body.verifiedPhone) {
-      console.log('Checking profile by verified phone:', req.body.verifiedPhone);
+    } 
+    // Handle guest user with profileId
+    else if (effectiveUser.profileId) {
+      console.log('Checking profile for guest with profileId:', effectiveUser.profileId);
       
-      // First find the user by phone number
-      const user = await User.findOne({ phone: req.body.verifiedPhone });
-      
-      if (!user) {
-        return res.status(404).json({ 
-          message: 'No user found with this phone number',
-          hasProfile: false
-        });
-      }
-      
-      // Now find their GymBros profile
-      const profile = await GymBrosProfile.findOne({ userId: user._id });
-      console.log('Profile found by phone:', profile);
-      
+      const profile = await GymBrosProfile.findById(effectiveUser.profileId);
       if (profile) {
-        return res.json({ 
-          hasProfile: true, 
-          profile,
-          user: {
-            id: user._id,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            phone: user.phone,
-            email: user.email
-          }
-        });
-      } else {
-        return res.json({ 
-          hasProfile: false, 
-          profile: null,
-          user: {
-            id: user._id,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            phone: user.phone,
-            email: user.email
-          }
-        });
+        return res.json({ hasProfile: true, profile, isGuest: true });
       }
     }
-    // No authentication and no phone verification
+    // Handle verified phone from body (may be coming from verification flow)
+    else if (req.body && req.body.verifiedPhone) {
+      return await handleProfileCheckByPhone(req, res);
+    }
+    // No authentication or phone verification
     else {
-      return res.status(401).json({ message: 'Authentication required' });
+      return res.status(200).json({ 
+        hasProfile: false, 
+        profile: null,
+        requiresVerification: true,
+        message: 'Phone verification required to continue'
+      });
     }
   } catch (error) {
     console.error('Error in checkGymBrosProfile:', error);
     handleError(error, req, res);
   }
 };
+
 
 export const checkGymBrosProfileByPhone = async (req, res) => {
   try {
@@ -193,6 +171,7 @@ export const checkGymBrosProfileByPhone = async (req, res) => {
 export const createOrUpdateGymBrosProfile = async (req, res) => {
   try {
     const profileData = req.body;
+    const verificationToken = req.body.verificationToken;
     
     console.log('Creating/updating GymBros profile:', profileData);
     
@@ -201,9 +180,12 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
       return res.status(400).json({ message: 'Invalid profile data' });
     }
 
-    // If user is authenticated, associate the profile with their ID
-    if (req.user && req.user.id) {
-      const userId = req.user.id;
+    // Get the effective user (authenticated or guest)
+    const effectiveUser = getEffectiveUser(req);
+    
+    // Case 1: Regular authenticated user
+    if (effectiveUser.userId) {
+      const userId = effectiveUser.userId;
       
       // Check for existing profile for this user
       let profile = await GymBrosProfile.findOne({ userId });
@@ -219,17 +201,85 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
         // Create new profile
         profile = new GymBrosProfile({ ...profileData, userId });
         await profile.save();
+        
+        // Link profile ID to user
+        await User.findByIdAndUpdate(userId, { gymBrosProfile: profile._id });
       }
       
-      return res.status(201).json(profile);
+      return res.status(201).json({ 
+        success: true,
+        profile,
+        isGuest: false
+      });
     } 
-    // For non-authenticated users, just create a profile without userId
-    else {
-      // Create new profile without requiring a userId
-      const profile = new GymBrosProfile(profileData);
-      await profile.save();
+    // Case 2: Guest user with existing profile
+    else if (effectiveUser.profileId) {
+      // Update existing profile
+      const profile = await GymBrosProfile.findByIdAndUpdate(
+        effectiveUser.profileId,
+        profileData,
+        { new: true }
+      );
       
-      return res.status(201).json(profile);
+      // Generate a guest token for future requests
+      const guestToken = generateGuestToken(effectiveUser.phone);
+      
+      return res.status(200).json({
+        success: true,
+        profile,
+        isGuest: true,
+        guestToken
+      });
+    }
+    // Case 3: New user with verified phone but no profile yet
+    else if (verificationToken && profileData.phone) {
+      try {
+        // Verify the token
+        const decodedToken = jwt.verify(verificationToken, process.env.JWT_SECRET);
+        
+        // Ensure phone number matches and is verified
+        if (!decodedToken.phone || 
+            decodedToken.phone !== profileData.phone || 
+            !decodedToken.verified) {
+          return res.status(401).json({ 
+            success: false, 
+            message: 'Invalid verification token' 
+          });
+        }
+        
+        // Create a new profile for guest user
+        const profile = new GymBrosProfile({
+          ...profileData,
+          // Store when the profile was created as a guest
+          guestCreatedAt: new Date()
+        });
+        
+        await profile.save();
+        
+        // Generate a guest token for future requests
+        const guestToken = generateGuestToken(profileData.phone);
+        
+        return res.status(201).json({
+          success: true,
+          profile,
+          isGuest: true,
+          guestToken,
+          message: 'Guest profile created successfully'
+        });
+      } catch (tokenError) {
+        logger.error('Error validating phone verification token:', tokenError);
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid or expired verification token'
+        });
+      }
+    }
+    // Case 4: No valid user context
+    else {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication or phone verification required'
+      });
     }
   } catch (error) {
     console.error('Error in createOrUpdateGymBrosProfile:', error);
@@ -328,12 +378,24 @@ export const deleteProfileImage = async (req, res) => {
 
 export const getGymBrosProfiles = async (req, res, next) => {
   try {
-    const userId = req.user.id;
-    logger.info(`Fetching profiles for user: ${userId || 'guest'}`);
-    logger.info(`Query parameters:`, req.query);
-
+    // Get effective user (either authenticated or guest)
+    const effectiveUser = getEffectiveUser(req);
+    logger.info(`Fetching profiles for user: ${effectiveUser.userId || effectiveUser.profileId || 'unidentified'}`);
+    logger.info(`Is guest? ${effectiveUser.isGuest}`);
+    
+    // No user context available
+    if (!effectiveUser.userId && !effectiveUser.profileId) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication or verified phone required'
+      });
+    }
+    
     // Get user's profile
-    const userProfile = await GymBrosProfile.findOne({ userId });
+    const userProfile = effectiveUser.isGuest 
+      ? await GymBrosProfile.findById(effectiveUser.profileId)
+      : await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+    
     if (!userProfile) {
       return res.status(404).json({ 
         error: "User profile not found",
@@ -342,23 +404,34 @@ export const getGymBrosProfiles = async (req, res, next) => {
     }
 
     // Get user's preferences
-    const userPreferences = await GymBrosPreference.findOne({ userId });
+    const prefQuery = effectiveUser.isGuest 
+      ? { profileId: effectiveUser.profileId }
+      : { userId: effectiveUser.userId };
+      
+    const userPreferences = await GymBrosPreference.findOne(prefQuery);
     
     // If no preferences exist yet, create default ones
-    const preferences = userPreferences || new GymBrosPreference({ userId });
+    const preferences = userPreferences || new GymBrosPreference(prefQuery);
 
     // Build list of profiles to exclude (user, likes, dislikes)
     const excludedProfiles = [
-      userId,
+      effectiveUser.userId || effectiveUser.profileId,
       ...(preferences.likedProfiles || []),
       ...(preferences.dislikedProfiles || [])
     ];
 
     // Get all candidate profiles (excluding already liked/disliked and the user)
     const candidateProfiles = await GymBrosProfile.find({
-      userId: { $nin: excludedProfiles },
-      'location.lat': { $exists: true },
-      'location.lng': { $exists: true }
+      $and: [
+        {
+          $or: [
+            { userId: { $nin: excludedProfiles } },
+            { _id: { $nin: excludedProfiles } }
+          ]
+        },
+        { 'location.lat': { $exists: true } },
+        { 'location.lng': { $exists: true } }
+      ]
     });
 
     // Apply filters if provided
@@ -387,8 +460,6 @@ export const getGymBrosProfiles = async (req, res, next) => {
       }
     };
     
-    logger.info('Applying filters:', filterOptions.filters);
-
     // Get recommended profiles using enhanced service
     const recommendations = await getRecommendedProfiles(
       userProfile, 
@@ -396,12 +467,18 @@ export const getGymBrosProfiles = async (req, res, next) => {
       filterOptions
     );
 
-    const potentialMatches = await findPotentialMatches(userId);
+    const potentialMatches = await findPotentialMatches(
+      effectiveUser.userId || effectiveUser.profileId,
+      effectiveUser.isGuest
+    );
     
     const sortedRecommendations = recommendations.sort((a, b) => {
       // Prioritize users who've already liked this user
-      const aLikedUser = potentialMatches.includes(a.userId);
-      const bLikedUser = potentialMatches.includes(b.userId);
+      const aId = a.userId || a._id;
+      const bId = b.userId || b._id;
+      
+      const aLikedUser = potentialMatches.includes(aId.toString());
+      const bLikedUser = potentialMatches.includes(bId.toString());
       
       if (aLikedUser && !bLikedUser) return -1;
       if (!aLikedUser && bLikedUser) return 1;
@@ -415,10 +492,10 @@ export const getGymBrosProfiles = async (req, res, next) => {
       return a.location.distance - b.location.distance;
     });
 
-    // Save browsing session for analytics
-    saveBrowsingSession(userId, sortedRecommendations.map(profile => profile._id));
-
-    res.json(sortedRecommendations);
+    res.json({
+      recommendations: sortedRecommendations,
+      isGuest: effectiveUser.isGuest
+    });
   } catch (error) {
     logger.error('Error in getGymBrosProfiles:', error);
     
@@ -433,16 +510,41 @@ export const getGymBrosProfiles = async (req, res, next) => {
 export const likeGymBrosProfile = async (req, res) => {
   try {
     const { profileId } = req.params;
-    const userId = req.user.id;
     const viewDuration = req.body.viewDuration || 0;
     
+    // Get effective user (either authenticated or guest)
+    const effectiveUser = getEffectiveUser(req);
+    
+    // No user context available
+    if (!effectiveUser.userId && !effectiveUser.profileId) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication or verified phone required'
+      });
+    }
+    
     // Process the like interaction
-    const result = await processFeedback(userId, profileId, 'like', viewDuration);
+    const userIdentifier = effectiveUser.userId || effectiveUser.profileId;
+    const result = await processFeedback(
+      userIdentifier, 
+      profileId, 
+      'like', 
+      viewDuration, 
+      effectiveUser.isGuest
+    );
     
     // Check if this created a match
-    const isMatch = await checkForMatch(userId, profileId);
+    const isMatch = await checkForMatch(
+      userIdentifier, 
+      profileId, 
+      effectiveUser.isGuest
+    );
     
-    res.json({ success: result, match: isMatch });
+    res.json({ 
+      success: result, 
+      match: isMatch,
+      isGuest: effectiveUser.isGuest 
+    });
   } catch (error) {
     logger.error('Error in likeGymBrosProfile:', error);
     res.status(500).json({ error: 'Failed to process like' });
@@ -453,38 +555,71 @@ export const likeGymBrosProfile = async (req, res) => {
 export const dislikeGymBrosProfile = async (req, res) => {
   try {
     const { profileId } = req.params;
-    const userId = req.user.id;
     const viewDuration = req.body.viewDuration || 0;
     
-    // Process the dislike interaction
-    const result = await processFeedback(userId, profileId, 'dislike', viewDuration);
+    // Get effective user (either authenticated or guest)
+    const effectiveUser = getEffectiveUser(req);
     
-    res.json({ success: result });
+    // No user context available
+    if (!effectiveUser.userId && !effectiveUser.profileId) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication or verified phone required'
+      });
+    }
+    
+    // Process the dislike interaction
+    const userIdentifier = effectiveUser.userId || effectiveUser.profileId;
+    const result = await processFeedback(
+      userIdentifier, 
+      profileId, 
+      'dislike', 
+      viewDuration, 
+      effectiveUser.isGuest
+    );
+    
+    res.json({ 
+      success: result,
+      isGuest: effectiveUser.isGuest
+    });
   } catch (error) {
     logger.error('Error in dislikeGymBrosProfile:', error);
     res.status(500).json({ error: 'Failed to process dislike' });
   }
 };
 
-// Get user matches
+
 export const getGymBrosMatches = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const effectiveUser = getEffectiveUser(req);
+    
+    // Need either userId or profileId
+    if (!effectiveUser.userId && !effectiveUser.profileId) {
+      return res.status(401).json({ 
+        message: 'Authentication required to view matches'
+      });
+    }
+    
+    // Determine the ID to use for finding matches
+    const userIdentifier = effectiveUser.userId || effectiveUser.profileId;
     
     // Find all matches where this user is a participant
     const matches = await GymBrosMatch.find({
-      users: userId,
+      users: userIdentifier,
       active: true
     });
     
     // Get the matched user IDs (excluding current user)
     const matchedUserIds = matches.map(match => 
-      match.users.find(id => id !== userId)
+      match.users.find(id => id !== userIdentifier)
     );
     
     // Get profiles for matched users
     const matchedProfiles = await GymBrosProfile.find({
-      userId: { $in: matchedUserIds }
+      $or: [
+        { userId: { $in: matchedUserIds } },
+        { _id: { $in: matchedUserIds } }
+      ]
     });
     
     res.json(matchedProfiles);
@@ -493,22 +628,30 @@ export const getGymBrosMatches = async (req, res) => {
   }
 };
 
-// Update user preferences for GymBros
 export const updateUserPreferences = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const effectiveUser = getEffectiveUser(req);
     const preferences = req.body;
 
-    console.log('Updating preferences for user:', userId);
-    console.log('New preferences:', preferences);
-
+    // Need either userId or profileId
+    if (!effectiveUser.userId && !effectiveUser.profileId) {
+      return res.status(401).json({ 
+        message: 'Authentication required to update preferences'
+      });
+    }
+    
     // Validate preferences
     if (!preferences || typeof preferences !== 'object') {
       return res.status(400).json({ message: 'Invalid preferences data' });
     }
+    
+    const prefIdentifier = {
+      [effectiveUser.isGuest ? 'profileId' : 'userId']: 
+        effectiveUser.userId || effectiveUser.profileId
+    };
 
     // Find or create the user's preferences
-    let userPreferences = await GymBrosPreference.findOne({ userId });
+    let userPreferences = await GymBrosPreference.findOne(prefIdentifier);
 
     if (userPreferences) {
       // Update existing preferences
@@ -518,8 +661,11 @@ export const updateUserPreferences = async (req, res) => {
         { new: true }
       );
     } else {
-      // Create new preferences
-      userPreferences = new GymBrosPreference({ userId, ...preferences });
+      // Create new preferences document
+      userPreferences = new GymBrosPreference({ 
+        ...prefIdentifier,
+        ...preferences
+      });
       await userPreferences.save();
     }
 
@@ -685,14 +831,24 @@ export const deleteGymBrosProfile = async (req, res) => {
   }
 };
 
-// Get user preferences for GymBros
 export const getUserPreferences = async (req, res) => {
   try {
-    const userId = req.user.id;
-    console.log('Fetching preferences for user:', userId);
-
+    const effectiveUser = getEffectiveUser(req);
+    
+    // Need either userId or profileId
+    if (!effectiveUser.userId && !effectiveUser.profileId) {
+      return res.status(401).json({ 
+        message: 'Authentication required to get preferences'
+      });
+    }
+    
+    const prefIdentifier = {
+      [effectiveUser.isGuest ? 'profileId' : 'userId']: 
+        effectiveUser.userId || effectiveUser.profileId
+    };
+    
     // Find user preferences or return default settings
-    let preferences = await GymBrosPreference.findOne({ userId });
+    let preferences = await GymBrosPreference.findOne(prefIdentifier);
 
     if (!preferences) {
       // Return default preferences if none found
@@ -711,38 +867,6 @@ export const getUserPreferences = async (req, res) => {
     console.error('Error in getUserPreferences:', error);
     handleError(error, req, res);
   }
-};
-
-const checkForMatch = async (userId, targetId) => {
-  // Check if the target user has liked the current user
-  const targetPreferences = await GymBrosPreference.findOne({ userId: targetId });
-  
-  if (targetPreferences && targetPreferences.likedProfiles.includes(userId)) {
-    // It's a match! Create a match record
-    const newMatch = new GymBrosMatch({
-      users: [userId, targetId],
-      createdAt: new Date(),
-      active: true
-    });
-    
-    await newMatch.save();
-    
-    // Update match count for both profiles
-    await GymBrosProfile.updateOne(
-      { userId },
-      { $inc: { 'metrics.matches': 1 } }
-    );
-    
-    await GymBrosProfile.updateOne(
-      { userId: targetId },
-      { $inc: { 'metrics.matches': 1 } }
-    );
-    
-    // Return true to indicate a match was created
-    return true;
-  }
-  
-  return false;
 };
 
 
@@ -926,17 +1050,134 @@ export const verifyCode = async (req, res) => {
   }
 };
 
+export const convertGuestToUser = async (req, res) => {
+  try {
+    // Ensure user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+    
+    const userId = req.user.id;
+    const { guestToken } = req.body;
+    
+    if (!guestToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Guest token is required'
+      });
+    }
+    
+    // Verify the guest token
+    let decodedToken;
+    try {
+      decodedToken = jwt.verify(guestToken, process.env.JWT_SECRET);
+      
+      // Ensure it's a valid guest token
+      if (!decodedToken.phone || !decodedToken.verified || !decodedToken.isGuest) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid guest token'
+        });
+      }
+    } catch (error) {
+      logger.error('Error verifying guest token:', error);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired guest token'
+      });
+    }
+    
+    // Find the guest profile using the phone from the token
+    const guestProfile = await GymBrosProfile.findOne({ phone: decodedToken.phone, userId: { $exists: false } });
+    
+    if (!guestProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Guest profile not found'
+      });
+    }
+    
+    // Find any preferences associated with this guest profile
+    const guestPreferences = await GymBrosPreference.findOne({ profileId: guestProfile._id });
+    
+    // Start a database transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    
+    try {
+      // Update the guest profile with the user ID
+      guestProfile.userId = userId;
+      guestProfile.isGuest = false;
+      await guestProfile.save({ session });
+      
+      // Update the user to reference this profile
+      await User.findByIdAndUpdate(
+        userId,
+        { gymBrosProfile: guestProfile._id },
+        { session }
+      );
+      
+      // If there are preferences, update them to be associated with the user
+      if (guestPreferences) {
+        guestPreferences.userId = userId;
+        delete guestPreferences.profileId;
+        await guestPreferences.save({ session });
+      }
+      
+      // Update any matches to reference the user ID instead of profile ID
+      await GymBrosMatch.updateMany(
+        { users: guestProfile._id },
+        { $set: { 'users.$': userId } },
+        { session }
+      );
+      
+      // Commit the transaction
+      await session.commitTransaction();
+      
+      return res.status(200).json({
+        success: true,
+        message: 'Guest profile successfully converted to user account',
+        profile: guestProfile
+      });
+    } catch (txnError) {
+      // If an error occurs, abort the transaction
+      await session.abortTransaction();
+      logger.error('Error in convertGuestToUser transaction:', txnError);
+      
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to convert guest profile to user account'
+      });
+    } finally {
+      session.endSession();
+    }
+  } catch (error) {
+    logger.error('Error in convertGuestToUser:', error);
+    
+    return res.status(500).json({
+      success: false,
+      message: 'Server error converting guest profile'
+    });
+  }
+};
 
 
-
-async function findPotentialMatches(userId) {
+async function findPotentialMatches(userIdentifier, isGuest = false) {
   try {
     // Find all users who have liked this user
-    const usersWhoLikedCurrent = await GymBrosPreference.find({
-      likedProfiles: userId
-    }).select('userId');
+    const query = isGuest
+      ? { likedProfiles: userIdentifier }
+      : { likedProfiles: userIdentifier };
     
-    return usersWhoLikedCurrent.map(pref => pref.userId.toString());
+    const usersWhoLikedCurrent = await GymBrosPreference.find(query);
+    
+    return usersWhoLikedCurrent.map(pref => {
+      // Return either userId or profileId based on what's available
+      return (pref.userId || pref.profileId).toString();
+    });
   } catch (error) {
     logger.error('Error finding potential matches:', error);
     return [];
@@ -947,4 +1188,70 @@ async function saveBrowsingSession(userId, profileIds) {
   // Implementation depends on your analytics strategy
   // This is a placeholder for future implementation
   // Could save to database, send to analytics service, etc.
+}
+
+async function handleProfileCheckByPhone(req, res) {
+  const { verifiedPhone, verificationToken } = req.body;
+  
+  console.log('Checking profile by verified phone:', verifiedPhone);
+  
+  // First try to find a User with this phone number
+  const user = await User.findOne({ phone: verifiedPhone });
+  
+  // If user exists, check for a connected profile
+  if (user) {
+    const profile = await GymBrosProfile.findOne({ userId: user._id });
+    
+    if (profile) {
+      return res.json({ 
+        hasProfile: true, 
+        profile,
+        user: {
+          id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          phone: user.phone,
+          email: user.email
+        }
+      });
+    } else {
+      return res.json({ 
+        hasProfile: false, 
+        profile: null,
+        user: {
+          id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          phone: user.phone,
+          email: user.email
+        }
+      });
+    }
+  }
+
+  const profile = await GymBrosProfile.findOne({ phone: verifiedPhone });
+  
+  if (profile) {
+    // Generate a guest token for future requests
+    const guestToken = generateGuestToken(verifiedPhone);
+    
+    return res.json({
+      hasProfile: true,
+      profile,
+      user: null,
+      isGuest: true,
+      guestToken,
+      message: 'Profile found but no user account exists'
+    });
+  }
+  
+  // Neither user nor profile exists - allow creating a new profile
+  return res.json({
+    hasProfile: false,
+    profile: null,
+    user: null,
+    isGuest: true, 
+    verifiedPhone,
+    message: 'No profile found, you can create a new one'
+  });
 }

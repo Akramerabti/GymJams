@@ -1,5 +1,8 @@
+// server/src/routes/gymBrosRoutes.js
+
 import express from 'express';
 import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
+import { handleGuestUser } from '../middleware/guestUser.middleware.js';
 
 const router = express.Router();
 
@@ -21,21 +24,29 @@ import {
   checkPhoneExists,
   sendVerificationCode,
   verifyCode,
-  checkGymBrosProfileByPhone
+  checkGymBrosProfileByPhone,
+  convertGuestToUser
 } from '../controllers/gymBrosController.js';
 
 import upload from '../config/multer.js';
 
-// Check if user has a GymBros profile
-router.get('/profile', authenticate, checkGymBrosProfile);
+// Apply guest user middleware to all routes
+router.use(handleGuestUser);
 
+// Check if user has a GymBros profile (works for authenticated users and guests)
+router.get('/profile', optionalAuthenticate, checkGymBrosProfile);
+
+// Special route for checking profile with just phone verification
 router.post('/profile/by-phone', checkGymBrosProfileByPhone); 
 
-// Create or update GymBros profile
+// Create or update GymBros profile (works for authenticated users and guests)
 router.post('/profile', optionalAuthenticate, createOrUpdateGymBrosProfile);
 
-// Update GymBros profile with automatic saving (same endpoint as create)
+// Update GymBros profile with automatic saving
 router.put('/profile', optionalAuthenticate, createOrUpdateGymBrosProfile);
+
+// Convert guest profile to regular user account after registration
+router.post('/convert-guest', authenticate, convertGuestToUser);
 
 // Upload profile images - supports multiple images
 router.post('/profile-images', optionalAuthenticate, upload.array('images', 6), uploadProfileImages);
@@ -70,11 +81,10 @@ router.post('/dislike/:profileId', optionalAuthenticate, dislikeGymBrosProfile);
 // Get user matches
 router.get('/matches', optionalAuthenticate, getGymBrosMatches);
 
-
+// Phone verification routes - no authentication required
 router.post('/check-phone', checkPhoneExists);
-
 router.post('/send-verification', sendVerificationCode);
-
 router.post('/verify-code', verifyCode);
 
+// Export the router
 export default router;
