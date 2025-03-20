@@ -387,7 +387,16 @@ const GymBros = () => {
       maxDistance: 50  // Default distance
     });
     
-    fetchProfiles();
+    // IMPORTANT: Ensure guest token is saved if included in response
+    if (profile.guestToken) {
+      gymbrosService.setGuestToken(profile.guestToken);
+      console.log('[GymBros] Saved guest token from profile creation:', profile.guestToken);
+    }
+    
+    // Slight delay to ensure token is properly set in headers before making new requests
+    setTimeout(() => {
+      fetchProfiles();
+    }, 500);
   };
 
   const handleFilterChange = (newFilters) => {

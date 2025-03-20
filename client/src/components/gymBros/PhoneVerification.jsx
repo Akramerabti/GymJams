@@ -115,22 +115,28 @@ const PhoneVerification = ({
         localStorage.setItem('verifiedPhone', phone);
         localStorage.setItem('verificationToken', response.token);
         
-        // If this is a login flow or the phone exists, check profile directly
-        if (isLoginFlow || phoneExists) {
-          try {
-            console.log('Checking profile with verified phone in one step');
-            const profileData = await gymbrosService.checkProfileWithVerifiedPhone(
-              phone, 
-              response.token
-            );
-            
-            console.log('Profile check result:', profileData);
-            
+        try {
+          console.log('Checking profile with verified phone');
+          const profileData = await gymbrosService.checkProfileWithVerifiedPhone(
+            phone, 
+            response.token
+          );
+          
+          console.log('Profile check result:', profileData);
+          
+          // If we received and saved a guest token, log it
+          if (profileData.guestToken) {
+            console.log('Received guest token from profile check:', 
+              profileData.guestToken.substring(0, 15) + '...');
+          }
+          
+          // Add a slight delay to ensure token is saved properly before proceeding
+          setTimeout(() => {
             if (profileData.success) {
               // Check if we have a user account
               if (profileData.user) {
                 // We have both user and potentially a profile
-                await loginWithToken(response.token, profileData.user);
+                loginWithToken(response.token);
                 toast.success('Logged in successfully!');
                 
                 // Notify parent component of successful verification and login
@@ -141,7 +147,7 @@ const PhoneVerification = ({
                   profileData
                 );
               } else if (profileData.profile) {
-              
+                // We have a profile but no user
                 onVerified && onVerified(
                   true,
                   null, // No user yet
@@ -162,15 +168,12 @@ const PhoneVerification = ({
               toast.error(profileData.message || 'Failed to find user with this phone number');
               onVerified && onVerified(true, null, response.token);
             }
-          } catch (profileError) {
-            console.error('Error checking profile with verified phone:', profileError);
-            toast.error('Error verifying your profile. Please try again.');
-            
-            // Still mark as verified since the phone verification worked
-            onVerified && onVerified(true, null, response.token);
-          }
-        } else {
-          // For new account creation, just mark as verified
+          }, 500); // Short delay to ensure token is properly saved
+        } catch (profileError) {
+          console.error('Error checking profile with verified phone:', profileError);
+          toast.error('Error verifying your profile. Please try again.');
+          
+          // Still mark as verified since the phone verification worked
           onVerified && onVerified(true, null, response.token);
         }
       } else {
@@ -183,7 +186,6 @@ const PhoneVerification = ({
       setIsLoading(false);
     }
   };
-
 
   const handleOtpChange = (index, value) => {
     // Only allow numbers

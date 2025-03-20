@@ -31,17 +31,24 @@ const gymbrosService = {
   
   async checkPhoneExists(phone) {
     try {
+      // This should work without any tokens since it's a public endpoint
       const response = await api.post('/gym-bros/check-phone', { phone });
+      console.log('Phone exists check response:', response.data);
       return response.data.exists;
     } catch (error) {
       console.error('Error checking if phone exists:', error);
-      throw error;
+      // Return false if there's an error to allow proceeding
+      console.warn('Assuming phone does not exist due to error');
+      return false;
     }
   },
 
   async sendVerificationCode(phone) {
     try {
+      // No token needed for this endpoint - it's for starting the verification flow
+      console.log('Sending verification code to phone:', phone);
       const response = await api.post('/gym-bros/send-verification', { phone });
+      console.log('Verification code sent response:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error sending verification code:', error);
@@ -202,12 +209,22 @@ const gymbrosService = {
       
       // Include guest token if available
       const guestToken = this.getGuestToken();
-      const params = guestToken ? { guestToken } : {};
+      const config = {
+        params: guestToken ? { guestToken } : {}
+      };
       
-      const response = await api.post('/gym-bros/profile', profileData, { params });
+      // Also add to headers explicitly
+      if (guestToken) {
+        config.headers = {
+          'x-gymbros-guest-token': guestToken
+        };
+      }
+      
+      const response = await api.post('/gym-bros/profile', profileData, config);
       
       // Handle guest token if received
       if (response.data.guestToken) {
+        console.log('Received and saving guest token:', response.data.guestToken);
         this.setGuestToken(response.data.guestToken);
       }
       

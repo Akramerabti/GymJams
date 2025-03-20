@@ -26,7 +26,6 @@ const onRefreshed = (token) => {
   refreshSubscribers = [];
 };
 
-// Add request interceptor to include auth token and guest token in every request
 api.interceptors.request.use(
   (config) => {
     // Get regular auth token
@@ -50,10 +49,6 @@ api.interceptors.request.use(
     } else {
       console.log('No guest token available for request');
     }
-    
-    console.log('Making request to:', config.url);
-    console.log('With headers:', JSON.stringify(config.headers));
-    console.log('With params:', JSON.stringify(config.params));
     
     return config;
   },

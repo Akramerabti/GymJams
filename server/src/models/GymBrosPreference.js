@@ -1,12 +1,19 @@
-// models/GymBrosPreference.js
 import mongoose from 'mongoose';
 
 const gymBrosPreferenceSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
-    unique: true
+    sparse: true // Allow this to be optional
+  },
+  profileId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'GymBrosProfile',
+    sparse: true // Allow this to be optional
+  },
+  phone: {
+    type: String,
+    sparse: true // Allow this to be optional
   },
   ageRange: {
     min: {
@@ -91,6 +98,11 @@ const gymBrosPreferenceSchema = new mongoose.Schema({
     }
   }
 }, { timestamps: true });
+
+// Create indexes for efficient lookups
+gymBrosPreferenceSchema.index({ userId: 1 }, { sparse: true });
+gymBrosPreferenceSchema.index({ profileId: 1 }, { sparse: true });
+gymBrosPreferenceSchema.index({ phone: 1 }, { sparse: true });
 
 const GymBrosPreference = mongoose.model('GymBrosPreference', gymBrosPreferenceSchema);
 

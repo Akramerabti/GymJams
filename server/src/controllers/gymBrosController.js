@@ -209,6 +209,7 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
     const verificationToken = req.body.verificationToken;
     
     console.log('Creating/updating GymBros profile:', profileData);
+    console.log('Guest token from request:', req.headers['x-gymbros-guest-token'] || req.query.guestToken);
     
     // Validate profile data
     if (!profileData || typeof profileData !== 'object') {
@@ -257,7 +258,7 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
       );
       
       // Generate a guest token for future requests
-      const guestToken = generateGuestToken(effectiveUser.phone);
+      const guestToken = generateGuestToken(effectiveUser.phone, profile._id);
       
       return res.status(200).json({
         success: true,
@@ -291,8 +292,9 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
         
         await profile.save();
         
-        // Generate a guest token for future requests
-        const guestToken = generateGuestToken(profileData.phone);
+        // Generate a guest token for future requests with the profile ID
+        const guestToken = generateGuestToken(profileData.phone, profile._id);
+        console.log(`Created guest token for profile ${profile._id}:`, guestToken);
         
         return res.status(201).json({
           success: true,
@@ -417,7 +419,7 @@ export const getGymBrosProfiles = async (req, res, next) => {
     logger.info('Request query params:', JSON.stringify(req.query));
     logger.info('Request cookies:', JSON.stringify(req.cookies));
     logger.info('Guest user on request:', JSON.stringify(req.guestUser));
-    
+
     const effectiveUser = getEffectiveUser(req);
     logger.info(`Fetching profiles for user: ${effectiveUser.userId || effectiveUser.profileId || effectiveUser.phone || 'unidentified'}`);
     logger.info(`Is guest? ${effectiveUser.isGuest}`);
@@ -737,14 +739,47 @@ export const updateUserPreferences = async (req, res) => {
   }
 };
 
-// Get user settings for GymBros
 export const getUserSettings = async (req, res) => {
   try {
-    const userId = req.user.id;
-    console.log('Fetching settings for user:', userId);
+    // Get effective user (either authenticated or guest)
+    const effectiveUser = getEffectiveUser(req);
+    
+    console.log('Getting settings for effective user:', effectiveUser);
+    
+    // No user context available
+    if (!effectiveUser.userId && !effectiveUser.profileId && !effectiveUser.phone) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication or verified phone required'
+      });
+    }
 
-    // Find user preferences or return default settings
-    let preferences = await GymBrosPreference.findOne({ userId });
+    // Find user preferences based on authentication type
+    let preferences;
+    
+    if (effectiveUser.isGuest) {
+      // If we have profileId for guest, use that
+      if (effectiveUser.profileId) {
+        preferences = await GymBrosPreference.findOne({ profileId: effectiveUser.profileId });
+      } 
+      // Otherwise try to find by phone
+      else if (effectiveUser.phone) {
+        // Find profile by phone first
+        const profile = await GymBrosProfile.findOne({ phone: effectiveUser.phone });
+        
+        // If profile found, look for preferences with that profileId
+        if (profile) {
+          preferences = await GymBrosPreference.findOne({ profileId: profile._id });
+        } else {
+          // No profile yet, but we have a verified phone - check for preferences by phone
+          preferences = await GymBrosPreference.findOne({ phone: effectiveUser.phone });
+        }
+      }
+    } 
+    // For authenticated users, use userId
+    else if (effectiveUser.userId) {
+      preferences = await GymBrosPreference.findOne({ userId: effectiveUser.userId });
+    }
 
     if (!preferences) {
       // Return default settings if none found
@@ -791,14 +826,22 @@ export const getUserSettings = async (req, res) => {
   }
 };
 
-// Update user settings for GymBros
 export const updateUserSettings = async (req, res) => {
   try {
-    const userId = req.user.id;
     const settingsData = req.body;
 
-    console.log('Updating settings for user:', userId);
-    console.log('New settings:', settingsData);
+    // Get effective user (either authenticated or guest)
+    const effectiveUser = getEffectiveUser(req);
+    
+    console.log('Updating settings for effective user:', effectiveUser);
+    
+    // No user context available
+    if (!effectiveUser.userId && !effectiveUser.profileId && !effectiveUser.phone) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication or verified phone required'
+      });
+    }
 
     // Validate settings data
     if (!settingsData || typeof settingsData !== 'object') {
@@ -815,7 +858,44 @@ export const updateUserSettings = async (req, res) => {
     } = settingsData;
 
     // Find or create user preferences
-    let preferences = await GymBrosPreference.findOne({ userId });
+    let preferences;
+    
+    if (effectiveUser.isGuest) {
+      // If we have profileId for guest, use that
+      if (effectiveUser.profileId) {
+        preferences = await GymBrosPreference.findOne({ profileId: effectiveUser.profileId });
+      }
+      // Otherwise try to find by phone
+      else if (effectiveUser.phone) {
+        // Find profile by phone first
+        const profile = await GymBrosProfile.findOne({ phone: effectiveUser.phone });
+        
+        // If profile found, look for preferences with that profileId
+        if (profile) {
+          preferences = await GymBrosPreference.findOne({ profileId: profile._id });
+          
+          // If no preferences yet, create new with profileId
+          if (!preferences) {
+            preferences = new GymBrosPreference({ profileId: profile._id });
+          }
+        } else {
+          // No profile yet, create preferences with phone
+          preferences = await GymBrosPreference.findOne({ phone: effectiveUser.phone });
+          
+          if (!preferences) {
+            preferences = new GymBrosPreference({ phone: effectiveUser.phone });
+          }
+        }
+      }
+    }
+    // For authenticated users, use userId
+    else if (effectiveUser.userId) {
+      preferences = await GymBrosPreference.findOne({ userId: effectiveUser.userId });
+      
+      if (!preferences) {
+        preferences = new GymBrosPreference({ userId: effectiveUser.userId });
+      }
+    }
     
     const updateData = {};
     
@@ -829,21 +909,9 @@ export const updateUserSettings = async (req, res) => {
     if (notifications) updateData.settings.notifications = notifications;
     if (privacy) updateData.settings.privacy = privacy;
 
-    if (preferences) {
-      // Update existing preferences
-      preferences = await GymBrosPreference.findByIdAndUpdate(
-        preferences._id,
-        { $set: updateData },
-        { new: true }
-      );
-    } else {
-      // Create new preferences document
-      preferences = new GymBrosPreference({ 
-        userId,
-        ...updateData
-      });
-      await preferences.save();
-    }
+    // Apply updates
+    Object.assign(preferences, updateData);
+    await preferences.save();
 
     // Extract settings for response
     const responseSettings = {
@@ -1066,18 +1134,20 @@ export const verifyCode = async (req, res) => {
     const { phone, code } = req.body;
     
     if (!phone || !code) {
-      return res.status(400).json({ message: 'Phone and code are required' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'Phone and code are required' 
+      });
     }
     
-    console.log('Verifying code:', code);
-    console.log('For phone:', phone);
+    console.log('Verifying code:', code, 'for phone:', phone);
+    
     // Find the verification record
     const verification = await PhoneVerification.findOne({ 
       phone,
       code,
       expiresAt: { $gt: new Date() } // Make sure it hasn't expired
     });
-
     
     if (!verification) {
       return res.status(400).json({ 
@@ -1096,10 +1166,14 @@ export const verifyCode = async (req, res) => {
     // Clear the used verification code to prevent reuse
     await PhoneVerification.deleteOne({ _id: verification._id });
     
+    // Also generate a guest token for future API calls
+    const guestToken = generateGuestToken(phone);
+    
     res.json({ 
       success: true,
       message: 'Phone verified successfully',
-      token
+      token,
+      guestToken
     });
   } catch (error) {
     console.error('Error verifying code:', error);

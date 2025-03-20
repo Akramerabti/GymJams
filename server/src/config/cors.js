@@ -29,7 +29,9 @@ const corsOptions = {
     'X-App-Version',
     'Origin',
     'Accept',
-    'Stripe-Signature'
+    'Stripe-Signature',
+    'x-gymbros-guest-token',
+    'x-guest-token',
   ],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
   credentials: true,
