@@ -26,13 +26,13 @@ const onRefreshed = (token) => {
   refreshSubscribers = [];
 };
 
+// Add request interceptor to include auth token and guest token in every request
 api.interceptors.request.use(
   (config) => {
     // Get regular auth token
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      console.log('Added auth token to request');
     }
     
     // Get guest token and add it as a header if available
@@ -44,10 +44,6 @@ api.interceptors.request.use(
       // Also add to params for all requests
       config.params = config.params || {};
       config.params.guestToken = guestToken;
-      
-      console.log('Added guest token to request:', guestToken.substring(0, 15) + '...');
-    } else {
-      console.log('No guest token available for request');
     }
     
     return config;
@@ -71,13 +67,6 @@ api.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
-
-    // Log the error for debugging
-    console.error('API Error:', {
-      url: error.config?.url,
-      status: error.response?.status,
-      data: error.response?.data,
-    });
 
     // Handle token expiration (401 Unauthorized)
     if (error.response?.status === 401 && !originalRequest._retry && 
@@ -103,7 +92,7 @@ api.interceptors.response.use(
         const response = await axios.post(
           `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/refresh-token`,
           {},
-          { withCredentials: true }  // Important to include credentials for the refresh token
+          { withCredentials: true }
         );
         
         const { token } = response.data;
@@ -126,10 +115,36 @@ api.interceptors.response.use(
         localStorage.removeItem('token');
         delete api.defaults.headers.common['Authorization'];
         
-        toast.error('Your session has expired. Please log in again.');
+        // Check if a guest token exists to avoid showing login toast for guest users
+        const guestToken = localStorage.getItem('gymbros_guest_token');
+        if (!guestToken) {
+          toast.error('Your session has expired. Please log in again.');
+        }
         
         // Instead of redirecting, we'll let the app handle this
         return Promise.reject(refreshError);
+      }
+    }
+    
+    // Special handling for 401s on endpoints that support guest tokens
+    if (error.response?.status === 401 && 
+        (originalRequest.url.includes('/gym-bros/') || 
+         originalRequest.url.includes('/profile'))) {
+      
+      // Check if we have a guest token
+      const guestToken = localStorage.getItem('gymbros_guest_token');
+      
+      // If this was a request without a guest token but we have one stored, retry with it
+      if (guestToken && (!originalRequest.headers['x-gymbros-guest-token'] || 
+                         !originalRequest.params?.guestToken)) {
+        
+        // Add the guest token to the request
+        originalRequest.headers['x-gymbros-guest-token'] = guestToken;
+        originalRequest.params = originalRequest.params || {};
+        originalRequest.params.guestToken = guestToken;
+        
+        // Retry the request with the guest token
+        return axios(originalRequest);
       }
     }
 

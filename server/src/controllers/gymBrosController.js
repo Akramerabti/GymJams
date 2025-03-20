@@ -656,24 +656,39 @@ export const getGymBrosMatches = async (req, res) => {
     const effectiveUser = getEffectiveUser(req);
     
     // Need either userId or profileId
-    if (!effectiveUser.userId && !effectiveUser.profileId) {
+    if (!effectiveUser.userId && !effectiveUser.profileId && !effectiveUser.phone) {
       return res.status(401).json({ 
-        message: 'Authentication required to view matches'
+        message: 'Authentication required to view matches',
+        requiresVerification: true
       });
     }
     
     // Determine the ID to use for finding matches
     const userIdentifier = effectiveUser.userId || effectiveUser.profileId;
     
+    // If no userIdentifier but we have a phone, try to find a profile with that phone
+    let phoneProfile;
+    if (!userIdentifier && effectiveUser.phone) {
+      phoneProfile = await GymBrosProfile.findOne({ phone: effectiveUser.phone });
+      if (!phoneProfile) {
+        return res.status(404).json({ 
+          message: 'No profile found for this phone number',
+          requiresVerification: true
+        });
+      }
+    }
+    
+    const actualIdentifier = userIdentifier || phoneProfile._id;
+    
     // Find all matches where this user is a participant
     const matches = await GymBrosMatch.find({
-      users: userIdentifier,
+      users: actualIdentifier,
       active: true
     });
     
     // Get the matched user IDs (excluding current user)
     const matchedUserIds = matches.map(match => 
-      match.users.find(id => id !== userIdentifier)
+      match.users.find(id => id.toString() !== actualIdentifier.toString())
     );
     
     // Get profiles for matched users
@@ -683,6 +698,16 @@ export const getGymBrosMatches = async (req, res) => {
         { _id: { $in: matchedUserIds } }
       ]
     });
+    
+    // Include guest token in response if applicable
+    if (effectiveUser.isGuest) {
+      const responseData = {
+        matches: matchedProfiles,
+        guestToken: req.headers['x-gymbros-guest-token'],
+        isGuest: true
+      };
+      return res.json(responseData);
+    }
     
     res.json(matchedProfiles);
   } catch (error) {
@@ -695,10 +720,11 @@ export const updateUserPreferences = async (req, res) => {
     const effectiveUser = getEffectiveUser(req);
     const preferences = req.body;
 
-    // Need either userId or profileId
-    if (!effectiveUser.userId && !effectiveUser.profileId) {
+    // Need either userId, profileId or phone
+    if (!effectiveUser.userId && !effectiveUser.profileId && !effectiveUser.phone) {
       return res.status(401).json({ 
-        message: 'Authentication required to update preferences'
+        message: 'Authentication required to update preferences',
+        requiresVerification: true
       });
     }
     
@@ -707,10 +733,17 @@ export const updateUserPreferences = async (req, res) => {
       return res.status(400).json({ message: 'Invalid preferences data' });
     }
     
-    const prefIdentifier = {
-      [effectiveUser.isGuest ? 'profileId' : 'userId']: 
-        effectiveUser.userId || effectiveUser.profileId
-    };
+    let prefIdentifier = {};
+    
+    if (effectiveUser.isGuest) {
+      if (effectiveUser.profileId) {
+        prefIdentifier.profileId = effectiveUser.profileId;
+      } else if (effectiveUser.phone) {
+        prefIdentifier.phone = effectiveUser.phone;
+      }
+    } else {
+      prefIdentifier.userId = effectiveUser.userId;
+    }
 
     // Find or create the user's preferences
     let userPreferences = await GymBrosPreference.findOne(prefIdentifier);
@@ -731,6 +764,13 @@ export const updateUserPreferences = async (req, res) => {
       await userPreferences.save();
     }
 
+    // Include guest token in response if applicable
+    if (effectiveUser.isGuest) {
+      const responseData = userPreferences.toObject();
+      responseData.guestToken = req.headers['x-gymbros-guest-token'];
+      return res.json(responseData);
+    }
+    
     // Return updated preferences
     res.status(200).json(userPreferences);
   } catch (error) {
@@ -741,49 +781,34 @@ export const updateUserPreferences = async (req, res) => {
 
 export const getUserSettings = async (req, res) => {
   try {
-    // Get effective user (either authenticated or guest)
     const effectiveUser = getEffectiveUser(req);
     
-    console.log('Getting settings for effective user:', effectiveUser);
-    
-    // No user context available
+    // Need either userId, profileId or phone
     if (!effectiveUser.userId && !effectiveUser.profileId && !effectiveUser.phone) {
       return res.status(401).json({ 
-        success: false,
-        message: 'Authentication or verified phone required'
+        message: 'Authentication required to get settings',
+        requiresVerification: true
       });
     }
-
-    // Find user preferences based on authentication type
-    let preferences;
+    
+    // Find user preferences or return default settings
+    let prefIdentifier = {};
     
     if (effectiveUser.isGuest) {
-      // If we have profileId for guest, use that
       if (effectiveUser.profileId) {
-        preferences = await GymBrosPreference.findOne({ profileId: effectiveUser.profileId });
-      } 
-      // Otherwise try to find by phone
-      else if (effectiveUser.phone) {
-        // Find profile by phone first
-        const profile = await GymBrosProfile.findOne({ phone: effectiveUser.phone });
-        
-        // If profile found, look for preferences with that profileId
-        if (profile) {
-          preferences = await GymBrosPreference.findOne({ profileId: profile._id });
-        } else {
-          // No profile yet, but we have a verified phone - check for preferences by phone
-          preferences = await GymBrosPreference.findOne({ phone: effectiveUser.phone });
-        }
+        prefIdentifier.profileId = effectiveUser.profileId;
+      } else if (effectiveUser.phone) {
+        prefIdentifier.phone = effectiveUser.phone;
       }
-    } 
-    // For authenticated users, use userId
-    else if (effectiveUser.userId) {
-      preferences = await GymBrosPreference.findOne({ userId: effectiveUser.userId });
+    } else {
+      prefIdentifier.userId = effectiveUser.userId;
     }
+    
+    let preferences = await GymBrosPreference.findOne(prefIdentifier);
 
     if (!preferences) {
       // Return default settings if none found
-      return res.json({
+      const defaultSettings = {
         maxDistance: 50,
         ageRange: { min: 18, max: 60 },
         showMe: true,
@@ -798,7 +823,15 @@ export const getUserSettings = async (req, res) => {
           showGoals: true,
           profileVisibility: 'everyone',
         }
-      });
+      };
+      
+      // Include guest token in response if applicable
+      if (effectiveUser.isGuest) {
+        defaultSettings.guestToken = req.headers['x-gymbros-guest-token'];
+        defaultSettings.isGuest = true;
+      }
+      
+      return res.json(defaultSettings);
     }
 
     // Extract settings from preferences
@@ -819,6 +852,12 @@ export const getUserSettings = async (req, res) => {
       }
     };
 
+    // Include guest token in response if applicable
+    if (effectiveUser.isGuest) {
+      settings.guestToken = req.headers['x-gymbros-guest-token'];
+      settings.isGuest = true;
+    }
+    
     res.json(settings);
   } catch (error) {
     console.error('Error in getUserSettings:', error);
@@ -828,18 +867,14 @@ export const getUserSettings = async (req, res) => {
 
 export const updateUserSettings = async (req, res) => {
   try {
+    const effectiveUser = getEffectiveUser(req);
     const settingsData = req.body;
 
-    // Get effective user (either authenticated or guest)
-    const effectiveUser = getEffectiveUser(req);
-    
-    console.log('Updating settings for effective user:', effectiveUser);
-    
-    // No user context available
+    // Need either userId, profileId or phone
     if (!effectiveUser.userId && !effectiveUser.profileId && !effectiveUser.phone) {
       return res.status(401).json({ 
-        success: false,
-        message: 'Authentication or verified phone required'
+        message: 'Authentication required to update settings',
+        requiresVerification: true
       });
     }
 
@@ -858,44 +893,19 @@ export const updateUserSettings = async (req, res) => {
     } = settingsData;
 
     // Find or create user preferences
-    let preferences;
+    let prefIdentifier = {};
     
     if (effectiveUser.isGuest) {
-      // If we have profileId for guest, use that
       if (effectiveUser.profileId) {
-        preferences = await GymBrosPreference.findOne({ profileId: effectiveUser.profileId });
+        prefIdentifier.profileId = effectiveUser.profileId;
+      } else if (effectiveUser.phone) {
+        prefIdentifier.phone = effectiveUser.phone;
       }
-      // Otherwise try to find by phone
-      else if (effectiveUser.phone) {
-        // Find profile by phone first
-        const profile = await GymBrosProfile.findOne({ phone: effectiveUser.phone });
-        
-        // If profile found, look for preferences with that profileId
-        if (profile) {
-          preferences = await GymBrosPreference.findOne({ profileId: profile._id });
-          
-          // If no preferences yet, create new with profileId
-          if (!preferences) {
-            preferences = new GymBrosPreference({ profileId: profile._id });
-          }
-        } else {
-          // No profile yet, create preferences with phone
-          preferences = await GymBrosPreference.findOne({ phone: effectiveUser.phone });
-          
-          if (!preferences) {
-            preferences = new GymBrosPreference({ phone: effectiveUser.phone });
-          }
-        }
-      }
+    } else {
+      prefIdentifier.userId = effectiveUser.userId;
     }
-    // For authenticated users, use userId
-    else if (effectiveUser.userId) {
-      preferences = await GymBrosPreference.findOne({ userId: effectiveUser.userId });
-      
-      if (!preferences) {
-        preferences = new GymBrosPreference({ userId: effectiveUser.userId });
-      }
-    }
+    
+    let preferences = await GymBrosPreference.findOne(prefIdentifier);
     
     const updateData = {};
     
@@ -909,9 +919,21 @@ export const updateUserSettings = async (req, res) => {
     if (notifications) updateData.settings.notifications = notifications;
     if (privacy) updateData.settings.privacy = privacy;
 
-    // Apply updates
-    Object.assign(preferences, updateData);
-    await preferences.save();
+    if (preferences) {
+      // Update existing preferences
+      preferences = await GymBrosPreference.findByIdAndUpdate(
+        preferences._id,
+        { $set: updateData },
+        { new: true }
+      );
+    } else {
+      // Create new preferences document
+      preferences = new GymBrosPreference({ 
+        ...prefIdentifier,
+        ...updateData
+      });
+      await preferences.save();
+    }
 
     // Extract settings for response
     const responseSettings = {
@@ -921,6 +943,12 @@ export const updateUserSettings = async (req, res) => {
       notifications: preferences.settings?.notifications,
       privacy: preferences.settings?.privacy
     };
+
+    // Include guest token in response if applicable
+    if (effectiveUser.isGuest) {
+      responseSettings.guestToken = req.headers['x-gymbros-guest-token'];
+      responseSettings.isGuest = true;
+    }
 
     // Return updated settings
     res.status(200).json(responseSettings);
@@ -964,32 +992,54 @@ export const getUserPreferences = async (req, res) => {
     const effectiveUser = getEffectiveUser(req);
     
     // Need either userId or profileId
-    if (!effectiveUser.userId && !effectiveUser.profileId) {
+    if (!effectiveUser.userId && !effectiveUser.profileId && !effectiveUser.phone) {
       return res.status(401).json({ 
-        message: 'Authentication required to get preferences'
+        message: 'Authentication required to get preferences',
+        requiresVerification: true
       });
     }
     
-    const prefIdentifier = {
-      [effectiveUser.isGuest ? 'profileId' : 'userId']: 
-        effectiveUser.userId || effectiveUser.profileId
-    };
+    let prefIdentifier = {};
+    
+    if (effectiveUser.isGuest) {
+      if (effectiveUser.profileId) {
+        prefIdentifier.profileId = effectiveUser.profileId;
+      } else if (effectiveUser.phone) {
+        prefIdentifier.phone = effectiveUser.phone;
+      }
+    } else {
+      prefIdentifier.userId = effectiveUser.userId;
+    }
     
     // Find user preferences or return default settings
     let preferences = await GymBrosPreference.findOne(prefIdentifier);
 
     if (!preferences) {
       // Return default preferences if none found
-      return res.json({
+      const defaultPrefs = {
         workoutTypes: [],
         experienceLevel: 'Any',
         preferredTime: 'Any',
         genderPreference: 'All',
         ageRange: { min: 18, max: 99 },
         maxDistance: 50
-      });
+      };
+      
+      // Add guest token to response
+      const responseData = effectiveUser.isGuest ? 
+        { ...defaultPrefs, guestToken: req.headers['x-gymbros-guest-token'] } : 
+        defaultPrefs;
+      
+      return res.json(responseData);
     }
 
+    // Include guest token in response if applicable
+    if (effectiveUser.isGuest) {
+      const responseData = preferences.toObject();
+      responseData.guestToken = req.headers['x-gymbros-guest-token'];
+      return res.json(responseData);
+    }
+    
     res.json(preferences);
   } catch (error) {
     console.error('Error in getUserPreferences:', error);

@@ -20,7 +20,6 @@ const gymbrosService = {
     return token;
   },
   
-  
   clearGuestState() {
     localStorage.removeItem('gymbros_guest_token');
     localStorage.removeItem('verifiedPhone');
@@ -28,27 +27,39 @@ const gymbrosService = {
     delete api.defaults.headers.common['x-gymbros-guest-token'];
   },
 
-  
+  // Helper method to ensure that any request includes the guest token if available
+  configWithGuestToken(additionalConfig = {}) {
+    const guestToken = this.getGuestToken();
+    const config = { ...additionalConfig };
+    
+    if (guestToken) {
+      config.headers = {
+        ...(config.headers || {}),
+        'x-gymbros-guest-token': guestToken
+      };
+      
+      config.params = {
+        ...(config.params || {}),
+        guestToken
+      };
+    }
+    
+    return config;
+  },
+
   async checkPhoneExists(phone) {
     try {
-      // This should work without any tokens since it's a public endpoint
       const response = await api.post('/gym-bros/check-phone', { phone });
-      console.log('Phone exists check response:', response.data);
       return response.data.exists;
     } catch (error) {
       console.error('Error checking if phone exists:', error);
-      // Return false if there's an error to allow proceeding
-      console.warn('Assuming phone does not exist due to error');
-      return false;
+      throw error;
     }
   },
 
   async sendVerificationCode(phone) {
     try {
-      // No token needed for this endpoint - it's for starting the verification flow
-      console.log('Sending verification code to phone:', phone);
       const response = await api.post('/gym-bros/send-verification', { phone });
-      console.log('Verification code sent response:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error sending verification code:', error);
@@ -142,7 +153,6 @@ const gymbrosService = {
     }
   },
 
- 
   async registerWithPhone(phone, verificationToken, userData) {
     try {
       const response = await api.post('/auth/phone-register', {
@@ -160,18 +170,7 @@ const gymbrosService = {
   async getGymBrosProfile() {
     try {
       // Create config with guest token explicitly added
-      const guestToken = this.getGuestToken();
-      const config = {
-        params: {}
-      };
-      
-      if (guestToken) {
-        config.params.guestToken = guestToken;
-        config.headers = {
-          'x-gymbros-guest-token': guestToken
-        };
-        console.log('Added guest token to profile request:', guestToken.substring(0, 15) + '...');
-      }
+      const config = this.configWithGuestToken();
       
       console.log('Making profile request with config:', JSON.stringify(config));
       
@@ -207,24 +206,13 @@ const gymbrosService = {
         }
       }
       
-      // Include guest token if available
-      const guestToken = this.getGuestToken();
-      const config = {
-        params: guestToken ? { guestToken } : {}
-      };
-      
-      // Also add to headers explicitly
-      if (guestToken) {
-        config.headers = {
-          'x-gymbros-guest-token': guestToken
-        };
-      }
+      // Create request config with guest token
+      const config = this.configWithGuestToken();
       
       const response = await api.post('/gym-bros/profile', profileData, config);
       
       // Handle guest token if received
       if (response.data.guestToken) {
-        console.log('Received and saving guest token:', response.data.guestToken);
         this.setGuestToken(response.data.guestToken);
       }
       
@@ -272,25 +260,12 @@ const gymbrosService = {
       // Add timestamp to prevent caching
       queryParams._t = Date.now();
       
-      // Add guest token explicitly
-      const guestToken = this.getGuestToken();
-      if (guestToken) {
-        queryParams.guestToken = guestToken;
-        console.log('Added guest token to profiles request:', guestToken.substring(0, 15) + '...');
-      }
+      // Set up config with guest token
+      const config = this.configWithGuestToken({
+        params: queryParams
+      });
       
-      console.log('Making profiles request with params:', JSON.stringify(queryParams));
-      
-      const config = {
-        params: queryParams,
-      };
-      
-      // Also add to headers
-      if (guestToken) {
-        config.headers = {
-          'x-gymbros-guest-token': guestToken
-        };
-      }
+      console.log('Making profiles request with params:', JSON.stringify(config));
       
       const response = await api.get('/gym-bros/profiles', config);
       
@@ -310,15 +285,19 @@ const gymbrosService = {
 
   async likeProfile(profileId, viewDuration = 0) {
     try {
-      // Add guest token if available
-      const guestToken = this.getGuestToken();
-      const params = guestToken ? { guestToken } : {};
+      // Add guest token
+      const config = this.configWithGuestToken();
       
       const response = await api.post(
         `/gym-bros/like/${profileId}`, 
         { viewDuration },
-        { params }
+        config
       );
+      
+      // Update guest token if returned
+      if (response.data.guestToken) {
+        this.setGuestToken(response.data.guestToken);
+      }
       
       return response.data;
     } catch (error) {
@@ -329,15 +308,19 @@ const gymbrosService = {
 
   async dislikeProfile(profileId, viewDuration = 0) {
     try {
-      // Add guest token if available
-      const guestToken = this.getGuestToken();
-      const params = guestToken ? { guestToken } : {};
+      // Add guest token
+      const config = this.configWithGuestToken();
       
       const response = await api.post(
         `/gym-bros/dislike/${profileId}`, 
         { viewDuration },
-        { params }
+        config
       );
+      
+      // Update guest token if returned
+      if (response.data.guestToken) {
+        this.setGuestToken(response.data.guestToken);
+      }
       
       return response.data;
     } catch (error) {
@@ -348,11 +331,16 @@ const gymbrosService = {
 
   async getMatches() {
     try {
-      // Add guest token if available
-      const guestToken = this.getGuestToken();
-      const params = guestToken ? { guestToken } : {};
+      // Add guest token
+      const config = this.configWithGuestToken();
       
-      const response = await api.get('/gym-bros/matches', { params });
+      const response = await api.get('/gym-bros/matches', config);
+      
+      // Update guest token if returned
+      if (response.data.guestToken) {
+        this.setGuestToken(response.data.guestToken);
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Error fetching matches:', error);
@@ -362,11 +350,16 @@ const gymbrosService = {
 
   async getUserPreferences() {
     try {
-      // Add guest token if available
-      const guestToken = this.getGuestToken();
-      const params = guestToken ? { guestToken } : {};
+      // Add guest token
+      const config = this.configWithGuestToken();
       
-      const response = await api.get('/gym-bros/preferences', { params });
+      const response = await api.get('/gym-bros/preferences', config);
+      
+      // Update guest token if returned
+      if (response.data.guestToken) {
+        this.setGuestToken(response.data.guestToken);
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Error fetching user preferences:', error);
@@ -376,11 +369,16 @@ const gymbrosService = {
 
   async updateUserPreferences(preferences) {
     try {
-      // Add guest token if available
-      const guestToken = this.getGuestToken();
-      const params = guestToken ? { guestToken } : {};
+      // Add guest token
+      const config = this.configWithGuestToken();
       
-      const response = await api.put('/gym-bros/preferences', preferences, { params });
+      const response = await api.put('/gym-bros/preferences', preferences, config);
+      
+      // Update guest token if returned
+      if (response.data.guestToken) {
+        this.setGuestToken(response.data.guestToken);
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Error updating user preferences:', error);
@@ -390,11 +388,16 @@ const gymbrosService = {
 
   async getUserSettings() {
     try {
-      // Add guest token if available
-      const guestToken = this.getGuestToken();
-      const params = guestToken ? { guestToken } : {};
+      // Add guest token
+      const config = this.configWithGuestToken();
       
-      const response = await api.get('/gym-bros/settings', { params });
+      const response = await api.get('/gym-bros/settings', config);
+      
+      // Update guest token if returned
+      if (response.data.guestToken) {
+        this.setGuestToken(response.data.guestToken);
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Error fetching user settings:', error);
@@ -404,11 +407,16 @@ const gymbrosService = {
 
   async updateUserSettings(settings) {
     try {
-      // Add guest token if available
-      const guestToken = this.getGuestToken();
-      const params = guestToken ? { guestToken } : {};
+      // Add guest token
+      const config = this.configWithGuestToken();
       
-      const response = await api.put('/gym-bros/settings', settings, { params });
+      const response = await api.put('/gym-bros/settings', settings, config);
+      
+      // Update guest token if returned
+      if (response.data.guestToken) {
+        this.setGuestToken(response.data.guestToken);
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Error updating user settings:', error);
@@ -423,17 +431,25 @@ const gymbrosService = {
         formData.append('images', image);
       });
       
-      // Add guest token if available
+      // Add guest token
       const guestToken = this.getGuestToken();
       if (guestToken) {
         formData.append('guestToken', guestToken);
       }
       
-      const response = await api.post('/gym-bros/profile-images', formData, {
+      // Add headers with guest token
+      const config = this.configWithGuestToken({
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
+      
+      const response = await api.post('/gym-bros/profile-images', formData, config);
+      
+      // Update guest token if returned
+      if (response.data.guestToken) {
+        this.setGuestToken(response.data.guestToken);
+      }
       
       return response.data;
     } catch (error) {
@@ -444,11 +460,16 @@ const gymbrosService = {
 
   async deleteProfileImage(imageId) {
     try {
-      // Add guest token if available
-      const guestToken = this.getGuestToken();
-      const params = guestToken ? { guestToken } : {};
+      // Add guest token
+      const config = this.configWithGuestToken();
       
-      const response = await api.delete(`/gym-bros/profile-image/${imageId}`, { params });
+      const response = await api.delete(`/gym-bros/profile-image/${imageId}`, config);
+      
+      // Update guest token if returned
+      if (response.data.guestToken) {
+        this.setGuestToken(response.data.guestToken);
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Error deleting profile image:', error);

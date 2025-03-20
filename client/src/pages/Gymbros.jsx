@@ -152,7 +152,7 @@ const GymBros = () => {
   const checkUserProfile = async () => {
     try {
       setLoading(true);
-
+  
       debugGuestToken();
       
       // If user is authenticated, check via regular API
@@ -177,30 +177,113 @@ const GymBros = () => {
         }
       } 
       // If user is a guest, use the guest profile
-      else if (isGuest && guestProfile) {
-        console.log('[GymBros] Using existing guest profile');
-        setHasProfile(true);
-        setUserProfile(guestProfile);
+      else if (isGuest) {
+        console.log('[GymBros] Checking profile for guest user');
         
-        // Initialize filters from guest profile 
-        initializeFiltersFromProfile(guestProfile);
-        
-        // Fetch profiles and matches
-        fetchProfiles();
-        fetchMatches();
+        try {
+          const response = await gymbrosService.getGymBrosProfile();
+          
+          if (response.hasProfile) {
+            console.log('[GymBros] Found profile for guest');
+            setHasProfile(true);
+            setUserProfile(response.profile);
+            
+            // Initialize filters from guest profile 
+            initializeFiltersFromProfile(response.profile);
+            
+            // Fetch profiles and matches
+            fetchProfiles();
+            fetchMatches();
+          } else {
+            console.log('[GymBros] No profile found for guest, showing setup');
+            setHasProfile(false);
+            setUserProfile(null);
+          }
+        } catch (guestError) {
+          console.error('[GymBros] Error checking guest profile:', guestError);
+          
+          // If there was an authentication error, check if we need to fetch the guest profile
+          if (guestError.response?.status === 401) {
+            // Try to refetch the guest profile in case the token wasn't properly applied
+            await fetchGuestProfile();
+            
+            // Check if we now have a guest profile
+            if (guestProfile) {
+              setHasProfile(true);
+              setUserProfile(guestProfile);
+              
+              // Initialize filters from guest profile
+              initializeFiltersFromProfile(guestProfile);
+              
+              // Fetch profiles and matches
+              fetchProfiles();
+              fetchMatches();
+            } else {
+              setHasProfile(false);
+              setUserProfile(null);
+            }
+          } else {
+            setHasProfile(false);
+            setUserProfile(null);
+          }
+        }
       }
       // If user has a verified phone but no profile yet
-      else if (verifiedPhone && !isGuest) {
+      else if (verifiedPhone) {
         console.log('[GymBros] User has verified phone but no profile yet');
         setHasProfile(false);
         setUserProfile(null);
       }
-      // No authenticated user, guest, or verified phone
+      // Check for a guest token in localStorage that might not be loaded into context yet
       else {
-        console.log('[GymBros] No user context, showing login prompt');
-        setHasProfile(false);
-        setUserProfile(null);
-        setShowLoginPrompt(true);
+        const guestToken = localStorage.getItem('gymbros_guest_token');
+        if (guestToken) {
+          console.log('[GymBros] Found guest token in storage, loading guest profile');
+          
+          // Set the token explicitly
+          gymbrosService.setGuestToken(guestToken);
+          
+          try {
+            // Try to fetch the guest profile using the token
+            await fetchGuestProfile();
+            
+            // Check if we got a profile
+            if (guestProfile) {
+              setHasProfile(true);
+              setUserProfile(guestProfile);
+              
+              // Initialize filters from guest profile
+              initializeFiltersFromProfile(guestProfile);
+              
+              // Fetch profiles and matches
+              fetchProfiles();
+              fetchMatches();
+            } else {
+              console.log('[GymBros] Guest token exists but no profile found');
+              setHasProfile(false);
+              setUserProfile(null);
+              setShowLoginPrompt(true);
+            }
+          } catch (tokenError) {
+            console.error('[GymBros] Error using stored guest token:', tokenError);
+            
+            // Check if token is invalid
+            if (tokenError.response?.status === 401) {
+              console.log('[GymBros] Guest token is invalid, clearing');
+              gymbrosService.clearGuestState();
+            }
+            
+            setHasProfile(false);
+            setUserProfile(null);
+            setShowLoginPrompt(true);
+          }
+        } else {
+          // No user context at all
+          console.log('[GymBros] No user context, showing login prompt');
+          setHasProfile(false);
+          setUserProfile(null);
+          setShowLoginPrompt(true);
+        }
       }
     } catch (error) {
       console.error('[GymBros] Error checking profile:', error);
@@ -240,7 +323,7 @@ const GymBros = () => {
 
   function debugGuestToken() {
     const guestToken = localStorage.getItem('gymbros_guest_token');
-    console.log('Current guest token:', guestToken);
+    console.log('Current guest token:', guestToken ? guestToken.substring(0, 15) + '...' : 'none');
     
     if (guestToken) {
       // Try to decode the token (not secure, just for debugging)
@@ -250,7 +333,7 @@ const GymBros = () => {
         const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
           return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
         }).join(''));
-  
+    
         console.log('Decoded token payload:', JSON.parse(jsonPayload));
       } catch (error) {
         console.error('Error decoding token:', error);
@@ -262,6 +345,7 @@ const GymBros = () => {
     console.log('Verification token:', localStorage.getItem('verificationToken')?.substring(0, 15) + '...');
     console.log('Auth token:', localStorage.getItem('token')?.substring(0, 15) + '...');
   }
+  
   
   const fetchProfiles = async () => {
     try {
@@ -276,7 +360,26 @@ const GymBros = () => {
       setCurrentIndex(0);
     } catch (error) {
       console.error('[GymBros] Error fetching profiles:', error);
-      toast.error('Failed to load gym profiles');
+      
+      // If 401 error and we have a guest token, try refreshing the guest state
+      if (error.response?.status === 401 && gymbrosService.getGuestToken()) {
+        console.log('[GymBros] Authentication error, attempting to refresh guest state');
+        
+        try {
+          // Try to refresh the guest profile
+          await fetchGuestProfile();
+          
+          // Try fetching profiles again
+          const retryProfiles = await gymbrosService.getRecommendedProfiles(filters);
+          setProfiles(retryProfiles);
+          setCurrentIndex(0);
+        } catch (retryError) {
+          console.error('[GymBros] Error on retry fetch profiles:', retryError);
+          toast.error('Failed to load gym profiles');
+        }
+      } else {
+        toast.error('Failed to load gym profiles');
+      }
     } finally {
       setLoading(false);
     }
@@ -292,7 +395,25 @@ const GymBros = () => {
       setMatches(matchesData);
     } catch (error) {
       console.error('[GymBros] Error fetching matches:', error);
-      toast.error('Failed to load matches');
+      
+      // If 401 error and we have a guest token, try refreshing the guest state
+      if (error.response?.status === 401 && gymbrosService.getGuestToken()) {
+        console.log('[GymBros] Authentication error, attempting to refresh guest state');
+        
+        try {
+          // Try to refresh the guest profile
+          await fetchGuestProfile();
+          
+          // Try fetching matches again
+          const retryMatches = await gymbrosService.getMatches();
+          setMatches(retryMatches);
+        } catch (retryError) {
+          console.error('[GymBros] Error on retry fetch matches:', retryError);
+          toast.error('Failed to load matches');
+        }
+      } else {
+        toast.error('Failed to load matches');
+      }
     }
   };
 

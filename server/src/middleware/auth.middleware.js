@@ -1,3 +1,4 @@
+// server/src/middleware/auth.middleware.js
 import rateLimit from 'express-rate-limit';
 import { MemoryStore } from 'express-rate-limit';
 import { verifyToken } from '../utils/jwt.js';
@@ -8,7 +9,6 @@ import jwt from 'jsonwebtoken';
 
 export const authenticate = async (req, res, next) => {
   try {
-
     const token = req.headers.authorization?.split(' ')[1];
 
     if (!token) {
@@ -37,27 +37,33 @@ export const authenticate = async (req, res, next) => {
 
 export const optionalAuthenticate = async (req, res, next) => {
   try {
+    // First, check for normal authentication token
     const token = req.headers.authorization?.split(' ')[1];
 
-    if (!token) {
-      req.user = null;
-      return next();
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id).select('-password');
+        
+        if (user) {
+          req.user = user;
+          return next();
+        }
+      } catch (tokenError) {
+        logger.warn('Optional auth token invalid:', tokenError);
+        // Continue with request even if token is invalid
+      }
     }
-
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.id).select('-password');
-      req.user = user || null;
-
-    } catch (error) {
-      req.user = null;
-      logger.warn('Optional auth token invalid:', error);
-    }
-
+    
+    // If we've reached here, no valid authentication token was found
+    // Guest user info should have been attached by the guestUser middleware 
+    // if a guest token was provided
+    req.user = null;
     next();
   } catch (error) {
-    req.user = null;
     logger.error('Optional authentication error:', error);
+    // Even on error, continue with the request
+    req.user = null;
     next();
   }
 };

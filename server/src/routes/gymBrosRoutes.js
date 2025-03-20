@@ -57,28 +57,28 @@ router.delete('/profile-image/:imageId', optionalAuthenticate, deleteProfileImag
 // Delete GymBros profile
 router.delete('/profile', optionalAuthenticate, deleteGymBrosProfile);
 
-// Get recommended GymBros profiles
+// Get recommended GymBros profiles - works with guests
 router.get('/profiles', optionalAuthenticate, getGymBrosProfiles);
 
-// Get user preferences
+// Get user preferences - works with guests
 router.get('/preferences', optionalAuthenticate, getUserPreferences);
 
-// Update user preferences
+// Update user preferences - works with guests
 router.put('/preferences', optionalAuthenticate, updateUserPreferences);
 
-// Get user settings
+// Get user settings - works with guests
 router.get('/settings', optionalAuthenticate, getUserSettings);
 
-// Update user settings
+// Update user settings - works with guests
 router.put('/settings', optionalAuthenticate, updateUserSettings);
 
-// Like a GymBros profile
+// Like a GymBros profile - works with guests
 router.post('/like/:profileId', optionalAuthenticate, likeGymBrosProfile);
 
-// Dislike a GymBros profile
+// Dislike a GymBros profile - works with guests 
 router.post('/dislike/:profileId', optionalAuthenticate, dislikeGymBrosProfile);
 
-// Get user matches
+// Get user matches - works with guests
 router.get('/matches', optionalAuthenticate, getGymBrosMatches);
 
 // Phone verification routes - no authentication required
