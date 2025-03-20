@@ -97,7 +97,6 @@ const PhoneVerification = ({
     const verificationCode = otpValues.join('');
     
     if (verificationCode.length !== 6 || !/^\d+$/.test(verificationCode)) {
-      toast.error('Please enter a valid 6-digit code');
       return;
     }
     
@@ -128,17 +127,36 @@ const PhoneVerification = ({
             console.log('Profile check result:', profileData);
             
             if (profileData.success) {
-
-              await loginWithToken(response.token, profileData.user);
-              toast.success('Logged in successfully!');
+              // Check if we have a user account
+              if (profileData.user) {
+                // We have both user and potentially a profile
+                await loginWithToken(response.token, profileData.user);
+                toast.success('Logged in successfully!');
+                
+                // Notify parent component of successful verification and login
+                onVerified && onVerified(
+                  true, 
+                  profileData.user, 
+                  profileData.token, 
+                  profileData
+                );
+              } else if (profileData.profile) {
               
-              // Notify parent component of successful verification and login
-              onVerified && onVerified(
-                true, 
-                profileData.user, 
-                profileData.token, 
-                profileData
-              );
+                onVerified && onVerified(
+                  true,
+                  null, // No user yet
+                  response.token,
+                  {
+                    hasProfile: true,
+                    profile: profileData.profile,
+                    needsRegistration: true
+                  }
+                );
+              } else {
+                // Neither user nor profile found - new signup
+                toast.info('Phone verified! Please create your profile.');
+                onVerified && onVerified(true, null, response.token);
+              }
             } else {
               // Profile check failed but phone verification succeeded
               toast.error(profileData.message || 'Failed to find user with this phone number');
@@ -165,7 +183,8 @@ const PhoneVerification = ({
       setIsLoading(false);
     }
   };
-  
+
+
   const handleOtpChange = (index, value) => {
     // Only allow numbers
     if (value && !/^\d*$/.test(value)) return;

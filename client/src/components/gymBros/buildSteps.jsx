@@ -111,13 +111,20 @@ export const buildSteps = ({
     ) : (
       // For users without a verified phone, show the PhoneVerification component
       <PhoneVerification
-        phone={profileData.phone}
-        onChange={handlePhoneChange}
-        onVerified={handlePhoneVerified}
-        isLoginFlow={authMode === 'login'}
-        onExistingAccountFound={handleExistingAccountFound}
-        onContinueWithNewAccount={handleContinueWithNewAccount}
-      />
+      phone={profileData.phone}
+      onChange={handlePhoneChange}
+      onVerified={(verified, userData, token, profileData) => {
+        // Update the profileData with the verified phone number
+        if (verified && userData?.phone) {
+          handleChange('phone', userData.phone);
+        }
+        console.log('BUILDSTEPS DATA FROM PHONEINPUT.JSX:', verified, userData, token, profileData);
+        handlePhoneVerified(verified, userData, token, profileData);
+      }}
+      isLoginFlow={authMode === 'login'}
+      onExistingAccountFound={handleExistingAccountFound}
+      onContinueWithNewAccount={handleContinueWithNewAccount}
+    />
     )
   });
   

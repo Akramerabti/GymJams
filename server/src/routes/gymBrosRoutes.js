@@ -35,40 +35,40 @@ router.post('/profile/by-phone', checkGymBrosProfileByPhone);
 router.post('/profile', optionalAuthenticate, createOrUpdateGymBrosProfile);
 
 // Update GymBros profile with automatic saving (same endpoint as create)
-router.put('/profile', authenticate, createOrUpdateGymBrosProfile);
+router.put('/profile', optionalAuthenticate, createOrUpdateGymBrosProfile);
 
 // Upload profile images - supports multiple images
-router.post('/profile-images', authenticate, upload.array('images', 6), uploadProfileImages);
+router.post('/profile-images', optionalAuthenticate, upload.array('images', 6), uploadProfileImages);
 
 // Delete a specific profile image
-router.delete('/profile-image/:imageId', authenticate, deleteProfileImage);
+router.delete('/profile-image/:imageId', optionalAuthenticate, deleteProfileImage);
 
 // Delete GymBros profile
-router.delete('/profile', authenticate, deleteGymBrosProfile);
+router.delete('/profile', optionalAuthenticate, deleteGymBrosProfile);
 
 // Get recommended GymBros profiles
-router.get('/profiles', authenticate, getGymBrosProfiles);
+router.get('/profiles', optionalAuthenticate, getGymBrosProfiles);
 
 // Get user preferences
-router.get('/preferences', authenticate, getUserPreferences);
+router.get('/preferences', optionalAuthenticate, getUserPreferences);
 
 // Update user preferences
-router.put('/preferences', authenticate, updateUserPreferences);
+router.put('/preferences', optionalAuthenticate, updateUserPreferences);
 
 // Get user settings
-router.get('/settings', authenticate, getUserSettings);
+router.get('/settings', optionalAuthenticate, getUserSettings);
 
 // Update user settings
-router.put('/settings', authenticate, updateUserSettings);
+router.put('/settings', optionalAuthenticate, updateUserSettings);
 
 // Like a GymBros profile
-router.post('/like/:profileId', authenticate, likeGymBrosProfile);
+router.post('/like/:profileId', optionalAuthenticate, likeGymBrosProfile);
 
 // Dislike a GymBros profile
-router.post('/dislike/:profileId', authenticate, dislikeGymBrosProfile);
+router.post('/dislike/:profileId', optionalAuthenticate, dislikeGymBrosProfile);
 
 // Get user matches
-router.get('/matches', authenticate, getGymBrosMatches);
+router.get('/matches', optionalAuthenticate, getGymBrosMatches);
 
 
 router.post('/check-phone', checkPhoneExists);

@@ -132,6 +132,7 @@ async checkProfileWithVerifiedPhone(phone, verificationToken) {
    * Create or update a GymBros profile
    */
   async createOrUpdateProfile(profileData) {
+    console.log('Creating/updating GymBros profile:', profileData);
     try {
       const response = await api.post('/gym-bros/profile', profileData);
       return response.data;

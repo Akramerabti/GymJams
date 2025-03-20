@@ -97,7 +97,7 @@ export const checkGymBrosProfileByPhone = async (req, res) => {
       });
     }
     
-  
+    // Verify token
     try {
       const decodedToken = jwt.verify(verificationToken, process.env.JWT_SECRET);
       console.log('Decoded token:', decodedToken);
@@ -116,48 +116,71 @@ export const checkGymBrosProfileByPhone = async (req, res) => {
       });
     }
     
-    // Find user with this phone number
+    // STEP 1: Find user with this phone number
     const user = await User.findOne({ phone: verifiedPhone });
     
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'No account found with this phone number'
+    // If user exists, handle normally
+    if (user) {
+      // Update last login time
+      user.lastLogin = new Date();
+      await user.save();
+      
+      // Find GymBros profile if it exists
+      const profile = await GymBrosProfile.findOne({ userId: user._id });
+      
+      // Generate authentication token
+      const token = jwt.sign(
+        { id: user._id },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+      
+      // Return everything in one response - user data, token, and profile if it exists
+      return res.json({
+        success: true,
+        hasProfile: !!profile,
+        profile: profile || null,
+        user: {
+          id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          phone: user.phone,
+          email: user.email,
+          role: user.role,
+          isEmailVerified: user.isEmailVerified,
+          points: user.points,
+          hasReceivedFirstLoginBonus: user.hasReceivedFirstLoginBonus
+        },
+        token
       });
     }
     
-    // Update last login time
-    user.lastLogin = new Date();
-    await user.save();
+    // STEP 2: If no user found, check for GymBrosProfile with this phone
+    const gymBrosProfile = await GymBrosProfile.findOne({ phone: verifiedPhone });
     
-    // Find GymBros profile if it exists
-    const profile = await GymBrosProfile.findOne({ userId: user._id });
+    if (gymBrosProfile) {
+      console.log('Found GymBros profile without user account:', gymBrosProfile._id);
+      
+      // Return the profile info without user data
+      return res.json({
+        success: true,
+        hasProfile: true,
+        profile: gymBrosProfile,
+        user: null,
+        needsRegistration: true  // Flag to indicate frontend that user registration is needed
+      });
+    }
     
-    // Generate authentication token
-    const token = jwt.sign(
-      { id: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-    
-    // Return everything in one response - user data, token, and profile if it exists
-    res.json({
+    // STEP 3: No user and no profile found - return info that allows creating both
+    return res.json({
       success: true,
-      hasProfile: !!profile,
-      profile: profile || null,
-      user: {
-        id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        phone: user.phone,
-        email: user.email,
-        role: user.role,
-        isEmailVerified: user.isEmailVerified,
-        points: user.points,
-        hasReceivedFirstLoginBonus: user.hasReceivedFirstLoginBonus
-      },
-      token
+      hasProfile: false,
+      profile: null,
+      user: null,
+      needsRegistration: true,
+      verifiedPhone: verifiedPhone  // Return the verified phone to use for registration
     });
+    
   } catch (error) {
     logger.error('Error in checkGymBrosProfileByPhone:', error);
     res.status(500).json({
@@ -167,36 +190,47 @@ export const checkGymBrosProfileByPhone = async (req, res) => {
   }
 };
 
-// Create or update a user's GymBros profile
 export const createOrUpdateGymBrosProfile = async (req, res) => {
   try {
     const profileData = req.body;
-    const userId = req.user.id;
-  
-    console.log('Creating or updating profile for user:', userId);
-    console.log('Profile data:', profileData);
-
+    
+    console.log('Creating/updating GymBros profile:', profileData);
+    
     // Validate profile data
     if (!profileData || typeof profileData !== 'object') {
       return res.status(400).json({ message: 'Invalid profile data' });
     }
 
-    let profile = await GymBrosProfile.findOne({ userId });
+    // If user is authenticated, associate the profile with their ID
+    if (req.user && req.user.id) {
+      const userId = req.user.id;
+      
+      // Check for existing profile for this user
+      let profile = await GymBrosProfile.findOne({ userId });
 
-    if (profile) {
-      // Update existing profile
-      profile = await GymBrosProfile.findByIdAndUpdate(
-        profile._id, 
-        { ...profileData, userId }, 
-        { new: true }
-      );
-    } else {
-      // Create new profile
-      profile = new GymBrosProfile({ ...profileData, userId });
+      if (profile) {
+        // Update existing profile
+        profile = await GymBrosProfile.findByIdAndUpdate(
+          profile._id, 
+          { ...profileData, userId }, 
+          { new: true }
+        );
+      } else {
+        // Create new profile
+        profile = new GymBrosProfile({ ...profileData, userId });
+        await profile.save();
+      }
+      
+      return res.status(201).json(profile);
+    } 
+    // For non-authenticated users, just create a profile without userId
+    else {
+      // Create new profile without requiring a userId
+      const profile = new GymBrosProfile(profileData);
       await profile.save();
+      
+      return res.status(201).json(profile);
     }
-
-    res.status(201).json(profile);
   } catch (error) {
     console.error('Error in createOrUpdateGymBrosProfile:', error);
     handleError(error, req, res);

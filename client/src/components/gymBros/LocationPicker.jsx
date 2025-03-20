@@ -189,20 +189,21 @@ const LocationPicker = ({ location, onLocationChange }) => {
         />
         <Search className="absolute left-3 top-3.5 text-gray-400" size={18} />
         
-        <button
-          onClick={handleSearch}
-          disabled={isSearching}
-          className="absolute right-12 top-2 px-2 py-1.5 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-        >
-          {isSearching ? <Loader className="animate-spin" size={16} /> : "Find"}
-        </button>
-        
+
         <button
           onClick={getUserLocation}
           className="absolute right-2 top-2 p-1.5 text-blue-500 hover:text-blue-700 transition-colors"
           title="Use my current location"
         >
           <Navigation size={20} />
+        </button>
+        
+        <button
+          onClick={handleSearch}
+          disabled={isSearching}
+          className="absolute right-12 top-2 px-2 py-1.5 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+        >
+          {isSearching ? <Loader className="animate-spin" size={16} /> : "Find"}
         </button>
       </div>
 

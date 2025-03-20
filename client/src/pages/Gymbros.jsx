@@ -9,7 +9,7 @@ import {
 import useAuthStore from '../stores/authStore';
 import gymbrosService from '../services/gymbros.service';
 
-import EnhancedProfileCard from '../components/gymBros/EnhancedProfileCard';
+import DiscoverTab from '../components/gymBros/components/DiscoverTab';
 import GymBrosSetup from '../components/gymBros/GymBrosSetup';
 import GymBrosMatches from '../components/gymBros/GymBrosMatches';
 import GymBrosFilters from '../components/gymBros/GymBrosFilters';
@@ -573,33 +573,15 @@ const GymBros = () => {
       case 'discover':
         return (
           <div className="h-[calc(100vh-136px)] flex items-center justify-center pb-16">
-            {profiles.length > 0 ? (
-              <div className="relative w-full h-full">
-                {profiles.map((profile, index) => (
-                  <EnhancedProfileCard
-                    key={profile._id}
-                    profile={profile}
-                    onLike={() => handleSwipe('right', profile._id)}
-                    onDislike={() => handleSwipe('left', profile._id)}
-                    isActive={index === currentIndex}
-                    onNext={() => currentIndex < profiles.length - 1 && setCurrentIndex(currentIndex + 1)}
-                    onPrevious={() => currentIndex > 0 && setCurrentIndex(currentIndex - 1)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center p-6">
-                <Dumbbell size={48} className="text-gray-400 mb-4" />
-                <h3 className="text-xl font-semibold mb-2">No more profiles</h3>
-                <p className="text-gray-500 mb-4">We couldn't find gym buddies matching your criteria.</p>
-                <button 
-                  onClick={fetchProfiles}
-                  className="bg-blue-500 text-white px-4 py-2 rounded-lg"
-                >
-                  Refresh
-                </button>
-              </div>
-            )}
+            <DiscoverTab
+          profiles={profiles}
+          currentIndex={currentIndex}
+          setCurrentIndex={setCurrentIndex}
+          handleSwipe={handleSwipe}
+          fetchProfiles={fetchProfiles}
+          loading={loading}
+          filters={filters}
+        />
           </div>
         );
       
