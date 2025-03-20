@@ -8,6 +8,8 @@ import { toast } from 'sonner';
 import gymbrosService from '../../services/gymbros.service';
 import MatchCard from './components/MatchCard';
 import ProfileDetailModal from './components/DiscoverProfileDetails';
+import { useGuestFlow } from './components/GuestFlowContext';
+import { useAuth } from '../../stores/authStore';
 
 const GymBrosMatches = ({ 
   externalProfiles = null, 
@@ -16,10 +18,16 @@ const GymBrosMatches = ({
   onRefresh = null,
   filters = {}
 }) => {
+  // Get auth and guest contexts
+  const { user, isAuthenticated } = useAuth();
+  const { isGuest } = useGuestFlow();
+  
   // State is managed internally if not provided as props
   const [profiles, setProfiles] = useState(externalProfiles || []);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(externalLoading !== null ? externalLoading : true);
+  // Track if we're showing an auth warning toast
+  const [shownAuthWarning, setShownAuthWarning] = useState(false);
   const [error, setError] = useState(null);
   const [hasMore, setHasMore] = useState(true);
   const [showProfileDetail, setShowProfileDetail] = useState(false);
@@ -61,6 +69,14 @@ const GymBrosMatches = ({
     setLoading(true);
     setError(null);
     
+    // Verify we have auth or guest context
+    if (!isAuthenticated && !isGuest && !shownAuthWarning) {
+      toast.warning('Using as guest', { 
+        description: 'You\'re currently using GymBros as a guest. Log in to save your progress.'
+      });
+      setShownAuthWarning(true);
+    }
+    
     try {
       // Get recommended profiles from service
       const response = await gymbrosService.getRecommendedProfiles(filters);
@@ -95,11 +111,17 @@ const GymBrosMatches = ({
     }
   };
   
-  // Handle swiping on profile
   const handleSwipe = async (direction, profileId) => {
     try {
+      // Check if profileId is valid
+      if (!profileId) {
+        console.error('Invalid profile ID for swipe:', profileId);
+        toast.error('Could not process swipe - profile data may be incomplete');
+        return;
+      }
+      
       // Calculate view duration
-      const viewDuration = Date.now() - viewStartTime;
+      const viewDuration = Date.now() - (viewStartTime || Date.now());
       
       // Add to swiped profiles to avoid showing again
       setSwipedProfiles(prev => [...prev, profileId]);
@@ -280,6 +302,6 @@ const GymBrosMatches = ({
       />
     </div>
   );
-};
+}
 
 export default GymBrosMatches;

@@ -1,4 +1,4 @@
-// Modified api.js with token refresh mechanism
+// client/src/services/api.js
 import axios from 'axios';
 import { toast } from 'sonner';
 
@@ -26,14 +26,35 @@ const onRefreshed = (token) => {
   refreshSubscribers = [];
 };
 
-// Add request interceptor to include the token in every request
+// Add request interceptor to include auth token and guest token in every request
 api.interceptors.request.use(
   (config) => {
+    // Get regular auth token
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log('Added auth token to request');
     }
-    console.log('Request:', config.url);
+    
+    // Get guest token and add it as a header if available
+    const guestToken = localStorage.getItem('gymbros_guest_token');
+    if (guestToken) {
+      // Add as header for all requests
+      config.headers['x-gymbros-guest-token'] = guestToken;
+      
+      // Also add to params for all requests
+      config.params = config.params || {};
+      config.params.guestToken = guestToken;
+      
+      console.log('Added guest token to request:', guestToken.substring(0, 15) + '...');
+    } else {
+      console.log('No guest token available for request');
+    }
+    
+    console.log('Making request to:', config.url);
+    console.log('With headers:', JSON.stringify(config.headers));
+    console.log('With params:', JSON.stringify(config.params));
+    
     return config;
   },
   (error) => {
@@ -41,9 +62,16 @@ api.interceptors.request.use(
   }
 );
 
+
 // Add response interceptor to handle errors and token refresh
 api.interceptors.response.use(
   (response) => {
+    // If response includes a guestToken, save it
+    if (response.data && response.data.guestToken) {
+      localStorage.setItem('gymbros_guest_token', response.data.guestToken);
+      api.defaults.headers.common['x-gymbros-guest-token'] = response.data.guestToken;
+    }
+    
     return response;
   },
   async (error) => {
@@ -98,9 +126,14 @@ api.interceptors.response.use(
       } catch (refreshError) {
         // If refresh fails, log out the user
         isRefreshing = false;
+        
+        // Don't clear guest token - only clear auth token
         localStorage.removeItem('token');
+        delete api.defaults.headers.common['Authorization'];
+        
         toast.error('Your session has expired. Please log in again.');
-        window.location.href = '/login';
+        
+        // Instead of redirecting, we'll let the app handle this
         return Promise.reject(refreshError);
       }
     }

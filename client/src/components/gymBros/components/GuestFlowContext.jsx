@@ -1,4 +1,4 @@
-// client/src/components/gymBros/GuestFlowContext.jsx
+// client/src/components/gymBros/components/GuestFlowContext.jsx
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import gymbrosService from '../../../services/gymbros.service';
 import useAuthStore from '../../../stores/authStore';
@@ -22,19 +22,137 @@ export const GuestFlowProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [verifiedPhone, setVerifiedPhone] = useState(localStorage.getItem('verifiedPhone'));
   const [verificationToken, setVerificationToken] = useState(localStorage.getItem('verificationToken'));
-  
-  // Check if we have a guest token
-  useEffect(() => {
-    const guestToken = gymbrosService.getGuestToken();
-    if (guestToken) {
-      setIsGuest(true);
+  const [initAttempted, setInitAttempted] = useState(false);
+  const fetchGuestProfile = useCallback(async () => {
+    if (isAuthenticated) {
+      console.log('[GuestFlow] User is authenticated, not using guest flow');
+      setIsGuest(false);
+      setLoading(false);
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      console.log('[GuestFlow] Fetching guest profile');
+      const response = await gymbrosService.getGymBrosProfile();
       
-      // Try to load the guest profile
-      fetchGuestProfile();
-    } else {
+      if (response.hasProfile && (response.isGuest || !response.userId)) {
+        console.log('[GuestFlow] Found guest profile:', response.profile);
+        setGuestProfile(response.profile);
+        setIsGuest(true);
+        
+        // Make sure guest token is set
+        if (response.guestToken) {
+          gymbrosService.setGuestToken(response.guestToken);
+        }
+      } else if (response.guestToken) {
+        // We have a guest token but no profile yet
+        console.log('[GuestFlow] Have guest token but no profile yet');
+        gymbrosService.setGuestToken(response.guestToken);
+        setIsGuest(true);
+        setGuestProfile(null);
+      } else {
+        console.log('[GuestFlow] No guest profile found');
+        setGuestProfile(null);
+        
+        // Only reset isGuest if we don't have a token
+        if (!gymbrosService.getGuestToken()) {
+          setIsGuest(false);
+        }
+      }
+    } catch (error) {
+      console.error('[GuestFlow] Error fetching guest profile:', error);
+      
+      // Check if error is unauthorized
+      if (error.response && error.response.status === 401) {
+        // Clear guest state if unauthorized
+        gymbrosService.clearGuestState();
+        setIsGuest(false);
+        setGuestProfile(null);
+      }
+    } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAuthenticated]);
+  
+  useEffect(() => {
+    if (initAttempted) return;
+    
+    const initGuestFlow = async () => {
+      setLoading(true);
+      const guestToken = gymbrosService.getGuestToken();
+      
+      console.log('[GuestFlow] Initializing guest flow');
+      
+      if (guestToken) {
+        console.log('[GuestFlow] Found existing guest token:', guestToken.substring(0, 15) + '...');
+        
+        // Make sure the token is set in the api headers
+        gymbrosService.setGuestToken(guestToken);
+        
+        setIsGuest(true);
+        
+        try {
+          // Try to load the guest profile
+          await fetchGuestProfile();
+        } catch (error) {
+          console.error('[GuestFlow] Error loading guest profile on init:', error);
+          
+          // Check if the error is due to an invalid token
+          if (error.response && error.response.status === 401) {
+            console.log('[GuestFlow] Invalid guest token, clearing...');
+            // Clear guest token if it's invalid
+            gymbrosService.clearGuestState();
+            setIsGuest(false);
+            setGuestProfile(null);
+          }
+        }
+      } else {
+        // Check if we have a verified phone
+        const verifiedPhone = localStorage.getItem('verifiedPhone');
+        const verificationToken = localStorage.getItem('verificationToken');
+        
+        if (verifiedPhone && verificationToken) {
+          console.log('[GuestFlow] Found verified phone but no guest token, creating one...');
+          
+          // Create a guest token for the verified phone
+          try {
+            const response = await gymbrosService.checkProfileWithVerifiedPhone(
+              verifiedPhone,
+              verificationToken
+            );
+            
+            if (response.guestToken) {
+              console.log('[GuestFlow] Created guest token from verified phone');
+              gymbrosService.setGuestToken(response.guestToken);
+              setIsGuest(true);
+              
+              if (response.profile) {
+                setGuestProfile(response.profile);
+              }
+            }
+          } catch (error) {
+            console.error('[GuestFlow] Error creating guest token:', error);
+          }
+        } else {
+          console.log('[GuestFlow] No guest token or verified phone found');
+        }
+        
+        setLoading(false);
+      }
+      
+      setInitAttempted(true);
+    };
+    
+    // Don't run if user is already authenticated
+    if (!isAuthenticated) {
+      initGuestFlow();
+    } else {
+      console.log('[GuestFlow] User is authenticated, skipping guest initialization');
+      setInitAttempted(true);
+      setLoading(false);
+    }
+  }, [isAuthenticated, fetchGuestProfile]);
   
   // Watch for verification token changes
   useEffect(() => {
@@ -50,34 +168,7 @@ export const GuestFlowProvider = ({ children }) => {
     }
   }, [verificationToken, verifiedPhone]);
   
-  // Fetch the guest profile
-  const fetchGuestProfile = useCallback(async () => {
-    if (isAuthenticated) {
-      setIsGuest(false);
-      setLoading(false);
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      const response = await gymbrosService.getGymBrosProfile();
-      
-      if (response.hasProfile && response.isGuest) {
-        setGuestProfile(response.profile);
-        setIsGuest(true);
-      } else {
-        setGuestProfile(null);
-      }
-    } catch (error) {
-      console.error('Error fetching guest profile:', error);
-      // Clear guest state if there was an error
-      gymbrosService.clearGuestState();
-      setIsGuest(false);
-      setGuestProfile(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [isAuthenticated]);
+
   
   // Create a profile for a guest user with verified phone
   const createGuestProfile = useCallback(async (profileData) => {
@@ -91,7 +182,8 @@ export const GuestFlowProvider = ({ children }) => {
       // Make sure the phone number is included
       const completeProfileData = {
         ...profileData,
-        phone: verifiedPhone
+        phone: verifiedPhone,
+        verificationToken: verificationToken
       };
       
       const response = await gymbrosService.createOrUpdateProfile(completeProfileData);
@@ -112,7 +204,7 @@ export const GuestFlowProvider = ({ children }) => {
         return null;
       }
     } catch (error) {
-      console.error('Error creating guest profile:', error);
+      console.error('[GuestFlow] Error creating guest profile:', error);
       toast.error('Failed to create profile');
       return null;
     } finally {
@@ -145,7 +237,7 @@ export const GuestFlowProvider = ({ children }) => {
       
       return response;
     } catch (error) {
-      console.error('Error converting guest to user:', error);
+      console.error('[GuestFlow] Error converting guest to user:', error);
       toast.error('Failed to link guest profile');
       return { success: false, message: 'Error converting guest to user' };
     } finally {
@@ -176,7 +268,7 @@ export const GuestFlowProvider = ({ children }) => {
         return response;
       }
     } catch (error) {
-      console.error('Error verifying phone:', error);
+      console.error('[GuestFlow] Error verifying phone:', error);
       toast.error('Verification failed');
       return { success: false, message: 'Error verifying phone' };
     }

@@ -1,110 +1,131 @@
 // server/src/middleware/guestUser.middleware.js
 
-import GymBrosProfile from '../models/GymBrosProfile.js';
 import jwt from 'jsonwebtoken';
 import logger from '../utils/logger.js';
 
 /**
- * Middleware to handle guest users in GymBros
- * Allows users to access GymBros functionality without a full account
- * but with a verified phone number
+ * Generate a guest token for non-authenticated users
+ * @param {String} phone - The verified phone number
+ * @param {String} profileId - Optional profile ID
+ * @returns {String} - JWT token for the guest
  */
-export const handleGuestUser = async (req, res, next) => {
+export const generateGuestToken = (phone, profileId = null) => {
+  const payload = { 
+    phone, 
+    verified: true,
+    isGuest: true 
+  };
+  
+  // Include profileId if provided
+  if (profileId) {
+    payload.profileId = profileId.toString();
+  }
+  
+  return jwt.sign(
+    payload,
+    process.env.JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+};
+
+/**
+ * Middleware to handle guest users with valid tokens
+ * This middleware should be applied to all GymBros routes
+ */
+export const handleGuestUser = (req, res, next) => {
   try {
-    // If user is already authenticated through normal channels, skip this middleware
+    // Skip if user is already authenticated
     if (req.user) {
+      logger.debug('User is already authenticated, skipping guest middleware');
       return next();
     }
     
-    // Check for guest token in authorization header or query param
+    // Look for guest token in ALL possible locations
     const guestToken = 
+      req.query.guestToken || 
       req.headers['x-gymbros-guest-token'] || 
-      req.query.guestToken ||
-      req.body.guestToken;
+      (req.body && req.body.guestToken) ||
+      (req.cookies && req.cookies.guestToken);
     
     if (!guestToken) {
-      return next(); // No token, continue to next middleware
+      // No guest token found - log this for debugging
+      logger.debug('No guest token found in request');
+      return next();
     }
     
     // Verify the guest token
     try {
+      logger.debug('Attempting to verify guest token');
       const decoded = jwt.verify(guestToken, process.env.JWT_SECRET);
       
-      // Ensure it's a valid guest token with a phone number
-      if (!decoded.phone || !decoded.verified) {
-        logger.warn('Invalid guest token structure', { decoded });
+      // Add more detailed logging about what was decoded
+      logger.debug('Decoded token content:', JSON.stringify(decoded));
+      
+      // Validate that it's a proper guest token
+      if (!decoded.phone || !decoded.verified || !decoded.isGuest) {
+        logger.warn('Invalid guest token structure:', decoded);
         return next();
       }
       
-      // Find GymBrosProfile by phone number
-      const guestProfile = await GymBrosProfile.findOne({ phone: decoded.phone });
-      
-      if (!guestProfile) {
-        logger.info(`No guest profile found for phone: ${decoded.phone}`);
-        return next();
-      }
-      
-      // Set guest user context for downstream handlers
+      // Set decoded properties on the request object
       req.guestUser = {
         phone: decoded.phone,
-        profileId: guestProfile._id,
-        isGuest: true
+        verified: true,
+        isGuest: true,
+        // If we have a profileId in the token, include it
+        profileId: decoded.profileId
       };
       
-      logger.info(`Guest user identified by phone: ${decoded.phone}`);
+      logger.info(`Guest user request identified: ${decoded.phone}${decoded.profileId ? ` with profile ${decoded.profileId}` : ''}`);
     } catch (error) {
-      // Invalid token, just continue without guest context
-      logger.error('Error processing guest token:', error);
+      // More detailed error logging
+      logger.error(`Guest token verification failed: ${error.message}. Token: ${guestToken.substring(0, 10)}...`);
     }
     
+    // Continue to the next middleware/route handler
     next();
   } catch (error) {
-    logger.error('Unexpected error in guest user middleware:', error);
-    next(error);
+    // Token verification failed, but we still continue
+    // This allows the route handler to decide what to do for unauthenticated requests
+    logger.error(`Error in guest middleware: ${error.message}`, error.stack);
+    next();
   }
 };
 
 /**
- * Gets the effective user identifier (either logged-in user ID or guest profile ID)
- * @param {Object} req - Express request object
- * @returns {Object} User identifier info
+ * Helper function to get the "effective user" (authenticated or guest)
+ * Routes can use this to determine the correct user context
  */
 export const getEffectiveUser = (req) => {
-  // Regular authenticated user
+  // Check for authenticated user first
   if (req.user && req.user.id) {
+    logger.debug(`Effective user is authenticated: ${req.user.id}`);
     return {
       userId: req.user.id,
-      isGuest: false,
-      phone: req.user.phone
+      isGuest: false
     };
   }
   
-  // Guest user with verified phone
-  if (req.guestUser && req.guestUser.profileId) {
-    return {
-      profileId: req.guestUser.profileId.toString(),
-      isGuest: true,
-      phone: req.guestUser.phone
+  // Check for guest user
+  if (req.guestUser) {
+    logger.debug(`Effective user is guest: ${req.guestUser.phone}`);
+    
+    // Build the response based on available data
+    const response = {
+      phone: req.guestUser.phone,
+      isGuest: true
     };
+    
+    // Add profileId if available
+    if (req.guestUser.profileId) {
+      response.profileId = req.guestUser.profileId;
+      logger.debug(`Guest has associated profile: ${req.guestUser.profileId}`);
+    }
+    
+    return response;
   }
   
-  // No user context available
-  return {
-    userId: null,
-    isGuest: false,
-    phone: null
-  };
-};
-
-/**
- * Generate a guest token for verified phone numbers
- * @param {String} phone - Verified phone number
- * @returns {String} JWT token for guest access
- */
-export const generateGuestToken = (phone) => {
-  return jwt.sign(
-    { phone, verified: true, isGuest: true },
-    process.env.JWT_SECRET,
-    { expiresIn: '7d' } // Longer expiration for guest tokens
-  );
+  // No user context - log this for debugging
+  logger.debug('No effective user found (neither authenticated nor guest)');
+  return {};
 };

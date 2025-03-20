@@ -152,6 +152,8 @@ const GymBros = () => {
   const checkUserProfile = async () => {
     try {
       setLoading(true);
+
+      debugGuestToken();
       
       // If user is authenticated, check via regular API
       if (isAuthenticated) {
@@ -235,6 +237,31 @@ const GymBros = () => {
       setFilters(initialFilters);
     }
   };
+
+  function debugGuestToken() {
+    const guestToken = localStorage.getItem('gymbros_guest_token');
+    console.log('Current guest token:', guestToken);
+    
+    if (guestToken) {
+      // Try to decode the token (not secure, just for debugging)
+      try {
+        const base64Url = guestToken.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+  
+        console.log('Decoded token payload:', JSON.parse(jsonPayload));
+      } catch (error) {
+        console.error('Error decoding token:', error);
+      }
+    }
+    
+    // Check other related storage
+    console.log('Verified phone:', localStorage.getItem('verifiedPhone'));
+    console.log('Verification token:', localStorage.getItem('verificationToken')?.substring(0, 15) + '...');
+    console.log('Auth token:', localStorage.getItem('token')?.substring(0, 15) + '...');
+  }
   
   const fetchProfiles = async () => {
     try {

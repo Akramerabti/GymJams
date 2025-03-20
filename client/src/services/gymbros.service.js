@@ -152,15 +152,28 @@ const gymbrosService = {
 
   async getGymBrosProfile() {
     try {
-      // Add guest token to query params if available
+      // Create config with guest token explicitly added
       const guestToken = this.getGuestToken();
-      const params = guestToken ? { guestToken } : {};
+      const config = {
+        params: {}
+      };
       
-      const response = await api.get('/gym-bros/profile', { params });
+      if (guestToken) {
+        config.params.guestToken = guestToken;
+        config.headers = {
+          'x-gymbros-guest-token': guestToken
+        };
+        console.log('Added guest token to profile request:', guestToken.substring(0, 15) + '...');
+      }
+      
+      console.log('Making profile request with config:', JSON.stringify(config));
+      
+      const response = await api.get('/gym-bros/profile', config);
       
       // If we received a guest token in the response, update it
       if (response.data.guestToken) {
         this.setGuestToken(response.data.guestToken);
+        console.log('Updated guest token from response');
       }
       
       return response.data;
@@ -214,41 +227,61 @@ const gymbrosService = {
   async getRecommendedProfiles(filters = {}) {
     try {
       // Build query string from filters
-      const queryParams = new URLSearchParams();
+      const queryParams = {};
       
       if (filters.workoutTypes?.length > 0) {
-        queryParams.append('workoutTypes', filters.workoutTypes.join(','));
+        queryParams.workoutTypes = filters.workoutTypes.join(',');
       }
       
       if (filters.experienceLevel && filters.experienceLevel !== 'Any') {
-        queryParams.append('experienceLevel', filters.experienceLevel);
+        queryParams.experienceLevel = filters.experienceLevel;
       }
       
       if (filters.preferredTime && filters.preferredTime !== 'Any') {
-        queryParams.append('preferredTime', filters.preferredTime);
+        queryParams.preferredTime = filters.preferredTime;
       }
       
       if (filters.genderPreference && filters.genderPreference !== 'All') {
-        queryParams.append('gender', filters.genderPreference);
+        queryParams.gender = filters.genderPreference;
       }
       
       if (filters.ageRange) {
-        queryParams.append('minAge', filters.ageRange.min || 18);
-        queryParams.append('maxAge', filters.ageRange.max || 99);
+        queryParams.minAge = filters.ageRange.min || 18;
+        queryParams.maxAge = filters.ageRange.max || 99;
       }
       
-      queryParams.append('maxDistance', filters.maxDistance || 50);
+      queryParams.maxDistance = filters.maxDistance || 50;
       
       // Add timestamp to prevent caching
-      queryParams.append('_t', Date.now());
+      queryParams._t = Date.now();
       
-      // Add guest token if available
+      // Add guest token explicitly
       const guestToken = this.getGuestToken();
       if (guestToken) {
-        queryParams.append('guestToken', guestToken);
+        queryParams.guestToken = guestToken;
+        console.log('Added guest token to profiles request:', guestToken.substring(0, 15) + '...');
       }
       
-      const response = await api.get(`/gym-bros/profiles?${queryParams.toString()}`);
+      console.log('Making profiles request with params:', JSON.stringify(queryParams));
+      
+      const config = {
+        params: queryParams,
+      };
+      
+      // Also add to headers
+      if (guestToken) {
+        config.headers = {
+          'x-gymbros-guest-token': guestToken
+        };
+      }
+      
+      const response = await api.get('/gym-bros/profiles', config);
+      
+      // If we received a guest token in the response, update it
+      if (response.data.guestToken) {
+        this.setGuestToken(response.data.guestToken);
+        console.log('Updated guest token from profiles response');
+      }
       
       // Return the recommendations array
       return response.data.recommendations || [];
