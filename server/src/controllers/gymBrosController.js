@@ -888,7 +888,6 @@ export const checkPhoneExists = async (req, res) => {
   }
 };
 
-// Send verification code
 export const sendVerificationCode = async (req, res) => {
   try {
     const { phone } = req.body;
@@ -933,6 +932,17 @@ export const sendVerificationCode = async (req, res) => {
       { upsert: true, new: true }
     );
     
+    // Check if we're in production mode
+    if (process.env.NODE_ENV !== 'production') {
+      // Development mode: Log the code and return it in the response
+      console.log(`[DEV MODE] Verification code for ${phone}: ${verificationCode}`);
+      return res.json({ 
+        success: true, 
+        message: 'Verification code generated (check server logs)',
+        devCode: verificationCode // Only in development
+      });
+    }
+    
     // Get Twilio credentials
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -940,22 +950,12 @@ export const sendVerificationCode = async (req, res) => {
     
     // Check for Twilio credentials
     if (!accountSid || !authToken || !twilioPhone) {
-      // Fallback for development if Twilio credentials aren't set
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[DEV MODE] Verification code for ${phone}: ${verificationCode}`);
-        return res.json({ 
-          success: true, 
-          message: 'Verification code generated (check server logs)',
-          devCode: verificationCode // Only in development
-        });
-      } else {
-        throw new Error('SMS service configuration missing');
-      }
+      throw new Error('SMS service configuration missing');
     }
     
     try {
       // Initialize Twilio client
-      const twilioClient = twilio(accountSid, authToken);
+      const twilioClient = require('twilio')(accountSid, authToken);
       
       // Send the SMS
       await twilioClient.messages.create({

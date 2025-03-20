@@ -4,17 +4,22 @@ import { toast } from 'sonner';
 import { 
   Heart, X, MessageCircle, Filter, Dumbbell, UserPlus, 
   Calendar, MapPin, Settings, ShoppingBag, User,
-  ChevronLeft, ChevronRight, Edit, Sun, Moon
+  ChevronLeft, ChevronRight, Edit, Sun, Moon, LogIn
 } from 'lucide-react';
+
+// Import auth and GymBros context
 import useAuthStore from '../stores/authStore';
+import { useGuestFlow } from '../components/gymBros/components/GuestFlowContext';
 import gymbrosService from '../services/gymbros.service';
 
+// Import components
 import DiscoverTab from '../components/gymBros/components/DiscoverTab';
 import GymBrosSetup from '../components/gymBros/GymBrosSetup';
 import GymBrosMatches from '../components/gymBros/GymBrosMatches';
 import GymBrosFilters from '../components/gymBros/GymBrosFilters';
 import GymBrosSettings from '../components/gymBros/GymBrosSettings';
 import EnhancedGymBrosProfile from '../components/gymBros/ProfileEditor';
+import { Link } from 'react-router-dom';
 
 import { useLocation } from 'react-router-dom';
 
@@ -36,7 +41,19 @@ const FooterHider = () => {
 };
 
 const GymBros = () => {
+  // Auth and guest flow state
   const { user, isAuthenticated } = useAuthStore();
+  const { 
+    isGuest, 
+    guestProfile, 
+    loading: guestLoading, 
+    fetchGuestProfile,
+    createGuestProfile,
+    verifiedPhone,
+    clearGuestState
+  } = useGuestFlow();
+  
+  // Component state
   const [profiles, setProfiles] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -51,6 +68,7 @@ const GymBros = () => {
   const [headerVisible, setHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [filters, setFilters] = useState({
     workoutTypes: [],
     experienceLevel: 'Any',
@@ -62,10 +80,6 @@ const GymBros = () => {
   
   const swipeRef = useRef(null);
   const profileRef = useRef(null);
-
-  const getUserId = (user) => {
-    return user?.user?.id || user?.id || '';
-  };
 
   // Initialize dark mode from localStorage or system preference
   useEffect(() => {
@@ -94,17 +108,14 @@ const GymBros = () => {
     }
   };
 
+  // Check for user profile when the component loads
   useEffect(() => {
-    if (!isAuthenticated) {
-      setLoading(false); // Immediately stop loading if not authenticated
-      return;
-    }
-    
-    if (isAuthenticated) {
-      console.log('[GymBros] Checking user profile for ID:', getUserId(user));
+    if (isAuthenticated || isGuest || verifiedPhone) {
       checkUserProfile();
+    } else {
+      setLoading(false);
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, isGuest, verifiedPhone, guestProfile]);
 
   // Set view start time when profile changes
   useEffect(() => {
@@ -117,7 +128,7 @@ const GymBros = () => {
   // Handle scroll for header visibility
   useEffect(() => {
     const controlHeader = () => {
-      // Get main navbar height (assuming it's 64px or 4rem)
+      // Get main navbar height (assuming it's a fixed size)
       const navbarHeight = 64;
       
       if (window.scrollY > navbarHeight + 10 && window.scrollY > lastScrollY) {
@@ -141,71 +152,87 @@ const GymBros = () => {
   const checkUserProfile = async () => {
     try {
       setLoading(true);
-  
-      if (!isAuthenticated) return;
-  
-      // Check if we have a verified phone in localStorage
-      const verifiedPhone = localStorage.getItem('verifiedPhone');
-      const verificationToken = localStorage.getItem('verificationToken');
       
-      let response;
-      
-      if (!isAuthenticated && verifiedPhone && verificationToken) {
-        // If not authenticated but we have verified phone info, use the by-phone endpoint
-        console.log('[GymBros] Checking profile with verified phone:', verifiedPhone);
-        response = await gymbrosService.checkProfileWithVerifiedPhone(verifiedPhone, verificationToken);
+      // If user is authenticated, check via regular API
+      if (isAuthenticated) {
+        console.log('[GymBros] Checking profile for authenticated user');
+        const response = await gymbrosService.getGymBrosProfile();
         
-        // If successful, remove the temporary storage
-        if (response && (response.hasProfile || response.loginData)) {
-          localStorage.removeItem('verifiedPhone');
-          localStorage.removeItem('verificationToken');
+        if (response.hasProfile) {
+          setHasProfile(true);
+          setUserProfile(response.profile);
+          
+          // Initialize filters from profile preferences
+          initializeFiltersFromProfile(response.profile);
+          
+          // Fetch profiles and matches
+          fetchProfiles();
+          fetchMatches();
+        } else {
+          console.log('[GymBros] No profile found for authenticated user, showing setup');
+          setHasProfile(false);
+          setUserProfile(null);
         }
-      } else {
-        // Normal flow - use the regular endpoint for authenticated users
-        console.log('[GymBros] Checking profile using authenticated endpoint');
-        response = await gymbrosService.getGymBrosProfile();
-      }
-      
-      console.log('[GymBros] Profile check response:', response);
-    
-      if (response.hasProfile) {
+      } 
+      // If user is a guest, use the guest profile
+      else if (isGuest && guestProfile) {
+        console.log('[GymBros] Using existing guest profile');
         setHasProfile(true);
-        setUserProfile(response.profile);
+        setUserProfile(guestProfile);
         
-        // Initialize filters based on user profile preferences if available
-        if (response.profile) {
-          console.log('[GymBros] Setting initial filters from user profile');
-          
-          const initialFilters = {
-            workoutTypes: response.profile.workoutTypes || [],
-            experienceLevel: response.profile.experienceLevel || 'Any',
-            preferredTime: response.profile.preferredTime || 'Any',
-            genderPreference: response.profile.genderPreference || 'All',
-            ageRange: { 
-              min: response.profile.ageRange?.min || 18, 
-              max: response.profile.ageRange?.max || 99 
-            },
-            maxDistance: response.profile.maxDistance || 50
-          };
-          
-          console.log('[GymBros] Initial filters:', initialFilters);
-          setFilters(initialFilters);
-        }
+        // Initialize filters from guest profile 
+        initializeFiltersFromProfile(guestProfile);
         
         // Fetch profiles and matches
         fetchProfiles();
         fetchMatches();
-      } else {
-        console.log('[GymBros] No profile found, showing profile setup');
+      }
+      // If user has a verified phone but no profile yet
+      else if (verifiedPhone && !isGuest) {
+        console.log('[GymBros] User has verified phone but no profile yet');
         setHasProfile(false);
         setUserProfile(null);
       }
+      // No authenticated user, guest, or verified phone
+      else {
+        console.log('[GymBros] No user context, showing login prompt');
+        setHasProfile(false);
+        setUserProfile(null);
+        setShowLoginPrompt(true);
+      }
     } catch (error) {
-      console.error('[GymBros] Error checking gym profile:', error);
+      console.error('[GymBros] Error checking profile:', error);
       setHasProfile(false);
       setUserProfile(null);
+      
+      // Show login prompt if completely unauthenticated
+      if (!isAuthenticated && !isGuest && !verifiedPhone) {
+        setShowLoginPrompt(true);
+      }
     } finally {
       setLoading(false);
+    }
+  };
+  
+  // Initialize filters from profile
+  const initializeFiltersFromProfile = (profile) => {
+    if (profile) {
+      console.log('[GymBros] Setting initial filters from profile');
+      
+      const initialFilters = {
+        workoutTypes: profile.workoutTypes || [],
+        experienceLevel: profile.experienceLevel || 'Any',
+        preferredTime: profile.preferredTime || 'Any',
+        genderPreference: profile.genderPreference || 'All',
+        ageRange: { 
+          min: profile.ageRange?.min || 18, 
+          max: profile.ageRange?.max || 99 
+        },
+        maxDistance: profile.maxDistance || 50
+      };
+      
+      console.log('[GymBros] Initial filters:', initialFilters);
+      setFilters(initialFilters);
     }
   };
   
@@ -400,6 +427,48 @@ const GymBros = () => {
     fetchProfiles();
   };
 
+  // Handle logging in as a guest (phone verification path)
+  const handleGuestStart = () => {
+    // Reset any existing guest state
+    clearGuestState();
+    setShowLoginPrompt(false);
+    setActiveTab('discover');
+  };
+
+  // Login prompt for unauthenticated users
+  const renderLoginPrompt = () => (
+    <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+      <Dumbbell size={64} className="text-blue-500 mb-6" />
+      <h2 className="text-2xl font-bold mb-4">Find Your Perfect Gym Partner</h2>
+      <p className="mb-8 text-gray-600">
+        Connect with people who share your fitness goals and schedule. Get started by creating a profile or logging in.
+      </p>
+      
+      <div className="space-y-4 w-full max-w-xs">
+        <Link to="/login" className="w-full block bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors">
+          <LogIn className="inline-block mr-2 h-5 w-5" />
+          Log In
+        </Link>
+        
+        <Link to="/register" className="w-full block bg-gray-100 text-gray-800 py-3 px-6 rounded-lg font-medium hover:bg-gray-200 transition-colors">
+          <UserPlus className="inline-block mr-2 h-5 w-5" />
+          Create Account
+        </Link>
+        
+        <button
+          onClick={handleGuestStart}
+          className="w-full block bg-white border border-gray-300 text-gray-700 py-3 px-6 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+        >
+          Continue with Phone Number
+        </button>
+      </div>
+      
+      <p className="mt-6 text-xs text-gray-500">
+        By continuing, you agree to our Terms of Service and Privacy Policy.
+      </p>
+    </div>
+  );
+
   // Render the GymBros header with tab navigation and action buttons
   const renderHeader = () => {
     // Common header title with logo
@@ -545,7 +614,7 @@ const GymBros = () => {
   };
 
   // Render different content based on the user's state and active tab
-  if (loading) {
+  if (loading || guestLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-pulse flex flex-col items-center">
@@ -556,12 +625,12 @@ const GymBros = () => {
     );
   }
 
-  // If not authenticated, show the GymBrosSetup component for account creation
-  if (!isAuthenticated) {
-    return <GymBrosSetup onProfileCreated={handleProfileCreated} />;
+  // If no user context (authenticated, guest or verified phone), show login prompt
+  if (showLoginPrompt && !isAuthenticated && !isGuest && !verifiedPhone) {
+    return renderLoginPrompt();
   }
 
-  // If authenticated but no profile, show the profile setup form
+  // For authenticated/verified/guest users without a profile, show the profile setup form
   if (!hasProfile) {
     console.log('[GymBros] User has no profile, showing setup form');
     return <GymBrosSetup onProfileCreated={handleProfileCreated} />;
@@ -574,14 +643,14 @@ const GymBros = () => {
         return (
           <div className="h-[calc(100vh-136px)] flex items-center justify-center pb-16">
             <DiscoverTab
-          profiles={profiles}
-          currentIndex={currentIndex}
-          setCurrentIndex={setCurrentIndex}
-          handleSwipe={handleSwipe}
-          fetchProfiles={fetchProfiles}
-          loading={loading}
-          filters={filters}
-        />
+              profiles={profiles}
+              currentIndex={currentIndex}
+              setCurrentIndex={setCurrentIndex}
+              handleSwipe={handleSwipe}
+              fetchProfiles={fetchProfiles}
+              loading={loading}
+              filters={filters}
+            />
           </div>
         );
       
@@ -645,16 +714,17 @@ const GymBros = () => {
           </div>
         );
       
-        case 'profile':
-  return (
-    <div className="h-full mb-10 overflow-y-auto">
-      {/* Import and use the TinderStyleGymBrosProfile component */}
-      <EnhancedGymBrosProfile
-        userProfile={userProfile}
-        onProfileUpdated={handleProfileUpdated}
-      />
-    </div>
-  );
+      case 'profile':
+        return (
+          <div className="h-full mb-10 overflow-y-auto">
+            <EnhancedGymBrosProfile
+              userProfile={userProfile}
+              onProfileUpdated={handleProfileUpdated}
+              isGuest={isGuest}
+            />
+          </div>
+        );
+      
       default:
         return null;
     }
@@ -663,7 +733,7 @@ const GymBros = () => {
   return (
     <>
       <FooterHider />
-      <div className="max-w-xl mx-auto flex flex-col ">
+      <div className="max-w-xl mx-auto flex flex-col">
         {/* Dynamic Header Bar - Positioned right under the main navbar */}
         <div className="sticky top-16 left-0 right-0 z-10">
           <div className="max-w-xl mx-auto">
@@ -738,6 +808,8 @@ const GymBros = () => {
         onClose={() => setShowSettings(false)}
         userProfile={userProfile}
         onProfileUpdated={handleProfileUpdated}
+        filters={filters}
+        isGuest={isGuest}
       />
     </>
   );
