@@ -369,9 +369,31 @@ const GymBros = () => {
     }
   };
   
-  const handleProfileUpdated = (updatedProfile) => {
-    console.log('[GymBros] Profile updated:', updatedProfile);
-    setUserProfile(updatedProfile);
+  const handleProfileUpdated = async (updatedData) => {
+    console.log('[GymBros] Data updated:', updatedData);
+    
+    // Don't directly set userProfile to the settings data
+    // Instead, merge it with the existing profile or fetch the complete profile
+    
+    if (updatedData) {
+      // Option 1: Merge with existing profile (preserves all fields)
+      setUserProfile(prevProfile => ({
+        ...prevProfile,  // Keep all existing profile data
+        ...updatedData   // Update with new settings data
+      }));
+      
+      // Option 2 (more reliable): Refetch the complete profile
+      // This ensures we have the latest data from the server
+      try {
+        // Fetch the full profile again
+        await checkUserProfile();
+        console.log('[GymBros] Profile refreshed after update');
+      } catch (error) {
+        console.error('[GymBros] Error refreshing profile:', error);
+        toast.error('Profile updated but display may be incomplete');
+      }
+    }
+    
     setShowSettings(false);
     
     // Refresh profiles with updated preferences
@@ -424,6 +446,7 @@ const GymBros = () => {
                 </button>
               </div>
             </div>
+            
           );
         
         case 'matches':
