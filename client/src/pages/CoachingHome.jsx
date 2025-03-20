@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   ArrowRight, Award, Calendar, MessageCircle, ChevronDown, 
   CheckCircle, Lock, Sparkles, Star, Instagram, Twitter, Youtube,
-  X, ExternalLink, Coins,Shield
+  X, ExternalLink, Coins,Shield,User
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../stores/authStore';
