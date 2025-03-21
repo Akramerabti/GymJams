@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, useAnimation } from 'framer-motion';
-import { X, Heart, ChevronLeft, ChevronRight, Info, MapPin } from 'lucide-react';
+import { X, Heart, ChevronLeft, ChevronRight, Info, MapPin, Clock, Award } from 'lucide-react';
 
 const MatchCard = ({ 
   profile, 
@@ -13,8 +13,9 @@ const MatchCard = ({
   const [dragStartX, setDragStartX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [swipeDirection, setSwipeDirection] = useState(null);
-
-  console.log(profile);
+  
+  // Base URL for images
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   
   // Handle drag start
   const handleDragStart = (event, info) => {
@@ -70,6 +71,34 @@ const MatchCard = ({
     }
   };
 
+  // Calculate active status
+  const getActiveStatus = () => {
+    if (!profile.lastActive) return null;
+    
+    const lastActive = new Date(profile.lastActive);
+    const now = new Date();
+    const hoursDiff = (now - lastActive) / (1000 * 60 * 60);
+    
+    if (hoursDiff <= 1) return 'Active now';
+    if (hoursDiff <= 5) return 'Recently active';
+    return null;
+  };
+  
+  const formatImageUrl = (imageUrl) => {
+    if (!imageUrl) return "/api/placeholder/400/600";
+  
+    // If the image URL is already a full URL (e.g., http://localhost:5000/uploads/filename.jpg),
+    // return it as-is
+    if (imageUrl.startsWith('http')) {
+      return imageUrl;
+    }
+  
+    // If the image URL is a relative path (e.g., /uploads/filename.jpg),
+    // prepend the base URL
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    return `${baseUrl}${imageUrl}`;
+  };
+
   // Render progress indicator for images
   const renderProgressDots = () => {
     if (!profile.images || profile.images.length <= 1) return null;
@@ -90,6 +119,17 @@ const MatchCard = ({
     );
   };
 
+  console.log('MatchCard rendering with image:', profile.images[currentImageIndex]);
+
+  // Get correct image source
+  const currentImage = profile.images && profile.images.length > 0 
+    ? formatImageUrl(profile.images[currentImageIndex])
+    : formatImageUrl(profile.profileImage);
+
+  // Log profile for debugging
+  console.log('MatchCard rendering with profile:', profile);
+  console.log('Current image being shown:', currentImage);
+
   return (
     <motion.div
       className="absolute inset-0 touch-none select-none"
@@ -100,6 +140,7 @@ const MatchCard = ({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       initial={{ opacity: 0, scale: 0.9 }}
+      exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
       style={{ zIndex: 10 }}
     >
@@ -131,9 +172,15 @@ const MatchCard = ({
         {/* Main Image */}
         <div className="relative h-full">
           <img 
-            src={profile.images?.[currentImageIndex] || profile.profileImage || "/api/placeholder/400/600"} 
+            src={currentImage}
             alt={profile.name} 
             className="w-full h-full object-cover"
+            onError={(e) => {
+              console.error('Image load error:', e.target.src);
+              console.log
+              e.target.onerror = null;
+              e.target.src = "/api/placeholder/400/600";
+            }}
           />
           
           {/* Photo Navigation */}
@@ -178,10 +225,19 @@ const MatchCard = ({
           
           {/* Profile Info */}
           <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-            <h2 className="text-3xl font-bold flex items-center">
-              {profile.name}, {profile.age}
+            <div className="flex items-center">
+              <h2 className="text-3xl font-bold mr-2">{profile.name?.split(' ')[0] || 'User'}</h2>
+              <h3 className="text-2xl">{profile.age}</h3>
               {profile.verified && <div className="ml-2 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center text-xs">✓</div>}
-            </h2>
+            </div>
+            
+            {/* Active status */}
+            {getActiveStatus() && (
+              <div className="flex items-center mt-1 mb-2">
+                <div className="w-2 h-2 rounded-full bg-green-500 mr-1.5 animate-pulse"></div>
+                <span className="text-green-300 text-sm">{getActiveStatus()}</span>
+              </div>
+            )}
             
             <div className="flex items-center mt-1 mb-3">
               <MapPin size={16} className="mr-1" />
@@ -201,8 +257,20 @@ const MatchCard = ({
               )}
             </div>
             
+            <div className="flex items-center space-x-3 text-sm mb-2">
+              <div className="flex items-center">
+                <Award size={14} className="mr-1" />
+                <span>{profile.experienceLevel || 'Any level'}</span>
+              </div>
+              
+              <div className="flex items-center">
+                <Clock size={14} className="mr-1" />
+                <span>{profile.preferredTime || 'Flexible'}</span>
+              </div>
+            </div>
+            
             <p className="text-white/90 line-clamp-2 text-sm">
-              {profile.bio || 'No bio provided'}
+              {profile.bio || profile.goals || 'Looking for a workout partner'}
             </p>
           </div>
         </div>

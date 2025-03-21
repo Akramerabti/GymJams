@@ -1,14 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { 
-  Camera, ChevronLeft, Plus, Trash2, Share2, Link, User,
-  PauseCircle, LogOut, MapPin, Calendar, Award, X, Save,
-  Loader, Edit, Pencil, Check
+  Camera, ChevronLeft, Trash2, Share2, User,
+  PauseCircle, MapPin, Save, Loader, Pencil
 } from 'lucide-react';
-import api from '../../services/api';
 import gymbrosService from '../../services/gymbros.service';
-import PhotoEditor from './components/PhotoEditor'; // Import updated PhotoEditor
+import PhotoEditor from './components/PhotoEditor';
 
 const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false }) => {
   const [formData, setFormData] = useState(userProfile || {});
@@ -41,29 +39,6 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     }
   };
 
-  // Special handler for nested objects
-  const handleNestedChange = (objectName, propertyName, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [objectName]: {
-        ...(prev[objectName] || {}),
-        [propertyName]: value
-      }
-    }));
-    setShowSaveButton(true);
-  };
-
-  // Handle multi-select changes like workout types
-  const handleMultiSelectChange = (name, value) => {
-    setFormData(prev => ({ ...prev, [name]: value }));
-    setShowSaveButton(true);
-    
-    // Clear error
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: null }));
-    }
-  };
-
   // Toggle the selection of an item in a multi-select
   const toggleSelection = (field, item) => {
     const currentValues = formData[field] || [];
@@ -71,12 +46,13 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
       ? currentValues.filter(val => val !== item)
       : [...currentValues, item];
     
-    handleMultiSelectChange(field, newValues);
+    setFormData(prev => ({ ...prev, [field]: newValues }));
+    setShowSaveButton(true);
   };
 
   // Handle photo updates from PhotoEditor
   const handlePhotosChange = (newPhotos) => {
-    // Check for blob URLs that need to be uploaded
+    // Identify new blob URLs that need to be uploaded
     const blobPhotos = newPhotos.filter(photo => photo && photo.startsWith('blob:'));
     
     if (blobPhotos.length > 0) {
@@ -90,8 +66,19 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
       profileImage: newPhotos.length > 0 ? newPhotos[0] : null
     }));
     
-    // Always show save button when photos change
     setShowSaveButton(true);
+  };
+
+  // Helper function to convert a blob URL to a File object
+  const blobUrlToFile = async (blobUrl, fileName = `image-${Date.now()}.jpg`) => {
+    try {
+      const response = await fetch(blobUrl);
+      const blob = await response.blob();
+      return new File([blob], fileName, { type: blob.type || 'image/jpeg' });
+    } catch (error) {
+      console.error('Error converting blob to file:', error);
+      throw error;
+    }
   };
 
   const handleSubmit = async () => {
@@ -100,65 +87,85 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     setLoading(true);
     
     try {
-      // Step 1: Upload any pending photo blobs
-      let updatedPhotos = [...formData.photos];
+      // Step 1: Identify and handle blob URLs in photos array
+      const blobUrls = formData.photos.filter(photo => photo && photo.startsWith('blob:'));
+      let uploadedImageUrls = [];
       
-      if (pendingPhotoUploads.length > 0) {
-        // Convert blob URLs to files
-        const filesToUpload = [];
-        const uploadIndices = [];
+      if (blobUrls.length > 0) {
+        console.log(`Converting ${blobUrls.length} blob URLs to files for upload`);
         
-        for (let i = 0; i < formData.photos.length; i++) {
-          const photo = formData.photos[i];
-          if (photo && photo.startsWith('blob:')) {
-            try {
-              // Fetch the blob data
-              const response = await fetch(photo);
-              const blob = await response.blob();
-              
-              // Create a File object from the blob
-              const file = new File([blob], `photo-${i}.jpg`, { type: blob.type || 'image/jpeg' });
-              filesToUpload.push(file);
-              uploadIndices.push(i);
-            } catch (error) {
-              console.error(`Error converting blob to file at index ${i}:`, error);
-              toast.error(`Failed to process image ${i+1}`);
-              // Skip this file and continue with others
-            }
+        // Convert blob URLs to File objects
+        const filesToUpload = [];
+        for (const blobUrl of blobUrls) {
+          try {
+            const file = await gymbrosService.blobUrlToFile(blobUrl);
+            filesToUpload.push(file);
+          } catch (error) {
+            console.error('Error converting blob URL to file:', error);
           }
         }
         
-        // Upload the new files
         if (filesToUpload.length > 0) {
+          console.log(`Uploading ${filesToUpload.length} files`);
+          // Upload files and get server URLs
           const uploadResult = await gymbrosService.uploadProfileImages(filesToUpload);
           
           if (uploadResult.success && uploadResult.imageUrls) {
-            // Replace blob URLs with server URLs
-            uploadIndices.forEach((index, i) => {
-              if (uploadResult.imageUrls[i]) {
-                updatedPhotos[index] = uploadResult.imageUrls[i];
-              }
-            });
+            uploadedImageUrls = uploadResult.imageUrls;
+            console.log('Upload successful, received URLs:', uploadedImageUrls);
+          } else {
+            throw new Error('Failed to upload images');
           }
         }
       }
       
-      // Step 2: Prepare the final data for saving
-      const dataToSend = {
+      // Step 2: Create a clean photos array with no blob URLs
+      const cleanedPhotos = formData.photos.map(photo => {
+        if (!photo) return null;
+        
+        if (photo.startsWith('blob:')) {
+          // Replace blob URL with a server URL from the upload result
+          const index = blobUrls.indexOf(photo);
+          if (index >= 0 && index < uploadedImageUrls.length) {
+            return uploadedImageUrls[index];
+          }
+          // If no corresponding upload, skip this photo
+          return null;
+        }
+        
+        // Keep non-blob URLs as they are
+        return photo;
+      }).filter(Boolean); // Remove null entries
+      
+      // Step 3: Prepare final data for saving
+      const finalData = {
         ...formData,
-        images: updatedPhotos,
-        // First photo is always the main profile image
-        profileImage: updatedPhotos.length > 0 ? updatedPhotos[0] : null
+        // IMPORTANT: Send the 'images' field, not 'photos'
+        images: cleanedPhotos,
+        // Set the first photo as the profile image
+        profileImage: cleanedPhotos.length > 0 ? cleanedPhotos[0] : null
       };
       
-      // Step 3: Save the profile
-      const response = await gymbrosService.createOrUpdateProfile(dataToSend);
+      console.log('Saving profile with data:', {
+        ...finalData,
+        images: finalData.images.length + ' images'
+      });
+      
+      // Step 4: Save the profile
+      const response = await gymbrosService.createOrUpdateProfile(finalData);
       
       if (response.success) {
         onProfileUpdated(response.profile);
         toast.success('Profile updated successfully');
+        
+        // Update local form data with the clean image URLs
+        setFormData(prev => ({
+          ...prev,
+          photos: cleanedPhotos,
+          profileImage: cleanedPhotos.length > 0 ? cleanedPhotos[0] : null
+        }));
+        
         setShowSaveButton(false);
-        setPendingPhotoUploads([]);
       } else {
         throw new Error(response.message || 'Failed to update profile');
       }
@@ -338,6 +345,23 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     );
   };
 
+  // Correct image URL helper function
+  const getImageUrl = (url) => {
+    if (!url) return null;
+    
+    if (url.startsWith('blob:')) {
+      return url;
+    }
+    
+    if (url.startsWith('http')) {
+      return url;
+    }
+    
+    // Make sure the URL has a leading slash
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
+  };
+
   // Main profile view
   const renderMainProfile = () => (
     <>
@@ -348,11 +372,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
       >
         {formData.photos && formData.photos.length > 0 ? (
           <img 
-            src={formData.photos[0].startsWith('blob:') 
-              ? formData.photos[0] 
-              : (formData.photos[0].startsWith('http') 
-                  ? formData.photos[0] 
-                  : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${formData.photos[0]}`)} 
+            src={getImageUrl(formData.photos[0])}
             alt="Profile" 
             className="w-full h-full object-cover"
             crossOrigin="anonymous"

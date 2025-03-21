@@ -9,15 +9,17 @@ const gymbrosService = {
   
   setGuestToken(token) {
     if (token) {
-      localStorage.getItem('gymbros_guest_token', token);
+      localStorage.setItem('gymbros_guest_token', token);
       api.defaults.headers.common['x-gymbros-guest-token'] = token;
+      console.log('Guest token set:', token.substring(0, 15) + '...');
     } else {
       localStorage.removeItem('gymbros_guest_token');
       delete api.defaults.headers.common['x-gymbros-guest-token'];
+      console.log('Guest token cleared');
     }
     return token;
   },
-  
+
   clearGuestState() {
     localStorage.removeItem('gymbros_guest_token');
     localStorage.removeItem('verifiedPhone');
@@ -198,28 +200,13 @@ const gymbrosService = {
         if (!response.data.profile.images) {
           response.data.profile.images = [];
         }
-        
-        // Fix image URLs if needed
-        response.data.profile.images = response.data.profile.images.map(imageUrl => {
-          // If it's already a full URL or starts with /, leave it alone
-          if (imageUrl.startsWith('http') || imageUrl.startsWith('/')) {
-            return imageUrl;
-          }
-          
-          // Otherwise, add the path prefix
-          return `/uploads/gym-bros/${imageUrl}`;
-        });
-        
-        // Ensure profileImage is set correctly
-        if (response.data.profile.profileImage) {
-          if (!response.data.profile.profileImage.startsWith('http') && 
-              !response.data.profile.profileImage.startsWith('/')) {
-            response.data.profile.profileImage = `/uploads/gym-bros/${response.data.profile.profileImage}`;
-          }
-        } else if (response.data.profile.images.length > 0) {
-          // Set first image as profile image if none is set
+        // Set profileImage correctly if not set
+        if (!response.data.profile.profileImage && response.data.profile.images.length > 0) {
           response.data.profile.profileImage = response.data.profile.images[0];
         }
+        
+        // Also ensure photos field exists for compatibility with PhotoEditor component
+        response.data.profile.photos = [...response.data.profile.images];
       }
       
       // If we received a guest token in the response, update it
@@ -248,6 +235,11 @@ const gymbrosService = {
       // Ensure images field is properly populated (server expects "images" field)
       if (profileData.photos && Array.isArray(profileData.photos)) {
         processedData.images = profileData.photos;
+      }
+
+      if (profileData.images) {
+        // Filter out any blob URLs
+        profileData.images = profileData.images.filter(url => !url.startsWith('blob:'));
       }
       
       // Include verification token if available
@@ -478,74 +470,73 @@ const gymbrosService = {
     }
   },
 
-  async uploadProfileImages(imageFiles) {
-    try {
-      // Validate input
-      if (!imageFiles || !imageFiles.length) {
-        throw new Error('No images provided');
-      }
-      
-      // Create FormData for the files
-      const formData = new FormData();
-      imageFiles.forEach(file => {
-        formData.append('images', file);
-      });
-      
-      // Get guest token if available
-      const guestToken = this.getGuestToken();
-      
-      // Set up config with guest token and content type
-      const config = {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      };
-      
-      // Add guest token to headers if available
-      if (guestToken) {
-        config.headers['x-gymbros-guest-token'] = guestToken;
-      }
-      
-      console.log('Uploading images with config:', JSON.stringify(config));
-      
-      const response = await api.post('/gym-bros/profile-images', formData, config);
-      
-      // Check if the response contains image URLs
-      if (!response.data || !response.data.imageUrls) {
-        console.error('Invalid response format:', response.data);
-        throw new Error('Invalid server response format');
-      }
-
-      // Ensure URLs are correctly formatted
-      const imageUrls = response.data.imageUrls.map(url => {
-        // If URL doesn't include the server origin, add it
-        if (!url.startsWith('http') && !url.startsWith('/')) {
-          return `/uploads/gym-bros/${url}`;
-        }
-        return url;
-      });
-      
-      // Update guest token if one was returned
-      if (response.data.guestToken) {
-        this.setGuestToken(response.data.guestToken);
-      }
-      
-      return {
-        success: true,
-        imageUrls,
-        message: response.data.message || 'Images uploaded successfully'
-      };
-    } catch (error) {
-      console.error('Error uploading profile images:', error);
-      
-      // Provide more specific error message if available
-      if (error.response?.data?.error) {
-        throw new Error(error.response.data.error);
-      }
-      
-      throw error;
+async uploadProfileImages(imageFiles) {
+  try {
+    // Validate input
+    if (!imageFiles || !imageFiles.length) {
+      throw new Error('No images provided');
     }
-  },
+    
+    // Create FormData for the files
+    const formData = new FormData();
+    for (let i = 0; i < imageFiles.length; i++) {
+      const file = imageFiles[i];
+      // Ensure we're working with File objects
+      if (!(file instanceof File)) {
+        throw new Error('Invalid file type. Only File objects are accepted.');
+      }
+      formData.append('images', file);
+    }
+    
+    // Get guest token if available
+    const guestToken = this.getGuestToken();
+    
+    // Set up config with guest token and content type
+    const config = {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      }
+    };
+    
+    // Add guest token to headers if available
+    if (guestToken) {
+      config.headers['x-gymbros-guest-token'] = guestToken;
+    }
+    
+    console.log('Uploading images with config:', JSON.stringify(config.headers));
+    
+    const response = await api.post('/gym-bros/profile-images', formData, config);
+    
+    // Check if the response contains image URLs
+    if (!response.data || !response.data.imageUrls) {
+      console.error('Invalid response format:', response.data);
+      throw new Error('Invalid server response format');
+    }
+
+    // Return the image URLs exactly as they are from the server
+    const imageUrls = response.data.imageUrls;
+    
+    // Update guest token if one was returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return {
+      success: true,
+      imageUrls,
+      message: response.data.message || 'Images uploaded successfully'
+    };
+  } catch (error) {
+    console.error('Error uploading profile images:', error);
+    
+    // Provide more specific error message if available
+    if (error.response?.data?.error) {
+      throw new Error(error.response.data.error);
+    }
+    
+    throw error;
+  }
+},
 
   async deleteProfileImage(imageId) {
     try {
@@ -580,19 +571,14 @@ const gymbrosService = {
     }
   },
 
-  // Helper method to convert a blob URL to a File object
-  async blobUrlToFile(blobUrl, filename = 'image.jpg') {
+  async blobUrlToFile(blobUrl, fileName = `image-${Date.now()}.jpg`) {
     try {
       const response = await fetch(blobUrl);
       const blob = await response.blob();
-      
-      // Create a File object
-      return new File([blob], filename, { 
-        type: blob.type || 'image/jpeg' 
-      });
+      return new File([blob], fileName, { type: blob.type || 'image/jpeg' });
     } catch (error) {
-      console.error('Error converting blob URL to file:', error);
-      throw new Error('Failed to process image');
+      console.error('Error converting blob to file:', error);
+      throw error;
     }
   },
 

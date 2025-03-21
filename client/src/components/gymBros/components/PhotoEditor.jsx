@@ -1,3 +1,6 @@
+// Fix for src/components/gymBros/components/PhotoEditor.jsx
+// This improves how images are displayed and processed in the component
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
 import { Upload, X, Crop, Loader, Check, Info } from 'lucide-react';
@@ -6,8 +9,28 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-// Base URL for images
-const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// Helper to determine if a URL is a server URL or blob URL
+const isServerUrl = (url) => {
+  if (!url) return false;
+  // If it's a blob URL, return false
+  if (url.startsWith('blob:')) return false;
+  // If it's a server URL (starting with / or http), return true
+  return url.startsWith('/') || url.startsWith('http');
+};
+
+// Helper to construct complete URL for server images
+const getCompleteImageUrl = (url) => {
+  if (!url) return null;
+  
+  // If it's already a complete URL or blob URL, return it unchanged
+  if (url.startsWith('blob:') || url.startsWith('http')) {
+    return url;
+  }
+  
+  // Add the API base URL for server paths
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  return `${baseUrl}${url}`;
+};
 
 // Sortable Image Item Component
 const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
@@ -37,6 +60,9 @@ const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
     onEdit(index);
   };
 
+  // Get the proper image URL for display
+  const displayUrl = photo ? getCompleteImageUrl(photo) : null;
+
   return (
     <div 
       ref={setNodeRef} 
@@ -48,11 +74,12 @@ const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
       {photo ? (
         <>
           <img 
-            src={photo.startsWith('blob:') ? photo : photo.startsWith('http') ? photo : `${baseUrl}${photo}`}
+            src={displayUrl}
             alt={`Photo ${index + 1}`}
             className="w-full h-full object-cover"
             crossOrigin="anonymous"
             onError={(e) => {
+              console.error(`Image load error for ${displayUrl}`);
               e.target.onerror = null;
               e.target.src = "/api/placeholder/400/600";
             }}
@@ -332,7 +359,11 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
   const handleEditImage = (index) => {
     if (index >= localPhotos.length) return;
     
-    setCropImage(localPhotos[index]);
+    // For server images, we need to provide the full URL to the cropper
+    const photoUrl = localPhotos[index];
+    const cropperUrl = isServerUrl(photoUrl) ? getCompleteImageUrl(photoUrl) : photoUrl;
+    
+    setCropImage(cropperUrl);
     setCropIndex(index);
   };
   
@@ -390,7 +421,7 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
             <div className="grid grid-cols-3 gap-4">
               {displayPhotos.map((photo, index) => (
                 <SortableImageItem
-                  key={`${photo}-${index}`}
+                  key={`photo-item-${index}`} // Unique key with index
                   photo={photo}
                   index={index}
                   onRemove={handleRemoveImage}

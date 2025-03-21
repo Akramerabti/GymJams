@@ -384,8 +384,19 @@ export const uploadProfileImages = async (req, res) => {
     // This is the key fix - just store the filename in the format "/uploads/filename.jpg"
     const imageUrls = req.files.map(file => `/uploads/${file.filename}`);
     
+    // Make sure we don't have any blob URLs already in the images array
+    if (profile.images) {
+      profile.images = profile.images.filter(img => !img.startsWith('blob:'));
+    }
+    
     // Update the profile with new images
     profile.images = [...(profile.images || []), ...imageUrls];
+    
+    // Also set the profileImage if it's not set already
+    if (!profile.profileImage && profile.images.length > 0) {
+      profile.profileImage = profile.images[0];
+    }
+    
     await profile.save();
     
     // For guest user, generate a new token with the updated profile ID

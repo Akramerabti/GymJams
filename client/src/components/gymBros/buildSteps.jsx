@@ -42,6 +42,7 @@ export const buildSteps = ({
   handleInterestToggle,
   handleWorkoutTypeToggle,
   goToNextStep,
+  imageUploaderRef
 }) => {
   // Check if the user already has a verified phone number
   const hasVerifiedPhone = isAuthenticated && user && 
@@ -338,8 +339,10 @@ export const buildSteps = ({
         isValid: () => profileData.images.length >= 2,
         component: (
           <ImageUploader 
+            ref={imageUploaderRef} // Add this ref to access the component methods
             images={profileData.images}
             onImagesChange={(images) => handleChange('images', images)}
+            uploadAfterCompletion={true} // Set this to true to defer uploads
           />
         )
       },

@@ -71,37 +71,81 @@ const GymBrosProfileSchema = new mongoose.Schema({
 GymBrosProfileSchema.index({ 'location.lat': 1, 'location.lng': 1 });
 GymBrosProfileSchema.index({ phone: 1 }, { sparse: true });
 
-// Add middleware to ensure images array always exists
-GymBrosProfileSchema.pre('save', function(next) {
+
+GymBrosProfileSchema.pre('save', function (next) {
+  // Ensure images array exists
   if (!this.images) {
     this.images = [];
   }
-  
-  // If profileImage is set but not in images array, add it
+
+  // Helper function to normalize image paths
+  const normalizeImagePath = (imagePath) => {
+    if (!imagePath) return null;
+
+    // Remove blob URLs
+    if (imagePath.includes('blob:')) {
+      console.warn('Removing blob URL:', imagePath);
+      return null;
+    }
+
+    // Fix paths containing "/gym-bros/"
+    if (imagePath.includes('/gym-bros/')) {
+      console.warn('Fixing gym-bros path:', imagePath);
+      const filename = imagePath.split('/').pop();
+      return `/uploads/${filename}`;
+    }
+
+    // Fix paths with duplicate "/uploads/" prefixes
+    if (imagePath.match(/\/uploads.*\/uploads/)) {
+      console.warn('Fixing duplicate uploads path:', imagePath);
+      const filename = imagePath.split('/').pop();
+      return `/uploads/${filename}`;
+    }
+
+    // Ensure the path starts with "/uploads/"
+    if (!imagePath.startsWith('/uploads/')) {
+      console.warn('Fixing missing /uploads/ prefix:', imagePath);
+      return `/uploads/${imagePath.split('/').pop()}`;
+    }
+
+    return imagePath;
+  };
+
+  // Normalize profileImage path
+  if (this.profileImage) {
+    this.profileImage = normalizeImagePath(this.profileImage);
+  }
+
+  // Normalize images array paths
+  this.images = this.images
+    .map(normalizeImagePath) // Normalize each path
+    .filter((path) => path !== null); // Remove any invalid paths (e.g., blob URLs)
+
+  // Ensure profileImage is part of the images array
   if (this.profileImage && !this.images.includes(this.profileImage)) {
     this.images.push(this.profileImage);
   }
-  
+
   // If profileImage is not set but images exist, set it to the first image
   if (!this.profileImage && this.images.length > 0) {
     this.profileImage = this.images[0];
   }
-  
+
   // Set isProfileComplete to true if all required fields are present
   this.isProfileComplete = Boolean(
-    this.name && 
-    this.age && 
-    this.gender && 
-    this.height && 
-    this.workoutTypes?.length && 
-    this.experienceLevel && 
-    this.preferredTime && 
-    this.location?.lat && 
-    this.location?.lng && 
+    this.name &&
+    this.age &&
+    this.gender &&
+    this.height &&
+    this.workoutTypes?.length &&
+    this.experienceLevel &&
+    this.preferredTime &&
+    this.location?.lat &&
+    this.location?.lng &&
     this.location?.address &&
     this.images?.length >= 1
   );
-  
+
   next();
 });
 

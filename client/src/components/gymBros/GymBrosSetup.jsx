@@ -42,6 +42,9 @@ const GymBrosSetup = ({ onProfileCreated }) => {
   const [authMode, setAuthMode] = useState('signup'); // 'signup' or 'login'
   const [showPhoneLogin, setShowPhoneLogin] = useState(false);
 
+  // Create a ref for the ImageUploader component
+  const imageUploaderRef = useRef(null);
+
   // Initialize dark mode from localStorage
   useEffect(() => {
     const storedDarkMode = localStorage.getItem('gymBrosDarkMode') === 'true';
@@ -172,7 +175,6 @@ const GymBrosSetup = ({ onProfileCreated }) => {
   };
 
   const handlePhoneVerified = async (verified, userData = null, token = null, profileData = null) => {
-
     setIsPhoneVerified(verified);
     
     if (token) {
@@ -198,9 +200,8 @@ const GymBrosSetup = ({ onProfileCreated }) => {
     
       // No existing profile, move to next step in setup
       goToNextStep();
-    } else{
+    } else {
       if (profileData && profileData.hasProfile) {
-        
         onProfileCreated(profileData.profile);
         return; 
       }
@@ -208,63 +209,80 @@ const GymBrosSetup = ({ onProfileCreated }) => {
   };
   
   const handleSubmit = async () => {
-  if (!isPhoneVerified) {
-    toast.error('Please verify your phone number before proceeding.');
-    return;
-  }
+    if (!isPhoneVerified) {
+      toast.error('Please verify your phone number before proceeding.');
+      return;
+    }
 
-  setLoading(true);
+    setLoading(true);
 
-  try {
-    // Construct the payload with all required fields
-    const payload = {
-      ...profileData,
-      verificationToken, // Include the verification token
-    };
+    try {
 
-    console.log('Creating profile with payload:', payload);
+      // Construct the payload with all required fields
+      const payload = {
+        ...profileData,
+        verificationToken, // Include the verification token
+      };
 
-    // If we're in login mode and have a verification token, check for existing profile
-    if (authMode === 'login' && verificationToken) {
-      try {
-        // Try to fetch existing profile
-        const profileResponse = await gymbrosService.getGymBrosProfile();
+      console.log('Creating profile with payload:', payload);
 
-        if (profileResponse.success && profileResponse.hasProfile) {
-          // User already has a profile, notify parent component
-          toast.success('Profile found!');
-          onProfileCreated(profileResponse.profile);
-          return; // Exit early as we're done
-        } else {
-          console.warn('No profile found or profile check failed:', profileResponse.message);
+      // If we're in login mode and have a verification token, check for existing profile
+      if (authMode === 'login' && verificationToken) {
+        try {
+          // Try to fetch existing profile
+          const profileResponse = await gymbrosService.getGymBrosProfile();
+
+          if (profileResponse.success && profileResponse.hasProfile) {
+            // User already has a profile, notify parent component
+            toast.success('Profile found!');
+            onProfileCreated(profileResponse.profile);
+            return; // Exit early as we're done
+          } else {
+            console.warn('No profile found or profile check failed:', profileResponse.message);
+          }
+        } catch (profileError) {
+          console.error('Error checking for profile:', profileError);
+          toast.error('Failed to check for profile: ' + (profileError.response?.data?.message || profileError.message));
+          // Continue with profile creation if profile check fails
         }
-      } catch (profileError) {
-        console.error('Error checking for profile:', profileError);
-        toast.error('Failed to check for profile: ' + (profileError.response?.data?.message || profileError.message));
-        // Continue with profile creation if profile check fails
       }
-    }
 
-    // Create or update profile
-    const response = await gymbrosService.createOrUpdateProfile(payload);
+      // Create or update profile
+      const response = await gymbrosService.createOrUpdateProfile(payload);
 
-    if (response.success) {
-      toast.success('Profile created/updated successfully!');
-      onProfileCreated(response.profile); // Notify parent component
-    } else {
-      toast.error(response.message || 'Failed to create/update profile');
+      if (response.success) {
+        toast.success('Profile created/updated successfully!');
+        // Upload all pending images first
+      if (imageUploaderRef.current) {
+        const { uploadedUrls, failedIndices } = await imageUploaderRef.current.uploadAllImages();
+
+        if (failedIndices.length > 0) {
+          toast.error('Failed to upload some images. Please try again.');
+          return;
+        }
+
+        // Update profileData with the uploaded image URLs
+        setProfileData(prev => ({
+          ...prev,
+          images: uploadedUrls,
+        }));
+      }
+
+        onProfileCreated(response.profile); // Notify parent component
+      } else {
+        toast.error(response.message || 'Failed to create/update profile');
+      }
+    } catch (error) {
+      console.error('Error creating/updating profile:', error);
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          'Failed to create/update profile'
+      );
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error creating/updating profile:', error);
-    toast.error(
-      error.response?.data?.message ||
-        error.message ||
-        'Failed to create/update profile'
-    );
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const goToNextStep = () => {
     const currentStepConfig = steps[currentStep];
@@ -300,6 +318,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
     handleInterestToggle,
     handleWorkoutTypeToggle,
     goToNextStep,
+    imageUploaderRef, // Pass the ref here
   });
 
   // Add keyboard event listener for Enter key
@@ -339,8 +358,6 @@ const GymBrosSetup = ({ onProfileCreated }) => {
       }
     }
   };
-
-
 
   // Animation variants for smoother transitions
   const variants = {

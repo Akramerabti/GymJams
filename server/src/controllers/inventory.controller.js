@@ -1,5 +1,5 @@
 import Product from '../models/Product.js';
-import InventoryTransaction from '../models/InventoryTransaction.js';
+import InventoryTransaction from '../models/inventoryTransaction.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
 
