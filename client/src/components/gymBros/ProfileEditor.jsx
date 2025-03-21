@@ -65,110 +65,111 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     setShowSaveButton(true);
   };
 
-  // Submit form data
-  const handleSubmit = async () => {
-    if (loading) return;
-    setLoading(true);
+const handleSubmit = async () => {
+  if (loading) return;
+  setLoading(true);
+  
+  try {
+    // This will actually log the submit action to make debugging easier
+    console.log('Starting profile submission...');
     
-    try {
-      // This will actually log the submit action to make debugging easier
-      console.log('Starting profile submission...');
-      
-      // Validate the form data
-      const validationErrors = validateForm(formData);
-      if (Object.keys(validationErrors).length > 0) {
-        setErrors(validationErrors);
-        toast.error('Please fix the errors before saving');
+    // Validate the form data
+    const validationErrors = validateForm(formData);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      toast.error('Please fix the errors before saving');
+      setLoading(false);
+      return;
+    }
+    
+    // 1. Get files to upload from the PhotoEditor
+    let filesToUpload = [];
+    if (photoEditorRef.current) {
+      filesToUpload = photoEditorRef.current.getFilesToUpload();
+      console.log('Files to upload from PhotoEditor:', filesToUpload);
+    }
+    
+    // 2. Get existing server URLs that should be preserved
+    let serverUrls = [];
+    if (photoEditorRef.current) {
+      serverUrls = photoEditorRef.current.getServerUrls();
+      console.log('Server URLs to preserve:', serverUrls);
+    }
+    
+    console.log(`Will upload ${filesToUpload.length} new files and keep ${serverUrls.length} existing images`);
+    
+    let uploadedImageUrls = [];
+    
+    // 3. Upload new files if there are any
+    if (filesToUpload.length > 0) {
+      try {
+        console.log('Starting file upload process...');
+        const uploadResult = await gymbrosService.uploadProfileImages(filesToUpload);
+        
+        console.log('Upload result:', uploadResult);
+        
+        if (uploadResult.success && uploadResult.imageUrls) {
+          uploadedImageUrls = uploadResult.imageUrls;
+          console.log('Upload successful, received URLs:', uploadedImageUrls);
+        } else {
+          throw new Error(uploadResult.message || 'Failed to upload images');
+        }
+      } catch (error) {
+        console.error('Error uploading images:', error);
+        toast.error('Failed to upload images. Please try again.');
         setLoading(false);
         return;
       }
-      
-      // 1. Get files to upload from the PhotoEditor
-      let filesToUpload = [];
-      if (photoEditorRef.current) {
-        filesToUpload = photoEditorRef.current.getFilesToUpload();
-        console.log('Files to upload from PhotoEditor:', filesToUpload);
-      }
-      
-      // 2. Get existing server URLs that should be preserved
-      let serverUrls = [];
-      if (photoEditorRef.current) {
-        serverUrls = photoEditorRef.current.getServerUrls();
-        console.log('Server URLs to preserve:', serverUrls);
-      }
-      
-      console.log(`Will upload ${filesToUpload.length} new files and keep ${serverUrls.length} existing images`);
-      
-      let uploadedImageUrls = [];
-      
-      // 3. Upload new files if there are any
-      if (filesToUpload.length > 0) {
-        try {
-          console.log('Starting file upload process...');
-          const uploadResult = await gymbrosService.uploadProfileImages(filesToUpload);
-          
-          console.log('Upload result:', uploadResult);
-          
-          if (uploadResult.success && uploadResult.imageUrls) {
-            uploadedImageUrls = uploadResult.imageUrls;
-            console.log('Upload successful, received URLs:', uploadedImageUrls);
-          } else {
-            throw new Error(uploadResult.message || 'Failed to upload images');
-          }
-        } catch (error) {
-          console.error('Error uploading images:', error);
-          toast.error('Failed to upload images. Please try again.');
-          setLoading(false);
-          return;
-        }
-      }
-      
-      // 4. Combine existing server URLs with newly uploaded URLs
-      const finalImages = [
-        ...serverUrls,
-        ...uploadedImageUrls
-      ];
-      
-      // 5. Prepare final data for saving
-      const finalData = {
-        ...formData,
-        // IMPORTANT: Use 'images' field for the API, not 'photos'
-        images: finalImages,
-        // Set the first image as the profile image
-        profileImage: finalImages.length > 0 ? finalImages[0] : null
-      };
-      
-      console.log('Saving profile with data:', {
-        ...finalData,
-        images: `${finalData.images.length} images (${serverUrls.length} existing, ${uploadedImageUrls.length} new)`
-      });
-      
-      const response = await gymbrosService.createOrUpdateProfile(finalData);
-      
-      if (response.success) {
-        // Update parent component with the server response
-        onProfileUpdated(response.profile);
-        toast.success('Profile updated successfully');
-        
-        // Update local form data
-        setFormData(prev => ({
-          ...prev,
-          photos: finalImages,
-          profileImage: finalImages.length > 0 ? finalImages[0] : null
-        }));
-        
-        setShowSaveButton(false);
-      } else {
-        throw new Error(response.message || 'Failed to update profile');
-      }
-      
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      toast.error(error.message || 'Failed to update profile');
-    } finally {
-      setLoading(false);
     }
-  };
+    
+    // 4. Combine existing server URLs with newly uploaded URLs
+    const finalImages = [
+      ...serverUrls,
+      ...uploadedImageUrls
+    ];
+    
+    // 5. Prepare final data for saving - IMPORTANT: NEVER include blob URLs here
+    const finalData = {
+      ...formData,
+      // Make sure to ONLY include server URLs, no blob URLs
+      images: finalImages,
+      // Set the first image as the profile image if we have any
+      profileImage: finalImages.length > 0 ? finalImages[0] : null,
+      // IMPORTANT: Remove the photos field which might contain blob URLs
+      photos: undefined
+    };
+    
+    console.log('Saving profile with data:', {
+      ...finalData,
+      images: `${finalData.images.length} images (${serverUrls.length} existing, ${uploadedImageUrls.length} new)`
+    });
+    
+    const response = await gymbrosService.createOrUpdateProfile(finalData);
+    
+    if (response.success) {
+      // Update parent component with the server response
+      onProfileUpdated(response.profile);
+      toast.success('Profile updated successfully');
+      
+      // Update local form data
+      setFormData(prev => ({
+        ...prev,
+        photos: finalImages,
+        profileImage: finalImages.length > 0 ? finalImages[0] : null
+      }));
+      
+      setShowSaveButton(false);
+    } else {
+      throw new Error(response.message || 'Failed to update profile');
+    }
+    
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    toast.error(error.message || 'Failed to update profile');
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Validate form data
   const validateForm = (data) => {

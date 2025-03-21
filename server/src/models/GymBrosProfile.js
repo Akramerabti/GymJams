@@ -72,6 +72,9 @@ GymBrosProfileSchema.index({ 'location.lat': 1, 'location.lng': 1 });
 GymBrosProfileSchema.index({ phone: 1 }, { sparse: true });
 
 
+// In server/src/models/GymBrosProfile.js
+// Replace the pre-save hook with this enhanced version:
+
 GymBrosProfileSchema.pre('save', function (next) {
   console.log('Running pre-save hook for GymBrosProfile');
   console.log('Original images:', this.images);
@@ -103,6 +106,17 @@ GymBrosProfileSchema.pre('save', function (next) {
       console.warn('Fixing duplicate uploads path:', imagePath);
       const filename = imagePath.split('/').pop();
       return `/uploads/${filename}`;
+    }
+
+    // Fix Windows-style backslashes in paths
+    if (typeof imagePath === 'string' && imagePath.includes('\\')) {
+      console.warn('Fixing Windows backslashes:', imagePath);
+      const normalized = imagePath.replace(/\\/g, '/');
+      if (!normalized.startsWith('/uploads/')) {
+        const filename = normalized.split('/').pop();
+        return `/uploads/${filename}`;
+      }
+      return normalized;
     }
 
     // Ensure the path starts with "/uploads/"

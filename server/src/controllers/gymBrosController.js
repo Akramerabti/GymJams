@@ -382,24 +382,18 @@ export const uploadProfileImages = async (req, res) => {
     }
     
     console.log('Uploading images for profile:', req.files);
-    // Add the new image paths to the profile - JUST USE THE FILENAME
-    // This is the key fix - just store the filename in the format "/uploads/filename.jpg"
-    const imageUrls = req.files.map(file => `/uploads/${file.filename}`);
     
-    // Make sure we don't have any blob URLs already in the images array
-    if (profile.images) {
-      profile.images = profile.images.filter(img => !img.startsWith('blob:'));
-    }
+    // Format image paths consistently - this is the key fix!
+    const imageUrls = req.files.map(file => {
+      // Make sure the path uses forward slashes and starts with /uploads/
+      const filename = path.basename(file.path);
+      return `/uploads/${filename}`;
+    });
     
-    // Update the profile with new images
-    profile.images = [...(profile.images || []), ...imageUrls];
+    console.log('Formatted image URLs to save:', imageUrls);
     
-    // Also set the profileImage if it's not set already
-    if (!profile.profileImage && profile.images.length > 0) {
-      profile.profileImage = profile.images[0];
-    }
-    
-    await profile.save();
+    // Update the profile with new images - IMPORTANT: Don't modify here
+    // Let the pre-save hook handle any necessary normalization
     
     // For guest user, generate a new token with the updated profile ID
     let responseData = {
