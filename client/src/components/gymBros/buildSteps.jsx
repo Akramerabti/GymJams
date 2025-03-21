@@ -364,27 +364,39 @@ export const buildSteps = ({
         )
       },
       {
-            id: 'images',
-            title: 'Add Photos',
-            subtitle: 'Add at least 2 photos of yourself',
-            icon: <Camera className="h-5 w-5 text-blue-500" />,
-            component: (
-              <div className="w-full">
-                <p className="text-sm text-gray-500 mb-4">
-                  Add photos that clearly show your face and your physique. Your first photo will be your profile picture.
-                </p>
-                <ImageUploader
-                  ref={imageUploaderRef}
-                  images={profileData.photos || []}
-                  onImagesChange={(images) => handleChange('photos', images)}
-                  maxPhotos={6}
-                />
-              </div>
-            ),
-            isValid: () => 
-              // Check if there are at least 2 valid photos (not empty strings)
-              (profileData.photos && profileData.photos.filter(Boolean).length >= 2),
-          },
+        id: 'photos',
+        title: 'Add Photos',
+        subtitle: 'Add at least 2 photos of yourself',
+        icon: <Camera className="h-5 w-5 text-blue-500" />,
+        component: (
+          <div className="w-full">
+            <p className="text-sm text-gray-500 mb-4">
+              Add at least 2 photos to your profile. Your first photo will be your main profile picture.
+            </p>
+            <ImageUploader
+              ref={imageUploaderRef} // Pass the ref here
+              images={profileData.photos || []}
+              onImagesChange={(newImages) => {
+                console.log('ImageUploader onImagesChange called with', newImages.length, 'images');
+                handleChange('photos', newImages);
+              }}
+              uploadAfterCompletion={true}
+            />
+            
+            {/* Debug information */}
+            <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+              <p>Pending uploads: {imageUploaderRef.current?.getPendingUploadsCount?.() || '?'}</p>
+              <p>Photos in profile data: {profileData.photos?.length || 0}</p>
+            </div>
+          </div>
+        ),
+        isValid: () => {
+          // Check if we have at least 2 photos
+          const hasEnoughPhotos = profileData.photos && profileData.photos.filter(Boolean).length >= 2;
+          console.log('Photos step isValid check:', hasEnoughPhotos, 'with', profileData.photos?.length || 0, 'photos');
+          return hasEnoughPhotos;
+        }
+      },
       {
         id: 'workoutTypes',
         title: "What workouts do you enjoy?",

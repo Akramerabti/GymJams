@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Cropper from 'react-easy-crop';
 import { Upload, X, Crop, Loader } from 'lucide-react';
 import gymbrosService from '../../services/gymbros.service';
@@ -13,79 +13,39 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
   const [isUploading, setIsUploading] = useState(false);
   const [editingImage, setEditingImage] = useState(null);
   
-  // Track local image state
+  // Track local image state - separate blob URLs (for display) from actual files (for upload)
   const [localImages, setLocalImages] = useState([]);
   
-  // Track images that need to be uploaded after completion
+  // Track actual file objects that need to be uploaded
   const [pendingUploads, setPendingUploads] = useState([]);
 
+  // Explicitly track mapping between blob URLs and files
+  const [blobToFileMap, setBlobToFileMap] = useState({});
+  
   // Define the base URL for images
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+  // Debug logging
+  console.log('ImageUploader render with props:', {
+    initialImages: images?.length || 0,
+    pendingUploads: pendingUploads?.length || 0,
+    localImages: localImages?.length || 0
+  });
 
   // Initialize local images from props
   useEffect(() => {
     if (images && images.length > 0) {
-      setLocalImages(images);
+      // Filter out any nulls or empty strings
+      const validImages = images.filter(url => url);
+      console.log('Initializing localImages with', validImages.length, 'images');
+      setLocalImages(validImages);
     }
-  }, [images]);
-
-  uploadAllImages: async () => {
-    try {
-      console.log('Starting upload of all pending images...');
-      
-      // Filter out blob URLs to get only files that need uploading
-      const pendingFiles = pendingUploads.filter(file => file instanceof File);
-      
-      if (pendingFiles.length === 0) {
-        console.log('No pending images to upload');
-        return { uploadedUrls: [], failedIndices: [] };
-      }
-      
-      console.log(`Uploading ${pendingFiles.length} images...`);
-      setIsUploading(true);
-      
-      // Upload all files at once
-      const result = await gymbrosService.uploadProfileImages(pendingFiles);
-      
-      if (!result.success) {
-        throw new Error(result.message || 'Failed to upload images');
-      }
-      
-      console.log('Upload success, server returned:', result.imageUrls);
-      
-      // Replace blob URLs with server URLs in the localImages array
-      const updatedImages = [...localImages];
-      
-      // Create arrays to track results
-      const uploadedUrls = result.imageUrls || [];
-      const failedIndices = [];
-      
-      // If uploads were successful, map the new server URLs to the corresponding indices
-      pendingFiles.forEach((file, index) => {
-        const serverUrl = result.imageUrls[index];
-        if (!serverUrl) {
-          // If no server URL was returned, mark as failed
-          failedIndices.push(index);
-        }
-      });
-      
-      // Clear pending uploads since they're now handled
-      setPendingUploads([]);
-      
-      return { uploadedUrls, failedIndices };
-    } catch (error) {
-      console.error('Error uploading images:', error);
-      // Mark all as failed
-      const failedIndices = pendingUploads.map((_, index) => index);
-      return { uploadedUrls: [], failedIndices };
-    } finally {
-      setIsUploading(false);
-    }
-  }
+  }, []);
 
   // Update parent when local images change
   useEffect(() => {
     if (JSON.stringify(localImages) !== JSON.stringify(images)) {
+      console.log('Updating parent with', localImages.length, 'images');
       onImagesChange(localImages);
     }
   }, [localImages, onImagesChange, images]);
@@ -96,61 +56,98 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
 
   // Helper to check if a URL is a server URL
   const isServerUrl = (url) => {
-    return !url.startsWith('blob:') && (
+    return typeof url === 'string' && !url.startsWith('blob:') && (
       url.startsWith('http') || 
       url.startsWith('/api/') || 
       url.startsWith('/uploads/')
     );
   };
 
-  // Helper to extract image ID from server URL
-  const getImageIdFromUrl = (url) => {
-    if (!isServerUrl(url)) return null;
-    return url.split('/').pop();
-  };
-
   // Upload all pending images
-  const uploadPendingImages = async () => {
-    if (pendingUploads.length === 0) return [];
-
-    setIsUploading(true);
-    const uploadedUrls = [];
-    const failedIndices = [];
-
+  const uploadAllImages = async () => {
     try {
-      // Upload all pending files
-      const uploadResult = await gymbrosService.uploadProfileImages(pendingUploads);
-
-      if (uploadResult.success && uploadResult.imageUrls?.length > 0) {
-        // Store the uploaded URLs
-        uploadedUrls.push(...uploadResult.imageUrls);
-        toast.success(`${uploadResult.imageUrls.length} image(s) uploaded successfully`);
-      } else {
-        // Mark all as failed
-        pendingUploads.forEach((_, index) => failedIndices.push(index));
-        toast.error('Failed to upload images to server.');
+      console.log('Starting upload of all pending images...', pendingUploads.length);
+      
+      // Exit early if no files to upload
+      if (pendingUploads.length === 0) {
+        console.log('No pending images to upload');
+        
+        // Just return existing server URLs if we have any
+        const serverUrls = localImages.filter(url => isServerUrl(url));
+        console.log('Returning', serverUrls.length, 'existing server URLs');
+        
+        return { 
+          uploadedUrls: serverUrls, 
+          failedIndices: [] 
+        };
       }
+      
+      setIsUploading(true);
+      
+      // Upload all files at once
+      console.log('Uploading', pendingUploads.length, 'files');
+      const result = await gymbrosService.uploadProfileImages(pendingUploads);
+      
+      console.log('Upload result:', result);
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to upload images');
+      }
+      
+      // Get newly uploaded URLs
+      const newUrls = result.imageUrls || [];
+      console.log('Upload success, server returned', newUrls.length, 'URLs');
+      
+      // Get existing server URLs
+      const existingServerUrls = localImages.filter(url => isServerUrl(url));
+      console.log('Found', existingServerUrls.length, 'existing server URLs');
+      
+      // Combine existing server URLs with new ones
+      const allServerUrls = [...existingServerUrls, ...newUrls];
+      console.log('Total server URLs:', allServerUrls.length);
+      
+      // Replace blob URLs in localImages with server URLs
+      const updatedImages = [...localImages];
+      
+      // For each blob URL, find its index in localImages and replace with server URL
+      Object.keys(blobToFileMap).forEach((blobUrl, index) => {
+        if (index < newUrls.length) {
+          const blobIndex = updatedImages.indexOf(blobUrl);
+          if (blobIndex !== -1) {
+            updatedImages[blobIndex] = newUrls[index];
+          }
+        }
+      });
+      
+      // Update localImages with server URLs
+      setLocalImages(updatedImages.filter(url => isServerUrl(url)));
+      
+      // Clear pending uploads and blob map
+      setPendingUploads([]);
+      setBlobToFileMap({});
+      
+      return { 
+        uploadedUrls: allServerUrls, 
+        failedIndices: [] 
+      };
     } catch (error) {
       console.error('Error uploading images:', error);
       toast.error('Failed to upload images. Please try again.');
-      // Mark all as failed
-      pendingUploads.forEach((_, index) => failedIndices.push(index));
+      return { 
+        uploadedUrls: localImages.filter(url => isServerUrl(url)), 
+        failedIndices: Array.from({ length: pendingUploads.length }, (_, i) => i) 
+      };
     } finally {
       setIsUploading(false);
-      setPendingUploads([]); // Clear pending uploads
     }
-
-    return { uploadedUrls, failedIndices };
-  };
-
-  // Public method to upload all pending images
-  const uploadAllImages = async () => {
-    return await uploadPendingImages();
   };
 
   // Handle file upload
   const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    console.log('Files selected:', files.length);
 
     // Validate file count
     if (files.length + localImages.length > 6) {
@@ -176,64 +173,40 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
     if (validFiles.length === 0) return;
 
     // Create blob URLs for preview
-    const newImageBlobs = validFiles.map(file => URL.createObjectURL(file));
+    const newBlobUrls = [];
+    const newBlobMap = { ...blobToFileMap };
+
+    validFiles.forEach(file => {
+      const blobUrl = URL.createObjectURL(file);
+      newBlobUrls.push(blobUrl);
+      newBlobMap[blobUrl] = file;
+    });
+
+    // Store the mapping between blob URLs and files
+    setBlobToFileMap(newBlobMap);
 
     // Add blob URLs to local images for immediate preview
-    const updatedImages = [...localImages, ...newImageBlobs];
+    const updatedImages = [...localImages, ...newBlobUrls];
     setLocalImages(updatedImages);
     
-    if (uploadAfterCompletion) {
-      // Store files for later upload
-      setPendingUploads(prev => [...prev, ...validFiles]);
-    } else {
-      // Upload immediately
-      setIsUploading(true);
-      
-      try {
-        // Upload files to the server
-        const uploadResult = await gymbrosService.uploadProfileImages(validFiles);
-
-        if (uploadResult.success && uploadResult.imageUrls?.length > 0) {
-          // Replace blob URLs with actual server URLs
-          const finalImages = [...localImages];
-
-          // Replace the blob URLs with the server URLs (maintaining the order)
-          newImageBlobs.forEach((blobUrl, index) => {
-            const serverUrl = uploadResult.imageUrls[index];
-            if (serverUrl) {
-              const blobIndex = finalImages.indexOf(blobUrl);
-              if (blobIndex !== -1) {
-                finalImages[blobIndex] = serverUrl;
-              }
-            }
-          });
-
-          setLocalImages(finalImages);
-          toast.success(`${uploadResult.imageUrls.length} image(s) uploaded successfully`);
-        } else {
-          // Upload failed but we already have the blob URLs in the UI
-          toast.error('Failed to upload images to server. Changes not saved yet.');
-        }
-      } catch (error) {
-        console.error('Error uploading images:', error);
-        toast.error('Failed to upload images. Please try again.');
-
-        // Remove the blob URLs that couldn't be uploaded
-        setLocalImages(prevImages => prevImages.filter(url => !newImageBlobs.includes(url)));
-      } finally {
-        setIsUploading(false);
-      }
-    }
+    // Store files for later upload
+    setPendingUploads(prev => [...prev, ...validFiles]);
+    
+    console.log('Added', validFiles.length, 'files to pendingUploads (total:', pendingUploads.length + validFiles.length, ')');
+    console.log('Added', newBlobUrls.length, 'blob URLs to localImages (total:', updatedImages.length, ')');
   };
 
   // Handle image removal
   const handleRemoveImage = async (index) => {
+    if (index < 0 || index >= localImages.length) return;
+    
     const imageUrl = localImages[index];
+    console.log('Removing image at index', index, imageUrl);
 
     // If it's a server URL, try to delete it from the server
     if (isServerUrl(imageUrl)) {
       try {
-        const imageId = getImageIdFromUrl(imageUrl);
+        const imageId = imageUrl.split('/').pop();
         if (imageId) {
           await gymbrosService.deleteProfileImage(imageId);
           toast.success('Image deleted from server');
@@ -243,19 +216,26 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
         toast.error('Failed to delete image from server');
       }
     } else if (imageUrl.startsWith('blob:')) {
-      // If it's a blob URL, also remove it from pending uploads if it exists
-      URL.revokeObjectURL(imageUrl); // Free up memory
+      // If it's a blob URL, release it
+      URL.revokeObjectURL(imageUrl);
       
-      // Remove the corresponding file from pendingUploads if it exists
-      // This is an approximation since we can't directly map blob URLs to files
-      if (index < pendingUploads.length) {
-        setPendingUploads(prev => prev.filter((_, i) => i !== index));
+      // Remove the corresponding file from pendingUploads
+      const file = blobToFileMap[imageUrl];
+      if (file) {
+        setPendingUploads(prev => prev.filter(f => f !== file));
+        
+        // Remove from blob to file map
+        const newBlobMap = { ...blobToFileMap };
+        delete newBlobMap[imageUrl];
+        setBlobToFileMap(newBlobMap);
       }
     }
 
     // Update local state
     const updatedImages = localImages.filter((_, i) => i !== index);
     setLocalImages(updatedImages);
+    
+    console.log('Updated localImages to', updatedImages.length, 'items');
   };
 
   // Handle image editing
@@ -308,17 +288,13 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
       canvas.height = croppedArea.height;
       const ctx = canvas.getContext('2d');
 
-      // Calculate scale factors
-      const scaleX = image.naturalWidth / image.width;
-      const scaleY = image.naturalHeight / image.height;
-
       // Draw the cropped image on the canvas
       ctx.drawImage(
         image,
-        croppedArea.x * scaleX,
-        croppedArea.y * scaleY,
-        croppedArea.width * scaleX,
-        croppedArea.height * scaleY,
+        croppedArea.x,
+        croppedArea.y,
+        croppedArea.width,
+        croppedArea.height,
         0,
         0,
         croppedArea.width,
@@ -341,42 +317,48 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
       // Replace the image being edited with the cropped version in local state
       const updatedImages = [...localImages];
       if (currentImageIndex !== null && currentImageIndex < updatedImages.length) {
-        updatedImages[currentImageIndex] = croppedBlobUrl;
-        setLocalImages(updatedImages);
-      }
-
-      if (uploadAfterCompletion) {
-        // Store the cropped file for later upload
-        // Replace the corresponding file in pendingUploads if it exists
-        if (currentImageIndex < pendingUploads.length) {
-          const newPendingUploads = [...pendingUploads];
-          newPendingUploads[currentImageIndex] = croppedFile;
-          setPendingUploads(newPendingUploads);
-        } else {
-          setPendingUploads(prev => [...prev, croppedFile]);
-        }
-        toast.success('Image cropped successfully');
-      } else {
-        // Try to upload the cropped image to server immediately
-        const uploadResult = await gymbrosService.uploadProfileImages([croppedFile]);
-
-        if (uploadResult.success && uploadResult.imageUrls && uploadResult.imageUrls.length > 0) {
-          // Replace blob URL with server URL
-          const serverUrl = uploadResult.imageUrls[0];
-
-          const finalImages = [...localImages];
-          const blobIndex = finalImages.indexOf(croppedBlobUrl);
-          if (blobIndex !== -1) {
-            finalImages[blobIndex] = serverUrl;
-            setLocalImages(finalImages);
+        // If we're editing an existing server URL, remove it from localImages
+        if (isServerUrl(updatedImages[currentImageIndex])) {
+          // Try to delete the old server URL
+          try {
+            const imageId = updatedImages[currentImageIndex].split('/').pop();
+            if (imageId) {
+              await gymbrosService.deleteProfileImage(imageId);
+            }
+          } catch (error) {
+            console.error('Error deleting old image from server:', error);
           }
-
-          toast.success('Image cropped and saved successfully');
-        } else {
-          // Keep the blob URL for now, user can retry save later
-          toast.warning('Image cropped but not saved to server yet');
+        } else if (updatedImages[currentImageIndex].startsWith('blob:')) {
+          // Remove the old blob URL from blobToFileMap
+          const oldBlobUrl = updatedImages[currentImageIndex];
+          const newBlobMap = { ...blobToFileMap };
+          delete newBlobMap[oldBlobUrl];
+          setBlobToFileMap(newBlobMap);
+          
+          // Release the old blob URL
+          URL.revokeObjectURL(oldBlobUrl);
         }
+        
+        // Replace with the new blob URL
+        updatedImages[currentImageIndex] = croppedBlobUrl;
+      } else {
+        // Shouldn't happen, but handle the case anyway
+        updatedImages.push(croppedBlobUrl);
       }
+      
+      // Update local state
+      setLocalImages(updatedImages);
+      
+      // Update the blob to file map
+      setBlobToFileMap(prev => ({
+        ...prev,
+        [croppedBlobUrl]: croppedFile
+      }));
+      
+      // Add the cropped file to pendingUploads
+      setPendingUploads(prev => [...prev, croppedFile]);
+      
+      toast.success('Image cropped successfully');
     } catch (error) {
       console.error('Error processing cropped image:', error);
       toast.error('Failed to process cropped image');
@@ -388,14 +370,12 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
     }
   };
 
-  // Expose the uploadAllImages method to parent components
-  React.useImperativeHandle(
-    ref,
-    () => ({
-      uploadAllImages
-    }),
-    [pendingUploads]
-  );
+  // THIS IS CRITICAL: Expose the uploadAllImages method to parent components
+  React.useImperativeHandle(ref, () => ({
+    uploadAllImages,
+    getCurrentFiles: () => pendingUploads,
+    getCurrentUrls: () => localImages.filter(url => isServerUrl(url))
+  }), [pendingUploads, localImages]);
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -480,7 +460,7 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
                         // If image fails to load, show a fallback
                         console.error('Image load error:', localImages[index]);
                         e.target.onerror = null; // Prevent infinite error loop
-                        e.target.src = `${baseUrl}/uploads/fallback-avatar.jpg`; // Fallback image
+                        e.target.src = `/api/placeholder/400/600`; // Fallback image
                       }}
                     />
 
@@ -533,13 +513,11 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
       )}
       {pendingUploads.length > 0 && (
         <p className="text-sm text-blue-500 mt-2">
-          {pendingUploads.length} image(s) will be uploaded when you complete your profile.
+          {pendingUploads.length} image(s) ready for upload.
         </p>
       )}
     </div>
   );
 });
-// Wrap the component with forwardRef to expose the uploadAllImages method
-const ImageUploaderWithRef = React.forwardRef(ImageUploader);
 
-export default ImageUploaderWithRef;
+export default ImageUploader;

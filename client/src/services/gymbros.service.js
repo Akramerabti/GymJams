@@ -223,24 +223,39 @@ const gymbrosService = {
   },
 
   async createOrUpdateProfile(profileData) {
-    console.log('Creating/updating GymBros profile:', profileData);
+    console.log('Creating/updating GymBros profile with original data:', profileData);
     try {
       // Check if we have verified phone data for a guest
       const verificationToken = localStorage.getItem('verificationToken');
       const verifiedPhone = localStorage.getItem('verifiedPhone');
       
-      // Process profile data to ensure correct format for images
+      // Create a deep copy of the data to avoid modifying the original
       const processedData = { ...profileData };
       
-      // Ensure images field is properly populated (server expects "images" field)
+      // IMPORTANT: Let's check and log what we're getting for images
+      console.log('Received images in profileData:', 
+                  profileData.images ? 
+                  `${profileData.images.length} images` : 
+                  'No images');
+      
+      // Ensure images field is correctly handled
       if (profileData.photos && Array.isArray(profileData.photos)) {
-        processedData.images = profileData.photos;
+        // Handle photos if provided (usually from PhotoEditor)
+        const filteredPhotos = profileData.photos.filter(url => url && !url.startsWith('blob:'));
+        console.log(`Copied ${filteredPhotos.length} photos to images field`);
+        processedData.images = filteredPhotos;
       }
-
-      if (profileData.images) {
-        // Filter out any blob URLs
-        profileData.images = profileData.images.filter(url => !url.startsWith('blob:'));
+      
+      // If we have an images array directly provided, make sure it's clean
+      if (profileData.images && Array.isArray(profileData.images)) {
+        // Only keep real URLs, not blob URLs
+        const filteredImages = profileData.images.filter(url => url && !url.startsWith('blob:'));
+        console.log(`Using ${filteredImages.length} filtered images`);
+        processedData.images = filteredImages;
       }
+      
+      // Always remove photos field before sending to server
+      delete processedData.photos;
       
       // Include verification token if available
       if (verificationToken && verifiedPhone) {
@@ -251,6 +266,14 @@ const gymbrosService = {
           processedData.phone = verifiedPhone;
         }
       }
+      
+      // Log the final data being sent
+      console.log('Sending processed data to server:', {
+        ...processedData,
+        images: processedData.images ? 
+                `Array with ${processedData.images.length} items: ${JSON.stringify(processedData.images)}` : 
+                'No images'
+      });
       
       // Create request config with guest token
       const config = this.configWithGuestToken();
