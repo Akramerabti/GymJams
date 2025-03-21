@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import Cropper from 'react-easy-crop';
+import { Upload, X, Crop, Loader, Check, Info } from 'lucide-react';
+import { toast } from 'sonner';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import Cropper from 'react-easy-crop';
-import { Camera, X, ChevronLeft, ChevronRight, Trash2, Pencil, ImagePlus, Save, Check, Info } from 'lucide-react';
-import { toast } from 'sonner';
-import gymbrosService from '../../../services/gymbros.service';
 
 // Base URL for images
 const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -66,13 +64,13 @@ const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
                 onClick={handleEdit}
                 className="p-1.5 rounded-full bg-white bg-opacity-70 hover:bg-opacity-100 transition-opacity"
               >
-                <Pencil size={16} className="text-gray-700" />
+                <Crop size={16} className="text-gray-700" />
               </button>
               <button 
                 onClick={handleRemove}
                 className="p-1.5 rounded-full bg-white bg-opacity-70 hover:bg-opacity-100 transition-opacity"
               >
-                <Trash2 size={16} className="text-red-500" />
+                <X size={16} className="text-red-500" />
               </button>
             </div>
           </div>
@@ -92,106 +90,10 @@ const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
             onChange={(e) => selectFile(e, index)}
             className="hidden"
           />
-          <ImagePlus size={32} className="text-gray-400 mb-2" />
+          <Upload size={32} className="text-gray-400 mb-2" />
           <span className="text-sm text-gray-500">Add Photo</span>
         </label>
       )}
-    </div>
-  );
-};
-
-// Empty Cell Component
-const EmptyCell = ({ index, selectFile }) => {
-  return (
-    <div className="relative aspect-[7/10] border-2 border-dashed border-gray-300 rounded-lg">
-      <label className="cursor-pointer w-full h-full flex flex-col items-center justify-center">
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => selectFile(e, index)}
-          className="hidden"
-        />
-        <ImagePlus size={32} className="text-gray-400 mb-2" />
-        <span className="text-sm text-gray-500">Add Photo</span>
-      </label>
-    </div>
-  );
-};
-
-// Preview Carousel Component
-const ImageCarousel = ({ photos, currentIndex, setCurrentIndex, onClose, onEdit }) => {
-  return (
-    <div className="fixed inset-0 bg-black z-50 flex flex-col">
-      {/* Header */}
-      <div className="p-4 flex items-center justify-between text-white">
-        <button onClick={onClose} className="p-2">
-          <X size={24} />
-        </button>
-        <div className="text-center">
-          <span>{currentIndex + 1}/{photos.length}</span>
-        </div>
-        <button onClick={() => onEdit(currentIndex)} className="p-2">
-          <Pencil size={24} />
-        </button>
-      </div>
-      
-      {/* Main Carousel */}
-      <div className="flex-1 relative">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentIndex}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 flex items-center justify-center"
-          >
-            <img 
-              src={photos[currentIndex].startsWith('blob:') ? photos[currentIndex] : photos[currentIndex].startsWith('http') ? photos[currentIndex] : `${baseUrl}${photos[currentIndex]}`}
-              alt={`Preview ${currentIndex + 1}`}
-              className="max-h-full max-w-full object-contain"
-            />
-          </motion.div>
-        </AnimatePresence>
-        
-        {/* Navigation Arrows */}
-        {photos.length > 1 && (
-          <>
-            <button 
-              onClick={() => setCurrentIndex((prev) => (prev === 0 ? photos.length - 1 : prev - 1))} 
-              className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black bg-opacity-50 text-white"
-              disabled={photos.length <= 1}
-            >
-              <ChevronLeft size={24} />
-            </button>
-            <button 
-              onClick={() => setCurrentIndex((prev) => (prev === photos.length - 1 ? 0 : prev + 1))} 
-              className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black bg-opacity-50 text-white"
-              disabled={photos.length <= 1}
-            >
-              <ChevronRight size={24} />
-            </button>
-          </>
-        )}
-      </div>
-      
-      {/* Thumbnail Navigation */}
-      <div className="p-4">
-        <div className="flex overflow-x-auto space-x-2 pb-2">
-          {photos.map((photo, idx) => (
-            <div 
-              key={`thumb-${idx}`} 
-              className={`w-16 h-16 flex-shrink-0 rounded-md overflow-hidden border-2 transition-all ${currentIndex === idx ? 'border-blue-500 scale-105' : 'border-transparent opacity-70'}`}
-              onClick={() => setCurrentIndex(idx)}
-            >
-              <img 
-                src={photo.startsWith('blob:') ? photo : photo.startsWith('http') ? photo : `${baseUrl}${photo}`}
-                alt={`Thumbnail ${idx + 1}`}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 };
@@ -290,7 +192,7 @@ const ImageCropper = ({ image, onCropComplete, onCropCancel, onCropSave }) => {
             className="p-2 flex items-center rounded-full hover:bg-gray-100"
             disabled={loading}
           >
-            {loading ? 'Processing...' : <Check size={20} className="text-blue-500" />}
+            {loading ? <Loader size={20} className="animate-spin" /> : <Check size={20} className="text-blue-500" />}
           </button>
         </div>
         
@@ -328,50 +230,12 @@ const ImageCropper = ({ image, onCropComplete, onCropCancel, onCropSave }) => {
   );
 };
 
-// Source Selection Modal (Camera or Gallery)
-const SourceSelectionModal = ({ onSelect, onClose }) => {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg max-w-sm w-full p-4">
-        <h3 className="text-lg font-semibold mb-4 text-center">Add Photo</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <button
-            onClick={() => onSelect('camera')}
-            className="flex flex-col items-center justify-center p-4 border rounded-lg hover:bg-gray-100"
-          >
-            <Camera size={32} className="mb-2 text-blue-500" />
-            <span>Camera</span>
-          </button>
-          <button
-            onClick={() => onSelect('gallery')}
-            className="flex flex-col items-center justify-center p-4 border rounded-lg hover:bg-gray-100"
-          >
-            <ImagePlus size={32} className="mb-2 text-blue-500" />
-            <span>Gallery</span>
-          </button>
-        </div>
-        <button
-          onClick={onClose}
-          className="w-full mt-4 p-2 text-gray-500 hover:text-gray-700"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-};
-
-  // Main PhotoEditor Component
+// Main PhotoEditor Component
 const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
   const [localPhotos, setLocalPhotos] = useState([]);
   const [selectedFileIndex, setSelectedFileIndex] = useState(null);
-  const [sourceSelectionIndex, setSourceSelectionIndex] = useState(null);
-  const [showPreview, setShowPreview] = useState(false);
-  const [previewIndex, setPreviewIndex] = useState(0);
   const [cropImage, setCropImage] = useState(null);
   const [cropIndex, setCropIndex] = useState(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
   const fileInputRef = useRef(null);
   
   // Initialize with photos from props
@@ -411,11 +275,11 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
         }
         
         // Move the item
-        const newPhotos = [...photos];
-        const [movedItem] = newPhotos.splice(activeIndex, 1);
-        newPhotos.splice(overIndex, 0, movedItem);
+        const newPhotos = arrayMove(photos, activeIndex, overIndex);
         
-        setHasChanges(true);
+        // Notify parent component of the changes
+        onPhotosChange(newPhotos);
+        
         return newPhotos;
       });
     }
@@ -425,59 +289,8 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
   const handleFileSelect = (e, index) => {
     if (!e.target.files || e.target.files.length === 0) return;
     
+    const file = e.target.files[0];
     setSelectedFileIndex(index);
-    
-    // Show source selection modal first
-    setSourceSelectionIndex(index);
-  };
-  
-  // Handle source selection (camera or gallery)
-  const handleSourceSelect = async (source) => {
-    // Get the file input element
-    const fileInput = fileInputRef.current;
-    
-    // For gallery, we just continue with the file
-    if (source === 'gallery') {
-      // Trigger file selection dialog
-      if (fileInput) {
-        fileInput.click();
-      }
-    } else {
-      // For camera, we need to request camera access
-      try {
-        // Check if MediaDevices API is supported
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          throw new Error('Camera not supported on this device');
-        }
-        
-        // Request camera access
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        
-        // Stop the stream immediately (we'll handle the actual camera in another component)
-        stream.getTracks().forEach(track => track.stop());
-        
-        // For now, just fallback to file selection
-        if (fileInput) {
-          fileInput.click();
-        }
-      } catch (error) {
-        console.error('Camera access error:', error);
-        toast.error('Failed to access camera. Please use gallery instead.');
-        
-        // Fallback to gallery
-        if (fileInput) {
-          fileInput.click();
-        }
-      }
-    }
-    
-    // Close the source selection modal
-    setSourceSelectionIndex(null);
-  };
-  
-  // Process the selected file
-  const processFile = (file) => {
-    if (!file) return;
     
     // Validate file type
     if (!file.type.startsWith('image/')) {
@@ -496,7 +309,7 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
     
     // Set the image for cropping
     setCropImage(imageUrl);
-    setCropIndex(selectedFileIndex);
+    setCropIndex(index);
   };
   
   // Handle image removal
@@ -507,8 +320,8 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
       // Remove the photo at the specified index
       newPhotos.splice(index, 1);
       
-      // Mark that changes have been made
-      setHasChanges(true);
+      // Notify parent component of the changes
+      onPhotosChange(newPhotos);
       
       // Return the updated array
       return newPhotos;
@@ -517,13 +330,10 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
   
   // Handle image editing (cropping)
   const handleEditImage = (index) => {
+    if (index >= localPhotos.length) return;
+    
     setCropImage(localPhotos[index]);
     setCropIndex(index);
-    
-    // If we're in preview mode, close it first
-    if (showPreview) {
-      setShowPreview(false);
-    }
   };
   
   // Handle save after crop
@@ -546,97 +356,15 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
     setLocalPhotos(newPhotos);
     setCropImage(null);
     setCropIndex(null);
-    setHasChanges(true);
     
-    // If we were in preview, go back to it
-    if (previewIndex !== null) {
-      setShowPreview(true);
-    }
+    // Notify parent component of the changes
+    onPhotosChange(newPhotos);
   };
   
   // Handle crop cancel
   const handleCropCancel = () => {
     setCropImage(null);
     setCropIndex(null);
-    
-    // If we were in preview, go back to it
-    if (previewIndex !== null) {
-      setShowPreview(true);
-    }
-  };
-  
-  // Handle save changes
-  const handleSaveChanges = async () => {
-    // If no changes, just return
-    if (!hasChanges) return;
-    
-    setIsSaving(true);
-    
-    try {
-      // Convert blob URLs to files for upload
-      const filesToUpload = [];
-      const uploadIndices = [];
-      
-      // Collect blob URLs that need to be uploaded
-      for (let i = 0; i < localPhotos.length; i++) {
-        const photo = localPhotos[i];
-        if (photo && photo.startsWith('blob:')) {
-          try {
-            // Fetch the blob data
-            const response = await fetch(photo);
-            const blob = await response.blob();
-            
-            // Create a File object from the blob
-            const file = new File([blob], `photo-${i}.jpg`, { type: blob.type || 'image/jpeg' });
-            filesToUpload.push(file);
-            uploadIndices.push(i);
-          } catch (error) {
-            console.error(`Error converting blob to file at index ${i}:`, error);
-            toast.error('Failed to process image. Please try again.');
-            // Skip this file and continue with others
-          }
-        }
-      }
-      
-      // Upload the new files if any
-      if (filesToUpload.length > 0) {
-        const uploadResult = await gymbrosService.uploadProfileImages(filesToUpload);
-        
-        if (uploadResult.success && uploadResult.imageUrls) {
-          // Create a copy of the photos array
-          const updatedPhotos = [...localPhotos];
-          
-          // Replace blob URLs with server URLs
-          uploadIndices.forEach((index, i) => {
-            if (uploadResult.imageUrls[i]) {
-              updatedPhotos[index] = uploadResult.imageUrls[i];
-            }
-          });
-          
-          // Update state with new URLs
-          setLocalPhotos(updatedPhotos);
-          
-          // Notify parent component of the changes
-          onPhotosChange(updatedPhotos);
-          
-          toast.success('Photos saved successfully');
-          setHasChanges(false);
-        } else {
-          throw new Error('Failed to upload images');
-        }
-      } else {
-        // No new images to upload, just update the order
-        console.log('No new images to upload, just updating order with:', localPhotos);
-        onPhotosChange([...localPhotos]);
-        toast.success('Photo order updated');
-        setHasChanges(false);
-      }
-    } catch (error) {
-      console.error('Error saving photos:', error);
-      toast.error('Failed to save photos: ' + (error.message || 'Unknown error'));
-    } finally {
-      setIsSaving(false);
-    }
   };
   
   // Fill array with empty strings to maxPhotos length for grid
@@ -645,45 +373,10 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
     displayPhotos.push('');
   }
   
-  // Filter out empty strings for preview
-  const previewPhotos = localPhotos.filter(photo => photo);
-  
   return (
     <div className="relative">
       {/* Main Photo Grid */}
       <div className="mb-4">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Your Photos</h3>
-          <div className="flex space-x-2">
-            {previewPhotos.length > 0 && (
-              <button
-                onClick={() => {
-                  setShowPreview(true);
-                  setPreviewIndex(0);
-                }}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-              >
-                Preview
-              </button>
-            )}
-            {hasChanges && (
-              <button
-                onClick={handleSaveChanges}
-                disabled={isSaving}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 flex items-center"
-              >
-                {isSaving ? (
-                  <>Saving...</>
-                ) : (
-                  <>
-                    <Save size={16} className="mr-2" />
-                    Save
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-        </div>
         <div className="mb-2 flex items-center text-gray-500 text-sm">
           <Info size={14} className="mr-1" />
           <span>First photo will be your main profile picture. Drag to reorder.</span>
@@ -717,66 +410,24 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
         accept="image/*"
         onChange={(e) => {
           if (e.target.files && e.target.files.length > 0) {
-            processFile(e.target.files[0]);
+            handleFileSelect(e, selectedFileIndex);
           }
         }}
         className="hidden"
       />
       
-      {/* Modal for source selection */}
-      <AnimatePresence>
-        {sourceSelectionIndex !== null && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <SourceSelectionModal
-              onSelect={handleSourceSelect}
-              onClose={() => setSourceSelectionIndex(null)}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
-      {/* Preview Carousel */}
-      <AnimatePresence>
-        {showPreview && previewPhotos.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <ImageCarousel
-              photos={previewPhotos}
-              currentIndex={previewIndex}
-              setCurrentIndex={setPreviewIndex}
-              onClose={() => setShowPreview(false)}
-              onEdit={(index) => {
-                setShowPreview(false);
-                handleEditImage(index);
-              }}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
       {/* Image Cropper */}
-      <AnimatePresence>
-        {cropImage && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <ImageCropper
-              image={cropImage}
-              onCropSave={handleCropSave}
-              onCropCancel={handleCropCancel}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {cropImage && (
+        <ImageCropper
+          image={cropImage}
+          onCropSave={handleCropSave}
+          onCropCancel={handleCropCancel}
+        />
+      )}
+      
+      {localPhotos.length < 2 && (
+        <p className="text-sm text-red-500 mt-2">Please upload at least 2 images.</p>
+      )}
     </div>
   );
 };

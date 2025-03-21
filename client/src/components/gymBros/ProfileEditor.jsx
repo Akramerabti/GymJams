@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import gymbrosService from '../../services/gymbros.service';
-import PhotoEditor from './components/PhotoEditor'; // Add this import
+import PhotoEditor from './components/PhotoEditor'; // Import updated PhotoEditor
 
 const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false }) => {
   const [formData, setFormData] = useState(userProfile || {});
@@ -16,6 +16,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
   const [activeSection, setActiveSection] = useState('main');
   const [loading, setLoading] = useState(false);
   const [showSaveButton, setShowSaveButton] = useState(false);
+  const [pendingPhotoUploads, setPendingPhotoUploads] = useState([]);
   
   useEffect(() => {
     if (userProfile) {
@@ -75,12 +76,21 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
 
   // Handle photo updates from PhotoEditor
   const handlePhotosChange = (newPhotos) => {
+    // Check for blob URLs that need to be uploaded
+    const blobPhotos = newPhotos.filter(photo => photo && photo.startsWith('blob:'));
+    
+    if (blobPhotos.length > 0) {
+      setPendingPhotoUploads(blobPhotos);
+    }
+    
     setFormData(prev => ({
       ...prev,
       photos: newPhotos,
       // First photo is always the primary photo
       profileImage: newPhotos.length > 0 ? newPhotos[0] : null
     }));
+    
+    // Always show save button when photos change
     setShowSaveButton(true);
   };
 
@@ -90,20 +100,65 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     setLoading(true);
     
     try {
-      // Ensure images array is synced with photos
+      // Step 1: Upload any pending photo blobs
+      let updatedPhotos = [...formData.photos];
+      
+      if (pendingPhotoUploads.length > 0) {
+        // Convert blob URLs to files
+        const filesToUpload = [];
+        const uploadIndices = [];
+        
+        for (let i = 0; i < formData.photos.length; i++) {
+          const photo = formData.photos[i];
+          if (photo && photo.startsWith('blob:')) {
+            try {
+              // Fetch the blob data
+              const response = await fetch(photo);
+              const blob = await response.blob();
+              
+              // Create a File object from the blob
+              const file = new File([blob], `photo-${i}.jpg`, { type: blob.type || 'image/jpeg' });
+              filesToUpload.push(file);
+              uploadIndices.push(i);
+            } catch (error) {
+              console.error(`Error converting blob to file at index ${i}:`, error);
+              toast.error(`Failed to process image ${i+1}`);
+              // Skip this file and continue with others
+            }
+          }
+        }
+        
+        // Upload the new files
+        if (filesToUpload.length > 0) {
+          const uploadResult = await gymbrosService.uploadProfileImages(filesToUpload);
+          
+          if (uploadResult.success && uploadResult.imageUrls) {
+            // Replace blob URLs with server URLs
+            uploadIndices.forEach((index, i) => {
+              if (uploadResult.imageUrls[i]) {
+                updatedPhotos[index] = uploadResult.imageUrls[i];
+              }
+            });
+          }
+        }
+      }
+      
+      // Step 2: Prepare the final data for saving
       const dataToSend = {
         ...formData,
-        images: formData.photos || [],
+        images: updatedPhotos,
         // First photo is always the main profile image
-        profileImage: formData.photos && formData.photos.length > 0 ? formData.photos[0] : null
+        profileImage: updatedPhotos.length > 0 ? updatedPhotos[0] : null
       };
       
+      // Step 3: Save the profile
       const response = await gymbrosService.createOrUpdateProfile(dataToSend);
       
       if (response.success) {
         onProfileUpdated(response.profile);
         toast.success('Profile updated successfully');
         setShowSaveButton(false);
+        setPendingPhotoUploads([]);
       } else {
         throw new Error(response.message || 'Failed to update profile');
       }
