@@ -470,19 +470,27 @@ const gymbrosService = {
     }
   },
 
-async uploadProfileImages(imageFiles) {
+
+async uploadProfileImages(files) {
   try {
     // Validate input
-    if (!imageFiles || !imageFiles.length) {
+    if (!files || !files.length) {
+      console.error('No files provided to uploadProfileImages');
       throw new Error('No images provided');
     }
     
+    // Log what we're trying to upload to help debug
+    console.log(`Attempting to upload ${files.length} files:`, 
+      files.map(f => ({name: f.name, type: f.type, size: f.size})));
+    
     // Create FormData for the files
     const formData = new FormData();
-    for (let i = 0; i < imageFiles.length; i++) {
-      const file = imageFiles[i];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      
       // Ensure we're working with File objects
       if (!(file instanceof File)) {
+        console.error('Invalid file object:', file);
         throw new Error('Invalid file type. Only File objects are accepted.');
       }
       formData.append('images', file);
@@ -505,7 +513,10 @@ async uploadProfileImages(imageFiles) {
     
     console.log('Uploading images with config:', JSON.stringify(config.headers));
     
+    // Make the API request
     const response = await api.post('/gym-bros/profile-images', formData, config);
+    
+    console.log('Upload response:', response.data);
     
     // Check if the response contains image URLs
     if (!response.data || !response.data.imageUrls) {

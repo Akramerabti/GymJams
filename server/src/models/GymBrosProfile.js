@@ -73,37 +73,40 @@ GymBrosProfileSchema.index({ phone: 1 }, { sparse: true });
 
 
 GymBrosProfileSchema.pre('save', function (next) {
+  console.log('Running pre-save hook for GymBrosProfile');
+  console.log('Original images:', this.images);
+  
   // Ensure images array exists
   if (!this.images) {
     this.images = [];
   }
 
-  // Helper function to normalize image paths
+  // Helper function to normalize image paths and remove blob URLs
   const normalizeImagePath = (imagePath) => {
     if (!imagePath) return null;
 
-    // Remove blob URLs
-    if (imagePath.includes('blob:')) {
-      console.warn('Removing blob URL:', imagePath);
+    // Remove blob URLs - the critical part!
+    if (typeof imagePath === 'string' && imagePath.startsWith('blob:')) {
+      console.warn('🔴 Removing blob URL:', imagePath);
       return null;
     }
 
     // Fix paths containing "/gym-bros/"
-    if (imagePath.includes('/gym-bros/')) {
+    if (typeof imagePath === 'string' && imagePath.includes('/gym-bros/')) {
       console.warn('Fixing gym-bros path:', imagePath);
       const filename = imagePath.split('/').pop();
       return `/uploads/${filename}`;
     }
 
     // Fix paths with duplicate "/uploads/" prefixes
-    if (imagePath.match(/\/uploads.*\/uploads/)) {
+    if (typeof imagePath === 'string' && imagePath.match(/\/uploads.*\/uploads/)) {
       console.warn('Fixing duplicate uploads path:', imagePath);
       const filename = imagePath.split('/').pop();
       return `/uploads/${filename}`;
     }
 
     // Ensure the path starts with "/uploads/"
-    if (!imagePath.startsWith('/uploads/')) {
+    if (typeof imagePath === 'string' && !imagePath.startsWith('/uploads/') && !imagePath.startsWith('http')) {
       console.warn('Fixing missing /uploads/ prefix:', imagePath);
       return `/uploads/${imagePath.split('/').pop()}`;
     }
@@ -113,13 +116,30 @@ GymBrosProfileSchema.pre('save', function (next) {
 
   // Normalize profileImage path
   if (this.profileImage) {
-    this.profileImage = normalizeImagePath(this.profileImage);
+    const normalized = normalizeImagePath(this.profileImage);
+    if (normalized) {
+      this.profileImage = normalized;
+    } else if (this.images && this.images.length > 0) {
+      // If profileImage was a blob and got nullified, use the first valid image instead
+      const validImages = this.images.filter(img => img && !img.startsWith('blob:'));
+      if (validImages.length > 0) {
+        this.profileImage = validImages[0];
+      }
+    }
   }
 
-  // Normalize images array paths
+  // Normalize and filter images array paths - IMPORTANT: Must filter out ALL blob URLs
+  const originalCount = this.images.length;
   this.images = this.images
     .map(normalizeImagePath) // Normalize each path
-    .filter((path) => path !== null); // Remove any invalid paths (e.g., blob URLs)
+    .filter(path => path !== null); // Remove any nullified paths (including blob URLs)
+
+  const removedCount = originalCount - this.images.length;
+  if (removedCount > 0) {
+    console.log(`🧹 Removed ${removedCount} invalid image paths (blob URLs)`);
+  }
+
+  console.log('Normalized images:', this.images);
 
   // Ensure profileImage is part of the images array
   if (this.profileImage && !this.images.includes(this.profileImage)) {

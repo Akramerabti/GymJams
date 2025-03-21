@@ -6,9 +6,8 @@ import {
   PauseCircle, MapPin, Save, Loader, Pencil
 } from 'lucide-react';
 import gymbrosService from '../../services/gymbros.service';
-import PhotoEditor from './components/PhotoEditor'; // Use the fixed version
+import PhotoEditor from './components/PhotoEditor'; // Import the fixed PhotoEditor
 
-// Main component implementation
 const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false }) => {
   // Component state
   const [formData, setFormData] = useState(userProfile || {});
@@ -72,24 +71,43 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     setLoading(true);
     
     try {
-      // 1. CRITICAL: Get files to upload from the PhotoEditor
-      const filesToUpload = photoEditorRef.current ? 
-        await photoEditorRef.current.getFilesToUpload() : [];
-
-        console.log('Files to upload:', filesToUpload);
+      // This will actually log the submit action to make debugging easier
+      console.log('Starting profile submission...');
+      
+      // Validate the form data
+      const validationErrors = validateForm(formData);
+      if (Object.keys(validationErrors).length > 0) {
+        setErrors(validationErrors);
+        toast.error('Please fix the errors before saving');
+        setLoading(false);
+        return;
+      }
+      
+      // 1. Get files to upload from the PhotoEditor
+      let filesToUpload = [];
+      if (photoEditorRef.current) {
+        filesToUpload = photoEditorRef.current.getFilesToUpload();
+        console.log('Files to upload from PhotoEditor:', filesToUpload);
+      }
       
       // 2. Get existing server URLs that should be preserved
-      const serverUrls = photoEditorRef.current ? 
-        photoEditorRef.current.getServerUrls() : [];
+      let serverUrls = [];
+      if (photoEditorRef.current) {
+        serverUrls = photoEditorRef.current.getServerUrls();
+        console.log('Server URLs to preserve:', serverUrls);
+      }
       
-      console.log(`Uploading ${filesToUpload.length} new files and keeping ${serverUrls.length} existing images`);
+      console.log(`Will upload ${filesToUpload.length} new files and keep ${serverUrls.length} existing images`);
       
       let uploadedImageUrls = [];
       
-      // 3. Upload new files if we have any
-      if (filesToUpload && filesToUpload.length > 0) {
+      // 3. Upload new files if there are any
+      if (filesToUpload.length > 0) {
         try {
+          console.log('Starting file upload process...');
           const uploadResult = await gymbrosService.uploadProfileImages(filesToUpload);
+          
+          console.log('Upload result:', uploadResult);
           
           if (uploadResult.success && uploadResult.imageUrls) {
             uploadedImageUrls = uploadResult.imageUrls;
@@ -120,7 +138,6 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
         profileImage: finalImages.length > 0 ? finalImages[0] : null
       };
       
-      // 6. Save the profile
       console.log('Saving profile with data:', {
         ...finalData,
         images: `${finalData.images.length} images (${serverUrls.length} existing, ${uploadedImageUrls.length} new)`
@@ -151,6 +168,45 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     } finally {
       setLoading(false);
     }
+  };
+
+  // Validate form data
+  const validateForm = (data) => {
+    const errors = {};
+    
+    if (!data.name) {
+      errors.name = 'Name is required';
+    }
+    
+    if (!data.age || data.age < 18) {
+      errors.age = 'Age must be at least 18';
+    }
+    
+    if (!data.gender) {
+      errors.gender = 'Gender is required';
+    }
+    
+    if (!data.height) {
+      errors.height = 'Height is required';
+    }
+    
+    if (!data.workoutTypes || data.workoutTypes.length === 0) {
+      errors.workoutTypes = 'Select at least one workout type';
+    }
+    
+    if (!data.experienceLevel) {
+      errors.experienceLevel = 'Experience level is required';
+    }
+    
+    if (!data.preferredTime) {
+      errors.preferredTime = 'Preferred time is required';
+    }
+    
+    if (!data.photos || data.photos.filter(p => p).length < 2) {
+      errors.photos = 'At least 2 photos are required';
+    }
+    
+    return errors;
   };
 
   // Specialized action handlers
@@ -245,8 +301,8 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
   };
 
-   // Main profile view
-   const renderMainProfile = () => (
+  // Main profile view
+  const renderMainProfile = () => (
     <>
       {/* Profile Picture Section */}
       <div 
@@ -302,6 +358,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
           value={formData.bio} 
           placeholder="Tell others about yourself and your fitness journey..."
           textarea={true}
+          onChange={handleChange}
         />
 
         <div className="mb-6">
@@ -322,6 +379,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
               </button>
             ))}
           </div>
+          {errors.workoutTypes && <p className="text-red-500 text-sm mt-1">{errors.workoutTypes}</p>}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -338,6 +396,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
                 <option key={level} value={level}>{level}</option>
               ))}
             </select>
+            {errors.experienceLevel && <p className="text-red-500 text-sm mt-1">{errors.experienceLevel}</p>}
           </div>
 
           <div className="mb-4">
@@ -353,6 +412,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
                 <option key={time} value={time}>{time}</option>
               ))}
             </select>
+            {errors.preferredTime && <p className="text-red-500 text-sm mt-1">{errors.preferredTime}</p>}
           </div>
         </div>
 
@@ -362,6 +422,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
           value={formData.goals} 
           placeholder="What are your fitness goals?"
           textarea={true}
+          onChange={handleChange}
         />
 
         {/* Settings */}
@@ -410,9 +471,9 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
   // Preferred time options
   const preferredTimes = ['Morning', 'Afternoon', 'Evening', 'Late Night', 'Weekends Only', 'Flexible'];
 
-  const EditableField = ({ label, name, value, placeholder, textarea = false }) => {
-    const [fieldValue, setFieldValue] = useState(value || '');
+  const EditableField = ({ label, name, value, placeholder, textarea = false, onChange }) => {
     const [isEditing, setIsEditing] = useState(false);
+    const [fieldValue, setFieldValue] = useState(value || '');
     
     useEffect(() => {
       setFieldValue(value || '');
@@ -420,7 +481,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     
     const handleSave = () => {
       // Update the parent form data
-      handleChange({ target: { name, value: fieldValue } });
+      onChange({ target: { name, value: fieldValue } });
       setIsEditing(false);
     };
     
@@ -485,11 +546,10 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
             </div>
           </div>
         )}
+        {errors[name] && <p className="text-red-500 text-sm mt-1">{errors[name]}</p>}
       </div>
     );
   };
-
-  // (Keep the rest of your component code here)
 
   const renderPhotoGallery = () => (
     <>
@@ -504,11 +564,20 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
       </div>
       
       <div className="p-4 pb-20">
+        {/* Debug info - helpful for troubleshooting */}
+        <div className="mb-4 p-2 bg-gray-100 rounded text-xs text-gray-600">
+          <p>Current photos: {JSON.stringify(formData.photos?.length || 0)} items</p>
+          <p>Server photos: {formData.photos?.filter(p => p && !p.startsWith('blob:')).length || 0} items</p>
+          <p>Blob photos: {formData.photos?.filter(p => p && p.startsWith('blob:')).length || 0} items</p>
+        </div>
+        
         <PhotoEditor 
+          ref={photoEditorRef}
           photos={formData.photos || []}
           onPhotosChange={handlePhotosChange}
-          maxPhotos={9}
+          maxPhotos={6}
         />
+        {errors.photos && <p className="text-red-500 text-sm mt-1">{errors.photos}</p>}
       </div>
     </>
   );

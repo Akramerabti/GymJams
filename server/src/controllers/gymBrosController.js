@@ -326,6 +326,7 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
 
 export const uploadProfileImages = async (req, res) => {
   try {
+    console.log('Uploading profile images:', req.files);
     // Get effective user (either authenticated or guest)
     const effectiveUser = getEffectiveUser(req);
     
@@ -380,6 +381,7 @@ export const uploadProfileImages = async (req, res) => {
       });
     }
     
+    console.log('Uploading images for profile:', req.files);
     // Add the new image paths to the profile - JUST USE THE FILENAME
     // This is the key fix - just store the filename in the format "/uploads/filename.jpg"
     const imageUrls = req.files.map(file => `/uploads/${file.filename}`);
