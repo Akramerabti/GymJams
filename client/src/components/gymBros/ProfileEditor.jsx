@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { 
@@ -6,19 +6,23 @@ import {
   PauseCircle, MapPin, Save, Loader, Pencil
 } from 'lucide-react';
 import gymbrosService from '../../services/gymbros.service';
-import PhotoEditor from './components/PhotoEditor';
+import PhotoEditor from './components/PhotoEditor'; // Use the fixed version
 
+// Main component implementation
 const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false }) => {
+  // Component state
   const [formData, setFormData] = useState(userProfile || {});
   const [errors, setErrors] = useState({});
   const [activeSection, setActiveSection] = useState('main');
   const [loading, setLoading] = useState(false);
   const [showSaveButton, setShowSaveButton] = useState(false);
-  const [pendingPhotoUploads, setPendingPhotoUploads] = useState([]);
   
+  // Reference to the photo editor component
+  const photoEditorRef = useRef(null);
+  
+  // Initialize form data from userProfile
   useEffect(() => {
     if (userProfile) {
-      // Ensure images array is properly initialized
       const initialData = {
         ...userProfile,
         photos: userProfile.images || [],
@@ -27,7 +31,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     }
   }, [userProfile]);
 
-  // Update form data for any field
+  // Handle form field changes
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -39,7 +43,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     }
   };
 
-  // Toggle the selection of an item in a multi-select
+  // Toggle selection for multi-select fields
   const toggleSelection = (field, item) => {
     const currentValues = formData[field] || [];
     const newValues = currentValues.includes(item)
@@ -50,15 +54,8 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     setShowSaveButton(true);
   };
 
-  // Handle photo updates from PhotoEditor
+  // Handle photos changes from PhotoEditor
   const handlePhotosChange = (newPhotos) => {
-    // Identify new blob URLs that need to be uploaded
-    const blobPhotos = newPhotos.filter(photo => photo && photo.startsWith('blob:'));
-    
-    if (blobPhotos.length > 0) {
-      setPendingPhotoUploads(blobPhotos);
-    }
-    
     setFormData(prev => ({
       ...prev,
       photos: newPhotos,
@@ -69,106 +66,85 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     setShowSaveButton(true);
   };
 
-  // Helper function to convert a blob URL to a File object
-  const blobUrlToFile = async (blobUrl, fileName = `image-${Date.now()}.jpg`) => {
-    try {
-      const response = await fetch(blobUrl);
-      const blob = await response.blob();
-      return new File([blob], fileName, { type: blob.type || 'image/jpeg' });
-    } catch (error) {
-      console.error('Error converting blob to file:', error);
-      throw error;
-    }
-  };
-
+  // Submit form data
   const handleSubmit = async () => {
     if (loading) return;
-    
     setLoading(true);
     
     try {
-      // Step 1: Identify and handle blob URLs in photos array
-      const blobUrls = formData.photos.filter(photo => photo && photo.startsWith('blob:'));
+      // 1. CRITICAL: Get files to upload from the PhotoEditor
+      const filesToUpload = photoEditorRef.current ? 
+        await photoEditorRef.current.getFilesToUpload() : [];
+
+        console.log('Files to upload:', filesToUpload);
+      
+      // 2. Get existing server URLs that should be preserved
+      const serverUrls = photoEditorRef.current ? 
+        photoEditorRef.current.getServerUrls() : [];
+      
+      console.log(`Uploading ${filesToUpload.length} new files and keeping ${serverUrls.length} existing images`);
+      
       let uploadedImageUrls = [];
       
-      if (blobUrls.length > 0) {
-        console.log(`Converting ${blobUrls.length} blob URLs to files for upload`);
-        
-        // Convert blob URLs to File objects
-        const filesToUpload = [];
-        for (const blobUrl of blobUrls) {
-          try {
-            const file = await gymbrosService.blobUrlToFile(blobUrl);
-            filesToUpload.push(file);
-          } catch (error) {
-            console.error('Error converting blob URL to file:', error);
-          }
-        }
-        
-        if (filesToUpload.length > 0) {
-          console.log(`Uploading ${filesToUpload.length} files`);
-          // Upload files and get server URLs
+      // 3. Upload new files if we have any
+      if (filesToUpload && filesToUpload.length > 0) {
+        try {
           const uploadResult = await gymbrosService.uploadProfileImages(filesToUpload);
           
           if (uploadResult.success && uploadResult.imageUrls) {
             uploadedImageUrls = uploadResult.imageUrls;
             console.log('Upload successful, received URLs:', uploadedImageUrls);
           } else {
-            throw new Error('Failed to upload images');
+            throw new Error(uploadResult.message || 'Failed to upload images');
           }
+        } catch (error) {
+          console.error('Error uploading images:', error);
+          toast.error('Failed to upload images. Please try again.');
+          setLoading(false);
+          return;
         }
       }
       
-      // Step 2: Create a clean photos array with no blob URLs
-      const cleanedPhotos = formData.photos.map(photo => {
-        if (!photo) return null;
-        
-        if (photo.startsWith('blob:')) {
-          // Replace blob URL with a server URL from the upload result
-          const index = blobUrls.indexOf(photo);
-          if (index >= 0 && index < uploadedImageUrls.length) {
-            return uploadedImageUrls[index];
-          }
-          // If no corresponding upload, skip this photo
-          return null;
-        }
-        
-        // Keep non-blob URLs as they are
-        return photo;
-      }).filter(Boolean); // Remove null entries
+      // 4. Combine existing server URLs with newly uploaded URLs
+      const finalImages = [
+        ...serverUrls,
+        ...uploadedImageUrls
+      ];
       
-      // Step 3: Prepare final data for saving
+      // 5. Prepare final data for saving
       const finalData = {
         ...formData,
-        // IMPORTANT: Send the 'images' field, not 'photos'
-        images: cleanedPhotos,
-        // Set the first photo as the profile image
-        profileImage: cleanedPhotos.length > 0 ? cleanedPhotos[0] : null
+        // IMPORTANT: Use 'images' field for the API, not 'photos'
+        images: finalImages,
+        // Set the first image as the profile image
+        profileImage: finalImages.length > 0 ? finalImages[0] : null
       };
       
+      // 6. Save the profile
       console.log('Saving profile with data:', {
         ...finalData,
-        images: finalData.images.length + ' images'
+        images: `${finalData.images.length} images (${serverUrls.length} existing, ${uploadedImageUrls.length} new)`
       });
       
-      // Step 4: Save the profile
       const response = await gymbrosService.createOrUpdateProfile(finalData);
       
       if (response.success) {
+        // Update parent component with the server response
         onProfileUpdated(response.profile);
         toast.success('Profile updated successfully');
         
-        // Update local form data with the clean image URLs
+        // Update local form data
         setFormData(prev => ({
           ...prev,
-          photos: cleanedPhotos,
-          profileImage: cleanedPhotos.length > 0 ? cleanedPhotos[0] : null
+          photos: finalImages,
+          profileImage: finalImages.length > 0 ? finalImages[0] : null
         }));
         
         setShowSaveButton(false);
       } else {
         throw new Error(response.message || 'Failed to update profile');
       }
+      
     } catch (error) {
       console.error('Error updating profile:', error);
       toast.error(error.message || 'Failed to update profile');
@@ -252,100 +228,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
       });
   };
 
-  // Workout types options
-  const workoutTypes = [
-    'Strength Training', 'Cardio', 'HIIT', 'CrossFit', 'Bodybuilding',
-    'Yoga', 'Pilates', 'Calisthenics', 'Powerlifting', 'Olympic Lifting',
-    'Functional Training', 'Group Classes', 'Running', 'Swimming', 'Cycling'
-  ];
-  
-  // Experience level options
-  const experienceLevels = ['Beginner', 'Intermediate', 'Advanced'];
-  
-  // Preferred time options
-  const preferredTimes = ['Morning', 'Afternoon', 'Evening', 'Late Night', 'Weekends Only', 'Flexible'];
-
-  // Editable text field
-  const EditableField = ({ label, name, value, placeholder, textarea = false }) => {
-    const [fieldValue, setFieldValue] = useState(value || '');
-    const [isEditing, setIsEditing] = useState(false);
-    
-    useEffect(() => {
-      setFieldValue(value || '');
-    }, [value]);
-    
-    const handleSave = () => {
-      // Update the parent form data
-      handleChange({ target: { name, value: fieldValue } });
-      setIsEditing(false);
-    };
-    
-    return (
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-1">
-          <label className="block text-sm font-medium text-gray-700">{label}</label>
-          {!isEditing && (
-            <button 
-              type="button"
-              onClick={() => setIsEditing(true)}
-              className="text-blue-500 p-1 rounded-full hover:bg-blue-50"
-            >
-              <Pencil size={14} />
-            </button>
-          )}
-        </div>
-        
-        {!isEditing ? (
-          <div className="mt-1 p-3 border border-gray-300 rounded-md bg-gray-50 min-h-[40px]">
-            {fieldValue || <span className="text-gray-400">{placeholder}</span>}
-          </div>
-        ) : (
-          <div>
-            {textarea ? (
-              <textarea
-                name={name}
-                value={fieldValue}
-                onChange={(e) => setFieldValue(e.target.value)}
-                placeholder={placeholder}
-                className="mt-1 block w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                rows={4}
-                autoFocus
-              />
-            ) : (
-              <input
-                type="text"
-                name={name}
-                value={fieldValue}
-                onChange={(e) => setFieldValue(e.target.value)}
-                placeholder={placeholder}
-                className="mt-1 block w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                autoFocus
-              />
-            )}
-            
-            <div className="flex justify-end mt-2 space-x-2">
-              <button
-                type="button"
-                onClick={() => setIsEditing(false)}
-                className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                className="px-3 py-1 text-sm bg-blue-500 text-white rounded"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Correct image URL helper function
+  // Helper to get proper image URL for display
   const getImageUrl = (url) => {
     if (!url) return null;
     
@@ -362,8 +245,8 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
   };
 
-  // Main profile view
-  const renderMainProfile = () => (
+   // Main profile view
+   const renderMainProfile = () => (
     <>
       {/* Profile Picture Section */}
       <div 
@@ -514,8 +397,100 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
       </div>
     </>
   );
+  
+  const workoutTypes = [
+    'Strength Training', 'Cardio', 'HIIT', 'CrossFit', 'Bodybuilding',
+    'Yoga', 'Pilates', 'Calisthenics', 'Powerlifting', 'Olympic Lifting',
+    'Functional Training', 'Group Classes', 'Running', 'Swimming', 'Cycling'
+  ];
+  
+  // Experience level options
+  const experienceLevels = ['Beginner', 'Intermediate', 'Advanced'];
+  
+  // Preferred time options
+  const preferredTimes = ['Morning', 'Afternoon', 'Evening', 'Late Night', 'Weekends Only', 'Flexible'];
 
-  // Photo editor section
+  const EditableField = ({ label, name, value, placeholder, textarea = false }) => {
+    const [fieldValue, setFieldValue] = useState(value || '');
+    const [isEditing, setIsEditing] = useState(false);
+    
+    useEffect(() => {
+      setFieldValue(value || '');
+    }, [value]);
+    
+    const handleSave = () => {
+      // Update the parent form data
+      handleChange({ target: { name, value: fieldValue } });
+      setIsEditing(false);
+    };
+    
+    return (
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-sm font-medium text-gray-700">{label}</label>
+          {!isEditing && (
+            <button 
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="text-blue-500 p-1 rounded-full hover:bg-blue-50"
+            >
+              <Pencil size={14} />
+            </button>
+          )}
+        </div>
+        
+        {!isEditing ? (
+          <div className="mt-1 p-3 border border-gray-300 rounded-md bg-gray-50 min-h-[40px]">
+            {fieldValue || <span className="text-gray-400">{placeholder}</span>}
+          </div>
+        ) : (
+          <div>
+            {textarea ? (
+              <textarea
+                name={name}
+                value={fieldValue}
+                onChange={(e) => setFieldValue(e.target.value)}
+                placeholder={placeholder}
+                className="mt-1 block w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                rows={4}
+                autoFocus
+              />
+            ) : (
+              <input
+                type="text"
+                name={name}
+                value={fieldValue}
+                onChange={(e) => setFieldValue(e.target.value)}
+                placeholder={placeholder}
+                className="mt-1 block w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                autoFocus
+              />
+            )}
+            
+            <div className="flex justify-end mt-2 space-x-2">
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                className="px-3 py-1 text-sm bg-blue-500 text-white rounded"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // (Keep the rest of your component code here)
+
   const renderPhotoGallery = () => (
     <>
       <div className="sticky top-0 z-10 bg-white p-4 border-b flex items-center">
@@ -537,7 +512,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
       </div>
     </>
   );
-  
+
   return (
     <div className="h-full overflow-y-auto relative bg-white rounded-lg">
       <AnimatePresence mode="wait">

@@ -1,6 +1,3 @@
-// Fix for src/components/gymBros/components/PhotoEditor.jsx
-// This improves how images are displayed and processed in the component
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
 import { Upload, X, Crop, Loader, Check, Info } from 'lucide-react';
@@ -9,28 +6,79 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-// Helper to determine if a URL is a server URL or blob URL
-const isServerUrl = (url) => {
-  if (!url) return false;
-  // If it's a blob URL, return false
-  if (url.startsWith('blob:')) return false;
-  // If it's a server URL (starting with / or http), return true
-  return url.startsWith('/') || url.startsWith('http');
-};
+// Key to keeping track of blob URLs vs server URLs
+const BLOB_MARKER = 'BLOB_MARKER:';
 
-// Helper to construct complete URL for server images
-const getCompleteImageUrl = (url) => {
-  if (!url) return null;
-  
-  // If it's already a complete URL or blob URL, return it unchanged
-  if (url.startsWith('blob:') || url.startsWith('http')) {
-    return url;
+/**
+ * Internal structure for tracking image state properly
+ * Each entry is either:
+ * 1. A string representing a server URL
+ * 2. An object with { blobUrl, file } for images that need uploading
+ */
+class ImageEntry {
+  constructor(source) {
+    if (typeof source === 'string') {
+      if (source.startsWith('blob:')) {
+        // It's a blob URL - create a marked entry that needs to be uploaded
+        this.type = 'blob';
+        this.displayUrl = source;
+        this.serverUrl = null;
+        this.needsUpload = true;
+        this.file = null; // Will be populated later
+      } else {
+        // It's already a server URL
+        this.type = 'server';
+        this.displayUrl = source;
+        this.serverUrl = source;
+        this.needsUpload = false;
+        this.file = null;
+      }
+    } else if (source && source.file instanceof File) {
+      // It's already a file object
+      this.type = 'file';
+      this.displayUrl = URL.createObjectURL(source.file);
+      this.serverUrl = null;
+      this.needsUpload = true;
+      this.file = source.file;
+    } else {
+      // Empty or invalid entry
+      this.type = 'empty';
+      this.displayUrl = null;
+      this.serverUrl = null;
+      this.needsUpload = false;
+      this.file = null;
+    }
   }
-  
-  // Add the API base URL for server paths
-  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-  return `${baseUrl}${url}`;
-};
+
+  // Convert this entry to the final form for server submission
+  toServerForm() {
+    return this.serverUrl;
+  }
+
+  // Convert this entry to the form for internal state
+  toStateForm() {
+    return this.displayUrl;
+  }
+
+  // Create a file from blob URL if needed
+  async prepareForUpload() {
+    if (this.type === 'blob' && !this.file) {
+      try {
+        const response = await fetch(this.displayUrl);
+        const blob = await response.blob();
+        this.file = new File(
+          [blob], 
+          `photo-${Date.now()}.${blob.type.split('/')[1] || 'jpg'}`, 
+          { type: blob.type || 'image/jpeg' }
+        );
+      } catch (error) {
+        console.error('Error converting blob to file:', error);
+        throw error;
+      }
+    }
+    return this;
+  }
+}
 
 // Sortable Image Item Component
 const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
@@ -60,8 +108,8 @@ const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
     onEdit(index);
   };
 
-  // Get the proper image URL for display
-  const displayUrl = photo ? getCompleteImageUrl(photo) : null;
+  // Get the display URL for this image
+  const displayUrl = photo || null;
 
   return (
     <div 
@@ -70,7 +118,6 @@ const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
       className={`relative aspect-[7/10] border rounded-lg overflow-hidden ${isDragging ? 'opacity-50' : 'opacity-100'}`}
       onDragStart={handleDragStart}
     >
-      {/* Image with the file input on empty slots */}
       {photo ? (
         <>
           <img 
@@ -191,11 +238,18 @@ const ImageCropper = ({ image, onCropComplete, onCropCancel, onCropSave }) => {
       
       const blob = await blobPromise;
       
-      // Create a URL for the blob
+      // Create a File object from the blob (will be uploaded later)
+      const croppedFile = new File(
+        [blob],
+        `cropped-image-${Date.now()}.jpg`,
+        { type: 'image/jpeg' }
+      );
+      
+      // Create a URL for the blob (for display only)
       const croppedImageUrl = URL.createObjectURL(blob);
       
-      // Pass the cropped image URL back
-      onCropSave(croppedImageUrl, blob);
+      // Pass both the URL (for display) and the file (for upload)
+      onCropSave(croppedImageUrl, croppedFile);
       
     } catch (error) {
       console.error('Error during image cropping:', error);
@@ -259,26 +313,37 @@ const ImageCropper = ({ image, onCropComplete, onCropCancel, onCropSave }) => {
 
 // Main PhotoEditor Component
 const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
+  // Track actual image entries (combination of server URLs and files to upload)
+  const [imageEntries, setImageEntries] = useState([]);
+  // Track display URLs for the UI (same as before)
   const [localPhotos, setLocalPhotos] = useState([]);
-  const [selectedFileIndex, setSelectedFileIndex] = useState(null);
+  
   const [cropImage, setCropImage] = useState(null);
   const [cropIndex, setCropIndex] = useState(null);
   const fileInputRef = useRef(null);
+  const uploaderRef = useRef({ 
+    pendingUploads: [] 
+  });
   
   // Initialize with photos from props
   useEffect(() => {
-    if (photos && photos.length > 0 && (localPhotos.length === 0 || JSON.stringify(photos) !== JSON.stringify(localPhotos))) {
-      console.log('Initializing localPhotos with photos from props:', photos);
-      setLocalPhotos([...photos]);
+    if (photos && photos.length > 0 && (localPhotos.length === 0)) {
+      console.log('Initializing photo editor with photos:', photos);
+      
+      // Create proper image entries
+      const entries = photos.map(photo => new ImageEntry(photo));
+      setImageEntries(entries);
+      
+      // Create display URLs for the UI
+      const displayUrls = entries.map(entry => entry.displayUrl);
+      setLocalPhotos(displayUrls);
     }
   }, [photos]);
   
   // Configure DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
+      activationConstraint: { distance: 8 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -290,25 +355,23 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
     const { active, over } = event;
     
     if (active && over && active.id !== over.id) {
-      setLocalPhotos((photos) => {
-        // Convert the item IDs to indices
-        const activeIndex = parseInt(active.id.toString().split('-')[1]);
-        const overIndex = parseInt(over.id.toString().split('-')[1]);
-        
-        // Ensure both indices are valid
-        if (isNaN(activeIndex) || isNaN(overIndex)) {
-          console.error('Invalid drag indices:', activeIndex, overIndex);
-          return photos;
-        }
-        
-        // Move the item
-        const newPhotos = arrayMove(photos, activeIndex, overIndex);
-        
-        // Notify parent component of the changes
-        onPhotosChange(newPhotos);
-        
-        return newPhotos;
-      });
+      // Convert the item IDs to indices
+      const activeIndex = parseInt(active.id.toString().split('-')[1]);
+      const overIndex = parseInt(over.id.toString().split('-')[1]);
+      
+      // Ensure both indices are valid
+      if (isNaN(activeIndex) || isNaN(overIndex)) {
+        console.error('Invalid drag indices:', activeIndex, overIndex);
+        return;
+      }
+      
+      // Move the entries in both arrays to maintain synchronization
+      setImageEntries(entries => arrayMove(entries, activeIndex, overIndex));
+      setLocalPhotos(photos => arrayMove(photos, activeIndex, overIndex));
+      
+      // Notify parent component with only the display representation
+      const newPhotosForParent = arrayMove(localPhotos, activeIndex, overIndex);
+      onPhotosChange(newPhotosForParent);
     }
   };
   
@@ -317,7 +380,6 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
     if (!e.target.files || e.target.files.length === 0) return;
     
     const file = e.target.files[0];
-    setSelectedFileIndex(index);
     
     // Validate file type
     if (!file.type.startsWith('image/')) {
@@ -331,7 +393,7 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
       return;
     }
     
-    // Create a URL for the file
+    // Create a URL for the file for display
     const imageUrl = URL.createObjectURL(file);
     
     // Set the image for cropping
@@ -343,14 +405,18 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
   const handleRemoveImage = (index) => {
     setLocalPhotos(prevPhotos => {
       const newPhotos = [...prevPhotos];
-      
-      // Remove the photo at the specified index
       newPhotos.splice(index, 1);
+      
+      // Also update image entries
+      setImageEntries(prevEntries => {
+        const newEntries = [...prevEntries];
+        newEntries.splice(index, 1);
+        return newEntries;
+      });
       
       // Notify parent component of the changes
       onPhotosChange(newPhotos);
       
-      // Return the updated array
       return newPhotos;
     });
   };
@@ -359,37 +425,71 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
   const handleEditImage = (index) => {
     if (index >= localPhotos.length) return;
     
-    // For server images, we need to provide the full URL to the cropper
-    const photoUrl = localPhotos[index];
-    const cropperUrl = isServerUrl(photoUrl) ? getCompleteImageUrl(photoUrl) : photoUrl;
+    // The URL for cropping is always the display URL
+    const cropperUrl = localPhotos[index];
     
     setCropImage(cropperUrl);
     setCropIndex(index);
   };
   
   // Handle save after crop
-  const handleCropSave = (croppedImageUrl, blob) => {
-    const newPhotos = [...localPhotos];
+  const handleCropSave = (croppedImageUrl, croppedFile) => {
+    // Update both arrays
     
-    // Update or add the cropped image
-    if (cropIndex !== null) {
-      if (cropIndex < newPhotos.length) {
-        newPhotos[cropIndex] = croppedImageUrl;
-      } else {
-        // Add at the specified index, filling any gaps with empty strings
-        while (newPhotos.length < cropIndex) {
-          newPhotos.push('');
+    // 1. Update local photos array (display URLs)
+    setLocalPhotos(prevPhotos => {
+      const newPhotos = [...prevPhotos];
+      
+      if (cropIndex !== null) {
+        if (cropIndex < newPhotos.length) {
+          // Replace existing photo
+          newPhotos[cropIndex] = croppedImageUrl;
+        } else {
+          // Add new photo
+          while (newPhotos.length < cropIndex) {
+            newPhotos.push('');
+          }
+          newPhotos.push(croppedImageUrl);
         }
-        newPhotos.push(croppedImageUrl);
       }
-    }
+      
+      return newPhotos;
+    });
     
-    setLocalPhotos(newPhotos);
-    setCropImage(null);
-    setCropIndex(null);
+    // 2. Update image entries array (for actual upload)
+    setImageEntries(prevEntries => {
+      const newEntries = [...prevEntries];
+      
+      // Create an entry with the file directly
+      const newEntry = new ImageEntry({ file: croppedFile });
+      
+      if (cropIndex !== null) {
+        if (cropIndex < newEntries.length) {
+          // Replace existing entry
+          // If the previous entry was a server URL, we need to revoke it
+          const prevEntry = newEntries[cropIndex];
+          if (prevEntry.type === 'blob' && prevEntry.displayUrl) {
+            URL.revokeObjectURL(prevEntry.displayUrl);
+          }
+          newEntries[cropIndex] = newEntry;
+        } else {
+          // Add new entry
+          while (newEntries.length < cropIndex) {
+            newEntries.push(new ImageEntry());
+          }
+          newEntries.push(newEntry);
+        }
+      }
+      
+      return newEntries;
+    });
     
     // Notify parent component of the changes
-    onPhotosChange(newPhotos);
+    onPhotosChange(localPhotos);
+    
+    // Clean up
+    setCropImage(null);
+    setCropIndex(null);
   };
   
   // Handle crop cancel
@@ -397,6 +497,63 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
     setCropImage(null);
     setCropIndex(null);
   };
+  
+  // Get all files that need to be uploaded
+  const getPendingUploads = () => {
+    return imageEntries
+      .filter(entry => entry.needsUpload)
+      .map(entry => entry.file)
+      .filter(Boolean);
+  };
+  
+  // Get server URLs that should be preserved
+  const getServerUrls = () => {
+    return imageEntries
+      .filter(entry => !entry.needsUpload && entry.serverUrl)
+      .map(entry => entry.serverUrl);
+  };
+  
+  // Prepare all images for upload - convert blob URLs to files
+  const prepareForUpload = async () => {
+    try {
+      // Make a copy of the entries that need preparation
+      const entries = [...imageEntries];
+      
+      // Process each entry that needs uploading
+      const preparedEntries = await Promise.all(
+        entries.map(async (entry) => {
+          if (entry.needsUpload && entry.type === 'blob') {
+            return await entry.prepareForUpload();
+          }
+          return entry;
+        })
+      );
+      
+      // Update state with prepared entries
+      setImageEntries(preparedEntries);
+      
+      // Return files that need uploading
+      return preparedEntries
+        .filter(entry => entry.needsUpload && entry.file)
+        .map(entry => entry.file);
+    } catch (error) {
+      console.error('Error preparing images for upload:', error);
+      throw error;
+    }
+  };
+  
+  // Expose methods to parent component via ref
+  React.useImperativeHandle(
+    uploaderRef,
+    () => ({
+      async getFilesToUpload() {
+        return await prepareForUpload();
+      },
+      getServerUrls() {
+        return getServerUrls();
+      }
+    })
+  );
   
   // Fill array with empty strings to maxPhotos length for grid
   const displayPhotos = [...localPhotos];
@@ -441,7 +598,7 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
         accept="image/*"
         onChange={(e) => {
           if (e.target.files && e.target.files.length > 0) {
-            handleFileSelect(e, selectedFileIndex);
+            handleFileSelect(e, localPhotos.filter(Boolean).length);
           }
         }}
         className="hidden"
@@ -456,11 +613,16 @@ const PhotoEditor = ({ photos = [], onPhotosChange, maxPhotos = 9 }) => {
         />
       )}
       
-      {localPhotos.length < 2 && (
+      {localPhotos.filter(Boolean).length < 2 && (
         <p className="text-sm text-red-500 mt-2">Please upload at least 2 images.</p>
       )}
     </div>
   );
 };
 
-export default PhotoEditor;
+// Add methods to access from parent component
+const PhotoEditorWithRef = React.forwardRef((props, ref) => (
+  <PhotoEditor {...props} ref={ref} />
+));
+
+export default PhotoEditorWithRef;
