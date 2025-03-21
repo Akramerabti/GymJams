@@ -3,22 +3,31 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { 
   Camera, ChevronLeft, Plus, Trash2, Share2, Link, User,
-  PauseCircle, LogOut, MapPin, Calendar, Award, X, Save
+  PauseCircle, LogOut, MapPin, Calendar, Award, X, Save,
+  Loader, Edit, Pencil
 } from 'lucide-react';
 import api from '../../services/api';
+import gymbrosService from '../../services/gymbros.service';
 import ImageUploader from './ImageUploader';
 
-const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
+const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false }) => {
   const [formData, setFormData] = useState(userProfile || {});
   const [errors, setErrors] = useState({});
   const [activeSection, setActiveSection] = useState('main');
   const [isUploading, setIsUploading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [showSaveButton, setShowSaveButton] = useState(false);
   const fileInputRef = useRef(null);
   
   useEffect(() => {
     if (userProfile) {
-      setFormData(userProfile);
+      // Ensure images array is properly initialized
+      const initialData = {
+        ...userProfile,
+        photos: userProfile.images || [],
+        profileImage: userProfile.profileImage || (userProfile.images && userProfile.images.length > 0 ? userProfile.images[0] : null)
+      };
+      setFormData(initialData);
     }
   }, [userProfile]);
 
@@ -67,129 +76,119 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
     handleMultiSelectChange(field, newValues);
   };
 
-  // Save all changes at once
-  const handleSaveAll = async () => {
+  const handleSubmit = async () => {
+    if (loading) return;
+    
+    setLoading(true);
+    
     try {
-      const response = await api.post('/gym-bros/profile', formData);
-      onProfileUpdated(response.data);
-      toast.success('Profile updated successfully');
-      setShowSaveButton(false);
+      // Check if we have blob URLs that need to be uploaded
+      const photos = formData.photos || [];
+      const blobPhotos = photos.filter(url => url.startsWith('blob:'));
+      
+      // If we have blob URLs, upload them first
+      if (blobPhotos.length > 0) {
+        try {
+          // Convert blob URLs to Files
+          const imageFiles = await Promise.all(
+            blobPhotos.map(async (blobUrl, index) => {
+              // Convert the blob URL to a File object
+              try {
+                const response = await fetch(blobUrl);
+                const blob = await response.blob();
+                return new File([blob], `image-${index}.jpg`, { type: blob.type || 'image/jpeg' });
+              } catch (error) {
+                console.error('Error converting blob to file:', error);
+                throw new Error('Failed to process image');
+              }
+            })
+          );
+          
+          // Upload the files
+          const uploadResult = await gymbrosService.uploadProfileImages(imageFiles);
+          
+          // Replace blob URLs with server URLs in formData
+          if (uploadResult.success && uploadResult.imageUrls?.length) {
+            // Create a mapping of indices to new URLs
+            const urlMapping = {};
+            blobPhotos.forEach((blobUrl, index) => {
+              if (index < uploadResult.imageUrls.length) {
+                urlMapping[blobUrl] = uploadResult.imageUrls[index];
+              }
+            });
+            
+            // Update photos array
+            const updatedPhotos = photos.map(url => 
+              urlMapping[url] || url
+            );
+            
+            // Also update profile image if it's a blob URL
+            let profileImage = formData.profileImage;
+            if (profileImage?.startsWith('blob:') && urlMapping[profileImage]) {
+              profileImage = urlMapping[profileImage];
+            }
+            
+            // Update formData with new URLs
+            setFormData(prev => ({
+              ...prev,
+              photos: updatedPhotos,
+              profileImage,
+              images: updatedPhotos // Ensure images are synced with photos
+            }));
+            
+            // Prepare data for saving to server
+            const dataToSend = {
+              ...formData,
+              photos: updatedPhotos,
+              profileImage,
+              images: updatedPhotos
+            };
+            
+            // Save the profile with server URLs
+            const response = await gymbrosService.createOrUpdateProfile(dataToSend);
+            
+            if (response.success) {
+              onProfileUpdated(response.profile);
+              toast.success('Profile updated successfully');
+              setShowSaveButton(false);
+            } else {
+              throw new Error(response.message || 'Failed to update profile');
+            }
+          } else {
+            throw new Error('Failed to upload images');
+          }
+        } catch (uploadError) {
+          console.error('Error uploading blob images:', uploadError);
+          toast.error('Failed to upload some images');
+          throw uploadError;
+        }
+      } else {
+        // No blob URLs to upload, just save the profile data
+        // Ensure images array is synced with photos
+        const dataToSend = {
+          ...formData,
+          images: formData.photos // Sync images with photos
+        };
+        
+        const response = await gymbrosService.createOrUpdateProfile(dataToSend);
+        
+        if (response.success) {
+          onProfileUpdated(response.profile);
+          toast.success('Profile updated successfully');
+          setShowSaveButton(false);
+        } else {
+          throw new Error(response.message || 'Failed to update profile');
+        }
+      }
     } catch (error) {
       console.error('Error updating profile:', error);
-      toast.error('Failed to update profile');
-    }
-  };
-
-  // Photo upload handling
-  const handleAddPhoto = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handlePhotoChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    // Basic validation
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
-      return;
-    }
-    
-    // Max 5MB
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be less than 5MB');
-      return;
-    }
-    
-    setIsUploading(true);
-    
-    try {
-      // Upload using the service
-      const result = await gymbrosService.uploadProfileImages([file]);
-      
-      if (result.success && result.imageUrls && result.imageUrls.length > 0) {
-        const newImageUrl = result.imageUrls[0];
-        
-        // Update form data with the new image URL
-        setFormData(prev => {
-          // Add to photos array if it exists
-          const updatedPhotos = [...(prev.photos || []), newImageUrl];
-          
-          // Also set as main profile image if none exists
-          const updatedData = { 
-            ...prev, 
-            photos: updatedPhotos 
-          };
-          
-          if (!prev.profileImage) {
-            updatedData.profileImage = newImageUrl;
-          }
-          
-          return updatedData;
-        });
-        
-        toast.success('Photo added');
-        setShowSaveButton(true);
-      } else {
-        throw new Error('Upload failed');
-      }
-    } catch (error) {
-      console.error('Error uploading photo:', error);
-      toast.error('Failed to upload photo');
+      toast.error(error.message || 'Failed to update profile');
     } finally {
-      setIsUploading(false);
+      setLoading(false);
     }
   };
 
-  const handleDeletePhoto = async (photoUrl) => {
-    try {
-      // Extract the image ID from the URL
-      const imageId = photoUrl.split('/').pop();
-      
-      // Delete using the service
-      const result = await gymbrosService.deleteProfileImage(imageId);
-      
-      if (result.success) {
-        // Update photos list
-        const updatedPhotos = formData.photos.filter(url => url !== photoUrl);
-        
-        // Update form data
-        setFormData(prev => {
-          const updatedData = { ...prev, photos: updatedPhotos };
-          
-          // If main profile pic is deleted, set to next available
-          if (prev.profileImage === photoUrl && updatedPhotos.length > 0) {
-            updatedData.profileImage = updatedPhotos[0];
-          } else if (prev.profileImage === photoUrl) {
-            updatedData.profileImage = null;
-          }
-          
-          return updatedData;
-        });
-        
-        toast.success('Photo deleted');
-        setShowSaveButton(true);
-      } else {
-        throw new Error('Delete failed');
-      }
-    } catch (error) {
-      console.error('Error deleting photo:', error);
-      toast.error('Failed to delete photo');
-    }
-  };
-
-  const handleSetMainPhoto = (photoUrl) => {
-    if (!photoUrl) return;
-    
-    setFormData(prev => ({
-      ...prev,
-      profileImage: photoUrl
-    }));
-    
-    setShowSaveButton(true);
-    toast.success('Main profile picture updated');
-  };
-
+  // Photo management functions
   const handleImagesChange = (newImages) => {
     setFormData(prev => ({ 
       ...prev, 
@@ -205,9 +204,13 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
   const handleDeleteAccount = async () => {
     if (window.confirm('Are you sure you want to delete your GymBros profile? This action cannot be undone.')) {
       try {
-        await api.delete('/gym-bros/profile');
-        toast.success('Profile deleted successfully');
-        window.location.reload(); // Force reload to show profile creation
+        const response = await gymbrosService.deleteProfile();
+        if (response.success) {
+          toast.success('Profile deleted successfully');
+          window.location.reload(); // Force reload to show profile creation
+        } else {
+          throw new Error(response.message || 'Failed to delete profile');
+        }
       } catch (error) {
         console.error('Error deleting profile:', error);
         toast.error('Failed to delete profile');
@@ -217,10 +220,23 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
 
   const handlePauseAccount = async () => {
     try {
-      await api.post('/gym-bros/profile/pause');
-      setFormData(prev => ({ ...prev, paused: !prev.paused }));
-      toast.success(formData.paused ? 'Profile activated' : 'Profile paused');
-      setShowSaveButton(true); // Show save button after pausing/unpausing
+      const response = await gymbrosService.updateUserSettings({
+        ...formData.settings,
+        showMe: !formData.settings?.showMe
+      });
+      
+      if (response) {
+        setFormData(prev => ({ 
+          ...prev, 
+          settings: {
+            ...prev.settings,
+            showMe: !prev.settings?.showMe
+          }
+        }));
+        
+        toast.success(formData.settings?.showMe ? 'Profile paused' : 'Profile activated');
+        setShowSaveButton(true);
+      }
     } catch (error) {
       console.error('Error toggling profile status:', error);
       toast.error('Failed to update profile status');
@@ -229,7 +245,8 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
 
   const handleShareProfile = () => {
     // Generate a shareable link with the user's ID
-    const shareUrl = `${window.location.origin}/gymbros/profile/${userProfile._id}`;
+    const profileId = userProfile._id || userProfile.id;
+    const shareUrl = `${window.location.origin}/gymbros/profile/${profileId}`;
     
     // Use Web Share API if available
     if (navigator.share) {
@@ -260,16 +277,16 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
 
   // Workout types options
   const workoutTypes = [
-    'Weightlifting', 'Cardio', 'CrossFit', 'Yoga', 'Pilates', 
-    'Running', 'Swimming', 'Cycling', 'HIIT', 'Boxing',
-    'Martial Arts', 'Bodyweight', 'Powerlifting', 'Functional Training'
+    'Strength Training', 'Cardio', 'HIIT', 'CrossFit', 'Bodybuilding',
+    'Yoga', 'Pilates', 'Calisthenics', 'Powerlifting', 'Olympic Lifting',
+    'Functional Training', 'Group Classes', 'Running', 'Swimming', 'Cycling'
   ];
   
   // Experience level options
-  const experienceLevels = ['Beginner', 'Intermediate', 'Advanced', 'Professional'];
+  const experienceLevels = ['Beginner', 'Intermediate', 'Advanced'];
   
   // Preferred time options
-  const preferredTimes = ['Morning', 'Afternoon', 'Evening', 'Night', 'Flexible'];
+  const preferredTimes = ['Morning', 'Afternoon', 'Evening', 'Late Night', 'Weekends Only', 'Flexible'];
 
   // Editable text field
   const EditableField = ({ label, name, value, placeholder, textarea = false }) => {
@@ -280,40 +297,72 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
       setFieldValue(value || '');
     }, [value]);
     
+    const handleSave = () => {
+      // Update the parent form data
+      handleChange({ target: { name, value: fieldValue } });
+      setIsEditing(false);
+    };
+    
     return (
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700">{label}</label>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-sm font-medium text-gray-700">{label}</label>
+          {!isEditing && (
+            <button 
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="text-blue-500 p-1 rounded-full hover:bg-blue-50"
+            >
+              <Pencil size={14} />
+            </button>
+          )}
+        </div>
+        
         {!isEditing ? (
-          <div 
-            className="mt-1 p-3 border border-gray-300 rounded-md bg-gray-50 min-h-[40px] cursor-text"
-            onClick={() => setIsEditing(true)}
-          >
-            {fieldValue || placeholder}
+          <div className="mt-1 p-3 border border-gray-300 rounded-md bg-gray-50 min-h-[40px]">
+            {fieldValue || <span className="text-gray-400">{placeholder}</span>}
           </div>
         ) : (
-          textarea ? (
-            <textarea
-              name={name}
-              value={fieldValue}
-              onChange={(e) => setFieldValue(e.target.value)}
-              onBlur={() => setIsEditing(false)}
-              placeholder={placeholder}
-              className="mt-1 block w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              rows={4}
-              autoFocus
-            />
-          ) : (
-            <input
-              type="text"
-              name={name}
-              value={fieldValue}
-              onChange={(e) => setFieldValue(e.target.value)}
-              onBlur={() => setIsEditing(false)}
-              placeholder={placeholder}
-              className="mt-1 block w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              autoFocus
-            />
-          )
+          <div>
+            {textarea ? (
+              <textarea
+                name={name}
+                value={fieldValue}
+                onChange={(e) => setFieldValue(e.target.value)}
+                placeholder={placeholder}
+                className="mt-1 block w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                rows={4}
+                autoFocus
+              />
+            ) : (
+              <input
+                type="text"
+                name={name}
+                value={fieldValue}
+                onChange={(e) => setFieldValue(e.target.value)}
+                placeholder={placeholder}
+                className="mt-1 block w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                autoFocus
+              />
+            )}
+            
+            <div className="flex justify-end mt-2 space-x-2">
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                className="px-3 py-1 text-sm bg-blue-500 text-white rounded"
+              >
+                Save
+              </button>
+            </div>
+          </div>
         )}
       </div>
     );
@@ -329,9 +378,19 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
       >
         {formData.profileImage ? (
           <img 
-            src={formData.profileImage} 
+            src={formData.profileImage.startsWith('blob:') 
+              ? formData.profileImage 
+              : (formData.profileImage.startsWith('http') 
+                  ? formData.profileImage 
+                  : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${formData.profileImage}`)} 
             alt="Profile" 
             className="w-full h-full object-cover"
+            crossOrigin="anonymous"
+            onError={(e) => {
+              console.error('Image load error:', formData.profileImage);
+              e.target.onerror = null;
+              e.target.src = "/api/placeholder/400/600";
+            }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -349,9 +408,15 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
                 </div>
               )}
             </div>
-            <div className="bg-white/20 rounded-full p-2 mr-2">
+            <button 
+              className="bg-white/20 backdrop-blur-sm rounded-full p-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveSection('photos');
+              }}
+            >
               <Camera size={24} className="text-white" />
-            </div>
+            </button>
           </div>
         </div>
       </div>
@@ -420,17 +485,9 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
 
         <EditableField 
           label="Fitness Goals" 
-          name="fitnessGoals" 
-          value={formData.fitnessGoals} 
+          name="goals" 
+          value={formData.goals} 
           placeholder="What are your fitness goals?"
-          textarea={true}
-        />
-
-        <EditableField 
-          label="Achievements" 
-          name="achievements" 
-          value={formData.achievements} 
-          placeholder="Any certifications or fitness achievements?"
           textarea={true}
         />
 
@@ -452,7 +509,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
               className="w-full flex items-center p-3 rounded-md bg-gray-100 hover:bg-gray-200"
             >
               <PauseCircle size={20} className="mr-3 text-gray-600" />
-              <span>{formData.paused ? 'Activate Profile' : 'Pause Profile'}</span>
+              <span>{formData.settings?.showMe === false ? 'Activate Profile' : 'Pause Profile'}</span>
             </button>
             
             <button 
@@ -470,123 +527,143 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
 
   // Photo gallery section
   const renderPhotoGallery = () => (
-  <>
-    <div className="sticky top-0 z-10 bg-white p-4 border-b flex items-center">
-      <button 
-        className="p-2 rounded-full bg-gray-100"
-        onClick={() => setActiveSection('main')}
-      >
-        <ChevronLeft size={20} />
-      </button>
-      <h2 className="ml-4 text-xl font-semibold">Edit Photos</h2>
-    </div>
-    
-    <div className="p-4">
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold mb-2">Profile Picture</h3>
-        <div className="bg-gray-100 w-32 h-32 rounded-full overflow-hidden mx-auto mb-2">
-          {formData.profileImage ? (
-            <img 
-              src={formData.profileImage} 
-              alt="Profile" 
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <User size={32} className="text-gray-400" />
+    <>
+      <div className="sticky top-0 z-10 bg-white p-4 border-b flex items-center">
+        <button 
+          className="p-2 rounded-full bg-gray-100"
+          onClick={() => setActiveSection('main')}
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <h2 className="ml-4 text-xl font-semibold">Edit Photos</h2>
+      </div>
+      
+      <div className="p-4">
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-2">Profile Picture</h3>
+          <div className="bg-gray-100 w-32 h-32 rounded-full overflow-hidden mx-auto mb-2">
+            {formData.profileImage ? (
+              <img 
+                src={formData.profileImage.startsWith('blob:') 
+                  ? formData.profileImage 
+                  : (formData.profileImage.startsWith('http') 
+                      ? formData.profileImage 
+                      : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${formData.profileImage}`)} 
+                alt="Profile" 
+                className="w-full h-full object-cover"
+                crossOrigin="anonymous"
+                onError={(e) => {
+                  console.error('Image load error:', formData.profileImage);
+                  e.target.onerror = null;
+                  e.target.src = "/api/placeholder/400/600";
+                }}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <User size={32} className="text-gray-400" />
+              </div>
+            )}
+          </div>
+          <p className="text-sm text-center text-gray-500 mb-4">
+            Your main profile picture
+          </p>
+          
+          {/* Add select main photo button if there are multiple photos */}
+          {formData.photos && formData.photos.length > 1 && (
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => setActiveSection('choosePrimary')}
+                className="px-4 py-2 bg-blue-500 text-white rounded-md inline-flex items-center"
+              >
+                <Edit size={16} className="mr-2" />
+                Choose Primary Photo
+              </button>
             </div>
           )}
         </div>
-        <p className="text-sm text-center text-gray-500">
-          Your main profile picture
+
+        <h3 className="text-lg font-semibold mb-4">Your Photos</h3>
+        
+        {/* Use the ImageUploader component */}
+        <ImageUploader 
+          images={formData.photos || []} 
+          onImagesChange={handleImagesChange} 
+        />
+        
+        <div className="mt-4 text-sm text-gray-500 text-center">
+          Add 2-6 photos to showcase your fitness journey.
+        </div>
+      </div>
+    </>
+  );
+
+  // Choose primary photo section
+  const renderChoosePrimaryPhoto = () => (
+    <>
+      <div className="sticky top-0 z-10 bg-white p-4 border-b flex items-center">
+        <button 
+          className="p-2 rounded-full bg-gray-100"
+          onClick={() => setActiveSection('photos')}
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <h2 className="ml-4 text-xl font-semibold">Choose Primary Photo</h2>
+      </div>
+      
+      <div className="p-4">
+        <p className="text-gray-600 mb-4">
+          Tap on the photo you'd like to use as your main profile picture.
         </p>
-      </div>
-
-      <h3 className="text-lg font-semibold mb-2">Your Photos</h3>
-      
-      {/* Use the enhanced ImageUploader component */}
-      <ImageUploader 
-        images={formData.photos || []} 
-        onImagesChange={handleImagesChange} 
-      />
-      
-      <div className="mt-4 text-sm text-gray-500 text-center">
-        Add up to 6 photos to showcase your fitness journey.
-      </div>
-    </div>
-  </>
-);
-
-const handleSubmit = async () => {
-  if (loading) return;
-  
-  setLoading(true);
-  
-  try {
-    // Check if we have blob URLs that need to be uploaded
-    const photos = formData.photos || [];
-    const blobPhotos = photos.filter(url => url.startsWith('blob:'));
-    
-    // If we have blob URLs, upload them first
-    if (blobPhotos.length > 0) {
-      try {
-        // Convert blob URLs to Files
-        const imageFiles = await Promise.all(
-          blobPhotos.map((blobUrl, index) => 
-            gymbrosService.blobUrlToFile(blobUrl, `image-${index}.jpg`)
-          )
-        );
         
-        // Upload the files
-        const uploadResult = await gymbrosService.uploadProfileImages(imageFiles);
+        <div className="grid grid-cols-2 gap-4">
+          {(formData.photos || []).map((photoUrl, index) => (
+            <div 
+              key={index}
+              className={`relative aspect-[7/10] rounded-lg overflow-hidden border-2 ${
+                photoUrl === formData.profileImage ? 'border-blue-500' : 'border-transparent'
+              }`}
+              onClick={() => {
+                setFormData(prev => ({
+                  ...prev,
+                  profileImage: photoUrl
+                }));
+                setShowSaveButton(true);
+              }}
+            >
+              <img
+                src={photoUrl}
+                alt={`Photo ${index + 1}`}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = "/api/placeholder/400/600";
+                }}
+              />
+              
+              {photoUrl === formData.profileImage && (
+                <div className="absolute inset-0 bg-blue-500/10 flex items-center justify-center">
+                  <div className="bg-white p-2 rounded-full">
+                    <Check size={20} className="text-blue-500" />
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
         
-        // Replace blob URLs with server URLs in formData
-        if (uploadResult.success && uploadResult.imageUrls?.length) {
-          // Create a mapping of indices to new URLs
-          const urlMapping = {};
-          blobPhotos.forEach((blobUrl, index) => {
-            if (index < uploadResult.imageUrls.length) {
-              urlMapping[blobUrl] = uploadResult.imageUrls[index];
-            }
-          });
-          
-          // Update photos array
-          const updatedPhotos = photos.map(url => 
-            urlMapping[url] || url
-          );
-          
-          // Also update profile image if it's a blob URL
-          let profileImage = formData.profileImage;
-          if (profileImage?.startsWith('blob:') && urlMapping[profileImage]) {
-            profileImage = urlMapping[profileImage];
-          }
-          
-          // Update formData with new URLs
-          setFormData(prev => ({
-            ...prev,
-            photos: updatedPhotos,
-            profileImage
-          }));
-        }
-      } catch (uploadError) {
-        console.error('Error uploading blob images:', uploadError);
-        toast.error('Failed to upload some images');
-        // Continue with save anyway
-      }
-    }
-    
-    // Now save the profile with server URLs
-    const response = await api.post('/gym-bros/profile', formData);
-    onProfileUpdated(response.data);
-    toast.success('Profile updated successfully');
-    setShowSaveButton(false);
-  } catch (error) {
-    console.error('Error updating profile:', error);
-    toast.error('Failed to update profile');
-  } finally {
-    setLoading(false);
-  }
-};
+        <div className="mt-6 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setActiveSection('photos')}
+            className="px-4 py-2 bg-blue-500 text-white rounded-full"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </>
+  );
   
   return (
     <div className="h-full overflow-y-auto relative bg-white rounded-lg">
@@ -598,7 +675,9 @@ const handleSubmit = async () => {
           exit={{ opacity: 0, x: activeSection === 'main' ? 20 : -20 }}
           transition={{ duration: 0.3 }}
         >
-          {activeSection === 'main' ? renderMainProfile() : renderPhotoGallery()}
+          {activeSection === 'main' ? renderMainProfile() : 
+           activeSection === 'photos' ? renderPhotoGallery() : 
+           renderChoosePrimaryPhoto()}
         </motion.div>
       </AnimatePresence>
       
@@ -609,14 +688,24 @@ const handleSubmit = async () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-16 right-4 z-50"
+            className="fixed bottom-20 right-4 z-50"
           >
             <button
-              onClick={handleSaveAll}
-              className="flex items-center bg-blue-500 text-white px-4 py-2 rounded-full shadow-lg"
+              onClick={handleSubmit}
+              disabled={loading}
+              className="flex items-center bg-blue-500 text-white px-4 py-2 rounded-full shadow-lg disabled:opacity-70"
             >
-              <Save size={18} className="mr-2" />
-              Save Changes
+              {loading ? (
+                <>
+                  <Loader size={18} className="mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save size={18} className="mr-2" />
+                  Save Changes
+                </>
+              )}
             </button>
           </motion.div>
         )}

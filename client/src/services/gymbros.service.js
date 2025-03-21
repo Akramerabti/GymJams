@@ -9,9 +9,7 @@ const gymbrosService = {
   
   setGuestToken(token) {
     if (token) {
-      localStorage.setItem('gymbros_guest_token', token);
-      
-      // Also update API headers
+      localStorage.getItem('gymbros_guest_token', token);
       api.defaults.headers.common['x-gymbros-guest-token'] = token;
     } else {
       localStorage.removeItem('gymbros_guest_token');
@@ -27,7 +25,7 @@ const gymbrosService = {
     delete api.defaults.headers.common['x-gymbros-guest-token'];
   },
 
-  // Helper method to ensure that any request includes the guest token if available
+  // Helper method for requests with guest token
   configWithGuestToken(additionalConfig = {}) {
     const guestToken = this.getGuestToken();
     const config = { ...additionalConfig };
@@ -167,6 +165,24 @@ const gymbrosService = {
     }
   },
 
+  async deleteProfile() {
+    try {
+      // Set up config with guest token
+      const config = this.configWithGuestToken();
+      
+      const response = await api.delete('/gym-bros/profile', config);
+      
+      return {
+        success: true,
+        message: response.data.message || 'Profile deleted successfully'
+      };
+    } catch (error) {
+      console.error('Error deleting profile:', error);
+      throw error;
+    }
+  },
+
+  // Get GymBros profile with proper handling of images
   async getGymBrosProfile() {
     try {
       // Create config with guest token explicitly added
@@ -175,6 +191,36 @@ const gymbrosService = {
       console.log('Making profile request with config:', JSON.stringify(config));
       
       const response = await api.get('/gym-bros/profile', config);
+      
+      // Process profile to ensure images are correctly formatted
+      if (response.data.profile) {
+        // Ensure images array exists
+        if (!response.data.profile.images) {
+          response.data.profile.images = [];
+        }
+        
+        // Fix image URLs if needed
+        response.data.profile.images = response.data.profile.images.map(imageUrl => {
+          // If it's already a full URL or starts with /, leave it alone
+          if (imageUrl.startsWith('http') || imageUrl.startsWith('/')) {
+            return imageUrl;
+          }
+          
+          // Otherwise, add the path prefix
+          return `/uploads/gym-bros/${imageUrl}`;
+        });
+        
+        // Ensure profileImage is set correctly
+        if (response.data.profile.profileImage) {
+          if (!response.data.profile.profileImage.startsWith('http') && 
+              !response.data.profile.profileImage.startsWith('/')) {
+            response.data.profile.profileImage = `/uploads/gym-bros/${response.data.profile.profileImage}`;
+          }
+        } else if (response.data.profile.images.length > 0) {
+          // Set first image as profile image if none is set
+          response.data.profile.profileImage = response.data.profile.images[0];
+        }
+      }
       
       // If we received a guest token in the response, update it
       if (response.data.guestToken) {
@@ -196,20 +242,28 @@ const gymbrosService = {
       const verificationToken = localStorage.getItem('verificationToken');
       const verifiedPhone = localStorage.getItem('verifiedPhone');
       
+      // Process profile data to ensure correct format for images
+      const processedData = { ...profileData };
+      
+      // Ensure images field is properly populated (server expects "images" field)
+      if (profileData.photos && Array.isArray(profileData.photos)) {
+        processedData.images = profileData.photos;
+      }
+      
       // Include verification token if available
       if (verificationToken && verifiedPhone) {
-        profileData.verificationToken = verificationToken;
+        processedData.verificationToken = verificationToken;
         
         // Make sure phone matches the verified one
-        if (!profileData.phone) {
-          profileData.phone = verifiedPhone;
+        if (!processedData.phone) {
+          processedData.phone = verifiedPhone;
         }
       }
       
       // Create request config with guest token
       const config = this.configWithGuestToken();
       
-      const response = await api.post('/gym-bros/profile', profileData, config);
+      const response = await api.post('/gym-bros/profile', processedData, config);
       
       // Handle guest token if received
       if (response.data.guestToken) {
@@ -456,12 +510,31 @@ const gymbrosService = {
       
       const response = await api.post('/gym-bros/profile-images', formData, config);
       
+      // Check if the response contains image URLs
+      if (!response.data || !response.data.imageUrls) {
+        console.error('Invalid response format:', response.data);
+        throw new Error('Invalid server response format');
+      }
+
+      // Ensure URLs are correctly formatted
+      const imageUrls = response.data.imageUrls.map(url => {
+        // If URL doesn't include the server origin, add it
+        if (!url.startsWith('http') && !url.startsWith('/')) {
+          return `/uploads/gym-bros/${url}`;
+        }
+        return url;
+      });
+      
       // Update guest token if one was returned
       if (response.data.guestToken) {
         this.setGuestToken(response.data.guestToken);
       }
       
-      return response.data;
+      return {
+        success: true,
+        imageUrls,
+        message: response.data.message || 'Images uploaded successfully'
+      };
     } catch (error) {
       console.error('Error uploading profile images:', error);
       
@@ -471,17 +544,6 @@ const gymbrosService = {
       }
       
       throw error;
-    }
-  },
-
-  async blobUrlToFile(blobUrl, filename = 'image.jpg') {
-    try {
-      const response = await fetch(blobUrl);
-      const blob = await response.blob();
-      return new File([blob], filename, { type: blob.type });
-    } catch (error) {
-      console.error('Error converting blob URL to file:', error);
-      throw new Error('Failed to process image');
     }
   },
 
@@ -502,7 +564,10 @@ const gymbrosService = {
         this.setGuestToken(response.data.guestToken);
       }
       
-      return response.data;
+      return {
+        success: true,
+        message: response.data.message || 'Image deleted successfully'
+      };
     } catch (error) {
       console.error('Error deleting profile image:', error);
       
@@ -512,6 +577,22 @@ const gymbrosService = {
       }
       
       throw error;
+    }
+  },
+
+  // Helper method to convert a blob URL to a File object
+  async blobUrlToFile(blobUrl, filename = 'image.jpg') {
+    try {
+      const response = await fetch(blobUrl);
+      const blob = await response.blob();
+      
+      // Create a File object
+      return new File([blob], filename, { 
+        type: blob.type || 'image/jpeg' 
+      });
+    } catch (error) {
+      console.error('Error converting blob URL to file:', error);
+      throw new Error('Failed to process image');
     }
   },
 

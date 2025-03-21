@@ -1,33 +1,56 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Cropper from 'react-easy-crop';
-import { Upload, X, Crop, Loader } from 'lucide-react';
+import { Upload, X, Crop, Loader, Check } from 'lucide-react';
 import gymbrosService from '../../services/gymbros.service';
 import { toast } from 'sonner';
 
-const ImageUploader = ({ images, onImagesChange }) => {
+const ImageUploader = ({ images = [], onImagesChange }) => {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedArea, setCroppedArea] = useState(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [editingImage, setEditingImage] = useState(null);
 
-  // Track local image state - these can be blob URLs or server URLs
+  // Track local image state
   const [localImages, setLocalImages] = useState([]);
   
   // Initialize local images from props
   useEffect(() => {
-    setLocalImages(images || []);
-  }, []);
+    if (images && images.length > 0) {
+      setLocalImages(images);
+    }
+  }, [images]);
 
   // Update parent when local images change
   useEffect(() => {
-    onImagesChange(localImages);
-  }, [localImages, onImagesChange]);
+    if (JSON.stringify(localImages) !== JSON.stringify(images)) {
+      onImagesChange(localImages);
+    }
+  }, [localImages, onImagesChange, images]);
 
   const onCropComplete = useCallback((croppedArea, croppedAreaPixels) => {
     setCroppedArea(croppedAreaPixels);
   }, []);
+
+  // Helper to check if a URL is a server URL or a blob URL
+  const isServerUrl = (url) => {
+    return !url.startsWith('blob:') && (
+      url.startsWith('http') || 
+      url.startsWith('/api/') || 
+      url.startsWith('/uploads/')
+    );
+  };
+
+  // Helper to extract image ID from server URL
+  const getImageIdFromUrl = (url) => {
+    if (!isServerUrl(url)) return null;
+    return url.split('/').pop();
+  };
+  
+  // Define the base URL for images
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
   // Convert image to blob for cropping
   const convertToBlob = async (imageUrl) => {
@@ -37,12 +60,14 @@ const ImageUploader = ({ images, onImagesChange }) => {
     }
 
     try {
+      // For server URLs, fetch and convert to blob
       const response = await fetch(imageUrl);
       const blob = await response.blob();
       return URL.createObjectURL(blob);
     } catch (error) {
       console.error('Error converting image to blob:', error);
-      return imageUrl;
+      toast.error('Unable to edit this image');
+      return null;
     }
   };
 
@@ -51,74 +76,78 @@ const ImageUploader = ({ images, onImagesChange }) => {
     
     // Validate file count
     if (files.length + localImages.length > 6) {
-      toast.error('You can only upload up to 6 images.');
+      toast.error(`You can only have 6 images total. You can add ${6 - localImages.length} more.`);
       return;
     }
+
+    // Validate file size and type
+    const validFiles = files.filter(file => {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name} is too large. Maximum size is 5MB.`);
+        return false;
+      }
+      
+      if (!file.type.startsWith('image/')) {
+        toast.error(`${file.name} is not an image.`);
+        return false;
+      }
+      
+      return true;
+    });
+    
+    if (validFiles.length === 0) return;
 
     setIsUploading(true);
     
     try {
-      // Process each file
-      const uploadPromises = files.map(async (file) => {
-        // Create a local blob URL for preview
-        const localUrl = URL.createObjectURL(file);
+      // Create blob URLs for preview while uploading
+      const newImageBlobs = validFiles.map(file => URL.createObjectURL(file));
+      
+      // Add blob URLs to local images for immediate preview
+      const updatedImages = [...localImages, ...newImageBlobs];
+      setLocalImages(updatedImages);
+      
+      // Try to upload files to the server
+      const uploadResult = await gymbrosService.uploadProfileImages(validFiles);
+      
+      if (uploadResult.success && uploadResult.imageUrls?.length > 0) {
+        // Replace blob URLs with actual server URLs
+        const finalImages = [...localImages];
         
-        // Create a FormData object for the file
-        const formData = new FormData();
-        formData.append('images', file);
-        
-        // Upload to server
-        try {
-          const response = await gymbrosService.uploadProfileImages([file]);
-          
-          if (response.success && response.imageUrls && response.imageUrls.length > 0) {
-            // Return the server URL (for persistence) but keep a reference to the blob URL for display
-            return {
-              localUrl, // For display
-              serverUrl: response.imageUrls[0], // For storage
-              file // Keep reference to original file
-            };
-          } else {
-            throw new Error('Upload failed');
+        // Replace the blob URLs with the server URLs (maintaining the order)
+        newImageBlobs.forEach((blobUrl, index) => {
+          const serverUrl = uploadResult.imageUrls[index];
+          if (serverUrl) {
+            const blobIndex = finalImages.indexOf(blobUrl);
+            if (blobIndex !== -1) {
+              finalImages[blobIndex] = serverUrl;
+            }
           }
-        } catch (error) {
-          console.error('Error uploading file:', error);
-          toast.error(`Failed to upload ${file.name}`);
-          // Return just the local URL in case of error
-          return { localUrl, file };
-        }
-      });
-      
-      // Wait for all uploads to complete
-      const uploadedImages = await Promise.all(uploadPromises);
-      
-      // Add new images to the existing ones
-      const newImages = [
-        ...localImages, 
-        ...uploadedImages.map(img => img.serverUrl || img.localUrl)
-      ];
-      
-      setLocalImages(newImages);
-      onImagesChange(newImages);
-      
-      toast.success(`${uploadedImages.length} image(s) uploaded successfully`);
+        });
+        
+        setLocalImages(finalImages);
+        toast.success(`${uploadResult.imageUrls.length} image(s) uploaded successfully`);
+      } else {
+        // Upload failed but we already have the blob URLs in the UI
+        // Keep the blob URLs for now, user can retry save later
+        toast.error('Failed to upload images to server. Changes not saved yet.');
+      }
     } catch (error) {
-      console.error('Error handling image upload:', error);
-      toast.error('Failed to process uploads');
+      console.error('Error uploading images:', error);
+      toast.error('Failed to upload images. Please try again.');
+      
+      // Remove the blob URLs that couldn't be uploaded
+      setLocalImages(prevImages => prevImages.filter(url => !newImageBlobs.includes(url)));
     } finally {
       setIsUploading(false);
     }
   };
 
   const handleCropSave = async () => {
-    if (!croppedArea || currentImageIndex === null) return;
+    if (!croppedArea || editingImage === null) return;
     
     try {
-      // Get the current image URL (could be blob or server URL)
-      const imageUrl = localImages[currentImageIndex];
-      
-      // Convert to blob if it's a server URL
-      const blobUrl = await convertToBlob(imageUrl);
+      setIsUploading(true);
       
       // Create a canvas for cropping
       const canvas = document.createElement('canvas');
@@ -126,7 +155,7 @@ const ImageUploader = ({ images, onImagesChange }) => {
       
       // Set crossOrigin to handle CORS issues with remote images
       image.crossOrigin = "anonymous";
-      image.src = blobUrl;
+      image.src = editingImage;
       
       // Wait for image to load
       await new Promise((resolve) => {
@@ -157,7 +186,7 @@ const ImageUploader = ({ images, onImagesChange }) => {
       
       // Convert canvas to blob
       const croppedBlob = await new Promise(resolve => {
-        canvas.toBlob(blob => resolve(blob), 'image/jpeg');
+        canvas.toBlob(blob => resolve(blob), 'image/jpeg', 0.9);
       });
       
       // Create a File object from the blob
@@ -165,39 +194,43 @@ const ImageUploader = ({ images, onImagesChange }) => {
         type: 'image/jpeg'
       });
       
-      // Upload cropped image to server
-      setIsUploading(true);
+      // Create a local blob URL for immediate preview
+      const croppedBlobUrl = URL.createObjectURL(croppedBlob);
       
-      try {
-        // Upload the cropped image
-        const response = await gymbrosService.uploadProfileImages([croppedFile]);
-        
-        if (response.success && response.imageUrls && response.imageUrls.length > 0) {
-          // Replace the image in the local array
-          const updatedImages = [...localImages];
-          updatedImages[currentImageIndex] = response.imageUrls[0];
-          
-          setLocalImages(updatedImages);
-          onImagesChange(updatedImages);
-          
-          toast.success('Image cropped and saved successfully');
-        } else {
-          throw new Error('Failed to upload cropped image');
-        }
-      } catch (error) {
-        console.error('Error uploading cropped image:', error);
-        toast.error('Failed to save cropped image');
-      } finally {
-        setIsUploading(false);
+      // Replace the image being edited with the cropped version in local state
+      const updatedImages = [...localImages];
+      if (currentImageIndex !== null && currentImageIndex < updatedImages.length) {
+        updatedImages[currentImageIndex] = croppedBlobUrl;
+        setLocalImages(updatedImages);
       }
       
-      // Clean up and reset state
-      setCurrentImageIndex(null);
-      setIsEditing(false);
+      // Try to upload the cropped image to server
+      const uploadResult = await gymbrosService.uploadProfileImages([croppedFile]);
       
+      if (uploadResult.success && uploadResult.imageUrls && uploadResult.imageUrls.length > 0) {
+        // Replace blob URL with server URL
+        const serverUrl = uploadResult.imageUrls[0];
+        
+        const finalImages = [...localImages];
+        const blobIndex = finalImages.indexOf(croppedBlobUrl);
+        if (blobIndex !== -1) {
+          finalImages[blobIndex] = serverUrl;
+          setLocalImages(finalImages);
+        }
+        
+        toast.success('Image cropped and saved successfully');
+      } else {
+        // Keep the blob URL for now, user can retry save later
+        toast.warning('Image cropped but not saved to server yet');
+      }
     } catch (error) {
-      console.error('Error saving cropped image:', error);
-      toast.error('Failed to save cropped image');
+      console.error('Error processing cropped image:', error);
+      toast.error('Failed to process cropped image');
+    } finally {
+      setIsUploading(false);
+      setIsEditing(false);
+      setEditingImage(null);
+      setCurrentImageIndex(null);
     }
   };
 
@@ -205,34 +238,43 @@ const ImageUploader = ({ images, onImagesChange }) => {
     // Get the image URL
     const imageUrl = localImages[index];
     
-    // Don't attempt to delete blob URLs from server
-    if (!imageUrl.startsWith('blob:')) {
+    // If it's a server URL, try to delete it from the server
+    if (isServerUrl(imageUrl)) {
       try {
-        // Extract the image ID from the URL
-        const imageId = imageUrl.split('/').pop();
-        
-        // Call the API to delete the image
-        await gymbrosService.deleteProfileImage(imageId);
-        toast.success('Image deleted successfully');
+        const imageId = getImageIdFromUrl(imageUrl);
+        if (imageId) {
+          await gymbrosService.deleteProfileImage(imageId);
+          toast.success('Image deleted from server');
+        }
       } catch (error) {
-        console.error('Error deleting image:', error);
+        console.error('Error deleting image from server:', error);
         toast.error('Failed to delete image from server');
+        // Continue anyway to remove from local state
       }
     }
     
-    // Update local state regardless of server operation result
+    // Update local state
     const updatedImages = localImages.filter((_, i) => i !== index);
     setLocalImages(updatedImages);
-    onImagesChange(updatedImages);
   };
 
   const handleEditImage = async (index) => {
-    // Convert server URL to blob if needed for editing
+    if (index < 0 || index >= localImages.length) return;
+    
     const imageUrl = localImages[index];
+    setCurrentImageIndex(index);
+    
     try {
+      // For server URLs, convert to blob first
       const blobUrl = await convertToBlob(imageUrl);
-      setCurrentImageIndex(index);
+      if (!blobUrl) return;
+      
+      setEditingImage(blobUrl);
       setIsEditing(true);
+      
+      // Reset crop and zoom
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
     } catch (error) {
       console.error('Error preparing image for editing:', error);
       toast.error('Failed to prepare image for editing');
@@ -241,12 +283,12 @@ const ImageUploader = ({ images, onImagesChange }) => {
 
   return (
     <div className="w-full h-full flex flex-col">
-      {isEditing && currentImageIndex !== null ? (
+      {isEditing && editingImage ? (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-lg h-full max-h-[90vh] flex flex-col relative">
             <div className="h-[80%] relative">
               <Cropper
-                image={localImages[currentImageIndex]}
+                image={editingImage}
                 crop={crop}
                 zoom={zoom}
                 aspect={7 / 10}
@@ -274,7 +316,11 @@ const ImageUploader = ({ images, onImagesChange }) => {
               
               <div className="flex justify-between">
                 <button
-                  onClick={() => setIsEditing(false)}
+                  onClick={() => {
+                    setIsEditing(false);
+                    setEditingImage(null);
+                    setCurrentImageIndex(null);
+                  }}
                   className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg"
                 >
                   Cancel
@@ -282,7 +328,7 @@ const ImageUploader = ({ images, onImagesChange }) => {
                 <button
                   onClick={handleCropSave}
                   disabled={isUploading}
-                  className="bg-primary text-white px-4 py-2 bg-blue-700 rounded-lg disabled:opacity-50 flex items-center justify-center"
+                  className="bg-blue-500 text-white px-4 py-2 rounded-lg disabled:opacity-50 flex items-center justify-center"
                 >
                   {isUploading ? (
                     <>
@@ -306,11 +352,17 @@ const ImageUploader = ({ images, onImagesChange }) => {
                   <div className="w-full h-full relative">
                     {/* Image with error handling */}
                     <img
-                      src={localImages[index]}
+                      src={localImages[index].startsWith('blob:') 
+                        ? localImages[index] 
+                        : (localImages[index].startsWith('http') 
+                            ? localImages[index] 
+                            : `${baseUrl}${localImages[index]}`)}
                       alt={`Uploaded ${index}`}
                       className="w-full h-full object-cover"
+                      crossOrigin="anonymous"
                       onError={(e) => {
                         // If image fails to load, show a fallback
+                        console.error('Image load error:', localImages[index]);
                         e.target.onerror = null; // Prevent infinite error loop
                         e.target.src = "/api/placeholder/400/600"; // Fallback image
                       }}
@@ -328,7 +380,7 @@ const ImageUploader = ({ images, onImagesChange }) => {
                         onClick={() => handleEditImage(index)}
                         className="self-center mt-auto bg-white p-2 rounded-full shadow-sm"
                       >
-                        <Crop size={16} className="text-primary" />
+                        <Crop size={16} className="text-blue-500" />
                       </button>
                     </div>
                   </div>

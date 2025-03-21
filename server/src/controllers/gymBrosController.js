@@ -380,9 +380,9 @@ export const uploadProfileImages = async (req, res) => {
       });
     }
     
-    // Add the new image URLs to the profile
-    const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000';
-    const imageUrls = req.files.map(file => `${baseUrl}/uploads/gymbros${file.filename}`);
+    // Add the new image paths to the profile - JUST USE THE FILENAME
+    // This is the key fix - just store the filename in the format "/uploads/filename.jpg"
+    const imageUrls = req.files.map(file => `/uploads/${file.filename}`);
     
     // Update the profile with new images
     profile.images = [...(profile.images || []), ...imageUrls];
