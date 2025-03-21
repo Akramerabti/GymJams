@@ -4,20 +4,18 @@ import { toast } from 'sonner';
 import { 
   Camera, ChevronLeft, Plus, Trash2, Share2, Link, User,
   PauseCircle, LogOut, MapPin, Calendar, Award, X, Save,
-  Loader, Edit, Pencil
+  Loader, Edit, Pencil, Check
 } from 'lucide-react';
 import api from '../../services/api';
 import gymbrosService from '../../services/gymbros.service';
-import ImageUploader from './ImageUploader';
+import PhotoEditor from './components/PhotoEditor';
 
 const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false }) => {
   const [formData, setFormData] = useState(userProfile || {});
   const [errors, setErrors] = useState({});
   const [activeSection, setActiveSection] = useState('main');
-  const [isUploading, setIsUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showSaveButton, setShowSaveButton] = useState(false);
-  const fileInputRef = useRef(null);
   
   useEffect(() => {
     if (userProfile) {
@@ -25,7 +23,6 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
       const initialData = {
         ...userProfile,
         photos: userProfile.images || [],
-        profileImage: userProfile.profileImage || (userProfile.images && userProfile.images.length > 0 ? userProfile.images[0] : null)
       };
       setFormData(initialData);
     }
@@ -76,109 +73,39 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     handleMultiSelectChange(field, newValues);
   };
 
+  // Handle photo updates from PhotoEditor
+  const handlePhotosChange = (newPhotos) => {
+    setFormData(prev => ({
+      ...prev,
+      photos: newPhotos,
+      // First photo is always the primary photo
+      profileImage: newPhotos.length > 0 ? newPhotos[0] : null
+    }));
+    setShowSaveButton(true);
+  };
+
   const handleSubmit = async () => {
     if (loading) return;
     
     setLoading(true);
     
     try {
-      // Check if we have blob URLs that need to be uploaded
-      const photos = formData.photos || [];
-      const blobPhotos = photos.filter(url => url.startsWith('blob:'));
+      // Ensure images array is synced with photos
+      const dataToSend = {
+        ...formData,
+        images: formData.photos || [],
+        // First photo is always the main profile image
+        profileImage: formData.photos && formData.photos.length > 0 ? formData.photos[0] : null
+      };
       
-      // If we have blob URLs, upload them first
-      if (blobPhotos.length > 0) {
-        try {
-          // Convert blob URLs to Files
-          const imageFiles = await Promise.all(
-            blobPhotos.map(async (blobUrl, index) => {
-              // Convert the blob URL to a File object
-              try {
-                const response = await fetch(blobUrl);
-                const blob = await response.blob();
-                return new File([blob], `image-${index}.jpg`, { type: blob.type || 'image/jpeg' });
-              } catch (error) {
-                console.error('Error converting blob to file:', error);
-                throw new Error('Failed to process image');
-              }
-            })
-          );
-          
-          // Upload the files
-          const uploadResult = await gymbrosService.uploadProfileImages(imageFiles);
-          
-          // Replace blob URLs with server URLs in formData
-          if (uploadResult.success && uploadResult.imageUrls?.length) {
-            // Create a mapping of indices to new URLs
-            const urlMapping = {};
-            blobPhotos.forEach((blobUrl, index) => {
-              if (index < uploadResult.imageUrls.length) {
-                urlMapping[blobUrl] = uploadResult.imageUrls[index];
-              }
-            });
-            
-            // Update photos array
-            const updatedPhotos = photos.map(url => 
-              urlMapping[url] || url
-            );
-            
-            // Also update profile image if it's a blob URL
-            let profileImage = formData.profileImage;
-            if (profileImage?.startsWith('blob:') && urlMapping[profileImage]) {
-              profileImage = urlMapping[profileImage];
-            }
-            
-            // Update formData with new URLs
-            setFormData(prev => ({
-              ...prev,
-              photos: updatedPhotos,
-              profileImage,
-              images: updatedPhotos // Ensure images are synced with photos
-            }));
-            
-            // Prepare data for saving to server
-            const dataToSend = {
-              ...formData,
-              photos: updatedPhotos,
-              profileImage,
-              images: updatedPhotos
-            };
-            
-            // Save the profile with server URLs
-            const response = await gymbrosService.createOrUpdateProfile(dataToSend);
-            
-            if (response.success) {
-              onProfileUpdated(response.profile);
-              toast.success('Profile updated successfully');
-              setShowSaveButton(false);
-            } else {
-              throw new Error(response.message || 'Failed to update profile');
-            }
-          } else {
-            throw new Error('Failed to upload images');
-          }
-        } catch (uploadError) {
-          console.error('Error uploading blob images:', uploadError);
-          toast.error('Failed to upload some images');
-          throw uploadError;
-        }
+      const response = await gymbrosService.createOrUpdateProfile(dataToSend);
+      
+      if (response.success) {
+        onProfileUpdated(response.profile);
+        toast.success('Profile updated successfully');
+        setShowSaveButton(false);
       } else {
-        // No blob URLs to upload, just save the profile data
-        // Ensure images array is synced with photos
-        const dataToSend = {
-          ...formData,
-          images: formData.photos // Sync images with photos
-        };
-        
-        const response = await gymbrosService.createOrUpdateProfile(dataToSend);
-        
-        if (response.success) {
-          onProfileUpdated(response.profile);
-          toast.success('Profile updated successfully');
-          setShowSaveButton(false);
-        } else {
-          throw new Error(response.message || 'Failed to update profile');
-        }
+        throw new Error(response.message || 'Failed to update profile');
       }
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -186,18 +113,6 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     } finally {
       setLoading(false);
     }
-  };
-
-  // Photo management functions
-  const handleImagesChange = (newImages) => {
-    setFormData(prev => ({ 
-      ...prev, 
-      photos: newImages,
-      // If no profile image is set, use the first image
-      profileImage: prev.profileImage || (newImages.length > 0 ? newImages[0] : null)
-    }));
-    
-    setShowSaveButton(true);
   };
 
   // Specialized action handlers
@@ -376,18 +291,18 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
         className="relative w-full aspect-square bg-gray-100 mb-4 cursor-pointer"
         onClick={() => setActiveSection('photos')}
       >
-        {formData.profileImage ? (
+        {formData.photos && formData.photos.length > 0 ? (
           <img 
-            src={formData.profileImage.startsWith('blob:') 
-              ? formData.profileImage 
-              : (formData.profileImage.startsWith('http') 
-                  ? formData.profileImage 
-                  : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${formData.profileImage}`)} 
+            src={formData.photos[0].startsWith('blob:') 
+              ? formData.photos[0] 
+              : (formData.photos[0].startsWith('http') 
+                  ? formData.photos[0] 
+                  : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${formData.photos[0]}`)} 
             alt="Profile" 
             className="w-full h-full object-cover"
             crossOrigin="anonymous"
             onError={(e) => {
-              console.error('Image load error:', formData.profileImage);
+              console.error('Image load error:', formData.photos[0]);
               e.target.onerror = null;
               e.target.src = "/api/placeholder/400/600";
             }}
@@ -525,7 +440,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     </>
   );
 
-  // Photo gallery section
+  // Photo editor section
   const renderPhotoGallery = () => (
     <>
       <div className="sticky top-0 z-10 bg-white p-4 border-b flex items-center">
@@ -538,129 +453,13 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
         <h2 className="ml-4 text-xl font-semibold">Edit Photos</h2>
       </div>
       
-      <div className="p-4">
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-2">Profile Picture</h3>
-          <div className="bg-gray-100 w-32 h-32 rounded-full overflow-hidden mx-auto mb-2">
-            {formData.profileImage ? (
-              <img 
-                src={formData.profileImage.startsWith('blob:') 
-                  ? formData.profileImage 
-                  : (formData.profileImage.startsWith('http') 
-                      ? formData.profileImage 
-                      : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${formData.profileImage}`)} 
-                alt="Profile" 
-                className="w-full h-full object-cover"
-                crossOrigin="anonymous"
-                onError={(e) => {
-                  console.error('Image load error:', formData.profileImage);
-                  e.target.onerror = null;
-                  e.target.src = "/api/placeholder/400/600";
-                }}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <User size={32} className="text-gray-400" />
-              </div>
-            )}
-          </div>
-          <p className="text-sm text-center text-gray-500 mb-4">
-            Your main profile picture
-          </p>
-          
-          {/* Add select main photo button if there are multiple photos */}
-          {formData.photos && formData.photos.length > 1 && (
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => setActiveSection('choosePrimary')}
-                className="px-4 py-2 bg-blue-500 text-white rounded-md inline-flex items-center"
-              >
-                <Edit size={16} className="mr-2" />
-                Choose Primary Photo
-              </button>
-            </div>
-          )}
-        </div>
-
-        <h3 className="text-lg font-semibold mb-4">Your Photos</h3>
-        
-        {/* Use the ImageUploader component */}
-        <ImageUploader 
-          images={formData.photos || []} 
-          onImagesChange={handleImagesChange} 
+      <div className="p-4 pb-20">
+        {/* Use the new PhotoEditor component */}
+        <PhotoEditor 
+          photos={formData.photos || []}
+          onPhotosChange={handlePhotosChange}
+          maxPhotos={6}
         />
-        
-        <div className="mt-4 text-sm text-gray-500 text-center">
-          Add 2-6 photos to showcase your fitness journey.
-        </div>
-      </div>
-    </>
-  );
-
-  // Choose primary photo section
-  const renderChoosePrimaryPhoto = () => (
-    <>
-      <div className="sticky top-0 z-10 bg-white p-4 border-b flex items-center">
-        <button 
-          className="p-2 rounded-full bg-gray-100"
-          onClick={() => setActiveSection('photos')}
-        >
-          <ChevronLeft size={20} />
-        </button>
-        <h2 className="ml-4 text-xl font-semibold">Choose Primary Photo</h2>
-      </div>
-      
-      <div className="p-4">
-        <p className="text-gray-600 mb-4">
-          Tap on the photo you'd like to use as your main profile picture.
-        </p>
-        
-        <div className="grid grid-cols-2 gap-4">
-          {(formData.photos || []).map((photoUrl, index) => (
-            <div 
-              key={index}
-              className={`relative aspect-[7/10] rounded-lg overflow-hidden border-2 ${
-                photoUrl === formData.profileImage ? 'border-blue-500' : 'border-transparent'
-              }`}
-              onClick={() => {
-                setFormData(prev => ({
-                  ...prev,
-                  profileImage: photoUrl
-                }));
-                setShowSaveButton(true);
-              }}
-            >
-              <img
-                src={photoUrl}
-                alt={`Photo ${index + 1}`}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = "/api/placeholder/400/600";
-                }}
-              />
-              
-              {photoUrl === formData.profileImage && (
-                <div className="absolute inset-0 bg-blue-500/10 flex items-center justify-center">
-                  <div className="bg-white p-2 rounded-full">
-                    <Check size={20} className="text-blue-500" />
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-        
-        <div className="mt-6 flex justify-center">
-          <button
-            type="button"
-            onClick={() => setActiveSection('photos')}
-            className="px-4 py-2 bg-blue-500 text-white rounded-full"
-          >
-            Done
-          </button>
-        </div>
       </div>
     </>
   );
@@ -675,9 +474,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
           exit={{ opacity: 0, x: activeSection === 'main' ? 20 : -20 }}
           transition={{ duration: 0.3 }}
         >
-          {activeSection === 'main' ? renderMainProfile() : 
-           activeSection === 'photos' ? renderPhotoGallery() : 
-           renderChoosePrimaryPhoto()}
+          {activeSection === 'main' ? renderMainProfile() : renderPhotoGallery()}
         </motion.div>
       </AnimatePresence>
       
