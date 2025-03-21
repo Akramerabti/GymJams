@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import gymbrosService from '../../services/gymbros.service';
-import PhotoEditor from './components/PhotoEditor';
+import PhotoEditor from './components/PhotoEditor'; // Add this import
 
 const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false }) => {
   const [formData, setFormData] = useState(userProfile || {});
@@ -454,11 +454,10 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
       </div>
       
       <div className="p-4 pb-20">
-        {/* Use the new PhotoEditor component */}
         <PhotoEditor 
           photos={formData.photos || []}
           onPhotosChange={handlePhotosChange}
-          maxPhotos={6}
+          maxPhotos={9}
         />
       </div>
     </>
