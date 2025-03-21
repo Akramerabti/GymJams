@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 import { 
   Dumbbell, ChevronRight, ChevronLeft, Moon, Sun
 } from 'lucide-react';
-import api from '../../services/api';
 import useAuthStore from '../../stores/authStore';
 import { buildSteps } from './buildSteps';
 import gymbrosService from '../../services/gymbros.service';
@@ -34,6 +33,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
       address: '',
     },
     images: [],
+    photos: [], // Explicitly add photos array for ImageUploader
   });
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -208,96 +208,96 @@ const GymBrosSetup = ({ onProfileCreated }) => {
     }
   };
   
-const handleSubmit = async () => {
-  if (!isPhoneVerified) {
-    toast.error('Please verify your phone number before proceeding.');
-    return;
-  }
+  const handleSubmit = async () => {
+    if (!isPhoneVerified) {
+      toast.error('Please verify your phone number before proceeding.');
+      return;
+    }
 
-  setLoading(true);
+    setLoading(true);
 
-  try {
-    console.log('Beginning profile submission process...');
+    try {
+      console.log('Beginning profile submission process...');
 
-    // Step 1: First upload all images (if any)
-    let uploadedImageUrls = [];
-    
-    if (imageUploaderRef.current) {
-      console.log('Uploading images first...');
+      // Step 1: First upload all images (if any)
+      let uploadedImageUrls = [];
       
-      try {
-        const { uploadedUrls, failedIndices } = await imageUploaderRef.current.uploadAllImages();
+      if (imageUploaderRef.current) {
+        console.log('Uploading images first...');
         
-        if (failedIndices.length > 0) {
-          toast.error('Failed to upload some images. Please try again.');
+        try {
+          const { uploadedUrls, failedIndices } = await imageUploaderRef.current.uploadAllImages();
+          
+          if (failedIndices && failedIndices.length > 0) {
+            toast.error('Failed to upload some images. Please try again.');
+            setLoading(false);
+            return;
+          }
+          
+          uploadedImageUrls = uploadedUrls || [];
+          console.log('Successfully uploaded images:', uploadedImageUrls);
+        } catch (uploadError) {
+          console.error('Error uploading images:', uploadError);
+          toast.error('Failed to upload images. Please try again.');
           setLoading(false);
           return;
         }
-        
-        uploadedImageUrls = uploadedUrls || [];
-        console.log('Successfully uploaded images:', uploadedImageUrls);
-      } catch (uploadError) {
-        console.error('Error uploading images:', uploadError);
-        toast.error('Failed to upload images. Please try again.');
-        setLoading(false);
-        return;
       }
-    }
-    
-    // Step 2: Check for existing profile if in login mode
-    if (authMode === 'login' && verificationToken) {
-      try {
-        const profileResponse = await gymbrosService.getGymBrosProfile();
+      
+      // Step 2: Check for existing profile if in login mode
+      if (authMode === 'login' && verificationToken) {
+        try {
+          const profileResponse = await gymbrosService.getGymBrosProfile();
 
-        if (profileResponse.success && profileResponse.hasProfile) {
-          toast.success('Profile found!');
-          onProfileCreated(profileResponse.profile);
-          setLoading(false);
-          return; // Exit early as we're done
-        } else {
-          console.warn('No profile found or profile check failed:', profileResponse.message);
+          if (profileResponse.success && profileResponse.hasProfile) {
+            toast.success('Profile found!');
+            onProfileCreated(profileResponse.profile);
+            setLoading(false);
+            return; // Exit early as we're done
+          } else {
+            console.warn('No profile found or profile check failed:', profileResponse.message);
+          }
+        } catch (profileError) {
+          console.error('Error checking for profile:', profileError);
+          toast.error('Failed to check for profile: ' + (profileError.response?.data?.message || profileError.message));
         }
-      } catch (profileError) {
-        console.error('Error checking for profile:', profileError);
-        toast.error('Failed to check for profile: ' + (profileError.response?.data?.message || profileError.message));
       }
+
+      // Step 3: Now prepare the payload with uploaded image URLs (not blob URLs)
+      const payload = {
+        ...profileData,
+        verificationToken, // Include the verification token
+        // Use the uploaded image URLs and remove any blob URLs
+        images: uploadedImageUrls,
+        // Clear any potential blob URLs in the photos field
+        photos: undefined
+      };
+
+      console.log('Creating profile with payload (including real image URLs):', {
+        ...payload,
+        images: uploadedImageUrls.length > 0 ? `${uploadedImageUrls.length} images uploaded` : 'No images'
+      });
+
+      // Step 4: Create or update the profile
+      const response = await gymbrosService.createOrUpdateProfile(payload);
+
+      if (response.success) {
+        toast.success('Profile created successfully!');
+        onProfileCreated(response.profile); // Notify parent component
+      } else {
+        toast.error(response.message || 'Failed to create profile');
+      }
+    } catch (error) {
+      console.error('Error creating/updating profile:', error);
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          'Failed to create/update profile'
+      );
+    } finally {
+      setLoading(false);
     }
-
-    // Step 3: Now prepare the payload with uploaded image URLs (not blob URLs)
-    const payload = {
-      ...profileData,
-      verificationToken, // Include the verification token
-      // Use the uploaded image URLs and remove any blob URLs
-      images: uploadedImageUrls,
-      // Clear any potential blob URLs in the photos field
-      photos: undefined
-    };
-
-    console.log('Creating profile with payload (including real image URLs):', {
-      ...payload,
-      images: uploadedImageUrls.length > 0 ? `${uploadedImageUrls.length} images uploaded` : 'No images'
-    });
-
-    // Step 4: Create or update the profile
-    const response = await gymbrosService.createOrUpdateProfile(payload);
-
-    if (response.success) {
-      toast.success('Profile created successfully!');
-      onProfileCreated(response.profile); // Notify parent component
-    } else {
-      toast.error(response.message || 'Failed to create profile');
-    }
-  } catch (error) {
-    console.error('Error creating/updating profile:', error);
-    toast.error(
-      error.response?.data?.message ||
-        error.message ||
-        'Failed to create/update profile'
-    );
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const goToNextStep = () => {
     const currentStepConfig = steps[currentStep];

@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   Dumbbell, CheckCircle, Award, Clock, 
-  MapPin, Target, Phone, LogIn, User
+  MapPin, Target, Phone, LogIn, User, Camera
 } from 'lucide-react';
 import PhoneVerification from './PhoneVerification';
 import ImageUploader from './ImageUploader';
@@ -50,6 +50,38 @@ export const buildSteps = ({
 
   // Start with common steps
   let stepsList = [
+    {
+          id: 'welcome',
+          title: 'Welcome to GymBros',
+          subtitle: 'Find your perfect gym partner',
+          icon: <Dumbbell className="h-5 w-5 text-blue-500" />,
+          component: (
+            <div className="text-center px-4 py-8">
+              <Dumbbell size={64} className="mx-auto text-blue-500 mb-4" />
+              <h2 className="text-2xl font-bold mb-3">Find Your Perfect Gym Partner</h2>
+              <p className="text-gray-600 mb-6">
+                Connect with people who share your fitness goals and schedule. Get started by creating a profile.
+              </p>
+              
+              {!isAuthenticated && showPhoneLogin && (
+                <button
+                  onClick={handleLoginWithPhone}
+                  className="w-full bg-blue-100 text-blue-700 py-3 px-4 rounded-lg hover:bg-blue-200 transition-colors mb-3"
+                >
+                  Already have an account? Log in
+                </button>
+              )}
+              
+              <button
+                onClick={goToNextStep}
+                className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Let's Get Started
+              </button>
+            </div>
+          ),
+          isValid: () => true, // Always valid
+        },
     {
       id: 'name',
       title: "What's your name?",
@@ -332,20 +364,27 @@ export const buildSteps = ({
         )
       },
       {
-        id: 'images',
-        title: "Show off your gains",
-        subtitle: "Upload 2-6 images (16:9 ratio)",
-        icon: <CheckCircle size={24} />,
-        isValid: () => profileData.images.length >= 2,
-        component: (
-          <ImageUploader 
-            ref={imageUploaderRef} // Add this ref to access the component methods
-            images={profileData.images}
-            onImagesChange={(images) => handleChange('images', images)}
-            uploadAfterCompletion={true} // Set this to true to defer uploads
-          />
-        )
-      },
+            id: 'images',
+            title: 'Add Photos',
+            subtitle: 'Add at least 2 photos of yourself',
+            icon: <Camera className="h-5 w-5 text-blue-500" />,
+            component: (
+              <div className="w-full">
+                <p className="text-sm text-gray-500 mb-4">
+                  Add photos that clearly show your face and your physique. Your first photo will be your profile picture.
+                </p>
+                <ImageUploader
+                  ref={imageUploaderRef}
+                  images={profileData.photos || []}
+                  onImagesChange={(images) => handleChange('photos', images)}
+                  maxPhotos={6}
+                />
+              </div>
+            ),
+            isValid: () => 
+              // Check if there are at least 2 valid photos (not empty strings)
+              (profileData.photos && profileData.photos.filter(Boolean).length >= 2),
+          },
       {
         id: 'workoutTypes',
         title: "What workouts do you enjoy?",
