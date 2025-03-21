@@ -382,7 +382,7 @@ export const uploadProfileImages = async (req, res) => {
     
     // Add the new image URLs to the profile
     const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000';
-    const imageUrls = req.files.map(file => `${baseUrl}/uploads/${file.filename}`);
+    const imageUrls = req.files.map(file => `${baseUrl}/uploads/gymbros${file.filename}`);
     
     // Update the profile with new images
     profile.images = [...(profile.images || []), ...imageUrls];
