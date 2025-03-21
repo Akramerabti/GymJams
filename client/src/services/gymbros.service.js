@@ -424,29 +424,39 @@ const gymbrosService = {
     }
   },
 
-  async uploadProfileImages(images) {
+  async uploadProfileImages(imageFiles) {
     try {
-      const formData = new FormData();
-      images.forEach(image => {
-        formData.append('images', image);
-      });
-      
-      // Add guest token
-      const guestToken = this.getGuestToken();
-      if (guestToken) {
-        formData.append('guestToken', guestToken);
+      // Validate input
+      if (!imageFiles || !imageFiles.length) {
+        throw new Error('No images provided');
       }
       
-      // Add headers with guest token
-      const config = this.configWithGuestToken({
+      // Create FormData for the files
+      const formData = new FormData();
+      imageFiles.forEach(file => {
+        formData.append('images', file);
+      });
+      
+      // Get guest token if available
+      const guestToken = this.getGuestToken();
+      
+      // Set up config with guest token and content type
+      const config = {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
-      });
+      };
+      
+      // Add guest token to headers if available
+      if (guestToken) {
+        config.headers['x-gymbros-guest-token'] = guestToken;
+      }
+      
+      console.log('Uploading images with config:', JSON.stringify(config));
       
       const response = await api.post('/gym-bros/profile-images', formData, config);
       
-      // Update guest token if returned
+      // Update guest token if one was returned
       if (response.data.guestToken) {
         this.setGuestToken(response.data.guestToken);
       }
@@ -454,18 +464,40 @@ const gymbrosService = {
       return response.data;
     } catch (error) {
       console.error('Error uploading profile images:', error);
+      
+      // Provide more specific error message if available
+      if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+      
       throw error;
+    }
+  },
+
+  async blobUrlToFile(blobUrl, filename = 'image.jpg') {
+    try {
+      const response = await fetch(blobUrl);
+      const blob = await response.blob();
+      return new File([blob], filename, { type: blob.type });
+    } catch (error) {
+      console.error('Error converting blob URL to file:', error);
+      throw new Error('Failed to process image');
     }
   },
 
   async deleteProfileImage(imageId) {
     try {
-      // Add guest token
+      // Validate input
+      if (!imageId) {
+        throw new Error('No image ID provided');
+      }
+      
+      // Set up config with guest token
       const config = this.configWithGuestToken();
       
       const response = await api.delete(`/gym-bros/profile-image/${imageId}`, config);
       
-      // Update guest token if returned
+      // Update guest token if one was returned
       if (response.data.guestToken) {
         this.setGuestToken(response.data.guestToken);
       }
@@ -473,6 +505,12 @@ const gymbrosService = {
       return response.data;
     } catch (error) {
       console.error('Error deleting profile image:', error);
+      
+      // Provide more specific error message if available
+      if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+      
       throw error;
     }
   },

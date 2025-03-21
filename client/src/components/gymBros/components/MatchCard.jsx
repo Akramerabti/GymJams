@@ -13,6 +13,8 @@ const MatchCard = ({
   const [dragStartX, setDragStartX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [swipeDirection, setSwipeDirection] = useState(null);
+
+  console.log(profile);
   
   // Handle drag start
   const handleDragStart = (event, info) => {

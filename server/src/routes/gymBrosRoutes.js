@@ -3,6 +3,7 @@
 import express from 'express';
 import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
 import { handleGuestUser } from '../middleware/guestUser.middleware.js';
+import upload from '../config/multer.js';
 
 const router = express.Router();
 
@@ -27,8 +28,6 @@ import {
   checkGymBrosProfileByPhone,
   convertGuestToUser
 } from '../controllers/gymBrosController.js';
-
-import upload from '../config/multer.js';
 
 // Apply guest user middleware to all routes
 router.use(handleGuestUser);
@@ -75,7 +74,7 @@ router.put('/settings', optionalAuthenticate, updateUserSettings);
 // Like a GymBros profile - works with guests
 router.post('/like/:profileId', optionalAuthenticate, likeGymBrosProfile);
 
-// Dislike a GymBros profile - works with guests 
+// Dislike a GymBros profile - works with guests
 router.post('/dislike/:profileId', optionalAuthenticate, dislikeGymBrosProfile);
 
 // Get user matches - works with guests
@@ -86,5 +85,4 @@ router.post('/check-phone', checkPhoneExists);
 router.post('/send-verification', sendVerificationCode);
 router.post('/verify-code', verifyCode);
 
-// Export the router
 export default router;

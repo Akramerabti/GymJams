@@ -6,7 +6,7 @@ import {
   PauseCircle, LogOut, MapPin, Calendar, Award, X, Save
 } from 'lucide-react';
 import api from '../../services/api';
-import EnhancedProfileCard from './EnhancedProfileCard';
+import ImageUploader from './ImageUploader';
 
 const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
   const [formData, setFormData] = useState(userProfile || {});
@@ -104,22 +104,35 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
     setIsUploading(true);
     
     try {
-      const formDataObj = new FormData();
-      formDataObj.append('photo', file);
+      // Upload using the service
+      const result = await gymbrosService.uploadProfileImages([file]);
       
-      const response = await api.post('/gym-bros/profile/photo', formDataObj);
-      
-      // Update photos array or create new one
-      const updatedPhotos = [...(formData.photos || []), response.data.photoUrl];
-      setFormData(prev => ({ ...prev, photos: updatedPhotos }));
-      
-      // Main profile photo if none exists
-      if (!formData.profileImage) {
-        setFormData(prev => ({ ...prev, profileImage: response.data.photoUrl }));
+      if (result.success && result.imageUrls && result.imageUrls.length > 0) {
+        const newImageUrl = result.imageUrls[0];
+        
+        // Update form data with the new image URL
+        setFormData(prev => {
+          // Add to photos array if it exists
+          const updatedPhotos = [...(prev.photos || []), newImageUrl];
+          
+          // Also set as main profile image if none exists
+          const updatedData = { 
+            ...prev, 
+            photos: updatedPhotos 
+          };
+          
+          if (!prev.profileImage) {
+            updatedData.profileImage = newImageUrl;
+          }
+          
+          return updatedData;
+        });
+        
+        toast.success('Photo added');
+        setShowSaveButton(true);
+      } else {
+        throw new Error('Upload failed');
       }
-      
-      toast.success('Photo added');
-      setShowSaveButton(true); // Show save button after adding photo
     } catch (error) {
       console.error('Error uploading photo:', error);
       toast.error('Failed to upload photo');
@@ -130,21 +143,35 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
 
   const handleDeletePhoto = async (photoUrl) => {
     try {
-      await api.delete('/gym-bros/profile/photo', { data: { photoUrl } });
+      // Extract the image ID from the URL
+      const imageId = photoUrl.split('/').pop();
       
-      // Update photos list
-      const updatedPhotos = formData.photos.filter(url => url !== photoUrl);
-      setFormData(prev => ({ ...prev, photos: updatedPhotos }));
+      // Delete using the service
+      const result = await gymbrosService.deleteProfileImage(imageId);
       
-      // If main profile pic is deleted, set to next available
-      if (formData.profileImage === photoUrl && updatedPhotos.length > 0) {
-        setFormData(prev => ({ ...prev, profileImage: updatedPhotos[0] }));
-      } else if (formData.profileImage === photoUrl) {
-        setFormData(prev => ({ ...prev, profileImage: null }));
+      if (result.success) {
+        // Update photos list
+        const updatedPhotos = formData.photos.filter(url => url !== photoUrl);
+        
+        // Update form data
+        setFormData(prev => {
+          const updatedData = { ...prev, photos: updatedPhotos };
+          
+          // If main profile pic is deleted, set to next available
+          if (prev.profileImage === photoUrl && updatedPhotos.length > 0) {
+            updatedData.profileImage = updatedPhotos[0];
+          } else if (prev.profileImage === photoUrl) {
+            updatedData.profileImage = null;
+          }
+          
+          return updatedData;
+        });
+        
+        toast.success('Photo deleted');
+        setShowSaveButton(true);
+      } else {
+        throw new Error('Delete failed');
       }
-      
-      toast.success('Photo deleted');
-      setShowSaveButton(true); // Show save button after deleting photo
     } catch (error) {
       console.error('Error deleting photo:', error);
       toast.error('Failed to delete photo');
@@ -152,8 +179,26 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
   };
 
   const handleSetMainPhoto = (photoUrl) => {
-    setFormData(prev => ({ ...prev, profileImage: photoUrl }));
-    setShowSaveButton(true); // Show save button after setting main photo
+    if (!photoUrl) return;
+    
+    setFormData(prev => ({
+      ...prev,
+      profileImage: photoUrl
+    }));
+    
+    setShowSaveButton(true);
+    toast.success('Main profile picture updated');
+  };
+
+  const handleImagesChange = (newImages) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      photos: newImages,
+      // If no profile image is set, use the first image
+      profileImage: prev.profileImage || (newImages.length > 0 ? newImages[0] : null)
+    }));
+    
+    setShowSaveButton(true);
   };
 
   // Specialized action handlers
@@ -425,104 +470,123 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated }) => {
 
   // Photo gallery section
   const renderPhotoGallery = () => (
-    <>
-      <div className="sticky top-0 z-10 bg-white p-4 border-b flex items-center">
-        <button 
-          className="p-2 rounded-full bg-gray-100"
-          onClick={() => setActiveSection('main')}
-        >
-          <ChevronLeft size={20} />
-        </button>
-        <h2 className="ml-4 text-xl font-semibold">Edit Photos</h2>
-      </div>
-      
-      <div className="p-4">
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-2">Profile Picture</h3>
-          <div className="bg-gray-100 w-32 h-32 rounded-full overflow-hidden mx-auto mb-2">
-            {formData.profileImage ? (
-              <img 
-                src={formData.profileImage} 
-                alt="Profile" 
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <User size={32} className="text-gray-400" />
-              </div>
-            )}
-          </div>
-          <p className="text-sm text-center text-gray-500">
-            Your main profile picture
-          </p>
-        </div>
-
-        <h3 className="text-lg font-semibold mb-2">Your Photos</h3>
-        <div className="grid grid-cols-3 gap-2">
-          {/* Current photos */}
-          {(formData.photos || []).map((photo, index) => (
-            <div key={index} className="aspect-square relative rounded overflow-hidden">
-              <img 
-                src={photo} 
-                alt={`Photo ${index + 1}`} 
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 flex flex-col justify-between opacity-0 hover:opacity-100 transition-opacity bg-black/40 p-2">
-                <div className="flex justify-end">
-                  <button 
-                    className="p-1 bg-red-500 rounded-full"
-                    onClick={() => handleDeletePhoto(photo)}
-                  >
-                    <X size={16} className="text-white" />
-                  </button>
-                </div>
-                <button 
-                  className="w-full py-1 bg-blue-500 text-white text-xs rounded-sm"
-                  onClick={() => handleSetMainPhoto(photo)}
-                  disabled={formData.profileImage === photo}
-                >
-                  {formData.profileImage === photo ? 'Main Photo' : 'Set as Main'}
-                </button>
-              </div>
-            </div>
-          ))}
-          
-          {/* Add photo button */}
-          {(formData.photos || []).length < 6 && (
-            <div className="aspect-square bg-gray-100 rounded flex items-center justify-center">
-              <button 
-                className="w-full h-full flex flex-col items-center justify-center text-gray-500 hover:text-gray-700"
-                onClick={handleAddPhoto}
-                disabled={isUploading}
-              >
-                <Plus size={32} />
-                <span className="text-xs mt-1">Add Photo</span>
-              </button>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handlePhotoChange}
-                className="hidden"
-                accept="image/*"
-              />
+  <>
+    <div className="sticky top-0 z-10 bg-white p-4 border-b flex items-center">
+      <button 
+        className="p-2 rounded-full bg-gray-100"
+        onClick={() => setActiveSection('main')}
+      >
+        <ChevronLeft size={20} />
+      </button>
+      <h2 className="ml-4 text-xl font-semibold">Edit Photos</h2>
+    </div>
+    
+    <div className="p-4">
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold mb-2">Profile Picture</h3>
+        <div className="bg-gray-100 w-32 h-32 rounded-full overflow-hidden mx-auto mb-2">
+          {formData.profileImage ? (
+            <img 
+              src={formData.profileImage} 
+              alt="Profile" 
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <User size={32} className="text-gray-400" />
             </div>
           )}
-          
-          {/* Empty slots */}
-          {Array.from({ length: Math.max(0, 6 - (formData.photos?.length || 0) - 1) }).map((_, index) => (
-            <div 
-              key={`empty-${index}`} 
-              className="aspect-square bg-gray-100 rounded"
-            />
-          ))}
         </div>
-        
-        <div className="mt-4 text-sm text-gray-500 text-center">
-          Add up to 6 photos to showcase your fitness journey.
-        </div>
+        <p className="text-sm text-center text-gray-500">
+          Your main profile picture
+        </p>
       </div>
-    </>
-  );
+
+      <h3 className="text-lg font-semibold mb-2">Your Photos</h3>
+      
+      {/* Use the enhanced ImageUploader component */}
+      <ImageUploader 
+        images={formData.photos || []} 
+        onImagesChange={handleImagesChange} 
+      />
+      
+      <div className="mt-4 text-sm text-gray-500 text-center">
+        Add up to 6 photos to showcase your fitness journey.
+      </div>
+    </div>
+  </>
+);
+
+const handleSubmit = async () => {
+  if (loading) return;
+  
+  setLoading(true);
+  
+  try {
+    // Check if we have blob URLs that need to be uploaded
+    const photos = formData.photos || [];
+    const blobPhotos = photos.filter(url => url.startsWith('blob:'));
+    
+    // If we have blob URLs, upload them first
+    if (blobPhotos.length > 0) {
+      try {
+        // Convert blob URLs to Files
+        const imageFiles = await Promise.all(
+          blobPhotos.map((blobUrl, index) => 
+            gymbrosService.blobUrlToFile(blobUrl, `image-${index}.jpg`)
+          )
+        );
+        
+        // Upload the files
+        const uploadResult = await gymbrosService.uploadProfileImages(imageFiles);
+        
+        // Replace blob URLs with server URLs in formData
+        if (uploadResult.success && uploadResult.imageUrls?.length) {
+          // Create a mapping of indices to new URLs
+          const urlMapping = {};
+          blobPhotos.forEach((blobUrl, index) => {
+            if (index < uploadResult.imageUrls.length) {
+              urlMapping[blobUrl] = uploadResult.imageUrls[index];
+            }
+          });
+          
+          // Update photos array
+          const updatedPhotos = photos.map(url => 
+            urlMapping[url] || url
+          );
+          
+          // Also update profile image if it's a blob URL
+          let profileImage = formData.profileImage;
+          if (profileImage?.startsWith('blob:') && urlMapping[profileImage]) {
+            profileImage = urlMapping[profileImage];
+          }
+          
+          // Update formData with new URLs
+          setFormData(prev => ({
+            ...prev,
+            photos: updatedPhotos,
+            profileImage
+          }));
+        }
+      } catch (uploadError) {
+        console.error('Error uploading blob images:', uploadError);
+        toast.error('Failed to upload some images');
+        // Continue with save anyway
+      }
+    }
+    
+    // Now save the profile with server URLs
+    const response = await api.post('/gym-bros/profile', formData);
+    onProfileUpdated(response.data);
+    toast.success('Profile updated successfully');
+    setShowSaveButton(false);
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    toast.error('Failed to update profile');
+  } finally {
+    setLoading(false);
+  }
+};
   
   return (
     <div className="h-full overflow-y-auto relative bg-white rounded-lg">

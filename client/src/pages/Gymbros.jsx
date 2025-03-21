@@ -19,6 +19,7 @@ import GymBrosMatches from '../components/gymBros/GymBrosMatches';
 import GymBrosFilters from '../components/gymBros/GymBrosFilters';
 import GymBrosSettings from '../components/gymBros/GymBrosSettings';
 import EnhancedGymBrosProfile from '../components/gymBros/ProfileEditor';
+import GymBrosShop from '../components/gymBros/GymBrosShop';
 import { Link } from 'react-router-dom';
 
 import { useLocation } from 'react-router-dom';
@@ -843,33 +844,8 @@ const GymBros = () => {
           </div>
         );
       
-      case 'shop':
-        return (
-          <div className="h-[calc(100vh-136px)] p-4 overflow-y-auto pb-16">
-            <h2 className="text-xl font-bold mb-4">Fitness Shop</h2>
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { id: 1, name: 'Premium Membership', price: 9.99, image: '/api/placeholder/150/150' },
-                { id: 2, name: 'Workout Plan', price: 29.99, image: '/api/placeholder/150/150' },
-                { id: 3, name: 'Nutrition Guide', price: 19.99, image: '/api/placeholder/150/150' },
-                { id: 4, name: 'Personal Coach', price: 49.99, image: '/api/placeholder/150/150' }
-              ].map(item => (
-                <div key={item.id} className="bg-white rounded-lg shadow overflow-hidden">
-                  <img src={item.image} alt={item.name} className="w-full h-32 object-cover" />
-                  <div className="p-3">
-                    <h3 className="font-semibold text-sm">{item.name}</h3>
-                    <div className="flex justify-between items-center mt-2">
-                      <span className="font-bold">${item.price}</span>
-                      <button className="bg-blue-500 text-white px-2 py-1 rounded text-xs">
-                        Add to Cart
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
+        case 'shop':
+          return <GymBrosShop />;
       
       case 'profile':
         return (

@@ -324,20 +324,46 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
   }
 };
 
-// Upload multiple profile images
 export const uploadProfileImages = async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Get effective user (either authenticated or guest)
+    const effectiveUser = getEffectiveUser(req);
+    
+    // Need either userId, profileId or phone
+    if (!effectiveUser.userId && !effectiveUser.profileId && !effectiveUser.phone) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication required to upload images',
+        requiresVerification: true
+      });
+    }
     
     // If no files were uploaded
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ error: 'No images uploaded' });
+      return res.status(400).json({ 
+        success: false,
+        error: 'No images uploaded'
+      });
     }
     
-    // Get the profile
-    const profile = await GymBrosProfile.findOne({ userId });
+    // Find the profile
+    let profile;
+    
+    if (effectiveUser.isGuest) {
+      if (effectiveUser.profileId) {
+        profile = await GymBrosProfile.findById(effectiveUser.profileId);
+      } else if (effectiveUser.phone) {
+        profile = await GymBrosProfile.findOne({ phone: effectiveUser.phone });
+      }
+    } else {
+      profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+    }
+    
     if (!profile) {
-      return res.status(404).json({ error: 'Profile not found' });
+      return res.status(404).json({ 
+        success: false,
+        error: 'Profile not found'
+      });
     }
     
     // Check if adding these files would exceed the 6 image limit
@@ -348,6 +374,7 @@ export const uploadProfileImages = async (req, res) => {
       });
       
       return res.status(400).json({ 
+        success: false,
         error: 'Maximum 6 images allowed',
         message: `You can only upload ${6 - profile.images.length} more images`
       });
@@ -355,44 +382,94 @@ export const uploadProfileImages = async (req, res) => {
     
     // Add the new image URLs to the profile
     const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000';
-    const imageUrls = req.files.map(file => `${baseUrl}/uploads/gym-bros/${file.filename}`);
+    const imageUrls = req.files.map(file => `${baseUrl}/uploads/${file.filename}`);
     
     // Update the profile with new images
     profile.images = [...(profile.images || []), ...imageUrls];
     await profile.save();
     
-    res.status(201).json({ 
-      success: true, 
+    // For guest user, generate a new token with the updated profile ID
+    let responseData = {
+      success: true,
       imageUrls,
       message: `${req.files.length} image(s) uploaded successfully`
-    });
+    };
+    
+    if (effectiveUser.isGuest) {
+      const guestToken = generateGuestToken(effectiveUser.phone, profile._id);
+      responseData.guestToken = guestToken;
+    }
+    
+    res.status(201).json(responseData);
   } catch (error) {
     console.error('Error uploading profile images:', error);
+    
+    // Clean up any uploaded files on error
+    if (req.files && req.files.length > 0) {
+      req.files.forEach(file => {
+        try {
+          fs.unlinkSync(file.path);
+        } catch (unlinkError) {
+          console.error('Error deleting file after upload failure:', unlinkError);
+        }
+      });
+    }
+    
     handleError(error, req, res);
   }
 };
 
-// Delete a specific profile image
 export const deleteProfileImage = async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Get effective user (either authenticated or guest)
+    const effectiveUser = getEffectiveUser(req);
+    
+    // Need either userId, profileId or phone
+    if (!effectiveUser.userId && !effectiveUser.profileId && !effectiveUser.phone) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication required to delete image',
+        requiresVerification: true
+      });
+    }
+    
     const imageId = req.params.imageId;
     
-    // Get the profile
-    const profile = await GymBrosProfile.findOne({ userId });
+    // Find the profile
+    let profile;
+    
+    if (effectiveUser.isGuest) {
+      if (effectiveUser.profileId) {
+        profile = await GymBrosProfile.findById(effectiveUser.profileId);
+      } else if (effectiveUser.phone) {
+        profile = await GymBrosProfile.findOne({ phone: effectiveUser.phone });
+      }
+    } else {
+      profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+    }
+    
     if (!profile) {
-      return res.status(404).json({ error: 'Profile not found' });
+      return res.status(404).json({
+        success: false,
+        error: 'Profile not found'
+      });
     }
     
     // Find the image in the profile's images array
     const imagePath = profile.images.find(img => img.includes(imageId));
     if (!imagePath) {
-      return res.status(404).json({ error: 'Image not found' });
+      return res.status(404).json({
+        success: false,
+        error: 'Image not found'
+      });
     }
     
     // Must have at least one image
     if (!profile.images || profile.images.length <= 1) {
-      return res.status(400).json({ error: 'Cannot delete last image' });
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete last image'
+      });
     }
     
     // Remove image from profile
@@ -406,7 +483,18 @@ export const deleteProfileImage = async (req, res) => {
       fs.unlinkSync(filePath);
     }
     
-    res.json({ success: true, message: 'Image deleted successfully' });
+    // Prepare response with optional guest token
+    let responseData = {
+      success: true,
+      message: 'Image deleted successfully'
+    };
+    
+    if (effectiveUser.isGuest) {
+      const guestToken = generateGuestToken(effectiveUser.phone, profile._id);
+      responseData.guestToken = guestToken;
+    }
+    
+    res.json(responseData);
   } catch (error) {
     console.error('Error deleting profile image:', error);
     handleError(error, req, res);
