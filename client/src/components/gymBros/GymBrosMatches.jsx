@@ -1,329 +1,228 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  X, Heart, Star, ChevronLeft, ChevronRight, 
-  UserPlus, Loader, RefreshCw, Filter
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { X, Heart, ChevronLeft, ChevronRight, Info, MapPin, Clock, Award } from 'lucide-react';
 import { toast } from 'sonner';
-import gymbrosService from '../../services/gymbros.service';
-import MatchCard from './components/MatchCard';
-import ProfileDetailModal from './components/DiscoverProfileDetails';
-import { useGuestFlow } from './components/GuestFlowContext';
-import { useAuth } from '../../stores/authStore';
 
 const GymBrosMatches = ({ 
-  externalProfiles = null, 
-  externalLoading = null,
+  externalProfiles = [], 
+  externalLoading = false,
   onSwipe = null,
   onRefresh = null,
   filters = {}
 }) => {
-  // Get auth and guest contexts
-  const { user, isAuthenticated } = useAuth();
-  const { isGuest } = useGuestFlow();
-  
-  // State is managed internally if not provided as props
+  // State for tracking profiles and current index
   const [profiles, setProfiles] = useState(externalProfiles || []);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [loading, setLoading] = useState(externalLoading !== null ? externalLoading : true);
-  // Track if we're showing an auth warning toast
-  const [shownAuthWarning, setShownAuthWarning] = useState(false);
-  const [error, setError] = useState(null);
-  const [hasMore, setHasMore] = useState(true);
-  const [showProfileDetail, setShowProfileDetail] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [swipedProfiles, setSwipedProfiles] = useState([]);
-  const [viewStartTime, setViewStartTime] = useState(Date.now());
   
-  // Handle cases where props change
+  // Effect to update profiles when externally changed
   useEffect(() => {
     if (externalProfiles !== null) {
+      console.log("GymBrosMatches: Setting profiles from external source", externalProfiles.length);
       setProfiles(externalProfiles);
     }
   }, [externalProfiles]);
+  
+  // Calculate if we have a current profile to display
+  const currentProfile = profiles?.[currentIndex] || null;
+  const hasProfiles = profiles && profiles.length > 0;
 
-  useEffect(() => {
-    if (externalLoading !== null) {
-      setLoading(externalLoading);
-    }
-  }, [externalLoading]);
-
-  // Set view start time when profile changes
-  useEffect(() => {
-    if (profiles.length > 0 && currentIndex < profiles.length) {
-      setViewStartTime(Date.now());
-    }
-  }, [currentIndex, profiles]);
+  // Get base URL for images
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   
-  // Load profiles when component mounts (only if not provided externally)
-  useEffect(() => {
-    if (externalProfiles === null) {
-      loadProfiles(true);
-    }
-  }, [externalProfiles]);
-  
-  // Load profiles from API
-  const loadProfiles = async (reset = false) => {
-    if (loading || externalProfiles !== null) return;
+  // Format image URL
+  const formatImageUrl = (imageUrl) => {
+    if (!imageUrl) return "/api/placeholder/400/600";
     
-    setLoading(true);
-    setError(null);
-    
-    // Verify we have auth or guest context
-    if (!isAuthenticated && !isGuest && !shownAuthWarning) {
-      toast.warning('Using as guest', { 
-        description: 'You\'re currently using GymBros as a guest. Log in to save your progress.'
-      });
-      setShownAuthWarning(true);
-    }
-    
-    try {
-      // Get recommended profiles from service
-      const response = await gymbrosService.getRecommendedProfiles(filters);
-      
-      if (!response || response.length === 0) {
-        setHasMore(false);
-        if (reset) setProfiles([]);
-        return;
-      }
-      
-      // Filter out already swiped profiles
-      const newProfiles = response.filter(
-        profile => !swipedProfiles.includes(profile._id)
-      );
-      
-      // Update profiles state
-      setProfiles(prev => {
-        if (reset) return newProfiles;
-        return [...prev, ...newProfiles];
-      });
-      
-      // Reset index if requested
-      if (reset) {
-        setCurrentIndex(0);
-        setCurrentImageIndex(0);
-      }
-    } catch (err) {
-      console.error('Error loading profiles:', err);
-      setError('Failed to load profiles');
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  const handleSwipe = async (direction, profileId) => {
-    try {
-      // Check if profileId is valid
-      if (!profileId) {
-        console.error('Invalid profile ID for swipe:', profileId);
-        toast.error('Could not process swipe - profile data may be incomplete');
-        return;
-      }
-      
-      // Calculate view duration
-      const viewDuration = Date.now() - (viewStartTime || Date.now());
-      
-      // Add to swiped profiles to avoid showing again
-      setSwipedProfiles(prev => [...prev, profileId]);
-      
-      // If parent component provided onSwipe handler, use that
-      if (onSwipe) {
-        onSwipe(direction, profileId, viewDuration);
-      } else {
-        // Otherwise handle internally
-        if (direction === 'right') {
-          await gymbrosService.likeProfile(profileId, viewDuration);
-          // Subtle indication of successful like
-          toast.custom((t) => (
-            <div className="bg-white/80 backdrop-blur-sm p-2 rounded-full shadow-lg">
-              <Heart className="text-red-500 h-8 w-8" />
-            </div>
-          ), { position: 'top-center', duration: 1000 });
-        } else {
-          await gymbrosService.dislikeProfile(profileId, viewDuration);
-        }
-      }
-      
-      // Move to next profile
-      setCurrentIndex(prev => prev + 1);
-      setCurrentImageIndex(0); // Reset image index for next profile
-      
-      // If we're running low on profiles, load more
-      if (externalProfiles === null && currentIndex > profiles.length - 3 && hasMore) {
-        loadProfiles();
-      }
-    } catch (err) {
-      console.error('Error handling swipe:', err);
-      toast.error('Failed to process your action');
-    }
-  };
-  
-  // Handle refresh button
-  const handleRefresh = () => {
-    if (onRefresh) {
-      onRefresh();
+    if (imageUrl.startsWith('blob:')) {
+      return imageUrl;
+    } else if (imageUrl.startsWith('http')) {
+      return imageUrl;
     } else {
-      loadProfiles(true);
+      return `${baseUrl}${imageUrl}`;
     }
   };
   
-  // Current profile being displayed
-  const currentProfile = profiles[currentIndex];
+  // Get current image URL
+  const currentImage = currentProfile?.images && currentProfile.images.length > 0 
+    ? formatImageUrl(currentProfile.images[0])
+    : formatImageUrl(currentProfile?.profileImage);
+    
+  // Handle like/dislike
+  const handleAction = (direction) => {
+    if (!currentProfile) return;
+    
+    // Call the provided swipe handler
+    onSwipe?.(direction, currentProfile._id, 0);
+    
+    // Move to next profile
+    goToNextProfile();
+  };
   
-  // Render loading state
-  if (loading && profiles.length === 0) {
+  // Go to next profile
+  const goToNextProfile = () => {
+    if (currentIndex < profiles.length - 1) {
+      setCurrentIndex(prev => prev + 1);
+    } else {
+      // No more profiles
+      toast.info("You've seen all profiles for now");
+      onRefresh?.();
+    }
+  };
+  
+  // Go to previous profile
+  const goToPrevProfile = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(prev => prev - 1);
+    }
+  };
+  
+  // Display loading state when no profiles
+  if (externalLoading && !hasProfiles) {
     return (
-      <div className="h-full flex flex-col items-center justify-center">
-        <div className="relative h-12 w-12 mb-4">
-          <Loader size={48} className="animate-spin text-blue-500" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Heart size={24} className="text-blue-700" />
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="spinner w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p>Loading profiles...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Display empty state when no profiles
+  if (!hasProfiles) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center p-4">
+          <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center mx-auto mb-4">
+            <Heart size={32} className="text-gray-400" />
           </div>
+          <h3 className="text-xl font-bold mb-2">No profiles available</h3>
+          <p className="text-gray-500 mb-4">We couldn't find any profiles matching your criteria</p>
+          <button 
+            onClick={onRefresh}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Refresh
+          </button>
         </div>
-        <p className="text-gray-500">Finding your perfect gym partner...</p>
-      </div>
-    );
-  }
-  
-  // Render error state
-  if (error && profiles.length === 0) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center text-center p-4">
-        <div className="bg-red-100 p-4 rounded-full mb-4">
-          <X size={48} className="text-red-500" />
-        </div>
-        <h3 className="text-xl font-bold mb-2">Something went wrong</h3>
-        <p className="text-gray-500 mb-6">{error}</p>
-        <button
-          onClick={handleRefresh}
-          className="px-6 py-3 bg-blue-600 text-white rounded-full flex items-center shadow-lg hover:bg-blue-700 transition-colors"
-        >
-          <RefreshCw size={18} className="mr-2" />
-          Try Again
-        </button>
-      </div>
-    );
-  }
-  
-  // Render empty state
-  if (profiles.length === 0) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center text-center p-4">
-        <div className="bg-gray-100 p-4 rounded-full mb-4">
-          <UserPlus size={48} className="text-gray-400" />
-        </div>
-        <h3 className="text-xl font-bold mb-2">No more profiles</h3>
-        <p className="text-gray-500 mb-6">We couldn't find any more gym partners matching your criteria</p>
-        <button
-          onClick={handleRefresh}
-          className="px-6 py-3 bg-blue-600 text-white rounded-full flex items-center shadow-lg hover:bg-blue-700 transition-colors"
-        >
-          <RefreshCw size={18} className="mr-2" />
-          Refresh
-        </button>
-      </div>
-    );
-  }
-  
-  // If we've gone through all profiles
-  if (currentIndex >= profiles.length) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center text-center p-4">
-        <div className="bg-gray-100 p-4 rounded-full mb-4">
-          <RefreshCw size={48} className="text-gray-400" />
-        </div>
-        <h3 className="text-xl font-bold mb-2">You've seen all profiles</h3>
-        <p className="text-gray-500 mb-6">Check back later or try different filters</p>
-        <button
-          onClick={handleRefresh}
-          className="px-6 py-3 bg-blue-600 text-white rounded-full flex items-center shadow-lg hover:bg-blue-700 transition-colors"
-        >
-          <RefreshCw size={18} className="mr-2" />
-          Refresh
-        </button>
       </div>
     );
   }
   
   return (
-    <div className="h-full relative overflow-visible">
-      {/* Action buttons at bottom of screen */}
-      <div className="absolute bottom-8 left-0 right-0 z-10 flex justify-center items-center space-x-4">
-        <button
-          onClick={() => handleSwipe('left', currentProfile?._id)}
-          className="w-14 h-14 flex items-center justify-center rounded-full bg-white shadow-lg border border-gray-200 hover:bg-gray-50 active:scale-90 transition-transform"
-          aria-label="Dislike"
-        >
-          <X size={30} className="text-red-500" />
-        </button>
-        
-        <button
-          onClick={() => handleSwipe('right', currentProfile?._id)}
-          className="w-14 h-14 flex items-center justify-center rounded-full bg-white shadow-lg border border-gray-200 hover:bg-gray-50 active:scale-90 transition-transform"
-          aria-label="Like"
-        >
-          <Heart size={30} className="text-green-500" />
-        </button>
-      </div>
-      
-      {/* Card Stack - Added debugging borders and fixed height */}
-      <div className="relative w-full h-full flex items-center justify-center border-2 border-purple-500" style={{ minHeight: '500px' }}>
-        {/* Debug info box */}
-        <div className="absolute top-0 left-0 bg-yellow-200 p-2 z-50 text-xs">
-          Profile: {currentProfile ? `${currentProfile.name}, ${currentProfile.age}` : 'None'}
-        </div>
-  
-        {/* Card container with explicit dimensions */}
-        <div className="relative w-full h-full max-w-md mx-auto" style={{ minHeight: '70vh', zIndex: 40 }}>
-          <AnimatePresence mode="wait">
-            {currentProfile && (
-              <MatchCard
-                key={currentProfile._id}
-                profile={currentProfile}
-                onSwipe={handleSwipe}
-                currentImageIndex={currentImageIndex}
-                setCurrentImageIndex={setCurrentImageIndex}
-                onInfoClick={() => setShowProfileDetail(true)}
-              />
-            )}
-          </AnimatePresence>
-          
-          {/* Fallback card if animation fails */}
-          {currentProfile && (
-            <div className=" w-absolute inset-0 z-30 opacity-0 hover:opacity-100 transition-opacity">
-              <div className="bg-white rounded-xl shadow-lg w-full h-full overflow-hidden border-4 border-red-500">
-                <div className="p-4 bg-red-100">
-                  <h2 className="text-xl font-bold">
-                    Fallback: {currentProfile.name}, {currentProfile.age}
-                  </h2>
-                  <p>If you can see this, hover over the card area</p>
+    <div className="h-full flex flex-col">
+      {/* Profile cards - using a flex column container for stacking */}
+      <div className="flex-1 relative">
+        {/* Current Profile Card - Fixed 7:10 aspect ratio */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div 
+            className="w-full max-w-sm mx-auto relative"
+            style={{ 
+              aspectRatio: '7/10',
+              maxHeight: '80vh'
+            }}
+          >
+            {/* Card content */}
+            <div className="w-full h-full rounded-xl overflow-hidden shadow-xl bg-white relative">
+              {/* Image */}
+              <div className="w-full h-full relative">
+                {/* Main image */}
+                <img 
+                  src={currentImage}
+                  alt={currentProfile?.name || 'Profile'} 
+                  className="w-full h-full object-cover"
+                  style={{ objectPosition: 'center top' }}
+                  onError={(e) => {
+                    console.error('Image load error:', e.target.src);
+                    e.target.onerror = null;
+                    e.target.src = "/api/placeholder/400/600";
+                  }}
+                />
+                
+                {/* Gradient overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
+                
+                {/* Info button */}
+                <button
+                  onClick={() => {}}
+                  className="absolute top-4 right-4 p-2 rounded-full bg-white/30 backdrop-blur-sm text-white hover:bg-white/50 transition-colors"
+                >
+                  <Info size={20} />
+                </button>
+                
+                {/* Profile info overlay */}
+                <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                  <div className="flex items-center">
+                    <h2 className="text-3xl font-bold mr-2">{currentProfile?.name || 'Name'}</h2>
+                    <h3 className="text-2xl">{currentProfile?.age || '?'}</h3>
+                  </div>
+                  
+                  {/* Active status */}
+                  {currentProfile?.lastActive && (
+                    <div className="flex items-center mt-1 mb-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500 mr-1.5 animate-pulse"></div>
+                      <span className="text-green-300 text-sm">Recently active</span>
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center mt-1 mb-3">
+                    <MapPin size={16} className="mr-1" />
+                    <span>{currentProfile?.location?.distance || 0} miles away</span>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {currentProfile?.workoutTypes?.slice(0, 3).map(type => (
+                      <span key={type} className="bg-white/20 backdrop-blur-sm px-2 py-1 rounded-full text-xs">
+                        {type}
+                      </span>
+                    ))}
+                  </div>
+                  
+                  <div className="flex items-center space-x-3 text-sm mb-2">
+                    <div className="flex items-center">
+                      <Award size={14} className="mr-1" />
+                      <span>{currentProfile?.experienceLevel || 'Any level'}</span>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <Clock size={14} className="mr-1" />
+                      <span>{currentProfile?.preferredTime || 'Flexible'}</span>
+                    </div>
+                  </div>
+                  
+                  <p className="text-white/90 line-clamp-2 text-sm">
+                    {currentProfile?.bio || currentProfile?.goals || 'Looking for a workout partner'}
+                  </p>
                 </div>
               </div>
             </div>
-          )}
-        </div>
-        
-        {/* Show loading indicator when fetching more at the end */}
-        {loading && profiles.length > 0 && (
-          <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2">
-            <div className="bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full flex items-center shadow-md">
-              <Loader size={16} className="animate-spin text-blue-500 mr-2" />
-              <span className="text-sm text-gray-600">Loading more profiles...</span>
-            </div>
           </div>
-        )}
+        </div>
       </div>
       
-      {/* Profile Detail Modal */}
-      <ProfileDetailModal
-        profile={currentProfile}
-        isVisible={showProfileDetail}
-        onClose={() => setShowProfileDetail(false)}
-        currentImageIndex={currentImageIndex}
-        setCurrentImageIndex={setCurrentImageIndex}
-      />
+      {/* Navigation */}
+      <div className="p-4 flex justify-center space-x-6">
+        <button
+          onClick={() => handleAction('left')}
+          className="w-14 h-14 flex items-center justify-center rounded-full bg-white shadow-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+        >
+          <X size={24} className="text-red-500" />
+        </button>
+        
+        <button
+          onClick={() => handleAction('right')}
+          className="w-14 h-14 flex items-center justify-center rounded-full bg-white shadow-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+        >
+          <Heart size={24} className="text-green-500" />
+        </button>
+      </div>
+      
+      {/* Profile counter */}
+      <div className="pb-2 text-center text-sm text-gray-500">
+        Profile {currentIndex + 1} of {profiles.length}
+      </div>
     </div>
   );
-}
+};
 
 export default GymBrosMatches;

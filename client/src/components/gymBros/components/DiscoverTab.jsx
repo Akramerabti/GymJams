@@ -1,177 +1,289 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader, RefreshCw, Filter, Zap, Medal, Star, Dumbbell } from 'lucide-react';
+import { 
+  Loader, RefreshCw, Filter, Zap, Star, X, Heart, 
+  ArrowUp, Info, Crown
+} from 'lucide-react';
+import SwipeableCard from './SwipeableCard';
+import ProfileDetailModal from './DiscoverProfileDetails';
+import MatchModal from './MatchModal';
+import EmptyStateMessage from './components/EmptyStateMessage';
+import gymbrosService from '../../services/gymbros.service';
+import { usePoints } from '../../hooks/usePoints';
+import useAuthStore from '../../stores/authStore';
 import { toast } from 'sonner';
-import GymBrosMatches from '../GymBrosMatches';
-import { usePoints } from '../../../hooks/usePoints';
-import useAuthStore from '../../../stores/authStore';
 
 const DiscoverTab = ({ 
-  profiles, 
-  currentIndex, 
-  setCurrentIndex, 
-  handleSwipe, 
-  fetchProfiles, 
-  loading, 
+  fetchProfiles,
+  loading,
   filters,
-  setShowFilters
+  setShowFilters,
+  distanceUnit = 'miles'
 }) => {
-  // At the top of component - Add detailed logging
-  console.log("DiscoverTab: Received profiles:", 
-    profiles?.length,
-    "First profile:", profiles[0]?._id,
-    "Current index:", currentIndex);
-
   const { balance: pointsBalance, subtractPoints, updatePointsInBackend } = usePoints();
-  const { isAuthenticated } = useAuthStore();
-  const [showBoostOptions, setShowBoostOptions] = useState(false);
-  const [showSuperLikeOptions, setShowSuperLikeOptions] = useState(false);
-  const [refreshAnimation, setRefreshAnimation] = useState(false);
-  const [loadingText, setLoadingText] = useState('Finding your perfect gym partner');
-
-  // Animation for loading text
+  const { isAuthenticated, user } = useAuthStore();
+  const [profiles, setProfiles] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [showProfileDetail, setShowProfileDetail] = useState(false);
+  const [showMatchModal, setShowMatchModal] = useState(false);
+  const [matchedProfile, setMatchedProfile] = useState(null);
+  const [viewStartTime, setViewStartTime] = useState(Date.now());
+  const [loadingMoreProfiles, setLoadingMoreProfiles] = useState(false);
+  const [hasMoreProfiles, setHasMoreProfiles] = useState(true);
+  const [isPremium, setIsPremium] = useState(false); // Would be set based on user subscription
+  const [lastSwiped, setLastSwiped] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // Ref for the refresh pull gesture
+  const pullToRefreshRef = useRef(null);
+  const pullStartY = useRef(0);
+  const refreshThreshold = 100; // pixels to pull down to trigger refresh
+  
+  // Set initial profiles and determine if user has premium
   useEffect(() => {
-    if (loading) {
-      const texts = [
-        'Finding your perfect gym partner',
-        'Matching workout preferences',
-        'Calculating compatibility',
-        'Analyzing fitness goals'
-      ];
-      let index = 0;
-      const interval = setInterval(() => {
-        index = (index + 1) % texts.length;
-        setLoadingText(texts[index]);
-      }, 2000);
-      return () => clearInterval(interval);
+    // Check if user has premium subscription
+    if (user && user.subscription && user.subscription.level === 'premium') {
+      setIsPremium(true);
     }
-  }, [loading]);
-
-  // Handle swipe from the GymBrosMatches component
-  const handleSwipeFromMatchComponent = (direction, profileId, viewDuration) => {
-    console.log(`DiscoverTab: Swipe ${direction} received for profile ${profileId}`);
-    handleSwipe(direction, profileId);
+    
+    // Load initial profiles
+    loadInitialProfiles();
+  }, [user]);
+  
+  // Set view start time when profile changes
+  useEffect(() => {
+    if (profiles.length > 0 && currentIndex < profiles.length) {
+      setViewStartTime(Date.now());
+    }
+  }, [currentIndex, profiles]);
+  
+  // Load more profiles when running low
+  useEffect(() => {
+    if (profiles.length > 0 && currentIndex >= profiles.length - 2 && hasMoreProfiles && !loadingMoreProfiles) {
+      loadMoreProfiles();
+    }
+  }, [currentIndex, profiles.length, hasMoreProfiles]);
+  
+  // Set up pull-to-refresh handler
+  useEffect(() => {
+    const container = pullToRefreshRef.current;
+    if (!container) return;
+    
+    const handleTouchStart = (e) => {
+      pullStartY.current = e.touches[0].clientY;
+    };
+    
+    const handleTouchMove = (e) => {
+      const pullDistance = e.touches[0].clientY - pullStartY.current;
+      
+      // Only allow pull-down when at the top of the container
+      if (container.scrollTop === 0 && pullDistance > 0) {
+        // Prevent default to disable scrolling
+        e.preventDefault();
+        
+        // Apply pull-down effect with resistance
+        const resistance = 0.4;
+        container.style.transform = `translateY(${pullDistance * resistance}px)`;
+        
+        // Show visual indicator when past threshold
+        if (pullDistance > refreshThreshold) {
+          // Show refresh indicator
+        }
+      }
+    };
+    
+    const handleTouchEnd = (e) => {
+      const element = pullToRefreshRef.current;
+      const pullDistance = element ? parseInt(element.style.transform?.replace('translateY(', '').replace('px)', '') || '0', 10) : 0;
+      
+      // Reset position with animation
+      element.style.transition = 'transform 0.3s ease';
+      element.style.transform = 'translateY(0)';
+      
+      // Remove transition after animation completes
+      setTimeout(() => {
+        if (element) element.style.transition = '';
+      }, 300);
+      
+      // If pulled past threshold, trigger refresh
+      if (pullDistance > refreshThreshold) {
+        handleRefresh();
+      }
+    };
+    
+    container.addEventListener('touchstart', handleTouchStart);
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd);
+    
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, []);
+  
+  // Load initial set of profiles
+  const loadInitialProfiles = async () => {
+    try {
+      const fetchedProfiles = await gymbrosService.getRecommendedProfiles(filters);
+      setProfiles(fetchedProfiles);
+      setCurrentIndex(0);
+      setHasMoreProfiles(fetchedProfiles.length >= 10); // Assume more if we got a full page
+    } catch (error) {
+      console.error('Error loading initial profiles:', error);
+      toast.error('Failed to load profiles');
+    }
   };
-
-  // Handle refresh animation
-  const handleRefreshWithAnimation = () => {
-    setRefreshAnimation(true);
-    setTimeout(() => {
-      fetchProfiles();
-      setRefreshAnimation(false);
-    }, 600);
+  
+  // Load more profiles when running low
+  const loadMoreProfiles = async () => {
+    if (loadingMoreProfiles || !hasMoreProfiles) return;
+    
+    setLoadingMoreProfiles(true);
+    
+    try {
+      // In a real implementation, you'd add pagination parameters
+      const moreProfiles = await gymbrosService.getRecommendedProfiles({
+        ...filters,
+        skip: profiles.length
+      });
+      
+      if (moreProfiles.length > 0) {
+        setProfiles(prev => [...prev, ...moreProfiles]);
+        setHasMoreProfiles(moreProfiles.length >= 10);
+      } else {
+        setHasMoreProfiles(false);
+      }
+    } catch (error) {
+      console.error('Error loading more profiles:', error);
+    } finally {
+      setLoadingMoreProfiles(false);
+    }
   };
-
-  // Handle boost profile
-  const handleBoostProfile = (boostType) => {
-    let cost = 0;
-    let duration = '';
+  
+  // Handle manual refresh
+  const handleRefresh = async () => {
+    if (refreshing) return;
     
-    switch(boostType) {
-      case 'basic':
-        cost = 50;
-        duration = '30 minutes';
-        break;
-      case 'premium':
-        cost = 100;
-        duration = '1 hour';
-        break;
-      case 'ultra':
-        cost = 200;
-        duration = '3 hours';
-        break;
-      default:
-        return;
+    setRefreshing(true);
+    
+    try {
+      // Clear existing profiles and fetch new ones
+      setProfiles([]);
+      setCurrentIndex(0);
+      await loadInitialProfiles();
+      toast.success('Profiles refreshed');
+    } catch (error) {
+      console.error('Error refreshing profiles:', error);
+      toast.error('Failed to refresh profiles');
+    } finally {
+      setRefreshing(false);
     }
+  };
+  
+  // Handle swipe gesture
+  const handleSwipe = async (direction, profileId) => {
+    // Calculate view duration
+    const viewDuration = Date.now() - viewStartTime;
     
-    if (!isAuthenticated) {
-      toast.error('Please log in to use boosts');
-      return;
+    try {
+      // Store last swiped for potential undo
+      setLastSwiped({
+        profile: profiles[currentIndex],
+        direction,
+        index: currentIndex
+      });
+      
+      if (direction === 'right' || direction === 'super') {
+        // Handle like
+        const response = await gymbrosService.likeProfile(profileId, viewDuration);
+        
+        // Provide vibration feedback if available
+        if (navigator.vibrate) {
+          navigator.vibrate(20);
+        }
+        
+        // Check if it's a match
+        if (response.match) {
+          // Set the matched profile for the modal
+          setMatchedProfile(profiles[currentIndex]);
+          // Show match modal
+          setShowMatchModal(true);
+        }
+        
+        // Handle super like (costs points)
+        if (direction === 'super') {
+          if (!isAuthenticated) {
+            toast.error('Please log in to use Super Likes');
+          } else if (pointsBalance < 20) {
+            toast.error('Not enough points for a Super Like');
+          } else {
+            // Deduct points for super like
+            subtractPoints(20);
+            updatePointsInBackend(-20);
+            toast.success('Super Like sent!');
+          }
+        }
+      } else if (direction === 'left') {
+        // Handle dislike
+        await gymbrosService.dislikeProfile(profileId, viewDuration);
+      }
+      
+      // Move to next profile
+      setCurrentIndex(prev => prev + 1);
+    } catch (error) {
+      console.error(`Error handling ${direction} swipe:`, error);
+      toast.error('Failed to process your action');
     }
-    
-    if (pointsBalance < cost) {
-      toast.error('Not enough points!', {
-        description: `You need ${cost} points for this boost. You have ${pointsBalance} points.`
+  };
+  
+  // Handle profile detail view
+  const handleShowProfileDetail = () => {
+    if (profiles.length > 0 && currentIndex < profiles.length) {
+      setShowProfileDetail(true);
+    }
+  };
+  
+  // Handle match actions
+  const handleSendMessage = () => {
+    // In a real implementation, navigate to messages with this user
+    toast.info(`Starting conversation with ${matchedProfile?.name}`);
+    setShowMatchModal(false);
+  };
+  
+  const handleKeepSwiping = () => {
+    setShowMatchModal(false);
+  };
+  
+  // Handle Rekindle (undo) - Premium feature
+  const handleRekindle = () => {
+    if (!isPremium) {
+      toast('Premium Feature', {
+        description: 'Upgrade to premium to undo swipes',
+        icon: <Crown className="text-yellow-500" />
       });
       return;
     }
     
-    // Success case
-    subtractPoints(cost);
-    updatePointsInBackend(-cost); // Negative to subtract
-    
-    toast.success(`Profile boosted for ${duration}!`, {
-      description: `Your profile will be shown to more users. ${cost} points deducted.`
-    });
-    
-    setShowBoostOptions(false);
-  };
-
-  // Handle super like
-  const handleSuperLike = (superLikeType) => {
-    let cost = 0;
-    let description = '';
-    
-    switch(superLikeType) {
-      case 'basic':
-        cost = 20;
-        description = 'They\'ll be notified of your interest';
-        break;
-      case 'premium':
-        cost = 50;
-        description = 'Adds a personalized message';
-        break;
-      case 'ultra':
-        cost = 100;
-        description = 'Guarantees you\'ll be seen at the top of their stack';
-        break;
-      default:
-        return;
-    }
-    
-    if (!isAuthenticated) {
-      toast.error('Please log in to use Super Likes');
+    if (!lastSwiped) {
+      toast.info('Nothing to undo');
       return;
     }
     
-    if (pointsBalance < cost) {
-      toast.error('Not enough points!', {
-        description: `You need ${cost} points for this Super Like. You have ${pointsBalance} points.`
-      });
-      return;
-    }
+    // Insert the last swiped profile at the current index
+    const newProfiles = [...profiles];
+    newProfiles.splice(currentIndex, 0, lastSwiped.profile);
+    setProfiles(newProfiles);
     
-    // Check if we have a current profile
-    if (profiles.length === 0 || currentIndex >= profiles.length) {
-      toast.error('No profile to Super Like!');
-      return;
-    }
+    // Reset the current index to show the inserted profile
+    setCurrentIndex(prev => prev - 1);
     
-    // Success case
-    subtractPoints(cost);
-    updatePointsInBackend(-cost); // Negative to subtract
+    // Clear the last swiped state
+    setLastSwiped(null);
     
-    // Get the current profile
-    const currentProfile = profiles[currentIndex];
-    
-    // Super Like the profile
-    handleSwipe('right', currentProfile._id);
-    
-    toast.success(`Super Like sent!`, {
-      description: `${description}. ${cost} points deducted.`
-    });
-    
-    setShowSuperLikeOptions(false);
+    toast.success('Profile recovered');
   };
   
-  // Only pass profiles up to the current index + a few more for performance
-  const visibleProfiles = profiles?.slice(0, currentIndex + 5) || [];
-  
-  // Before returning JSX - Add more detailed logging
-  console.log("DiscoverTab: Passing to GymBrosMatches:", 
-    visibleProfiles.length, 
-    "First visible profile:", visibleProfiles[0]?._id);
-
   // Render loading state
   if (loading && profiles.length === 0) {
     return (
@@ -184,132 +296,122 @@ const DiscoverTab = ({
           >
             <Loader size={64} className="text-blue-500" />
           </motion.div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Dumbbell size={24} className="text-blue-700" />
-          </div>
         </div>
         <motion.p 
-          key={loadingText}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          animate={{ opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 2, repeat: Infinity }}
           className="text-lg font-medium text-gray-700"
         >
-          {loadingText}...
+          Finding your perfect gym partner...
         </motion.p>
         <p className="text-sm text-gray-500 mt-2">This may take a moment</p>
       </div>
     );
   }
-
+  
   // Render empty state
   if (profiles.length === 0) {
     return (
+      <EmptyStateMessage onRefresh={handleRefresh} onFilterClick={() => setShowFilters(true)} />
+    );
+  }
+  
+  // Render out of profiles state
+  if (currentIndex >= profiles.length) {
+    return (
       <div className="h-full flex flex-col items-center justify-center text-center p-6">
         <div className="bg-gray-100 rounded-full p-6 mb-6">
-          <Dumbbell size={64} className="text-gray-400" />
+          <RefreshCw size={48} className="text-gray-400" />
         </div>
-        <h3 className="text-xl font-bold mb-2">No more profiles</h3>
-        <p className="text-gray-500 mb-8">We couldn't find gym buddies matching your criteria.</p>
-        <div className="space-y-4 w-full max-w-xs">
-          <button 
-            onClick={handleRefreshWithAnimation}
-            className="w-full flex items-center justify-center bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-          >
-            <motion.div
-              animate={refreshAnimation ? { rotate: 360 } : { rotate: 0 }}
-              transition={{ duration: 0.6 }}
-              className="mr-2"
-            >
-              <RefreshCw size={20} />
-            </motion.div>
-            Refresh Profiles
-          </button>
-          
-          <button 
-            onClick={() => setShowFilters && setShowFilters(true)}
-            className="w-full flex items-center justify-center bg-gray-100 text-gray-800 px-6 py-3 rounded-lg font-medium hover:bg-gray-200 transition-colors"
-          >
-            <Filter size={20} className="mr-2" />
-            Adjust Filters
-          </button>
-        </div>
+        <h3 className="text-xl font-bold mb-2">You've seen all profiles</h3>
+        <p className="text-gray-500 mb-8">Check back later or try different filters</p>
+        <button
+          onClick={handleRefresh}
+          className="px-6 py-3 bg-blue-600 text-white rounded-full flex items-center shadow-lg hover:bg-blue-700 transition-colors"
+        >
+          <RefreshCw size={18} className="mr-2" />
+          Refresh
+        </button>
       </div>
     );
   }
-
+  
   return (
-    <div className="h-full relative">
-      {/* Debug container */}
-      <div className="absolute top-0 left-0 z-50 bg-red-100 p-2 text-xs">
-        Visible profiles: {visibleProfiles.length}
-        {visibleProfiles.length > 0 && ` - First ID: ${visibleProfiles[0]._id}`}
+    <div ref={pullToRefreshRef} className="h-full relative overflow-hidden">
+      {/* Profile cards stack */}
+      <div className="relative h-full w-full">
+        <AnimatePresence>
+          {/* Show current and next few cards for better performance */}
+          {profiles.slice(currentIndex, currentIndex + 3).map((profile, index) => (
+            <SwipeableCard
+              key={`${profile._id}-${index}`}
+              profile={profile}
+              onSwipe={handleSwipe}
+              onInfoClick={handleShowProfileDetail}
+              onSuper={(profileId) => handleSwipe('super', profileId)}
+              onRekindle={handleRekindle}
+              distanceUnit={distanceUnit}
+              isPremium={isPremium}
+              isActive={index === 0} // Only the top card is active
+            />
+          ))}
+        </AnimatePresence>
       </div>
       
-      {/* Main Profile Stack - Added border for debugging */}
-      <div className="relative w-full h-full border-2 border-blue-500" style={{ zIndex: 30 }}>
-        <GymBrosMatches
-          externalProfiles={visibleProfiles}
-          externalLoading={loading}
-          onSwipe={handleSwipeFromMatchComponent}
-          onRefresh={fetchProfiles}
-          filters={filters}
-        />
-      </div>
-      
-      {/* Temporarily disable Boost and Super Like Buttons for debugging */}
-      {/*
-      <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 flex items-center space-x-3 z-20">
-        <motion.button 
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setShowBoostOptions(!showBoostOptions)}
-          className="p-4 rounded-full bg-gradient-to-r from-purple-500 to-purple-700 text-white shadow-lg"
+      {/* Action buttons */}
+      <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex items-center space-x-4 z-20">
+        {/* Rekindle (Undo) Button - Premium only */}
+        <button 
+          onClick={handleRekindle}
+          className={`p-3 rounded-full bg-white shadow-lg border ${
+            isPremium ? 'text-amber-500 border-amber-200 hover:bg-amber-50' : 'text-gray-400 border-gray-200'
+          }`}
         >
-          <Zap size={24} />
-        </motion.button>
+          <RefreshCw size={28} />
+        </button>
         
-        <motion.button 
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setShowSuperLikeOptions(!showSuperLikeOptions)}
-          className="p-4 rounded-full bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg"
+        {/* Dislike Button */}
+        <button 
+          onClick={() => profiles[currentIndex] && handleSwipe('left', profiles[currentIndex]._id)}
+          className="p-4 rounded-full bg-white shadow-lg border border-red-200 text-red-500 hover:bg-red-50"
         >
-          <Star size={24} />
-        </motion.button>
+          <X size={32} />
+        </button>
+        
+        {/* Super Like Button */}
+        <button 
+          onClick={() => profiles[currentIndex] && handleSwipe('super', profiles[currentIndex]._id)}
+          className="p-3 rounded-full bg-white shadow-lg border border-blue-200 text-blue-500 hover:bg-blue-50"
+        >
+          <Star size={28} />
+        </button>
+        
+        {/* Like Button */}
+        <button 
+          onClick={() => profiles[currentIndex] && handleSwipe('right', profiles[currentIndex]._id)}
+          className="p-4 rounded-full bg-white shadow-lg border border-green-200 text-green-500 hover:bg-green-50"
+        >
+          <Heart size={32} />
+        </button>
       </div>
-      */}
       
-      {/* Boost Options Modal */}
+      {/* Info button (alternative way to open details) */}
+      <button
+        onClick={handleShowProfileDetail}
+        className="absolute bottom-6 right-4 p-3 rounded-full bg-white shadow-lg border border-gray-200 text-gray-600 hover:bg-gray-50 z-20"
+      >
+        <Info size={24} />
+      </button>
+      
+      {/* Refresh indicator */}
       <AnimatePresence>
-        {showBoostOptions && (
+        {refreshing && (
           <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="absolute bottom-28 left-0 right-0 mx-4 p-4 bg-white rounded-lg shadow-xl z-30"
+            initial={{ y: -50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -50, opacity: 0 }}
+            className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full flex items-center shadow-md"
           >
-            {/* Boost options content */}
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
-      {/* Super Like Options Modal */}
-      <AnimatePresence>
-        {showSuperLikeOptions && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="absolute bottom-28 left-0 right-0 mx-4 p-4 bg-white rounded-lg shadow-xl z-30"
-          >
-            {/* Super like options content */}
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
-      {/* Loading Indicator (when fetching more) */}
-      {loading && profiles.length > 0 && (
-        <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2">
-          <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full flex items-center shadow-md">
             <motion.div
               animate={{ rotate: 360 }}
               transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
@@ -317,10 +419,67 @@ const DiscoverTab = ({
             >
               <Loader size={16} className="text-blue-500" />
             </motion.div>
-            <span className="text-sm text-gray-600">Finding more matches...</span>
-          </div>
-        </div>
-      )}
+            <span className="text-sm text-gray-600">Refreshing...</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Loading more indicator */}
+      <AnimatePresence>
+        {loadingMoreProfiles && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full flex items-center shadow-md"
+          >
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+              className="mr-2"
+            >
+              <Loader size={16} className="text-blue-500" />
+            </motion.div>
+            <span className="text-sm text-gray-600">Finding more gym partners...</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Profile Detail Modal */}
+      <ProfileDetailModal
+        isVisible={showProfileDetail}
+        profile={profiles[currentIndex]}
+        onClose={() => setShowProfileDetail(false)}
+        onLike={() => {
+          setShowProfileDetail(false);
+          if (profiles[currentIndex]) {
+            handleSwipe('right', profiles[currentIndex]._id);
+          }
+        }}
+        onDislike={() => {
+          setShowProfileDetail(false);
+          if (profiles[currentIndex]) {
+            handleSwipe('left', profiles[currentIndex]._id);
+          }
+        }}
+        onSuperLike={() => {
+          setShowProfileDetail(false);
+          if (profiles[currentIndex]) {
+            handleSwipe('super', profiles[currentIndex]._id);
+          }
+        }}
+        distanceUnit={distanceUnit}
+      />
+      
+      {/* Match Modal */}
+      <MatchModal
+        isVisible={showMatchModal}
+        onClose={() => setShowMatchModal(false)}
+        onSendMessage={handleSendMessage}
+        onKeepSwiping={handleKeepSwiping}
+        currentUser={user}
+        matchedUser={matchedProfile}
+      />
     </div>
   );
 };
