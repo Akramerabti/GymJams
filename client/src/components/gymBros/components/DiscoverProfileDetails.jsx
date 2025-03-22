@@ -1,24 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, Share2, ChevronLeft, ChevronRight, MapPin, Award, 
   Calendar, Clock, Target, Activity, Heart, X, MessageCircle,
-  Users, Dumbbell, Camera
+  Users, Dumbbell, Camera, Info, Mail, Briefcase, GraduationCap,
+  Coffee
 } from 'lucide-react';
 import { toast } from 'sonner';
+import ActiveStatus from './ActiveStatus';
 
-const ProfileDetailModal = ({ profile, isVisible, onClose, currentImageIndex = 0, setCurrentImageIndex }) => {
+const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, onSuperLike, isMatch }) => {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [activeTab, setActiveTab] = useState('about');
   const [animateDirection, setAnimateDirection] = useState('right');
   
-  // Base URL for images
-  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-  
+  // Reset image index when profile changes
+  useEffect(() => {
+    setCurrentImageIndex(0);
+  }, [profile]);
+
   if (!profile) return null;
   
   // Format image URL
   const formatImageUrl = (imageUrl) => {
-
     if (!imageUrl) return "/api/placeholder/400/600";
     
     if (imageUrl.startsWith('blob:')) {
@@ -26,6 +30,7 @@ const ProfileDetailModal = ({ profile, isVisible, onClose, currentImageIndex = 0
     } else if (imageUrl.startsWith('http')) {
       return imageUrl;
     } else {
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       return `${baseUrl}${imageUrl}`;
     }
   };
@@ -34,26 +39,6 @@ const ProfileDetailModal = ({ profile, isVisible, onClose, currentImageIndex = 0
   const currentImage = profile.images && profile.images.length > 0 
     ? formatImageUrl(profile.images[currentImageIndex])
     : formatImageUrl(profile.profileImage);
-  
-  // Calculate active status
-  const getActiveStatus = () => {
-    if (!profile.lastActive) return null;
-    
-    const lastActive = new Date(profile.lastActive);
-    const now = new Date();
-    const hoursDiff = (now - lastActive) / (1000 * 60 * 60);
-    
-    if (hoursDiff <= 1) return 'Active now';
-    if (hoursDiff <= 5) return 'Recently active';
-    
-    // If more than 24 hours, show the date
-    if (hoursDiff > 24) {
-      const days = Math.floor(hoursDiff / 24);
-      return days === 1 ? 'Active yesterday' : `Active ${days} days ago`;
-    }
-    
-    return `Active ${Math.floor(hoursDiff)} hours ago`;
-  };
   
   // Handle sharing profile
   const handleShare = () => {
@@ -150,7 +135,7 @@ const ProfileDetailModal = ({ profile, isVisible, onClose, currentImageIndex = 0
           </div>
           <div className="flex items-center">
             <Clock size={18} className="mr-2 text-blue-500" />
-            <span className="text-gray-700">{getActiveStatus() || 'Last active not available'}</span>
+            <ActiveStatus lastActive={profile.lastActive} textColorClass="text-gray-700" showDot={false} />
           </div>
         </div>
       </div>
@@ -159,8 +144,8 @@ const ProfileDetailModal = ({ profile, isVisible, onClose, currentImageIndex = 0
         <h4 className="font-medium text-gray-700 mb-2">Workout Preferences</h4>
         <div className="flex flex-wrap gap-2 mb-4">
           {profile.workoutTypes && profile.workoutTypes.length > 0 ? (
-            profile.workoutTypes.map(type => (
-              <span key={type} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+            profile.workoutTypes.map((type, index) => (
+              <span key={index} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
                 {type}
               </span>
             ))
@@ -192,21 +177,49 @@ const ProfileDetailModal = ({ profile, isVisible, onClose, currentImageIndex = 0
         </p>
       </div>
       
-      {profile.work || profile.studies ? (
+      {/* Additional personal info */}
+      {(profile.work || profile.studies) && (
         <div className="mb-6">
           <h4 className="font-medium text-gray-700 mb-2">Work & Education</h4>
           {profile.work && (
-            <div className="mb-2">
-              <span className="font-medium">Work:</span> {profile.work}
+            <div className="flex items-center mb-2">
+              <Briefcase size={16} className="mr-2 text-blue-500" />
+              <span className="text-gray-700">{profile.work}</span>
             </div>
           )}
           {profile.studies && (
-            <div>
-              <span className="font-medium">Studies:</span> {profile.studies}
+            <div className="flex items-center">
+              <GraduationCap size={16} className="mr-2 text-blue-500" />
+              <span className="text-gray-700">{profile.studies}</span>
             </div>
           )}
         </div>
-      ) : null}
+      )}
+      
+      {/* Religious/political views */}
+      {(profile.religion || profile.politicalStance || profile.sexualOrientation) && (
+        <div className="mb-6">
+          <h4 className="font-medium text-gray-700 mb-2">Personal</h4>
+          {profile.religion && (
+            <div className="flex items-start mb-2">
+              <span className="font-medium text-gray-600 mr-2">Religion:</span>
+              <span className="text-gray-700">{profile.religion}</span>
+            </div>
+          )}
+          {profile.politicalStance && (
+            <div className="flex items-start mb-2">
+              <span className="font-medium text-gray-600 mr-2">Political Views:</span>
+              <span className="text-gray-700">{profile.politicalStance}</span>
+            </div>
+          )}
+          {profile.sexualOrientation && (
+            <div className="flex items-start">
+              <span className="font-medium text-gray-600 mr-2">Sexual Orientation:</span>
+              <span className="text-gray-700">{profile.sexualOrientation}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
   
@@ -219,9 +232,10 @@ const ProfileDetailModal = ({ profile, isVisible, onClose, currentImageIndex = 0
           profile.images.map((image, index) => (
             <div 
               key={index} 
-              className="aspect-square rounded-lg overflow-hidden cursor-pointer"
+              className="aspect-square rounded-lg overflow-hidden cursor-pointer relative"
               onClick={() => {
                 setCurrentImageIndex(index);
+                setActiveTab('about');
               }}
             >
               <img 
@@ -233,6 +247,12 @@ const ProfileDetailModal = ({ profile, isVisible, onClose, currentImageIndex = 0
                   e.target.src = "/api/placeholder/400/400";
                 }}
               />
+              {/* Primary photo indicator */}
+              {index === 0 && (
+                <div className="absolute bottom-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
+                  Primary
+                </div>
+              )}
             </div>
           ))
         ) : (
@@ -250,8 +270,8 @@ const ProfileDetailModal = ({ profile, isVisible, onClose, currentImageIndex = 0
       <h3 className="text-lg font-semibold mb-3">Interests</h3>
       {profile.interests && profile.interests.length > 0 ? (
         <div className="flex flex-wrap gap-2">
-          {profile.interests.map(interest => (
-            <span key={interest} className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm">
+          {profile.interests.map((interest, index) => (
+            <span key={index} className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm">
               {interest}
             </span>
           ))}
@@ -264,12 +284,12 @@ const ProfileDetailModal = ({ profile, isVisible, onClose, currentImageIndex = 0
       <div className="bg-blue-50 p-4 rounded-lg">
         <div className="flex items-center justify-between mb-2">
           <span className="text-gray-700">Match Score</span>
-          <span className="font-semibold text-blue-700">{profile.matchScore || 'N/A'}</span>
+          <span className="font-semibold text-blue-700">{profile.matchScore || 85}%</span>
         </div>
         <div className="w-full bg-blue-200 rounded-full h-2.5">
           <div 
             className="bg-blue-600 h-2.5 rounded-full" 
-            style={{ width: `${profile.matchScore || 0}%` }}
+            style={{ width: `${profile.matchScore || 85}%` }}
           ></div>
         </div>
         <p className="text-sm text-gray-600 mt-2">
@@ -386,12 +406,12 @@ const ProfileDetailModal = ({ profile, isVisible, onClose, currentImageIndex = 0
                   )}
                 </div>
                 
-                {getActiveStatus() && (
-                  <div className="flex items-center mt-1">
-                    <div className="w-2 h-2 rounded-full bg-green-500 mr-1.5 animate-pulse"></div>
-                    <span className="text-green-300 text-sm">{getActiveStatus()}</span>
-                  </div>
-                )}
+                <ActiveStatus 
+                  lastActive={profile.lastActive} 
+                  textColorClass="text-green-300" 
+                  dotColorClass="bg-green-500"
+                  showDot={true} 
+                />
                 
                 <div className="flex items-center mt-1">
                   <MapPin size={16} className="mr-1" />
@@ -442,40 +462,43 @@ const ProfileDetailModal = ({ profile, isVisible, onClose, currentImageIndex = 0
             </div>
             
             {/* Action buttons */}
-            <div className="p-4 border-t flex items-center justify-between">
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onClose();
-                  // Implement dislike functionality here
-                }}
-                className="flex-1 flex items-center justify-center rounded-full bg-gray-100 text-red-500 py-2 mr-2"
-              >
-                <X size={24} className="mr-2" />
-                <span>Pass</span>
-              </button>
-              
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onClose();
-                  // Implement like functionality here
-                }}
-                className="flex-1 flex items-center justify-center rounded-full bg-blue-500 text-white py-2 ml-2"
-              >
-                <Heart size={24} className="mr-2" />
-                <span>Like</span>
-              </button>
-            </div>
+            {!isMatch && (
+              <div className="p-4 border-t flex items-center justify-between">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClose();
+                    if (onDislike) onDislike();
+                  }}
+                  className="flex-1 flex items-center justify-center rounded-full bg-gray-100 text-red-500 py-2 mr-2"
+                >
+                  <X size={24} className="mr-2" />
+                  <span>Pass</span>
+                </button>
+                
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClose();
+                    if (onLike) onLike();
+                  }}
+                  className="flex-1 flex items-center justify-center rounded-full bg-blue-500 text-white py-2 ml-2"
+                >
+                  <Heart size={24} className="mr-2" />
+                  <span>Like</span>
+                </button>
+              </div>
+            )}
             
             {/* Message button for matched profiles */}
-            {profile.isMatch && (
+            {isMatch && (
               <div className="p-4 pt-0">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Implement message functionality here
-                    toast.info(`Start conversation with ${profile.name}`);
+                    onClose();
+                    // Navigate to messages with this match
+                    toast.success(`Starting conversation with ${profile.name}`);
                   }}
                   className="w-full flex items-center justify-center rounded-full bg-green-500 text-white py-3"
                 >
@@ -491,4 +514,4 @@ const ProfileDetailModal = ({ profile, isVisible, onClose, currentImageIndex = 0
   );
 };
 
-export default ProfileDetailModal;
+export default ProfileDetailsModal;

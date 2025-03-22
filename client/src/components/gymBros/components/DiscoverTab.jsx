@@ -7,10 +7,10 @@ import {
 import SwipeableCard from './SwipeableCard';
 import ProfileDetailModal from './DiscoverProfileDetails';
 import MatchModal from './MatchModal';
-import EmptyStateMessage from './components/EmptyStateMessage';
-import gymbrosService from '../../services/gymbros.service';
-import { usePoints } from '../../hooks/usePoints';
-import useAuthStore from '../../stores/authStore';
+import EmptyStateMessage from './EmptyStateMessage';
+import gymbrosService from '../../../services/gymbros.service';
+import { usePoints } from '../../../hooks/usePoints';
+import useAuthStore from '../../../stores/authStore';
 import { toast } from 'sonner';
 
 const DiscoverTab = ({ 
