@@ -529,17 +529,10 @@ async uploadProfileImages(files) {
     // Create FormData for the files
     const formData = new FormData();
     
-    // IMPORTANT: Use "files" instead of "images" to match server expectation
-    files.forEach((file, index) => {
-      // Ensure we're working with File objects
-      if (!(file instanceof File)) {
-        console.error(`Invalid file object at index ${index}:`, file);
-        throw new Error('Invalid file type. Only File objects are accepted.');
-      }
-      
-      // The field name MUST match what the server expects from multer (configured as "files")
-      console.log(`Adding file "${file.name}" to FormData with field name "files"`);
-      formData.append('files', file);
+    // CRITICAL FIX: The server expects 'images' as the field name, not 'files'
+    files.forEach((file) => {
+      console.log(`Adding file "${file.name}" to FormData with field name "images"`);
+      formData.append('images', file);
     });
     
     // Log the FormData keys to verify correct structure
