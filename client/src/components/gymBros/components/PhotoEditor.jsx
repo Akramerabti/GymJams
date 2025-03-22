@@ -21,25 +21,6 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-const BlobUrlWarning = ({ count }) => {
-  if (count === 0) return null;
-  
-  return (
-    <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
-      <div className="flex items-start">
-        <Info size={16} className="text-yellow-500 mt-0.5 mr-2 flex-shrink-0" />
-        <div className="text-xs text-yellow-700">
-          <p className="font-medium">Unsaved image{count > 1 ? 's' : ''} detected</p>
-          <p>
-            {count} image{count > 1 ? 's' : ''} {count > 1 ? 'are' : 'is'} in preview mode but not prepared for upload.
-            Please use the edit button to process {count > 1 ? 'these images' : 'this image'}.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // Sortable Image Item Component
 const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
   const { 
@@ -54,15 +35,21 @@ const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
     id: `photo-${index}`,
   });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 10 : 1,
-    position: 'relative',
-    touchAction: 'none', // Important for touch devices to prevent scrolling during drag
-    // Add visual feedback during drag for desktop users
-    boxShadow: isDragging ? '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)' : 'none',
-  };
+  
+// Update the style object in SortableImageItem component
+const style = {
+  transform: CSS.Transform.toString(transform),
+  transition: isDragging ? 'none' : transition, // Remove transition during active drag for smoother feel
+  zIndex: isDragging ? 10 : 1,
+  position: 'relative',
+  touchAction: 'none',
+  opacity: isDragging ? 0.9 : 1,
+  // Make the item significantly larger when being dragged
+  scale: isDragging ? 1.15 : 1,
+  boxShadow: isDragging 
+    ? '0 25px 30px -12px rgba(0, 0, 0, 0.25), 0 15px 15px -10px rgba(0, 0, 0, 0.1)' 
+    : 'none',
+};
 
   // Handle remove and edit events
   const handleRemove = (e) => {
@@ -114,16 +101,18 @@ const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
             <div 
               {...attributes} 
               {...listeners} 
-              className="absolute inset-0 cursor-move z-10"
+              className="absolute inset-0 cursor-grab active:cursor-grabbing z-10 transition-all duration-150"
               style={{ 
-                touchAction: 'none', // For touch devices
-                cursor: 'grab'       // Visual cue for desktop users
+                touchAction: 'none',
+                background: 'rgba(0, 0, 0, 0)',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
+                e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
+                e.currentTarget.style.boxShadow = 'inset 0 0 0 2px rgba(59, 130, 246, 0.3)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.background = 'rgba(0, 0, 0, 0)';
+                e.currentTarget.style.boxShadow = 'none';
               }}
             />
             <div className="absolute top-2 right-2 flex space-x-2 z-20">
@@ -165,7 +154,6 @@ const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
   );
 };
 
-// Preview component for drag overlay
 const DragPreview = ({ url }) => {
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   
@@ -182,7 +170,13 @@ const DragPreview = ({ url }) => {
   };
 
   return (
-    <div className="relative aspect-[7/10] w-24 border-2 border-solid border-blue-400 rounded-lg overflow-hidden shadow-lg bg-white">
+    <div 
+      className="relative aspect-[7/10] w-40 border-3 border-blue-500 rounded-lg overflow-hidden shadow-2xl bg-white"
+      style={{
+        animation: 'pulse-grow 1.5s infinite',
+        transform: 'rotate(-3deg)',
+      }}
+    >
       <img 
         src={getDisplayUrl(url)}
         alt="Dragged item"
@@ -193,6 +187,7 @@ const DragPreview = ({ url }) => {
           e.target.src = "/api/placeholder/400/600";
         }}
       />
+      <div className="absolute inset-0 bg-blue-500 bg-opacity-10"></div>
     </div>
   );
 };
@@ -319,7 +314,7 @@ const ImageCropperModal = ({ image, onCropComplete, onCropCancel }) => {
 const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos = 6 }, ref) => {
   // State to track photos to display
   const [displayPhotos, setDisplayPhotos] = useState([...photos]);
-  
+  const [styleSheet, setStyleSheet] = useState(null);
   const [unprocessedBlobUrls, setUnprocessedBlobUrls] = useState([]);
   const [photoFiles, setPhotoFiles] = useState([]);
   
@@ -331,10 +326,7 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
   const [activeId, setActiveId] = useState(null);
   const [activeDragItemIndex, setActiveDragItemIndex] = useState(null);
   
-  // Debug: log when photos prop changes
-  useEffect(() => {
-    console.log("PhotoEditor received photos:", photos);
-  }, [photos]);
+  
   
   // Initialize with photos from props
   useEffect(() => {
@@ -345,6 +337,25 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
       setDisplayPhotos([...filteredPhotos]);
     }
   }, [photos]);
+
+  useEffect(() => {
+    if (!styleSheet) {
+      const style = document.createElement('style');
+    style.textContent = `
+      @keyframes pulse-grow {
+        0% { transform: scale(1.1) rotate(-3deg); }
+        50% { transform: scale(1.2) rotate(-2deg); }
+        100% { transform: scale(1.1) rotate(-3deg); }
+      }
+    `;
+      document.head.appendChild(style);
+      setStyleSheet(style);
+      
+      return () => {
+        document.head.removeChild(style);
+      };
+    }
+  }, [styleSheet]);
   
   // Configure DnD sensors with proper support for both mouse and touch
   const sensors = useSensors(

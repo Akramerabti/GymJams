@@ -370,9 +370,6 @@ export const buildSteps = ({
         icon: <Camera className="h-5 w-5 text-blue-500" />,
         component: (
           <div className="w-full">
-            <p className="text-sm text-gray-500 mb-4">
-              Add at least 2 photos to your profile. Your first photo will be your main profile picture.
-            </p>
             
             {/* Add a key to force re-render */}
             <ImageUploader
