@@ -16,6 +16,12 @@ const DiscoverTab = ({
   filters,
   setShowFilters
 }) => {
+  // At the top of component - Add detailed logging
+  console.log("DiscoverTab: Received profiles:", 
+    profiles?.length,
+    "First profile:", profiles[0]?._id,
+    "Current index:", currentIndex);
+
   const { balance: pointsBalance, subtractPoints, updatePointsInBackend } = usePoints();
   const { isAuthenticated } = useAuthStore();
   const [showBoostOptions, setShowBoostOptions] = useState(false);
@@ -43,6 +49,7 @@ const DiscoverTab = ({
 
   // Handle swipe from the GymBrosMatches component
   const handleSwipeFromMatchComponent = (direction, profileId, viewDuration) => {
+    console.log(`DiscoverTab: Swipe ${direction} received for profile ${profileId}`);
     handleSwipe(direction, profileId);
   };
 
@@ -160,6 +167,11 @@ const DiscoverTab = ({
   // Only pass profiles up to the current index + a few more for performance
   const visibleProfiles = profiles?.slice(0, currentIndex + 5) || [];
   
+  // Before returning JSX - Add more detailed logging
+  console.log("DiscoverTab: Passing to GymBrosMatches:", 
+    visibleProfiles.length, 
+    "First visible profile:", visibleProfiles[0]?._id);
+
   // Render loading state
   if (loading && profiles.length === 0) {
     return (
@@ -215,7 +227,7 @@ const DiscoverTab = ({
           </button>
           
           <button 
-            onClick={() => setShowFilters(true)}
+            onClick={() => setShowFilters && setShowFilters(true)}
             className="w-full flex items-center justify-center bg-gray-100 text-gray-800 px-6 py-3 rounded-lg font-medium hover:bg-gray-200 transition-colors"
           >
             <Filter size={20} className="mr-2" />
@@ -228,8 +240,14 @@ const DiscoverTab = ({
 
   return (
     <div className="h-full relative">
-      {/* Main Profile Stack */}
-      <div className="relative w-full h-full">
+      {/* Debug container */}
+      <div className="absolute top-0 left-0 z-50 bg-red-100 p-2 text-xs">
+        Visible profiles: {visibleProfiles.length}
+        {visibleProfiles.length > 0 && ` - First ID: ${visibleProfiles[0]._id}`}
+      </div>
+      
+      {/* Main Profile Stack - Added border for debugging */}
+      <div className="relative w-full h-full border-2 border-blue-500" style={{ zIndex: 30 }}>
         <GymBrosMatches
           externalProfiles={visibleProfiles}
           externalLoading={loading}
@@ -239,9 +257,9 @@ const DiscoverTab = ({
         />
       </div>
       
-      {/* Boost and Super Like Buttons (Floating) */}
+      {/* Temporarily disable Boost and Super Like Buttons for debugging */}
+      {/*
       <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 flex items-center space-x-3 z-20">
-        {/* Boost Button */}
         <motion.button 
           whileTap={{ scale: 0.95 }}
           onClick={() => setShowBoostOptions(!showBoostOptions)}
@@ -250,7 +268,6 @@ const DiscoverTab = ({
           <Zap size={24} />
         </motion.button>
         
-        {/* Super Like Button */}
         <motion.button 
           whileTap={{ scale: 0.95 }}
           onClick={() => setShowSuperLikeOptions(!showSuperLikeOptions)}
@@ -259,6 +276,7 @@ const DiscoverTab = ({
           <Star size={24} />
         </motion.button>
       </div>
+      */}
       
       {/* Boost Options Modal */}
       <AnimatePresence>
@@ -269,68 +287,7 @@ const DiscoverTab = ({
             exit={{ opacity: 0, y: 20 }}
             className="absolute bottom-28 left-0 right-0 mx-4 p-4 bg-white rounded-lg shadow-xl z-30"
           >
-            <h4 className="text-lg font-bold mb-3 flex items-center">
-              <Zap className="text-purple-500 mr-2" size={20} />
-              Boost Your Profile
-            </h4>
-            <p className="text-gray-500 text-sm mb-4">Get more visibility in others' stacks</p>
-            
-            <div className="space-y-3">
-              <button 
-                onClick={() => handleBoostProfile('basic')}
-                className="w-full flex justify-between items-center p-3 bg-gray-100 hover:bg-gray-200 rounded-lg"
-              >
-                <div className="flex items-center">
-                  <div className="bg-purple-100 p-2 rounded-full mr-3">
-                    <Zap size={16} className="text-purple-500" />
-                  </div>
-                  <div className="text-left">
-                    <h5 className="font-medium">Basic Boost</h5>
-                    <p className="text-xs text-gray-500">30 mins of increased visibility</p>
-                  </div>
-                </div>
-                <span className="font-bold text-purple-600">50 pts</span>
-              </button>
-              
-              <button 
-                onClick={() => handleBoostProfile('premium')}
-                className="w-full flex justify-between items-center p-3 bg-gray-100 hover:bg-gray-200 rounded-lg"
-              >
-                <div className="flex items-center">
-                  <div className="bg-purple-200 p-2 rounded-full mr-3">
-                    <Zap size={16} className="text-purple-600" />
-                  </div>
-                  <div className="text-left">
-                    <h5 className="font-medium">Premium Boost</h5>
-                    <p className="text-xs text-gray-500">1 hour of high visibility</p>
-                  </div>
-                </div>
-                <span className="font-bold text-purple-600">100 pts</span>
-              </button>
-              
-              <button 
-                onClick={() => handleBoostProfile('ultra')}
-                className="w-full flex justify-between items-center p-3 bg-gray-100 hover:bg-gray-200 rounded-lg"
-              >
-                <div className="flex items-center">
-                  <div className="bg-purple-300 p-2 rounded-full mr-3">
-                    <Zap size={16} className="text-purple-700" />
-                  </div>
-                  <div className="text-left">
-                    <h5 className="font-medium">Ultra Boost</h5>
-                    <p className="text-xs text-gray-500">3 hours of maximum visibility</p>
-                  </div>
-                </div>
-                <span className="font-bold text-purple-600">200 pts</span>
-              </button>
-            </div>
-            
-            <button 
-              onClick={() => setShowBoostOptions(false)} 
-              className="w-full mt-4 text-gray-500 text-sm"
-            >
-              Cancel
-            </button>
+            {/* Boost options content */}
           </motion.div>
         )}
       </AnimatePresence>
@@ -344,68 +301,7 @@ const DiscoverTab = ({
             exit={{ opacity: 0, y: 20 }}
             className="absolute bottom-28 left-0 right-0 mx-4 p-4 bg-white rounded-lg shadow-xl z-30"
           >
-            <h4 className="text-lg font-bold mb-3 flex items-center">
-              <Star className="text-blue-500 mr-2" size={20} />
-              Super Like
-            </h4>
-            <p className="text-gray-500 text-sm mb-4">Stand out and get noticed</p>
-            
-            <div className="space-y-3">
-              <button 
-                onClick={() => handleSuperLike('basic')}
-                className="w-full flex justify-between items-center p-3 bg-gray-100 hover:bg-gray-200 rounded-lg"
-              >
-                <div className="flex items-center">
-                  <div className="bg-blue-100 p-2 rounded-full mr-3">
-                    <Star size={16} className="text-blue-500" />
-                  </div>
-                  <div className="text-left">
-                    <h5 className="font-medium">Super Like</h5>
-                    <p className="text-xs text-gray-500">They'll know you liked them</p>
-                  </div>
-                </div>
-                <span className="font-bold text-blue-600">20 pts</span>
-              </button>
-              
-              <button 
-                onClick={() => handleSuperLike('premium')}
-                className="w-full flex justify-between items-center p-3 bg-gray-100 hover:bg-gray-200 rounded-lg"
-              >
-                <div className="flex items-center">
-                  <div className="bg-blue-200 p-2 rounded-full mr-3">
-                    <Star size={16} className="text-blue-600" />
-                  </div>
-                  <div className="text-left">
-                    <h5 className="font-medium">Premium Super Like</h5>
-                    <p className="text-xs text-gray-500">Add a personalized message</p>
-                  </div>
-                </div>
-                <span className="font-bold text-blue-600">50 pts</span>
-              </button>
-              
-              <button 
-                onClick={() => handleSuperLike('ultra')}
-                className="w-full flex justify-between items-center p-3 bg-gray-100 hover:bg-gray-200 rounded-lg"
-              >
-                <div className="flex items-center">
-                  <div className="bg-blue-300 p-2 rounded-full mr-3">
-                    <Medal size={16} className="text-blue-700" />
-                  </div>
-                  <div className="text-left">
-                    <h5 className="font-medium">Ultra Super Like</h5>
-                    <p className="text-xs text-gray-500">Go to the top of their stack</p>
-                  </div>
-                </div>
-                <span className="font-bold text-blue-600">100 pts</span>
-              </button>
-            </div>
-            
-            <button 
-              onClick={() => setShowSuperLikeOptions(false)} 
-              className="w-full mt-4 text-gray-500 text-sm"
-            >
-              Cancel
-            </button>
+            {/* Super like options content */}
           </motion.div>
         )}
       </AnimatePresence>

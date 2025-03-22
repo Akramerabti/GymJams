@@ -15,7 +15,7 @@ const MatchCard = ({
   const [swipeDirection, setSwipeDirection] = useState(null);
   
   // Base URL for images
-  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
   
   // Handle drag start
   const handleDragStart = (event, info) => {
@@ -93,10 +93,12 @@ const MatchCard = ({
       return imageUrl;
     }
   
-    // If the image URL is a relative path (e.g., /uploads/filename.jpg),
-    // prepend the base URL
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    return `${baseUrl}${imageUrl}`;
+    // Fix the URL path handling to ensure proper structure
+    if (imageUrl.startsWith('/uploads/')) {
+      return `${baseUrl}${imageUrl}`;
+    }
+    
+    return `${baseUrl}/uploads/${imageUrl.split('/').pop()}`;
   };
 
   // Render progress indicator for images
@@ -119,16 +121,10 @@ const MatchCard = ({
     );
   };
 
-  console.log('MatchCard rendering with image:', profile.images[currentImageIndex]);
-
   // Get correct image source
   const currentImage = profile.images && profile.images.length > 0 
     ? formatImageUrl(profile.images[currentImageIndex])
     : formatImageUrl(profile.profileImage);
-
-  // Log profile for debugging
-  console.log('MatchCard rendering with profile:', profile);
-  console.log('Current image being shown:', currentImage);
 
   return (
     <motion.div
@@ -142,7 +138,10 @@ const MatchCard = ({
       initial={{ opacity: 0, scale: 0.9 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      style={{ zIndex: 10 }}
+      style={{ 
+        zIndex: 50, 
+        border: '2px solid red' // Debug border
+      }}
     >
       <div className="relative h-full rounded-xl overflow-hidden shadow-xl bg-white">
         {/* Card Overlay when dragging */}
@@ -177,7 +176,6 @@ const MatchCard = ({
             className="w-full h-full object-cover"
             onError={(e) => {
               console.error('Image load error:', e.target.src);
-              console.log
               e.target.onerror = null;
               e.target.src = "/api/placeholder/400/600";
             }}

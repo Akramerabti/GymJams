@@ -799,17 +799,17 @@ const GymBros = () => {
     switch(activeTab) {
       case 'discover':
         return (
-          <div className="h-[calc(100vh-136px)] flex items-center justify-center pb-16">
-            <DiscoverTab
-              profiles={profiles}
-              currentIndex={currentIndex}
-              setCurrentIndex={setCurrentIndex}
-              handleSwipe={handleSwipe}
-              fetchProfiles={fetchProfiles}
-              loading={loading}
-              filters={filters}
-            />
-          </div>
+          <div className="h-[calc(100vh-136px)] flex items-center justify-center overflow-visible pb-16">
+          <DiscoverTab
+            profiles={profiles}
+            currentIndex={currentIndex}
+            setCurrentIndex={setCurrentIndex}
+            handleSwipe={handleSwipe}
+            fetchProfiles={fetchProfiles}
+            loading={loading}
+            filters={filters}
+          />
+        </div>
         );
       
       case 'matches':

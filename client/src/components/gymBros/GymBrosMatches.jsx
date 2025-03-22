@@ -246,11 +246,11 @@ const GymBrosMatches = ({
   }
   
   return (
-    <div className="relative h-full flex flex-col">
+    <div className="h-full relative overflow-visible">
       {/* Action buttons at bottom of screen */}
       <div className="absolute bottom-8 left-0 right-0 z-10 flex justify-center items-center space-x-4">
         <button
-          onClick={() => handleSwipe('left', currentProfile._id)}
+          onClick={() => handleSwipe('left', currentProfile?._id)}
           className="w-14 h-14 flex items-center justify-center rounded-full bg-white shadow-lg border border-gray-200 hover:bg-gray-50 active:scale-90 transition-transform"
           aria-label="Dislike"
         >
@@ -258,7 +258,7 @@ const GymBrosMatches = ({
         </button>
         
         <button
-          onClick={() => handleSwipe('right', currentProfile._id)}
+          onClick={() => handleSwipe('right', currentProfile?._id)}
           className="w-14 h-14 flex items-center justify-center rounded-full bg-white shadow-lg border border-gray-200 hover:bg-gray-50 active:scale-90 transition-transform"
           aria-label="Like"
         >
@@ -266,20 +266,42 @@ const GymBrosMatches = ({
         </button>
       </div>
       
-      {/* Card Stack */}
-      <div className="relative flex-1 overflow-hidden">
-        <AnimatePresence>
+      {/* Card Stack - Added debugging borders and fixed height */}
+      <div className="relative w-full h-full flex items-center justify-center border-2 border-purple-500" style={{ minHeight: '500px' }}>
+        {/* Debug info box */}
+        <div className="absolute top-0 left-0 bg-yellow-200 p-2 z-50 text-xs">
+          Profile: {currentProfile ? `${currentProfile.name}, ${currentProfile.age}` : 'None'}
+        </div>
+  
+        {/* Card container with explicit dimensions */}
+        <div className="relative w-full h-full max-w-md mx-auto" style={{ minHeight: '70vh', zIndex: 40 }}>
+          <AnimatePresence mode="wait">
+            {currentProfile && (
+              <MatchCard
+                key={currentProfile._id}
+                profile={currentProfile}
+                onSwipe={handleSwipe}
+                currentImageIndex={currentImageIndex}
+                setCurrentImageIndex={setCurrentImageIndex}
+                onInfoClick={() => setShowProfileDetail(true)}
+              />
+            )}
+          </AnimatePresence>
+          
+          {/* Fallback card if animation fails */}
           {currentProfile && (
-            <MatchCard
-              key={currentProfile._id}
-              profile={currentProfile}
-              onSwipe={handleSwipe}
-              currentImageIndex={currentImageIndex}
-              setCurrentImageIndex={setCurrentImageIndex}
-              onInfoClick={() => setShowProfileDetail(true)}
-            />
+            <div className=" w-absolute inset-0 z-30 opacity-0 hover:opacity-100 transition-opacity">
+              <div className="bg-white rounded-xl shadow-lg w-full h-full overflow-hidden border-4 border-red-500">
+                <div className="p-4 bg-red-100">
+                  <h2 className="text-xl font-bold">
+                    Fallback: {currentProfile.name}, {currentProfile.age}
+                  </h2>
+                  <p>If you can see this, hover over the card area</p>
+                </div>
+              </div>
+            </div>
           )}
-        </AnimatePresence>
+        </div>
         
         {/* Show loading indicator when fetching more at the end */}
         {loading && profiles.length > 0 && (
