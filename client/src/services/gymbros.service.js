@@ -511,7 +511,7 @@ async createOrUpdateProfile(profileData) {
   },
 
 
-// Enhanced uploadProfileImages function for gymbros.service.js
+// Fixed uploadProfileImages function for gymbros.service.js
 async uploadProfileImages(files) {
   try {
     console.log('=== SERVICE UPLOAD IMAGES DEBUG START ===');
@@ -529,7 +529,7 @@ async uploadProfileImages(files) {
     // Create FormData for the files
     const formData = new FormData();
     
-    // IMPORTANT: Make sure we're using the right field name expected by the server
+    // IMPORTANT: Use "files" instead of "images" to match server expectation
     files.forEach((file, index) => {
       // Ensure we're working with File objects
       if (!(file instanceof File)) {
@@ -537,10 +537,9 @@ async uploadProfileImages(files) {
         throw new Error('Invalid file type. Only File objects are accepted.');
       }
       
-      // The field name MUST match what the server expects - this is the key part
-      // Many backends expect 'images' or 'files' as the field name
-      console.log(`Adding file "${file.name}" to FormData with field name "images"`);
-      formData.append('images', file);
+      // The field name MUST match what the server expects from multer (configured as "files")
+      console.log(`Adding file "${file.name}" to FormData with field name "files"`);
+      formData.append('files', file);
     });
     
     // Log the FormData keys to verify correct structure
@@ -669,11 +668,21 @@ async uploadProfileImages(files) {
     }
   },
 
-  async blobUrlToFile(blobUrl, fileName = `image-${Date.now()}.jpg`) {
+  async blobUrlToFile(blobUrl, originalFileName = null) {
     try {
+      // Generate a default name if none provided
+      const defaultName = `image-${Date.now()}.jpg`;
+      
+      // Preserve original filename if provided
+      const fileName = originalFileName || defaultName;
+      
       const response = await fetch(blobUrl);
       const blob = await response.blob();
-      return new File([blob], fileName, { type: blob.type || 'image/jpeg' });
+      
+      // Create a File object with the preserved filename
+      return new File([blob], fileName, { 
+        type: blob.type || 'image/jpeg' 
+      });
     } catch (error) {
       console.error('Error converting blob to file:', error);
       throw error;

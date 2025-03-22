@@ -240,116 +240,115 @@ const handleChange = (field, value) => {
   };
   
   const handleSubmit = async () => {
-  if (!isPhoneVerified) {
-    toast.error('Please verify your phone number before proceeding.');
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-    console.log('=== PROFILE SUBMISSION DEBUG START ===');
-    console.log('Current profile data:', {
-      ...profileData,
-      photos: profileData.photos ? `${profileData.photos.length} photos` : 'No photos',
-      images: profileData.images ? `${profileData.images.length} images` : 'No images'
-    });
-    
-    // Upload logic
-    let uploadedImageUrls = [];
-    
-    // IMPORTANT: Get the blob URLs from profileData.photos directly if the ref isn't available
-    if (!imageUploaderRef.current) {
-      console.warn('Image uploader ref is not available, using photos directly from profileData');
-      
-      // If we have photos but no uploader ref, we have blob URLs that need to be uploaded
-      if (profileData.photos && profileData.photos.length > 0) {
-        // Convert blob URLs to files
-        const blobUrls = profileData.photos.filter(url => url && url.startsWith('blob:'));
-        console.log(`Found ${blobUrls.length} blob URLs in profileData.photos`);
-        
-        if (blobUrls.length > 0) {
-          try {
-            // Create File objects from blob URLs
-            const files = await Promise.all(blobUrls.map(async (blobUrl, index) => {
-              try {
-                return await gymbrosService.blobUrlToFile(blobUrl, `image-${index}.jpg`);
-              } catch (err) {
-                console.error(`Failed to convert blob URL to file: ${blobUrl}`, err);
-                return null;
-              }
-            }));
-            
-            // Filter out any nulls from failed conversions
-            const validFiles = files.filter(Boolean);
-            console.log(`Successfully converted ${validFiles.length} blob URLs to files`);
-            
-            if (validFiles.length > 0) {
-              // Upload the files
-              const uploadResult = await gymbrosService.uploadProfileImages(validFiles);
-              if (uploadResult.success) {
-                uploadedImageUrls = uploadResult.imageUrls || [];
-                console.log(`Successfully uploaded ${uploadedImageUrls.length} images:`, uploadedImageUrls);
-              }
-            }
-          } catch (blobError) {
-            console.error('Error processing blob URLs:', blobError);
-          }
-        }
-      }
-    } else {
-      console.log('Using imageUploaderRef to upload images');
-      try {
-        const result = await imageUploaderRef.current.uploadAllImages();
-        console.log('uploadAllImages result:', result);
-        
-        if (result && result.uploadedUrls) {
-          uploadedImageUrls = result.uploadedUrls;
-          console.log('Successfully uploaded images:', uploadedImageUrls);
-        }
-      } catch (uploadError) {
-        console.error('Error uploading images:', uploadError);
-        toast.error('Failed to upload images. Please try again.');
-      }
+    if (!isPhoneVerified) {
+      toast.error('Please verify your phone number before proceeding.');
+      return;
     }
-    
-    console.log('Gathered image URLs before profile check:', uploadedImageUrls);
-    
-    // Rest of your handleSubmit function...
-    
-    // IMPORTANT CHANGE: Fix the payload to use the actual array of URLs
-    const payload = {
-      ...profileData,
-      verificationToken, // Include the verification token
+  
+    setLoading(true);
+  
+    try {
+      console.log('=== PROFILE SUBMISSION DEBUG START ===');
       
-      // Use the actual array of URLs, not a string representation
-      images: uploadedImageUrls.length > 0 ? uploadedImageUrls : undefined,
+      // STEP 1: First create the profile WITHOUT images
+      // This ensures the profile exists before trying to upload images
+      const initialPayload = {
+        ...profileData,
+        verificationToken, // Include the verification token
+        // Exclude photos and images for initial creation
+        photos: undefined,
+        images: undefined
+      };
       
-      // Remove photos to avoid confusion
-      photos: undefined
-    };
-
-    // Log the final payload
-    console.log('Final payload prepared:', {
-      ...payload,
-      images: payload.images ? 
-        `Array with ${payload.images.length} URLs: ${JSON.stringify(payload.images)}` : 
-        'No images'
-    });
-
-    // Create or update the profile
-    console.log('Calling createOrUpdateProfile...');
-    const response = await gymbrosService.createOrUpdateProfile(payload);
-    
-    // Handle response...
-    
-  } catch (error) {
-    console.error('Error creating/updating profile:', error);
-    toast.error(error.response?.data?.message || error.message || 'Failed to create/update profile');
-  } finally {
-    setLoading(false);
-  }
-};
+      console.log('Creating initial profile without images');
+      const initialResponse = await gymbrosService.createOrUpdateProfile(initialPayload);
+      
+      if (!initialResponse.success) {
+        throw new Error(initialResponse.message || 'Failed to create profile');
+      }
+      
+      console.log('Initial profile created successfully:', initialResponse.profile);
+      
+      // STEP 2: Now upload images to the newly created profile
+      let uploadedImageUrls = [];
+      
+      // Check if we have images to upload
+      const blobUrls = profileData.photos?.filter(url => url && url.startsWith('blob:')) || [];
+      
+      if (blobUrls.length > 0) {
+        console.log(`Found ${blobUrls.length} blob URLs to upload`);
+        
+        try {
+          // Convert blob URLs to files with original filenames when possible
+          const files = await Promise.all(blobUrls.map(async (blobUrl, index) => {
+            try {
+              // Generate a somewhat unique filename using the index
+              const fileName = `user_photo_${index+1}_${Date.now()}.jpg`;
+              return await gymbrosService.blobUrlToFile(blobUrl, fileName);
+            } catch (err) {
+              console.error(`Failed to convert blob URL to file: ${blobUrl}`, err);
+              return null;
+            }
+          }));
+          
+          // Filter out any nulls from failed conversions
+          const validFiles = files.filter(Boolean);
+          console.log(`Successfully converted ${validFiles.length} blob URLs to files`);
+          
+          if (validFiles.length > 0) {
+            // Upload the files to the newly created profile
+            const uploadResult = await gymbrosService.uploadProfileImages(validFiles);
+            
+            if (uploadResult.success) {
+              uploadedImageUrls = uploadResult.imageUrls || [];
+              console.log(`Successfully uploaded ${uploadedImageUrls.length} images:`, uploadedImageUrls);
+              
+              // STEP 3: Update the profile with the image URLs if needed
+              if (uploadedImageUrls.length > 0) {
+                const updateResponse = await gymbrosService.createOrUpdateProfile({
+                  ...initialResponse.profile,
+                  images: uploadedImageUrls
+                });
+                
+                console.log('Profile updated with images:', updateResponse);
+                
+                // Call the onProfileCreated callback with the final profile
+                onProfileCreated(updateResponse.profile || initialResponse.profile);
+                toast.success('Profile created successfully!');
+              } else {
+                // No images were uploaded, still consider it a success
+                onProfileCreated(initialResponse.profile);
+                toast.success('Profile created successfully!');
+              }
+            } else {
+              // Image upload failed, but profile was created
+              console.warn('Profile created but image upload failed:', uploadResult.message);
+              onProfileCreated(initialResponse.profile);
+              toast.success('Profile created, but image upload failed.');
+            }
+          } else {
+            // No valid files to upload, still consider it a success
+            onProfileCreated(initialResponse.profile);
+            toast.success('Profile created successfully!');
+          }
+        } catch (uploadError) {
+          console.error('Error uploading images:', uploadError);
+          // Profile was created but images failed, still consider it a partial success
+          onProfileCreated(initialResponse.profile);
+          toast.success('Profile created, but there was an error uploading images.');
+        }
+      } else {
+        // No images to upload, still consider it a success
+        onProfileCreated(initialResponse.profile);
+        toast.success('Profile created successfully!');
+      }
+    } catch (error) {
+      console.error('Error creating profile:', error);
+      toast.error(error.response?.data?.message || error.message || 'Failed to create profile');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const goToNextStep = () => {
     const currentStepConfig = steps[currentStep];

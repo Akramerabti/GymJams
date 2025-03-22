@@ -21,6 +21,8 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
 
   // Explicitly track mapping between blob URLs and files
   const [blobToFileMap, setBlobToFileMap] = useState({});
+
+  const [fileNameMap, setFileNameMap] = useState({});
   
   // Define the base URL for images
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -159,59 +161,71 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
       setIsUploading(false);
     }
   };
-  // Handle file upload
-  const handleImageUpload = async (e) => {
-    const files = Array.from(e.target.files);
-    if (!files.length) return;
+ 
+  // Handle file upload with preserved original filenames
+const handleImageUpload = async (e) => {
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
 
-    console.log('Files selected:', files.length);
+  console.log('Files selected:', files.length);
 
-    // Validate file count
-    if (files.length + localImages.length > 6) {
-      toast.error(`You can only have 6 images total. You can add ${6 - localImages.length} more.`);
-      return;
+  // Validate file count
+  if (files.length + localImages.length > 6) {
+    toast.error(`You can only have 6 images total. You can add ${6 - localImages.length} more.`);
+    return;
+  }
+
+  // Validate file size and type
+  const validFiles = files.filter(file => {
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error(`${file.name} is too large. Maximum size is 5MB.`);
+      return false;
     }
 
-    // Validate file size and type
-    const validFiles = files.filter(file => {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error(`${file.name} is too large. Maximum size is 5MB.`);
-        return false;
-      }
+    if (!file.type.startsWith('image/')) {
+      toast.error(`${file.name} is not an image.`);
+      return false;
+    }
 
-      if (!file.type.startsWith('image/')) {
-        toast.error(`${file.name} is not an image.`);
-        return false;
-      }
+    return true;
+  });
 
-      return true;
-    });
+  if (validFiles.length === 0) return;
 
-    if (validFiles.length === 0) return;
+  // Create blob URLs for preview
+  const newBlobUrls = [];
+  const newBlobMap = { ...blobToFileMap };
+  
+  // Also track the original filenames for each blob URL
+  const newFileNameMap = { ...fileNameMap };
 
-    // Create blob URLs for preview
-    const newBlobUrls = [];
-    const newBlobMap = { ...blobToFileMap };
-
-    validFiles.forEach(file => {
-      const blobUrl = URL.createObjectURL(file);
-      newBlobUrls.push(blobUrl);
-      newBlobMap[blobUrl] = file;
-    });
-
-    // Store the mapping between blob URLs and files
-    setBlobToFileMap(newBlobMap);
-
-    // Add blob URLs to local images for immediate preview
-    const updatedImages = [...localImages, ...newBlobUrls];
-    setLocalImages(updatedImages);
+  validFiles.forEach(file => {
+    const blobUrl = URL.createObjectURL(file);
+    newBlobUrls.push(blobUrl);
     
-    // Store files for later upload
-    setPendingUploads(prev => [...prev, ...validFiles]);
+    // Store both the file and its original filename
+    newBlobMap[blobUrl] = file;
+    newFileNameMap[blobUrl] = file.name;
     
-    console.log('Added', validFiles.length, 'files to pendingUploads (total:', pendingUploads.length + validFiles.length, ')');
-    console.log('Added', newBlobUrls.length, 'blob URLs to localImages (total:', updatedImages.length, ')');
-  };
+    console.log(`Created blob URL ${blobUrl} for file "${file.name}"`);
+  });
+
+  // Store the mapping between blob URLs and files
+  setBlobToFileMap(newBlobMap);
+  
+  // Store the mapping between blob URLs and original filenames
+  setFileNameMap(newFileNameMap);
+
+  // Add blob URLs to local images for immediate preview
+  const updatedImages = [...localImages, ...newBlobUrls];
+  setLocalImages(updatedImages);
+  
+  // Store files for later upload
+  setPendingUploads(prev => [...prev, ...validFiles]);
+  
+  console.log('Added', validFiles.length, 'files to pendingUploads (total:', pendingUploads.length + validFiles.length, ')');
+  console.log('Added', newBlobUrls.length, 'blob URLs to localImages (total:', updatedImages.length, ')');
+};
 
   // Handle image removal
   const handleRemoveImage = async (index) => {
