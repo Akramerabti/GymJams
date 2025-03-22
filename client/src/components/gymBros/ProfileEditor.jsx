@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { 
   Camera, ChevronLeft, Trash2, Share2, User,
-  PauseCircle, MapPin, Save, Loader, Pencil
+  PauseCircle, MapPin, Save, Loader, Pencil, Info
 } from 'lucide-react';
 import gymbrosService from '../../services/gymbros.service';
 import PhotoEditor from './components/PhotoEditor'; // Import the fixed PhotoEditor
@@ -375,7 +375,8 @@ const handleSubmit = async () => {
       const requiredFields = [
         'name', 'age', 'gender', 'height', 'bio', 
         'workoutTypes', 'experienceLevel', 'preferredTime', 
-        'goals', 'photos', 'location'
+        'goals', 'photos', 'location',
+        'religion', 'politicalStance', 'sexualOrientation'
       ];
       
       // Custom validations for arrays and objects (need at least one item)
@@ -384,6 +385,9 @@ const handleSubmit = async () => {
       const isCompleteLocation = formData.location && formData.location.address;
       const isCompleteBio = formData.bio && formData.bio.trim().length > 0;
       const isCompleteGoals = formData.goals && formData.goals.trim().length > 0;
+      const isCompleteReligion = formData.religion && formData.religion.trim().length > 0;
+      const isCompletePoliticalStance = formData.politicalStance && formData.politicalStance.trim().length > 0;
+      const isCompleteSexualOrientation = formData.sexualOrientation && formData.sexualOrientation.trim().length > 0;
       
       // Count completed fields
       let completedFields = 0;
@@ -397,6 +401,12 @@ const handleSubmit = async () => {
         } else if (field === 'bio' && isCompleteBio) {
           completedFields++;
         } else if (field === 'goals' && isCompleteGoals) {
+          completedFields++;
+        } else if (field === 'religion' && isCompleteReligion) {
+          completedFields++;
+        } else if (field === 'politicalStance' && isCompletePoliticalStance) {
+          completedFields++;
+        } else if (field === 'sexualOrientation' && isCompleteSexualOrientation) {
           completedFields++;
         } else if (formData[field]) {
           completedFields++;
@@ -518,6 +528,7 @@ const handleSubmit = async () => {
             textarea={true}
             onChange={handleChange}
           />
+          
   
           <div className="mb-6">
             <h3 className="text-lg font-semibold mb-2">Workout Types</h3>
@@ -580,6 +591,31 @@ const handleSubmit = async () => {
             value={formData.goals} 
             placeholder="What are your fitness goals?"
             textarea={true}
+            onChange={handleChange}
+          />
+
+           {/* New fields for religion, politicalStance, and sexualOrientation */}
+           <EditableField 
+            label="Religion" 
+            name="religion" 
+            value={formData.religion} 
+            placeholder="Your religious beliefs (optional)"
+            onChange={handleChange}
+          />
+          
+          <EditableField 
+            label="Political Views" 
+            name="politicalStance" 
+            value={formData.politicalStance} 
+            placeholder="Your political views (optional)"
+            onChange={handleChange}
+          />
+          
+          <EditableField 
+            label="Sexual Orientation" 
+            name="sexualOrientation" 
+            value={formData.sexualOrientation} 
+            placeholder="Your sexual orientation (optional)"
             onChange={handleChange}
           />
   

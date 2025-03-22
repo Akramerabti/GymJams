@@ -205,7 +205,7 @@ export const checkGymBrosProfileByPhone = async (req, res) => {
 
 export const createOrUpdateGymBrosProfile = async (req, res) => {
   try {
-    const profileData = req.body;
+    let profileData = req.body;
     const verificationToken = req.body.verificationToken;
     
     console.log('Creating/updating GymBros profile:', profileData);
@@ -214,6 +214,12 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
     // Validate profile data
     if (!profileData || typeof profileData !== 'object') {
       return res.status(400).json({ message: 'Invalid profile data' });
+    }
+
+    // IMPORTANT: Remove the _id field when updating to avoid MongoDB immutable field error
+    if (profileData._id) {
+      const { _id, ...dataWithoutId } = profileData;
+      profileData = dataWithoutId;
     }
 
     // Get the effective user (authenticated or guest)

@@ -1,9 +1,24 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
-import { Upload, X, Crop, Loader } from 'lucide-react';
+import { Upload, X, Crop, Loader, Info } from 'lucide-react';
 import { toast } from 'sonner';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
+import { 
+  DndContext, 
+  closestCenter, 
+  KeyboardSensor, 
+  PointerSensor, 
+  TouchSensor,
+  useSensor, 
+  useSensors,
+  DragOverlay 
+} from '@dnd-kit/core';
+import { 
+  arrayMove, 
+  SortableContext, 
+  sortableKeyboardCoordinates, 
+  useSortable, 
+  rectSortingStrategy 
+} from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 const BlobUrlWarning = ({ count }) => {
@@ -25,10 +40,17 @@ const BlobUrlWarning = ({ count }) => {
   );
 };
 
-
 // Sortable Image Item Component
 const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { 
+    attributes, 
+    listeners, 
+    setNodeRef, 
+    transform, 
+    transition, 
+    isDragging,
+    active 
+  } = useSortable({
     id: `photo-${index}`,
   });
 
@@ -37,6 +59,9 @@ const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
     transition,
     zIndex: isDragging ? 10 : 1,
     position: 'relative',
+    touchAction: 'none', // Important for touch devices to prevent scrolling during drag
+    // Add visual feedback during drag for desktop users
+    boxShadow: isDragging ? '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)' : 'none',
   };
 
   // Handle remove and edit events
@@ -85,8 +110,23 @@ const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
             }}
           />
           <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-20 transition-opacity duration-200 flex items-center justify-center">
-            <div {...attributes} {...listeners} className="absolute inset-0 cursor-move" />
-            <div className="absolute top-2 right-2 flex space-x-2">
+            {/* The drag handle spans the entire item for better experience across all devices */}
+            <div 
+              {...attributes} 
+              {...listeners} 
+              className="absolute inset-0 cursor-move z-10"
+              style={{ 
+                touchAction: 'none', // For touch devices
+                cursor: 'grab'       // Visual cue for desktop users
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
+            />
+            <div className="absolute top-2 right-2 flex space-x-2 z-20">
               <button 
                 onClick={handleEdit}
                 className="p-1.5 rounded-full bg-white bg-opacity-70 hover:bg-opacity-100 transition-opacity"
@@ -104,7 +144,7 @@ const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
           
           {/* Primary photo badge for the first photo */}
           {index === 0 && (
-            <div className="absolute bottom-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
+            <div className="absolute bottom-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full z-20">
               Primary
             </div>
           )}
@@ -121,6 +161,38 @@ const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
           <span className="text-sm text-gray-500">Add Photo</span>
         </label>
       )}
+    </div>
+  );
+};
+
+// Preview component for drag overlay
+const DragPreview = ({ url }) => {
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  
+  const getDisplayUrl = (url) => {
+    if (!url) return null;
+    
+    if (url.startsWith('blob:')) {
+      return url;
+    } else if (url.startsWith('http')) {
+      return url;
+    } else {
+      return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
+    }
+  };
+
+  return (
+    <div className="relative aspect-[7/10] w-24 border-2 border-solid border-blue-400 rounded-lg overflow-hidden shadow-lg bg-white">
+      <img 
+        src={getDisplayUrl(url)}
+        alt="Dragged item"
+        className="w-full h-full object-cover"
+        crossOrigin="anonymous"
+        onError={(e) => {
+          e.target.onerror = null;
+          e.target.src = "/api/placeholder/400/600";
+        }}
+      />
     </div>
   );
 };
@@ -255,6 +327,10 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
   const [cropImage, setCropImage] = useState(null);
   const [cropIndex, setCropIndex] = useState(null);
   
+  // State for active drag item
+  const [activeId, setActiveId] = useState(null);
+  const [activeDragItemIndex, setActiveDragItemIndex] = useState(null);
+  
   // Debug: log when photos prop changes
   useEffect(() => {
     console.log("PhotoEditor received photos:", photos);
@@ -270,14 +346,40 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
     }
   }, [photos]);
   
-  // Configure DnD sensors
+  // Configure DnD sensors with proper support for both mouse and touch
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    // Primary pointer sensor (mouse/trackpad) with default behavior
+    useSensor(PointerSensor, {
+      // Don't use a distance constraint for mouse - it feels unnatural
+      activationConstraint: null
+    }),
+    // Touch-specific sensor with custom constraints for mobile devices
+    useSensor(TouchSensor, {
+      // Add specific touch sensor with custom activation constraints
+      activationConstraint: {
+        delay: 100, // Short delay to distinguish taps from drags
+        tolerance: 5  // Add tolerance for small finger movements
+      }
+    }),
+    // Keyboard support for accessibility
+    useSensor(KeyboardSensor, { 
+      coordinateGetter: sortableKeyboardCoordinates 
+    })
   );
+  
+  const handleDragStart = (event) => {
+    const { active } = event;
+    // Get the index from the active ID string (format: "photo-X")
+    const index = parseInt(active.id.split('-')[1]);
+    setActiveDragItemIndex(index);
+    setActiveId(active.id);
+  };
   
   const handleDragEnd = (event) => {
     const { active, over } = event;
+    
+    setActiveId(null);
+    setActiveDragItemIndex(null);
     
     if (active && over && active.id !== over.id) {
       // Extract indices from IDs
@@ -481,7 +583,7 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
       console.log("Generated blob URL map:", map);
       return map;
     }
-  }));
+  }), [photoFiles, displayPhotos]);
   
   
   // Fill display array to maxPhotos
@@ -498,6 +600,7 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
         <SortableContext items={displayArray.map((_, i) => `photo-${i}`)} strategy={rectSortingStrategy}>
@@ -514,6 +617,13 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
             ))}
           </div>
         </SortableContext>
+        
+        {/* Add drag overlay for better visual feedback */}
+        <DragOverlay>
+          {activeId && activeDragItemIndex !== null && displayPhotos[activeDragItemIndex] ? (
+            <DragPreview url={displayPhotos[activeDragItemIndex]} />
+          ) : null}
+        </DragOverlay>
       </DndContext>
       
       {cropImage && (
@@ -530,6 +640,11 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
       {displayPhotos.filter(Boolean).length < 2 && (
         <p className="text-sm text-red-500 mt-2">Please upload at least 2 images.</p>
       )}
+      
+      {/* Add helper text for dragging on both desktop and mobile */}
+      <p className="text-xs text-gray-500 mt-2 text-center">
+        Drag images to reorder • On mobile: press and hold to drag
+      </p>
     </div>
   );
 });

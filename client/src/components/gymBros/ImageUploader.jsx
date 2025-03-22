@@ -12,29 +12,14 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
   const [isEditing, setIsEditing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [editingImage, setEditingImage] = useState(null);
-  
-  // Track local image state - separate blob URLs (for display) from actual files (for upload)
   const [localImages, setLocalImages] = useState([]);
-  
-  // Track actual file objects that need to be uploaded
   const [pendingUploads, setPendingUploads] = useState([]);
-
-  // Explicitly track mapping between blob URLs and files
   const [blobToFileMap, setBlobToFileMap] = useState({});
-
   const [fileNameMap, setFileNameMap] = useState({});
   
-  // Define the base URL for images
+
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-  // Debug logging
-  console.log('ImageUploader render with props:', {
-    initialImages: images?.length || 0,
-    pendingUploads: pendingUploads?.length || 0,
-    localImages: localImages?.length || 0
-  });
-
-  // Initialize local images from props
   useEffect(() => {
     if (images && images.length > 0) {
       // Filter out any nulls or empty strings
@@ -47,7 +32,6 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
   // Update parent when local images change
   useEffect(() => {
     if (JSON.stringify(localImages) !== JSON.stringify(images)) {
-      console.log('Updating parent with', localImages.length, 'images');
       onImagesChange(localImages);
     }
   }, [localImages, onImagesChange, images]);
@@ -59,7 +43,6 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
   const isServerUrl = (url) => {
     if (!url || typeof url !== 'string') return false;
     
-    // Check if it's a blob URL (client-side only)
     if (url.startsWith('blob:')) return false;
     
     // Valid server URLs
