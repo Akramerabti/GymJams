@@ -54,41 +54,51 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
     setCroppedArea(croppedAreaPixels);
   }, []);
 
-  // Helper to check if a URL is a server URL
   const isServerUrl = (url) => {
-    return typeof url === 'string' && !url.startsWith('blob:') && (
+    if (!url || typeof url !== 'string') return false;
+    
+    // Check if it's a blob URL (client-side only)
+    if (url.startsWith('blob:')) return false;
+    
+    // Valid server URLs
+    return (
       url.startsWith('http') || 
-      url.startsWith('/api/') || 
-      url.startsWith('/uploads/')
+      url.startsWith('/') ||  // Relative URLs from the server
+      url.includes('/uploads/') ||
+      url.includes('/api/')
     );
   };
 
-  // Upload all pending images
   const uploadAllImages = async () => {
     try {
       console.log('Starting upload of all pending images...', pendingUploads.length);
+      
+      // Log what we're trying to upload
+      console.log('Pending uploads:', pendingUploads.map(f => ({ 
+        name: f.name, 
+        type: f.type, 
+        size: f.size 
+      })));
+      
+      // Log the localImages array
+      console.log('localImages before upload:', localImages);
       
       // Exit early if no files to upload
       if (pendingUploads.length === 0) {
         console.log('No pending images to upload');
         
-        // Just return existing server URLs if we have any
+        // Just return existing server URLs
         const serverUrls = localImages.filter(url => isServerUrl(url));
-        console.log('Returning', serverUrls.length, 'existing server URLs');
+        console.log('Returning existing server URLs:', serverUrls);
         
-        return { 
-          uploadedUrls: serverUrls, 
-          failedIndices: [] 
-        };
+        return { uploadedUrls: serverUrls, failedIndices: [] };
       }
       
       setIsUploading(true);
       
       // Upload all files at once
-      console.log('Uploading', pendingUploads.length, 'files');
+      console.log('Uploading', pendingUploads.length, 'files...');
       const result = await gymbrosService.uploadProfileImages(pendingUploads);
-      
-      console.log('Upload result:', result);
       
       if (!result.success) {
         throw new Error(result.message || 'Failed to upload images');
@@ -96,33 +106,42 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
       
       // Get newly uploaded URLs
       const newUrls = result.imageUrls || [];
-      console.log('Upload success, server returned', newUrls.length, 'URLs');
+      console.log('Upload success, server returned:', newUrls);
       
-      // Get existing server URLs
+      // Collect existing server URLs
       const existingServerUrls = localImages.filter(url => isServerUrl(url));
-      console.log('Found', existingServerUrls.length, 'existing server URLs');
+      console.log('Existing server URLs:', existingServerUrls);
       
       // Combine existing server URLs with new ones
       const allServerUrls = [...existingServerUrls, ...newUrls];
-      console.log('Total server URLs:', allServerUrls.length);
+      console.log('All server URLs:', allServerUrls);
       
-      // Replace blob URLs in localImages with server URLs
+      // Update localImages to include both existing server URLs and newly uploaded URLs
+      // Replace blob URLs with their corresponding server URLs
       const updatedImages = [...localImages];
       
-      // For each blob URL, find its index in localImages and replace with server URL
-      Object.keys(blobToFileMap).forEach((blobUrl, index) => {
+      // For each blob URL in localImages, replace with the corresponding server URL
+      const blobUrls = Object.keys(blobToFileMap);
+      blobUrls.forEach((blobUrl, index) => {
         if (index < newUrls.length) {
+          // Find this blob URL in the localImages array
           const blobIndex = updatedImages.indexOf(blobUrl);
           if (blobIndex !== -1) {
+            // Replace the blob URL with the server URL
             updatedImages[blobIndex] = newUrls[index];
+            console.log(`Replaced blob URL at index ${blobIndex} with ${newUrls[index]}`);
           }
         }
       });
       
-      // Update localImages with server URLs
-      setLocalImages(updatedImages.filter(url => isServerUrl(url)));
+      // Filter out any remaining blob URLs
+      const finalImages = updatedImages.filter(url => isServerUrl(url));
+      console.log('Final images after replacement:', finalImages);
       
-      // Clear pending uploads and blob map
+      // Update the localImages state
+      setLocalImages(finalImages);
+      
+      // Clear pending uploads and blob to file map
       setPendingUploads([]);
       setBlobToFileMap({});
       
@@ -132,16 +151,14 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
       };
     } catch (error) {
       console.error('Error uploading images:', error);
-      toast.error('Failed to upload images. Please try again.');
       return { 
-        uploadedUrls: localImages.filter(url => isServerUrl(url)), 
-        failedIndices: Array.from({ length: pendingUploads.length }, (_, i) => i) 
+        uploadedUrls: localImages.filter(url => isServerUrl(url)),
+        failedIndices: Array.from({ length: pendingUploads.length }, (_, i) => i)
       };
     } finally {
       setIsUploading(false);
     }
   };
-
   // Handle file upload
   const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files);
@@ -370,12 +387,19 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, uploadAft
     }
   };
 
-  // THIS IS CRITICAL: Expose the uploadAllImages method to parent components
   React.useImperativeHandle(ref, () => ({
     uploadAllImages,
     getCurrentFiles: () => pendingUploads,
-    getCurrentUrls: () => localImages.filter(url => isServerUrl(url))
-  }), [pendingUploads, localImages]);
+    getCurrentUrls: () => localImages.filter(url => isServerUrl(url)),
+    getPendingUploadsCount: () => pendingUploads.length,
+    
+    // Add debugging methods
+    debug: {
+      getLocalImages: () => localImages,
+      getPendingUploads: () => pendingUploads,
+      getBlobToFileMap: () => blobToFileMap
+    }
+  }), [pendingUploads, localImages, blobToFileMap]);
 
   return (
     <div className="w-full h-full flex flex-col">

@@ -373,8 +373,11 @@ export const buildSteps = ({
             <p className="text-sm text-gray-500 mb-4">
               Add at least 2 photos to your profile. Your first photo will be your main profile picture.
             </p>
+            
+            {/* Add a key to force re-render */}
             <ImageUploader
-              ref={imageUploaderRef} // Pass the ref here
+              key="photo-uploader"
+              ref={imageUploaderRef} // IMPORTANT: Pass the ref here
               images={profileData.photos || []}
               onImagesChange={(newImages) => {
                 console.log('ImageUploader onImagesChange called with', newImages.length, 'images');
@@ -385,8 +388,11 @@ export const buildSteps = ({
             
             {/* Debug information */}
             <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
-              <p>Pending uploads: {imageUploaderRef.current?.getPendingUploadsCount?.() || '?'}</p>
+              <p>Ref available: {imageUploaderRef.current ? 'YES' : 'NO'}</p>
+              <p>Pending uploads: {imageUploaderRef.current?.getPendingUploadsCount?.() || 0}</p>
               <p>Photos in profile data: {profileData.photos?.length || 0}</p>
+              <p>Blob URLs: {profileData.photos?.filter(url => url?.startsWith('blob:'))?.length || 0}</p>
+              <p>Server URLs: {profileData.photos?.filter(url => url && !url.startsWith('blob:'))?.length || 0}</p>
             </div>
           </div>
         ),

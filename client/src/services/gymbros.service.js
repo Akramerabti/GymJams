@@ -222,81 +222,98 @@ const gymbrosService = {
     }
   },
 
-  async createOrUpdateProfile(profileData) {
-    console.log('Creating/updating GymBros profile with original data:', profileData);
-    try {
-      // Check if we have verified phone data for a guest
-      const verificationToken = localStorage.getItem('verificationToken');
-      const verifiedPhone = localStorage.getItem('verifiedPhone');
-      
-      // Create a deep copy of the data to avoid modifying the original
-      const processedData = { ...profileData };
-      
-      // IMPORTANT: Let's check and log what we're getting for images
-      console.log('Received images in profileData:', 
-                  profileData.images ? 
-                  `${profileData.images.length} images` : 
-                  'No images');
-      
-      // Ensure images field is correctly handled
-      if (profileData.photos && Array.isArray(profileData.photos)) {
-        // Handle photos if provided (usually from PhotoEditor)
-        const filteredPhotos = profileData.photos.filter(url => url && !url.startsWith('blob:'));
-        console.log(`Copied ${filteredPhotos.length} photos to images field`);
-        processedData.images = filteredPhotos;
-      }
-      
-      // If we have an images array directly provided, make sure it's clean
-      if (profileData.images && Array.isArray(profileData.images)) {
-        // Only keep real URLs, not blob URLs
-        const filteredImages = profileData.images.filter(url => url && !url.startsWith('blob:'));
-        console.log(`Using ${filteredImages.length} filtered images`);
-        processedData.images = filteredImages;
-      }
-      
-      // Always remove photos field before sending to server
-      delete processedData.photos;
-      
-      // Include verification token if available
-      if (verificationToken && verifiedPhone) {
-        processedData.verificationToken = verificationToken;
-        
-        // Make sure phone matches the verified one
-        if (!processedData.phone) {
-          processedData.phone = verifiedPhone;
-        }
-      }
-      
-      // Log the final data being sent
-      console.log('Sending processed data to server:', {
-        ...processedData,
-        images: processedData.images ? 
-                `Array with ${processedData.images.length} items: ${JSON.stringify(processedData.images)}` : 
-                'No images'
-      });
-      
-      // Create request config with guest token
-      const config = this.configWithGuestToken();
-      
-      const response = await api.post('/gym-bros/profile', processedData, config);
-      
-      // Handle guest token if received
-      if (response.data.guestToken) {
-        this.setGuestToken(response.data.guestToken);
-      }
-      
-      // Clean up temporary verification data
-      if (response.data.success) {
-        localStorage.removeItem('verificationToken');
-        localStorage.removeItem('verifiedPhone');
-      }
-      
-      return response.data;
-    } catch (error) {
-      console.error('Error creating/updating GymBros profile:', error);
-      throw error;
+  // Updated createOrUpdateProfile function for gymbros.service.js
+async createOrUpdateProfile(profileData) {
+  console.log('Creating/updating GymBros profile with original data:', profileData);
+  try {
+    // Check if we have verified phone data for a guest
+    const verificationToken = localStorage.getItem('verificationToken');
+    const verifiedPhone = localStorage.getItem('verifiedPhone');
+    
+    // Create a deep copy of the data to avoid modifying the original
+    const processedData = { ...profileData };
+    
+    // IMPORTANT: Handle images correctly - log raw data for debugging
+    console.log('Received images in profileData:', 
+                profileData.images ? 
+                `${Array.isArray(profileData.images) ? profileData.images.length : 'non-array'} images: ${
+                  Array.isArray(profileData.images) ? JSON.stringify(profileData.images) : profileData.images
+                }` : 
+                'No images');
+                
+    // Fix images field if it's a string instead of an array (crucial)
+    if (typeof profileData.images === 'string') {
+      console.warn('Images field is a string, not an array! Converting to empty array.');
+      processedData.images = [];
     }
-  },
+    
+    // Fix images field if it's not defined or not an array
+    if (!profileData.images || !Array.isArray(profileData.images)) {
+      console.warn('No valid images array found, checking photos field');
+      
+      // Try to use photos field if available
+      if (profileData.photos && Array.isArray(profileData.photos)) {
+        const validUrls = profileData.photos.filter(url => url && !url.startsWith('blob:'));
+        console.log(`Found ${validUrls.length} valid URLs in photos field:`, validUrls);
+        processedData.images = validUrls;
+      } else {
+        // Initialize as empty array
+        processedData.images = [];
+      }
+    }
+    
+    // Cleanup: Remove any blob URLs from images array
+    if (Array.isArray(processedData.images)) {
+      const filtered = processedData.images.filter(url => url && !url.startsWith('blob:'));
+      if (filtered.length !== processedData.images.length) {
+        console.warn(`Removed ${processedData.images.length - filtered.length} blob URLs from images array`);
+        processedData.images = filtered;
+      }
+    }
+    
+    // Always remove photos field before sending to server
+    delete processedData.photos;
+    
+    // Include verification token if available
+    if (verificationToken && verifiedPhone) {
+      processedData.verificationToken = verificationToken;
+      
+      // Make sure phone matches the verified one
+      if (!processedData.phone) {
+        processedData.phone = verifiedPhone;
+      }
+    }
+    
+    // Log the final data being sent
+    console.log('Sending processed data to server:', {
+      ...processedData,
+      images: processedData.images && Array.isArray(processedData.images) ? 
+              `Array with ${processedData.images.length} items: ${JSON.stringify(processedData.images)}` : 
+              'Invalid images field'
+    });
+    
+    // Create request config with guest token
+    const config = this.configWithGuestToken();
+    
+    const response = await api.post('/gym-bros/profile', processedData, config);
+    
+    // Handle guest token if received
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    // Clean up temporary verification data
+    if (response.data.success) {
+      localStorage.removeItem('verificationToken');
+      localStorage.removeItem('verifiedPhone');
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error creating/updating GymBros profile:', error);
+    throw error;
+  }
+},
 
   async getRecommendedProfiles(filters = {}) {
     try {
@@ -494,8 +511,11 @@ const gymbrosService = {
   },
 
 
+// Enhanced uploadProfileImages function for gymbros.service.js
 async uploadProfileImages(files) {
   try {
+    console.log('=== SERVICE UPLOAD IMAGES DEBUG START ===');
+    
     // Validate input
     if (!files || !files.length) {
       console.error('No files provided to uploadProfileImages');
@@ -508,66 +528,110 @@ async uploadProfileImages(files) {
     
     // Create FormData for the files
     const formData = new FormData();
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      
+    
+    // IMPORTANT: Make sure we're using the right field name expected by the server
+    files.forEach((file, index) => {
       // Ensure we're working with File objects
       if (!(file instanceof File)) {
-        console.error('Invalid file object:', file);
+        console.error(`Invalid file object at index ${index}:`, file);
         throw new Error('Invalid file type. Only File objects are accepted.');
       }
+      
+      // The field name MUST match what the server expects - this is the key part
+      // Many backends expect 'images' or 'files' as the field name
+      console.log(`Adding file "${file.name}" to FormData with field name "images"`);
       formData.append('images', file);
+    });
+    
+    // Log the FormData keys to verify correct structure
+    console.log('FormData entries:');
+    for (let pair of formData.entries()) {
+      console.log(`- ${pair[0]}: ${typeof pair[1] === 'object' ? 'File object' : pair[1]}`);
     }
     
     // Get guest token if available
     const guestToken = this.getGuestToken();
+    console.log('Guest token available:', !!guestToken);
     
     // Set up config with guest token and content type
     const config = {
       headers: {
         'Content-Type': 'multipart/form-data',
-      }
+      },
+      params: {}
     };
     
-    // Add guest token to headers if available
+    // Add guest token to headers and params if available
     if (guestToken) {
       config.headers['x-gymbros-guest-token'] = guestToken;
+      config.params.guestToken = guestToken;
     }
     
-    console.log('Uploading images with config:', JSON.stringify(config.headers));
+    console.log('Upload request configuration:', {
+      url: '/gym-bros/profile-images',
+      method: 'POST',
+      headers: {...config.headers},
+      params: {...config.params}
+    });
     
     // Make the API request
+    console.log('Sending upload request to server...');
+    const uploadStartTime = Date.now();
     const response = await api.post('/gym-bros/profile-images', formData, config);
+    const uploadDuration = Date.now() - uploadStartTime;
     
-    console.log('Upload response:', response.data);
+    console.log(`Upload request completed in ${uploadDuration}ms with status ${response.status}`);
+    console.log('Upload response data:', response.data);
     
     // Check if the response contains image URLs
     if (!response.data || !response.data.imageUrls) {
       console.error('Invalid response format:', response.data);
-      throw new Error('Invalid server response format');
+      throw new Error('Invalid server response format - missing imageUrls array');
     }
 
     // Return the image URLs exactly as they are from the server
     const imageUrls = response.data.imageUrls;
+    console.log(`Received ${imageUrls.length} image URLs from server:`, imageUrls);
     
     // Update guest token if one was returned
     if (response.data.guestToken) {
+      console.log('Updating guest token from response');
       this.setGuestToken(response.data.guestToken);
     }
     
-    return {
+    const result = {
       success: true,
       imageUrls,
       message: response.data.message || 'Images uploaded successfully'
     };
+    
+    console.log('Returning result:', result);
+    console.log('=== SERVICE UPLOAD IMAGES DEBUG END ===');
+    return result;
   } catch (error) {
-    console.error('Error uploading profile images:', error);
+    console.error('Error in uploadProfileImages:', error);
+    
+    // Check for network errors
+    if (error.code === 'ERR_NETWORK') {
+      console.error('Network error - check server connectivity');
+    }
+    
+    // Check for server errors
+    if (error.response) {
+      console.error('Server returned error:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data
+      });
+    }
     
     // Provide more specific error message if available
     if (error.response?.data?.error) {
+      console.error('Server error message:', error.response.data.error);
       throw new Error(error.response.data.error);
     }
     
+    console.log('=== SERVICE UPLOAD IMAGES DEBUG END (WITH ERROR) ===');
     throw error;
   }
 },
