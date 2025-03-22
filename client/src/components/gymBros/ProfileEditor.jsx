@@ -9,17 +9,14 @@ import gymbrosService from '../../services/gymbros.service';
 import PhotoEditor from './components/PhotoEditor'; // Import the fixed PhotoEditor
 
 const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false }) => {
-  // Component state
   const [formData, setFormData] = useState(userProfile || {});
   const [errors, setErrors] = useState({});
   const [activeSection, setActiveSection] = useState('main');
   const [loading, setLoading] = useState(false);
   const [showSaveButton, setShowSaveButton] = useState(false);
   
-  // Reference to the photo editor component
   const photoEditorRef = useRef(null);
   
-  // Initialize form data from userProfile
   useEffect(() => {
     if (userProfile) {
       const initialData = {
@@ -54,7 +51,6 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
   };
 
   const handlePhotosChange = (newPhotos) => {
-    // Validate newPhotos to ensure it's an array
     if (!Array.isArray(newPhotos)) {
       console.error('handlePhotosChange received non-array value:', newPhotos);
       return;
@@ -73,8 +69,6 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     
     setShowSaveButton(true);
   };
-
-  // Modify this part of your ProfileEditor's handleSubmit function to preserve image positions
 
 const handleSubmit = async () => {
   if (loading) return;
@@ -362,163 +356,267 @@ const handleSubmit = async () => {
     return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
   };
 
-  // Main profile view
-  const renderMainProfile = () => (
-    <>
-      {/* Profile Picture Section */}
-      <div 
-        className="relative w-full aspect-square bg-gray-100 mb-4 cursor-pointer"
-        onClick={() => setActiveSection('photos')}
-      >
-        {formData.photos && formData.photos.length > 0 ? (
-          <img 
-            src={getImageUrl(formData.photos[0])}
-            alt="Profile" 
-            className="w-full h-full object-cover"
-            crossOrigin="anonymous"
-            onError={(e) => {
-              console.error('Image load error:', formData.photos[0]);
-              e.target.onerror = null;
-              e.target.src = "/api/placeholder/400/600";
-            }}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <User size={64} className="text-gray-400" />
-          </div>
-        )}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
-          <div className="flex items-end">
-            <div className="flex-1 text-white">
-              <h1 className="text-2xl font-bold">{formData.name || 'Your Name'}, {formData.age || '?'}</h1>
-              {formData.location?.address && (
-                <div className="flex items-center text-white/80">
-                  <MapPin size={16} className="mr-1" />
-                  <span>{formData.location.address}</span>
+  const renderMainProfile = () => {
+    // Function to extract just city, province and country from full address
+    const getLocationSummary = (address) => {
+      if (!address) return '';
+      
+      // Split by commas and take the last 2-3 parts, which are typically city, province, country
+      const parts = address.split(',').map(part => part.trim());
+      
+      if (parts.length <= 3) return address; // If it's already short, return as is
+      
+      return parts.slice(-3).join(', '); // Take the last 3 parts
+    };
+    
+    // Calculate profile completeness percentage for the progress ring
+    const calculateProfileCompleteness = () => {
+      // Required fields to consider for completeness
+      const requiredFields = [
+        'name', 'age', 'gender', 'height', 'bio', 
+        'workoutTypes', 'experienceLevel', 'preferredTime', 
+        'goals', 'photos', 'location'
+      ];
+      
+      // Custom validations for arrays and objects (need at least one item)
+      const isCompleteWorkoutTypes = formData.workoutTypes && formData.workoutTypes.length > 0;
+      const isCompletePhotos = formData.photos && formData.photos.length >= 2;
+      const isCompleteLocation = formData.location && formData.location.address;
+      const isCompleteBio = formData.bio && formData.bio.trim().length > 0;
+      const isCompleteGoals = formData.goals && formData.goals.trim().length > 0;
+      
+      // Count completed fields
+      let completedFields = 0;
+      requiredFields.forEach(field => {
+        if (field === 'workoutTypes' && isCompleteWorkoutTypes) {
+          completedFields++;
+        } else if (field === 'photos' && isCompletePhotos) {
+          completedFields++;
+        } else if (field === 'location' && isCompleteLocation) {
+          completedFields++;
+        } else if (field === 'bio' && isCompleteBio) {
+          completedFields++;
+        } else if (field === 'goals' && isCompleteGoals) {
+          completedFields++;
+        } else if (formData[field]) {
+          completedFields++;
+        }
+      });
+      
+      // Calculate percentage
+      return Math.round((completedFields / requiredFields.length) * 100);
+    };
+    
+    const completeness = calculateProfileCompleteness();
+    
+    // Calculate circle progress parameters
+    const radius = 70; // Size of the circle
+    const strokeWidth = 4; // Width of the progress ring
+    const normalizedRadius = radius - strokeWidth * 2;
+    const circumference = normalizedRadius * 2 * Math.PI;
+    const strokeDashoffset = circumference - (completeness / 100) * circumference;
+    
+    return (
+      <>
+        {/* Profile Picture Section - Circular Design */}
+        <div className="flex flex-col items-center mt-6 mb-8">
+          {/* Progress Circle and Profile Image */}
+          <div className="relative" style={{ width: radius * 2, height: radius * 2 }}>
+            {/* SVG Progress Ring */}
+            <svg
+              height={radius * 2}
+              width={radius * 2}
+              className="absolute inset-0"
+            >
+              {/* Background circle */}
+              <circle
+                stroke="#e5e7eb" // Light gray background
+                fill="transparent"
+                strokeWidth={strokeWidth}
+                r={normalizedRadius}
+                cx={radius}
+                cy={radius}
+              />
+              {/* Progress circle - more vibrant blue with increased opacity for visibility */}
+              <circle
+                stroke="#4f46e5" // Indigo progress indicator (more vibrant)
+                fill="transparent"
+                strokeWidth={strokeWidth}
+                strokeDasharray={circumference + ' ' + circumference}
+                style={{ strokeDashoffset }}
+                strokeLinecap="round"
+                r={normalizedRadius}
+                cx={radius}
+                cy={radius}
+                transform={`rotate(-90 ${radius} ${radius})`}
+                className="drop-shadow"
+              />
+            </svg>
+  
+            {/* Circular Profile Image */}
+            <div 
+              className="absolute inset-0 m-2 rounded-full overflow-hidden border-2 border-white cursor-pointer bg-gray-100"
+              onClick={() => setActiveSection('photos')}
+            >
+              {formData.photos && formData.photos.length > 0 ? (
+                <img 
+                  src={getImageUrl(formData.photos[0])}
+                  alt="Profile" 
+                  className="w-full h-full object-cover"
+                  crossOrigin="anonymous"
+                  onError={(e) => {
+                    console.error('Image load error:', formData.photos[0]);
+                    e.target.onerror = null;
+                    e.target.src = "/api/placeholder/400/400";
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <User size={42} className="text-gray-400" />
                 </div>
               )}
             </div>
-            <button 
-              className="bg-white/20 backdrop-blur-sm rounded-full p-2"
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveSection('photos');
-              }}
-            >
-              <Camera size={24} className="text-white" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Basic Info Section */}
-      <div className="px-4 space-y-6 pb-20">
-        <EditableField 
-          label="About Me" 
-          name="bio" 
-          value={formData.bio} 
-          placeholder="Tell others about yourself and your fitness journey..."
-          textarea={true}
-          onChange={handleChange}
-        />
-
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-2">Workout Types</h3>
-          <div className="flex flex-wrap gap-2">
-            {workoutTypes.map(type => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => toggleSelection('workoutTypes', type)}
-                className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                  (formData.workoutTypes || []).includes(type)
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-200 text-gray-700'
-                }`}
+            
+            {/* Camera Button - positioned OUTSIDE the profile image div to ensure proper stacking */}
+            <div className="absolute bottom-3 right-3" style={{ pointerEvents: 'all' }}>
+              <button 
+                className="bg-white shadow-lg text-blue-500 rounded-full p-2 border border-gray-200"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveSection('photos');
+                }}
               >
-                {type}
+                <Camera size={18} />
               </button>
-            ))}
+            </div>
           </div>
-          {errors.workoutTypes && <p className="text-red-500 text-sm mt-1">{errors.workoutTypes}</p>}
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">Experience Level</label>
-            <select
-              name="experienceLevel"
-              value={formData.experienceLevel || ''}
-              onChange={handleChange}
-              className="mt-1 block w-full p-3 border border-gray-300 rounded-md"
-            >
-              <option value="">Select Level</option>
-              {experienceLevels.map(level => (
-                <option key={level} value={level}>{level}</option>
-              ))}
-            </select>
-            {errors.experienceLevel && <p className="text-red-500 text-sm mt-1">{errors.experienceLevel}</p>}
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">Preferred Time</label>
-            <select
-              name="preferredTime"
-              value={formData.preferredTime || ''}
-              onChange={handleChange}
-              className="mt-1 block w-full p-3 border border-gray-300 rounded-md"
-            >
-              <option value="">Select Time</option>
-              {preferredTimes.map(time => (
-                <option key={time} value={time}>{time}</option>
-              ))}
-            </select>
-            {errors.preferredTime && <p className="text-red-500 text-sm mt-1">{errors.preferredTime}</p>}
-          </div>
-        </div>
-
-        <EditableField 
-          label="Fitness Goals" 
-          name="goals" 
-          value={formData.goals} 
-          placeholder="What are your fitness goals?"
-          textarea={true}
-          onChange={handleChange}
-        />
-
-        {/* Settings */}
-        <div className="mt-8">
-          <h3 className="text-lg font-semibold mb-4">Settings</h3>
           
-          <div className="space-y-3">
-            <button 
-              onClick={handleShareProfile}
-              className="w-full flex items-center p-3 rounded-md bg-gray-100 hover:bg-gray-200"
-            >
-              <Share2 size={20} className="mr-3 text-gray-600" />
-              <span>Share Profile</span>
-            </button>
-            
-            <button 
-              onClick={handlePauseAccount}
-              className="w-full flex items-center p-3 rounded-md bg-gray-100 hover:bg-gray-200"
-            >
-              <PauseCircle size={20} className="mr-3 text-gray-600" />
-              <span>{formData.settings?.showMe === false ? 'Activate Profile' : 'Pause Profile'}</span>
-            </button>
-            
-            <button 
-              onClick={handleDeleteAccount}
-              className="w-full flex items-center p-3 rounded-md bg-red-50 hover:bg-red-100 text-red-600"
-            >
-              <Trash2 size={20} className="mr-3" />
-              <span>Delete Profile</span>
-            </button>
+          {/* Completeness percentage */}
+          <div className="text-sm text-gray-500 mt-1">
+            {completeness}% Complete
+          </div>
+          
+          {/* Profile Information - Below the Image */}
+          <div className="text-center mt-3">
+            <h1 className="text-2xl font-bold">{formData.name || 'Your Name'}, {formData.age || '?'}</h1>
+            {formData.location?.address && (
+              <div className="flex items-center justify-center text-gray-600 mt-1">
+                <MapPin size={16} className="mr-1" />
+                <span>{getLocationSummary(formData.location.address)}</span>
+              </div>
+            )}
           </div>
         </div>
-      </div>
-    </>
-  );
+  
+        {/* Basic Info Section */}
+        <div className="px-4 space-y-6 pb-20">
+          <EditableField 
+            label="About Me" 
+            name="bio" 
+            value={formData.bio} 
+            placeholder="Tell others about yourself and your fitness journey..."
+            textarea={true}
+            onChange={handleChange}
+          />
+  
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold mb-2">Workout Types</h3>
+            <div className="flex flex-wrap gap-2">
+              {workoutTypes.map(type => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => toggleSelection('workoutTypes', type)}
+                  className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                    (formData.workoutTypes || []).includes(type)
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-200 text-gray-700'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+            {errors.workoutTypes && <p className="text-red-500 text-sm mt-1">{errors.workoutTypes}</p>}
+          </div>
+  
+          <div className="grid grid-cols-2 gap-4">
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">Experience Level</label>
+              <select
+                name="experienceLevel"
+                value={formData.experienceLevel || ''}
+                onChange={handleChange}
+                className="mt-1 block w-full p-3 border border-gray-300 rounded-md"
+              >
+                <option value="">Select Level</option>
+                {experienceLevels.map(level => (
+                  <option key={level} value={level}>{level}</option>
+                ))}
+              </select>
+              {errors.experienceLevel && <p className="text-red-500 text-sm mt-1">{errors.experienceLevel}</p>}
+            </div>
+  
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">Preferred Time</label>
+              <select
+                name="preferredTime"
+                value={formData.preferredTime || ''}
+                onChange={handleChange}
+                className="mt-1 block w-full p-3 border border-gray-300 rounded-md"
+              >
+                <option value="">Select Time</option>
+                {preferredTimes.map(time => (
+                  <option key={time} value={time}>{time}</option>
+                ))}
+              </select>
+              {errors.preferredTime && <p className="text-red-500 text-sm mt-1">{errors.preferredTime}</p>}
+            </div>
+          </div>
+  
+          <EditableField 
+            label="Fitness Goals" 
+            name="goals" 
+            value={formData.goals} 
+            placeholder="What are your fitness goals?"
+            textarea={true}
+            onChange={handleChange}
+          />
+  
+          {/* Settings */}
+          <div className="mt-8">
+            <h3 className="text-lg font-semibold mb-4">Settings</h3>
+            
+            <div className="space-y-3">
+              <button 
+                onClick={handleShareProfile}
+                className="w-full flex items-center p-3 rounded-md bg-gray-100 hover:bg-gray-200"
+              >
+                <Share2 size={20} className="mr-3 text-gray-600" />
+                <span>Share Profile</span>
+              </button>
+              
+              <button 
+                onClick={handlePauseAccount}
+                className="w-full flex items-center p-3 rounded-md bg-gray-100 hover:bg-gray-200"
+              >
+                <PauseCircle size={20} className="mr-3 text-gray-600" />
+                <span>{formData.settings?.showMe === false ? 'Activate Profile' : 'Pause Profile'}</span>
+              </button>
+              
+              <button 
+                onClick={handleDeleteAccount}
+                className="w-full flex items-center p-3 rounded-md bg-red-50 hover:bg-red-100 text-red-600"
+              >
+                <Trash2 size={20} className="mr-3" />
+                <span>Delete Profile</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  };
   
   const workoutTypes = [
     'Strength Training', 'Cardio', 'HIIT', 'CrossFit', 'Bodybuilding',

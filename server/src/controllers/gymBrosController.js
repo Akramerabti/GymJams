@@ -227,15 +227,31 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
       let profile = await GymBrosProfile.findOne({ userId });
 
       if (profile) {
-        // Update existing profile
+        // Update existing profile - including new fields
         profile = await GymBrosProfile.findByIdAndUpdate(
           profile._id, 
-          { ...profileData, userId }, 
+          { 
+            ...profileData,
+            userId,
+            // Ensure new fields are properly updated
+            bio: profileData.bio,
+            religion: profileData.religion,
+            politicalStandpoint: profileData.politicalStandpoint,
+            sexualOrientation: profileData.sexualOrientation
+          }, 
           { new: true }
         );
       } else {
-        // Create new profile
-        profile = new GymBrosProfile({ ...profileData, userId });
+        // Create new profile with new fields
+        profile = new GymBrosProfile({ 
+          ...profileData,
+          userId,
+          // Include new fields explicitly
+          bio: profileData.bio,
+          religion: profileData.religion,
+          politicalStandpoint: profileData.politicalStandpoint,
+          sexualOrientation: profileData.sexualOrientation
+        });
         await profile.save();
         
         // Link profile ID to user
@@ -250,10 +266,17 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
     } 
     // Case 2: Guest user with existing profile
     else if (effectiveUser.profileId) {
-      // Update existing profile
+      // Update existing profile with new fields
       const profile = await GymBrosProfile.findByIdAndUpdate(
         effectiveUser.profileId,
-        profileData,
+        {
+          ...profileData,
+          // Include new fields explicitly
+          bio: profileData.bio,
+          religion: profileData.religion,
+          politicalStandpoint: profileData.politicalStandpoint,
+          sexualOrientation: profileData.sexualOrientation
+        },
         { new: true }
       );
       
@@ -283,9 +306,14 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
           });
         }
         
-        // Create a new profile for guest user
+        // Create a new profile for guest user with new fields
         const profile = new GymBrosProfile({
           ...profileData,
+          // Include new fields explicitly
+          bio: profileData.bio,
+          religion: profileData.religion,
+          politicalStandpoint: profileData.politicalStandpoint,
+          sexualOrientation: profileData.sexualOrientation,
           // Store when the profile was created as a guest
           guestCreatedAt: new Date()
         });

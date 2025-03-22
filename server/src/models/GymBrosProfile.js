@@ -13,6 +13,10 @@ const GymBrosProfileSchema = new mongoose.Schema({
   gender: { type: String, enum: ['Male', 'Female', 'Other'], required: true },
   height: { type: Number, required: true },
   heightUnit: { type: String, enum: ['cm', 'inches'], default: 'cm' },
+  bio: { type: String }, // Added bio/about me field
+  religion: { type: String }, // Added religion field
+  politicalStance: { type: String }, // Added political stance field
+  sexualOrientation: { type: String }, // Added sexual orientation field
   interests: [{ type: String }],
   work: { type: String },
   studies: { type: String },
@@ -67,24 +71,16 @@ const GymBrosProfileSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-// Fix: Use GymBrosProfileSchema (uppercase S) instead of gymBrosProfileSchema (lowercase s)
 GymBrosProfileSchema.index({ 'location.lat': 1, 'location.lng': 1 });
 GymBrosProfileSchema.index({ phone: 1 }, { sparse: true });
 
 
-// In server/src/models/GymBrosProfile.js
-// Replace the pre-save hook with this enhanced version:
-
 GymBrosProfileSchema.pre('save', function (next) {
-  console.log('Running pre-save hook for GymBrosProfile');
-  console.log('Original images:', this.images);
-  
-  // Ensure images array exists
+
   if (!this.images) {
     this.images = [];
   }
 
-  // Helper function to normalize image paths and remove blob URLs
   const normalizeImagePath = (imagePath) => {
     if (!imagePath) return null;
 
@@ -94,7 +90,6 @@ GymBrosProfileSchema.pre('save', function (next) {
       return null;
     }
 
-    // Fix paths containing "/gym-bros/"
     if (typeof imagePath === 'string' && imagePath.includes('/gym-bros/')) {
       console.warn('Fixing gym-bros path:', imagePath);
       const filename = imagePath.split('/').pop();
@@ -103,14 +98,11 @@ GymBrosProfileSchema.pre('save', function (next) {
 
     // Fix paths with duplicate "/uploads/" prefixes
     if (typeof imagePath === 'string' && imagePath.match(/\/uploads.*\/uploads/)) {
-      console.warn('Fixing duplicate uploads path:', imagePath);
       const filename = imagePath.split('/').pop();
       return `/uploads/${filename}`;
     }
 
-    // Fix Windows-style backslashes in paths
     if (typeof imagePath === 'string' && imagePath.includes('\\')) {
-      console.warn('Fixing Windows backslashes:', imagePath);
       const normalized = imagePath.replace(/\\/g, '/');
       if (!normalized.startsWith('/uploads/')) {
         const filename = normalized.split('/').pop();
@@ -121,7 +113,6 @@ GymBrosProfileSchema.pre('save', function (next) {
 
     // Ensure the path starts with "/uploads/"
     if (typeof imagePath === 'string' && !imagePath.startsWith('/uploads/') && !imagePath.startsWith('http')) {
-      console.warn('Fixing missing /uploads/ prefix:', imagePath);
       return `/uploads/${imagePath.split('/').pop()}`;
     }
 
@@ -134,7 +125,6 @@ GymBrosProfileSchema.pre('save', function (next) {
     if (normalized) {
       this.profileImage = normalized;
     } else if (this.images && this.images.length > 0) {
-      // If profileImage was a blob and got nullified, use the first valid image instead
       const validImages = this.images.filter(img => img && !img.startsWith('blob:'));
       if (validImages.length > 0) {
         this.profileImage = validImages[0];
@@ -142,30 +132,21 @@ GymBrosProfileSchema.pre('save', function (next) {
     }
   }
 
-  // Normalize and filter images array paths - IMPORTANT: Must filter out ALL blob URLs
   const originalCount = this.images.length;
   this.images = this.images
-    .map(normalizeImagePath) // Normalize each path
-    .filter(path => path !== null); // Remove any nullified paths (including blob URLs)
+    .map(normalizeImagePath) 
+    .filter(path => path !== null); 
 
   const removedCount = originalCount - this.images.length;
-  if (removedCount > 0) {
-    console.log(`🧹 Removed ${removedCount} invalid image paths (blob URLs)`);
-  }
 
-  console.log('Normalized images:', this.images);
-
-  // Ensure profileImage is part of the images array
   if (this.profileImage && !this.images.includes(this.profileImage)) {
     this.images.push(this.profileImage);
   }
 
-  // If profileImage is not set but images exist, set it to the first image
   if (!this.profileImage && this.images.length > 0) {
     this.profileImage = this.images[0];
   }
 
-  // Set isProfileComplete to true if all required fields are present
   this.isProfileComplete = Boolean(
     this.name &&
     this.age &&
