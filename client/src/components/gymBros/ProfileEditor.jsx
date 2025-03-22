@@ -53,24 +53,34 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     setShowSaveButton(true);
   };
 
-  // Handle photos changes from PhotoEditor
   const handlePhotosChange = (newPhotos) => {
+    // Validate newPhotos to ensure it's an array
+    if (!Array.isArray(newPhotos)) {
+      console.error('handlePhotosChange received non-array value:', newPhotos);
+      return;
+    }
+    
+    console.log('Received photo update with', newPhotos.length, 'photos');
+    
     setFormData(prev => ({
       ...prev,
       photos: newPhotos,
-      // First photo is always the primary photo
-      profileImage: newPhotos.length > 0 ? newPhotos[0] : null
+      // First photo is always the primary photo (if it's not a blob URL)
+      profileImage: newPhotos.length > 0 && !newPhotos[0].startsWith('blob:') 
+        ? newPhotos[0] 
+        : prev.profileImage
     }));
     
     setShowSaveButton(true);
   };
+
+  // Modify this part of your ProfileEditor's handleSubmit function to preserve image positions
 
 const handleSubmit = async () => {
   if (loading) return;
   setLoading(true);
   
   try {
-    // This will actually log the submit action to make debugging easier
     console.log('Starting profile submission...');
     
     // Validate the form data
@@ -82,31 +92,47 @@ const handleSubmit = async () => {
       return;
     }
     
-    // 1. Get files to upload from the PhotoEditor
+    // 1. Get the current display order of photos
+    const currentPhotos = [...formData.photos].filter(url => url);
+    console.log('Current display order:', currentPhotos);
+    
+    // 2. Get files to upload from the PhotoEditor with their positions
     let filesToUpload = [];
+    let blobPositions = {};
     if (photoEditorRef.current) {
       filesToUpload = photoEditorRef.current.getFilesToUpload();
-      console.log('Files to upload from PhotoEditor:', filesToUpload);
+      
+      // Get mapping of which blob URL is at which position
+      const blobUrlMap = photoEditorRef.current.getBlobUrlMap() || {};
+      
+      // Create a reverse mapping: blobUrl -> position
+      Object.entries(blobUrlMap).forEach(([position, blobUrl]) => {
+        blobPositions[blobUrl] = parseInt(position);
+      });
+      
+      console.log('Files to upload:', filesToUpload.length);
+      console.log('Blob positions map:', blobPositions);
     }
     
-    // 2. Get existing server URLs that should be preserved
-    let serverUrls = [];
-    if (photoEditorRef.current) {
-      serverUrls = photoEditorRef.current.getServerUrls();
-      console.log('Server URLs to preserve:', serverUrls);
-    }
+    // 3. Identify all URLs that are NOT blobs (server URLs to keep)
+    const serverUrls = currentPhotos.filter(url => !url.startsWith('blob:'));
+    console.log('Server URLs to preserve:', serverUrls);
     
-    console.log(`Will upload ${filesToUpload.length} new files and keep ${serverUrls.length} existing images`);
+    // 4. Create a position map for all current photos
+    // This maps the URL (blob or server) to its position
+    const positionMap = {};
+    currentPhotos.forEach((url, index) => {
+      positionMap[url] = index;
+    });
+    console.log('Position map for all photos:', positionMap);
     
     let uploadedImageUrls = [];
     
-    // 3. Upload new files if there are any
+    // 5. Upload new files if there are any
     if (filesToUpload.length > 0) {
       try {
         console.log('Starting file upload process...');
         const uploadResult = await gymbrosService.uploadProfileImages(filesToUpload);
-        
-        console.log('Upload result:', uploadResult);
         
         if (uploadResult.success && uploadResult.imageUrls) {
           uploadedImageUrls = uploadResult.imageUrls;
@@ -122,32 +148,63 @@ const handleSubmit = async () => {
       }
     }
     
-    // 4. Combine existing server URLs with newly uploaded URLs
-    const finalImages = [
-      ...serverUrls,
-      ...uploadedImageUrls
-    ];
+    // 6. Build the final images array preserving positions
+    // Create a temporary array with all positions
+    const maxPosition = Math.max(...Object.values(positionMap), 0);
+    const tempArray = new Array(maxPosition + 1).fill(null);
     
-    // 5. Prepare final data for saving - IMPORTANT: NEVER include blob URLs here
+    // Place server URLs in their original positions
+    serverUrls.forEach(url => {
+      const pos = positionMap[url];
+      if (typeof pos === 'number') {
+        tempArray[pos] = url;
+      }
+    });
+    
+    // Get positions of blob URLs to replace with uploaded URLs
+    const blobUrls = currentPhotos.filter(url => url.startsWith('blob:'));
+    
+    // Match uploaded URLs to their blob positions
+    // If we have same number of uploads as blobs, assume they match in order
+    if (uploadedImageUrls.length === blobUrls.length) {
+      blobUrls.forEach((blobUrl, index) => {
+        const pos = positionMap[blobUrl];
+        if (typeof pos === 'number') {
+          tempArray[pos] = uploadedImageUrls[index];
+        }
+      });
+    } else {
+      // Otherwise just append the uploaded URLs
+      uploadedImageUrls.forEach(url => {
+        const emptyIndex = tempArray.indexOf(null);
+        if (emptyIndex >= 0) {
+          tempArray[emptyIndex] = url;
+        } else {
+          tempArray.push(url);
+        }
+      });
+    }
+    
+    // Remove any null entries and create final array
+    const finalImages = tempArray.filter(url => url !== null);
+    console.log('Final images array with preserved positions:', finalImages);
+    
+    // 7. Prepare final data for saving
     const finalData = {
       ...formData,
-      // Make sure to ONLY include server URLs, no blob URLs
       images: finalImages,
-      // Set the first image as the profile image if we have any
       profileImage: finalImages.length > 0 ? finalImages[0] : null,
-      // IMPORTANT: Remove the photos field which might contain blob URLs
-      photos: undefined
+      photos: undefined // Remove the photos field
     };
     
-    console.log('Saving profile with data:', {
+    console.log('Saving profile with final data:', {
       ...finalData,
-      images: `${finalData.images.length} images (${serverUrls.length} existing, ${uploadedImageUrls.length} new)`
+      images: `${finalData.images.length} images with preserved positions`
     });
     
     const response = await gymbrosService.createOrUpdateProfile(finalData);
     
     if (response.success) {
-      // Update parent component with the server response
       onProfileUpdated(response.profile);
       toast.success('Profile updated successfully');
       
@@ -171,7 +228,6 @@ const handleSubmit = async () => {
   }
 };
 
-  // Validate form data
   const validateForm = (data) => {
     const errors = {};
     
@@ -203,7 +259,11 @@ const handleSubmit = async () => {
       errors.preferredTime = 'Preferred time is required';
     }
     
-    if (!data.photos || data.photos.filter(p => p).length < 2) {
+    // Filter out blob URLs before validating photos count
+    const validPhotos = data.photos ? data.photos.filter(p => p && !p.startsWith('blob:')) : [];
+    const pendingPhotos = photoEditorRef.current ? photoEditorRef.current.getPendingUploadsCount() || 0 : 0;
+    
+    if (validPhotos.length + pendingPhotos < 2) {
       errors.photos = 'At least 2 photos are required';
     }
     

@@ -6,6 +6,26 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+const BlobUrlWarning = ({ count }) => {
+  if (count === 0) return null;
+  
+  return (
+    <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+      <div className="flex items-start">
+        <Info size={16} className="text-yellow-500 mt-0.5 mr-2 flex-shrink-0" />
+        <div className="text-xs text-yellow-700">
+          <p className="font-medium">Unsaved image{count > 1 ? 's' : ''} detected</p>
+          <p>
+            {count} image{count > 1 ? 's' : ''} {count > 1 ? 'are' : 'is'} in preview mode but not prepared for upload.
+            Please use the edit button to process {count > 1 ? 'these images' : 'this image'}.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
 // Sortable Image Item Component
 const SortableImageItem = ({ photo, index, onRemove, onEdit, selectFile }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -228,8 +248,7 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
   // State to track photos to display
   const [displayPhotos, setDisplayPhotos] = useState([...photos]);
   
-  // State to track which photos are files that need uploading
-  // Format: [{index: number, file: File, blobUrl: string}]
+  const [unprocessedBlobUrls, setUnprocessedBlobUrls] = useState([]);
   const [photoFiles, setPhotoFiles] = useState([]);
   
   // State for the cropper
@@ -257,7 +276,6 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
   
-  // Handle DnD end event
   const handleDragEnd = (event) => {
     const { active, over } = event;
     
@@ -270,12 +288,23 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
       const newDisplayPhotos = arrayMove(displayPhotos, activeIndex, overIndex);
       setDisplayPhotos(newDisplayPhotos);
       
-      // Update photo files
-      const newPhotoFiles = arrayMove(
-        photoFiles.map(item => item ? {...item} : null),
-        activeIndex,
-        overIndex
-      );
+      // Update photo files - adjust indexes to match the new order
+      // Use safer method with filter to avoid undefined items
+      const newPhotoFiles = photoFiles
+        .filter(item => item && typeof item.index === 'number') // Add safety check
+        .map(item => {
+          if (item.index === activeIndex) {
+            return { ...item, index: overIndex };
+          } else if (item.index === overIndex) {
+            return { ...item, index: activeIndex };
+          } else if (item.index > activeIndex && item.index <= overIndex) {
+            return { ...item, index: item.index - 1 };
+          } else if (item.index < activeIndex && item.index >= overIndex) {
+            return { ...item, index: item.index + 1 };
+          }
+          return item;
+        });
+      
       setPhotoFiles(newPhotoFiles);
       
       // Notify parent
@@ -362,7 +391,6 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
     onPhotosChange(newDisplayPhotos);
   };
   
-  // Handle removing an image
   const handleRemoveImage = (index) => {
     // Update display photos
     const newDisplayPhotos = [...displayPhotos];
@@ -373,7 +401,10 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
       URL.revokeObjectURL(blobUrl);
       
       // Also remove from photoFiles array
-      setPhotoFiles(prev => prev.filter(item => item?.blobUrl !== blobUrl));
+      setPhotoFiles(prev => prev.filter(item => item.blobUrl !== blobUrl));
+      
+      // Remove from unprocessed blobs if present
+      setUnprocessedBlobUrls(prev => prev.filter(url => url !== blobUrl));
     }
     
     newDisplayPhotos.splice(index, 1);
@@ -382,7 +413,7 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
     // After removing, adjust indexes in photoFiles
     setPhotoFiles(prev => {
       return prev.map(item => {
-        if (item && item.index > index) {
+        if (item.index > index) {
           // Shift down indexes above the removed one
           return { ...item, index: item.index - 1 };
         }
@@ -403,16 +434,15 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
     setCropIndex(index);
   };
   
-  // Expose methods to parent via ref
   React.useImperativeHandle(ref, () => ({
     // Get all files that need uploading
     getFilesToUpload: () => {
-      const files = photoFiles
-        .filter(item => item && item.file instanceof File)
-        .map(item => item.file);
+      // Filter to make sure we only have valid items with files
+      const validItems = photoFiles.filter(item => item && item.file);
+      const files = validItems.map(item => item.file);
       
       console.log("Getting files to upload:", files.length, "files", 
-        files.map(f => ({name: f.name, size: f.size})));
+        files.map(f => f ? {name: f.name, size: f.size} : "invalid file"));
       return files;
     },
     
@@ -426,32 +456,42 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
       return serverUrls;
     },
     
+    // Get count of pending uploads
+    getPendingUploadsCount: () => photoFiles.length,
+    
     // Get information about which blob URLs correspond to which files
     // This helps with replacing blobs with server URLs after upload
     getBlobUrlMapping: () => {
-      return photoFiles.map(item => ({
-        index: item.index,
-        blobUrl: item.blobUrl
-      }));
+      // Add safety check to filter out invalid items
+      return photoFiles
+        .filter(item => item && typeof item.index === 'number' && item.blobUrl)
+        .map(item => ({
+          index: item.index,
+          blobUrl: item.blobUrl
+        }));
     },
     
-    // Create a map of index -> blobUrl for easy lookup
     getBlobUrlMap: () => {
       const map = {};
-      photoFiles.forEach(item => {
-        if (item && item.blobUrl) {
+      // Only process valid items
+      photoFiles.filter(item => item && typeof item.index === 'number' && item.blobUrl)
+        .forEach(item => {
           map[item.index] = item.blobUrl;
-        }
-      });
+        });
+      console.log("Generated blob URL map:", map);
       return map;
     }
   }));
+  
   
   // Fill display array to maxPhotos
   const displayArray = [...displayPhotos];
   while (displayArray.length < maxPhotos) {
     displayArray.push('');
   }
+  
+  // Count unprocessed blob URLs
+  const unprocessedCount = unprocessedBlobUrls.length;
   
   return (
     <div className="w-full">
