@@ -1,10 +1,14 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Dumbbell, UserPlus, RefreshCw, Heart,X,Wifi } from 'lucide-react';
+import { 
+  Dumbbell, UserPlus, RefreshCw, Heart, X, Wifi,
+  Search, Shield, AlertCircle, Clock
+} from 'lucide-react';
 
 const EmptyStateMessage = ({ 
   type = 'noProfiles',
   onRefresh,
+  onFilterClick,
   message,
   description,
   icon: CustomIcon,
@@ -16,7 +20,12 @@ const EmptyStateMessage = ({
       title: 'No more profiles',
       description: 'We couldn\'t find any more gym partners matching your criteria',
       icon: <UserPlus size={48} className="text-gray-400" />,
-      actionLabel: 'Refresh'
+      actionLabel: 'Refresh',
+      secondaryAction: {
+        label: 'Adjust Filters',
+        onClick: onFilterClick,
+        icon: <Search size={16} />
+      }
     },
     noMatches: {
       title: 'No matches yet',
@@ -27,7 +36,7 @@ const EmptyStateMessage = ({
     error: {
       title: 'Something went wrong',
       description: 'We\'re having trouble finding gym partners right now',
-      icon: <X size={48} className="text-red-500" />,
+      icon: <AlertCircle size={48} className="text-red-500" />,
       actionLabel: 'Try Again'
     },
     loading: {
@@ -41,12 +50,30 @@ const EmptyStateMessage = ({
       description: 'Check your internet connection and try again',
       icon: <Wifi size={48} className="text-orange-500" />,
       actionLabel: 'Retry'
+    },
+    premium: {
+      title: 'Premium Feature',
+      description: 'Upgrade to GymBros Premium to access this feature',
+      icon: <Shield size={48} className="text-amber-500" />,
+      actionLabel: 'Upgrade Now'
+    },
+    expired: {
+      title: 'Session Expired',
+      description: 'Your session has expired, please refresh',
+      icon: <Clock size={48} className="text-gray-500" />,
+      actionLabel: 'Refresh'
     }
   };
 
   // Get the appropriate message content
   const content = message ? 
-    { title: message, description, icon: CustomIcon, actionLabel } : 
+    { 
+      title: message, 
+      description, 
+      icon: CustomIcon, 
+      actionLabel,
+      secondaryAction: null
+    } : 
     messages[type];
 
   return (
@@ -73,24 +100,42 @@ const EmptyStateMessage = ({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
-        className="text-gray-500 mb-6"
+        className="text-gray-500 mb-6 max-w-xs"
       >
         {content.description}
       </motion.p>
 
-      {content.actionLabel && onRefresh && (
-        <motion.button
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.3, delay: 0.3 }}
-          onClick={onRefresh}
-          className="px-6 py-3 bg-blue-600 text-white rounded-full flex items-center shadow-lg hover:bg-blue-700 transition-colors"
-          whileTap={{ scale: 0.95 }}
-        >
-          <RefreshCw size={18} className="mr-2" />
-          {content.actionLabel}
-        </motion.button>
-      )}
+      <div className="space-y-3">
+        {content.actionLabel && onRefresh && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3, delay: 0.3 }}
+            onClick={onRefresh}
+            className="px-6 py-3 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors w-full"
+            whileTap={{ scale: 0.95 }}
+          >
+            <RefreshCw size={18} className="mr-2" />
+            {content.actionLabel}
+          </motion.button>
+        )}
+
+        {content.secondaryAction && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3, delay: 0.4 }}
+            onClick={content.secondaryAction.onClick}
+            className="px-6 py-3 bg-gray-200 text-gray-700 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors w-full"
+            whileTap={{ scale: 0.95 }}
+          >
+            {content.secondaryAction.icon && (
+              <span className="mr-2">{content.secondaryAction.icon}</span>
+            )}
+            {content.secondaryAction.label}
+          </motion.button>
+        )}
+      </div>
     </div>
   );
 };

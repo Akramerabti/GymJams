@@ -15,7 +15,6 @@ import gymbrosService from '../services/gymbros.service';
 // Import components
 import DiscoverTab from '../components/gymBros/components/DiscoverTab';
 import GymBrosSetup from '../components/gymBros/GymBrosSetup';
-import GymBrosMatches from '../components/gymBros/GymBrosMatches';
 import GymBrosFilters from '../components/gymBros/GymBrosFilters';
 import GymBrosSettings from '../components/gymBros/GymBrosSettings';
 import EnhancedGymBrosProfile from '../components/gymBros/ProfileEditor';
@@ -800,16 +799,15 @@ const GymBros = () => {
       case 'discover':
         return (
           <div className="h-[calc(100vh-136px)] flex items-center justify-center overflow-visible pb-16">
-          <DiscoverTab
-            profiles={profiles}
-            currentIndex={currentIndex}
-            setCurrentIndex={setCurrentIndex}
-            handleSwipe={handleSwipe}
-            fetchProfiles={fetchProfiles}
-            loading={loading}
-            filters={filters}
-          />
-        </div>
+            <DiscoverTab
+              fetchProfiles={fetchProfiles}
+              loading={loading}
+              filters={filters}
+              setShowFilters={setShowFilters}
+              distanceUnit="miles"
+              isPremium={false} // Update to check user subscription or premium status
+            />
+          </div>
         );
       
       case 'matches':

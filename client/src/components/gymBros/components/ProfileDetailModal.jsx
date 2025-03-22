@@ -3,21 +3,33 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, Share2, ChevronLeft, ChevronRight, MapPin, Award, 
   Calendar, Clock, Target, Activity, Heart, X, MessageCircle,
-  Users, Dumbbell, Camera, Info, Mail, Briefcase, GraduationCap,
-  Coffee
+  Users, Dumbbell, Camera, Info, Briefcase, GraduationCap,
+  Coffee, Star, Lock, Check, Music, Film
 } from 'lucide-react';
-import { toast } from 'sonner';
 import ActiveStatus from './ActiveStatus';
+import { toast } from 'sonner';
 
-const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, onSuperLike, isMatch }) => {
+const ProfileDetailModal = ({ 
+  profile, 
+  isVisible, 
+  onClose, 
+  onLike, 
+  onDislike, 
+  onSuperLike,
+  isMatch = false,
+  isPremium = false,
+  distanceUnit = 'miles'
+}) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [activeTab, setActiveTab] = useState('about');
   const [animateDirection, setAnimateDirection] = useState('right');
+  const [isImageFullscreen, setIsImageFullscreen] = useState(false);
   
   // Reset image index when profile changes
   useEffect(() => {
     setCurrentImageIndex(0);
-  }, [profile]);
+    setActiveTab('about');
+  }, [profile?._id]);
 
   if (!profile) return null;
   
@@ -31,7 +43,7 @@ const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, o
       return imageUrl;
     } else {
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      return `${baseUrl}${imageUrl}`;
+      return `${baseUrl}${imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`}`;
     }
   };
   
@@ -67,7 +79,7 @@ const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, o
   // Handle tab change with animation direction
   const changeTab = (newTab) => {
     // Set animation direction based on tab order
-    const tabOrder = ['about', 'photos', 'interests'];
+    const tabOrder = ['about', 'photos', 'interests', 'compatibility'];
     const currentIndex = tabOrder.indexOf(activeTab);
     const newIndex = tabOrder.indexOf(newTab);
     
@@ -95,7 +107,7 @@ const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, o
   const TabButton = ({ tab, label, icon, current }) => (
     <button
       onClick={() => changeTab(tab)}
-      className={`flex flex-col items-center py-2 px-4 ${
+      className={`flex flex-col items-center py-2 px-3 ${
         current === tab 
           ? 'text-blue-600 border-b-2 border-blue-600' 
           : 'text-gray-500 hover:text-gray-700'
@@ -115,7 +127,10 @@ const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, o
       </p>
       
       <div className="mb-6">
-        <h4 className="font-medium text-gray-700 mb-2">Basic Info</h4>
+        <h4 className="font-medium text-gray-700 mb-2 flex items-center">
+          <Info size={16} className="mr-1 text-blue-500" />
+          Basic Info
+        </h4>
         <div className="grid grid-cols-2 gap-4">
           <div className="flex items-center">
             <MapPin size={18} className="mr-2 text-blue-500" />
@@ -135,13 +150,20 @@ const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, o
           </div>
           <div className="flex items-center">
             <Clock size={18} className="mr-2 text-blue-500" />
-            <ActiveStatus lastActive={profile.lastActive} textColorClass="text-gray-700" showDot={false} />
+            <ActiveStatus 
+              lastActive={profile.lastActive} 
+              textColorClass="text-gray-700" 
+              dotColorClass="bg-green-500"
+            />
           </div>
         </div>
       </div>
       
       <div className="mb-6">
-        <h4 className="font-medium text-gray-700 mb-2">Workout Preferences</h4>
+        <h4 className="font-medium text-gray-700 mb-2 flex items-center">
+          <Dumbbell size={16} className="mr-1 text-blue-500" />
+          Workout Preferences
+        </h4>
         <div className="flex flex-wrap gap-2 mb-4">
           {profile.workoutTypes && profile.workoutTypes.length > 0 ? (
             profile.workoutTypes.map((type, index) => (
@@ -171,7 +193,10 @@ const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, o
       </div>
       
       <div className="mb-6">
-        <h4 className="font-medium text-gray-700 mb-2">Goals</h4>
+        <h4 className="font-medium text-gray-700 mb-2 flex items-center">
+          <Target size={16} className="mr-1 text-blue-500" />
+          Goals
+        </h4>
         <p className="text-gray-700">
           {profile.goals || 'No goals specified'}
         </p>
@@ -180,7 +205,10 @@ const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, o
       {/* Additional personal info */}
       {(profile.work || profile.studies) && (
         <div className="mb-6">
-          <h4 className="font-medium text-gray-700 mb-2">Work & Education</h4>
+          <h4 className="font-medium text-gray-700 mb-2 flex items-center">
+            <Briefcase size={16} className="mr-1 text-blue-500" />
+            Work & Education
+          </h4>
           {profile.work && (
             <div className="flex items-center mb-2">
               <Briefcase size={16} className="mr-2 text-blue-500" />
@@ -220,6 +248,23 @@ const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, o
           )}
         </div>
       )}
+      
+      {/* Interests section */}
+      {profile.interests && profile.interests.length > 0 && (
+        <div className="mb-6">
+          <h4 className="font-medium text-gray-700 mb-2 flex items-center">
+            <Activity size={16} className="mr-1 text-blue-500" />
+            Interests
+          </h4>
+          <div className="flex flex-wrap gap-2">
+            {profile.interests.map((interest, index) => (
+              <span key={index} className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm">
+                {interest}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
   
@@ -232,16 +277,16 @@ const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, o
           profile.images.map((image, index) => (
             <div 
               key={index} 
-              className="aspect-square rounded-lg overflow-hidden cursor-pointer relative"
+              className="aspect-square rounded-lg overflow-hidden cursor-pointer relative group"
               onClick={() => {
                 setCurrentImageIndex(index);
-                setActiveTab('about');
+                setIsImageFullscreen(true);
               }}
             >
               <img 
                 src={formatImageUrl(image)} 
                 alt={`${profile.name} ${index + 1}`}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover transition-transform group-hover:scale-105"
                 onError={(e) => {
                   e.target.onerror = null;
                   e.target.src = "/api/placeholder/400/400";
@@ -253,6 +298,13 @@ const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, o
                   Primary
                 </div>
               )}
+              
+              {/* View fullscreen overlay */}
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                <div className="bg-white/30 backdrop-blur-sm p-1.5 rounded-full">
+                  <Camera size={18} className="text-white" />
+                </div>
+              </div>
             </div>
           ))
         ) : (
@@ -267,36 +319,276 @@ const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, o
   // Interests Tab Content
   const InterestsTabContent = () => (
     <div className="p-5">
-      <h3 className="text-lg font-semibold mb-3">Interests</h3>
-      {profile.interests && profile.interests.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {profile.interests.map((interest, index) => (
-            <span key={index} className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm">
-              {interest}
-            </span>
-          ))}
-        </div>
-      ) : (
-        <p className="text-gray-500">No interests specified</p>
-      )}
+      <h3 className="text-lg font-semibold mb-4">Interests & Hobbies</h3>
       
-      <h3 className="text-lg font-semibold mb-3 mt-6">Match Stats</h3>
-      <div className="bg-blue-50 p-4 rounded-lg">
+      <div className="mb-6">
+        <h4 className="text-sm font-medium text-gray-500 mb-2">SPORTS & FITNESS</h4>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {(profile.interests && profile.interests.filter(i => 
+            ['running', 'cycling', 'swimming', 'hiking', 'yoga', 'martial arts', 'rock climbing', 'sports'].some(s => 
+              i.toLowerCase().includes(s)
+            )).length > 0) ? (
+            profile.interests.filter(i => 
+              ['running', 'cycling', 'swimming', 'hiking', 'yoga', 'martial arts', 'rock climbing', 'sports'].some(s => 
+                i.toLowerCase().includes(s)
+              )
+            ).map((interest, index) => (
+              <span key={index} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+                {interest}
+              </span>
+            ))
+          ) : (
+            <span className="text-gray-500 text-sm">No sports interests specified</span>
+          )}
+        </div>
+      </div>
+      
+      <div className="mb-6">
+        <h4 className="text-sm font-medium text-gray-500 mb-2">ENTERTAINMENT</h4>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {(profile.interests && profile.interests.filter(i => 
+            ['movies', 'music', 'reading', 'tv', 'games', 'gaming', 'books', 'film', 'concert', 'theater'].some(s => 
+              i.toLowerCase().includes(s)
+            )).length > 0) ? (
+            profile.interests.filter(i => 
+              ['movies', 'music', 'reading', 'tv', 'games', 'gaming', 'books', 'film', 'concert', 'theater'].some(s => 
+                i.toLowerCase().includes(s)
+              )
+            ).map((interest, index) => (
+              <span key={index} className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm">
+                {interest}
+              </span>
+            ))
+          ) : (
+            <span className="text-gray-500 text-sm">No entertainment interests specified</span>
+          )}
+        </div>
+      </div>
+      
+      <div className="mb-6">
+        <h4 className="text-sm font-medium text-gray-500 mb-2">OTHER INTERESTS</h4>
+        <div className="flex flex-wrap gap-2">
+          {(profile.interests && profile.interests.filter(i => 
+            !['running', 'cycling', 'swimming', 'hiking', 'yoga', 'martial arts', 'rock climbing', 'sports',
+             'movies', 'music', 'reading', 'tv', 'games', 'gaming', 'books', 'film', 'concert', 'theater'].some(s => 
+               i.toLowerCase().includes(s)
+             )).length > 0) ? (
+            profile.interests.filter(i => 
+              !['running', 'cycling', 'swimming', 'hiking', 'yoga', 'martial arts', 'rock climbing', 'sports',
+               'movies', 'music', 'reading', 'tv', 'games', 'gaming', 'books', 'film', 'concert', 'theater'].some(s => 
+                 i.toLowerCase().includes(s)
+               )
+            ).map((interest, index) => (
+              <span key={index} className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm">
+                {interest}
+              </span>
+            ))
+          ) : (
+            <span className="text-gray-500 text-sm">No other interests specified</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+  
+  // Compatibility Tab Content
+  const CompatibilityTabContent = () => (
+    <div className="p-5">
+      <h3 className="text-lg font-semibold mb-3">Match Compatibility</h3>
+      
+      <div className="bg-blue-50 p-4 rounded-lg mb-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-gray-700">Match Score</span>
+          <span className="text-gray-700">Overall Match Score</span>
           <span className="font-semibold text-blue-700">{profile.matchScore || 85}%</span>
         </div>
-        <div className="w-full bg-blue-200 rounded-full h-2.5">
+        <div className="w-full bg-blue-200 rounded-full h-2.5 mb-4">
           <div 
             className="bg-blue-600 h-2.5 rounded-full" 
             style={{ width: `${profile.matchScore || 85}%` }}
           ></div>
         </div>
-        <p className="text-sm text-gray-600 mt-2">
+        <p className="text-sm text-gray-600">
           Based on workout preferences, schedule, and experience level
         </p>
       </div>
+      
+      <div className="space-y-5">
+        {/* Workout Compatibility */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <h4 className="font-medium text-gray-700 flex items-center">
+              <Dumbbell size={16} className="mr-1 text-blue-500" />
+              Workout Compatibility
+            </h4>
+            <span className="text-sm font-semibold text-blue-600">
+              {profile.workoutCompatibility || 'High'}
+            </span>
+          </div>
+          <p className="text-sm text-gray-600 mb-2">
+            You share {profile.commonWorkouts || '3'} workout types
+          </p>
+          <div className="w-full bg-gray-200 rounded-full h-1.5">
+            <div 
+              className="bg-blue-500 h-1.5 rounded-full" 
+              style={{ width: `${profile.workoutCompatibilityScore || 80}%` }}
+            ></div>
+          </div>
+        </div>
+        
+        {/* Schedule Compatibility */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <h4 className="font-medium text-gray-700 flex items-center">
+              <Calendar size={16} className="mr-1 text-blue-500" />
+              Schedule Compatibility
+            </h4>
+            <span className="text-sm font-semibold text-blue-600">
+              {profile.scheduleCompatibility || 'Good'}
+            </span>
+          </div>
+          <p className="text-sm text-gray-600 mb-2">
+            {profile.preferredTime === 'Flexible' ? 
+              'Their flexible schedule matches your availability' : 
+              `They prefer to workout in the ${profile.preferredTime.toLowerCase()}`
+            }
+          </p>
+          <div className="w-full bg-gray-200 rounded-full h-1.5">
+            <div 
+              className="bg-blue-500 h-1.5 rounded-full" 
+              style={{ width: `${profile.scheduleCompatibilityScore || 75}%` }}
+            ></div>
+          </div>
+        </div>
+        
+        {/* Experience Compatibility */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <h4 className="font-medium text-gray-700 flex items-center">
+              <Award size={16} className="mr-1 text-blue-500" />
+              Experience Compatibility
+            </h4>
+            <span className="text-sm font-semibold text-blue-600">
+              {profile.experienceCompatibility || 'Perfect'}
+            </span>
+          </div>
+          <p className="text-sm text-gray-600 mb-2">
+            {profile.experienceLevel === 'Any' ? 
+              'Compatible with any experience level' : 
+              `${profile.experienceLevel} level matches your preference`
+            }
+          </p>
+          <div className="w-full bg-gray-200 rounded-full h-1.5">
+            <div 
+              className="bg-blue-500 h-1.5 rounded-full" 
+              style={{ width: `${profile.experienceCompatibilityScore || 100}%` }}
+            ></div>
+          </div>
+        </div>
+        
+        {/* Location */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <h4 className="font-medium text-gray-700 flex items-center">
+              <MapPin size={16} className="mr-1 text-blue-500" />
+              Location
+            </h4>
+            <span className="text-sm font-semibold text-blue-600">
+              {profile.locationCompatibility || 'Close'}
+            </span>
+          </div>
+          <p className="text-sm text-gray-600 mb-2">
+            {profile.location?.distance || 0} {distanceUnit} away from you
+          </p>
+          <div className="w-full bg-gray-200 rounded-full h-1.5">
+            <div 
+              className="bg-blue-500 h-1.5 rounded-full" 
+              style={{ width: `${100 - Math.min(100, (profile.location?.distance || 0) * 2)}%` }}
+            ></div>
+          </div>
+        </div>
+      </div>
     </div>
+  );
+
+  // Fullscreen Image Modal
+  const ImageFullscreenModal = () => (
+    <AnimatePresence>
+      {isImageFullscreen && (
+        <motion.div 
+          className="fixed inset-0 z-50 bg-black flex items-center justify-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setIsImageFullscreen(false)}
+        >
+          <button 
+            className="absolute top-4 left-4 z-20 p-2 rounded-full bg-black/50 text-white"
+            onClick={() => setIsImageFullscreen(false)}
+          >
+            <ArrowLeft size={24} />
+          </button>
+          
+          <div className="absolute top-4 right-4 flex space-x-2">
+            <button
+              className="p-2 rounded-full bg-black/50 text-white"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleShare();
+              }}
+            >
+              <Share2 size={20} />
+            </button>
+          </div>
+          
+          <div className="w-full h-full relative">
+            <img 
+              src={currentImage}
+              alt={`${profile.name}'s photo`}
+              className="w-full h-full object-contain"
+            />
+            
+            {/* Image navigation */}
+            {profile.images && profile.images.length > 1 && (
+              <>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (currentImageIndex > 0) {
+                      setCurrentImageIndex(currentImageIndex - 1);
+                    }
+                  }}
+                  className={`absolute top-1/2 left-4 transform -translate-y-1/2 p-3 rounded-full bg-black/50 text-white ${
+                    currentImageIndex === 0 ? 'opacity-30 cursor-not-allowed' : 'opacity-80 hover:opacity-100'
+                  }`}
+                  disabled={currentImageIndex === 0}
+                >
+                  <ChevronLeft size={24} />
+                </button>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (currentImageIndex < profile.images.length - 1) {
+                      setCurrentImageIndex(currentImageIndex + 1);
+                    }
+                  }}
+                  className={`absolute top-1/2 right-4 transform -translate-y-1/2 p-3 rounded-full bg-black/50 text-white ${
+                    currentImageIndex === profile.images.length - 1 ? 'opacity-30 cursor-not-allowed' : 'opacity-80 hover:opacity-100'
+                  }`}
+                  disabled={currentImageIndex === profile.images.length - 1}
+                >
+                  <ChevronRight size={24} />
+                </button>
+              </>
+            )}
+            
+            {/* Image counter */}
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+              {currentImageIndex + 1} / {profile.images?.length || 1}
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 
   return (
@@ -321,7 +613,8 @@ const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, o
               <img
                 src={currentImage}
                 alt={profile.name}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover cursor-pointer"
+                onClick={() => setIsImageFullscreen(true)}
                 onError={(e) => {
                   e.target.onerror = null;
                   e.target.src = "/api/placeholder/400/300";
@@ -410,22 +703,21 @@ const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, o
                   lastActive={profile.lastActive} 
                   textColorClass="text-green-300" 
                   dotColorClass="bg-green-500"
-                  showDot={true} 
                 />
                 
                 <div className="flex items-center mt-1">
                   <MapPin size={16} className="mr-1" />
-                  <span>{profile.location?.distance || 0} miles away</span>
+                  <span>{profile.location?.distance || 0} {distanceUnit} away</span>
                 </div>
               </div>
             </div>
             
             {/* Tab navigation */}
-            <div className="flex border-b">
+            <div className="flex border-b overflow-x-auto">
               <TabButton 
                 tab="about" 
                 label="About" 
-                icon={<Dumbbell size={18} />} 
+                icon={<Info size={18} />} 
                 current={activeTab} 
               />
               <TabButton 
@@ -437,6 +729,12 @@ const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, o
               <TabButton 
                 tab="interests" 
                 label="Interests" 
+                icon={<Coffee size={18} />} 
+                current={activeTab} 
+              />
+              <TabButton 
+                tab="compatibility" 
+                label="Match" 
                 icon={<Activity size={18} />} 
                 current={activeTab} 
               />
@@ -457,6 +755,7 @@ const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, o
                   {activeTab === 'about' && <AboutTabContent />}
                   {activeTab === 'photos' && <PhotosTabContent />}
                   {activeTab === 'interests' && <InterestsTabContent />}
+                  {activeTab === 'compatibility' && <CompatibilityTabContent />}
                 </motion.div>
               </AnimatePresence>
             </div>
@@ -474,6 +773,38 @@ const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, o
                 >
                   <X size={24} className="mr-2" />
                   <span>Pass</span>
+                </button>
+                
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClose();
+                    if (onSuperLike && isPremium) {
+                      onSuperLike();
+                    } else if (onSuperLike && !isPremium) {
+                      toast('Premium Feature', {
+                        description: 'Upgrade to premium to use Superstar likes',
+                        icon: <Star className="text-yellow-500" />
+                      });
+                    }
+                  }}
+                  className={`flex-1 flex items-center justify-center rounded-full py-2 mx-2 ${
+                    isPremium 
+                      ? 'bg-amber-500 text-white hover:bg-amber-600' 
+                      : 'bg-gray-100 text-gray-400'
+                  }`}
+                >
+                  {isPremium ? (
+                    <>
+                      <Star size={24} className="mr-2" />
+                      <span>Superstar</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock size={20} className="mr-2" />
+                      <span>Superstar</span>
+                    </>
+                  )}
                 </button>
                 
                 <button
@@ -508,10 +839,13 @@ const ProfileDetailsModal = ({ profile, isVisible, onClose, onLike, onDislike, o
               </div>
             )}
           </motion.div>
+          
+          {/* Fullscreen image viewer */}
+          <ImageFullscreenModal />
         </motion.div>
       )}
     </AnimatePresence>
   );
 };
 
-export default ProfileDetailsModal;
+export default ProfileDetailModal;

@@ -163,10 +163,10 @@ const GymBrosFilters = ({ isOpen, onClose, onApply }) => {
       exit={{ opacity: 0 }}
     >
       <motion.div
-        className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto"
-        initial={{ scale: 0.9 }}
-        animate={{ scale: 1 }}
-        exit={{ scale: 0.9 }}
+        className="bg-white rounded-lg w-full max-w-md max-h-[100vh] overflow-y-auto"
+        initial={{ y: 100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 100, opacity: 0 }}
       >
         <div className="sticky top-0 bg-white border-b border-gray-200 flex justify-between items-center p-4 z-10">
           <h2 className="text-xl font-bold flex items-center">
@@ -359,7 +359,7 @@ const GymBrosFilters = ({ isOpen, onClose, onApply }) => {
             </div>
             
             {/* Action buttons */}
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-3 mt-6 pb-4">
               <button 
                 onClick={handleReset}
                 className="flex-1 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50"
