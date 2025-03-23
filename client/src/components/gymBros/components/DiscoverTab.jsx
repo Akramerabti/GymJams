@@ -12,6 +12,7 @@ import EmptyStateMessage from './EmptyStateMessage';
 import gymbrosService from '../../../services/gymbros.service';
 import { usePoints } from '../../../hooks/usePoints';
 import useAuthStore from '../../../stores/authStore';
+import SwipeableCard from './SwipeableCard';
 
 // Premium feature costs
 const PREMIUM_FEATURES = {
@@ -443,12 +444,15 @@ const DiscoverTab = ({
   filters,
   setShowFilters,
   distanceUnit = 'miles',
-  isPremium = false
+  isPremium = false,
+  initialProfiles = [], // Accept initialProfiles with empty array default
+  initialIndex = 0      // Accept initialIndex with 0 default
 }) => {
   const { balance: pointsBalance, subtractPoints, updatePointsInBackend } = usePoints();
   const { isAuthenticated } = useAuthStore();
-  const [profiles, setProfiles] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  // Initialize with the provided profiles instead of empty array
+  const [profiles, setProfiles] = useState(initialProfiles || []);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex || 0);
   const [showProfileDetail, setShowProfileDetail] = useState(false);
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState(null);
@@ -461,27 +465,34 @@ const DiscoverTab = ({
   const [pullDistance, setPullDistance] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
   const [networkError, setNetworkError] = useState(false);
-  const [initialProfiles, setInitialProfiles] = useState(null);
   
   // Container ref for pull-to-refresh
   const containerRef = useRef(null);
-
+  // Initialize with the provided initialProfiles
   useEffect(() => {
     if (initialProfiles && Array.isArray(initialProfiles) && initialProfiles.length > 0) {
-      console.log('DiscoverTab: Setting profiles from initialProfiles:', initialProfiles.length, 
+      console.log('DiscoverTab: Updating profiles from initialProfiles:', initialProfiles.length, 
         initialProfiles.map(p => p.name));
-      // Force state update with spread operator to ensure React detects the change
-      setProfiles([...initialProfiles]);
-      setCurrentIndex(0); // Fixed: removed reference to initialIndex, using 0 instead
-      setNetworkError(false); // Clear any network errors
+      
+      // Force state update with the new profiles
+      setProfiles(initialProfiles);
+      
+      // Make sure current index is valid
+      if (initialIndex !== undefined && initialIndex >= 0) {
+        setCurrentIndex(initialIndex);
+      } else {
+        setCurrentIndex(0);
+      }
+      
+      setNetworkError(false);
+    } else if (profiles.length === 0 && !loading) {
+      // Only load from service if no profiles are available and we're not already loading
+      console.log('DiscoverTab: No initialProfiles, loading from service');
+      loadInitialProfiles();
     }
-  }, [initialProfiles]);
+  }, [initialProfiles, initialIndex]);
   
-  
-  // Load initial profiles
-  useEffect(() => {
-    loadInitialProfiles();
-  }, []);
+
   
   // Set view start time when profile changes
   useEffect(() => {
@@ -499,18 +510,32 @@ const DiscoverTab = ({
   
   // Load initial set of profiles
   const loadInitialProfiles = async () => {
+    // Skip if we already have profiles
+    if (profiles.length > 0) {
+      console.log('DiscoverTab: Skipping loadInitialProfiles, already have profiles');
+      return;
+    }
+    
+    console.log('DiscoverTab: Loading initial profiles from service');
     try {
       setNetworkError(false);
       const fetchedProfiles = await gymbrosService.getRecommendedProfiles(filters);
-      setProfiles(fetchedProfiles);
-      setCurrentIndex(0);
-      setHasMoreProfiles(fetchedProfiles.length >= 10); // Assume more if we got a full page
+      
+      if (fetchedProfiles && fetchedProfiles.length > 0) {
+        console.log('DiscoverTab: Loaded profiles from service:', fetchedProfiles.length);
+        setProfiles(fetchedProfiles);
+        setCurrentIndex(0);
+        setHasMoreProfiles(fetchedProfiles.length >= 10); // Assume more if we got a full page
+      } else {
+        console.log('DiscoverTab: No profiles loaded from service');
+      }
     } catch (error) {
       console.error('Error loading initial profiles:', error);
       setNetworkError(true);
       toast.error('Failed to load profiles');
     }
   };
+
   
   // Load more profiles when running low
   const loadMoreProfiles = async () => {
@@ -718,6 +743,69 @@ const DiscoverTab = ({
     setShowMatchModal(false);
   };
   
+  const renderProfileCards = () => {
+    if (!profiles || profiles.length === 0) {
+      console.log('DiscoverTab: No profiles to render');
+      return (
+        <EmptyStateMessage 
+          type="noProfiles" 
+          onRefresh={handleRefresh} 
+          onFilterClick={() => setShowFilters(true)} 
+        />
+      );
+    }
+    
+    if (currentIndex >= profiles.length) {
+      console.log('DiscoverTab: Reached end of profiles');
+      return (
+        <EmptyStateMessage 
+          message="You've seen all profiles"
+          description="Check back later or try different filters"
+          icon={<RefreshCw size={48} className="text-gray-400" />}
+          actionLabel="Refresh"
+          onRefresh={handleRefresh}
+        />
+      );
+    }
+    
+    console.log('DiscoverTab: Rendering profiles stack, current profile:', 
+      profiles[currentIndex]?.name || 'unknown');
+    
+    return (
+      <div className="relative h-full w-full">
+        <AnimatePresence>
+          {/* Show current and next few cards for better performance */}
+          {profiles.slice(currentIndex, currentIndex + 3).map((profile, index) => {
+            // Validate profile data before rendering
+            if (!profile || !profile.name) {
+              console.warn('DiscoverTab: Invalid profile data at index', currentIndex + index, profile);
+              return null;
+            }
+            
+            return (
+              <SwipeableCard
+                key={`${profile._id || profile.id || index}-${currentIndex + index}`}
+                profile={profile}
+                onSwipe={handleSwipe}
+                onInfoClick={() => {
+                  setShowProfileDetail(true);
+                }}
+                onSuperLike={(profileId) => handleSwipe('super', profileId)}
+                onRekindle={handleRekindle}
+                distanceUnit={distanceUnit}
+                isPremium={isPremium}
+                isActive={index === 0} // Only the top card is active
+                isBehindActive={index > 0} // Cards behind the active one
+                isTopCard={index === 0 && currentIndex === 0} // Very first card
+              />
+            );
+          })}
+        </AnimatePresence>
+      </div>
+    );
+  };
+  
+  // Main render function
   if (loading && profiles.length === 0) {
     console.log('DiscoverTab: Rendering loading state');
     return (
@@ -753,85 +841,20 @@ const DiscoverTab = ({
     );
   }
   
-  if (!Array.isArray(profiles) || profiles.length === 0) {
-    console.log('DiscoverTab: Rendering empty state (no profiles)', 
-      `initialProfiles: ${initialProfiles?.length || 0}, profiles: ${profiles?.length || 0}`);
-    
-    // If initialProfiles has content but profiles state doesn't, log the discrepancy
-    if (initialProfiles && initialProfiles.length > 0) {
-      console.warn('DiscoverTab: initialProfiles has content but profiles state is empty!', 
-        'initialProfiles:', initialProfiles);
-        
-      // CRITICAL FIX: Use initialProfiles directly if available
-      return (
-        <div className="relative h-full w-full">
-          <AnimatePresence>
-            {initialProfiles.slice(0, 3).map((profile, index) => {
-              if (!profile || !profile.name) {
-                console.warn('DiscoverTab: Invalid profile data at index', index, profile);
-                return null;
-              }
-              
-              return (
-                <SwipeableCard
-                  key={`${profile._id || profile.id || index}-${index}`}
-                  profile={profile}
-                  onSwipe={handleSwipe}
-                  onInfoClick={() => {
-                    setShowProfileDetail(true);
-                  }}
-                  onSuperLike={(profileId) => handleSwipe('super', profileId)}
-                  onRekindle={handleRekindle}
-                  distanceUnit={distanceUnit}
-                  isPremium={isPremium}
-                  isActive={index === 0}
-                  isBehindActive={index > 0}
-                  isTopCard={index === 0}
-                />
-              );
-            })}
-          </AnimatePresence>
-        </div>
-      );
-    }
-    
-    return (
-      <EmptyStateMessage 
-        type="noProfiles" 
-        onRefresh={handleRefresh} 
-        onFilterClick={() => setShowFilters(true)} 
-      />
-    );
-  }
+  console.log('DiscoverTab: Rendering main UI, profiles count:', profiles.length);
   
-  if (currentIndex >= profiles.length) {
-    console.log('DiscoverTab: Rendering end of profiles state');
-    return (
-      <EmptyStateMessage 
-        message="You've seen all profiles"
-        description="Check back later or try different filters"
-        icon={<RefreshCw size={48} className="text-gray-400" />}
-        actionLabel="Refresh"
-        onRefresh={handleRefresh}
-      />
-    );
-  }
-  
-  console.log('DiscoverTab: Rendering profile cards, currentIndex:', currentIndex, 
-    'available profiles:', profiles.slice(currentIndex, currentIndex + 3).map(p => p.name));
-  
-    return (
-      <div 
-        ref={containerRef}
-        className="h-full relative overflow-hidden"
-        style={{ 
-          transform: isPulling ? `translateY(${pullDistance}px)` : 'translateY(0)',
-          transition: isPulling ? 'none' : 'transform 0.3s ease'
-        }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
+  return (
+    <div 
+      ref={containerRef}
+      className="h-full relative overflow-hidden"
+      style={{ 
+        transform: isPulling ? `translateY(${pullDistance}px)` : 'translateY(0)',
+        transition: isPulling ? 'none' : 'transform 0.3s ease'
+      }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       {/* Pull to refresh indicator */}
       {isPulling && pullDistance > 0 && (
         <div className="absolute top-0 left-0 right-0 flex justify-center items-center pointer-events-none">
@@ -848,78 +871,47 @@ const DiscoverTab = ({
       )}
       
       {/* Profile cards stack */}
-      <div className="relative h-full w-full">
-        <AnimatePresence>
-          {/* Show current and next few cards for better performance */}
-          {profiles.slice(currentIndex, currentIndex + 3).map((profile, index) => {
-            // FIXED: Validate profile data before rendering
-            if (!profile || !profile.name) {
-              console.warn('DiscoverTab: Invalid profile data at index', currentIndex + index, profile);
-              return null;
-            }
-            
-            return (
-              <SwipeableCard
-                key={`${profile._id || profile.id || index}-${index}`}
-                profile={profile}
-                onSwipe={handleSwipe}
-                onInfoClick={() => {
-                  setShowProfileDetail(true);
-                }}
-                onSuperLike={(profileId) => handleSwipe('super', profileId)}
-                onRekindle={handleRekindle}
-                distanceUnit={distanceUnit}
-                isPremium={isPremium}
-                isActive={index === 0} // Only the top card is active
-                isBehindActive={index > 0} // Cards behind the active one
-                isTopCard={index === 0 && currentIndex === 0} // Very first card
-              />
-            );
-          })}
-        </AnimatePresence>
-      </div>
-
+      {renderProfileCards()}
       
       {/* Action buttons */}
-      <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex items-center space-x-4 z-20">
-        {/* Rekindle Button */}
-        <button 
-          onClick={handleRekindle}
-          className={`p-3 rounded-full bg-white shadow-lg border ${
-            isPremium 
-              ? 'text-purple-500 border-purple-200 hover:bg-purple-50' 
-              : 'text-gray-400 border-gray-200'
-          }`}
-        >
-          <RefreshCw size={28} />
-        </button>
-        
-        {/* Dislike Button */}
-        <button 
-          onClick={() => profiles[currentIndex] && handleSwipe('left', profiles[currentIndex]._id)}
-          className="p-4 rounded-full bg-white shadow-lg border border-red-200 text-red-500 hover:bg-red-50"
-        >
-          <X size={32} />
-        </button>
-        
-        {/* Super Like Button */}
-        <button 
-          onClick={() => profiles[currentIndex] && handleSwipe('super', profiles[currentIndex]._id)}
-          className="p-3 rounded-full bg-white shadow-lg border border-amber-200 text-amber-500 hover:bg-amber-50"
-        >
-          <Star size={28} />
-        </button>
-        
-        {/* Like Button */}
-        <button 
-          onClick={() => profiles[currentIndex] && handleSwipe('right', profiles[currentIndex]._id)}
-          className="p-4 rounded-full bg-white shadow-lg border border-green-200 text-green-500 hover:bg-green-50"
-        >
-          <Heart size={32} />
-        </button>
-      </div>
+      {profiles.length > 0 && currentIndex < profiles.length && (
+        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex items-center space-x-4 z-20">
+          {/* Action buttons - only show if we have profiles */}
+          <button 
+            onClick={handleRekindle}
+            className={`p-3 rounded-full bg-white shadow-lg border ${
+              isPremium 
+                ? 'text-purple-500 border-purple-200 hover:bg-purple-50' 
+                : 'text-gray-400 border-gray-200'
+            }`}
+          >
+            <RefreshCw size={28} />
+          </button>
+          
+          <button 
+            onClick={() => profiles[currentIndex] && handleSwipe('left', profiles[currentIndex]._id)}
+            className="p-4 rounded-full bg-white shadow-lg border border-red-200 text-red-500 hover:bg-red-50"
+          >
+            <X size={32} />
+          </button>
+          
+          <button 
+            onClick={() => profiles[currentIndex] && handleSwipe('super', profiles[currentIndex]._id)}
+            className="p-3 rounded-full bg-white shadow-lg border border-amber-200 text-amber-500 hover:bg-amber-50"
+          >
+            <Star size={28} />
+          </button>
+          
+          <button 
+            onClick={() => profiles[currentIndex] && handleSwipe('right', profiles[currentIndex]._id)}
+            className="p-4 rounded-full bg-white shadow-lg border border-green-200 text-green-500 hover:bg-green-50"
+          >
+            <Heart size={32} />
+          </button>
+        </div>
+      )}
       
-      {/* Filter button */}
+      {/* Filter button - always show */}
       <button
         onClick={() => setShowFilters(true)}
         className="absolute bottom-6 left-4 p-3 rounded-full bg-white shadow-lg border border-gray-200 text-gray-600 hover:bg-gray-50 z-20"
@@ -969,44 +961,48 @@ const DiscoverTab = ({
         )}
       </AnimatePresence>
       
-      {/* Profile Detail Modal */}
-      <ProfileDetailModal
-        isVisible={showProfileDetail}
-        profile={profiles[currentIndex]}
-        onClose={() => setShowProfileDetail(false)}
-        onLike={() => {
-          setShowProfileDetail(false);
-          if (profiles[currentIndex]) {
-            handleSwipe('right', profiles[currentIndex]._id);
-          }
-        }}
-        onDislike={() => {
-          setShowProfileDetail(false);
-          if (profiles[currentIndex]) {
-            handleSwipe('left', profiles[currentIndex]._id);
-          }
-        }}
-        onSuperLike={() => {
-          setShowProfileDetail(false);
-          if (profiles[currentIndex]) {
-            handleSwipe('super', profiles[currentIndex]._id);
-          }
-        }}
-        isPremium={isPremium}
-        distanceUnit={distanceUnit}
-      />
-      
-      {/* Match Modal */}
-      <MatchModal
-        isVisible={showMatchModal}
-        onClose={() => setShowMatchModal(false)}
-        onSendMessage={handleSendMessage}
-        onKeepSwiping={handleKeepSwiping}
-        currentUser={null} // You'll need to pass the current user here
-        matchedUser={matchedProfile}
-      />
+      {/* Detail and match modals */}
+      {profiles.length > 0 && currentIndex < profiles.length && (
+        <>
+          <ProfileDetailModal
+            isVisible={showProfileDetail}
+            profile={profiles[currentIndex]}
+            onClose={() => setShowProfileDetail(false)}
+            onLike={() => {
+              setShowProfileDetail(false);
+              if (profiles[currentIndex]) {
+                handleSwipe('right', profiles[currentIndex]._id);
+              }
+            }}
+            onDislike={() => {
+              setShowProfileDetail(false);
+              if (profiles[currentIndex]) {
+                handleSwipe('left', profiles[currentIndex]._id);
+              }
+            }}
+            onSuperLike={() => {
+              setShowProfileDetail(false);
+              if (profiles[currentIndex]) {
+                handleSwipe('super', profiles[currentIndex]._id);
+              }
+            }}
+            isPremium={isPremium}
+            distanceUnit={distanceUnit}
+          />
+          
+          <MatchModal
+            isVisible={showMatchModal}
+            onClose={() => setShowMatchModal(false)}
+            onSendMessage={handleSendMessage}
+            onKeepSwiping={handleKeepSwiping}
+            currentUser={null} // You'll need to pass the current user here
+            matchedUser={matchedProfile}
+          />
+        </>
+      )}
     </div>
   );
 };
+
 
 export default DiscoverTab;
