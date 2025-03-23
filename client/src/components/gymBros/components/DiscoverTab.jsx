@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Loader, RefreshCw, Filter, Star, X, Heart, 
-  ArrowUp, Info, Crown, Shield, ChevronLeft, ChevronRight
+  Loader, RefreshCw, Star, X, Heart, 
+  Info, Shield
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useSwipeable } from 'react-swipeable';
 import ProfileDetailModal from './ProfileDetailModal';
 import MatchModal from './MatchModal';
 import EmptyStateMessage from './EmptyStateMessage';
@@ -381,9 +380,9 @@ const DiscoverTab = ({
           </div>
         </div>
       )}
-      
-      {/* Profile cards stack */}
-      <div className="relative h-full w-full">
+
+      {/* Profile cards stack - with proper height calculation */}
+      <div className="relative w-full h-[calc(100%-120px)]">
         <AnimatePresence>
           {/* Show current and next few cards for better performance */}
           {profiles.slice(currentIndex, currentIndex + 3).map((profile, index) => {
@@ -394,44 +393,52 @@ const DiscoverTab = ({
             }
             
             return (
-              <SwipeableCard
-                key={`${profile._id || profile.id || index}-${currentIndex + index}`}
-                profile={profile}
-                onSwipe={handleSwipe}
-                onInfoClick={() => {
-                  setShowProfileDetail(true);
+              <div 
+                key={`card-container-${profile._id || profile.id || index}`}
+                className="absolute inset-0"
+                style={{
+                  transform: `translateY(${-index * 10}px) scale(${1 - index * 0.05})`,
+                  zIndex: 30 - index
                 }}
-                onSuperLike={(profileId) => handleSwipe('super', profileId)}
-                onRekindle={handleRekindle}
-                distanceUnit={distanceUnit}
-                isPremium={isPremium}
-                isActive={index === 0} // Only the top card is active
-                isBehindActive={index > 0} // Cards behind the active one
-                isTopCard={index === 0 && currentIndex === 0} // Very first card
-              />
+              >
+                <SwipeableCard
+                  key={`${profile._id || profile.id || index}-${currentIndex + index}`}
+                  profile={profile}
+                  onSwipe={handleSwipe}
+                  onInfoClick={() => {
+                    setShowProfileDetail(true);
+                  }}
+                  onSuperLike={(profileId) => handleSwipe('super', profileId)}
+                  onRekindle={handleRekindle}
+                  distanceUnit={distanceUnit}
+                  isPremium={isPremium}
+                  isActive={index === 0} // Only the top card is active
+                  isBehindActive={index > 0} // Cards behind the active one
+                />
+              </div>
             );
           })}
         </AnimatePresence>
       </div>
       
-      {/* Action buttons */}
-      <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex items-center space-x-4 z-20">
+      {/* Action buttons - Using exact order and positioning as requested */}
+      <div className="absolute bottom-20 inset-x-4 flex items-center justify-center space-x-5 z-30">
         {/* Rekindle Button */}
         <button 
           onClick={handleRekindle}
-          className={`p-3 rounded-full bg-white shadow-lg border ${
+          className={`p-3 rounded-full shadow-lg border-4 ${
             isPremium 
-              ? 'text-purple-500 border-purple-200 hover:bg-purple-50' 
-              : 'text-gray-400 border-gray-200'
+              ? 'text-purple-500 bg-purple-300 border-purple-500 hover:bg-purple-50' 
+              : 'text-gray-400 bg-white border-gray-500'
           }`}
         >
-          <RefreshCw size={28} />
+          <RefreshCw size={18} />
         </button>
-        
+
         {/* Dislike Button */}
         <button 
           onClick={() => profiles[currentIndex] && handleSwipe('left', profiles[currentIndex]._id)}
-          className="p-4 rounded-full bg-white shadow-lg border border-red-200 text-red-500 hover:bg-red-50"
+          className="p-4 rounded-full bg-red-200 shadow-lg border-4 border-red-500 text-white text- hover:bg-red-50"
         >
           <X size={32} />
         </button>
@@ -439,27 +446,30 @@ const DiscoverTab = ({
         {/* Super Like Button */}
         <button 
           onClick={() => profiles[currentIndex] && handleSwipe('super', profiles[currentIndex]._id)}
-          className="p-3 rounded-full bg-white shadow-lg border border-amber-200 text-amber-500 hover:bg-amber-50"
+          className="p-3 rounded-full bg-amber-200 shadow-lg border-4 border-amber-500 text-white hover:bg-amber-50"
         >
-          <Star size={28} />
+          <Star size={29} />
         </button>
         
         {/* Like Button */}
         <button 
           onClick={() => profiles[currentIndex] && handleSwipe('right', profiles[currentIndex]._id)}
-          className="p-4 rounded-full bg-white shadow-lg border border-green-200 text-green-500 hover:bg-green-50"
+          className="p-4 rounded-full bg-green-200 shadow-lg border-4 border-green-500 text-white hover:bg-green-50"
         >
           <Heart size={32} />
         </button>
+
+        <button 
+          onClick={handleRekindle}
+          className={`p-3 rounded-full shadow-lg border-4 ${
+            isPremium 
+              ? 'text-purple-500 bg-purple-300 border-purple-500 hover:bg-purple-50' 
+              : 'text-gray-400 bg-white border-gray-500'
+          }`}
+        >
+          <RefreshCw size={18} />
+        </button>
       </div>
-      
-      {/* Filter button */}
-      <button
-        onClick={() => setShowFilters(true)}
-        className="absolute bottom-6 left-4 p-3 rounded-full bg-white shadow-lg border border-gray-200 text-gray-600 hover:bg-gray-50 z-20"
-      >
-        <Filter size={24} />
-      </button>
       
       {/* Loading more indicator */}
       <AnimatePresence>
@@ -468,7 +478,7 @@ const DiscoverTab = ({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full flex items-center shadow-md"
+            className="absolute bottom-36 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full flex items-center shadow-md"
           >
             <motion.div
               animate={{ rotate: 360 }}

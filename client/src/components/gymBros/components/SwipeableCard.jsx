@@ -24,8 +24,6 @@ const SwipeableCard = ({
       return null;
     }
 
-    console.log('SwipeableCard rendering profile:', profile.name, profile._id || profile.id);
-
     // Motion values for swipe gestures
     const x = useMotionValue(0);
     const y = useMotionValue(0);
@@ -63,8 +61,6 @@ const SwipeableCard = ({
         y: 0,
         rotate: 0
       });
-      
-      console.log('SwipeableCard: Running entrance animation for', profile.name);
     }, [profile._id || profile.id, controls]);
   
     // Provide haptic feedback if available
@@ -80,7 +76,6 @@ const SwipeableCard = ({
       const fallbackImage = "/api/placeholder/400/600";
       
       if (!url) {
-        console.warn('SwipeableCard: Missing image URL, using fallback');
         return fallbackImage;
       }
       
@@ -94,7 +89,7 @@ const SwipeableCard = ({
           return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
         }
       } catch (error) {
-        console.error('SwipeableCard: Error formatting image URL:', url, error);
+        console.error('Error formatting image URL:', error);
         return fallbackImage;
       }
     };
@@ -105,23 +100,18 @@ const SwipeableCard = ({
         if (profile.images && Array.isArray(profile.images) && profile.images.length > 0) {
           // Ensure current index is valid
           const safeIndex = Math.min(currentImageIndex, profile.images.length - 1);
-          const imageUrl = formatImageUrl(profile.images[safeIndex]);
-          console.log('SwipeableCard: Using image URL:', imageUrl);
-          return imageUrl;
+          return formatImageUrl(profile.images[safeIndex]);
         }
         
         // Fallback to profileImage if no images array or it's empty
         if (profile.profileImage) {
-          const imageUrl = formatImageUrl(profile.profileImage);
-          console.log('SwipeableCard: Using profile image URL:', imageUrl);
-          return imageUrl;
+          return formatImageUrl(profile.profileImage);
         }
         
         // Last resort fallback
-        console.warn('SwipeableCard: No valid images found for profile', profile.name);
         return "/api/placeholder/400/600";
       } catch (error) {
-        console.error('SwipeableCard: Error getting current image:', error);
+        console.error('Error getting current image:', error);
         return "/api/placeholder/400/600";
       }
     };
@@ -253,13 +243,13 @@ const SwipeableCard = ({
 
     return (
       <motion.div
-        className="absolute inset-0 w-full h-full overflow-visible"
+        className="w-full h-full max-w-md mx-auto" // Set max width and center horizontally
         style={{ 
-          zIndex: isActive ? 30 : isBehindActive ? 20 : 10, // FIXED: Enhanced z-index hierarchy
+          zIndex: isActive ? 30 : isBehindActive ? 20 : 10,
           pointerEvents: isActive ? 'auto' : 'none'
         }}
         animate={controls}
-        initial={{ opacity: 1, scale: 1, x: 0, y: 0 }} // FIXED: Start fully visible
+        initial={{ opacity: 1, scale: 1, x: 0, y: 0 }}
         drag={isActive}
         dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
         dragElastic={0.7}
@@ -268,9 +258,10 @@ const SwipeableCard = ({
         onDragEnd={handleDragEnd}
       >
         <div 
-          className="relative h-full w-full rounded-xl overflow-visible shadow-xl bg-white"
+          className="relative w-full rounded-xl overflow-hidden shadow-xl bg-white"
           style={{
-            transform: isBehindActive ? 'scale(0.95) translateY(10px)' : 'scale(1)', // FIXED: Better visual separation
+            aspectRatio: "7/10", // Enforce 7:10 aspect ratio
+            transform: isBehindActive ? 'scale(0.95) translateY(10px)' : 'scale(1)',
             opacity: isBehindActive ? 0.7 : 1,
             transition: 'transform 0.3s, opacity 0.3s'
           }}
@@ -334,13 +325,12 @@ const SwipeableCard = ({
           </AnimatePresence>
 
           {/* Main Image */}
-          <div className="h-full w-full">
+          <div className="absolute inset-0">
             <img 
               src={currentImage}
               alt={profile.name} 
               className="w-full h-full object-cover"
               onError={(e) => {
-                console.error(`SwipeableCard: Image load error for ${currentImage}`);
                 e.target.onerror = null;
                 e.target.src = "/api/placeholder/400/600";
               }}
@@ -397,35 +387,21 @@ const SwipeableCard = ({
                 e.stopPropagation();
                 if (onInfoClick) onInfoClick(profile);
               }}
-              className="absolute bottom-20 right-4 p-3 rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/50 transition-colors z-20"
+              className="absolute bottom-4 right-4 p-2 rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/50 transition-colors z-20"
             >
-              <Info size={24} />
+              <Info size={20} />
             </button>
             
-            {/* Rekindle button (premium) */}
-            {isPremium && onRekindle && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  vibrate();
-                  if (onRekindle) onRekindle(profile._id || profile.id);
-                }}
-                className="absolute bottom-20 left-4 p-3 rounded-full bg-purple-500 text-white shadow-lg z-20"
-              >
-                <RefreshCw size={24} />
-              </button>
-            )}
-            
             {/* Profile Info */}
-            <div className="absolute bottom-0 left-0 right-0 p-6 text-white z-10">
+            <div className="absolute bottom-0 left-0 right-0 p-4 text-white z-10">
               {/* Show main info on first card */}
               {currentImageIndex === 0 && (
                 <>
                   <div className="flex items-center mb-1">
-                    <h2 className="text-3xl font-bold mr-2">{profile.name || 'Unknown'}</h2>
-                    <h3 className="text-2xl">{profile.age || '?'}</h3>
+                    <h2 className="text-2xl font-bold mr-2">{profile.name || 'Unknown'}</h2>
+                    <h3 className="text-xl">{profile.age || '?'}</h3>
                     {profile.verified && (
-                      <div className="ml-2 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center text-xs">✓</div>
+                      <div className="ml-2 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center text-xs">✓</div>
                     )}
                   </div>
                   
@@ -434,52 +410,52 @@ const SwipeableCard = ({
                     <ActiveStatus lastActive={profile.lastActive} />
                   )}
                   
-                  <div className="flex items-center mt-2 mb-3">
-                    <MapPin size={16} className="mr-1" />
-                    <span>{(profile.location?.distance || 0)} {distanceUnit}</span>
+                  <div className="flex items-center mt-1">
+                    <MapPin size={14} className="mr-1" />
+                    <span className="text-sm">{(profile.location?.distance || 0)} {distanceUnit}</span>
                   </div>
                 </>
               )}
               
               {/* Show bio on second card */}
               {currentImageIndex === 1 && (
-                <div className="space-y-3">
-                  <p className="text-lg font-medium">{profile.bio || "No bio available"}</p>
+                <div className="space-y-2">
+                  <p className="text-base font-medium line-clamp-4">{profile.bio || "No bio available"}</p>
                 </div>
               )}
               
               {/* Show workout info on subsequent cards */}
               {currentImageIndex > 1 && (
-                <div className="space-y-3">
-                  <div className="flex flex-wrap gap-2 mb-2">
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-1 mb-1">
                     {profile.workoutTypes?.slice(0, 3).map(type => (
-                      <span key={type} className="bg-white/20 px-2 py-1 rounded-full text-sm backdrop-blur-sm">
+                      <span key={type} className="bg-white/20 px-2 py-0.5 rounded-full text-xs backdrop-blur-sm">
                         {type}
                       </span>
                     ))}
                     {profile.workoutTypes?.length > 3 && (
-                      <span className="bg-white/20 px-2 py-1 rounded-full text-sm backdrop-blur-sm">
+                      <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs backdrop-blur-sm">
                         +{profile.workoutTypes.length - 3}
                       </span>
                     )}
                   </div>
                   
-                  <div className="flex items-center space-x-4 text-sm">
+                  <div className="flex items-center space-x-4 text-xs">
                     <div className="flex items-center">
-                      <Award size={14} className="mr-1" />
+                      <Award size={12} className="mr-1" />
                       <span>{profile.experienceLevel || 'Any level'}</span>
                     </div>
                     
                     <div className="flex items-center">
-                      <Clock size={14} className="mr-1" />
+                      <Clock size={12} className="mr-1" />
                       <span>{profile.preferredTime || 'Flexible'}</span>
                     </div>
                   </div>
                   
                   {profile.goals && (
-                    <div className="mt-2">
-                      <h4 className="text-sm opacity-80 mb-1">Goals:</h4>
-                      <p className="text-sm">{profile.goals}</p>
+                    <div className="mt-1">
+                      <h4 className="text-xs opacity-80">Goals:</h4>
+                      <p className="text-xs line-clamp-2">{profile.goals}</p>
                     </div>
                   )}
                 </div>
@@ -487,9 +463,9 @@ const SwipeableCard = ({
               
               {/* Match score indicator */}
               {profile.matchScore && (
-                <div className="mt-3 flex items-center">
-                  <Dumbbell size={16} className="mr-1 text-blue-300" />
-                  <div className="w-full h-1.5 bg-white/20 rounded-full overflow-visible">
+                <div className="mt-2 flex items-center">
+                  <Dumbbell size={12} className="mr-1 text-blue-300" />
+                  <div className="w-full h-1 bg-white/20 rounded-full overflow-visible">
                     <div 
                       className="h-full bg-blue-400 rounded-full"
                       style={{ width: `${profile.matchScore}%` }}

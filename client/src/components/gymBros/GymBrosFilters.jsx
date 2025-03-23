@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, Sliders, Users, MapPin, Calendar } from 'lucide-react';
+import { X, Save, Sliders, Users, Globe, MapPin, Calendar } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'sonner';
 import RangeSlider from '../ui/RangeSlider';
@@ -157,13 +157,13 @@ const GymBrosFilters = ({ isOpen, onClose, onApply }) => {
 
   return (
     <motion.div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center p-4 z-40 overflow-y-auto"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
       <motion.div
-        className="bg-white rounded-lg w-full max-w-md max-h-[100vh] overflow-y-auto"
+        className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto mt-16 mb-16"
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
@@ -238,8 +238,6 @@ const GymBrosFilters = ({ isOpen, onClose, onApply }) => {
                   <span>99</span>
                 </div>
               </div>
-              
-          
             </div>
             
             {/* Workout Types */}
@@ -359,7 +357,7 @@ const GymBrosFilters = ({ isOpen, onClose, onApply }) => {
             </div>
             
             {/* Action buttons */}
-            <div className="flex gap-3 mt-6 pb-4">
+            <div className="flex gap-3 mt-6 sticky bottom-0 bg-white pt-2 pb-4">
               <button 
                 onClick={handleReset}
                 className="flex-1 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50"

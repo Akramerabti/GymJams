@@ -135,7 +135,7 @@ const ProfileDetailModal = ({
           <div className="flex items-center">
             <MapPin size={18} className="mr-2 text-blue-500" />
             <span className="text-gray-700">
-              {profile.location?.address?.split(',')[0] || 'Location not specified'}
+              {profile.location?.address?.split(',')[1] || 'Location not specified'}
             </span>
           </div>
           <div className="flex items-center">
@@ -148,14 +148,7 @@ const ProfileDetailModal = ({
               {profile.height ? `${profile.height} ${profile.heightUnit || 'cm'}` : 'Height not specified'}
             </span>
           </div>
-          <div className="flex items-center">
-            <Clock size={18} className="mr-2 text-blue-500" />
-            <ActiveStatus 
-              lastActive={profile.lastActive} 
-              textColorClass="text-gray-700" 
-              dotColorClass="bg-green-500"
-            />
-          </div>
+          
         </div>
       </div>
       
@@ -316,82 +309,7 @@ const ProfileDetailModal = ({
     </div>
   );
   
-  // Interests Tab Content
-  const InterestsTabContent = () => (
-    <div className="p-5">
-      <h3 className="text-lg font-semibold mb-4">Interests & Hobbies</h3>
-      
-      <div className="mb-6">
-        <h4 className="text-sm font-medium text-gray-500 mb-2">SPORTS & FITNESS</h4>
-        <div className="flex flex-wrap gap-2 mb-4">
-          {(profile.interests && profile.interests.filter(i => 
-            ['running', 'cycling', 'swimming', 'hiking', 'yoga', 'martial arts', 'rock climbing', 'sports'].some(s => 
-              i.toLowerCase().includes(s)
-            )).length > 0) ? (
-            profile.interests.filter(i => 
-              ['running', 'cycling', 'swimming', 'hiking', 'yoga', 'martial arts', 'rock climbing', 'sports'].some(s => 
-                i.toLowerCase().includes(s)
-              )
-            ).map((interest, index) => (
-              <span key={index} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                {interest}
-              </span>
-            ))
-          ) : (
-            <span className="text-gray-500 text-sm">No sports interests specified</span>
-          )}
-        </div>
-      </div>
-      
-      <div className="mb-6">
-        <h4 className="text-sm font-medium text-gray-500 mb-2">ENTERTAINMENT</h4>
-        <div className="flex flex-wrap gap-2 mb-4">
-          {(profile.interests && profile.interests.filter(i => 
-            ['movies', 'music', 'reading', 'tv', 'games', 'gaming', 'books', 'film', 'concert', 'theater'].some(s => 
-              i.toLowerCase().includes(s)
-            )).length > 0) ? (
-            profile.interests.filter(i => 
-              ['movies', 'music', 'reading', 'tv', 'games', 'gaming', 'books', 'film', 'concert', 'theater'].some(s => 
-                i.toLowerCase().includes(s)
-              )
-            ).map((interest, index) => (
-              <span key={index} className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm">
-                {interest}
-              </span>
-            ))
-          ) : (
-            <span className="text-gray-500 text-sm">No entertainment interests specified</span>
-          )}
-        </div>
-      </div>
-      
-      <div className="mb-6">
-        <h4 className="text-sm font-medium text-gray-500 mb-2">OTHER INTERESTS</h4>
-        <div className="flex flex-wrap gap-2">
-          {(profile.interests && profile.interests.filter(i => 
-            !['running', 'cycling', 'swimming', 'hiking', 'yoga', 'martial arts', 'rock climbing', 'sports',
-             'movies', 'music', 'reading', 'tv', 'games', 'gaming', 'books', 'film', 'concert', 'theater'].some(s => 
-               i.toLowerCase().includes(s)
-             )).length > 0) ? (
-            profile.interests.filter(i => 
-              !['running', 'cycling', 'swimming', 'hiking', 'yoga', 'martial arts', 'rock climbing', 'sports',
-               'movies', 'music', 'reading', 'tv', 'games', 'gaming', 'books', 'film', 'concert', 'theater'].some(s => 
-                 i.toLowerCase().includes(s)
-               )
-            ).map((interest, index) => (
-              <span key={index} className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm">
-                {interest}
-              </span>
-            ))
-          ) : (
-            <span className="text-gray-500 text-sm">No other interests specified</span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-  
-  // Compatibility Tab Content
+
   const CompatibilityTabContent = () => (
     <div className="p-5">
       <h3 className="text-lg font-semibold mb-3">Match Compatibility</h3>
@@ -515,7 +433,7 @@ const ProfileDetailModal = ({
     <AnimatePresence>
       {isImageFullscreen && (
         <motion.div 
-          className="fixed inset-0 z-50 bg-black flex items-center justify-center"
+          className="fixed inset-0 z-[60] bg-black flex items-center justify-center"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -595,21 +513,21 @@ const ProfileDetailModal = ({
     <AnimatePresence>
       {isVisible && (
         <motion.div
-          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-0 md:p-4"
+          className="fixed inset-0 z-50 w-full h-full max-w-xl mx-auto"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
         >
           <motion.div
-            className="bg-white w-full h-full md:h-auto md:max-h-[90vh] md:w-full md:max-w-lg rounded-lg overflow-hidden flex flex-col"
-            initial={{ y: 50, opacity: 0 }}
+            className="bg-white w-full h-[calc(100vh-136px)] overflow-hidden flex flex-col"
+            initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 50, opacity: 0 }}
+            exit={{ y: 20, opacity: 0 }}
             onClick={e => e.stopPropagation()}
           >
             {/* Header with image */}
-            <div className="relative h-72 bg-gray-200">
+            <div className="relative h-96 bg-gray-200">
               <img
                 src={currentImage}
                 alt={profile.name}
@@ -721,23 +639,18 @@ const ProfileDetailModal = ({
                 current={activeTab} 
               />
               <TabButton 
+                tab="compatibility" 
+                label="Compatibility" 
+                icon={<Activity size={18} />} 
+                current={activeTab} 
+              />
+              <TabButton 
                 tab="photos" 
                 label="Photos" 
                 icon={<Camera size={18} />} 
                 current={activeTab} 
               />
-              <TabButton 
-                tab="interests" 
-                label="Interests" 
-                icon={<Coffee size={18} />} 
-                current={activeTab} 
-              />
-              <TabButton 
-                tab="compatibility" 
-                label="Match" 
-                icon={<Activity size={18} />} 
-                current={activeTab} 
-              />
+              
             </div>
             
             {/* Tab content */}
@@ -754,7 +667,6 @@ const ProfileDetailModal = ({
                 >
                   {activeTab === 'about' && <AboutTabContent />}
                   {activeTab === 'photos' && <PhotosTabContent />}
-                  {activeTab === 'interests' && <InterestsTabContent />}
                   {activeTab === 'compatibility' && <CompatibilityTabContent />}
                 </motion.div>
               </AnimatePresence>

@@ -812,29 +812,29 @@ const GymBros = () => {
   // Different content based on active tab
   const renderTabContent = () => {
     switch(activeTab) {
-       case 'discover':
-      console.log('[GymBros] Rendering DiscoverTab with', profiles.length, 'profiles, currentIndex:', currentIndex);
-      return (
-        <div className="h-full w-full flex items-center justify-center">
-          <DiscoverTab
-            fetchProfiles={fetchProfiles}
-            loading={loading}
-            filters={filters}
-            setShowFilters={setShowFilters}
-            distanceUnit="miles"
-            isPremium={false}
-            initialProfiles={profiles}
-            initialIndex={currentIndex}
-          />
-        </div>
-      );
-      
+      case 'discover':
+        console.log('[GymBros] Rendering DiscoverTab with', profiles.length, 'profiles, currentIndex:', currentIndex);
+        return (
+          <div className="h-[calc(100vh-136px)] overflow-hidden relative">
+            <DiscoverTab
+              fetchProfiles={fetchProfiles}
+              loading={loading}
+              filters={filters}
+              setShowFilters={setShowFilters}
+              distanceUnit="miles"
+              isPremium={false}
+              initialProfiles={profiles}
+              initialIndex={currentIndex}
+            />
+          </div>
+        );
+        
       case 'matches':
         return (
-          <div className="h-[calc(100vh-136px)] p-4 overflow-y-auto pb-16">
-            <h2 className="text-xl font-bold mb-4">Your Matches</h2>
+          <div className="h-[calc(100vh-136px)] overflow-y-auto pb-16">
+            <h2 className="text-xl font-bold mb-4 p-4">Your Matches</h2>
             {matches.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-4 px-4">
                 {matches.map(match => (
                   <div key={match._id} className="bg-white rounded-lg shadow p-4 flex items-center">
                     <img 
@@ -853,7 +853,7 @@ const GymBros = () => {
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="flex flex-col items-center justify-center h-full text-center px-4">
                 <Heart size={48} className="text-gray-300 mb-4" />
                 <p className="text-gray-500">No matches yet. Keep swiping!</p>
               </div>
@@ -861,12 +861,16 @@ const GymBros = () => {
           </div>
         );
       
-        case 'shop':
-          return <GymBrosShop />;
+      case 'shop':
+        return (
+          <div className="h-[calc(100vh-136px)] overflow-y-auto pb-16">
+            <GymBrosShop />
+          </div>
+        );
       
       case 'profile':
         return (
-          <div className="h-full mb-10 overflow-y-auto">
+          <div className="h-[calc(100vh-136px)] overflow-y-auto pb-16">
             <EnhancedGymBrosProfile
               userProfile={userProfile}
               onProfileUpdated={handleProfileUpdated}
@@ -879,11 +883,12 @@ const GymBros = () => {
         return null;
     }
   };
-
+  
+  // The main return part of the GymBros component, focused on the layout structure
   return (
     <>
       <FooterHider />
-      <div className="max-w-xl mx-auto flex flex-col">
+      <div className="max-w-xl mx-auto flex flex-col h-full">
         {/* Dynamic Header Bar - Positioned right under the main navbar */}
         <div className="sticky top-16 left-0 right-0 z-10">
           <div className="max-w-xl mx-auto">
@@ -963,6 +968,7 @@ const GymBros = () => {
       />
     </>
   );
+ 
 };
 
 export default GymBros;
