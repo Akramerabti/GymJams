@@ -7,15 +7,28 @@ import {
 import ActiveStatus from './ActiveStatus';
 
 const SwipeableCard = ({ 
-  profile, 
-  onSwipe, 
-  onInfoClick,
-  onSuper,
-  onRekindle,
-  distanceUnit = 'miles',
-  isActive = true,
-  isPremium = false
-}) => {
+    profile, 
+    onSwipe, 
+    onInfoClick,
+    onSuper,
+    onRekindle,
+    distanceUnit = 'miles',
+    isActive = true,
+    isPremium = false
+  }) => {
+
+    const isValidProfile = profile && 
+    typeof profile === 'object' && 
+    profile.name && 
+    (profile._id || profile.id);
+
+    if (!isValidProfile) {
+        console.error('SwipeableCard received invalid profile:', profile);
+        return null; // Don't render invalid profiles
+      } else {
+        console.log('SwipeableCard rendering profile:', profile.name, profile._id || profile.id);
+      }
+
   // Motion values for swipe gestures
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -26,7 +39,6 @@ const SwipeableCard = ({
     [0.5, 1, 1, 1, 0.5]
   );
   
-  // Animation controls
   const controls = useAnimation();
   
   // State for image carousel
@@ -36,6 +48,8 @@ const SwipeableCard = ({
   const [swipeDirection, setSwipeDirection] = useState(null);
   const [dragDistance, setDragDistance] = useState({ x: 0, y: 0 });
   const [showSuper, setShowSuper] = useState(false);
+  const [imageLoadError, setImageLoadError] = useState(false);
+  
   
   // Track if we're moving horizontally or vertically
   const isDraggingHorizontal = useRef(false);
@@ -51,30 +65,62 @@ const SwipeableCard = ({
       navigator.vibrate(20);
     }
   };
-  
+
   // Reset image index when profile changes
   useEffect(() => {
     setCurrentImageIndex(0);
-  }, [profile._id]);
+    setImageLoadError(false);
+  }, [profile._id || profile.id]);
   
-  // Format image URL for consistent display
+  // FIXED: Enhanced error handling for image URLs
   const formatImageUrl = (url) => {
-    if (!url) return "/api/placeholder/400/600";
+    // Default fallback image
+    const fallbackImage = "/api/placeholder/400/600";
     
-    if (url.startsWith('blob:')) {
-      return url;
-    } else if (url.startsWith('http')) {
-      return url;
-    } else {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
+    if (!url) {
+      console.warn('SwipeableCard: Missing image URL, using fallback');
+      return fallbackImage;
+    }
+    
+    try {
+      if (url.startsWith('blob:')) {
+        return url;
+      } else if (url.startsWith('http')) {
+        return url;
+      } else {
+        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
+      }
+    } catch (error) {
+      console.error('SwipeableCard: Error formatting image URL:', url, error);
+      return fallbackImage;
     }
   };
   
-  // Get current image to display
-  const currentImage = profile.images && profile.images.length > 0 
-    ? formatImageUrl(profile.images[currentImageIndex])
-    : formatImageUrl(profile.profileImage);
+  const getCurrentImage = () => {
+    try {
+      // Check if profile has images array with valid entries
+      if (profile.images && Array.isArray(profile.images) && profile.images.length > 0) {
+        // Ensure current index is valid
+        const safeIndex = Math.min(currentImageIndex, profile.images.length - 1);
+        return formatImageUrl(profile.images[safeIndex]);
+      }
+      
+      // Fallback to profileImage if no images array or it's empty
+      if (profile.profileImage) {
+        return formatImageUrl(profile.profileImage);
+      }
+      
+      // Last resort fallback
+      console.warn('SwipeableCard: No valid images found for profile', profile.name);
+      return "/api/placeholder/400/600";
+    } catch (error) {
+      console.error('SwipeableCard: Error getting current image:', error);
+      return "/api/placeholder/400/600";
+    }
+  };
+  
+  const currentImage = getCurrentImage();
   
   // Handle carousel navigation
   const goToNextImage = (e) => {
@@ -289,8 +335,10 @@ const SwipeableCard = ({
             alt={profile.name} 
             className="w-full h-full object-cover"
             onError={(e) => {
+              console.error(`SwipeableCard: Image load error for ${currentImage}`);
               e.target.onerror = null;
               e.target.src = "/api/placeholder/400/600";
+              setImageLoadError(true);
             }}
           />
           
@@ -370,8 +418,8 @@ const SwipeableCard = ({
             {currentImageIndex === 0 && (
               <>
                 <div className="flex items-center mb-1">
-                  <h2 className="text-3xl font-bold mr-2">{profile.name}</h2>
-                  <h3 className="text-2xl">{profile.age}</h3>
+                  <h2 className="text-3xl font-bold mr-2">{profile.name || 'Unknown'}</h2>
+                  <h3 className="text-2xl">{profile.age || '?'}</h3>
                   {profile.verified && (
                     <div className="ml-2 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center text-xs">✓</div>
                   )}
@@ -384,7 +432,7 @@ const SwipeableCard = ({
                 
                 <div className="flex items-center mt-2 mb-3">
                   <MapPin size={16} className="mr-1" />
-                  <span>{profile.location?.distance || 0} {distanceUnit}</span>
+                  <span>{(profile.location?.distance || 0)} {distanceUnit}</span>
                 </div>
               </>
             )}

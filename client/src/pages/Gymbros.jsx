@@ -353,11 +353,19 @@ const GymBros = () => {
       setLoading(true);
       
       // Use the service function to get recommended profiles
-      const profiles = await gymbrosService.getRecommendedProfiles(filters);
+      const fetchedProfiles = await gymbrosService.getRecommendedProfiles(filters);
       
-      console.log('[GymBros] Received profiles:', profiles.length);
-      setProfiles(profiles);
-      setCurrentIndex(0);
+      // Add detailed logging
+      console.log('[GymBros] Received profiles:', fetchedProfiles.length, 
+        fetchedProfiles.map(p => ({id: p._id || p.id, name: p.name})));
+      
+      if (Array.isArray(fetchedProfiles) && fetchedProfiles.length > 0) {
+        setProfiles(fetchedProfiles);
+        setCurrentIndex(0);
+      } else {
+        console.warn('[GymBros] Received empty profiles array or invalid data:', fetchedProfiles);
+        setProfiles([]);
+      }
     } catch (error) {
       console.error('[GymBros] Error fetching profiles:', error);
       
@@ -371,14 +379,23 @@ const GymBros = () => {
           
           // Try fetching profiles again
           const retryProfiles = await gymbrosService.getRecommendedProfiles(filters);
-          setProfiles(retryProfiles);
-          setCurrentIndex(0);
+          
+          if (Array.isArray(retryProfiles) && retryProfiles.length > 0) {
+            console.log('[GymBros] Retry successful, got', retryProfiles.length, 'profiles');
+            setProfiles(retryProfiles);
+            setCurrentIndex(0);
+          } else {
+            console.warn('[GymBros] Retry returned empty or invalid profiles');
+            setProfiles([]);
+          }
         } catch (retryError) {
           console.error('[GymBros] Error on retry fetch profiles:', retryError);
           toast.error('Failed to load gym profiles');
+          setProfiles([]);
         }
       } else {
         toast.error('Failed to load gym profiles');
+        setProfiles([]);
       }
     } finally {
       setLoading(false);
@@ -797,18 +814,21 @@ const GymBros = () => {
   const renderTabContent = () => {
     switch(activeTab) {
       case 'discover':
-        return (
-          <div className="h-[calc(100vh-136px)] flex items-center justify-center overflow-visible pb-16">
-            <DiscoverTab
-              fetchProfiles={fetchProfiles}
-              loading={loading}
-              filters={filters}
-              setShowFilters={setShowFilters}
-              distanceUnit="miles"
-              isPremium={false} // Update to check user subscription or premium status
-            />
-          </div>
-        );
+      console.log('[GymBros] Rendering DiscoverTab with', profiles.length, 'profiles, currentIndex:', currentIndex);
+      return (
+        <div className="h-[calc(100vh-136px)] flex items-center justify-center overflow-visible pb-16">
+          <DiscoverTab
+            fetchProfiles={fetchProfiles}
+            loading={loading}
+            filters={filters}
+            setShowFilters={setShowFilters}
+            distanceUnit="miles"
+            isPremium={false}
+            initialProfiles={profiles} // FIXED: Pass the profiles array explicitly
+            initialIndex={currentIndex} // FIXED: Pass the current index explicitly
+          />
+        </div>
+      );
       
       case 'matches':
         return (

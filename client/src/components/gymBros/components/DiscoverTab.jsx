@@ -461,9 +461,22 @@ const DiscoverTab = ({
   const [pullDistance, setPullDistance] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
   const [networkError, setNetworkError] = useState(false);
+  const [initialProfiles, setInitialProfiles] = useState(null);
   
   // Container ref for pull-to-refresh
   const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (initialProfiles && Array.isArray(initialProfiles) && initialProfiles.length > 0) {
+      console.log('DiscoverTab: Setting profiles from initialProfiles:', initialProfiles.length, 
+        initialProfiles.map(p => p.name));
+      // Force state update with spread operator to ensure React detects the change
+      setProfiles([...initialProfiles]);
+      setCurrentIndex(0); // Fixed: removed reference to initialIndex, using 0 instead
+      setNetworkError(false); // Clear any network errors
+    }
+  }, [initialProfiles]);
+  
   
   // Load initial profiles
   useEffect(() => {
@@ -705,8 +718,8 @@ const DiscoverTab = ({
     setShowMatchModal(false);
   };
   
-  // Render loading state
   if (loading && profiles.length === 0) {
+    console.log('DiscoverTab: Rendering loading state');
     return (
       <div className="h-full flex flex-col items-center justify-center text-center px-6">
         <div className="relative h-16 w-16 mb-6">
@@ -730,8 +743,8 @@ const DiscoverTab = ({
     );
   }
   
-  // Network error state
   if (networkError) {
+    console.log('DiscoverTab: Rendering network error state');
     return (
       <EmptyStateMessage 
         type="networkError" 
@@ -740,8 +753,48 @@ const DiscoverTab = ({
     );
   }
   
-  // Render empty state
-  if (profiles.length === 0) {
+  if (!Array.isArray(profiles) || profiles.length === 0) {
+    console.log('DiscoverTab: Rendering empty state (no profiles)', 
+      `initialProfiles: ${initialProfiles?.length || 0}, profiles: ${profiles?.length || 0}`);
+    
+    // If initialProfiles has content but profiles state doesn't, log the discrepancy
+    if (initialProfiles && initialProfiles.length > 0) {
+      console.warn('DiscoverTab: initialProfiles has content but profiles state is empty!', 
+        'initialProfiles:', initialProfiles);
+        
+      // CRITICAL FIX: Use initialProfiles directly if available
+      return (
+        <div className="relative h-full w-full">
+          <AnimatePresence>
+            {initialProfiles.slice(0, 3).map((profile, index) => {
+              if (!profile || !profile.name) {
+                console.warn('DiscoverTab: Invalid profile data at index', index, profile);
+                return null;
+              }
+              
+              return (
+                <SwipeableCard
+                  key={`${profile._id || profile.id || index}-${index}`}
+                  profile={profile}
+                  onSwipe={handleSwipe}
+                  onInfoClick={() => {
+                    setShowProfileDetail(true);
+                  }}
+                  onSuperLike={(profileId) => handleSwipe('super', profileId)}
+                  onRekindle={handleRekindle}
+                  distanceUnit={distanceUnit}
+                  isPremium={isPremium}
+                  isActive={index === 0}
+                  isBehindActive={index > 0}
+                  isTopCard={index === 0}
+                />
+              );
+            })}
+          </AnimatePresence>
+        </div>
+      );
+    }
+    
     return (
       <EmptyStateMessage 
         type="noProfiles" 
@@ -751,8 +804,8 @@ const DiscoverTab = ({
     );
   }
   
-  // Render out of profiles state
   if (currentIndex >= profiles.length) {
+    console.log('DiscoverTab: Rendering end of profiles state');
     return (
       <EmptyStateMessage 
         message="You've seen all profiles"
@@ -764,18 +817,21 @@ const DiscoverTab = ({
     );
   }
   
-  return (
-    <div 
-      ref={containerRef}
-      className="h-full relative overflow-hidden"
-      style={{ 
-        transform: isPulling ? `translateY(${pullDistance}px)` : 'translateY(0)',
-        transition: isPulling ? 'none' : 'transform 0.3s ease'
-      }}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
+  console.log('DiscoverTab: Rendering profile cards, currentIndex:', currentIndex, 
+    'available profiles:', profiles.slice(currentIndex, currentIndex + 3).map(p => p.name));
+  
+    return (
+      <div 
+        ref={containerRef}
+        className="h-full relative overflow-hidden"
+        style={{ 
+          transform: isPulling ? `translateY(${pullDistance}px)` : 'translateY(0)',
+          transition: isPulling ? 'none' : 'transform 0.3s ease'
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
       {/* Pull to refresh indicator */}
       {isPulling && pullDistance > 0 && (
         <div className="absolute top-0 left-0 right-0 flex justify-center items-center pointer-events-none">
@@ -795,25 +851,34 @@ const DiscoverTab = ({
       <div className="relative h-full w-full">
         <AnimatePresence>
           {/* Show current and next few cards for better performance */}
-          {profiles.slice(currentIndex, currentIndex + 3).map((profile, index) => (
-            <ProfileCard
-              key={`${profile._id}-${index}`}
-              profile={profile}
-              onSwipe={handleSwipe}
-              onInfoClick={() => {
-                setShowProfileDetail(true);
-              }}
-              onSuperLike={(profileId) => handleSwipe('super', profileId)}
-              onRekindle={handleRekindle}
-              distanceUnit={distanceUnit}
-              isPremium={isPremium}
-              isActive={index === 0} // Only the top card is active
-              isBehindActive={index > 0} // Cards behind the active one
-              isTopCard={index === 0 && currentIndex === 0} // Very first card
-            />
-          ))}
+          {profiles.slice(currentIndex, currentIndex + 3).map((profile, index) => {
+            // FIXED: Validate profile data before rendering
+            if (!profile || !profile.name) {
+              console.warn('DiscoverTab: Invalid profile data at index', currentIndex + index, profile);
+              return null;
+            }
+            
+            return (
+              <SwipeableCard
+                key={`${profile._id || profile.id || index}-${index}`}
+                profile={profile}
+                onSwipe={handleSwipe}
+                onInfoClick={() => {
+                  setShowProfileDetail(true);
+                }}
+                onSuperLike={(profileId) => handleSwipe('super', profileId)}
+                onRekindle={handleRekindle}
+                distanceUnit={distanceUnit}
+                isPremium={isPremium}
+                isActive={index === 0} // Only the top card is active
+                isBehindActive={index > 0} // Cards behind the active one
+                isTopCard={index === 0 && currentIndex === 0} // Very first card
+              />
+            );
+          })}
         </AnimatePresence>
       </div>
+
       
       {/* Action buttons */}
       <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex items-center space-x-4 z-20">
