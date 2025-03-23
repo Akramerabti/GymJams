@@ -812,22 +812,24 @@ const GymBros = () => {
   // Different content based on active tab
   const renderTabContent = () => {
     switch(activeTab) {
-      case 'discover':
-        console.log('[GymBros] Rendering DiscoverTab with', profiles.length, 'profiles, currentIndex:', currentIndex);
-        return (
-          <div className="h-[calc(100vh-136px)] overflow-hidden relative">
-            <DiscoverTab
-              fetchProfiles={fetchProfiles}
-              loading={loading}
-              filters={filters}
-              setShowFilters={setShowFilters}
-              distanceUnit="miles"
-              isPremium={false}
-              initialProfiles={profiles}
-              initialIndex={currentIndex}
-            />
-          </div>
-        );
+      // In the renderTabContent function, 'discover' case:
+case 'discover':
+  console.log('[GymBros] Rendering DiscoverTab with', profiles.length, 'profiles, currentIndex:', currentIndex);
+  return (
+    <div className="h-[calc(100vh-136px)] overflow-hidden relative">
+      <DiscoverTab
+        fetchProfiles={fetchProfiles}
+        loading={loading}
+        filters={filters}
+        setShowFilters={setShowFilters}
+        distanceUnit="miles"
+        isPremium={false}
+        initialProfiles={profiles}
+        initialIndex={currentIndex}
+        userProfile={userProfile} // Pass the current user profile
+      />
+    </div>
+  );
         
       case 'matches':
         return (

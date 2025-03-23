@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, Share2, ChevronLeft, ChevronRight, MapPin, Award, 
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import ActiveStatus from './ActiveStatus';
 import { toast } from 'sonner';
+import { calculateCompatibility } from '../../../utils/calculateTrend';
 
 const ProfileDetailModal = ({ 
   profile, 
@@ -18,7 +19,8 @@ const ProfileDetailModal = ({
   onSuperLike,
   isMatch = false,
   isPremium = false,
-  distanceUnit = 'miles'
+  distanceUnit = 'miles',
+  userProfile
 }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [activeTab, setActiveTab] = useState('about');
@@ -32,6 +34,10 @@ const ProfileDetailModal = ({
   }, [profile?._id]);
 
   if (!profile) return null;
+
+  const compatibilityScores = useMemo(() => {
+    return calculateCompatibility(userProfile, profile);
+  }, [userProfile, profile]);
   
   // Format image URL
   const formatImageUrl = (imageUrl) => {
@@ -310,123 +316,125 @@ const ProfileDetailModal = ({
   );
   
 
-  const CompatibilityTabContent = () => (
-    <div className="p-5">
-      <h3 className="text-lg font-semibold mb-3">Match Compatibility</h3>
-      
-      <div className="bg-blue-50 p-4 rounded-lg mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-gray-700">Overall Match Score</span>
-          <span className="font-semibold text-blue-700">{profile.matchScore || 85}%</span>
+const CompatibilityTabContent = () => (
+  <div className="p-5">
+    <h3 className="text-lg font-semibold mb-3">Match Compatibility</h3>
+    
+    <div className="bg-blue-50 p-4 rounded-lg mb-6">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-gray-700">Overall Match Score</span>
+        <span className="font-semibold text-blue-700">
+          {compatibilityScores.overallScore || 0}%
+        </span>
+      </div>
+      <div className="w-full bg-blue-200 rounded-full h-2.5 mb-4">
+        <div 
+          className="bg-blue-600 h-2.5 rounded-full" 
+          style={{ width: `${compatibilityScores.overallScore || 0}%` }}
+        ></div>
+      </div>
+      <p className="text-sm text-gray-600">
+        Based on workout preferences, schedule, and experience level
+      </p>
+    </div>
+    
+    <div className="space-y-5">
+      {/* Workout Compatibility */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <h4 className="font-medium text-gray-700 flex items-center">
+            <Dumbbell size={16} className="mr-1 text-blue-500" />
+            Workout Compatibility
+          </h4>
+          <span className="text-sm font-semibold text-blue-600">
+            {compatibilityScores.workoutCompatibility || 'N/A'}
+          </span>
         </div>
-        <div className="w-full bg-blue-200 rounded-full h-2.5 mb-4">
+        <p className="text-sm text-gray-600 mb-2">
+          You share {compatibilityScores.commonWorkouts || 0} workout types
+        </p>
+        <div className="w-full bg-gray-200 rounded-full h-1.5">
           <div 
-            className="bg-blue-600 h-2.5 rounded-full" 
-            style={{ width: `${profile.matchScore || 85}%` }}
+            className="bg-blue-500 h-1.5 rounded-full" 
+            style={{ width: `${compatibilityScores.workoutCompatibilityScore || 0}%` }}
           ></div>
         </div>
-        <p className="text-sm text-gray-600">
-          Based on workout preferences, schedule, and experience level
-        </p>
       </div>
       
-      <div className="space-y-5">
-        {/* Workout Compatibility */}
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <h4 className="font-medium text-gray-700 flex items-center">
-              <Dumbbell size={16} className="mr-1 text-blue-500" />
-              Workout Compatibility
-            </h4>
-            <span className="text-sm font-semibold text-blue-600">
-              {profile.workoutCompatibility || 'High'}
-            </span>
-          </div>
-          <p className="text-sm text-gray-600 mb-2">
-            You share {profile.commonWorkouts || '3'} workout types
-          </p>
-          <div className="w-full bg-gray-200 rounded-full h-1.5">
-            <div 
-              className="bg-blue-500 h-1.5 rounded-full" 
-              style={{ width: `${profile.workoutCompatibilityScore || 80}%` }}
-            ></div>
-          </div>
+      {/* Schedule Compatibility */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <h4 className="font-medium text-gray-700 flex items-center">
+            <Calendar size={16} className="mr-1 text-blue-500" />
+            Schedule Compatibility
+          </h4>
+          <span className="text-sm font-semibold text-blue-600">
+            {compatibilityScores.scheduleCompatibility || 'N/A'}
+          </span>
         </div>
-        
-        {/* Schedule Compatibility */}
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <h4 className="font-medium text-gray-700 flex items-center">
-              <Calendar size={16} className="mr-1 text-blue-500" />
-              Schedule Compatibility
-            </h4>
-            <span className="text-sm font-semibold text-blue-600">
-              {profile.scheduleCompatibility || 'Good'}
-            </span>
-          </div>
-          <p className="text-sm text-gray-600 mb-2">
-            {profile.preferredTime === 'Flexible' ? 
-              'Their flexible schedule matches your availability' : 
-              `They prefer to workout in the ${profile.preferredTime.toLowerCase()}`
-            }
-          </p>
-          <div className="w-full bg-gray-200 rounded-full h-1.5">
-            <div 
-              className="bg-blue-500 h-1.5 rounded-full" 
-              style={{ width: `${profile.scheduleCompatibilityScore || 75}%` }}
-            ></div>
-          </div>
+        <p className="text-sm text-gray-600 mb-2">
+          {profile.preferredTime === 'Flexible' ? 
+            'Their flexible schedule matches your availability' : 
+            `They prefer to workout in the ${profile.preferredTime.toLowerCase()}`
+          }
+        </p>
+        <div className="w-full bg-gray-200 rounded-full h-1.5">
+          <div 
+            className="bg-blue-500 h-1.5 rounded-full" 
+            style={{ width: `${compatibilityScores.scheduleCompatibilityScore || 0}%` }}
+          ></div>
         </div>
-        
-        {/* Experience Compatibility */}
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <h4 className="font-medium text-gray-700 flex items-center">
-              <Award size={16} className="mr-1 text-blue-500" />
-              Experience Compatibility
-            </h4>
-            <span className="text-sm font-semibold text-blue-600">
-              {profile.experienceCompatibility || 'Perfect'}
-            </span>
-          </div>
-          <p className="text-sm text-gray-600 mb-2">
-            {profile.experienceLevel === 'Any' ? 
-              'Compatible with any experience level' : 
-              `${profile.experienceLevel} level matches your preference`
-            }
-          </p>
-          <div className="w-full bg-gray-200 rounded-full h-1.5">
-            <div 
-              className="bg-blue-500 h-1.5 rounded-full" 
-              style={{ width: `${profile.experienceCompatibilityScore || 100}%` }}
-            ></div>
-          </div>
+      </div>
+      
+      {/* Experience Compatibility */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <h4 className="font-medium text-gray-700 flex items-center">
+            <Award size={16} className="mr-1 text-blue-500" />
+            Experience Compatibility
+          </h4>
+          <span className="text-sm font-semibold text-blue-600">
+            {compatibilityScores.experienceCompatibility || 'N/A'}
+          </span>
         </div>
-        
-        {/* Location */}
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <h4 className="font-medium text-gray-700 flex items-center">
-              <MapPin size={16} className="mr-1 text-blue-500" />
-              Location
-            </h4>
-            <span className="text-sm font-semibold text-blue-600">
-              {profile.locationCompatibility || 'Close'}
-            </span>
-          </div>
-          <p className="text-sm text-gray-600 mb-2">
-            {profile.location?.distance || 0} {distanceUnit} away from you
-          </p>
-          <div className="w-full bg-gray-200 rounded-full h-1.5">
-            <div 
-              className="bg-blue-500 h-1.5 rounded-full" 
-              style={{ width: `${100 - Math.min(100, (profile.location?.distance || 0) * 2)}%` }}
-            ></div>
-          </div>
+        <p className="text-sm text-gray-600 mb-2">
+          {profile.experienceLevel === 'Any' ? 
+            'Compatible with any experience level' : 
+            `${profile.experienceLevel} level ${userProfile?.experienceLevel ? 'matches' : 'may match'} your preference`
+          }
+        </p>
+        <div className="w-full bg-gray-200 rounded-full h-1.5">
+          <div 
+            className="bg-blue-500 h-1.5 rounded-full" 
+            style={{ width: `${compatibilityScores.experienceCompatibilityScore || 0}%` }}
+          ></div>
+        </div>
+      </div>
+      
+      {/* Location */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <h4 className="font-medium text-gray-700 flex items-center">
+            <MapPin size={16} className="mr-1 text-blue-500" />
+            Location
+          </h4>
+          <span className="text-sm font-semibold text-blue-600">
+            {compatibilityScores.locationCompatibility || 'N/A'}
+          </span>
+        </div>
+        <p className="text-sm text-gray-600 mb-2">
+          {profile.location?.distance || 0} {distanceUnit} away from you
+        </p>
+        <div className="w-full bg-gray-200 rounded-full h-1.5">
+          <div 
+            className="bg-blue-500 h-1.5 rounded-full" 
+            style={{ width: `${compatibilityScores.locationScore || 0}%` }}
+          ></div>
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 
   // Fullscreen Image Modal
   const ImageFullscreenModal = () => (

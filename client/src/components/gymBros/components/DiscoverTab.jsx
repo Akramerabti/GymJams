@@ -27,7 +27,8 @@ const DiscoverTab = ({
   distanceUnit = 'miles',
   isPremium = false,
   initialProfiles = [],  // Default to empty array
-  initialIndex = 0       // Default to 0
+  initialIndex = 0,    // Default to 0
+  userProfile = null
 }) => {
   const { balance: pointsBalance, subtractPoints, updatePointsInBackend } = usePoints();
   const { isAuthenticated } = useAuthStore();
@@ -515,30 +516,31 @@ const DiscoverTab = ({
       
       {/* Profile Detail Modal */}
       <ProfileDetailModal
-        isVisible={showProfileDetail}
-        profile={profiles[currentIndex]}
-        onClose={() => setShowProfileDetail(false)}
-        onLike={() => {
-          setShowProfileDetail(false);
-          if (profiles[currentIndex]) {
-            handleSwipe('right', profiles[currentIndex]._id);
-          }
-        }}
-        onDislike={() => {
-          setShowProfileDetail(false);
-          if (profiles[currentIndex]) {
-            handleSwipe('left', profiles[currentIndex]._id);
-          }
-        }}
-        onSuperLike={() => {
-          setShowProfileDetail(false);
-          if (profiles[currentIndex]) {
-            handleSwipe('super', profiles[currentIndex]._id);
-          }
-        }}
-        isPremium={isPremium}
-        distanceUnit={distanceUnit}
-      />
+    isVisible={showProfileDetail}
+    profile={profiles[currentIndex]}
+    userProfile={userProfile} // Pass the user's profile from props
+    onClose={() => setShowProfileDetail(false)}
+    onLike={() => {
+      setShowProfileDetail(false);
+      if (profiles[currentIndex]) {
+        handleSwipe('right', profiles[currentIndex]._id);
+      }
+    }}
+    onDislike={() => {
+      setShowProfileDetail(false);
+      if (profiles[currentIndex]) {
+        handleSwipe('left', profiles[currentIndex]._id);
+      }
+    }}
+    onSuperLike={() => {
+      setShowProfileDetail(false);
+      if (profiles[currentIndex]) {
+        handleSwipe('super', profiles[currentIndex]._id);
+      }
+    }}
+    isPremium={isPremium}
+    distanceUnit={distanceUnit}
+  />
       
       {/* Match Modal */}
       <MatchModal
