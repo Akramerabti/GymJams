@@ -346,7 +346,6 @@ const GymBros = () => {
     console.log('Auth token:', localStorage.getItem('token')?.substring(0, 15) + '...');
   }
   
-  
   const fetchProfiles = async () => {
     try {
       console.log('[GymBros] Fetching profiles with filters:', filters);
@@ -813,10 +812,10 @@ const GymBros = () => {
   // Different content based on active tab
   const renderTabContent = () => {
     switch(activeTab) {
-      case 'discover':
+       case 'discover':
       console.log('[GymBros] Rendering DiscoverTab with', profiles.length, 'profiles, currentIndex:', currentIndex);
       return (
-        <div className="h-[calc(100vh-136px)] flex items-center justify-center overflow-visible pb-16">
+        <div className="h-full w-full flex items-center justify-center">
           <DiscoverTab
             fetchProfiles={fetchProfiles}
             loading={loading}
@@ -824,8 +823,8 @@ const GymBros = () => {
             setShowFilters={setShowFilters}
             distanceUnit="miles"
             isPremium={false}
-            initialProfiles={profiles} // FIXED: Pass the profiles array explicitly
-            initialIndex={currentIndex} // FIXED: Pass the current index explicitly
+            initialProfiles={profiles}
+            initialIndex={currentIndex}
           />
         </div>
       );

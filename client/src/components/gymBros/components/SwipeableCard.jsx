@@ -55,25 +55,13 @@ const SwipeableCard = ({
       setSwipeDirection(null);
       setDragDistance({ x: 0, y: 0 });
       
-      // Show entrance animation - IMPORTANT: Start from visible state
+      // CRITICAL FIX: Always start visible and positioned correctly
       controls.set({
         opacity: 1,
         scale: 1,
         x: 0,
         y: 0,
         rotate: 0
-      });
-      
-      // Run entrance animation
-      controls.start({
-        opacity: 1,
-        scale: 1,
-        transition: {
-          type: "spring",
-          stiffness: 300,
-          damping: 20,
-          duration: 0.4
-        }
       });
       
       console.log('SwipeableCard: Running entrance animation for', profile.name);
@@ -265,13 +253,13 @@ const SwipeableCard = ({
 
     return (
       <motion.div
-        className="absolute inset-0 w-full h-full"
+        className="absolute inset-0 w-full h-full overflow-visible"
         style={{ 
-          zIndex: isActive ? 10 : 0,
+          zIndex: isActive ? 30 : isBehindActive ? 20 : 10, // FIXED: Enhanced z-index hierarchy
           pointerEvents: isActive ? 'auto' : 'none'
         }}
         animate={controls}
-        initial={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 1, scale: 1, x: 0, y: 0 }} // FIXED: Start fully visible
         drag={isActive}
         dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
         dragElastic={0.7}
@@ -280,9 +268,9 @@ const SwipeableCard = ({
         onDragEnd={handleDragEnd}
       >
         <div 
-          className="relative h-full w-full rounded-xl overflow-hidden shadow-xl bg-white"
+          className="relative h-full w-full rounded-xl overflow-visible shadow-xl bg-white"
           style={{
-            transform: isBehindActive ? 'scale(0.95)' : 'scale(1)',
+            transform: isBehindActive ? 'scale(0.95) translateY(10px)' : 'scale(1)', // FIXED: Better visual separation
             opacity: isBehindActive ? 0.7 : 1,
             transition: 'transform 0.3s, opacity 0.3s'
           }}
@@ -296,7 +284,7 @@ const SwipeableCard = ({
                 exit={{ opacity: 0 }}
                 className="absolute inset-0 z-20 flex items-center justify-center rounded-xl border-4 border-green-500 bg-green-500/10"
               >
-                <div className="p-6 bg-white/80 rounded-full shadow-2xl">
+                <div className="p-6 bg-white/80 rounded-full shadow-2xl overflow-visible">
                   <Heart size={64} className="text-green-500" />
                 </div>
               </motion.div>
@@ -501,7 +489,7 @@ const SwipeableCard = ({
               {profile.matchScore && (
                 <div className="mt-3 flex items-center">
                   <Dumbbell size={16} className="mr-1 text-blue-300" />
-                  <div className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
+                  <div className="w-full h-1.5 bg-white/20 rounded-full overflow-visible">
                     <div 
                       className="h-full bg-blue-400 rounded-full"
                       style={{ width: `${profile.matchScore}%` }}
