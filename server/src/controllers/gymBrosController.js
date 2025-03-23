@@ -9,15 +9,19 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import { getRecommendedProfiles, processFeedback, checkForMatch } from '../services/gymBrosRecommendationService.js';
 import { handleError } from '../middleware/error.middleware.js';
 import twilio from 'twilio';
 import logger from '../utils/logger.js';
+import { 
+  getRecommendedProfiles,
+  processFeedback,
+  checkForMatch,
+  findPotentialMatches
+} from '../services/gymBrosMatchingService.js';
 
 
 export const checkGymBrosProfile = async (req, res) => {
   try {
-    // Get effective user (either authenticated or guest)
     const effectiveUser = getEffectiveUser(req);
     
     // Handle authenticated user
@@ -544,14 +548,11 @@ export const deleteProfileImage = async (req, res) => {
 
 export const getGymBrosProfiles = async (req, res, next) => {
   try {
-    logger.info('Request headers:', JSON.stringify(req.headers));
-    logger.info('Request query params:', JSON.stringify(req.query));
-    logger.info('Request cookies:', JSON.stringify(req.cookies));
+    logger.info('Request params:', JSON.stringify(req.query));
     logger.info('Guest user on request:', JSON.stringify(req.guestUser));
 
     const effectiveUser = getEffectiveUser(req);
-    logger.info(`Fetching profiles for user: ${effectiveUser.userId || effectiveUser.profileId || effectiveUser.phone || 'unidentified'}`);
-    logger.info(`Is guest? ${effectiveUser.isGuest}`);
+    logger.info(`Fetching profiles for user: ${effectiveUser.userId || effectiveUser.profileId || 'unidentified'}`);
     
     // No user context available
     if (!effectiveUser.userId && !effectiveUser.profileId && !effectiveUser.phone) {
@@ -581,40 +582,7 @@ export const getGymBrosProfiles = async (req, res, next) => {
       });
     }
 
-    // Get user's preferences
-    const prefQuery = effectiveUser.isGuest 
-      ? (effectiveUser.profileId 
-          ? { profileId: effectiveUser.profileId } 
-          : { phoneNumber: effectiveUser.phone })
-      : { userId: effectiveUser.userId };
-      
-    const userPreferences = await GymBrosPreference.findOne(prefQuery);
-    
-    // If no preferences exist yet, create default ones
-    const preferences = userPreferences || new GymBrosPreference(prefQuery);
-
-    // Build list of profiles to exclude (user, likes, dislikes)
-    const excludedProfiles = [
-      effectiveUser.userId || effectiveUser.profileId,
-      ...(preferences.likedProfiles || []),
-      ...(preferences.dislikedProfiles || [])
-    ];
-
-    // Get all candidate profiles (excluding already liked/disliked and the user)
-    const candidateProfiles = await GymBrosProfile.find({
-      $and: [
-        {
-          $or: [
-            { userId: { $nin: excludedProfiles } },
-            { _id: { $nin: excludedProfiles } }
-          ]
-        },
-        { 'location.lat': { $exists: true } },
-        { 'location.lng': { $exists: true } }
-      ]
-    });
-
-    // Apply filters if provided
+    console.log('User profilessssssssssssss:', req.query);
     const { 
       workoutTypes, 
       experienceLevel, 
@@ -625,79 +593,46 @@ export const getGymBrosProfiles = async (req, res, next) => {
       maxDistance
     } = req.query;
 
-    const filterOptions = {
-      maxDistance: maxDistance ? parseInt(maxDistance, 10) : preferences.maxDistance || 50,
-      userPreferences: preferences,
-      filters: {
-        workoutTypes: workoutTypes ? workoutTypes.split(',') : undefined,
-        experienceLevel: experienceLevel || undefined,
-        preferredTime: preferredTime || undefined,
-        gender: gender || undefined,
-        ageRange: {
-          min: minAge ? parseInt(minAge, 10) : preferences.ageRange?.min || 18,
-          max: maxAge ? parseInt(maxAge, 10) : preferences.ageRange?.max || 99
-        }
-      }
+    // Format filters for the recommendation service
+    const filters = {
+      workoutTypes: workoutTypes ? workoutTypes.split(',') : undefined,
+      experienceLevel: experienceLevel || undefined,
+      preferredTime: preferredTime || undefined,
+      genderPreference: gender || undefined,
+      ageRange: {
+        min: minAge ? parseInt(minAge, 10) : 18,
+        max: maxAge ? parseInt(maxAge, 10) : 99
+      },
+      maxDistance: maxDistance ? parseInt(maxDistance, 10) : 50
     };
-    
-    // Get recommended profiles using enhanced service
-    const recommendations = await getRecommendedProfiles(
-      userProfile, 
-      candidateProfiles,
-      filterOptions
-    );
 
-    const potentialMatches = await findPotentialMatches(
-      effectiveUser.userId || effectiveUser.profileId,
-      effectiveUser.isGuest
-    );
+  
+    const recommendations = await getRecommendedProfiles(userProfile, filters);
     
-    const sortedRecommendations = recommendations.sort((a, b) => {
-      // Prioritize users who've already liked this user
-      const aId = a.userId || a._id;
-      const bId = b.userId || b._id;
-      
-      const aLikedUser = potentialMatches.includes(aId.toString());
-      const bLikedUser = potentialMatches.includes(bId.toString());
-      
-      if (aLikedUser && !bLikedUser) return -1;
-      if (!aLikedUser && bLikedUser) return 1;
-      
-      // Then sort by match score
-      if (a.matchScore !== b.matchScore) {
-        return b.matchScore - a.matchScore;
-      }
-      
-      // Finally sort by distance
-      return a.location.distance - b.location.distance;
-    });
-
     // For guest users, generate and include a new token
     if (effectiveUser.isGuest) {
       const guestToken = generateGuestToken(effectiveUser.phone, effectiveUser.profileId);
-      res.setHeader('X-GymBros-Guest-Token', guestToken);
       
       res.json({
-        recommendations: sortedRecommendations,
+        recommendations,
         isGuest: true,
         guestToken
       });
     } else {
       res.json({
-        recommendations: sortedRecommendations,
+        recommendations,
         isGuest: false
       });
     }
   } catch (error) {
     logger.error('Error in getGymBrosProfiles:', error);
-    
-    // Properly formatted error response
-    return res.status(500).json({ 
+    res.status(500).json({ 
       error: "Failed to retrieve matches",
       message: "An unexpected error occurred while finding gym partners"
     });
   }
 };
+
 export const likeGymBrosProfile = async (req, res) => {
   try {
     const { profileId } = req.params;
@@ -716,6 +651,8 @@ export const likeGymBrosProfile = async (req, res) => {
     
     // Process the like interaction
     const userIdentifier = effectiveUser.userId || effectiveUser.profileId;
+    
+    // Use isGuest parameter to ensure proper handling
     const result = await processFeedback(
       userIdentifier, 
       profileId, 
@@ -741,7 +678,6 @@ export const likeGymBrosProfile = async (req, res) => {
     res.status(500).json({ error: 'Failed to process like' });
   }
 };
-
 // Dislike a GymBros profile
 export const dislikeGymBrosProfile = async (req, res) => {
   try {
@@ -761,6 +697,8 @@ export const dislikeGymBrosProfile = async (req, res) => {
     
     // Process the dislike interaction
     const userIdentifier = effectiveUser.userId || effectiveUser.profileId;
+    
+    // Use isGuest parameter to ensure proper handling
     const result = await processFeedback(
       userIdentifier, 
       profileId, 
@@ -830,17 +768,97 @@ export const getGymBrosMatches = async (req, res) => {
     
     // Include guest token in response if applicable
     if (effectiveUser.isGuest) {
+      const guestToken = generateGuestToken(effectiveUser.phone, effectiveUser.profileId);
+      
       const responseData = {
         matches: matchedProfiles,
-        guestToken: req.headers['x-gymbros-guest-token'],
+        guestToken,
         isGuest: true
       };
+      
       return res.json(responseData);
     }
     
     res.json(matchedProfiles);
   } catch (error) {
-    handleError(error, req, res);
+    logger.error('Error in getGymBrosMatches:', error);
+    res.status(500).json({ error: 'Failed to retrieve matches' });
+  }
+};
+
+// GET "Who liked me" - Premium feature
+export const getWhoLikedMe = async (req, res) => {
+  try {
+    const effectiveUser = getEffectiveUser(req);
+    
+    if (!effectiveUser.userId && !effectiveUser.profileId) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+    
+    const userIdentifier = effectiveUser.userId || effectiveUser.profileId;
+    
+    // Get users who have liked the current user but haven't been matched yet
+    const potentialMatches = await findPotentialMatches(userIdentifier);
+    
+    // Get user preferences to exclude already liked/disliked profiles
+    const prefQuery = effectiveUser.userId 
+      ? { userId: effectiveUser.userId } 
+      : { profileId: effectiveUser.profileId };
+    
+    const userPrefs = await GymBrosPreference.findOne(prefQuery);
+    
+    // Filter out users already liked/disliked by the current user
+    const filteredPotentialMatches = potentialMatches.filter(id => {
+      if (!userPrefs) return true;
+      
+      // Exclude if already liked or disliked
+      return !userPrefs.likedProfiles?.some(likedId => likedId.toString() === id.toString()) &&
+             !userPrefs.dislikedProfiles?.some(dislikedId => dislikedId.toString() === id.toString());
+    });
+    
+    // Get profiles for these users
+    const profiles = await GymBrosProfile.find({
+      $or: [
+        { userId: { $in: filteredPotentialMatches } },
+        { _id: { $in: filteredPotentialMatches } }
+      ]
+    });
+    
+    // Check if user has premium access
+    const isPremium = req.user?.isPremium || false; // You'll need to implement this check properly
+    
+    if (isPremium) {
+      // Return full profile data for premium users
+      res.json({ 
+        whoLikedMe: profiles, 
+        premium: true 
+      });
+    } else {
+      // Return limited data for non-premium users (blurred previews)
+      const blurredProfiles = profiles.map(profile => ({
+        _id: profile._id,
+        name: profile.name?.charAt(0) + '...',
+        age: profile.age,
+        blurred: true,
+        premium: false,
+        // Limited information
+        matchScore: 'High', // Generic indicator
+        messagePreview: 'Upgrade to see who likes you!'
+      }));
+      
+      res.json({ 
+        whoLikedMe: blurredProfiles, 
+        premium: false,
+        totalCount: profiles.length,
+        message: 'Upgrade to premium to see users who liked you'
+      });
+    }
+  } catch (error) {
+    logger.error('Error in getWhoLikedMe:', error);
+    res.status(500).json({ error: 'Failed to retrieve users who liked you' });
   }
 };
 
@@ -1147,9 +1165,9 @@ export const getUserPreferences = async (req, res) => {
       // Return default preferences if none found
       const defaultPrefs = {
         workoutTypes: [],
-        experienceLevel: 'Any',
-        preferredTime: 'Any',
-        genderPreference: 'All',
+        experienceLevel: 'any',
+        preferredTime: 'any',
+        genderPreference: 'all',
         ageRange: { min: 18, max: 99 },
         maxDistance: 50
       };
@@ -1476,26 +1494,6 @@ export const convertGuestToUser = async (req, res) => {
     });
   }
 };
-
-
-async function findPotentialMatches(userIdentifier, isGuest = false) {
-  try {
-    // Find all users who have liked this user
-    const query = isGuest
-      ? { likedProfiles: userIdentifier }
-      : { likedProfiles: userIdentifier };
-    
-    const usersWhoLikedCurrent = await GymBrosPreference.find(query);
-    
-    return usersWhoLikedCurrent.map(pref => {
-      // Return either userId or profileId based on what's available
-      return (pref.userId || pref.profileId).toString();
-    });
-  } catch (error) {
-    logger.error('Error finding potential matches:', error);
-    return [];
-  }
-}
 
 async function saveBrowsingSession(userId, profileIds) {
   // Implementation depends on your analytics strategy

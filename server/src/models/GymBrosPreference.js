@@ -47,16 +47,14 @@ const gymBrosPreferenceSchema = new mongoose.Schema({
     type: Number,
     default: 50 // km
   },
-  likedProfiles: {
-    type: [mongoose.Schema.Types.ObjectId],
-    ref: 'User',
-    default: []
-  },
-  dislikedProfiles: {
-    type: [mongoose.Schema.Types.ObjectId],
-    ref: 'User',
-    default: []
-  },
+  likedProfiles: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'GymBrosProfile'
+  }],
+  dislikedProfiles: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'GymBrosProfile'
+  }],
   // Settings
   settings: {
     showMe: {
@@ -94,15 +92,35 @@ const gymBrosPreferenceSchema = new mongoose.Schema({
         type: String,
         enum: ['everyone', 'matches', 'nobody'],
         default: 'everyone'
-      }
+      },
+      likedProfiles: {
+        type: [mongoose.Schema.Types.ObjectId],
+        ref: 'User',
+        default: [],
+        index: true  // Add index for better performance
+      },
+      
+      dislikedProfiles: {
+        type: [mongoose.Schema.Types.ObjectId],
+        ref: 'User',
+        default: [],
+        index: true  // Add index for better performance
+      },
     }
   }
 }, { timestamps: true });
 
-// Create indexes for efficient lookups
 gymBrosPreferenceSchema.index({ userId: 1 }, { sparse: true });
 gymBrosPreferenceSchema.index({ profileId: 1 }, { sparse: true });
 gymBrosPreferenceSchema.index({ phone: 1 }, { sparse: true });
+
+gymBrosPreferenceSchema.pre('save', function(next) {
+  if (!this.userId && !this.profileId && !this.phone) {
+    next(new Error('Either userId, profileId, or phone must be provided'));
+  } else {
+    next();
+  }
+});
 
 const GymBrosPreference = mongoose.model('GymBrosPreference', gymBrosPreferenceSchema);
 

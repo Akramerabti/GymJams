@@ -315,106 +315,109 @@ async createOrUpdateProfile(profileData) {
   }
 },
 
-  async getRecommendedProfiles(filters = {}) {
-    try {
-      // Build query string from filters
-      const queryParams = {};
-      
-      if (filters.workoutTypes?.length > 0) {
-        queryParams.workoutTypes = filters.workoutTypes.join(',');
-      }
-      
-      if (filters.experienceLevel && filters.experienceLevel !== 'Any') {
-        queryParams.experienceLevel = filters.experienceLevel;
-      }
-      
-      if (filters.preferredTime && filters.preferredTime !== 'Any') {
-        queryParams.preferredTime = filters.preferredTime;
-      }
-      
-      if (filters.genderPreference && filters.genderPreference !== 'All') {
-        queryParams.gender = filters.genderPreference;
-      }
-      
-      if (filters.ageRange) {
-        queryParams.minAge = filters.ageRange.min || 18;
-        queryParams.maxAge = filters.ageRange.max || 99;
-      }
-      
-      queryParams.maxDistance = filters.maxDistance || 50;
-      
-      // Add timestamp to prevent caching
-      queryParams._t = Date.now();
-      
-      // Set up config with guest token
-      const config = this.configWithGuestToken({
-        params: queryParams
-      });
-      
-      console.log('Making profiles request with params:', JSON.stringify(config));
-      
-      const response = await api.get('/gym-bros/profiles', config);
-      
-      // If we received a guest token in the response, update it
-      if (response.data.guestToken) {
-        this.setGuestToken(response.data.guestToken);
-        console.log('Updated guest token from profiles response');
-      }
-      
-      // Return the recommendations array
-      return response.data.recommendations || [];
-    } catch (error) {
-      console.error('Error fetching recommended profiles:', error);
-      throw error;
+async getRecommendedProfiles(filters = {}) {
+  try {
+    // Build query string from filters
+    const queryParams = {};
+    
+    if (filters.workoutTypes?.length > 0) {
+      queryParams.workoutTypes = filters.workoutTypes.join(',');
     }
-  },
-
-  async likeProfile(profileId, viewDuration = 0) {
-    try {
-      // Add guest token
-      const config = this.configWithGuestToken();
-      
-      const response = await api.post(
-        `/gym-bros/like/${profileId}`, 
-        { viewDuration },
-        config
-      );
-      
-      // Update guest token if returned
-      if (response.data.guestToken) {
-        this.setGuestToken(response.data.guestToken);
-      }
-      
-      return response.data;
-    } catch (error) {
-      console.error('Error liking profile:', error);
-      throw error;
+    
+    if (filters.experienceLevel && filters.experienceLevel !== 'Any') {
+      queryParams.experienceLevel = filters.experienceLevel;
     }
-  },
-
-  async dislikeProfile(profileId, viewDuration = 0) {
-    try {
-      // Add guest token
-      const config = this.configWithGuestToken();
-      
-      const response = await api.post(
-        `/gym-bros/dislike/${profileId}`, 
-        { viewDuration },
-        config
-      );
-      
-      // Update guest token if returned
-      if (response.data.guestToken) {
-        this.setGuestToken(response.data.guestToken);
-      }
-      
-      return response.data;
-    } catch (error) {
-      console.error('Error disliking profile:', error);
-      throw error;
+    
+    if (filters.preferredTime && filters.preferredTime !== 'Any') {
+      queryParams.preferredTime = filters.preferredTime;
     }
-  },
+    
+    if (filters.genderPreference && filters.genderPreference !== 'All') {
+      queryParams.gender = filters.genderPreference;
+    }
+    
+    if (filters.ageRange) {
+      queryParams.minAge = filters.ageRange.min || 18;
+      queryParams.maxAge = filters.ageRange.max || 99;
+    }
+    
+    queryParams.maxDistance = filters.maxDistance || 50;
+    
+    // Add timestamp to prevent caching
+    queryParams._t = Date.now();
+    
+    // Set up config with guest token
+    const config = this.configWithGuestToken({
+      params: queryParams
+    });
+    
+    console.log('Making profiles request with params:', JSON.stringify(config));
+    
+    const response = await api.get('/gym-bros/profiles', config);
+    
+    // If we received a guest token in the response, update it
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+      console.log('Updated guest token from profiles response');
+    }
+    
+    // Return the recommendations array
+    return response.data.recommendations || [];
+  } catch (error) {
+    console.error('Error fetching recommended profiles:', error);
+    throw error;
+  }
+},
 
+async likeProfile(profileId, viewDuration = 0) {
+  try {
+    // Add guest token
+    const config = this.configWithGuestToken();
+    
+    console.log(`Sending like for profile ${profileId} with view duration ${viewDuration}ms`);
+    
+    const response = await api.post(
+      `/gym-bros/like/${profileId}`, 
+      { viewDuration },
+      config
+    );
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error liking profile:', error);
+    throw error;
+  }
+},
+
+async dislikeProfile(profileId, viewDuration = 0) {
+  try {
+    // Add guest token
+    const config = this.configWithGuestToken();
+    
+    console.log(`Sending dislike for profile ${profileId} with view duration ${viewDuration}ms`);
+    
+    const response = await api.post(
+      `/gym-bros/dislike/${profileId}`, 
+      { viewDuration },
+      config
+    );
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error disliking profile:', error);
+    throw error;
+  }
+},
   async getMatches() {
     try {
       // Add guest token

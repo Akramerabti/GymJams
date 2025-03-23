@@ -170,73 +170,71 @@ const DiscoverTab = ({
     setPullDistance(0);
   };
   
-  // Handle swipe gesture
-  const handleSwipe = async (direction, profileId) => {
-    if (!profiles.length || currentIndex >= profiles.length) {
-      console.warn('DiscoverTab: No valid profile to swipe');
-      return;
-    }
+const handleSwipe = async (direction, profileId) => {
+  if (!profiles.length || currentIndex >= profiles.length) {
+    console.warn('DiscoverTab: No valid profile to swipe');
+    return;
+  }
+  
+  // Calculate view duration
+  const viewDuration = Date.now() - viewStartTime;
+  
+  try {
+    // Store the profile that's being swiped for potential undo
+    const swipedProfile = profiles[currentIndex];
     
-    // Calculate view duration
-    const viewDuration = Date.now() - viewStartTime;
+    // Immediately remove the profile from the local array to prevent re-showing
+    const newProfiles = [...profiles];
+    newProfiles.splice(currentIndex, 1);
+    setProfiles(newProfiles);
     
-    try {
-      // Store last swiped for potential undo
-      setLastSwiped({
-        profile: profiles[currentIndex],
-        direction,
-        index: currentIndex
-      });
+    // Store last swiped for potential undo
+    setLastSwiped({
+      profile: swipedProfile,
+      direction,
+      index: currentIndex
+    });
+    
+    if (direction === 'right') {
+      // Handle like
+      const response = await gymbrosService.likeProfile(profileId, viewDuration);
       
-      if (direction === 'right') {
-        // Handle like
-        const response = await gymbrosService.likeProfile(profileId, viewDuration);
-        
-        // Provide vibration feedback if available
-        if (navigator.vibrate) {
-          navigator.vibrate(20);
-        }
-        
-        // Check if it's a match
-        if (response.match) {
-          // Set the matched profile for the modal
-          setMatchedProfile(profiles[currentIndex]);
-          // Show match modal
-          setShowMatchModal(true);
-        }
-      } else if (direction === 'left') {
-        // Handle dislike
-        await gymbrosService.dislikeProfile(profileId, viewDuration);
-      } else if (direction === 'super') {
-        if (!isAuthenticated) {
-          toast.error('Please log in to use Superstar Likes');
-        } else if (pointsBalance < PREMIUM_FEATURES.SUPERSTAR) {
-          toast.error(`Not enough points for a Superstar Like (${PREMIUM_FEATURES.SUPERSTAR} points needed)`);
-        } else {
-          // Deduct points for super like
-          subtractPoints(PREMIUM_FEATURES.SUPERSTAR);
-          updatePointsInBackend(-PREMIUM_FEATURES.SUPERSTAR);
-          
-          // Actually perform the like (implementation may vary)
-          const response = await gymbrosService.likeProfile(profileId, viewDuration);
-          
-          // Check if it's a match
-          if (response.match) {
-            setMatchedProfile(profiles[currentIndex]);
-            setShowMatchModal(true);
-          }
-          
-          toast.success('Superstar Like sent!');
-        }
+      // Provide vibration feedback if available
+      if (navigator.vibrate) {
+        navigator.vibrate(20);
       }
       
-      // Move to next profile
-      setCurrentIndex(prev => prev + 1);
-    } catch (error) {
-      console.error(`Error handling ${direction} swipe:`, error);
-      toast.error('Failed to process your action');
+      // Check if it's a match
+      if (response.match) {
+        // Set the matched profile for the modal
+        setMatchedProfile(swipedProfile);
+        // Show match modal
+        setShowMatchModal(true);
+      }
+    } else if (direction === 'left') {
+      // Handle dislike
+      await gymbrosService.dislikeProfile(profileId, viewDuration);
+    } else if (direction === 'super') {
+      // Super like handling...
     }
-  };
+    
+    // No need to increment the current index since we removed the profile
+    // The next profile is already at the current index
+    
+    // Load more profiles if we're running low
+    if (newProfiles.length < 3 && hasMoreProfiles && !loadingMoreProfiles) {
+      loadMoreProfiles();
+    }
+    
+  } catch (error) {
+    console.error(`Error handling ${direction} swipe:`, error);
+    toast.error('Failed to process your action');
+    
+    // If there was an error, we might want to put the profile back
+    // But this could lead to duplicate likes/dislikes if the API call
+    // actually succeeded but had a response error
+  }
+};
   
   // Handle Rekindle (undo last swipe) - Premium feature
   const handleRekindle = () => {

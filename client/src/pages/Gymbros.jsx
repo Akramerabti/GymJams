@@ -346,60 +346,131 @@ const GymBros = () => {
     console.log('Auth token:', localStorage.getItem('token')?.substring(0, 15) + '...');
   }
   
-  const fetchProfiles = async () => {
-    try {
-      console.log('[GymBros] Fetching profiles with filters:', filters);
-      setLoading(true);
-      
-      // Use the service function to get recommended profiles
-      const fetchedProfiles = await gymbrosService.getRecommendedProfiles(filters);
-      
-      // Add detailed logging
-      console.log('[GymBros] Received profiles:', fetchedProfiles.length, 
-        fetchedProfiles.map(p => ({id: p._id || p.id, name: p.name})));
-      
-      if (Array.isArray(fetchedProfiles) && fetchedProfiles.length > 0) {
-        setProfiles(fetchedProfiles);
-        setCurrentIndex(0);
-      } else {
-        console.warn('[GymBros] Received empty profiles array or invalid data:', fetchedProfiles);
-        setProfiles([]);
-      }
-    } catch (error) {
-      console.error('[GymBros] Error fetching profiles:', error);
-      
-      // If 401 error and we have a guest token, try refreshing the guest state
-      if (error.response?.status === 401 && gymbrosService.getGuestToken()) {
-        console.log('[GymBros] Authentication error, attempting to refresh guest state');
-        
-        try {
-          // Try to refresh the guest profile
-          await fetchGuestProfile();
-          
-          // Try fetching profiles again
-          const retryProfiles = await gymbrosService.getRecommendedProfiles(filters);
-          
-          if (Array.isArray(retryProfiles) && retryProfiles.length > 0) {
-            console.log('[GymBros] Retry successful, got', retryProfiles.length, 'profiles');
-            setProfiles(retryProfiles);
-            setCurrentIndex(0);
-          } else {
-            console.warn('[GymBros] Retry returned empty or invalid profiles');
-            setProfiles([]);
-          }
-        } catch (retryError) {
-          console.error('[GymBros] Error on retry fetch profiles:', retryError);
-          toast.error('Failed to load gym profiles');
-          setProfiles([]);
-        }
-      } else {
-        toast.error('Failed to load gym profiles');
-        setProfiles([]);
-      }
-    } finally {
-      setLoading(false);
+  // GymBros.jsx - Updated handleSwipe, handleLike, and handleDislike functions
+
+const handleSwipe = (direction, profileId) => {
+  // Calculate view duration
+  const viewDuration = Date.now() - (viewStartTime || Date.now());
+  console.log(`[GymBros] Swiped ${direction} on profile ${profileId} after ${viewDuration}ms`);
+  
+  if (direction === 'right') {
+    handleLike(profileId, viewDuration);
+  } else {
+    handleDislike(profileId, viewDuration);
+  }
+  
+  // Immediately remove the profile from the local state to prevent re-showing
+  if (currentIndex < profiles.length) {
+    const newProfiles = [...profiles];
+    newProfiles.splice(currentIndex, 1);
+    setProfiles(newProfiles);
+    
+    // Don't increment currentIndex since we've removed the profile
+    // Instead, maintain the same index which now points to the next profile
+    console.log('[GymBros] Removed profile from state, remaining:', newProfiles.length);
+    
+    // If no more profiles, show message
+    if (newProfiles.length === 0) {
+      console.log('[GymBros] No more profiles to show');
+      toast('You\'ve seen all profiles for now! Check back later.', {
+        description: 'Pull to refresh for new profiles'
+      });
     }
-  };
+  }
+};
+
+const handleLike = async (profileId, viewDuration) => {
+  try {
+    console.log(`[GymBros] Sending like for profile ${profileId} with view duration ${viewDuration}ms`);
+    // Use the service function to like a profile
+    const response = await gymbrosService.likeProfile(profileId, viewDuration);
+    
+    if (response.match) {
+      console.log('[GymBros] Match created!', response);
+      toast.success('It\'s a match! 🎉', {
+        description: 'You can now message each other'
+      });
+      // Add to matches list
+      fetchMatches();
+    } else {
+      console.log('[GymBros] Like sent, no match yet');
+    }
+    
+    // No need to update currentIndex here since handleSwipe already
+    // removed the profile from the array
+  } catch (error) {
+    console.error('[GymBros] Error liking profile:', error);
+    toast.error('Problem sending like. Please try again.');
+  }
+};
+
+const handleDislike = async (profileId, viewDuration) => {
+  try {
+    console.log(`[GymBros] Sending dislike for profile ${profileId} with view duration ${viewDuration}ms`);
+    // Use the service function to dislike a profile
+    await gymbrosService.dislikeProfile(profileId, viewDuration);
+    
+    // No need to update currentIndex here since handleSwipe already
+    // removed the profile from the array
+  } catch (error) {
+    console.error('[GymBros] Error disliking profile:', error);
+    toast.error('Problem sending dislike. Please try again.');
+  }
+};
+
+// Updated fetchProfiles function to properly handle results
+const fetchProfiles = async () => {
+  try {
+    console.log('[GymBros] Fetching profiles with filters:', filters);
+    setLoading(true);
+    
+    // Use the service function to get recommended profiles
+    const fetchedProfiles = await gymbrosService.getRecommendedProfiles(filters);
+    
+    // Add detailed logging
+    console.log('[GymBros] Received profiles:', fetchedProfiles.length, 
+      fetchedProfiles.map(p => ({id: p._id || p.id, name: p.name})));
+    
+    if (Array.isArray(fetchedProfiles) && fetchedProfiles.length > 0) {
+      // Instead of replacing all profiles, we can append to existing ones
+      // But we should first check for duplicates
+      
+      // Get IDs of current profiles to avoid duplicates
+      const existingIds = profiles.map(p => p._id || p.id);
+      
+      // Filter out any profiles we already have
+      const newProfiles = fetchedProfiles.filter(p => !existingIds.includes(p._id || p.id));
+      
+      console.log(`[GymBros] Adding ${newProfiles.length} new profiles to existing ${profiles.length}`);
+      
+      if (newProfiles.length > 0) {
+        setProfiles(prevProfiles => [...prevProfiles, ...newProfiles]);
+      } else if (profiles.length === 0) {
+        // If we have no profiles and received none, set empty array
+        setProfiles([]);
+      }
+      
+      // Only reset currentIndex if we have no existing profiles
+      if (profiles.length === 0) {
+        setCurrentIndex(0);
+      }
+    } else {
+      console.warn('[GymBros] Received empty profiles array or invalid data:', fetchedProfiles);
+      
+      // Only clear profiles if we don't already have any
+      if (profiles.length === 0) {
+        setProfiles([]);
+      }
+    }
+  } catch (error) {
+    console.error('[GymBros] Error fetching profiles:', error);
+    
+    // Error handling code...
+    
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchMatches = async () => {
     try {
@@ -430,82 +501,6 @@ const GymBros = () => {
       } else {
         toast.error('Failed to load matches');
       }
-    }
-  };
-
-  const handleSwipe = (direction, profileId) => {
-    // Calculate view duration
-    const viewDuration = Date.now() - (viewStartTime || Date.now());
-    console.log(`[GymBros] Swiped ${direction} on profile ${profileId} after ${viewDuration}ms`);
-    
-    if (direction === 'right') {
-      handleLike(profileId, viewDuration);
-    } else {
-      handleDislike(profileId, viewDuration);
-    }
-    
-    // Move to next profile with animation
-    if (profileRef.current) {
-      const moveAnimation = {
-        x: direction === 'right' ? 1000 : -1000,
-        opacity: 0,
-        transition: { duration: 0.3 }
-      };
-      
-      // Apply animation through ref
-      profileRef.current.animate(moveAnimation, {
-        onComplete: () => {
-          if (currentIndex < profiles.length - 1) {
-            console.log('[GymBros] Moving to next profile, index:', currentIndex + 1);
-            setCurrentIndex(prevIndex => prevIndex + 1);
-          } else {
-            console.log('[GymBros] No more profiles to show');
-            toast('You\'ve seen all profiles for now! Check back later.', {
-              description: 'Pull to refresh for new profiles'
-            });
-          }
-        }
-      });
-    } else {
-      // Fallback if ref isn't available
-      if (currentIndex < profiles.length - 1) {
-        setCurrentIndex(prevIndex => prevIndex + 1);
-      } else {
-        toast('You\'ve seen all profiles for now! Check back later.', {
-          description: 'Pull to refresh for new profiles'
-        });
-      }
-    }
-  };
-
-  const handleLike = async (profileId, viewDuration) => {
-    try {
-      console.log(`[GymBros] Sending like for profile ${profileId} with view duration ${viewDuration}ms`);
-      // Use the service function to like a profile
-      const response = await gymbrosService.likeProfile(profileId, viewDuration);
-      
-      if (response.match) {
-        console.log('[GymBros] Match created!', response);
-        toast.success('It\'s a match! 🎉', {
-          description: 'You can now message each other'
-        });
-        // Add to matches list
-        fetchMatches();
-      } else {
-        console.log('[GymBros] Like sent, no match yet');
-      }
-    } catch (error) {
-      console.error('[GymBros] Error liking profile:', error);
-    }
-  };
-
-  const handleDislike = async (profileId, viewDuration) => {
-    try {
-      console.log(`[GymBros] Sending dislike for profile ${profileId} with view duration ${viewDuration}ms`);
-      // Use the service function to dislike a profile
-      await gymbrosService.dislikeProfile(profileId, viewDuration);
-    } catch (error) {
-      console.error('[GymBros] Error disliking profile:', error);
     }
   };
 
