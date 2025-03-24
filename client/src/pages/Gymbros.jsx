@@ -306,9 +306,9 @@ const GymBros = () => {
       
       const initialFilters = {
         workoutTypes: profile.workoutTypes || [],
-        experienceLevel: profile.experienceLevel || 'Any',
-        preferredTime: profile.preferredTime || 'Any',
-        genderPreference: profile.genderPreference || 'All',
+        experienceLevel: profile.experienceLevel || 'any',
+        preferredTime: profile.preferredTime || 'any',
+        genderPreference: profile.genderPreference || 'all',
         ageRange: { 
           min: profile.ageRange?.min || 18, 
           max: profile.ageRange?.max || 99 
@@ -346,77 +346,6 @@ const GymBros = () => {
     console.log('Auth token:', localStorage.getItem('token')?.substring(0, 15) + '...');
   }
   
-  // GymBros.jsx - Updated handleSwipe, handleLike, and handleDislike functions
-
-const handleSwipe = (direction, profileId) => {
-  // Calculate view duration
-  const viewDuration = Date.now() - (viewStartTime || Date.now());
-  console.log(`[GymBros] Swiped ${direction} on profile ${profileId} after ${viewDuration}ms`);
-  
-  if (direction === 'right') {
-    handleLike(profileId, viewDuration);
-  } else {
-    handleDislike(profileId, viewDuration);
-  }
-  
-  // Immediately remove the profile from the local state to prevent re-showing
-  if (currentIndex < profiles.length) {
-    const newProfiles = [...profiles];
-    newProfiles.splice(currentIndex, 1);
-    setProfiles(newProfiles);
-    
-    // Don't increment currentIndex since we've removed the profile
-    // Instead, maintain the same index which now points to the next profile
-    console.log('[GymBros] Removed profile from state, remaining:', newProfiles.length);
-    
-    // If no more profiles, show message
-    if (newProfiles.length === 0) {
-      console.log('[GymBros] No more profiles to show');
-      toast('You\'ve seen all profiles for now! Check back later.', {
-        description: 'Pull to refresh for new profiles'
-      });
-    }
-  }
-};
-
-const handleLike = async (profileId, viewDuration) => {
-  try {
-    console.log(`[GymBros] Sending like for profile ${profileId} with view duration ${viewDuration}ms`);
-    // Use the service function to like a profile
-    const response = await gymbrosService.likeProfile(profileId, viewDuration);
-    
-    if (response.match) {
-      console.log('[GymBros] Match created!', response);
-      toast.success('It\'s a match! 🎉', {
-        description: 'You can now message each other'
-      });
-      // Add to matches list
-      fetchMatches();
-    } else {
-      console.log('[GymBros] Like sent, no match yet');
-    }
-    
-    // No need to update currentIndex here since handleSwipe already
-    // removed the profile from the array
-  } catch (error) {
-    console.error('[GymBros] Error liking profile:', error);
-    toast.error('Problem sending like. Please try again.');
-  }
-};
-
-const handleDislike = async (profileId, viewDuration) => {
-  try {
-    console.log(`[GymBros] Sending dislike for profile ${profileId} with view duration ${viewDuration}ms`);
-    // Use the service function to dislike a profile
-    await gymbrosService.dislikeProfile(profileId, viewDuration);
-    
-    // No need to update currentIndex here since handleSwipe already
-    // removed the profile from the array
-  } catch (error) {
-    console.error('[GymBros] Error disliking profile:', error);
-    toast.error('Problem sending dislike. Please try again.');
-  }
-};
 
 // Updated fetchProfiles function to properly handle results
 const fetchProfiles = async () => {

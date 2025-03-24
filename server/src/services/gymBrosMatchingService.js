@@ -13,8 +13,9 @@ export const getRecommendedProfiles = async (userProfile, filters = {}) => {
       return [];
     }
     
-    const userIdentifier = userProfile.userId || userProfile._id;
-    logger.info(`Getting recommendations for user: ${userIdentifier}`);
+    // Get all possible user identifiers
+    const userIdentifiers = getUserIdentifiers(userProfile);
+    logger.info(`Getting recommendations for user: ${userIdentifiers.join(', ')}`);
     
     console.log('User profile filters:', filters);
     // Get user's preferences
@@ -25,39 +26,36 @@ export const getRecommendedProfiles = async (userProfile, filters = {}) => {
     const userPrefs = await GymBrosPreference.findOne(prefQuery);
     
     // Build exclusion list - profiles already interacted with
-    const excludedIds = [];
-    
-    // Add user's own ID(s)
-    if (userProfile.userId) excludedIds.push(userProfile.userId);
-    if (userProfile._id) excludedIds.push(userProfile._id);
+    const excludedIds = [...userIdentifiers]; // Start with user's own IDs
     
     // Add liked and disliked profiles
     if (userPrefs) {
       if (userPrefs.likedProfiles && Array.isArray(userPrefs.likedProfiles)) {
-        excludedIds.push(...userPrefs.likedProfiles);
+        const likedIds = userPrefs.likedProfiles.map(id => id.toString());
+        excludedIds.push(...likedIds);
       }
       if (userPrefs.dislikedProfiles && Array.isArray(userPrefs.dislikedProfiles)) {
-        excludedIds.push(...userPrefs.dislikedProfiles);
+        const dislikedIds = userPrefs.dislikedProfiles.map(id => id.toString());
+        excludedIds.push(...dislikedIds);
       }
     }
     
     logger.info(`Excluded ${excludedIds.length} profiles from recommendations`);
     
     // Get users who have already liked this user - CRITICAL FEATURE
-    const potentialMatches = await findPotentialMatches(userIdentifier);
+    const potentialMatches = await findPotentialMatches(userIdentifiers);
     logger.info(`Found ${potentialMatches.length} users who already liked this user`);
     
     // Apply max distance filter (if provided)
     const maxDistance = filters.maxDistance || 50;
     
-    // Build query for candidate profiles
+    // Build query for candidate profiles with improved exclusion logic
     const query = {
-      // Exclude profiles already interacted with
       $and: [
         {
-          $or: [
-            { userId: { $nin: excludedIds } },
-            { _id: { $nin: excludedIds } }
+          $nor: [
+            { userId: { $in: excludedIds } },
+            { _id: { $in: excludedIds } }
           ]
         },
         // Ensure profile has location data
@@ -65,6 +63,7 @@ export const getRecommendedProfiles = async (userProfile, filters = {}) => {
         { 'location.lng': { $exists: true } },
       ]
     };
+    
     
     // Apply workout type filter only if it's defined and has elements
     if (filters.workoutTypes && Array.isArray(filters.workoutTypes) && filters.workoutTypes.length > 0) {
@@ -392,6 +391,17 @@ const toRadians = (degrees) => {
   return degrees * (Math.PI / 180);
 };
 
+// Helper function to get all possible identifiers for a user
+const getUserIdentifiers = (user) => {
+  const identifiers = [];
+  
+  if (user.userId) identifiers.push(user.userId.toString());
+  if (user._id) identifiers.push(user._id.toString());
+  
+  return identifiers;
+};
+
+// Updated processFeedback function with improved interaction handling
 export const processFeedback = async (userId, targetId, feedbackType, viewDuration = 0, isGuest = false) => {
   try {
     logger.info(`Processing ${feedbackType} from ${userId} to ${targetId} (duration: ${viewDuration}ms, isGuest: ${isGuest})`);
@@ -467,8 +477,8 @@ export const processFeedback = async (userId, targetId, feedbackType, viewDurati
     // make sure to normalize any enum values to lowercase
     if (!preferences) {
       // This fixes the capitalization issue with genderPreference
-      if (prefQuery.genderPreference === 'All') {
-        newPrefsData.genderPreference = 'all'; // Lowercase to match enum
+      if (newPrefsData.genderPreference) {
+        newPrefsData.genderPreference = newPrefsData.genderPreference.toLowerCase();
       }
     }
     
@@ -476,55 +486,42 @@ export const processFeedback = async (userId, targetId, feedbackType, viewDurati
     if (preferences) {
       logger.info(`Found existing preferences for query: ${JSON.stringify(prefQuery)}`);
       
-      // Just update arrays in-place
-      if (feedbackType === 'like') {
-        // Add to liked if not already there
-        const targetIdStr = targetProfile._id.toString();
-        const alreadyLiked = preferences.likedProfiles.some(id => 
-          id.toString() === targetIdStr
-        );
-        
-        if (!alreadyLiked) {
-          preferences.likedProfiles.push(targetProfile._id);
-        }
-        
-        // Remove from disliked
-        preferences.dislikedProfiles = preferences.dislikedProfiles.filter(id => 
-          id.toString() !== targetIdStr
-        );
-      } else {
-        // Add to disliked if not already there
-        const targetIdStr = targetProfile._id.toString();
-        const alreadyDisliked = preferences.dislikedProfiles.some(id => 
-          id.toString() === targetIdStr
-        );
-        
-        if (!alreadyDisliked) {
-          preferences.dislikedProfiles.push(targetProfile._id);
-        }
-        
-        // Remove from liked
-        preferences.likedProfiles = preferences.likedProfiles.filter(id => 
-          id.toString() !== targetIdStr
-        );
-      }
+      // Check if this profile is already in the appropriate list
+      const targetIdStr = targetProfile._id.toString();
+      const alreadyInList = preferences[feedbackType === 'like' ? 'likedProfiles' : 'dislikedProfiles']
+        .some(id => id.toString() === targetIdStr);
       
-      // Save preferences
-      try {
-        await preferences.save();
-      } catch (saveError) {
-        logger.error('Error saving preferences:', saveError);
+      if (!alreadyInList) {
+        // Add to the appropriate list only if not already present
+        preferences[feedbackType === 'like' ? 'likedProfiles' : 'dislikedProfiles'].push(targetProfile._id);
         
-        // If it's a validation error for genderPreference, fix it
-        if (saveError.errors && saveError.errors.genderPreference) {
-          logger.info('Fixing genderPreference capitalization issue');
-          if (preferences.genderPreference === 'All') {
-            preferences.genderPreference = 'all';
-            await preferences.save();
+        // Remove from opposite list if present
+        const oppositeList = feedbackType === 'like' ? 'dislikedProfiles' : 'likedProfiles';
+        preferences[oppositeList] = preferences[oppositeList].filter(id => 
+          id.toString() !== targetIdStr
+        );
+        
+        // Save with error handling
+        try {
+          await preferences.save();
+          logger.info(`Successfully saved ${feedbackType} interaction`);
+        } catch (saveError) {
+          // Handle specific validation errors
+          if (saveError.name === 'ValidationError') {
+            // Fix common issues
+            if (saveError.errors.genderPreference) {
+              logger.info('Fixing genderPreference capitalization issue');
+              preferences.genderPreference = preferences.genderPreference.toLowerCase();
+              await preferences.save();
+            } else {
+              throw saveError;
+            }
+          } else {
+            throw saveError;
           }
-        } else {
-          throw saveError;
         }
+      } else {
+        logger.info(`Profile ${targetIdStr} is already in ${feedbackType} list, skipping update`);
       }
     } else {
       // If no preferences exist, create new ones with the correct identifier
@@ -533,8 +530,8 @@ export const processFeedback = async (userId, targetId, feedbackType, viewDurati
       newPrefsData.dislikedProfiles = feedbackType === 'dislike' ? [targetProfile._id] : [];
       
       // Ensure genderPreference is lowercase if present
-      if (newPrefsData.genderPreference === 'All') {
-        newPrefsData.genderPreference = 'all';
+      if (newPrefsData.genderPreference) {
+        newPrefsData.genderPreference = newPrefsData.genderPreference.toLowerCase();
       }
       
       try {
@@ -626,15 +623,6 @@ async function updateProfilePopularityScore(profileId) {
 }
 
 
-// ==== PART 3: Updated checkForMatch function ====
-
-/**
- * Check if there's a mutual like (match)
- * @param {String} userId - User ID or profile ID 
- * @param {String} targetId - Target profile ID
- * @param {Boolean} isGuest - Whether the source user is a guest
- * @returns {Boolean} - True if matched
- */
 export const checkForMatch = async (userId, targetId, isGuest = false) => {
   try {
     // Find both profiles
@@ -723,11 +711,11 @@ export const checkForMatch = async (userId, targetId, isGuest = false) => {
       
       // Identify the correct IDs to use for the match
       const sourceId = sourceProfile ? sourceProfile._id : userId;
-      const targetId = targetProfile._id;
+      const targetProfileId = targetProfile._id; // Fix: Renamed to avoid collision
       
       // Check if match already exists
       const existingMatch = await GymBrosMatch.findOne({
-        users: { $all: [sourceId, targetId] }
+        users: { $all: [sourceId, targetProfileId] } // Fix: Use the renamed variable
       });
       
       if (existingMatch) {
@@ -737,7 +725,7 @@ export const checkForMatch = async (userId, targetId, isGuest = false) => {
       
       // Create a new match
       const newMatch = new GymBrosMatch({
-        users: [sourceId, targetId],
+        users: [sourceId, targetProfileId], // Fix: Use the renamed variable
         createdAt: new Date(),
         active: true
       });
@@ -766,31 +754,25 @@ export const checkForMatch = async (userId, targetId, isGuest = false) => {
     return false;
   }
 };
-
-/**
- * CRITICAL FUNCTION: Find users who have already liked the current user
- * This identifies high-value potential matches
- * @param {String} userId - User ID
- * @returns {Array} - Array of user IDs
- */
-export const findPotentialMatches = async (userId) => {
+export const findPotentialMatches = async (userIdentifiers) => {
   try {
-    // Find all preferences that include userId in likedProfiles
+    // Find all preferences that include any of user's identifiers in likedProfiles
     const usersWhoLikedCurrent = await GymBrosPreference.find({
-      likedProfiles: userId
+      likedProfiles: { $in: userIdentifiers }
     });
     
-    logger.info(`Found ${usersWhoLikedCurrent.length} users who have already liked user ${userId}`);
+    logger.info(`Found ${usersWhoLikedCurrent.length} users who have already liked user ${userIdentifiers[0]}`);
     
     // Extract the user IDs
     return usersWhoLikedCurrent.map(pref => 
       (pref.userId || pref.profileId).toString()
     );
   } catch (error) {
-    logger.error(`Error finding potential matches for ${userId}:`, error);
+    logger.error(`Error finding potential matches for ${userIdentifiers[0]}:`, error);
     return [];
   }
 };
+
 
 // Export all functions for use in controllers
 export default {
