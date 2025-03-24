@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Loader, RefreshCw, Star, X, Heart, 
@@ -20,16 +20,15 @@ const PREMIUM_FEATURES = {
 };
 
 const DiscoverTab = ({ 
-  fetchProfiles = null, // Make optional
+  fetchProfiles,
   loading,
   filters,
   setShowFilters,
-  onFilterClick,
   distanceUnit = 'miles',
   isPremium = false,
-  initialProfiles = [],
-  initialIndex = 0,
-  userProfile
+  initialProfiles = [],  // Default to empty array
+  initialIndex = 0,    // Default to 0
+  userProfile = null
 }) => {
   const { balance: pointsBalance, subtractPoints, updatePointsInBackend } = usePoints();
   const { isAuthenticated } = useAuthStore();
@@ -47,7 +46,7 @@ const DiscoverTab = ({
   const [pullDistance, setPullDistance] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
   const [networkError, setNetworkError] = useState(false);
-  const activeCardRef = useRef(null);
+  
   // Container ref for pull-to-refresh
   const containerRef = useRef(null);
 
@@ -75,26 +74,21 @@ const DiscoverTab = ({
     }
   }, [currentIndex, profiles.length, hasMoreProfiles, loadingMoreProfiles]);
   
+  // Load more profiles when running low
   const loadMoreProfiles = async () => {
     if (loadingMoreProfiles || !hasMoreProfiles) return;
     
     setLoadingMoreProfiles(true);
     
     try {
-      // Use gymbrosService instead of relying only on parent's fetchProfiles
+      // In a real implementation, you'd add pagination parameters
       const moreProfiles = await gymbrosService.getRecommendedProfiles({
         ...filters,
         skip: profiles.length
       });
       
       if (moreProfiles.length > 0) {
-        // Get IDs of current profiles to avoid duplicates
-        const existingIds = profiles.map(p => p._id || p.id);
-        
-        // Filter out any profiles we already have
-        const newProfiles = moreProfiles.filter(p => !existingIds.includes(p._id || p.id));
-        
-        setProfiles(prev => [...prev, ...newProfiles]);
+        setProfiles(prev => [...prev, ...moreProfiles]);
         setHasMoreProfiles(moreProfiles.length >= 10);
       } else {
         setHasMoreProfiles(false);
@@ -106,51 +100,29 @@ const DiscoverTab = ({
     }
   };
   
- // Handle manual refresh
-const handleRefresh = async () => {
-  if (refreshing) return;
-  
-  setRefreshing(true);
-  
-  try {
-    console.log('DiscoverTab: Refreshing profiles with filters:', filters);
+  // Handle manual refresh
+  const handleRefresh = async () => {
+    if (refreshing) return;
     
-    // Instead of calling the parent's fetchProfiles function,
-    // directly fetch profiles from the backend
-    const fetchedProfiles = await gymbrosService.getRecommendedProfiles(filters);
+    setRefreshing(true);
     
-    console.log('DiscoverTab: Received profiles:', fetchedProfiles.length, 
-      fetchedProfiles.map(p => ({id: p._id || p.id, name: p.name})));
-    
-    if (Array.isArray(fetchedProfiles) && fetchedProfiles.length > 0) {
-      // Set new profiles
-      setProfiles(fetchedProfiles);
-      
-      // Reset index to show first profile
+    try {
+      // Clear existing profiles and fetch new ones
+      setProfiles([]);
       setCurrentIndex(0);
       
+      if (fetchProfiles && typeof fetchProfiles === 'function') {
+        await fetchProfiles();
+      }
+      
       toast.success('Profiles refreshed');
-    } else {
-      console.warn('DiscoverTab: Received empty profiles array or invalid data:', fetchedProfiles);
-      setProfiles([]);
-      toast.info('No profiles match your criteria');
+    } catch (error) {
+      console.error('Error refreshing profiles:', error);
+      toast.error('Failed to refresh profiles');
+    } finally {
+      setRefreshing(false);
     }
-  } catch (error) {
-    console.error('Error refreshing profiles:', error);
-    toast.error('Failed to refresh profiles');
-    
-    // Check for network errors or authentication issues
-    if (error.response?.status === 401) {
-      setNetworkError(true);
-      toast.error('Authentication error. Please log in again.');
-    } else if (error.code === 'ERR_NETWORK') {
-      setNetworkError(true);
-      toast.error('Network error. Please check your connection.');
-    }
-  } finally {
-    setRefreshing(false);
-  }
-};
+  };
   
   // Handle pull-to-refresh logic
   const handleTouchStart = (e) => {
@@ -198,82 +170,73 @@ const handleRefresh = async () => {
     setPullDistance(0);
   };
   
-
-
-const handleSwipe = async (direction, profileId) => {
-  if (!profiles.length || currentIndex >= profiles.length) {
-    console.warn('DiscoverTab: No valid profile to swipe');
-    return;
-  }
-  
-  // Calculate view duration
-  const viewDuration = Date.now() - viewStartTime;
-  
-  try {
-    // Store the profile that's being swiped for potential undo
-    const swipedProfile = profiles[currentIndex];
-    
-    if (activeCardRef.current && typeof activeCardRef.current.animateSwipe === 'function') {
-      activeCardRef.current.animateSwipe(direction);
+  // Handle swipe gesture
+  const handleSwipe = async (direction, profileId) => {
+    if (!profiles.length || currentIndex >= profiles.length) {
+      console.warn('DiscoverTab: No valid profile to swipe');
+      return;
     }
     
-    // Store last swiped for potential undo
-    setLastSwiped({
-      profile: swipedProfile,
-      direction,
-      index: currentIndex
-    });
+    // Calculate view duration
+    const viewDuration = Date.now() - viewStartTime;
     
-    // ----- ORIGINAL FLOW PRESERVED -----
-    // Remove profile from the array (with slight delay for animation)
-    setTimeout(() => {
-      const newProfiles = [...profiles];
-      newProfiles.splice(currentIndex, 1);
-      setProfiles(newProfiles);
+    try {
+      // Store last swiped for potential undo
+      setLastSwiped({
+        profile: profiles[currentIndex],
+        direction,
+        index: currentIndex
+      });
       
-      // Load more profiles if we're running low - this is kept in the original position
-      if (newProfiles.length < 3 && hasMoreProfiles && !loadingMoreProfiles) {
-        loadMoreProfiles();
-      }
-    }, 300); // Slight delay for animation
-    
-    // ----- BACKEND CALLS REMAIN UNCHANGED -----
-    if (direction === 'right') {
-      // Handle like - this remains in the original position
-      const response = await gymbrosService.likeProfile(profileId, viewDuration);
-      
-      // Provide vibration feedback if available
-      if (navigator.vibrate) {
-        navigator.vibrate(20);
-      }
-      
-      // Check if it's a match - this remains in the original position
-      console.log('Match response:', response);
-      if (response.match) {
-        // Set the matched profile for the modal
-        setMatchedProfile(swipedProfile);
-        // Show match modal - with slight delay to ensure animation completes
-        setTimeout(() => {
+      if (direction === 'right') {
+        // Handle like
+        const response = await gymbrosService.likeProfile(profileId, viewDuration);
+        
+        // Provide vibration feedback if available
+        if (navigator.vibrate) {
+          navigator.vibrate(20);
+        }
+        
+        // Check if it's a match
+        if (response.match) {
+          // Set the matched profile for the modal
+          setMatchedProfile(profiles[currentIndex]);
+          // Show match modal
           setShowMatchModal(true);
-        }, 350);
+        }
+      } else if (direction === 'left') {
+        // Handle dislike
+        await gymbrosService.dislikeProfile(profileId, viewDuration);
+      } else if (direction === 'super') {
+        if (!isAuthenticated) {
+          toast.error('Please log in to use Superstar Likes');
+        } else if (pointsBalance < PREMIUM_FEATURES.SUPERSTAR) {
+          toast.error(`Not enough points for a Superstar Like (${PREMIUM_FEATURES.SUPERSTAR} points needed)`);
+        } else {
+          // Deduct points for super like
+          subtractPoints(PREMIUM_FEATURES.SUPERSTAR);
+          updatePointsInBackend(-PREMIUM_FEATURES.SUPERSTAR);
+          
+          // Actually perform the like (implementation may vary)
+          const response = await gymbrosService.likeProfile(profileId, viewDuration);
+          
+          // Check if it's a match
+          if (response.match) {
+            setMatchedProfile(profiles[currentIndex]);
+            setShowMatchModal(true);
+          }
+          
+          toast.success('Superstar Like sent!');
+        }
       }
-    } else if (direction === 'left') {
-      // Handle dislike - unchanged
-      await gymbrosService.dislikeProfile(profileId, viewDuration);
-    } else if (direction === 'super') {
-      // Super like handling - unchanged
+      
+      // Move to next profile
+      setCurrentIndex(prev => prev + 1);
+    } catch (error) {
+      console.error(`Error handling ${direction} swipe:`, error);
+      toast.error('Failed to process your action');
     }
-  } catch (error) {
-    console.error(`Error handling ${direction} swipe:`, error);
-    toast.error('Failed to process your action');
-  }
-};
-
-  useEffect(() => {
-    if (showMatchModal) {
-      console.log('DiscoverTab: Match modal shown with matchedProfile:', matchedProfile);
-    }
-  }, [showMatchModal, matchedProfile]);
+  };
   
   // Handle Rekindle (undo last swipe) - Premium feature
   const handleRekindle = () => {
@@ -424,38 +387,37 @@ const handleSwipe = async (direction, profileId) => {
         <AnimatePresence>
           {/* Show current and next few cards for better performance */}
           {profiles.slice(currentIndex, currentIndex + 3).map((profile, index) => {
-          // Validate profile data before rendering
-          if (!profile || !profile.name) {
-            console.warn('DiscoverTab: Invalid profile data at index', currentIndex + index, profile);
-            return null;
-          }
-
-          return (
-            <div 
-              key={`card-container-${profile._id || profile.id || index}`}
-              className="absolute inset-0"
-              style={{
-                transform: `translateY(${-index * 10}px) scale(${1 - index * 0.05})`,
-                zIndex: 30 - index
-              }}
-            >
-              <SwipeableCard
-                ref={index === 0 ? activeCardRef : null} // Only set ref for active card
-                key={`${profile._id || profile.id || index}-${currentIndex + index}`}
-                profile={profile}
-                onSwipe={handleSwipe}
-                onInfoClick={() => {
-                  setShowProfileDetail(true);
+            // Validate profile data before rendering
+            if (!profile || !profile.name) {
+              console.warn('DiscoverTab: Invalid profile data at index', currentIndex + index, profile);
+              return null;
+            }
+            
+            return (
+              <div 
+                key={`card-container-${profile._id || profile.id || index}`}
+                className="absolute inset-0"
+                style={{
+                  transform: `translateY(${-index * 10}px) scale(${1 - index * 0.05})`,
+                  zIndex: 30 - index
                 }}
-                onSuperLike={(profileId) => handleSwipe('super', profileId)}
-                onRekindle={handleRekindle}
-                distanceUnit={distanceUnit}
-                isPremium={isPremium}
-                isActive={index === 0} // Only the top card is active
-                isBehindActive={index > 0} // Cards behind the active one
-              />
-            </div>
-          );
+              >
+                <SwipeableCard
+                  key={`${profile._id || profile.id || index}-${currentIndex + index}`}
+                  profile={profile}
+                  onSwipe={handleSwipe}
+                  onInfoClick={() => {
+                    setShowProfileDetail(true);
+                  }}
+                  onSuperLike={(profileId) => handleSwipe('super', profileId)}
+                  onRekindle={handleRekindle}
+                  distanceUnit={distanceUnit}
+                  isPremium={isPremium}
+                  isActive={index === 0} // Only the top card is active
+                  isBehindActive={index > 0} // Cards behind the active one
+                />
+              </div>
+            );
           })}
         </AnimatePresence>
       </div>
@@ -481,21 +443,22 @@ const handleSwipe = async (direction, profileId) => {
         >
           <X size={32} />
         </button>
-
+        
+        {/* Super Like Button */}
         <button 
           onClick={() => profiles[currentIndex] && handleSwipe('super', profiles[currentIndex]._id)}
           className="p-3 rounded-full bg-amber-200 shadow-lg border-4 border-amber-500 text-white hover:bg-amber-50"
         >
           <Star size={29} />
         </button>
-
+        
+        {/* Like Button */}
         <button 
           onClick={() => profiles[currentIndex] && handleSwipe('right', profiles[currentIndex]._id)}
           className="p-4 rounded-full bg-green-200 shadow-lg border-4 border-green-500 text-white hover:bg-green-50"
         >
           <Heart size={32} />
         </button>
-
 
         <button 
           onClick={handleRekindle}
@@ -581,13 +544,13 @@ const handleSwipe = async (direction, profileId) => {
       
       {/* Match Modal */}
       <MatchModal
-      isVisible={showMatchModal}
-      onClose={() => setShowMatchModal(false)}
-      onSendMessage={handleSendMessage}
-      onKeepSwiping={handleKeepSwiping}
-      currentUser={userProfile} // Pass userProfile instead of null
-      matchedUser={matchedProfile}
-    />
+        isVisible={showMatchModal}
+        onClose={() => setShowMatchModal(false)}
+        onSendMessage={handleSendMessage}
+        onKeepSwiping={handleKeepSwiping}
+        currentUser={null} // You'll need to pass the current user here
+        matchedUser={matchedProfile}
+      />
     </div>
   );
 };

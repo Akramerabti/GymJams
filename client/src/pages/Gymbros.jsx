@@ -306,9 +306,9 @@ const GymBros = () => {
       
       const initialFilters = {
         workoutTypes: profile.workoutTypes || [],
-        experienceLevel: profile.experienceLevel || 'any',
-        preferredTime: profile.preferredTime || 'any',
-        genderPreference: profile.genderPreference || 'all',
+        experienceLevel: profile.experienceLevel || 'Any',
+        preferredTime: profile.preferredTime || 'Any',
+        genderPreference: profile.genderPreference || 'All',
         ageRange: { 
           min: profile.ageRange?.min || 18, 
           max: profile.ageRange?.max || 99 
@@ -346,60 +346,60 @@ const GymBros = () => {
     console.log('Auth token:', localStorage.getItem('token')?.substring(0, 15) + '...');
   }
   
-
-// Updated fetchProfiles function to properly handle results
-const fetchProfiles = async () => {
-  try {
-    console.log('[GymBros] Fetching profiles with filters:', filters);
-    setLoading(true);
-    
-    // Use the service function to get recommended profiles
-    const fetchedProfiles = await gymbrosService.getRecommendedProfiles(filters);
-    
-    // Add detailed logging
-    console.log('[GymBros] Received profiles:', fetchedProfiles.length, 
-      fetchedProfiles.map(p => ({id: p._id || p.id, name: p.name})));
-    
-    if (Array.isArray(fetchedProfiles) && fetchedProfiles.length > 0) {
-      // Instead of replacing all profiles, we can append to existing ones
-      // But we should first check for duplicates
+  const fetchProfiles = async () => {
+    try {
+      console.log('[GymBros] Fetching profiles with filters:', filters);
+      setLoading(true);
       
-      // Get IDs of current profiles to avoid duplicates
-      const existingIds = profiles.map(p => p._id || p.id);
+      // Use the service function to get recommended profiles
+      const fetchedProfiles = await gymbrosService.getRecommendedProfiles(filters);
       
-      // Filter out any profiles we already have
-      const newProfiles = fetchedProfiles.filter(p => !existingIds.includes(p._id || p.id));
+      // Add detailed logging
+      console.log('[GymBros] Received profiles:', fetchedProfiles.length, 
+        fetchedProfiles.map(p => ({id: p._id || p.id, name: p.name})));
       
-      console.log(`[GymBros] Adding ${newProfiles.length} new profiles to existing ${profiles.length}`);
-      
-      if (newProfiles.length > 0) {
-        setProfiles(prevProfiles => [...prevProfiles, ...newProfiles]);
-      } else if (profiles.length === 0) {
-        // If we have no profiles and received none, set empty array
-        setProfiles([]);
-      }
-      
-      // Only reset currentIndex if we have no existing profiles
-      if (profiles.length === 0) {
+      if (Array.isArray(fetchedProfiles) && fetchedProfiles.length > 0) {
+        setProfiles(fetchedProfiles);
         setCurrentIndex(0);
-      }
-    } else {
-      console.warn('[GymBros] Received empty profiles array or invalid data:', fetchedProfiles);
-      
-      // Only clear profiles if we don't already have any
-      if (profiles.length === 0) {
+      } else {
+        console.warn('[GymBros] Received empty profiles array or invalid data:', fetchedProfiles);
         setProfiles([]);
       }
+    } catch (error) {
+      console.error('[GymBros] Error fetching profiles:', error);
+      
+      // If 401 error and we have a guest token, try refreshing the guest state
+      if (error.response?.status === 401 && gymbrosService.getGuestToken()) {
+        console.log('[GymBros] Authentication error, attempting to refresh guest state');
+        
+        try {
+          // Try to refresh the guest profile
+          await fetchGuestProfile();
+          
+          // Try fetching profiles again
+          const retryProfiles = await gymbrosService.getRecommendedProfiles(filters);
+          
+          if (Array.isArray(retryProfiles) && retryProfiles.length > 0) {
+            console.log('[GymBros] Retry successful, got', retryProfiles.length, 'profiles');
+            setProfiles(retryProfiles);
+            setCurrentIndex(0);
+          } else {
+            console.warn('[GymBros] Retry returned empty or invalid profiles');
+            setProfiles([]);
+          }
+        } catch (retryError) {
+          console.error('[GymBros] Error on retry fetch profiles:', retryError);
+          toast.error('Failed to load gym profiles');
+          setProfiles([]);
+        }
+      } else {
+        toast.error('Failed to load gym profiles');
+        setProfiles([]);
+      }
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('[GymBros] Error fetching profiles:', error);
-    
-    // Error handling code...
-    
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const fetchMatches = async () => {
     try {
@@ -432,6 +432,7 @@ const fetchProfiles = async () => {
       }
     }
   };
+
 
   const handleProfileCreated = (profile) => {
     console.log('[GymBros] New profile created:', profile);
