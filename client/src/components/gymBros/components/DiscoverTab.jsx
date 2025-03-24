@@ -119,7 +119,6 @@ const DiscoverTab = ({
     }
   };
   
-  // Handle manual refresh
   const handleRefresh = async () => {
     if (refreshing) return;
     
@@ -130,11 +129,14 @@ const DiscoverTab = ({
       setProfiles([]);
       setCurrentIndex(0);
       
+      // Use the fetchProfiles prop which now points to fetchProfilesWithFilters
       if (fetchProfiles && typeof fetchProfiles === 'function') {
-        await fetchProfiles();
+        // Pass the current filters
+        await fetchProfiles(filters);
+        toast.success('Profiles refreshed');
+      } else {
+        toast.error('Refresh function not available');
       }
-      
-      toast.success('Profiles refreshed');
     } catch (error) {
       console.error('Error refreshing profiles:', error);
       toast.error('Failed to refresh profiles');
@@ -190,117 +192,136 @@ const DiscoverTab = ({
   };
   
   // Handle swipe gesture - IMPROVED VERSION
-  const handleSwipe = async (direction, profileId) => {
-    if (!profiles.length || currentIndex >= profiles.length) {
-      console.warn('DiscoverTab: No valid profile to swipe');
-      return;
-    }
+  // New improved handleSwipe function for DiscoverTab
+const handleSwipe = async (direction, profileId) => {
+  if (!profiles.length || currentIndex >= profiles.length) {
+    console.warn('DiscoverTab: No valid profile to swipe');
+    return;
+  }
+  
+  // Stop if we're already processing a swipe
+  if (processingSwipe) {
+    console.log('Already processing a swipe, ignoring...');
+    return;
+  }
+  
+  setProcessingSwipe(true);
+  
+  // Calculate view duration
+  const viewDuration = Date.now() - viewStartTime;
+  
+  try {
+    // Store last swiped for potential undo
+    setLastSwiped({
+      profile: profiles[currentIndex],
+      direction,
+      index: currentIndex
+    });
     
-    // Stop if we're already processing a swipe
-    if (processingSwipe) {
-      console.log('Already processing a swipe, ignoring...');
-      return;
-    }
+    // Determine if this is the last profile
+    const isLastProfile = currentIndex === profiles.length - 1;
     
-    setProcessingSwipe(true);
-    
-    // Calculate view duration
-    const viewDuration = Date.now() - viewStartTime;
-    
-    try {
-      // Store last swiped for potential undo
-      setLastSwiped({
-        profile: profiles[currentIndex],
-        direction,
-        index: currentIndex
-      });
+    if (direction === 'right') {
+      // Handle like
+      const response = await gymbrosService.likeProfile(profileId, viewDuration);
       
-      if (direction === 'right') {
-        // Handle like
-        const response = await gymbrosService.likeProfile(profileId, viewDuration);
-        
-        console.log('Like response received:', response);
-        
-        // Provide vibration feedback if available
-        if (navigator.vibrate) {
-          navigator.vibrate(20);
-        }
-        
-        // Check if it's a match
-        if (response.match === true) {
-          console.log('MATCH DETECTED! Setting matchedProfile and showing modal');
-          
-          // Store the matched profile before any state changes
-          const matchProfile = {...profiles[currentIndex]};
-          
-          // Set the matched profile for the modal
-          setMatchedProfile(matchProfile);
-          
-          // Show match modal with a slight delay to ensure state is updated properly
-          setTimeout(() => {
-            setShowMatchModal(true);
-            console.log('Match modal should now be visible');
-          }, 100);
-        }
-      } else if (direction === 'left') {
-        // Handle dislike
-        await gymbrosService.dislikeProfile(profileId, viewDuration);
-      } else if (direction === 'super') {
-        if (!isAuthenticated) {
-          toast.error('Please log in to use Superstar Likes');
-          setProcessingSwipe(false);
-          return;
-        } else if (pointsBalance < PREMIUM_FEATURES.SUPERSTAR) {
-          toast.error(`Not enough points for a Superstar Like (${PREMIUM_FEATURES.SUPERSTAR} points needed)`);
-          setProcessingSwipe(false);
-          return;
-        }
-        
-        // Deduct points for super like
-        subtractPoints(PREMIUM_FEATURES.SUPERSTAR);
-        updatePointsInBackend(-PREMIUM_FEATURES.SUPERSTAR);
-        
-        // Perform the like
-        const response = await gymbrosService.likeProfile(profileId, viewDuration);
-        
-        // Check if it's a match
-        if (response.match === true) {
-          console.log('SUPER LIKE MATCH! Setting matchedProfile:', profiles[currentIndex]);
-          
-          // Store matched profile before state changes
-          const matchProfile = {...profiles[currentIndex]};
-          setMatchedProfile(matchProfile);
-          
-          // Show match modal with delay
-          setTimeout(() => {
-            setShowMatchModal(true);
-          }, 100);
-        }
-        
-        toast.success('Superstar Like sent!');
+      console.log('Like response received:', response);
+      
+      // Provide vibration feedback if available
+      if (navigator.vibrate) {
+        navigator.vibrate(20);
       }
       
-      // For button-triggered swipes, trigger animation first
-      if (!forceSwipeDirection) {
-        // Direct interaction already has animation, just force the swipe direction
-        setForceSwipeDirection(direction);
+      // Check if it's a match
+      if (response.match === true) {
+        console.log('MATCH DETECTED! Setting matchedProfile and showing modal');
         
-        // Move to next profile after a delay (wait for animation)
+        // Store the matched profile before any state changes
+        const matchProfile = {...profiles[currentIndex]};
+        
+        // Set the matched profile for the modal
+        setMatchedProfile(matchProfile);
+        
+        // Show match modal with a slight delay to ensure state is updated properly
         setTimeout(() => {
-          setCurrentIndex(prev => prev + 1);
-          setProcessingSwipe(false);
-        }, 600);
-      } else {
-        // Animation already running from button click, just update index
+          setShowMatchModal(true);
+          console.log('Match modal should now be visible');
+        }, 100);
+        
+        // IMPORTANT: Don't advance to the next profile automatically when we have a match
+        // Only set forceSwipeDirection to animate the card away
+        setForceSwipeDirection(direction);
+        setProcessingSwipe(false);
+        
+        // If this is the last profile, we'll only advance to the "all profiles seen" state
+        // when the user closes the match modal or clicks "Keep Swiping"
+        return;
+      }
+    } else if (direction === 'left') {
+      // Handle dislike
+      await gymbrosService.dislikeProfile(profileId, viewDuration);
+    } else if (direction === 'super') {
+      if (!isAuthenticated) {
+        toast.error('Please log in to use Superstar Likes');
+        setProcessingSwipe(false);
+        return;
+      } else if (pointsBalance < PREMIUM_FEATURES.SUPERSTAR) {
+        toast.error(`Not enough points for a Superstar Like (${PREMIUM_FEATURES.SUPERSTAR} points needed)`);
+        setProcessingSwipe(false);
+        return;
+      }
+      
+      // Deduct points for super like
+      subtractPoints(PREMIUM_FEATURES.SUPERSTAR);
+      updatePointsInBackend(-PREMIUM_FEATURES.SUPERSTAR);
+      
+      // Perform the like
+      const response = await gymbrosService.likeProfile(profileId, viewDuration);
+      
+      // Check if it's a match
+      if (response.match === true) {
+        console.log('SUPER LIKE MATCH! Setting matchedProfile:', profiles[currentIndex]);
+        
+        // Store matched profile before state changes
+        const matchProfile = {...profiles[currentIndex]};
+        setMatchedProfile(matchProfile);
+        
+        // Show match modal with delay
+        setTimeout(() => {
+          setShowMatchModal(true);
+        }, 100);
+        
+        // IMPORTANT: Don't advance to the next profile automatically when we have a match
+        // Only set forceSwipeDirection to animate the card away
+        setForceSwipeDirection(direction);
+        setProcessingSwipe(false);
+        return;
+      }
+      
+      toast.success('Superstar Like sent!');
+    }
+    
+    // For button-triggered swipes, trigger animation first
+    if (!forceSwipeDirection) {
+      // Direct interaction already has animation, just force the swipe direction
+      setForceSwipeDirection(direction);
+      
+      // Move to next profile after a delay (wait for animation)
+      setTimeout(() => {
         setCurrentIndex(prev => prev + 1);
         setProcessingSwipe(false);
-      }
-    } catch (error) {
-      console.error(`Error handling ${direction} swipe:`, error);
-      toast.error('Failed to process your action');
+      }, 600);
+    } else {
+      // Animation already running from button click, just update index
+      setCurrentIndex(prev => prev + 1);
       setProcessingSwipe(false);
     }
-  };
+  } catch (error) {
+    console.error(`Error handling ${direction} swipe:`, error);
+    toast.error('Failed to process your action');
+    setProcessingSwipe(false);
+  }
+};
   
   // New method: handle button click for swipe actions
   const handleButtonSwipe = (direction) => {
@@ -357,17 +378,34 @@ const DiscoverTab = ({
     toast.success('Profile recovered');
   };
   
-  // Handle match modal actions
   const handleSendMessage = () => {
-    // In a real implementation, navigate to messages with this user
-    console.log('Starting conversation with', matchedProfile?.name);
-    toast.success(`Starting conversation with ${matchedProfile?.name}`);
+    // Close the match modal
     setShowMatchModal(false);
+    
+    // Navigate to the matches tab
+    if (typeof window !== 'undefined') {
+      // Use a custom event to communicate with the parent component
+      const navigateEvent = new CustomEvent('navigateToMatches', {
+        detail: { matchedProfile }
+      });
+      window.dispatchEvent(navigateEvent);
+    }
+    
+    // Alternatively, you can use a prop callback to communicate with the parent
+    if (onNavigateToMatches && typeof onNavigateToMatches === 'function') {
+      onNavigateToMatches(matchedProfile);
+    }
+    
+    // Now advance to next profile (if this was the last one, we'll see "all profiles seen")
+    setCurrentIndex(prev => prev + 1);
   };
   
   const handleKeepSwiping = () => {
     console.log('Closing match modal and continuing to swipe');
     setShowMatchModal(false);
+    
+    // Advance to next profile
+    setCurrentIndex(prev => prev + 1);
   };
   
   // Render loading state

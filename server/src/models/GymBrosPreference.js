@@ -27,13 +27,13 @@ const gymBrosPreferenceSchema = new mongoose.Schema({
   },
   genderPreference: {
     type: String,
-    enum: ['male', 'female', 'non-binary', 'all'],
-    default: 'all'
+    enum: ['Male', 'Female', 'Non-Binary', 'All'],
+    default: 'All'
   },
   experienceLevel: {
     type: String,
-    enum: ['beginner', 'intermediate', 'advanced', 'any'],
-    default: 'any'
+    enum: ['Beginner', 'Intermediate', 'Advanced', 'Any'],
+    default: 'Any'
   },
   workoutTypes: {
     type: [String],

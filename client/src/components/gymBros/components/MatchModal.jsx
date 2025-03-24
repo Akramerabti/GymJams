@@ -17,85 +17,78 @@ const MatchModal = ({
   // Set up confetti on mount
   useEffect(() => {
     if (isVisible && confettiCanvasRef.current) {
-      // Create confetti instance
-      const myConfetti = confetti.create(confettiCanvasRef.current, {
-        resize: true,
-        useWorker: true
-      });
-      
-      setConfettiInstance(myConfetti);
-      
-      // Fire initial confetti
-      fireConfetti(myConfetti);
-      
-      // Set up interval for periodic confetti bursts
-      const interval = setInterval(() => {
+      try {
+        // Create confetti instance
+        const myConfetti = confetti.create(confettiCanvasRef.current, {
+          resize: true,
+          useWorker: false // IMPORTANT: Set useWorker to false to avoid serialization issues
+        });
+        
+        setConfettiInstance(myConfetti);
+        
+        // Fire initial confetti
         fireConfetti(myConfetti);
-      }, 2500);
-      
-      // Clean up
-      return () => {
-        clearInterval(interval);
-        if (myConfetti) {
-          myConfetti.reset();
-        }
-      };
+        
+        // Set up interval for periodic confetti bursts
+        const interval = setInterval(() => {
+          fireConfetti(myConfetti);
+        }, 2500);
+        
+        // Clean up
+        return () => {
+          clearInterval(interval);
+          if (myConfetti) {
+            myConfetti.reset();
+          }
+        };
+      } catch (error) {
+        console.error("Error initializing confetti:", error);
+        // Continue with modal even if confetti fails
+      }
     }
   }, [isVisible]);
   
-  // Fire dumbbells-shaped confetti
+  // Fire confetti with simpler shapes that can be serialized
   const fireConfetti = (confettiInstance) => {
     if (!confettiInstance) return;
     
-    // Get canvas dimensions
-    const canvas = confettiCanvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    
-    // Custom shapes for gym-themed confetti
-    const customShapes = [
-      // Dumbbell shape - simplified for confetti
-      function(context) {
-        context.beginPath();
-        context.arc(-10, 0, 5, 0, 2 * Math.PI);
-        context.arc(10, 0, 5, 0, 2 * Math.PI);
-        context.rect(-10, -2, 20, 4);
-        context.fill();
-      }
-    ];
-    
-    // Main confetti burst
-    confettiInstance({
-      particleCount: 100,
-      spread: 90,
-      origin: { y: 0.6, x: 0.5 },
-      colors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'],
-      shapes: ['circle', 'square', ...customShapes],
-      gravity: 0.8,
-      scalar: 1.2
-    });
-    
-    // Smaller side bursts
-    setTimeout(() => {
+    try {
+      // Main confetti burst with basic shapes only (no custom shapes)
       confettiInstance({
-        particleCount: 30,
-        spread: 60,
-        origin: { y: 0.5, x: 0.3 },
-        colors: ['#3b82f6', '#10b981'],
-        gravity: 0.6,
-        scalar: 0.8
+        particleCount: 100,
+        spread: 90,
+        origin: { y: 0.6, x: 0.5 },
+        colors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'],
+        shapes: ['circle', 'square'], // Use only built-in shapes
+        gravity: 0.8,
+        scalar: 1.2
       });
-    }, 300);
-    
-    setTimeout(() => {
-      confettiInstance({
-        particleCount: 30,
-        spread: 60,
-        origin: { y: 0.5, x: 0.7 },
-        colors: ['#f59e0b', '#ef4444'],
-        gravity: 0.6,
-        scalar: 0.8
-      });
-    }, 600);
+      
+      // Smaller side bursts
+      setTimeout(() => {
+        confettiInstance({
+          particleCount: 30,
+          spread: 60,
+          origin: { y: 0.5, x: 0.3 },
+          colors: ['#3b82f6', '#10b981'],
+          gravity: 0.6,
+          scalar: 0.8
+        });
+      }, 300);
+      
+      setTimeout(() => {
+        confettiInstance({
+          particleCount: 30,
+          spread: 60,
+          origin: { y: 0.5, x: 0.7 },
+          colors: ['#f59e0b', '#ef4444'],
+          gravity: 0.6,
+          scalar: 0.8
+        });
+      }, 600);
+    } catch (error) {
+      console.error("Error firing confetti:", error);
+    }
   };
   
   // Format image URL
@@ -231,7 +224,7 @@ const MatchModal = ({
                   className="flex items-center justify-center bg-white text-purple-600 py-3 px-4 rounded-xl font-semibold shadow-lg hover:bg-purple-50 transition-colors"
                 >
                   <MessageSquare size={20} className="mr-2" />
-                  Message
+                  Start to make gains
                 </motion.button>
                 
                 <motion.button

@@ -72,21 +72,24 @@ export const getRecommendedProfiles = async (userProfile, filters = {}) => {
     
     // Apply experience level filter only if it's defined and not 'Any'
     if (filters.experienceLevel && 
+        typeof filters.experienceLevel === 'string' &&
         filters.experienceLevel.toLowerCase() !== 'any') {
       query.experienceLevel = filters.experienceLevel;
     }
     
     // Apply preferred time filter only if it's defined and not 'Any'
     if (filters.preferredTime && 
+        typeof filters.preferredTime === 'string' &&
         filters.preferredTime.toLowerCase() !== 'any') {
       query.preferredTime = filters.preferredTime;
     }
     
     // Apply gender filter only if it's defined and not 'All'
-    // FIXED: Convert to lowercase for comparison
-    if (filters.gender && 
-        filters.gender.toLowerCase() !== 'all') {
-      query.gender = filters.gender;
+    // FIXED: Added type check and convert to lowercase only if it's a string
+    if (filters.genderPreference && 
+        typeof filters.genderPreference === 'string' &&
+        filters.genderPreference.toLowerCase() !== 'all') {
+      query.gender = filters.genderPreference;
     }
     
     // Apply age filter only if ageRange is defined
@@ -312,7 +315,7 @@ export const calculateScheduleCompatibility = (userTime, candidateTime) => {
     }
     
     // Time period groupings
-    const dayPeriods = ['Morning', 'Afternoon', 'Evening'];
+    const dayPeriods = ['Morning', 'Afternoon'];
     const nightPeriods = ['Evening', 'Late Night'];
     const weekendOptions = ['Weekends Only'];
     
@@ -477,7 +480,7 @@ export const processFeedback = async (userId, targetId, feedbackType, viewDurati
     // make sure to normalize any enum values to lowercase
     if (!preferences) {
       // This fixes the capitalization issue with genderPreference
-      if (newPrefsData.genderPreference) {
+      if (newPrefsData.genderPreference && typeof newPrefsData.genderPreference === 'string') {
         newPrefsData.genderPreference = newPrefsData.genderPreference.toLowerCase();
       }
     }
@@ -530,7 +533,7 @@ export const processFeedback = async (userId, targetId, feedbackType, viewDurati
       newPrefsData.dislikedProfiles = feedbackType === 'dislike' ? [targetProfile._id] : [];
       
       // Ensure genderPreference is lowercase if present
-      if (newPrefsData.genderPreference) {
+      if (newPrefsData.genderPreference && typeof newPrefsData.genderPreference === 'string') {
         newPrefsData.genderPreference = newPrefsData.genderPreference.toLowerCase();
       }
       
@@ -754,6 +757,7 @@ export const checkForMatch = async (userId, targetId, isGuest = false) => {
     return false;
   }
 };
+
 export const findPotentialMatches = async (userIdentifiers) => {
   try {
     // Find all preferences that include any of user's identifiers in likedProfiles

@@ -149,6 +149,40 @@ const GymBros = () => {
     };
   }, [lastScrollY]);
 
+  useEffect(() => {
+    const handleNavigateToMatches = (event) => {
+      // Switch to the matches tab
+      setActiveTab('matches');
+      
+      // Refresh matches to ensure the new match is included
+      fetchMatches();
+      
+      // Optionally scroll to or highlight the new match
+      const matchedProfileId = event.detail?.matchedProfile?._id;
+      if (matchedProfileId) {
+        // You could set a state to indicate which match to highlight
+        // Or use DOM methods to scroll to the match element
+        setTimeout(() => {
+          const matchElement = document.getElementById(`match-${matchedProfileId}`);
+          if (matchElement) {
+            matchElement.scrollIntoView({ behavior: 'smooth' });
+            matchElement.classList.add('highlight-match'); // Add a CSS class for highlighting
+            setTimeout(() => {
+              matchElement.classList.remove('highlight-match');
+            }, 3000);
+          }
+        }, 300);
+      }
+    };
+    
+    window.addEventListener('navigateToMatches', handleNavigateToMatches);
+    
+    return () => {
+      window.removeEventListener('navigateToMatches', handleNavigateToMatches);
+    };
+  }, []);
+
+  
   const checkUserProfile = async () => {
     try {
       setLoading(true);
@@ -165,10 +199,24 @@ const GymBros = () => {
           setUserProfile(response.profile);
           
           // Initialize filters from profile preferences
-          initializeFiltersFromProfile(response.profile);
+          const initialFilters = {
+            workoutTypes: [],
+            experienceLevel:  'Any',
+            preferredTime: 'Any',
+            genderPreference: 'All',
+            ageRange: { 
+              min: 18, 
+              max: 99 
+            },
+            maxDistance: 50
+          };
           
-          // Fetch profiles and matches
-          fetchProfiles();
+          // Set filters state for UI
+          console.log('[GymBros] Setting initial filters from profile:', initialFilters);
+          setFilters(initialFilters);
+          
+          // IMPORTANT: Use filters directly rather than relying on state to update
+          await fetchProfilesWithFilters(initialFilters);
           fetchMatches();
         } else {
           console.log('[GymBros] No profile found for authenticated user, showing setup');
@@ -189,10 +237,24 @@ const GymBros = () => {
             setUserProfile(response.profile);
             
             // Initialize filters from guest profile 
-            initializeFiltersFromProfile(response.profile);
+            const initialFilters = {
+              workoutTypes: [],
+              experienceLevel:'Any',
+              preferredTime: 'Any',
+              genderPreference: 'All',
+              ageRange: { 
+                min: 18, 
+                max: 99 
+              },
+              maxDistance: 50
+            };
             
-            // Fetch profiles and matches
-            fetchProfiles();
+            // Set filters state for UI
+            console.log('[GymBros] Setting initial filters from profile:', initialFilters);
+            setFilters(initialFilters);
+            
+            // Fetch profiles and matches - Use direct values
+            await fetchProfilesWithFilters(initialFilters);
             fetchMatches();
           } else {
             console.log('[GymBros] No profile found for guest, showing setup');
@@ -213,10 +275,24 @@ const GymBros = () => {
               setUserProfile(guestProfile);
               
               // Initialize filters from guest profile
-              initializeFiltersFromProfile(guestProfile);
+              const initialFilters = {
+                workoutTypes: guestProfile.workoutTypes || [],
+                experienceLevel: guestProfile.experienceLevel || 'Any',
+                preferredTime: guestProfile.preferredTime || 'Any',
+                genderPreference: guestProfile.genderPreference || 'All',
+                ageRange: { 
+                  min: guestProfile.ageRange?.min || 18, 
+                  max: guestProfile.ageRange?.max || 99 
+                },
+                maxDistance: guestProfile.maxDistance || 50
+              };
               
-              // Fetch profiles and matches
-              fetchProfiles();
+              // Set filters for UI updates
+              console.log('[GymBros] Setting initial filters from profile:', initialFilters);
+              setFilters(initialFilters);
+              
+              // Fetch profiles and matches - Use direct values
+              await fetchProfilesWithFilters(initialFilters);
               fetchMatches();
             } else {
               setHasProfile(false);
@@ -253,10 +329,24 @@ const GymBros = () => {
               setUserProfile(guestProfile);
               
               // Initialize filters from guest profile
-              initializeFiltersFromProfile(guestProfile);
+              const initialFilters = {
+                workoutTypes: guestProfile.workoutTypes || [],
+                experienceLevel: guestProfile.experienceLevel || 'Any',
+                preferredTime: guestProfile.preferredTime || 'Any',
+                genderPreference: guestProfile.genderPreference || 'All',
+                ageRange: { 
+                  min: guestProfile.ageRange?.min || 18, 
+                  max: guestProfile.ageRange?.max || 99 
+                },
+                maxDistance: guestProfile.maxDistance || 50
+              };
               
-              // Fetch profiles and matches
-              fetchProfiles();
+              // Set filters for UI
+              console.log('[GymBros] Setting initial filters from profile:', initialFilters);
+              setFilters(initialFilters);
+              
+              // Fetch profiles and matches - Use direct values
+              await fetchProfilesWithFilters(initialFilters);
               fetchMatches();
             } else {
               console.log('[GymBros] Guest token exists but no profile found');
@@ -297,7 +387,7 @@ const GymBros = () => {
     } finally {
       setLoading(false);
     }
-  };
+  };  
   
   // Initialize filters from profile
   const initializeFiltersFromProfile = (profile) => {
@@ -441,12 +531,12 @@ const GymBros = () => {
     
     // Initialize filters from newly created profile
     setFilters({
-      workoutTypes: profile.workoutTypes || [],
-      experienceLevel: profile.experienceLevel || 'Any',
-      preferredTime: profile.preferredTime || 'Any',
-      genderPreference: 'All',  // Default to all
-      ageRange: { min: 18, max: 99 },  // Default age range
-      maxDistance: 50  // Default distance
+      workoutTypes:  [],
+      experienceLevel: 'Any',
+      preferredTime:  'Any',
+      genderPreference: 'All',  
+      ageRange: { min: 18, max: 99 },  
+      maxDistance: 50  
     });
     
     // IMPORTANT: Ensure guest token is saved if included in response
@@ -461,6 +551,60 @@ const GymBros = () => {
     }, 500);
   };
 
+  const fetchProfilesWithFilters = async (filterValues) => {
+    try {
+      console.log('[GymBros] Fetching profiles with filters:', filterValues);
+      setLoading(true);
+      
+      // Use the provided filter values directly 
+      const fetchedProfiles = await gymbrosService.getRecommendedProfiles(filterValues);
+      
+      console.log('[GymBros] Received profiles:', fetchedProfiles.length, 
+        fetchedProfiles.map(p => ({id: p._id || p.id, name: p.name})));
+      
+      if (Array.isArray(fetchedProfiles) && fetchedProfiles.length > 0) {
+        setProfiles(fetchedProfiles);
+        setCurrentIndex(0);
+      } else {
+        console.warn('[GymBros] Received empty profiles array or invalid data:', fetchedProfiles);
+        setProfiles([]);
+      }
+    } catch (error) {
+      console.error('[GymBros] Error fetching profiles:', error);
+      
+      // If 401 error and we have a guest token, try refreshing the guest state
+      if (error.response?.status === 401 && gymbrosService.getGuestToken()) {
+        console.log('[GymBros] Authentication error, attempting to refresh guest state');
+        
+        try {
+          // Try to refresh the guest profile
+          await fetchGuestProfile();
+          
+          // Try fetching profiles again
+          const retryProfiles = await gymbrosService.getRecommendedProfiles(filterValues);
+          
+          if (Array.isArray(retryProfiles) && retryProfiles.length > 0) {
+            console.log('[GymBros] Retry successful, got', retryProfiles.length, 'profiles');
+            setProfiles(retryProfiles);
+            setCurrentIndex(0);
+          } else {
+            console.warn('[GymBros] Retry returned empty or invalid profiles');
+            setProfiles([]);
+          }
+        } catch (retryError) {
+          console.error('[GymBros] Error on retry fetch profiles:', retryError);
+          toast.error('Failed to load gym profiles');
+          setProfiles([]);
+        }
+      } else {
+        toast.error('Failed to load gym profiles');
+        setProfiles([]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFilterChange = (newFilters) => {
     console.log('[GymBros] Filters updated:', newFilters);
     setFilters(newFilters);
@@ -469,8 +613,8 @@ const GymBros = () => {
     // Also update user preferences in the database
     updateUserPreferences(newFilters);
     
-    // Fetch new profiles with updated filters
-    fetchProfiles();
+    // Use helper function with the new filters directly
+    fetchProfilesWithFilters(newFilters);
   };
   
   const updateUserPreferences = async (newFilters) => {
@@ -737,25 +881,32 @@ const GymBros = () => {
   // Different content based on active tab
   const renderTabContent = () => {
     switch(activeTab) {
-      // In the renderTabContent function, 'discover' case:
-case 'discover':
-  console.log('[GymBros] Rendering DiscoverTab with', profiles.length, 'profiles, currentIndex:', currentIndex);
-  return (
-    <div className="h-[calc(100vh-136px)] overflow-hidden relative">
-      <DiscoverTab
-        fetchProfiles={fetchProfiles}
-        loading={loading}
-        filters={filters}
-        setShowFilters={setShowFilters}
-        distanceUnit="miles"
-        isPremium={false}
-        initialProfiles={profiles}
-        initialIndex={currentIndex}
-        userProfile={userProfile} // Pass the current user profile
-      />
-    </div>
-  );
-        
+      case 'discover':
+      console.log('[GymBros] Rendering DiscoverTab with', profiles.length, 'profiles, currentIndex:', currentIndex);
+      return (
+        <div className="h-[calc(100vh-136px)] overflow-hidden relative">
+        <DiscoverTab
+          fetchProfiles={fetchProfiles}
+          loading={loading}
+          filters={filters}
+          setShowFilters={setShowFilters}
+          distanceUnit="miles"
+          isPremium={false}
+          initialProfiles={profiles}
+          initialIndex={currentIndex}
+          userProfile={userProfile}
+          onNavigateToMatches={(matchedProfile) => {
+            // Switch to matches tab
+            setActiveTab('matches');
+            
+            // Refresh matches
+            fetchMatches();
+          }}
+        />
+      </div>
+    
+      );
+
       case 'matches':
         return (
           <div className="h-[calc(100vh-136px)] overflow-y-auto pb-16">
