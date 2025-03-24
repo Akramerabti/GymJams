@@ -371,10 +371,11 @@ async getRecommendedProfiles(filters = {}) {
 
 async likeProfile(profileId, viewDuration = 0) {
   try {
+    // Add debug info
+    console.log(`GymBrosService: Sending like for profile ${profileId} with view duration ${viewDuration}ms`);
+    
     // Add guest token
     const config = this.configWithGuestToken();
-    
-    console.log(`Sending like for profile ${profileId} with view duration ${viewDuration}ms`);
     
     const response = await api.post(
       `/gym-bros/like/${profileId}`, 
@@ -382,14 +383,25 @@ async likeProfile(profileId, viewDuration = 0) {
       config
     );
     
+    // Log the entire response to see its structure
+    console.log('GymBrosService: Like response received:', response.data);
+    
     // Update guest token if returned
     if (response.data.guestToken) {
       this.setGuestToken(response.data.guestToken);
     }
     
+    // If the match property is missing but success is true, add temporary debugging
+    if (response.data && typeof response.data.match === 'undefined') {
+      console.warn('GymBrosService: Match property missing in response. Full response:', response.data);
+      
+      // For testing, you could temporarily add this line:
+      // response.data.match = Math.random() > 0.5; // Randomly create matches for testing
+    }
+    
     return response.data;
   } catch (error) {
-    console.error('Error liking profile:', error);
+    console.error('GymBrosService: Error liking profile:', error);
     throw error;
   }
 },

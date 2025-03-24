@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useImperativeHandle } from 'react';
 import { motion, useMotionValue, useTransform, useAnimation, AnimatePresence } from 'framer-motion';
 import { 
   Heart, X, Star, ChevronLeft, ChevronRight, 
@@ -6,17 +6,17 @@ import {
 } from 'lucide-react';
 import ActiveStatus from './ActiveStatus';
 
-const SwipeableCard = ({ 
-    profile, 
-    onSwipe, 
-    onInfoClick,
-    onSuper,
-    onRekindle,
-    distanceUnit = 'miles',
-    isActive = true,
-    isPremium = false,
-    isBehindActive = false
-  }) => {
+const SwipeableCard = React.forwardRef(({ 
+  profile, 
+  onSwipe, 
+  onInfoClick,
+  onSuper,
+  onRekindle,
+  distanceUnit = 'miles',
+  isActive = true,
+  isPremium = false,
+  isBehindActive = false
+}, ref) => {
 
     // Validate profile data early to prevent rendering issues
     if (!profile || !profile.name || !(profile._id || profile.id)) {
@@ -26,9 +26,9 @@ const SwipeableCard = ({
 
     // Motion values for swipe gestures
     const x = useMotionValue(0);
-    const y = useMotionValue(0);
-    const rotate = useTransform(x, [-300, 0, 300], [-15, 0, 15]);
-    const controls = useAnimation();
+  const y = useMotionValue(0);
+  const rotate = useTransform(x, [-300, 0, 300], [-15, 0, 15]);
+  const controls = useAnimation();
     
     // State for image carousel
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -37,6 +37,7 @@ const SwipeableCard = ({
     const [swipeDirection, setSwipeDirection] = useState(null);
     const [dragDistance, setDragDistance] = useState({ x: 0, y: 0 });
     const [showSuper, setShowSuper] = useState(false);
+    const [animatingSwipe, setAnimatingSwipe] = useState(false);
     
     // Track if we're moving horizontally or vertically
     const isDraggingHorizontal = useRef(false);
@@ -45,6 +46,56 @@ const SwipeableCard = ({
     // Track swipe thresholds
     const swipeThreshold = 100;
     const superSwipeThreshold = -100; // negative because up is negative in Y axis
+
+    useImperativeHandle(ref, () => ({
+      animateSwipe: (direction) => {
+        if (!isActive || animatingSwipe) return;
+        
+        setAnimatingSwipe(true);
+        
+        // Apply the appropriate animation based on direction
+        if (direction === 'left') {
+          controls.start({
+            x: -1000,
+            opacity: 0,
+            transition: { duration: 0.3, ease: [0.32, 0.72, 0, 1] }
+          }).then(() => {
+            // Call swipe handler when animation is complete
+            if (onSwipe) {
+              onSwipe(direction, profile._id || profile.id);
+            }
+            setAnimatingSwipe(false);
+          });
+        } else if (direction === 'right') {
+          controls.start({
+            x: 1000,
+            opacity: 0,
+            transition: { duration: 0.3, ease: [0.32, 0.72, 0, 1] }
+          }).then(() => {
+            // Call swipe handler when animation is complete
+            if (onSwipe) {
+              onSwipe(direction, profile._id || profile.id);
+            }
+            setAnimatingSwipe(false);
+          });
+        } else if (direction === 'super' || direction === 'up') {
+          controls.start({
+            y: -1000,
+            scale: 0.8,
+            opacity: 0,
+            transition: { duration: 0.3, ease: [0.32, 0.72, 0, 1] }
+          }).then(() => {
+            // Call swipe handler when animation is complete
+            if (onSuper) {
+              onSuper(profile._id || profile.id);
+            } else if (onSwipe) {
+              onSwipe('super', profile._id || profile.id);
+            }
+            setAnimatingSwipe(false);
+          });
+        }
+      }
+    }));
 
     // Run entrance animation when profile changes
     useEffect(() => {
@@ -242,21 +293,21 @@ const SwipeableCard = ({
     };
 
     return (
-      <motion.div
-        className="w-full h-full max-w-md mx-auto" // Set max width and center horizontally
-        style={{ 
-          zIndex: isActive ? 30 : isBehindActive ? 20 : 10,
-          pointerEvents: isActive ? 'auto' : 'none'
-        }}
-        animate={controls}
-        initial={{ opacity: 1, scale: 1, x: 0, y: 0 }}
-        drag={isActive}
-        dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
-        dragElastic={0.7}
-        onDragStart={handleDragStart}
-        onDrag={handleDragUpdate}
-        onDragEnd={handleDragEnd}
-      >
+    <motion.div
+      className="w-full h-full max-w-md mx-auto"
+      style={{ 
+        zIndex: isActive ? 30 : isBehindActive ? 20 : 10,
+        pointerEvents: isActive && !animatingSwipe ? 'auto' : 'none'
+      }}
+      animate={controls}
+      initial={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+      drag={isActive && !animatingSwipe}
+      dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
+      dragElastic={0.7}
+      onDragStart={handleDragStart}
+      onDrag={handleDragUpdate}
+      onDragEnd={handleDragEnd}
+    >
         <div 
           className="relative w-full rounded-xl overflow-hidden shadow-xl bg-white"
           style={{
@@ -479,6 +530,6 @@ const SwipeableCard = ({
         </div>
       </motion.div>
     );
-};
+});
 
 export default SwipeableCard;
