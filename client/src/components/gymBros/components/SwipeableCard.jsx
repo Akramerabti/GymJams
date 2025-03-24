@@ -19,11 +19,6 @@ const SwipeableCard = ({
     forceDirection = null  // Add this prop to handle button clicks
   }) => {
 
-    // Validate profile data early to prevent rendering issues
-    if (!profile || !profile.name || !(profile._id || profile.id)) {
-      console.error('SwipeableCard received invalid profile:', profile);
-      return null;
-    }
 
     // Motion values for swipe gestures
     const x = useMotionValue(0);
@@ -31,6 +26,12 @@ const SwipeableCard = ({
     const rotate = useTransform(x, [-300, 0, 300], [-15, 0, 15]);
     const controls = useAnimation();
     
+    // Validate profile data early to prevent rendering issues
+    if (!profile || !profile.name || !(profile._id || profile.id)) {
+      console.error('SwipeableCard received invalid profile:', profile);
+      return null;
+    }
+
     // State for image carousel
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [startDragPoint, setStartDragPoint] = useState({ x: 0, y: 0 });
@@ -64,46 +65,39 @@ const SwipeableCard = ({
       });
     }, [profile._id || profile.id, controls]);
 
-    // Handle forced swipe direction from buttons
     useEffect(() => {
-      if (forceDirection && isActive) {
-        console.log(`Forcing swipe direction: ${forceDirection}`);
-        
-        let xDestination = 0;
-        let yDestination = 0;
-        
-        // Set animation targets based on direction
-        if (forceDirection === 'right') {
-          xDestination = 1000;
-          setSwipeDirection('right');
-        } else if (forceDirection === 'left') {
-          xDestination = -1000;
-          setSwipeDirection('left');
-        } else if (forceDirection === 'up') {
-          yDestination = -1000;
-          setSwipeDirection('up');
-        }
-        
-        // Provide vibration feedback
-        if (navigator.vibrate) {
-          navigator.vibrate(20);
-        }
-        
-        // Animate card off screen
-        controls.start({
-          x: xDestination,
-          y: yDestination,
-          opacity: forceDirection === 'up' ? 0 : 1,
-          scale: forceDirection === 'up' ? 0.8 : 1,
-          transition: { duration: 0.5, ease: [0.32, 0.72, 0, 1] }
-        }).then(() => {
-          // Call swipe handler when animation is complete
-          if (onSwipe) {
-            onSwipe(forceDirection, profile._id || profile.id);
-          }
-        });
-      }
-    }, [forceDirection, isActive, profile, controls, onSwipe]);
+  if (forceDirection && isActive) {
+    console.log(`Forcing swipe direction: ${forceDirection}`);
+    
+    let xDestination = 0;
+    let yDestination = 0;
+    
+    if (forceDirection === 'right') {
+      xDestination = 1000;
+      setSwipeDirection('right');
+    } else if (forceDirection === 'left') {
+      xDestination = -1000;
+      setSwipeDirection('left');
+    } else if (forceDirection === 'up') {
+      yDestination = -1000;
+      setSwipeDirection('up');
+    }
+    
+    if (navigator.vibrate) {
+      navigator.vibrate(20);
+    }
+    
+    controls.start({
+      x: xDestination,
+      y: yDestination,
+      opacity: forceDirection === 'up' ? 0 : 1,
+      scale: forceDirection === 'up' ? 0.8 : 1,
+      transition: { duration: 0.5, ease: [0.32, 0.72, 0, 1] }
+    }).then(() => {
+      // Remove the onSwipe call here to prevent duplicate handling
+    });
+  }
+}, [forceDirection, isActive, profile, controls]); // Remove onSwipe from dependencies
   
     // Provide haptic feedback if available
     const vibrate = () => {
@@ -220,37 +214,36 @@ const SwipeableCard = ({
       }
     };
     
-    // Handle drag end
     const handleDragEnd = (event, info) => {
       setIsDragging(false);
       setShowSuper(false);
-      
+    
       const xDist = info.point.x - startDragPoint.x;
       const yDist = info.point.y - startDragPoint.y;
-      
+    
       // Determine if we should count as a swipe
       if (Math.abs(xDist) > swipeThreshold && isDraggingHorizontal.current) {
         // Horizontal swipe
         const direction = xDist > 0 ? 'right' : 'left';
-        
+    
         // Trigger vibration for tactile feedback
         vibrate();
-        
+    
         // Animate card off screen
         controls.start({
           x: direction === 'right' ? 1000 : -1000,
           opacity: 0,
           transition: { duration: 0.5, ease: [0.32, 0.72, 0, 1] }
         }).then(() => {
-          // Call swipe handler when animation is complete
-          if (onSwipe) {
+          // 🔴 Call swipe handler only if not triggered by forceDirection
+          if (!forceDirection && onSwipe) {
             onSwipe(direction, profile._id || profile.id);
           }
         });
       } else if (yDist < superSwipeThreshold && isDraggingVertical.current) {
         // Upward swipe (super like)
         vibrate();
-        
+    
         // Animate card scaling up and fading out
         controls.start({
           y: -1000,
@@ -258,10 +251,8 @@ const SwipeableCard = ({
           opacity: 0,
           transition: { duration: 0.5, ease: [0.32, 0.72, 0, 1] }
         }).then(() => {
-          if (onSuper) {
-            onSuper(profile._id || profile.id);
-          } else if (onSwipe) {
-            // Fallback to normal like if no super handler
+          // 🔴 Call swipe handler only if not triggered by forceDirection
+          if (!forceDirection && onSwipe) {
             onSwipe('super', profile._id || profile.id);
           }
         });
@@ -277,7 +268,7 @@ const SwipeableCard = ({
           }
         });
       }
-      
+    
       // Reset state
       setSwipeDirection(null);
       setDragDistance({ x: 0, y: 0 });

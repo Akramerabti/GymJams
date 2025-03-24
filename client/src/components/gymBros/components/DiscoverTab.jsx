@@ -68,30 +68,28 @@ const DiscoverTab = ({
     }
   }, []); // Empty dependency array - only run on mount
   
-  // Set view start time when profile changes
   useEffect(() => {
     if (profiles.length > 0 && currentIndex < profiles.length) {
       setViewStartTime(Date.now());
       // Reset the last processed profile when current index changes
-      lastProcessedProfileRef.current = null;
+      lastProcessedProfileRef.current = null; // 🔴 Reset here
       swipeLockRef.current = false;
     }
   }, [currentIndex, profiles]);
   
-  // Reset force direction after animation completes
   useEffect(() => {
     if (forceSwipeDirection) {
       const timer = setTimeout(() => {
-        setForceSwipeDirection(null);
+        setForceSwipeDirection(null); // 🔴 Reset forceDirection
       }, 500);
-      
+  
       return () => clearTimeout(timer);
     }
   }, [forceSwipeDirection]);
   
-  // Load more profiles when running low
   useEffect(() => {
-    if (profiles.length > 0 && currentIndex >= profiles.length - 2 && hasMoreProfiles && !loadingMoreProfiles) {
+    if (profiles.length > 0 && currentIndex >= profiles.length && hasMoreProfiles && !loadingMoreProfiles) {
+      log('DiscoverTab: No more profiles left, loading more...');
       loadMoreProfiles();
     }
   }, [currentIndex, profiles.length, hasMoreProfiles, loadingMoreProfiles]);
@@ -112,24 +110,26 @@ const DiscoverTab = ({
   // Load more profiles when running low
   const loadMoreProfiles = async () => {
     if (loadingMoreProfiles || !hasMoreProfiles) return;
-    
+  
     setLoadingMoreProfiles(true);
-    
+  
     try {
-      // In a real implementation, you'd add pagination parameters
       const moreProfiles = await gymbrosService.getRecommendedProfiles({
         ...filters,
         skip: profiles.length
       });
-      
+  
       if (moreProfiles.length > 0) {
+        log('DiscoverTab: Loaded more profiles:', moreProfiles.length);
         setProfiles(prev => [...prev, ...moreProfiles]);
-        setHasMoreProfiles(moreProfiles.length >= 10);
+        setHasMoreProfiles(moreProfiles.length >= 10); // Adjust this threshold as needed
       } else {
-        setHasMoreProfiles(false);
+        log('DiscoverTab: No more profiles available');
+        setHasMoreProfiles(false); // No more profiles to load
       }
     } catch (error) {
       console.error('Error loading more profiles:', error);
+      toast.error('Failed to load more profiles');
     } finally {
       setLoadingMoreProfiles(false);
     }
@@ -207,44 +207,39 @@ const DiscoverTab = ({
     setPullDistance(0);
   };
   
-  // Handle swipe gesture
   const handleSwipe = async (direction, profileId) => {
     // Skip if no valid profiles or already at the end
     if (!profiles.length || currentIndex >= profiles.length) {
       console.warn('DiscoverTab: No valid profile to swipe');
       return;
     }
-    
+  
     // Use a ref for swipe locking to prevent race conditions
     if (swipeLockRef.current) {
       console.log('DiscoverTab: Swipe locked, ignoring this swipe');
       return;
     }
-    
+  
     // Immediately lock swiping to prevent duplicate swipes
     swipeLockRef.current = true;
-    
-    // Set processing flag for UI updates
-    setProcessingSwipe(true);
-    
+  
     // Check if we've already processed this profile
     const currentProfile = profiles[currentIndex];
     const currentProfileId = currentProfile._id || currentProfile.id;
-    
+  
     // Skip if we've already processed this profile
     if (lastProcessedProfileRef.current === currentProfileId) {
       console.log('DiscoverTab: Already processed profile', currentProfileId);
-      swipeLockRef.current = false;
-      setProcessingSwipe(false);
+      swipeLockRef.current = false; // Unlock the swipe
       return;
     }
-    
+  
     // Mark that we're processing this profile
     lastProcessedProfileRef.current = currentProfileId;
-    
+  
     // Calculate view duration
     const viewDuration = Date.now() - viewStartTime;
-    
+  
     try {
       // Store last swiped for potential undo
       setLastSwiped({
@@ -252,21 +247,21 @@ const DiscoverTab = ({
         direction,
         index: currentIndex
       });
-      
+  
       // Set forceDirection - this triggers the card animation
       setForceSwipeDirection(direction);
-      
+  
       // Handle like/dislike API calls
       let matchResult = false;
-      
+  
       if (direction === 'right') {
         // Handle like
         const response = await gymbrosService.likeProfile(profileId, viewDuration);
         console.log('Like response received:', response);
-        
+  
         // Check if it's a match
         matchResult = response.match === true;
-        
+  
         // Provide feedback
         if (navigator.vibrate) {
           navigator.vibrate(20);
@@ -283,7 +278,7 @@ const DiscoverTab = ({
           lastProcessedProfileRef.current = null; // Reset so we can try again
           return;
         }
-        
+  
         if (pointsBalance < PREMIUM_FEATURES.SUPERSTAR) {
           toast.error(`Not enough points for a Superstar Like (${PREMIUM_FEATURES.SUPERSTAR} points needed)`);
           swipeLockRef.current = false;
@@ -291,30 +286,30 @@ const DiscoverTab = ({
           lastProcessedProfileRef.current = null; // Reset so we can try again
           return;
         }
-        
+  
         // Deduct points for super like
         subtractPoints(PREMIUM_FEATURES.SUPERSTAR);
         updatePointsInBackend(-PREMIUM_FEATURES.SUPERSTAR);
-        
+  
         // Perform the like
         const response = await gymbrosService.likeProfile(profileId, viewDuration);
-        
+  
         // Check if it's a match
         matchResult = response.match === true;
-        
+  
         // Show success message
         if (!matchResult) {
           toast.success('Superstar Like sent!');
         }
       }
-      
+  
       // Handle match if one occurred
       if (matchResult) {
         console.log('MATCH DETECTED with profile:', currentProfile.name);
-        
+  
         // Store matched profile and show modal
-        setMatchedProfile({...currentProfile});
-        
+        setMatchedProfile({ ...currentProfile });
+  
         // Wait for animation to complete before showing match modal
         setTimeout(() => {
           setShowMatchModal(true);
@@ -322,10 +317,10 @@ const DiscoverTab = ({
           setProcessingSwipe(false);
           swipeLockRef.current = false;
         }, 500);
-        
+  
         return;
       }
-      
+
       // If no match, advance to next profile after animation completes
       setTimeout(() => {
         setCurrentIndex(prevIndex => prevIndex + 1);
@@ -334,18 +329,34 @@ const DiscoverTab = ({
         swipeLockRef.current = false;
         // Reset force direction to null
         setForceSwipeDirection(null);
+        // Reset last processed profile
+        lastProcessedProfileRef.current = null; // 🔴 Reset here
       }, 500);
-      
     } catch (error) {
       console.error(`Error handling ${direction} swipe:`, error);
       toast.error('Failed to process your action');
       // Reset states on error
       setProcessingSwipe(false);
       swipeLockRef.current = false;
-      lastProcessedProfileRef.current = null;
+      lastProcessedProfileRef.current = null; // 🔴 Reset here
       setForceSwipeDirection(null);
     }
   };
+ const debug = true;
+const log = (...args) => {
+  if (debug) console.log(...args);
+};
+
+// Log when profiles are updated
+useEffect(() => {
+  log('DiscoverTab: profiles updated:', profiles.length);
+}, [profiles]);
+
+// Log when currentIndex is updated
+useEffect(() => {
+  log('DiscoverTab: currentIndex updated:', currentIndex);
+}, [currentIndex]);
+
   
   // Handle button click for swipe actions
   const handleButtonSwipe = (direction) => {
@@ -461,7 +472,6 @@ const DiscoverTab = ({
     );
   }
   
-  // Render empty state
   if (!profiles || profiles.length === 0) {
     return (
       <div className="h-full w-full">
@@ -471,6 +481,25 @@ const DiscoverTab = ({
           onFilterClick={() => setShowFilters(true)} 
         />
       </div>
+    );
+  }
+  
+  if (currentIndex >= profiles.length && !hasMoreProfiles) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="h-full w-full"
+      >
+        <EmptyStateMessage 
+          message="You've seen all profiles"
+          description="Check back later or try different filters"
+          icon={<RefreshCw size={48} className="text-gray-400" />}
+          actionLabel="Refresh"
+          onRefresh={handleRefresh}
+        />
+      </motion.div>
     );
   }
   
