@@ -38,7 +38,6 @@ const SwipeableCard = ({
     const [swipeDirection, setSwipeDirection] = useState(null);
     const [dragDistance, setDragDistance] = useState({ x: 0, y: 0 });
     const [showSuper, setShowSuper] = useState(false);
-    const [isAnimating, setIsAnimating] = useState(false);
     
     // Track if we're moving horizontally or vertically
     const isDraggingHorizontal = useRef(false);
@@ -54,7 +53,6 @@ const SwipeableCard = ({
       setCurrentImageIndex(0);
       setSwipeDirection(null);
       setDragDistance({ x: 0, y: 0 });
-      setIsAnimating(false);
       
       // CRITICAL FIX: Always start visible and positioned correctly
       controls.set({
@@ -68,7 +66,7 @@ const SwipeableCard = ({
 
     // Handle forced swipe direction from buttons
     useEffect(() => {
-      if (forceDirection && isActive && !isAnimating) {
+      if (forceDirection && isActive) {
         console.log(`Forcing swipe direction: ${forceDirection}`);
         
         let xDestination = 0;
@@ -91,14 +89,11 @@ const SwipeableCard = ({
           navigator.vibrate(20);
         }
         
-        // Set animating flag to prevent multiple animations
-        setIsAnimating(true);
-        
         // Animate card off screen
         controls.start({
           x: xDestination,
           y: yDestination,
-          opacity: 0, // Always fade out to prevent ghost card
+          opacity: forceDirection === 'up' ? 0 : 1,
           scale: forceDirection === 'up' ? 0.8 : 1,
           transition: { duration: 0.5, ease: [0.32, 0.72, 0, 1] }
         }).then(() => {
@@ -108,7 +103,7 @@ const SwipeableCard = ({
           }
         });
       }
-    }, [forceDirection, isActive, profile, controls, onSwipe, isAnimating]);
+    }, [forceDirection, isActive, profile, controls, onSwipe]);
   
     // Provide haptic feedback if available
     const vibrate = () => {
@@ -182,8 +177,6 @@ const SwipeableCard = ({
     
     // Handle drag start
     const handleDragStart = (event, info) => {
-      if (isAnimating) return;
-      
       setIsDragging(true);
       setStartDragPoint({ x: info.point.x, y: info.point.y });
       // Reset direction tracking at start of drag
@@ -193,8 +186,6 @@ const SwipeableCard = ({
     
     // Handle drag move
     const handleDragUpdate = (event, info) => {
-      if (isAnimating) return;
-      
       // Calculate distance moved
       const xDist = info.point.x - startDragPoint.x;
       const yDist = info.point.y - startDragPoint.y;
@@ -231,8 +222,6 @@ const SwipeableCard = ({
     
     // Handle drag end
     const handleDragEnd = (event, info) => {
-      if (isAnimating) return;
-      
       setIsDragging(false);
       setShowSuper(false);
       
@@ -247,9 +236,6 @@ const SwipeableCard = ({
         // Trigger vibration for tactile feedback
         vibrate();
         
-        // Set animating flag to prevent new gestures
-        setIsAnimating(true);
-        
         // Animate card off screen
         controls.start({
           x: direction === 'right' ? 1000 : -1000,
@@ -260,18 +246,10 @@ const SwipeableCard = ({
           if (onSwipe) {
             onSwipe(direction, profile._id || profile.id);
           }
-          
-          // Reset animating flag after a slight delay
-          setTimeout(() => {
-            setIsAnimating(false);
-          }, 50);
         });
       } else if (yDist < superSwipeThreshold && isDraggingVertical.current) {
         // Upward swipe (super like)
         vibrate();
-        
-        // Set animating flag to prevent new gestures
-        setIsAnimating(true);
         
         // Animate card scaling up and fading out
         controls.start({
@@ -286,11 +264,6 @@ const SwipeableCard = ({
             // Fallback to normal like if no super handler
             onSwipe('super', profile._id || profile.id);
           }
-          
-          // Reset animating flag after a slight delay
-          setTimeout(() => {
-            setIsAnimating(false);
-          }, 50);
         });
       } else {
         // Return to center if not swiped far enough
@@ -315,12 +288,11 @@ const SwipeableCard = ({
         className="w-full h-full max-w-md mx-auto" // Set max width and center horizontally
         style={{ 
           zIndex: isActive ? 30 : isBehindActive ? 20 : 10,
-          pointerEvents: isActive && !isAnimating ? 'auto' : 'none'
+          pointerEvents: isActive ? 'auto' : 'none'
         }}
         animate={controls}
         initial={{ opacity: 1, scale: 1, x: 0, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.3 } }} // Always fade out on exit
-        drag={isActive && !forceDirection && !isAnimating}  // Disable drag during forced animation
+        drag={isActive && !forceDirection}  // Disable drag during forced animation
         dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
         dragElastic={0.7}
         onDragStart={handleDragStart}
@@ -425,9 +397,9 @@ const SwipeableCard = ({
               <>
                 <button 
                   onClick={goToPreviousImage}
-                  disabled={currentImageIndex === 0 || isAnimating}
+                  disabled={currentImageIndex === 0}
                   className={`absolute top-1/2 left-2 transform -translate-y-1/2 p-2 rounded-full bg-black/30 backdrop-blur-sm text-white ${
-                    currentImageIndex === 0 || isAnimating ? 'opacity-0' : 'opacity-80 hover:opacity-100'
+                    currentImageIndex === 0 ? 'opacity-0' : 'opacity-80 hover:opacity-100'
                   }`}
                   style={{ zIndex: 15 }}
                 >
@@ -435,9 +407,9 @@ const SwipeableCard = ({
                 </button>
                 <button 
                   onClick={goToNextImage}
-                  disabled={currentImageIndex === profile.images.length - 1 || isAnimating}
+                  disabled={currentImageIndex === profile.images.length - 1}
                   className={`absolute top-1/2 right-2 transform -translate-y-1/2 p-2 rounded-full bg-black/30 backdrop-blur-sm text-white ${
-                    currentImageIndex === profile.images.length - 1 || isAnimating ? 'opacity-0' : 'opacity-80 hover:opacity-100'
+                    currentImageIndex === profile.images.length - 1 ? 'opacity-0' : 'opacity-80 hover:opacity-100'
                   }`}
                   style={{ zIndex: 15 }}
                 >
@@ -454,12 +426,10 @@ const SwipeableCard = ({
             {/* Info button */}
             <button
               onClick={(e) => {
-                if (isAnimating) return;
                 e.stopPropagation();
                 if (onInfoClick) onInfoClick(profile);
               }}
               className="absolute bottom-4 right-4 p-2 rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/50 transition-colors z-20"
-              disabled={isAnimating}
             >
               <Info size={20} />
             </button>

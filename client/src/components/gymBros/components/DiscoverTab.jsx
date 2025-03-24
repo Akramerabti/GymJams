@@ -53,6 +53,7 @@ const DiscoverTab = ({
   
   // Track last processed profile ID to prevent duplicate swipes
   const lastProcessedProfileRef = useRef(null);
+  const swipeLockRef = useRef(false);
   
   // Container ref for pull-to-refresh
   const containerRef = useRef(null);
@@ -71,8 +72,9 @@ const DiscoverTab = ({
   useEffect(() => {
     if (profiles.length > 0 && currentIndex < profiles.length) {
       setViewStartTime(Date.now());
-      // Also reset the last processed profile when current index changes
+      // Reset the last processed profile when current index changes
       lastProcessedProfileRef.current = null;
+      swipeLockRef.current = false;
     }
   }, [currentIndex, profiles]);
   
@@ -213,27 +215,32 @@ const DiscoverTab = ({
       return;
     }
     
-    // Check if we're still processing a previous swipe
-    if (processingSwipe) {
-      console.log('DiscoverTab: Already processing a swipe, ignoring...');
+    // Use a ref for swipe locking to prevent race conditions
+    if (swipeLockRef.current) {
+      console.log('DiscoverTab: Swipe locked, ignoring this swipe');
       return;
     }
+    
+    // Immediately lock swiping to prevent duplicate swipes
+    swipeLockRef.current = true;
+    
+    // Set processing flag for UI updates
+    setProcessingSwipe(true);
     
     // Check if we've already processed this profile
     const currentProfile = profiles[currentIndex];
     const currentProfileId = currentProfile._id || currentProfile.id;
     
-    // Skip if we've already processed this profile - critical for preventing duplicates
+    // Skip if we've already processed this profile
     if (lastProcessedProfileRef.current === currentProfileId) {
       console.log('DiscoverTab: Already processed profile', currentProfileId);
+      swipeLockRef.current = false;
+      setProcessingSwipe(false);
       return;
     }
     
     // Mark that we're processing this profile
     lastProcessedProfileRef.current = currentProfileId;
-    
-    // Start swipe processing - important to set this BEFORE triggering animation
-    setProcessingSwipe(true);
     
     // Calculate view duration
     const viewDuration = Date.now() - viewStartTime;
@@ -271,6 +278,7 @@ const DiscoverTab = ({
         // Handle super like
         if (!isAuthenticated) {
           toast.error('Please log in to use Superstar Likes');
+          swipeLockRef.current = false;
           setProcessingSwipe(false);
           lastProcessedProfileRef.current = null; // Reset so we can try again
           return;
@@ -278,6 +286,7 @@ const DiscoverTab = ({
         
         if (pointsBalance < PREMIUM_FEATURES.SUPERSTAR) {
           toast.error(`Not enough points for a Superstar Like (${PREMIUM_FEATURES.SUPERSTAR} points needed)`);
+          swipeLockRef.current = false;
           setProcessingSwipe(false);
           lastProcessedProfileRef.current = null; // Reset so we can try again
           return;
@@ -311,6 +320,7 @@ const DiscoverTab = ({
           setShowMatchModal(true);
           // Reset processing state to allow new swipes after match is shown
           setProcessingSwipe(false);
+          swipeLockRef.current = false;
         }, 500);
         
         return;
@@ -318,9 +328,10 @@ const DiscoverTab = ({
       
       // If no match, advance to next profile after animation completes
       setTimeout(() => {
-        setCurrentIndex(prev => prev + 1);
+        setCurrentIndex(prevIndex => prevIndex + 1);
         // Reset processing state to allow new swipes
         setProcessingSwipe(false);
+        swipeLockRef.current = false;
         // Reset force direction to null
         setForceSwipeDirection(null);
       }, 500);
@@ -330,6 +341,7 @@ const DiscoverTab = ({
       toast.error('Failed to process your action');
       // Reset states on error
       setProcessingSwipe(false);
+      swipeLockRef.current = false;
       lastProcessedProfileRef.current = null;
       setForceSwipeDirection(null);
     }
@@ -513,52 +525,30 @@ const DiscoverTab = ({
         </div>
       )}
 
-      {/* Profile cards stack - with proper height calculation and FIXED KEYS */}
+      {/* Profile cards stack */}
       <div className="relative w-full h-[calc(100%-120px)]">
-        <AnimatePresence mode="wait">
-          {/* Show current and next few cards for better performance */}
-          {profiles.slice(currentIndex, currentIndex + 3).map((profile, index) => {
-            // Validate profile data before rendering
-            if (!profile || !profile.name) {
-              console.warn('DiscoverTab: Invalid profile data at index', currentIndex + index, profile);
-              return null;
-            }
-            
-            // Create a truly unique key with all components
-            const profileId = profile._id || profile.id || `profile-${index}`;
-            const uniqueKey = `profile-${profileId}-position-${index}-global-${currentIndex}`;
-            
-            // Skip rendering if processingSwipe and not the current card
-            if (processingSwipe && index > 0) return null;
-            
-            return (
-              <div 
-                key={`card-container-${uniqueKey}`}
-                className="absolute inset-0"
-                style={{
-                  transform: `translateY(${-index * 10}px) scale(${1 - index * 0.05})`,
-                  zIndex: 30 - index
-                }}
-              >
-                <SwipeableCard
-                  key={uniqueKey}
-                  profile={profile}
-                  onSwipe={handleSwipe}
-                  onInfoClick={() => {
-                    setShowProfileDetail(true);
-                  }}
-                  onSuperLike={() => handleSwipe('super', profileId)}
-                  onRekindle={handleRekindle}
-                  distanceUnit={distanceUnit}
-                  isPremium={isPremium}
-                  isActive={index === 0} // Only the top card is active
-                  isBehindActive={index > 0} // Cards behind the active one
-                  forceDirection={index === 0 ? forceSwipeDirection : null} // Only force direction on top card
-                />
-              </div>
-            );
-          })}
-        </AnimatePresence>
+        {/* Only render the current card to fix AnimatePresence issues */}
+        {profiles[currentIndex] && (
+          <div 
+            key={`card-container-${currentProfile._id || currentProfile.id}`}
+            className="absolute inset-0"
+          >
+            <SwipeableCard
+              key={`card-${currentProfile._id || currentProfile.id}`}
+              profile={currentProfile}
+              onSwipe={handleSwipe}
+              onInfoClick={() => {
+                setShowProfileDetail(true);
+              }}
+              onSuperLike={() => handleSwipe('super', currentProfile._id || currentProfile.id)}
+              onRekindle={handleRekindle}
+              distanceUnit={distanceUnit}
+              isPremium={isPremium}
+              isActive={true}
+              forceDirection={forceSwipeDirection}
+            />
+          </div>
+        )}
       </div>
       
       {/* Action buttons */}
@@ -676,6 +666,7 @@ const DiscoverTab = ({
             // Advance to next profile on close with a slight delay
             setTimeout(() => {
               setCurrentIndex(prev => prev + 1);
+              swipeLockRef.current = false;
             }, 300);
           }}
           onSendMessage={handleSendMessage}
