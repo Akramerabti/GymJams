@@ -15,7 +15,8 @@ const SwipeableCard = ({
     distanceUnit = 'miles',
     isActive = true,
     isPremium = false,
-    isBehindActive = false
+    isBehindActive = false,
+    forceDirection = null  // Add this prop to handle button clicks
   }) => {
 
     // Validate profile data early to prevent rendering issues
@@ -62,6 +63,47 @@ const SwipeableCard = ({
         rotate: 0
       });
     }, [profile._id || profile.id, controls]);
+
+    // Handle forced swipe direction from buttons
+    useEffect(() => {
+      if (forceDirection && isActive) {
+        console.log(`Forcing swipe direction: ${forceDirection}`);
+        
+        let xDestination = 0;
+        let yDestination = 0;
+        
+        // Set animation targets based on direction
+        if (forceDirection === 'right') {
+          xDestination = 1000;
+          setSwipeDirection('right');
+        } else if (forceDirection === 'left') {
+          xDestination = -1000;
+          setSwipeDirection('left');
+        } else if (forceDirection === 'up') {
+          yDestination = -1000;
+          setSwipeDirection('up');
+        }
+        
+        // Provide vibration feedback
+        if (navigator.vibrate) {
+          navigator.vibrate(20);
+        }
+        
+        // Animate card off screen
+        controls.start({
+          x: xDestination,
+          y: yDestination,
+          opacity: forceDirection === 'up' ? 0 : 1,
+          scale: forceDirection === 'up' ? 0.8 : 1,
+          transition: { duration: 0.5, ease: [0.32, 0.72, 0, 1] }
+        }).then(() => {
+          // Call swipe handler when animation is complete
+          if (onSwipe) {
+            onSwipe(forceDirection, profile._id || profile.id);
+          }
+        });
+      }
+    }, [forceDirection, isActive, profile, controls, onSwipe]);
   
     // Provide haptic feedback if available
     const vibrate = () => {
@@ -250,7 +292,7 @@ const SwipeableCard = ({
         }}
         animate={controls}
         initial={{ opacity: 1, scale: 1, x: 0, y: 0 }}
-        drag={isActive}
+        drag={isActive && !forceDirection}  // Disable drag during forced animation
         dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
         dragElastic={0.7}
         onDragStart={handleDragStart}

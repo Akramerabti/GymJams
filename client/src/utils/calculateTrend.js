@@ -4,25 +4,9 @@ export const calculateTrend = (currentValue, previousValue) => {
 };
 
 export const calculateCompatibility = (userProfile, matchProfile) => {
-  // Debugging info
-  console.log("User profile:", userProfile ? {
-    workoutTypes: userProfile.workoutTypes,
-    experienceLevel: userProfile.experienceLevel,
-    preferredTime: userProfile.preferredTime,
-    location: userProfile.location ? 
-      { lat: userProfile.location.lat, lng: userProfile.location.lng } : 'missing'
-  } : 'missing');
-  
-  console.log("Match profile:", matchProfile ? {
-    workoutTypes: matchProfile.workoutTypes,
-    experienceLevel: matchProfile.experienceLevel,
-    preferredTime: matchProfile.preferredTime,
-    location: matchProfile.location ? 
-      { lat: matchProfile.location.lat, lng: matchProfile.location.lng } : 'missing'
-  } : 'missing');
 
   if (!userProfile || !matchProfile) {
-    console.log("Missing profile data, returning default values");
+
     return {
       overallScore: 50, // Start from 50% rather than 0% as a base
       workoutCompatibility: 'Eish...', // More positive default
@@ -42,46 +26,44 @@ export const calculateCompatibility = (userProfile, matchProfile) => {
     userProfile.workoutTypes || [],
     matchProfile.workoutTypes || []
   );
-  console.log("Workout type score:", workoutTypeScore);
+  
   
   // 2. Experience Level Compatibility (20%)
   const experienceScore = calculateExperienceCompatibility(
     userProfile.experienceLevel,
     matchProfile.experienceLevel
   );
-  console.log("Experience score:", experienceScore);
+
   
   // 3. Schedule Compatibility (25%)
   const scheduleScore = calculateScheduleCompatibility(
     userProfile.preferredTime,
     matchProfile.preferredTime
   );
-  console.log("Schedule score:", scheduleScore);
+ 
   
   // 4. Location Proximity (25%)
   const locationScore = calculateLocationScore(
     userProfile.location,
     matchProfile.location
   );
-  console.log("Location score:", locationScore);
+
   
   // Calculate overall score (weighted average) with minimum baseline of 50%
   let rawScore = (workoutTypeScore * 20 + 
                  experienceScore * 10 + 
-                 scheduleScore * 35 + 
-                 locationScore * 35) / 100;
+                 scheduleScore * 15 + 
+                 locationScore * 55) / 100;
   
   // Apply a more generous curve: boost scores to make them more favorable
   // Map 0-1 raw score to 50-100 display score with slight curve
   const overallScore = Math.round(50 + (rawScore * 50));
-  console.log("Raw score:", rawScore, "Overall score (curved):", overallScore);
   
   // Count common workout types
   const commonWorkouts = countCommonWorkoutTypes(
     userProfile.workoutTypes || [],
     matchProfile.workoutTypes || []
   );
-  console.log("Common workout types:", commonWorkouts);
   
   // Format scores as percentages (with a more positive scale)
   const workoutCompatibilityScore = Math.min(100, Math.round(25 + (workoutTypeScore * 50)));
@@ -108,7 +90,6 @@ export const calculateCompatibility = (userProfile, matchProfile) => {
     commonWorkouts
   };
   
-  console.log("Final compatibility result:", result);
   return result;
 };
 

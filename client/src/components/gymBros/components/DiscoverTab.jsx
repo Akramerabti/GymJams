@@ -46,6 +46,8 @@ const DiscoverTab = ({
   const [pullDistance, setPullDistance] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
   const [networkError, setNetworkError] = useState(false);
+  const [forceSwipeDirection, setForceSwipeDirection] = useState(null);
+  const [processingSwipe, setProcessingSwipe] = useState(false);
   
   // Container ref for pull-to-refresh
   const containerRef = useRef(null);
@@ -73,6 +75,23 @@ const DiscoverTab = ({
       loadMoreProfiles();
     }
   }, [currentIndex, profiles.length, hasMoreProfiles, loadingMoreProfiles]);
+  
+  // Debug logging for match modal
+  useEffect(() => {
+    console.log(`Match modal state: ${showMatchModal ? 'VISIBLE' : 'HIDDEN'}, matched profile:`, matchedProfile);
+  }, [showMatchModal, matchedProfile]);
+
+  // Clear force direction after processing
+  useEffect(() => {
+    if (forceSwipeDirection && !processingSwipe) {
+      // Reset force direction after a short delay
+      const timer = setTimeout(() => {
+        setForceSwipeDirection(null);
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [forceSwipeDirection, processingSwipe]);
   
   // Load more profiles when running low
   const loadMoreProfiles = async () => {
@@ -170,12 +189,20 @@ const DiscoverTab = ({
     setPullDistance(0);
   };
   
-  // Handle swipe gesture
+  // Handle swipe gesture - IMPROVED VERSION
   const handleSwipe = async (direction, profileId) => {
     if (!profiles.length || currentIndex >= profiles.length) {
       console.warn('DiscoverTab: No valid profile to swipe');
       return;
     }
+    
+    // Stop if we're already processing a swipe
+    if (processingSwipe) {
+      console.log('Already processing a swipe, ignoring...');
+      return;
+    }
+    
+    setProcessingSwipe(true);
     
     // Calculate view duration
     const viewDuration = Date.now() - viewStartTime;
@@ -192,17 +219,28 @@ const DiscoverTab = ({
         // Handle like
         const response = await gymbrosService.likeProfile(profileId, viewDuration);
         
+        console.log('Like response received:', response);
+        
         // Provide vibration feedback if available
         if (navigator.vibrate) {
           navigator.vibrate(20);
         }
         
         // Check if it's a match
-        if (response.match) {
+        if (response.match === true) {
+          console.log('MATCH DETECTED! Setting matchedProfile and showing modal');
+          
+          // Store the matched profile before any state changes
+          const matchProfile = {...profiles[currentIndex]};
+          
           // Set the matched profile for the modal
-          setMatchedProfile(profiles[currentIndex]);
-          // Show match modal
-          setShowMatchModal(true);
+          setMatchedProfile(matchProfile);
+          
+          // Show match modal with a slight delay to ensure state is updated properly
+          setTimeout(() => {
+            setShowMatchModal(true);
+            console.log('Match modal should now be visible');
+          }, 100);
         }
       } else if (direction === 'left') {
         // Handle dislike
@@ -210,32 +248,73 @@ const DiscoverTab = ({
       } else if (direction === 'super') {
         if (!isAuthenticated) {
           toast.error('Please log in to use Superstar Likes');
+          setProcessingSwipe(false);
+          return;
         } else if (pointsBalance < PREMIUM_FEATURES.SUPERSTAR) {
           toast.error(`Not enough points for a Superstar Like (${PREMIUM_FEATURES.SUPERSTAR} points needed)`);
-        } else {
-          // Deduct points for super like
-          subtractPoints(PREMIUM_FEATURES.SUPERSTAR);
-          updatePointsInBackend(-PREMIUM_FEATURES.SUPERSTAR);
-          
-          // Actually perform the like (implementation may vary)
-          const response = await gymbrosService.likeProfile(profileId, viewDuration);
-          
-          // Check if it's a match
-          if (response.match) {
-            setMatchedProfile(profiles[currentIndex]);
-            setShowMatchModal(true);
-          }
-          
-          toast.success('Superstar Like sent!');
+          setProcessingSwipe(false);
+          return;
         }
+        
+        // Deduct points for super like
+        subtractPoints(PREMIUM_FEATURES.SUPERSTAR);
+        updatePointsInBackend(-PREMIUM_FEATURES.SUPERSTAR);
+        
+        // Perform the like
+        const response = await gymbrosService.likeProfile(profileId, viewDuration);
+        
+        // Check if it's a match
+        if (response.match === true) {
+          console.log('SUPER LIKE MATCH! Setting matchedProfile:', profiles[currentIndex]);
+          
+          // Store matched profile before state changes
+          const matchProfile = {...profiles[currentIndex]};
+          setMatchedProfile(matchProfile);
+          
+          // Show match modal with delay
+          setTimeout(() => {
+            setShowMatchModal(true);
+          }, 100);
+        }
+        
+        toast.success('Superstar Like sent!');
       }
       
-      // Move to next profile
-      setCurrentIndex(prev => prev + 1);
+      // For button-triggered swipes, trigger animation first
+      if (!forceSwipeDirection) {
+        // Direct interaction already has animation, just force the swipe direction
+        setForceSwipeDirection(direction);
+        
+        // Move to next profile after a delay (wait for animation)
+        setTimeout(() => {
+          setCurrentIndex(prev => prev + 1);
+          setProcessingSwipe(false);
+        }, 600);
+      } else {
+        // Animation already running from button click, just update index
+        setCurrentIndex(prev => prev + 1);
+        setProcessingSwipe(false);
+      }
     } catch (error) {
       console.error(`Error handling ${direction} swipe:`, error);
       toast.error('Failed to process your action');
+      setProcessingSwipe(false);
     }
+  };
+  
+  // New method: handle button click for swipe actions
+  const handleButtonSwipe = (direction) => {
+    if (!profiles.length || currentIndex >= profiles.length || processingSwipe) {
+      return;
+    }
+    
+    // Set the force direction first (this will trigger the animation)
+    setForceSwipeDirection(direction);
+    
+    // Use a delay before processing the actual swipe to allow animation to start
+    setTimeout(() => {
+      handleSwipe(direction, profiles[currentIndex]._id || profiles[currentIndex].id);
+    }, 100);
   };
   
   // Handle Rekindle (undo last swipe) - Premium feature
@@ -281,11 +360,13 @@ const DiscoverTab = ({
   // Handle match modal actions
   const handleSendMessage = () => {
     // In a real implementation, navigate to messages with this user
+    console.log('Starting conversation with', matchedProfile?.name);
     toast.success(`Starting conversation with ${matchedProfile?.name}`);
     setShowMatchModal(false);
   };
   
   const handleKeepSwiping = () => {
+    console.log('Closing match modal and continuing to swipe');
     setShowMatchModal(false);
   };
   
@@ -415,6 +496,7 @@ const DiscoverTab = ({
                   isPremium={isPremium}
                   isActive={index === 0} // Only the top card is active
                   isBehindActive={index > 0} // Cards behind the active one
+                  forceDirection={index === 0 ? forceSwipeDirection : null} // Only force direction on top card
                 />
               </div>
             );
@@ -427,46 +509,58 @@ const DiscoverTab = ({
         {/* Rekindle Button */}
         <button 
           onClick={handleRekindle}
+          disabled={processingSwipe}
           className={`p-3 rounded-full shadow-lg border-4 ${
             isPremium 
-              ? 'text-purple-500 bg-purple-300 border-purple-500 hover:bg-purple-50' 
-              : 'text-gray-400 bg-white border-gray-500'
-          }`}
+              ? 'text-purple-500 bg-white border-purple-500 hover:bg-purple-50' 
+              : 'text-gray-400 bg-white border-gray-300'
+          } ${processingSwipe ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <RefreshCw size={18} />
         </button>
 
         {/* Dislike Button */}
         <button 
-          onClick={() => profiles[currentIndex] && handleSwipe('left', profiles[currentIndex]._id)}
-          className="p-4 rounded-full bg-red-200 shadow-lg border-4 border-red-500 text-white text- hover:bg-red-50"
+          onClick={() => handleButtonSwipe('left')}
+          disabled={processingSwipe}
+          className={`p-4 rounded-full bg-white shadow-lg border-4 border-red-500 text-red-500 hover:bg-red-50 ${
+            processingSwipe ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
         >
           <X size={32} />
         </button>
         
         {/* Super Like Button */}
         <button 
-          onClick={() => profiles[currentIndex] && handleSwipe('super', profiles[currentIndex]._id)}
-          className="p-3 rounded-full bg-amber-200 shadow-lg border-4 border-amber-500 text-white hover:bg-amber-50"
+          onClick={() => handleButtonSwipe('up')}
+          disabled={processingSwipe}
+          className={`p-3 rounded-full bg-white shadow-lg border-4 border-blue-500 text-blue-500 hover:bg-blue-50 ${
+            processingSwipe ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
         >
           <Star size={29} />
         </button>
         
         {/* Like Button */}
         <button 
-          onClick={() => profiles[currentIndex] && handleSwipe('right', profiles[currentIndex]._id)}
-          className="p-4 rounded-full bg-green-200 shadow-lg border-4 border-green-500 text-white hover:bg-green-50"
+          onClick={() => handleButtonSwipe('right')}
+          disabled={processingSwipe}
+          className={`p-4 rounded-full bg-white shadow-lg border-4 border-green-500 text-green-500 hover:bg-green-50 ${
+            processingSwipe ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
         >
           <Heart size={32} />
         </button>
 
+        {/* Extra button (empty or for symmetry) */}
         <button 
           onClick={handleRekindle}
+          disabled={processingSwipe}
           className={`p-3 rounded-full shadow-lg border-4 ${
             isPremium 
-              ? 'text-purple-500 bg-purple-300 border-purple-500 hover:bg-purple-50' 
-              : 'text-gray-400 bg-white border-gray-500'
-          }`}
+              ? 'text-purple-500 bg-white border-purple-500 hover:bg-purple-50' 
+              : 'text-gray-400 bg-white border-gray-300'
+          } ${processingSwipe ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <RefreshCw size={18} />
         </button>
@@ -516,39 +610,36 @@ const DiscoverTab = ({
       
       {/* Profile Detail Modal */}
       <ProfileDetailModal
-    isVisible={showProfileDetail}
-    profile={profiles[currentIndex]}
-    userProfile={userProfile} // Pass the user's profile from props
-    onClose={() => setShowProfileDetail(false)}
-    onLike={() => {
-      setShowProfileDetail(false);
-      if (profiles[currentIndex]) {
-        handleSwipe('right', profiles[currentIndex]._id);
-      }
-    }}
-    onDislike={() => {
-      setShowProfileDetail(false);
-      if (profiles[currentIndex]) {
-        handleSwipe('left', profiles[currentIndex]._id);
-      }
-    }}
-    onSuperLike={() => {
-      setShowProfileDetail(false);
-      if (profiles[currentIndex]) {
-        handleSwipe('super', profiles[currentIndex]._id);
-      }
-    }}
-    isPremium={isPremium}
-    distanceUnit={distanceUnit}
-  />
+        isVisible={showProfileDetail}
+        profile={profiles[currentIndex]}
+        userProfile={userProfile}
+        onClose={() => setShowProfileDetail(false)}
+        onLike={() => {
+          setShowProfileDetail(false);
+          handleButtonSwipe('right');
+        }}
+        onDislike={() => {
+          setShowProfileDetail(false);
+          handleButtonSwipe('left');
+        }}
+        onSuperLike={() => {
+          setShowProfileDetail(false);
+          handleButtonSwipe('up');
+        }}
+        isPremium={isPremium}
+        distanceUnit={distanceUnit}
+      />
       
-      {/* Match Modal */}
+      {/* Match Modal - Important to see match results! */}
       <MatchModal
         isVisible={showMatchModal}
-        onClose={() => setShowMatchModal(false)}
+        onClose={() => {
+          console.log("Manual close of match modal");
+          setShowMatchModal(false);
+        }}
         onSendMessage={handleSendMessage}
         onKeepSwiping={handleKeepSwiping}
-        currentUser={null} // You'll need to pass the current user here
+        currentUser={userProfile}
         matchedUser={matchedProfile}
       />
     </div>
