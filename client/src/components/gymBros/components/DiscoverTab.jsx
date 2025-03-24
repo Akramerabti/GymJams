@@ -49,6 +49,7 @@ const DiscoverTab = ({
   const [networkError, setNetworkError] = useState(false);
   const [forceSwipeDirection, setForceSwipeDirection] = useState(null);
   const [processingSwipe, setProcessingSwipe] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   
   // Track last processed profile ID to prevent duplicate swipes
   const lastProcessedProfileRef = useRef(null);
@@ -92,6 +93,19 @@ const DiscoverTab = ({
       loadMoreProfiles();
     }
   }, [currentIndex, profiles.length, hasMoreProfiles, loadingMoreProfiles]);
+
+  // Smooth transition when reaching the end of profiles
+  useEffect(() => {
+    if (profiles.length > 0 && currentIndex >= profiles.length && !isTransitioning) {
+      // Set transitioning state to show a smooth transition to empty state
+      setIsTransitioning(true);
+      
+      // Wait for card exit animation to complete before showing empty state
+      setTimeout(() => {
+        setIsTransitioning(false);
+      }, 500);
+    }
+  }, [currentIndex, profiles.length, isTransitioning]);
 
   // Load more profiles when running low
   const loadMoreProfiles = async () => {
@@ -191,7 +205,7 @@ const DiscoverTab = ({
     setPullDistance(0);
   };
   
-  // Handle swipe gesture - COMPLETELY REWRITTEN
+  // Handle swipe gesture
   const handleSwipe = async (direction, profileId) => {
     // Skip if no valid profiles or already at the end
     if (!profiles.length || currentIndex >= profiles.length) {
@@ -218,7 +232,7 @@ const DiscoverTab = ({
     // Mark that we're processing this profile
     lastProcessedProfileRef.current = currentProfileId;
     
-    // Start swipe processing
+    // Start swipe processing - important to set this BEFORE triggering animation
     setProcessingSwipe(true);
     
     // Calculate view duration
@@ -231,6 +245,9 @@ const DiscoverTab = ({
         direction,
         index: currentIndex
       });
+      
+      // Set forceDirection - this triggers the card animation
+      setForceSwipeDirection(direction);
       
       // Handle like/dislike API calls
       let matchResult = false;
@@ -282,11 +299,6 @@ const DiscoverTab = ({
         }
       }
       
-      // Trigger card animation
-      if (!forceSwipeDirection) {
-        setForceSwipeDirection(direction);
-      }
-      
       // Handle match if one occurred
       if (matchResult) {
         console.log('MATCH DETECTED with profile:', currentProfile.name);
@@ -294,26 +306,32 @@ const DiscoverTab = ({
         // Store matched profile and show modal
         setMatchedProfile({...currentProfile});
         
+        // Wait for animation to complete before showing match modal
         setTimeout(() => {
           setShowMatchModal(true);
-        }, 300);
+          // Reset processing state to allow new swipes after match is shown
+          setProcessingSwipe(false);
+        }, 500);
         
-        // Don't advance to next profile automatically - wait for user action
-        setProcessingSwipe(false);
         return;
       }
       
       // If no match, advance to next profile after animation completes
       setTimeout(() => {
         setCurrentIndex(prev => prev + 1);
+        // Reset processing state to allow new swipes
         setProcessingSwipe(false);
+        // Reset force direction to null
+        setForceSwipeDirection(null);
       }, 500);
       
     } catch (error) {
       console.error(`Error handling ${direction} swipe:`, error);
       toast.error('Failed to process your action');
+      // Reset states on error
       setProcessingSwipe(false);
-      lastProcessedProfileRef.current = null; // Reset so we can try again
+      lastProcessedProfileRef.current = null;
+      setForceSwipeDirection(null);
     }
   };
   
@@ -327,7 +345,7 @@ const DiscoverTab = ({
     const currentProfile = profiles[currentIndex];
     const profileId = currentProfile._id || currentProfile.id;
     
-    // Process the swipe directly - animation will be handled by the swipe function
+    // Process the swipe directly
     handleSwipe(direction, profileId);
   };
   
@@ -388,8 +406,10 @@ const DiscoverTab = ({
     console.log('Closing match modal and continuing to swipe');
     setShowMatchModal(false);
     
-    // Advance to next profile
-    setCurrentIndex(prev => prev + 1);
+    // Advance to next profile with a small delay
+    setTimeout(() => {
+      setCurrentIndex(prev => prev + 1);
+    }, 100);
   };
   
   // Render loading state
@@ -442,10 +462,15 @@ const DiscoverTab = ({
     );
   }
   
-  // Render end of profiles state
+  // Render end of profiles state with smooth transition
   if (currentIndex >= profiles.length) {
     return (
-      <div className="h-full w-full">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="h-full w-full"
+      >
         <EmptyStateMessage 
           message="You've seen all profiles"
           description="Check back later or try different filters"
@@ -453,7 +478,7 @@ const DiscoverTab = ({
           actionLabel="Refresh"
           onRefresh={handleRefresh}
         />
-      </div>
+      </motion.div>
     );
   }
   
@@ -490,7 +515,7 @@ const DiscoverTab = ({
 
       {/* Profile cards stack - with proper height calculation and FIXED KEYS */}
       <div className="relative w-full h-[calc(100%-120px)]">
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
           {/* Show current and next few cards for better performance */}
           {profiles.slice(currentIndex, currentIndex + 3).map((profile, index) => {
             // Validate profile data before rendering
@@ -502,6 +527,9 @@ const DiscoverTab = ({
             // Create a truly unique key with all components
             const profileId = profile._id || profile.id || `profile-${index}`;
             const uniqueKey = `profile-${profileId}-position-${index}-global-${currentIndex}`;
+            
+            // Skip rendering if processingSwipe and not the current card
+            if (processingSwipe && index > 0) return null;
             
             return (
               <div 
@@ -581,7 +609,7 @@ const DiscoverTab = ({
           <Heart size={32} />
         </button>
 
-        {/* Extra button (empty or for symmetry) */}
+        {/* Extra button (or empty) */}
         <button 
           onClick={handleRekindle}
           disabled={processingSwipe}
@@ -603,27 +631,6 @@ const DiscoverTab = ({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
             className="absolute bottom-36 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full flex items-center shadow-md"
-          >
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-              className="mr-2"
-            >
-              <Loader size={16} className="text-blue-500" />
-            </motion.div>
-            <span className="text-sm text-gray-600">Finding more gym partners...</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
-      {/* Refresh indicator */}
-      <AnimatePresence>
-        {refreshing && (
-          <motion.div 
-            initial={{ y: -50, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -50, opacity: 0 }}
-            className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full flex items-center shadow-md"
           >
             <motion.div
               animate={{ rotate: 360 }}
@@ -666,8 +673,10 @@ const DiscoverTab = ({
           onClose={() => {
             console.log("Manual close of match modal");
             setShowMatchModal(false);
-            // Advance to next profile on close
-            setCurrentIndex(prev => prev + 1);
+            // Advance to next profile on close with a slight delay
+            setTimeout(() => {
+              setCurrentIndex(prev => prev + 1);
+            }, 300);
           }}
           onSendMessage={handleSendMessage}
           onKeepSwiping={handleKeepSwiping}
