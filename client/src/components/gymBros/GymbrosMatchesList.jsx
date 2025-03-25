@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Heart, Lock, MessageCircle, Star, Shield, ChevronRight, 
+  Dumbbell, Lock, MessageCircle, Star, Shield, ChevronRight, 
   ChevronLeft, Sparkles, Zap, Users, Info, Flame
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -207,7 +207,7 @@ const GymbrosMatchesList = () => {
           animate={{ rotate: 360 }}
           transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
         >
-          <Heart size={32} className="text-red-500" />
+          <Dumbbell size={32} className="text-blue-500" />
         </motion.div>
         <p className="ml-4 text-gray-600">Loading your matches...</p>
       </div>

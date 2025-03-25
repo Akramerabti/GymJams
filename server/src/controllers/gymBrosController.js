@@ -846,8 +846,110 @@ export const getGymBrosMatches = async (req, res) => {
   }
 };
 
-// GET "Who liked me" - Premium feature
-export const getWhoLikedMe = async (req, res) => {
+// Corrected functions for server/src/controllers/gymBrosController.js
+// Returns users who liked me WITHOUT existing matches
+
+// Helper function to find all users who liked the current user, excluding matches
+export const findUsersWhoLikedMe = async (effectiveUser) => {
+  try {
+    // Create arrays to store all possible IDs for the current user
+    let userIds = [];
+    let profileIds = [];
+
+    // For logged-in users, collect both userId and profileId (if exists)
+    if (effectiveUser.userId) {
+      userIds.push(effectiveUser.userId);
+      
+      // Also get their profile ID if they have one
+      const userProfile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+      if (userProfile) {
+        profileIds.push(userProfile._id);
+      }
+    } 
+    
+    // For guest users who have a profileId
+    if (effectiveUser.profileId) {
+      profileIds.push(effectiveUser.profileId);
+    }
+    
+    // Convert all IDs to strings for comparison
+    const allCurrentUserIds = [
+      ...userIds.map(id => id.toString()),
+      ...profileIds.map(id => id.toString())
+    ];
+    
+    logger.debug(`Finding users who liked me - Current user IDs: ${allCurrentUserIds.join(', ')}`);
+    
+    // Find all preferences where the current user's IDs are in likedProfiles
+    let whoLikedMePrefs = [];
+    
+    // Check for likes targeting userId
+    if (userIds.length > 0) {
+      const userIdLikes = await GymBrosPreference.find({
+        likedProfiles: { $in: userIds }
+      });
+      whoLikedMePrefs = [...whoLikedMePrefs, ...userIdLikes];
+    }
+    
+    // Check for likes targeting profileId
+    if (profileIds.length > 0) {
+      const profileIdLikes = await GymBrosPreference.find({
+        likedProfiles: { $in: profileIds }
+      });
+      whoLikedMePrefs = [...whoLikedMePrefs, ...profileIdLikes];
+    }
+    
+    // Extract all possible IDs from the preferences (both userId and profileId)
+    const whoLikedMeIds = new Set();
+    whoLikedMePrefs.forEach(pref => {
+      if (pref.userId) whoLikedMeIds.add(pref.userId.toString());
+      if (pref.profileId) whoLikedMeIds.add(pref.profileId.toString());
+    });
+    
+    logger.debug(`Found ${whoLikedMeIds.size} users who liked current user`);
+    
+    // Now find existing matches to exclude them
+    let existingMatches = [];
+    
+    // Check for matches with any of the current user's IDs
+    for (const currentId of allCurrentUserIds) {
+      const matches = await GymBrosMatch.find({
+        users: currentId,
+        active: true
+      });
+      existingMatches = [...existingMatches, ...matches];
+    }
+    
+    // Extract all users who are already matched with current user
+    const matchedUserIds = new Set();
+    existingMatches.forEach(match => {
+      match.users.forEach(matchUserId => {
+        const matchUserIdStr = matchUserId.toString();
+        // Only add if it's not one of the current user's IDs
+        if (!allCurrentUserIds.includes(matchUserIdStr)) {
+          matchedUserIds.add(matchUserIdStr);
+        }
+      });
+    });
+    
+    logger.debug(`Found ${matchedUserIds.size} existing matches to exclude`);
+    
+    // Filter out users who are already matched
+    const potentialMatches = Array.from(whoLikedMeIds).filter(id => 
+      !matchedUserIds.has(id) && !allCurrentUserIds.includes(id)
+    );
+
+    console.log('Potential matches:', potentialMatches);
+    
+    return potentialMatches;
+  } catch (error) {
+    logger.error('Error in findUsersWhoLikedMe:', error);
+    return [];
+  }
+};
+
+// GET count of "Who Liked Me" profiles
+export const getWhoLikedMeCount = async (req, res) => {
   try {
     const effectiveUser = getEffectiveUser(req);
     
@@ -858,70 +960,119 @@ export const getWhoLikedMe = async (req, res) => {
       });
     }
     
-    const userIdentifier = effectiveUser.userId || effectiveUser.profileId;
+    // Get users who have liked the current user but aren't matched yet
+    const potentialMatches = await findUsersWhoLikedMe(effectiveUser);
     
-    // Get users who have liked the current user but haven't been matched yet
-    const potentialMatches = await findPotentialMatches(userIdentifier);
-    
-    // Get user preferences to exclude already liked/disliked profiles
-    const prefQuery = effectiveUser.userId 
-      ? { userId: effectiveUser.userId } 
-      : { profileId: effectiveUser.profileId };
-    
-    const userPrefs = await GymBrosPreference.findOne(prefQuery);
-    
-    // Filter out users already liked/disliked by the current user
-    const filteredPotentialMatches = potentialMatches.filter(id => {
-      if (!userPrefs) return true;
+    // Include guest token in response if applicable
+    if (effectiveUser.isGuest) {
+      const guestToken = generateGuestToken(effectiveUser.phone, effectiveUser.profileId);
+      logger.debug(`getWhoLikedMeCount: Generated guest token for response`);
       
-      // Exclude if already liked or disliked
-      return !userPrefs.likedProfiles?.some(likedId => likedId.toString() === id.toString()) &&
-             !userPrefs.dislikedProfiles?.some(dislikedId => dislikedId.toString() === id.toString());
-    });
-    
-    // Get profiles for these users
-    const profiles = await GymBrosProfile.find({
-      $or: [
-        { userId: { $in: filteredPotentialMatches } },
-        { _id: { $in: filteredPotentialMatches } }
-      ]
-    });
-    
-    // Check if user has premium access
-    const isPremium = req.user?.isPremium || false; // You'll need to implement this check properly
-    
-    if (isPremium) {
-      // Return full profile data for premium users
-      res.json({ 
-        whoLikedMe: profiles, 
-        premium: true 
-      });
-    } else {
-      // Return limited data for non-premium users (blurred previews)
-      const blurredProfiles = profiles.map(profile => ({
-        _id: profile._id,
-        name: profile.name?.charAt(0) + '...',
-        age: profile.age,
-        blurred: true,
-        premium: false,
-        // Limited information
-        matchScore: 'High', // Generic indicator
-        messagePreview: 'Upgrade to see who likes you!'
-      }));
-      
-      res.json({ 
-        whoLikedMe: blurredProfiles, 
-        premium: false,
-        totalCount: profiles.length,
-        message: 'Upgrade to premium to see users who liked you'
+      return res.json({
+        count: potentialMatches.length,
+        guestToken,
+        isGuest: true
       });
     }
+    
+    // For logged-in users, just return the count
+    return res.json(potentialMatches.length);
   } catch (error) {
-    logger.error('Error in getWhoLikedMe:', error);
-    res.status(500).json({ error: 'Failed to retrieve users who liked you' });
+    logger.error('Error in getWhoLikedMeCount:', error);
+    res.status(500).json({ error: 'Failed to retrieve who liked me count' });
   }
 };
 
+// GET profiles of "Who Liked Me" with limited information
+export const getWhoLikedMeProfiles = async (req, res) => {
+  try {
+    const effectiveUser = getEffectiveUser(req);
+    
+    if (!effectiveUser.userId && !effectiveUser.profileId) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+    
+    // Get users who have liked the current user but aren't matched yet
+    const potentialMatches = await findUsersWhoLikedMe(effectiveUser);
+    
+    if (potentialMatches.length === 0) {
+      // No users have liked the current user (or they're all already matched)
+      if (effectiveUser.isGuest) {
+        const guestToken = generateGuestToken(effectiveUser.phone, effectiveUser.profileId);
+        return res.json({
+          profiles: [],
+          premium: false,
+          guestToken,
+          isGuest: true
+        });
+      }
+      return res.json([]);
+    }
+    
+    // Convert string IDs to ObjectIds for database query
+    const objectIdMatches = potentialMatches.map(id => {
+      try {
+        return new mongoose.Types.ObjectId(id);
+      } catch (err) {
+        logger.warn(`Invalid ObjectId: ${id}`);
+        return null;
+      }
+    }).filter(id => id !== null);
+    
+    // Get profiles for these users with limited information
+    // Need to look up by both userId and _id (profile ID)
+    const profiles = await GymBrosProfile.find({
+      $or: [
+        { userId: { $in: objectIdMatches } },
+        { _id: { $in: objectIdMatches } }
+      ]
+    }).select('_id name age profileImage images'); // Only select needed fields
+    
+    // Check if this is a premium user or someone paying with points
+    const isPremium = req.query.premium === 'true' || req.query.usedPoints === 'true';
+    
+    // For non-premium users, blur/limit the information
+    const limitedProfiles = profiles.map(profile => {
+      const profileData = profile.toObject();
+      
+      if (!isPremium) {
+        // For non-premium users, limit the information
+        return {
+          _id: profileData._id,
+          name: profileData.name.charAt(0) + '...',
+          age: profileData.age,
+          blurred: true,
+          profileImage: profileData.profileImage,
+          // No additional information for non-premium
+        };
+      }
+      
+      // Return full profile data for premium users
+      return profileData;
+    });
+    
+    // Include guest token in response if applicable
+    if (effectiveUser.isGuest) {
+      const guestToken = generateGuestToken(effectiveUser.phone, effectiveUser.profileId);
+      
+      return res.json({
+        profiles: limitedProfiles,
+        premium: isPremium,
+        guestToken,
+        isGuest: true
+      });
+    }
+    
+    // For logged-in users
+    return res.json(limitedProfiles);
+  } catch (error) {
+    logger.error('Error in getWhoLikedMeProfiles:', error);
+    res.status(500).json({ error: 'Failed to retrieve who liked me profiles' });
+  }
+};
 export const updateUserPreferences = async (req, res) => {
   try {
     const effectiveUser = getEffectiveUser(req);

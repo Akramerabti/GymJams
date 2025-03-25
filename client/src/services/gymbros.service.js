@@ -430,26 +430,44 @@ async dislikeProfile(profileId, viewDuration = 0) {
     throw error;
   }
 },
-  async getMatches() {
-    try {
-      // Add guest token
-      const config = this.configWithGuestToken();
-      
-      const response = await api.get('/gym-bros/matches', config);
+  
+// Fix the getMatches function in gymbros.service.js
+async getMatches() {
+  try {
+    // Add guest token
+    const config = this.configWithGuestToken();
+    
+    const response = await api.get('/gym-bros/matches', config);
 
-      console.log('Matches response:', response.data);
-      
-      // Update guest token if returned
-      if (response.data.guestToken) {
-        this.setGuestToken(response.data.guestToken);
-      }
-      
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching matches:', error);
-      throw error;
+    console.log('Matches response:', response.data);
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
     }
-  },
+    
+    // Handle different response structures for logged-in users vs. guest users
+    let matchesData;
+    
+    if (Array.isArray(response.data)) {
+      // Response for logged-in users is already an array
+      matchesData = response.data;
+    } else if (response.data && Array.isArray(response.data.matches)) {
+      // Response for guest users has matches in a property
+      matchesData = response.data.matches;
+    } else {
+      // Fallback for unexpected format
+      console.warn('Unexpected matches response format:', response.data);
+      matchesData = [];
+    }
+    
+    console.log('[GymBros] Matches received:', matchesData.length);
+    return matchesData;
+  } catch (error) {
+    console.error('Error fetching matches:', error);
+    return []; // Return empty array on error to prevent UI crashes
+  }
+},
 
   async getUserPreferences() {
     try {
@@ -878,7 +896,6 @@ async getMatchesWithPreview() {
   }
 },
 
-// Get count of users who liked me (for premium feature)
 async getWhoLikedMeCount() {
   try {
     // Set up guest token in config
@@ -891,12 +908,50 @@ async getWhoLikedMeCount() {
       this.setGuestToken(response.data.guestToken);
     }
     
-    return response.data.count || 0;
+    // Handle different response formats
+    if (typeof response.data === 'number') {
+      return response.data;
+    } else if (response.data && typeof response.data.count === 'number') {
+      return response.data.count;
+    } else {
+      console.warn('Unexpected response format from who-liked-me/count:', response.data);
+      return 0;
+    }
   } catch (error) {
     console.error('Error fetching who liked me count:', error);
     return 0; // Return 0 on error as a safe default
   }
-}
+},
+
+// Add a function to get the profiles who liked the user (limited info)
+async getWhoLikedMeProfiles() {
+  try {
+    const config = this.configWithGuestToken();
+    
+    const response = await api.get('/gym-bros/who-liked-me', config);
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    // Handle different response formats
+    let profiles = [];
+    
+    if (Array.isArray(response.data)) {
+      profiles = response.data;
+    } else if (response.data && Array.isArray(response.data.profiles)) {
+      profiles = response.data.profiles;
+    } else {
+      console.warn('Unexpected response format from who-liked-me:', response.data);
+    }
+    
+    return profiles;
+  } catch (error) {
+    console.error('Error fetching who liked me profiles:', error);
+    return []; // Return empty array on error
+  }
+},
 
 };
 

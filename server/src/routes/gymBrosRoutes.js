@@ -27,7 +27,8 @@ import {
   verifyCode,
   checkGymBrosProfileByPhone,
   convertGuestToUser,
-  getWhoLikedMe,
+  getWhoLikedMeCount,
+  getWhoLikedMeProfiles,
 } from '../controllers/gymBrosController.js';
 
 // Apply guest user middleware to all routes
@@ -81,7 +82,11 @@ router.post('/dislike/:profileId', optionalAuthenticate, dislikeGymBrosProfile);
 // Get user matches - works with guests
 router.get('/matches', optionalAuthenticate, getGymBrosMatches);
 
-router.get('/who-liked-me', getWhoLikedMe);
+// Get count of users who liked me
+router.get('/who-liked-me/count', optionalAuthenticate, getWhoLikedMeCount);
+
+// Get profiles of users who liked me (with limited info for non-premium)
+router.get('/who-liked-me', optionalAuthenticate, getWhoLikedMeProfiles);
 
 // Phone verification routes - no authentication required
 router.post('/check-phone', checkPhoneExists);

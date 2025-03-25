@@ -629,177 +629,172 @@ export const checkForMatch = async (userId, targetId, isGuest = false) => {
   try {
     logger.info(`Checking for match between ${userId} and ${targetId}, isGuest: ${isGuest}`);
     
-    // Step 1: Initialize arrays to collect ALL possible identifiers for both users
-    const sourceIds = [];
-    const targetIds = [];
+    // Step 1: Determine all relevant IDs
+    const userProfiles = new Map(); // Map to store user ID -> profile ID relationships
+    const profileUsers = new Map(); // Map to store profile ID -> user ID relationships
     
-    // Step 2: Find profiles and collect all possible IDs for source user
-    let sourceProfile = null;
+    // Find the source user/profile details
+    let sourceUserId = null;
+    let sourceProfileId = null;
     
-    // Try to find by direct ID first (could be profileId)
-    if (mongoose.Types.ObjectId.isValid(userId)) {
-      sourceProfile = await GymBrosProfile.findById(userId);
-      if (sourceProfile) {
-        sourceIds.push(sourceProfile._id.toString());
-        // If this profile has a userId, add that too
-        if (sourceProfile.userId) {
-          sourceIds.push(sourceProfile.userId.toString());
+    // If request is from a guest user, userId parameter is actually the profile ID
+    if (isGuest) {
+      sourceProfileId = userId;
+      // Try to find if this profile has an associated user
+      const profile = await GymBrosProfile.findById(sourceProfileId);
+      if (profile && profile.userId) {
+        sourceUserId = profile.userId;
+        userProfiles.set(sourceUserId.toString(), sourceProfileId.toString());
+        profileUsers.set(sourceProfileId.toString(), sourceUserId.toString());
+      }
+    } else {
+      // For logged-in users, userId is their actual user ID
+      sourceUserId = userId;
+      // Find their profile ID
+      const profile = await GymBrosProfile.findOne({ userId: sourceUserId });
+      if (profile) {
+        sourceProfileId = profile._id;
+        userProfiles.set(sourceUserId.toString(), sourceProfileId.toString());
+        profileUsers.set(sourceProfileId.toString(), sourceUserId.toString());
+      }
+    }
+    
+    // Find target user/profile details
+    let targetUserId = null;
+    let targetProfileId = null;
+    
+    // Check if targetId is a profile ID or user ID by trying to load a profile with it
+    const targetProfile = await GymBrosProfile.findById(targetId);
+    if (targetProfile) {
+      targetProfileId = targetId;
+      if (targetProfile.userId) {
+        targetUserId = targetProfile.userId;
+        userProfiles.set(targetUserId.toString(), targetProfileId.toString());
+        profileUsers.set(targetProfileId.toString(), targetUserId.toString());
+      }
+    } else {
+      // Target ID might be a user ID
+      targetUserId = targetId;
+      const profile = await GymBrosProfile.findOne({ userId: targetUserId });
+      if (profile) {
+        targetProfileId = profile._id;
+        userProfiles.set(targetUserId.toString(), targetProfileId.toString());
+        profileUsers.set(targetProfileId.toString(), targetUserId.toString());
+      }
+    }
+
+    if (!sourceUserId && !sourceProfileId) {
+      logger.error("Cannot identify source user/profile");
+      return false;
+    }
+    
+    if (!targetUserId && !targetProfileId) {
+      logger.error("Cannot identify target user/profile");
+      return false;
+    }
+    
+    // Step 2: Check if target has liked source
+    let targetHasLikedSource = false;
+    
+    // Find preferences for the target (based on either user ID or profile ID)
+    let targetPrefs = null;
+    if (targetUserId) {
+      targetPrefs = await GymBrosPreference.findOne({ userId: targetUserId });
+    }
+    if (!targetPrefs && targetProfileId) {
+      targetPrefs = await GymBrosPreference.findOne({ profileId: targetProfileId });
+    }
+    
+    if (!targetPrefs) {
+      logger.info(`No preferences found for target`);
+      return false;
+    }
+    
+    // Check if source's ID is in target's liked profiles
+    if (targetPrefs.likedProfiles && targetPrefs.likedProfiles.length > 0) {
+      for (const likedId of targetPrefs.likedProfiles) {
+        const likedIdStr = likedId.toString();
+        
+        // Check if liked ID matches any of source's IDs (user or profile)
+        if (
+          (sourceUserId && likedIdStr === sourceUserId.toString()) ||
+          (sourceProfileId && likedIdStr === sourceProfileId.toString())
+        ) {
+          targetHasLikedSource = true;
+          break;
         }
       }
-      
-      // Also add the original ID passed in
-      sourceIds.push(userId.toString());
     }
     
-    // If not found or not a valid ObjectId, check if it's a userId
-    if (!sourceProfile && !isGuest) {
-      sourceProfile = await GymBrosProfile.findOne({ userId });
-      if (sourceProfile) {
-        sourceIds.push(sourceProfile._id.toString());
-        sourceIds.push(userId.toString());
-      }
-    }
-    
-    // For guest users, we must have found a profile
-    if (isGuest && !sourceProfile) {
-      logger.error(`Cannot find source profile for guest with ID: ${userId}`);
+    if (!targetHasLikedSource) {
+      logger.info(`No mutual like found between users`);
       return false;
     }
     
-    // Step 3: Find profiles and collect all possible IDs for target user
-    let targetProfile = null;
+    // Step 3: Check if match already exists
+    // Check for existing match between these users (using USER IDs if available)
+    let matchQuery = { active: true };
     
-    // Try to find target by direct ID first (could be profileId)
-    if (mongoose.Types.ObjectId.isValid(targetId)) {
-      targetProfile = await GymBrosProfile.findById(targetId);
-      if (targetProfile) {
-        targetIds.push(targetProfile._id.toString());
-        // If this profile has a userId, add that too
-        if (targetProfile.userId) {
-          targetIds.push(targetProfile.userId.toString());
-        }
-      }
-      
-      // Also add the original ID passed in
-      targetIds.push(targetId.toString());
+    // We prefer to use user IDs for matching, but fall back to profile IDs if necessary
+    if (sourceUserId && targetUserId) {
+      // If both have user IDs, use them
+      matchQuery.users = { $all: [sourceUserId, targetUserId] };
+    } else if (sourceUserId && targetProfileId) {
+      // Use source user ID and target profile ID
+      matchQuery.users = { $all: [sourceUserId, targetProfileId] };
+    } else if (sourceProfileId && targetUserId) {
+      // Use source profile ID and target user ID
+      matchQuery.users = { $all: [sourceProfileId, targetUserId] };
+    } else {
+      // Fallback to profile IDs
+      matchQuery.users = { $all: [sourceProfileId, targetProfileId] };
     }
     
-    // If not found or not a valid ObjectId, check if it's a userId
-    if (!targetProfile) {
-      targetProfile = await GymBrosProfile.findOne({ userId: targetId });
-      if (targetProfile) {
-        targetIds.push(targetProfile._id.toString());
-        targetIds.push(targetId.toString());
-      }
-    }
+    const existingMatch = await GymBrosMatch.findOne(matchQuery);
     
-    // If target profile is still not found, we can't match
-    if (!targetProfile) {
-      logger.error(`Target profile not found for ID: ${targetId}`);
-      return false;
-    }
-    
-    // Step 4: Find additional IDs from preferences
-    
-    // Add IDs from source preferences if they exist
-    const sourcePrefs = await GymBrosPreference.find({
-      $or: [
-        { userId: { $in: sourceIds } },
-        { profileId: { $in: sourceIds } }
-      ]
-    });
-    
-    sourcePrefs.forEach(pref => {
-      sourceIds.push(pref._id.toString());
-      if (pref.userId) sourceIds.push(pref.userId.toString());
-      if (pref.profileId) sourceIds.push(pref.profileId.toString());
-    });
-    
-    // Add IDs from target preferences if they exist
-    const targetPrefs = await GymBrosPreference.find({
-      $or: [
-        { userId: { $in: targetIds } },
-        { profileId: { $in: targetIds } }
-      ]
-    });
-    
-    targetPrefs.forEach(pref => {
-      targetIds.push(pref._id.toString());
-      if (pref.userId) targetIds.push(pref.userId.toString());
-      if (pref.profileId) targetIds.push(pref.profileId.toString());
-    });
-    
-    // Remove duplicates from ID arrays
-    const uniqueSourceIds = [...new Set(sourceIds)];
-    const uniqueTargetIds = [...new Set(targetIds)];
-    
-    logger.debug(`Source IDs: ${uniqueSourceIds.join(', ')}`);
-    logger.debug(`Target IDs: ${uniqueTargetIds.join(', ')}`);
-    
-    // Step 5: Check if target has liked the source
-    // Get all preferences that could contain likes from the target
-    const targetPreference = targetPrefs[0]; // Use the first preference record found
-    
-    if (!targetPreference || !targetPreference.likedProfiles || targetPreference.likedProfiles.length === 0) {
-      logger.info(`No likes found from target ${targetId}`);
-      return false;
-    }
-    
-    // Check if any of the source IDs are in the target's liked profiles
-    const hasMutualLike = targetPreference.likedProfiles.some(likedId => {
-      const likedIdStr = likedId.toString();
-      return uniqueSourceIds.includes(likedIdStr);
-    });
-    
-    // Step 6: If mutual like exists, create a match if not already present
-    if (hasMutualLike) {
-      logger.info(`Found mutual like between ${userId} and ${targetId}`);
-      
-      // Use profile IDs for the match record
-      const sourceProfileId = sourceProfile._id;
-      const targetProfileId = targetProfile._id;
-      
-      // Check if match already exists
-      const existingMatch = await GymBrosMatch.findOne({
-        users: { $all: [sourceProfileId, targetProfileId] }
-      });
-      
-      if (existingMatch) {
-        logger.info(`Match already exists between ${sourceProfileId} and ${targetProfileId}`);
-        return true;
-      }
-      
-      // Create a new match
-      const newMatch = new GymBrosMatch({
-        users: [sourceProfileId, targetProfileId],
-        createdAt: new Date(),
-        active: true
-      });
-      
-      await newMatch.save();
-      logger.info(`Created new match between ${sourceProfileId} and ${targetProfileId}`);
-      
-      // Update match metrics for both profiles
-      await GymBrosProfile.updateOne(
-        { _id: sourceProfile._id },
-        { $inc: { 'metrics.matches': 1 } }
-      );
-      
-      await GymBrosProfile.updateOne(
-        { _id: targetProfile._id },
-        { $inc: { 'metrics.matches': 1 } }
-      );
-      
+    if (existingMatch) {
+      logger.info(`Match already exists between users`);
       return true;
     }
     
-    logger.info(`No mutual like found between ${userId} and ${targetId}`);
-    return false;
+    // Step 4: Create a new match - PREFERING USER IDs
+    // Always use USER IDs when available for creating matches
+    const user1 = sourceUserId || sourceProfileId;
+    const user2 = targetUserId || targetProfileId;
+    
+    logger.info(`Creating match between ${user1} and ${user2}`);
+    
+    const newMatch = new GymBrosMatch({
+      users: [user1, user2],
+      active: true,
+      messages: [],
+      quality: 0
+    });
+    
+    await newMatch.save();
+    
+    // Update metrics for both profiles
+    if (sourceProfileId) {
+      await GymBrosProfile.updateOne(
+        { _id: sourceProfileId },
+        { $inc: { 'metrics.matches': 1 } }
+      );
+    }
+    
+    if (targetProfileId) {
+      await GymBrosProfile.updateOne(
+        { _id: targetProfileId },
+        { $inc: { 'metrics.matches': 1 } }
+      );
+    }
+    
+    return true;
   } catch (error) {
     logger.error(`Error checking for match: ${error.message}`, error);
     return false;
   }
-};
+}
+
 
 export const findPotentialMatches = async (userIdentifiers) => {
   try {
