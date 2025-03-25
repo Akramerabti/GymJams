@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
 import { Upload, X, Crop, Loader, Info } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { 
   DndContext, 
@@ -192,38 +193,245 @@ const DragPreview = ({ url }) => {
   );
 };
 
-// Image Cropper Modal Component
+// Image Cropper Modal Component with improved UI and image handling
 const ImageCropperModal = ({ image, onCropComplete, onCropCancel }) => {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [debugInfo, setDebugInfo] = useState({ imageType: null, imageLength: null, error: null });
+  const [formattedImageUrl, setFormattedImageUrl] = useState(null);
+  
+  // Format the image URL based on its type - improved to handle more cases
+  useEffect(() => {
+    if (!image) return;
+    
+    let formattedUrl = image;
+    
+    console.log('Formatting image URL:', image);
+    
+    // Case 1: If it's a blob URL, use it directly
+    if (typeof image === 'string' && image.startsWith('blob:')) {
+      // No change needed for blob URLs
+      console.log('Using blob URL directly:', image);
+      setFormattedImageUrl(image);
+      return;
+    }
+    
+    // Case 2: If it's a server path starting with /uploads/, add the API base URL
+    if (typeof image === 'string' && image.startsWith('/uploads/')) {
+      // Construct the full URL to the API server where the actual file is
+      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      formattedUrl = `${apiBaseUrl}${image}`;
+      console.log('Formatted server path to API URL:', formattedUrl);
+      setFormattedImageUrl(formattedUrl);
+      return;
+    }
+    
+    // Case 3: Any other URL format (http, https, etc.)
+    console.log('Using image URL as-is:', image);
+    setFormattedImageUrl(image);
+  }, [image]);
+  
+  // Log what image value we're receiving to help with debugging
+  useEffect(() => {
+    if (formattedImageUrl) {
+      console.log('Final formatted image URL:', formattedImageUrl);
+    }
+  }, [formattedImageUrl]);
+
+  // Handle image load error better
+  useEffect(() => {
+    // Don't try to load if we don't have the formatted URL yet
+    if (!formattedImageUrl) return;
+    
+    const preloadImage = async () => {
+      try {
+        console.log('Attempting to preload image:', formattedImageUrl);
+        
+        // Early validation
+        if (!formattedImageUrl) {
+          throw new Error('No image provided to cropper');
+        }
+        
+        if (typeof formattedImageUrl !== 'string') {
+          throw new Error(`Invalid image type: ${typeof formattedImageUrl}. Expected string URL`);
+        }
+        
+        setDebugInfo({
+          imageType: typeof formattedImageUrl,
+          imageLength: typeof formattedImageUrl === 'string' ? formattedImageUrl.length : null,
+          error: null
+        });
+        
+        await new Promise((resolve, reject) => {
+          const img = new Image();
+          
+          // Only set crossOrigin for remote URLs, not for blob URLs
+          if ((formattedImageUrl.startsWith('http://') || formattedImageUrl.startsWith('https://')) && 
+              !formattedImageUrl.startsWith('blob:')) {
+            img.crossOrigin = "anonymous";
+            console.log('Setting crossOrigin for remote URL');
+          }
+          
+          img.onload = () => {
+            console.log('Image successfully loaded:', {
+              width: img.width,
+              height: img.height,
+              src: img.src
+            });
+            setImageLoaded(true);
+            resolve();
+          };
+          
+          img.onerror = (e) => {
+            console.error('Failed to preload image:', e);
+            setDebugInfo(prev => ({ 
+              ...prev, 
+              error: `Image load error: ${e.type || 'Unknown error'}`
+            }));
+            reject(new Error('Failed to load image'));
+          };
+          
+          img.src = formattedImageUrl;
+          console.log('Image src assigned:', img.src);
+        });
+      } catch (error) {
+        console.error('Image preload error:', error);
+        setDebugInfo(prev => ({ ...prev, error: error.message }));
+        toast.error(`Error loading image: ${error.message}`);
+        onCropCancel();
+      }
+    };
+
+    preloadImage();
+  }, [formattedImageUrl, onCropCancel]);
 
   const handleCropComplete = useCallback((croppedArea, croppedAreaPixels) => {
     setCroppedAreaPixels(croppedAreaPixels);
   }, []);
 
-  const handleSave = async () => {
-    if (!croppedAreaPixels) return;
+  // Alternative approach for handling the crop operation - use Image.decode()
+const handleSave = async () => {
+  if (!croppedAreaPixels) return;
+  
+  setLoading(true);
+  
+  try {
+    console.log('Starting crop operation with:', {
+      croppedAreaPixels,
+      imageUrl: formattedImageUrl
+    });
     
-    setLoading(true);
+    // Create a canvas to draw the cropped image
+    const canvas = document.createElement('canvas');
+    const img = new Image();
     
-    try {
-      // Create a canvas to draw the cropped image
-      const canvas = document.createElement('canvas');
-      const img = new Image();
+    // Use the formatted URL for the image source
+    const imageSource = formattedImageUrl || image;
+    console.log('Using image source for cropping:', imageSource);
+    
+    // Set crossOrigin for all images that are not blob URLs
+    if (!imageSource.startsWith('blob:')) {
       img.crossOrigin = "anonymous";
-      
-      // Load the image
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = image;
-      });
-      
+      console.log('Setting crossOrigin for cropping');
+    }
+    
+    // WORKAROUND: For server-side images, try to pre-fetch the image with fetch API
+    // This can help with CORS issues in some cases
+    if (imageSource.includes('/uploads/') && !imageSource.startsWith('blob:')) {
+      try {
+        console.log('Attempting to pre-fetch image with fetch API...');
+        const response = await fetch(imageSource, { 
+          mode: 'cors',
+          credentials: 'omit'
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        console.log('Created object URL from fetched image:', objectUrl);
+        
+        // Use the object URL instead
+        img.src = objectUrl;
+        
+        // Clean up the object URL when done
+        const cleanup = () => {
+          setTimeout(() => {
+            URL.revokeObjectURL(objectUrl);
+            console.log('Revoked object URL after cropping');
+          }, 1000);
+        };
+        
+        try {
+          // Modern browsers support Image.decode() which ensures image is fully loaded
+          if (typeof img.decode === 'function') {
+            await img.decode();
+            console.log('Image decoded successfully');
+          } else {
+            // Fallback for browsers that don't support decode()
+            await new Promise((resolve, reject) => {
+              img.onload = resolve;
+              img.onerror = reject;
+            });
+          }
+          
+          // Continue with drawing to canvas
+          setupCanvasAndDraw();
+          cleanup();
+          
+        } catch (decodeError) {
+          console.error('Image decode failed:', decodeError);
+          cleanup();
+          throw decodeError;
+        }
+      } catch (fetchError) {
+        console.error('Failed to pre-fetch image:', fetchError);
+        // Fall back to regular loading
+        regularImageLoading();
+      }
+    } else {
+      // For blob URLs or other URLs, use regular loading
+      regularImageLoading();
+    }
+    
+    // Regular image loading function
+    async function regularImageLoading() {
+      try {
+        // Set up src and wait for load
+        await new Promise((resolve, reject) => {
+          img.onload = () => {
+            console.log('Image loaded normally, dimensions:', {
+              width: img.width,
+              height: img.height
+            });
+            resolve();
+          };
+          img.onerror = (e) => {
+            console.error('Error loading image normally:', e);
+            reject(new Error('Failed to load image for cropping'));
+          };
+          
+          img.src = imageSource;
+        });
+        
+        // Continue with drawing to canvas
+        setupCanvasAndDraw();
+      } catch (error) {
+        throw error;
+      }
+    }
+    
+    // Function to set up canvas and draw the cropped image
+    function setupCanvasAndDraw() {
       // Set canvas dimensions to cropped dimensions
       canvas.width = croppedAreaPixels.width;
       canvas.height = croppedAreaPixels.height;
+      console.log('Canvas dimensions set:', canvas.width, 'x', canvas.height);
       
       const ctx = canvas.getContext('2d');
       
@@ -240,73 +448,125 @@ const ImageCropperModal = ({ image, onCropComplete, onCropCancel }) => {
         croppedAreaPixels.height
       );
       
-      // Convert canvas to blob
-      const blob = await new Promise(resolve => {
-        canvas.toBlob(resolve, 'image/jpeg', 0.95);
-      });
+      console.log('Image drawn to canvas, converting to blob...');
       
-      // Create a File object from the blob
-      const croppedFile = new File(
-        [blob],
-        `cropped-${Date.now()}.jpg`,
-        { type: 'image/jpeg' }
-      );
-      
-      onCropComplete(croppedFile);
-    } catch (error) {
-      console.error('Error cropping image:', error);
-      toast.error('Failed to crop image');
-    } finally {
-      setLoading(false);
+      // Convert canvas to blob and create file
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          throw new Error('Failed to create blob from canvas');
+        }
+        
+        console.log('Blob created, size:', blob.size, 'bytes');
+        
+        // Create a File object from the blob
+        const croppedFile = new File(
+          [blob],
+          `cropped-${Date.now()}.jpg`,
+          { type: 'image/jpeg' }
+        );
+        
+        console.log('File created, calling onCropComplete');
+        onCropComplete(croppedFile);
+        setLoading(false);
+      }, 'image/jpeg', 0.95);
     }
-  };
+    
+  } catch (error) {
+    console.error('Detailed crop error:', error);
+    toast.error('Failed to crop image: ' + error.message);
+    setLoading(false);
+  }
+};
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
-        <div className="p-4 flex items-center justify-between border-b">
-          <button onClick={onCropCancel} className="p-2">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-xl"
+      >
+        <div className="p-3 flex items-center justify-between border-b">
+          <button 
+            onClick={onCropCancel} 
+            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+            aria-label="Cancel"
+          >
             <X size={20} />
           </button>
-          <h2 className="text-lg font-semibold">Crop Image</h2>
           <button 
             onClick={handleSave}
-            disabled={loading}
-            className="p-2 text-blue-500 disabled:text-gray-400"
+            disabled={loading || !imageLoaded}
+            className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:bg-blue-400 transition-colors flex items-center"
           >
-            {loading ? <Loader size={20} className="animate-spin" /> : 'Save'}
+            {loading ? <Loader size={16} className="animate-spin mr-2" /> : null}
+            Save
           </button>
         </div>
         
-        <div className="relative h-[400px] w-full bg-gray-900">
-          <Cropper
-            image={image}
-            crop={crop}
-            zoom={zoom}
-            aspect={7/10}
-            onCropChange={setCrop}
-            onZoomChange={setZoom}
-            onCropComplete={handleCropComplete}
-          />
+        <div className="relative h-[420px] w-full bg-gray-900 flex items-center justify-center">
+          {!imageLoaded ? (
+            <div className="flex flex-col items-center justify-center text-white p-4">
+              <Loader size={32} className="animate-spin mb-2" />
+              <span className="text-sm mb-2">Loading image...</span>
+              
+              {/* Debug information */}
+              {debugInfo.error && (
+                <div className="mt-4 p-3 bg-red-900/40 rounded-lg text-white text-xs max-w-xs overflow-auto">
+                  <p className="font-bold mb-1">Image Error:</p>
+                  <p>{debugInfo.error}</p>
+                  <p className="mt-2 font-bold mb-1">Image Details:</p>
+                  <p>Type: {debugInfo.imageType}</p>
+                  <p>Length: {debugInfo.imageLength}</p>
+                  <p className="mt-2 opacity-70 text-xs">Original URL: {typeof image === 'string' ? image.substring(0, 40) + '...' : 'N/A'}</p>
+                  <p className="opacity-70 text-xs">Formatted URL: {formattedImageUrl ? formattedImageUrl.substring(0, 40) + '...' : 'N/A'}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Cropper
+              image={formattedImageUrl || image}
+              crop={crop}
+              zoom={zoom}
+              aspect={7/10}
+              onCropChange={setCrop}
+              onZoomChange={setZoom}
+              onCropComplete={handleCropComplete}
+              objectFit="contain"
+              showGrid={true}
+              cropShape="rect"
+              classes={{
+                containerClassName: 'h-full w-full'
+              }}
+            />
+          )}
         </div>
         
-        <div className="p-4 bg-white">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-500">Zoom</span>
-            <input
-              type="range"
-              value={zoom}
-              min={1}
-              max={3}
-              step={0.1}
-              onChange={(e) => setZoom(Number(e.target.value))}
-              className="flex-1 mx-4"
-            />
-            <span className="text-sm text-gray-500">{zoom.toFixed(1)}x</span>
+        <div className="p-4 pb-5 bg-white">
+          <div className="flex justify-center">
+            <div className="w-5/6">
+              <input
+                type="range"
+                value={zoom}
+                min={1}
+                max={3}
+                step={0.05}
+                onChange={(e) => setZoom(Number(e.target.value))}
+                className="w-full accent-blue-500"
+                aria-label="Zoom"
+              />
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };
 
@@ -326,7 +586,20 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
   const [activeId, setActiveId] = useState(null);
   const [activeDragItemIndex, setActiveDragItemIndex] = useState(null);
   
-  
+  // Add this effect to the PhotoEditor component for proper blob URL cleanup
+useEffect(() => {
+  // Cleanup function to revoke blob URLs when component unmounts or when cropImage changes
+  return () => {
+    if (cropImage && typeof cropImage === 'string' && cropImage.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(cropImage);
+        console.log('Cleaned up blob URL on unmount or cropImage change:', cropImage);
+      } catch (error) {
+        console.error('Error revoking blob URL:', error);
+      }
+    }
+  };
+}, [cropImage]);
   
   // Initialize with photos from props
   useEffect(() => {
