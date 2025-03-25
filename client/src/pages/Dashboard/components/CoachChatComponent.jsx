@@ -10,7 +10,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
 const CoachChatComponent = ({ onClose, selectedClient }) => {
-  const socket = useSocket();
+  // Get socket object and connection status from context
+  const { socket: socketInstance, connected: socketConnected } = useSocket();
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -18,7 +19,6 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [socketConnected, setSocketConnected] = useState(false);
   
   // Refs for managing chat state
   const typingTimeoutRef = useRef(null);
@@ -115,41 +115,21 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
 
   // Set up socket connection monitoring
   useEffect(() => {
-    if (!socket) return;
+    // Skip if socket is not available
+    if (!socketInstance) return;
     
-    const handleConnect = () => {
-      console.log('Socket connected in coach chat component');
-      setSocketConnected(true);
-      
-      // Re-register user ID when reconnected
-      if (userId) {
-        socket.emit('register', userId);
-      }
-    };
-    
-    const handleDisconnect = () => {
-      console.log('Socket disconnected in coach chat component');
-      setSocketConnected(false);
-    };
-    
-    // Set initial connection state
-    setSocketConnected(socket.connected);
-    
-    // Register event listeners
-    socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
+    console.log('Coach setting up socket connection monitoring');
     
     // Register user with socket
-    if (userId) {
-      socket.emit('register', userId);
-      console.log('Coach registered with socket:', userId);
+    if (userId && socketConnected) {
+      try {
+        socketInstance.emit('register', userId);
+        console.log('Coach registered with socket:', userId);
+      } catch (err) {
+        console.error("Error registering coach with socket:", err);
+      }
     }
-    
-    return () => {
-      socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
-    };
-  }, [socket, userId]);
+  }, [socketInstance, socketConnected, userId]);
 
   // Mark messages as read
   const markMessagesAsRead = useCallback(async (messageIds) => {
@@ -173,24 +153,28 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
       await subscriptionService.markMessagesAsRead(selectedClient.id, messageIds);
       
       // Emit socket event for real-time update to the sender
-      if (socket && socketConnected) {
-        socket.emit('messagesRead', {
-          subscriptionId: selectedClient.id,
-          messageIds,
-          receiverId: clientId
-        });
-        console.log('Read receipt sent via socket to client');
+      if (socketInstance && socketConnected) {
+        try {
+          socketInstance.emit('messagesRead', {
+            subscriptionId: selectedClient.id,
+            messageIds,
+            receiverId: clientId
+          });
+          console.log('Read receipt sent via socket to client');
+        } catch (err) {
+          console.error("Error sending read receipt:", err);
+        }
       }
     } catch (error) {
       console.error('Failed to mark messages as read:', error);
     } finally {
       markingAsRead.current = false;
     }
-  }, [socket, socketConnected, selectedClient?.id, clientId]);
+  }, [socketInstance, socketConnected, selectedClient?.id, clientId]);
 
   // Socket event handlers for messages, typing, and read receipts
   useEffect(() => {
-    if (!socket || !selectedClient?.id || !clientId) return;
+    if (!socketInstance || !selectedClient?.id || !clientId) return;
     
     console.log('Setting up socket event listeners in Coach Chat component');
     
@@ -259,19 +243,28 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
       }
     };
     
-    // Register socket event listeners
-    socket.on('receiveMessage', handleReceiveMessage);
-    socket.on('typing', handleTypingEvent);
-    socket.on('messagesRead', handleMessagesRead);
+    try {
+      // Register socket event listeners
+      socketInstance.on('receiveMessage', handleReceiveMessage);
+      socketInstance.on('typing', handleTypingEvent);
+      socketInstance.on('messagesRead', handleMessagesRead);
+    } catch (err) {
+      console.error("Error setting up socket event listeners:", err);
+    }
     
+    // Cleanup function
     return () => {
       // Clean up event listeners
-      console.log('Cleaning up socket event listeners in Coach Chat component');
-      socket.off('receiveMessage', handleReceiveMessage);
-      socket.off('typing', handleTypingEvent);
-      socket.off('messagesRead', handleMessagesRead);
+      try {
+        console.log('Cleaning up socket event listeners in Coach Chat component');
+        socketInstance.off('receiveMessage', handleReceiveMessage);
+        socketInstance.off('typing', handleTypingEvent);
+        socketInstance.off('messagesRead', handleMessagesRead);
+      } catch (err) {
+        console.error("Error cleaning up socket event listeners:", err);
+      }
     };
-  }, [socket, userId, clientId, selectedClient?.id, markMessagesAsRead, isAtBottom]);
+  }, [socketInstance, userId, clientId, selectedClient?.id, markMessagesAsRead, isAtBottom]);
 
   // Check for unread messages when scrolling
   useEffect(() => {
@@ -300,37 +293,49 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
       clearTimeout(typingTimeoutRef.current);
     }
     
-    if (!socket || !socketConnected || !clientId) return;
+    if (!socketInstance || !socketConnected || !clientId) return;
     
     if (newMessage.trim()) {
       // Start typing indicator
       if (!isTyping) {
         setIsTyping(true);
-        socket.emit('typing', {
-          senderId: userId,
-          receiverId: clientId,
-          isTyping: true
-        });
+        try {
+          socketInstance.emit('typing', {
+            senderId: userId,
+            receiverId: clientId,
+            isTyping: true
+          });
+        } catch (err) {
+          console.error("Error sending typing indicator:", err);
+        }
       }
       
       // Set timer to stop typing indicator
       typingTimeoutRef.current = setTimeout(() => {
         setIsTyping(false);
-        socket.emit('typing', {
-          senderId: userId,
-          receiverId: clientId,
-          isTyping: false
-        });
+        try {
+          socketInstance.emit('typing', {
+            senderId: userId,
+            receiverId: clientId,
+            isTyping: false
+          });
+        } catch (err) {
+          console.error("Error stopping typing indicator:", err);
+        }
       }, 2000);
     } else {
       // If message is empty, stop typing indicator
       if (isTyping) {
         setIsTyping(false);
-        socket.emit('typing', {
-          senderId: userId,
-          receiverId: clientId,
-          isTyping: false
-        });
+        try {
+          socketInstance.emit('typing', {
+            senderId: userId,
+            receiverId: clientId,
+            isTyping: false
+          });
+        } catch (err) {
+          console.error("Error stopping typing indicator:", err);
+        }
       }
     }
     
@@ -339,7 +344,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
         clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, [newMessage, socket, socketConnected, isTyping, userId, clientId]);
+  }, [newMessage, socketInstance, socketConnected, isTyping, userId, clientId]);
 
   // Auto-scroll when messages change
   useEffect(() => {
@@ -384,7 +389,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     
-    if ((!newMessage.trim() && files.length === 0) || !socket || !selectedClient?.id) return;
+    if ((!newMessage.trim() && files.length === 0) || !socketInstance || !selectedClient?.id) return;
     
     try {
       const timestamp = new Date().toISOString();
@@ -409,11 +414,15 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
       setNewMessage('');
       if (isTyping) {
         setIsTyping(false);
-        socket.emit('typing', {
-          senderId: userId,
-          receiverId: clientId,
-          isTyping: false
-        });
+        try {
+          socketInstance.emit('typing', {
+            senderId: userId,
+            receiverId: clientId,
+            isTyping: false
+          });
+        } catch (err) {
+          console.error("Error stopping typing indicator:", err);
+        }
       }
       
       // Upload files if any
@@ -446,18 +455,23 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
       
       // Emit via socket for real-time delivery
       if (socketConnected) {
-        socket.emit('sendMessage', {
-          senderId: userId,
-          receiverId: clientId,
-          content: newMessage.trim(),
-          timestamp: timestamp,
-          file: uploadedFiles.map(file => ({
-            path: file.path,
-            type: file.type
-          })),
-          subscriptionId: selectedClient.id
-        });
-        console.log('Message sent via socket to client');
+        try {
+          socketInstance.emit('sendMessage', {
+            senderId: userId,
+            receiverId: clientId,
+            content: newMessage.trim(),
+            timestamp: timestamp,
+            file: uploadedFiles.map(file => ({
+              path: file.path,
+              type: file.type
+            })),
+            subscriptionId: selectedClient.id
+          });
+          console.log('Message sent via socket to client');
+        } catch (err) {
+          console.error("Error sending message via socket:", err);
+          toast.error('Socket error, message will be saved but may be delayed');
+        }
       } else {
         toast.error('Socket disconnected, message will be saved but may be delayed');
       }
@@ -585,7 +599,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
   
   // Update lastReadMessageId when receiving messagesRead event
   useEffect(() => {
-    if (!socket || !selectedClient?.id) return;
+    if (!socketInstance || !selectedClient?.id) return;
 
     console.log('Setting up messagesRead event listener in coach component');
     
@@ -621,13 +635,17 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
       }
     };
     
-    socket.on('messagesRead', handleMessagesReadEvent);
-    
-    return () => {
-      console.log('Removing messagesRead event listener from coach component');
-      socket.off('messagesRead', handleMessagesReadEvent);
-    };
-  }, [socket, selectedClient?.id, userId]);
+    try {
+      socketInstance.on('messagesRead', handleMessagesReadEvent);
+      
+      return () => {
+        console.log('Removing messagesRead event listener from coach component');
+        socketInstance.off('messagesRead', handleMessagesReadEvent);
+      };
+    } catch (err) {
+      console.error("Error with messagesRead event listener:", err);
+    }
+  }, [socketInstance, selectedClient?.id, userId, messages]);
 
   // Get client name for display
   const clientName = `${selectedClient?.firstName || ''} ${selectedClient?.lastName || ''}`.trim() || 'Client';
