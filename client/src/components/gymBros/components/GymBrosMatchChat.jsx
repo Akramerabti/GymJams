@@ -60,17 +60,10 @@ const GymBrosMatchChat = ({ match, onClose }) => {
           // In a real implementation, this would be replaced with the correct API call
           
           // Example: Placeholder messages based on match information
-          messageData = [
-            {
-              _id: 'welcome-msg',
-              sender: otherUserId,
-              content: `Hi there! I'm ${match.name}. Let's plan a workout together!`,
-              timestamp: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-              read: true
-            }
-          ];
+          // We'll make this an empty array instead of adding a placeholder message
+          messageData = [];
           
-          console.log("Created placeholder messages for chat");
+          console.log("Initialized empty messages array for chat");
         } catch (apiError) {
           console.warn("Couldn't fetch messages from API:", apiError);
           // Continue with empty messages array
@@ -468,13 +461,14 @@ const GymBrosMatchChat = ({ match, onClose }) => {
         
         // Emit to socket if available
         if (socket && socketConnected) {
+          // FIX: Include all required fields for the sendMessage event
           socket.emit('sendMessage', {
-            matchId: match._id,
             senderId: userId,
-            receiverId: otherUserId,
+            receiverId: otherUserId, 
             content: newMessage.content,
             timestamp: newMessage.timestamp,
-            file: newMessage.file
+            file: newMessage.file,
+            subscriptionId: match._id  // Added missing required field
           });
         }
         
@@ -561,6 +555,15 @@ const GymBrosMatchChat = ({ match, onClose }) => {
     // Close modal
     setExpandedProfile(false);
   };
+
+  // Conversation starters for empty state
+  const conversationStarters = [
+    "Hi! I see we both enjoy weightlifting. What's your favorite exercise?",
+    `I usually work out in the ${match?.preferredTime?.toLowerCase() || 'evening'}. Does that work for you too?`,
+    `I'm ${match?.experienceLevel?.toLowerCase() || 'intermediate'} level. How long have you been working out?`,
+    "Looking for a workout buddy this weekend. Would you be interested?",
+    "What's your fitness goal for this month?"
+  ];
 
   return (
     <motion.div
@@ -698,21 +701,71 @@ const GymBrosMatchChat = ({ match, onClose }) => {
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
           </div>
         ) : messages.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-center p-4">
-            <div>
-              <motion.div
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4"
+          /* UPDATED EMPTY STATE UI */
+          <div className="h-full flex flex-col items-center justify-center text-center p-4">
+            <div className="w-full max-w-md flex flex-col items-center">
+              <div className="relative mb-6">
+                <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-blue-100 shadow-lg">
+                  <img 
+                    src={formatImageUrl(match.profileImage || (match.images && match.images[0]))}
+                    alt={match.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/api/placeholder/400/400";
+                    }}
+                  />
+                </div>
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.3, type: "spring", stiffness: 500, damping: 30 }}
+                  className="absolute bottom-0 right-0 bg-blue-500 rounded-full p-1.5 shadow-md border-2 border-white"
+                >
+                  <Send size={14} className="text-white" />
+                </motion.div>
+              </div>
+
+              <motion.h3 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="text-xl font-bold mb-2"
               >
-                <Image className="h-8 w-8 text-blue-500" />
-              </motion.div>
-              <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
-              <p className="text-gray-500 mb-6">Break the ice with {match.name} by sending a message</p>
-              <div className="space-y-2 text-sm text-gray-600">
-                <p>• Ask about their favorite workout</p>
-                <p>• Find out when they usually hit the gym</p>
-                <p>• See if they'd like to workout together</p>
+                Start chatting with {match.name}
+              </motion.h3>
+              
+              <motion.p
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="text-gray-500 mb-8"
+              >
+                Begin your fitness journey together with a friendly message
+              </motion.p>
+              
+              <div className="w-full space-y-2">
+                <h4 className="text-left text-sm font-medium text-gray-700 mb-2">
+                  Try these conversation starters:
+                </h4>
+                
+                {conversationStarters.map((starter, index) => (
+                  <motion.div
+                    key={`starter-${index}`}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.4 + (index * 0.1) }}
+                    onClick={() => {
+                      setNewMessage(starter);
+                      setTimeout(() => {
+                        document.querySelector('input[type="text"]').focus();
+                      }, 100);
+                    }}
+                    className="bg-blue-50 p-3 rounded-lg text-left text-sm text-blue-700 cursor-pointer hover:bg-blue-100 transition-colors"
+                  >
+                    "{starter}"
+                  </motion.div>
+                ))}
               </div>
             </div>
           </div>
