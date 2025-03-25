@@ -29,13 +29,15 @@ import {
   convertGuestToUser,
   getWhoLikedMeCount,
   getWhoLikedMeProfiles,
+  
 } from '../controllers/gymBrosController.js';
 
 // Import message controllers
 import {
   sendMessage,
   getMessages,
-  markMessagesAsRead
+  markMessagesAsRead,
+  findMatch,
 } from '../controllers/gymBrosMessagesController.js';
 
 // Apply guest user middleware to all routes
@@ -104,5 +106,6 @@ router.post('/verify-code', verifyCode);
 router.post('/matches/:matchId/messages', optionalAuthenticate, sendMessage);
 router.get('/matches/:matchId/messages', optionalAuthenticate, getMessages);
 router.put('/matches/:matchId/mark-read', optionalAuthenticate, markMessagesAsRead);
+router.get('/matches/find-match/:userId', optionalAuthenticate, findMatch);
 
 export default router;

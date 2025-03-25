@@ -106,6 +106,7 @@ export const initializeSocket = (server) => {
 
     // Handle sending messages - unified to handle both subscription and match messages
     socket.on('sendMessage', async (messageData) => {
+      console.log('sendMessage event received:', messageData);
       const { senderId, receiverId, content, timestamp, file, subscriptionId, matchId } = messageData;
       
       // Basic validation

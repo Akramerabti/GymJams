@@ -108,78 +108,98 @@ export const sendMessage = async (req, res) => {
   }
 };
 
-// Get messages for a match
 export const getMessages = async (req, res) => {
-  try {
-    const { matchId } = req.params;
-    const { limit = 50, offset = 0, unreadOnly = false } = req.query;
-    
-    // Get effective user (authenticated or guest)
-    const effectiveUser = getEffectiveUser(req);
-    
-    // Need either userId or profileId
-    if (!effectiveUser.userId && !effectiveUser.profileId) {
-      return res.status(401).json({ 
-        success: false,
-        message: 'Authentication required to get messages'
-      });
-    }
-    
-    // Find the match
-    const match = await GymBrosMatch.findById(matchId);
-    if (!match) {
-      return res.status(404).json({
-        success: false,
-        message: 'Match not found'
-      });
-    }
-    
-    // Check if the user is part of the match
-    const userId = effectiveUser.userId || effectiveUser.profileId;
-    const userInMatch = match.users.some(matchUserId => matchUserId.toString() === userId.toString());
-    
-    if (!userInMatch) {
-      return res.status(403).json({
-        success: false,
-        message: 'You are not part of this match'
-      });
-    }
-    
-    // Get messages with pagination
-    let messagesQuery = match.messages || [];
-    
-    // Filter for unread messages if requested
-    if (unreadOnly === 'true' || unreadOnly === true) {
-      messagesQuery = messagesQuery.filter(msg => 
-        !msg.read && msg.sender.toString() !== userId.toString()
-      );
-    }
-    
-    // Sort by timestamp (newest first) and apply pagination
-    const sortedMessages = messagesQuery
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-      .slice(parseInt(offset), parseInt(offset) + parseInt(limit))
-      .reverse(); // Reverse to get chronological order again
-    
-    // Include guest token in response if applicable
-    let responseData = sortedMessages;
-    
-    if (effectiveUser.isGuest) {
-      responseData = {
-        messages: sortedMessages,
-        guestToken: generateGuestToken(effectiveUser.phone, effectiveUser.profileId)
+    try {
+      const { matchId } = req.params;
+      const { limit = 50, offset = 0, unreadOnly = false } = req.query;
+      
+      // Get effective user (authenticated or guest)
+      const effectiveUser = getEffectiveUser(req);
+      
+      // Authentication check
+      if (!effectiveUser.userId && !effectiveUser.profileId) {
+        return res.status(401).json({ 
+          success: false,
+          message: 'Authentication required to get messages'
+        });
+      }
+      
+      const match = await GymBrosMatch.findById(matchId)
+      
+      if (!match) {
+        return res.status(404).json({
+          success: false,
+          message: 'Match not found'
+        });
+      }
+      
+      console.log('Match:', match);
+
+      // Check if user is part of the match
+      const userId = effectiveUser.userId || effectiveUser.profileId;
+
+      console.log('User ID:', userId);
+      const userInMatch = match.users.some(u => u._id.toString() === userId.toString());
+      
+      if (!userInMatch) {
+        return res.status(403).json({
+          success: false,
+          message: 'Not authorized to view these messages'
+        });
+      }
+  
+      // Filter and sort messages
+      let messages = match.messages || [];
+      
+      if (unreadOnly === 'true') {
+        messages = messages.filter(msg => 
+          !msg.read && msg.sender._id.toString() !== userId.toString()
+        );
+      }
+  
+      // Pagination
+      const totalMessages = messages.length;
+      messages = messages
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(parseInt(offset), parseInt(offset) + parseInt(limit))
+        .reverse();
+  
+      // Format response
+      const formattedMessages = messages.map(msg => ({
+        _id: msg._id,
+        sender: {
+          id: msg.sender._id,
+          name: msg.sender.name,
+          profileImage: msg.sender.profileImage
+        },
+        content: msg.content,
+        timestamp: msg.timestamp,
+        read: msg.read,
+        file: msg.file
+      }));
+  
+      // Prepare response
+      const response = {
+        success: true,
+        count: formattedMessages.length,
+        total: totalMessages,
+        data: formattedMessages
       };
+  
+      // Add guest token if needed
+      if (effectiveUser.isGuest) {
+        response.guestToken = generateGuestToken(effectiveUser.phone, effectiveUser.profileId);
+      }
+  
+      res.json(response);
+    } catch (error) {
+      logger.error('Error getting messages:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error retrieving messages'
+      });
     }
-    
-    return res.json(responseData);
-  } catch (error) {
-    logger.error('Error getting messages:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Error retrieving messages'
-    });
-  }
-};
+  };
 
 // Mark messages as read
 export const markMessagesAsRead = async (req, res) => {
@@ -286,3 +306,47 @@ export const markMessagesAsRead = async (req, res) => {
     });
   }
 };
+
+export const findMatch = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const effectiveUser = getEffectiveUser(req);
+      const currentUserId = effectiveUser.userId || effectiveUser.profileId;
+  
+      if (!currentUserId) {
+        return res.status(401).json({ 
+          success: false,
+          message: 'Authentication required'
+        });
+      }
+  
+      // Find match where both users are present
+      const match = await GymBrosMatch.findOne({
+        users: { 
+          $all: [
+            new mongoose.Types.ObjectId(currentUserId),
+            new mongoose.Types.ObjectId(userId)
+          ]
+        }
+      });
+  
+      if (!match) {
+        return res.status(404).json({
+          success: false,
+          message: 'No match found between these users'
+        });
+      }
+  
+      res.json({
+        success: true,
+        matchId: match._id,
+        users: match.users
+      });
+    } catch (error) {
+      logger.error('Error finding match:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error finding match'
+      });
+    }
+  };

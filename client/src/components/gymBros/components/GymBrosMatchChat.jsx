@@ -1,39 +1,36 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, ArrowLeft, Image, X, Eye, Loader2, Calendar, MapPin, Award, Flag, Phone } from 'lucide-react';
+import { Send, ArrowLeft, Image, X, Eye, Loader2 } from 'lucide-react';
 import { format, parseISO, isSameDay, formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { useSocket } from '../../../SocketContext';
 import useAuthStore from '../../../stores/authStore';
 import gymbrosService from '../../../services/gymbros.service';
 
-const GymBrosMatchChat = ({ match, onClose }) => {
+const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
   const { user } = useAuthStore();
-  const { socket, connected: socketConnected } = useSocket(); // Use connected from context
+  const { socket, connected: socketConnected } = useSocket();
   
-  // State
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [files, setFiles] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [lastReadMessageId, setLastReadMessageId] = useState(null);
   const [expandedProfile, setExpandedProfile] = useState(false);
   
-  // Refs for managing chat state
+  // Refs
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
   const processedMessageIds = useRef(new Set());
-  const lastReadTimestamp = useRef(0);
-  const markingAsRead = useRef(false);
-  const lastMessageReceived = useRef(null);
   
+  console.log('GymBrosMatchChat: Rendering chat component', user);
   // Get user info
   const userId = user?.id || (user?.user && user?.user.id);
-  const otherUserId = match?.userId || match?._id;
-  const matchId = match?._id; // Make sure to extract the match ID
+  const otherUserId = otherUserInfo.userId || otherUserInfo.profileId;
   
   // Auto-scroll to bottom when messages change
   const scrollToBottom = useCallback(() => {
@@ -47,64 +44,23 @@ const GymBrosMatchChat = ({ match, onClose }) => {
     return scrollHeight - (scrollTop + clientHeight) < 50;
   }, []);
 
-  // Fetch messages on component mount
   useEffect(() => {
     const fetchMessages = async () => {
       try {
         setIsLoading(true);
-        let messageData = [];
-        
-        // Try to fetch messages from the server
-        try {
-          // In a real implementation, this would be a call to gymbrosService.fetchMatchMessages
-          // For now, we'll use an empty array
-          messageData = await gymbrosService.fetchMatchMessages(matchId);
-          console.log(`Fetched ${messageData.length} messages for match ${matchId}`);
-        } catch (apiError) {
-          console.warn(`Couldn't fetch messages for match ${matchId}:`, apiError);
-          // Continue with empty messages array
-          messageData = [];
-        }
-        
-        // Reset processed message IDs
+        const messages = await gymbrosService.fetchMatchMessages(matchId);
+        setMessages(messages);
         processedMessageIds.current.clear();
-        
-        // Process the messages
-        const uniqueMessages = [];
-        const messageIds = new Set();
-        
-        messageData.forEach(msg => {
-          if (!messageIds.has(msg._id)) {
-            messageIds.add(msg._id);
-            processedMessageIds.current.add(msg._id);
-            uniqueMessages.push(msg);
-          }
-        });
-        
-        // Sort by timestamp
-        uniqueMessages.sort((a, b) => 
-          new Date(a.timestamp) - new Date(b.timestamp)
-        );
-        
-        setMessages(uniqueMessages);
+        messages.forEach(msg => processedMessageIds.current.add(msg._id));
       } catch (error) {
-        console.error('Failed to fetch messages:', error);
-        toast.error('Failed to load messages. Please refresh.');
+        toast.error('Failed to load messages');
       } finally {
         setIsLoading(false);
       }
     };
 
-    if (matchId) {
-      fetchMessages();
-    }
-    
-    return () => {
-      // Clean up
-      markingAsRead.current = false;
-      processedMessageIds.current.clear();
-    };
-  }, [matchId, userId, otherUserId]);
+    if (matchId) fetchMessages();
+  }, [matchId]);
 
   // Register user with socket when connected
   useEffect(() => {
@@ -158,99 +114,37 @@ const GymBrosMatchChat = ({ match, onClose }) => {
   // Socket event handlers for messages, typing, and read receipts
   useEffect(() => {
     if (!socket || !socketConnected || !matchId) return;
-    
-    // Handle receiving messages
+
     const handleReceiveMessage = (message) => {
-      console.log('GymBrosMatchChat: Received message via socket:', message);
+      if (message.matchId !== matchId) return;
+      if (processedMessageIds.current.has(message._id)) return;
       
-      // Only process messages for this match
-      if (message.matchId !== matchId) {
-        console.log(`Ignoring message for different match: ${message.matchId}`);
-        return;
-      }
-      
-      // Skip if already processed
-      if (processedMessageIds.current.has(message._id)) {
-        console.log('Skipping duplicate message:', message._id);
-        return;
-      }
-      
-      // Add to processed set
       processedMessageIds.current.add(message._id);
-      
-      // Save the last message from the other party for read receipt purposes
-      if (message.sender !== userId) {
-        lastMessageReceived.current = message;
-      }
-      
-      // Add to messages
-      setMessages(prev => {
-        // Double-check it's not already in the array
-        if (prev.some(m => m._id === message._id)) {
-          return prev;
-        }
-        
-        // Add new message
-        const newMessages = [...prev, message];
-        
-        // If we're at the bottom and message is from the other party, mark as read
-        if (message.sender !== userId && isAtBottom()) {
-          setTimeout(() => {
-            markMessagesAsRead([message._id]);
-          }, 300);
-        }
-        
-        return newMessages;
-      });
+      setMessages(prev => [...prev, message]);
     };
-    
-    // Handle typing indicators
+
     const handleTypingEvent = (data) => {
-      // Only process typing events for this match
       if (data.matchId !== matchId) return;
-      
-      // Set typing state if sender is the other user
-      if (data.senderId === otherUserId) {
-        setOtherUserTyping(data.isTyping);
-      }
+      setOtherUserTyping(data.isTyping);
     };
-    
-    // Handle message read receipts
+
     const handleMessagesRead = (data) => {
-      console.log('GymBrosMatchChat: Messages read event received:', data);
-      
-      // Only process read receipts for this match
       if (data.matchId !== matchId) return;
-      
-      setMessages(prev => 
-        prev.map(msg => 
-          data.messageIds.includes(msg._id) ? { ...msg, read: true } : msg
-        )
-      );
+      setMessages(prev => prev.map(msg => 
+        data.messageIds.includes(msg._id) ? { ...msg, read: true } : msg
+      ));
     };
-    
-    // Register socket event listeners
-    try {
-      socket.on('receiveMessage', handleReceiveMessage);
-      socket.on('typing', handleTypingEvent);
-      socket.on('messagesRead', handleMessagesRead);
-    } catch (err) {
-      console.error('Error setting up socket event listeners:', err);
-    }
-    
+
+    socket.on('receiveMessage', handleReceiveMessage);
+    socket.on('typing', handleTypingEvent);
+    socket.on('messagesRead', handleMessagesRead);
+
     return () => {
-      // Remove event listeners
-      if (socket) {
-        try {
-          socket.off('receiveMessage', handleReceiveMessage);
-          socket.off('typing', handleTypingEvent);
-          socket.off('messagesRead', handleMessagesRead);
-        } catch (err) {
-          console.error('Error removing socket event listeners:', err);
-        }
-      }
+      socket.off('receiveMessage', handleReceiveMessage);
+      socket.off('typing', handleTypingEvent);
+      socket.off('messagesRead', handleMessagesRead);
     };
-  }, [socket, socketConnected, userId, otherUserId, matchId, markMessagesAsRead, isAtBottom]);
+  }, [socket, socketConnected, matchId, userId]);
 
   // Check for unread messages when scrolling
   useEffect(() => {
@@ -340,130 +234,59 @@ const GymBrosMatchChat = ({ match, onClose }) => {
     scrollToBottom();
   }, [messages, otherUserTyping, scrollToBottom]);
 
-  // Send message
   const handleSendMessage = async () => {
-    if ((!newMessage.trim() && files.length === 0) || !socket || !socketConnected) return;
+    if ((!newMessage.trim() && files.length === 0) || !socketConnected) return;
     
+    let tempId; // Declare outside try-catch block
     try {
+      tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       const timestamp = new Date().toISOString();
-      const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
       // Create temporary message
       const tempMessage = {
         _id: tempId,
         sender: userId,
         content: newMessage.trim(),
-        timestamp: timestamp,
-        read: false,
+        timestamp,
         pending: true,
-        file: []
+        read: false
       };
-      
+  
       // Add to messages immediately
       setMessages(prev => [...prev, tempMessage]);
-      processedMessageIds.current.add(tempId);
-      
-      // Clear input and reset typing
       setNewMessage('');
-      if (isTyping) {
-        setIsTyping(false);
-        try {
-          socket.emit('typing', {
-            senderId: userId,
-            receiverId: otherUserId,
-            isTyping: false,
-            matchId // Include matchId for proper routing
-          });
-        } catch (err) {
-          console.error('Error sending typing stop indicator:', err);
-        }
-      }
       
-      // Upload files if any
-      let uploadedFiles = [];
-      if (files.length > 0) {
-        try {
-          // In a real implementation this would upload files
-          // For now just mock the response
-          uploadedFiles = files.map((file, index) => ({
-            path: URL.createObjectURL(file),
-            type: file.type
-          }));
-          
-          // Update temporary message with files
-          const fileAttachments = uploadedFiles.map(file => ({
-            path: file.path,
-            type: file.type
-          }));
-          
-          setMessages(prev => 
-            prev.map(msg => 
-              msg._id === tempId ? { ...msg, file: fileAttachments } : msg
-            )
-          );
-        } catch (error) {
-          console.error('Failed to upload files:', error);
-          toast.error('Failed to upload files');
-        }
-      }
-      
-      // Send via socket
-      try {
-        socket.emit('sendMessage', {
-          senderId: userId,
-          receiverId: otherUserId,
-          content: newMessage.trim(),
-          timestamp: timestamp,
-          file: uploadedFiles.map(file => ({
-            path: file.path,
-            type: file.type
-          })),
-          matchId // Include matchId instead of subscriptionId for proper routing
-        });
-        
-        console.log('Message sent via socket');
-      } catch (socketError) {
-        console.error('Error sending message via socket:', socketError);
-        toast.error('Failed to send message in real-time');
-      }
-      
-      // In a real implementation, this would also call an API to store the message
-      // Simulate a successful API call after a delay
-      setTimeout(() => {
-        // Replace temporary message with final message
-        const newMessage = {
-          _id: `message-${Date.now()}`,
-          sender: userId,
-          content: tempMessage.content,
-          timestamp: tempMessage.timestamp,
-          read: false,
-          file: tempMessage.file
-        };
-        
-        // Add to processed set
-        processedMessageIds.current.add(newMessage._id);
-        
-        // Update messages list
-        setMessages(prev => 
-          prev.filter(msg => msg._id !== tempId).concat(newMessage)
-        );
-        
-        // Scroll to bottom
-        scrollToBottom();
-      }, 1000);
-      
-      // Clear files
-      setFiles([]);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      console.log('Sending message:', matchId, userId, otherUserId, newMessage.trim(), tempId, timestamp);
+
+      // Socket emit with all required fields
+      socket.emit('sendMessage', {
+        matchId,
+        senderId: userId,
+        receiverId: otherUserId,
+        content: newMessage.trim(),
+        timestamp,
+        tempId
+      });
+  
+      // API call with proper structure
+      await gymbrosService.sendMessage({
+        matchId,
+        senderId: userId,
+        receiverId: otherUserId,
+        content: newMessage.trim(),
+        tempId,
+        timestamp
+      });
+  
     } catch (error) {
-      console.error('Failed to send message:', error);
-      toast.error('Failed to send message. Please try again.');
-      
-      // Remove the temporary message on error
-      setMessages(prev => prev.filter(msg => msg._id !== tempId));
+      console.error('Send message error:', error);
+      toast.error('Failed to send message');
+      // Remove temp message if it was created
+      if (tempId) {
+        setMessages(prev => prev.filter(msg => msg._id !== tempId));
+      }
     }
   };
-
   // File upload handling
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files);
@@ -540,9 +363,6 @@ const GymBrosMatchChat = ({ match, onClose }) => {
     
     return groups;
   }, [messages]);
-
-  // Find the last read message from current user
-  const [lastReadMessageId, setLastReadMessageId] = useState(null);
   
   // Initialize lastReadMessageId when messages load
   useEffect(() => {
@@ -640,8 +460,8 @@ const GymBrosMatchChat = ({ match, onClose }) => {
   // Conversation starters for empty state
   const conversationStarters = [
     "Hi! I see we both enjoy weightlifting. What's your favorite exercise?",
-    `I usually work out in the ${match?.preferredTime?.toLowerCase() || 'evening'}. Does that work for you too?`,
-    `I'm ${match?.experienceLevel?.toLowerCase() || 'intermediate'} level. How long have you been working out?`,
+    `I usually work out in the ${otherUserInfo?.preferredTime?.toLowerCase() || 'evening'}. Does that work for you too?`,
+    `I'm ${otherUserInfo?.experienceLevel?.toLowerCase() || 'intermediate'} level. How long have you been working out?`,
     "Looking for a workout buddy this weekend. Would you be interested?",
     "What's your fitness goal for this month?"
   ];
@@ -657,10 +477,7 @@ const GymBrosMatchChat = ({ match, onClose }) => {
       {/* Chat Header */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-4 shadow-md">
         <div className="flex items-center">
-          <button
-            onClick={onClose}
-            className="text-white hover:bg-white/20 p-2 rounded-full transition-colors"
-          >
+          <button onClick={onClose} className="text-white p-2">
             <ArrowLeft className="w-6 h-6" />
           </button>
           
@@ -670,8 +487,8 @@ const GymBrosMatchChat = ({ match, onClose }) => {
             onClick={() => setExpandedProfile(!expandedProfile)}
           >
             <img
-              src={formatImageUrl(match.profileImage || (match.images && match.images[0]))}
-              alt={match.name}
+              src={formatImageUrl(otherUserInfo.profileImage || (otherUserInfo.images && otherUserInfo.images[0]))}
+              alt={otherUserInfo.name}
               className="w-10 h-10 rounded-full object-cover border-2 border-white"
               onError={(e) => {
                 e.target.onerror = null;
@@ -679,9 +496,9 @@ const GymBrosMatchChat = ({ match, onClose }) => {
               }}
             />
             <div className="ml-3 text-white">
-              <h3 className="font-semibold">{match.name}, {match.age}</h3>
+              <h3 className="font-semibold">{otherUserInfo.name}, {otherUserInfo.age}</h3>
               <p className="text-xs text-white/80">
-                {match.lastActive ? formatDistanceToNow(new Date(match.lastActive), { addSuffix: true }) : 'Offline'}
+                {otherUserInfo.lastActive ? formatDistanceToNow(new Date(otherUserInfo.lastActive), { addSuffix: true }) : 'Offline'}
               </p>
             </div>
           </div>
@@ -707,8 +524,8 @@ const GymBrosMatchChat = ({ match, onClose }) => {
             <div className="p-4">
               <div className="flex items-center">
                 <img
-                  src={formatImageUrl(match.profileImage || (match.images && match.images[0]))}
-                  alt={match.name}
+                  src={formatImageUrl(otherUserInfo.profileImage || (otherUserInfo.images && otherUserInfo.images[0]))}
+                  alt={otherUserInfo.name}
                   className="w-20 h-20 rounded-full object-cover border-2 border-white shadow-md"
                   onError={(e) => {
                     e.target.onerror = null;
@@ -716,22 +533,22 @@ const GymBrosMatchChat = ({ match, onClose }) => {
                   }}
                 />
                 <div className="ml-4">
-                  <h2 className="text-xl font-bold">{match.name}, {match.age}</h2>
+                  <h2 className="text-xl font-bold">{otherUserInfo.name}, {otherUserInfo.age}</h2>
                   
                   <div className="flex items-center text-gray-600 mt-1">
                     <MapPin size={16} className="mr-1" />
-                    <span className="text-sm">{match.location?.distance || 0} miles away</span>
+                    <span className="text-sm">{otherUserInfo.location?.distance || 0} miles away</span>
                   </div>
                   
                   <div className="flex flex-wrap gap-1 mt-2">
-                    {match.workoutTypes?.slice(0, 3).map(type => (
+                    {otherUserInfo.workoutTypes?.slice(0, 3).map(type => (
                       <span key={type} className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs">
                         {type}
                       </span>
                     ))}
-                    {match.workoutTypes?.length > 3 && (
+                    {otherUserInfo.workoutTypes?.length > 3 && (
                       <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs">
-                        +{match.workoutTypes.length - 3}
+                        +{otherUserInfo.workoutTypes.length - 3}
                       </span>
                     )}
                   </div>
@@ -741,17 +558,17 @@ const GymBrosMatchChat = ({ match, onClose }) => {
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div className="flex items-center text-gray-700">
                   <Award size={16} className="mr-2 text-blue-500" />
-                  <span className="text-sm">{match.experienceLevel || 'Any level'}</span>
+                  <span className="text-sm">{otherUserInfo.experienceLevel || 'Any level'}</span>
                 </div>
                 <div className="flex items-center text-gray-700">
                   <Calendar size={16} className="mr-2 text-blue-500" />
-                  <span className="text-sm">{match.preferredTime || 'Flexible'}</span>
+                  <span className="text-sm">{otherUserInfo.preferredTime || 'Flexible'}</span>
                 </div>
               </div>
               
-              {match.bio && (
+              {otherUserInfo.bio && (
                 <div className="mt-4">
-                  <p className="text-sm text-gray-700">{match.bio}</p>
+                  <p className="text-sm text-gray-700">{otherUserInfo.bio}</p>
                 </div>
               )}
               
@@ -788,8 +605,8 @@ const GymBrosMatchChat = ({ match, onClose }) => {
               <div className="relative mb-6">
                 <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-blue-100 shadow-lg">
                   <img 
-                    src={formatImageUrl(match.profileImage || (match.images && match.images[0]))}
-                    alt={match.name}
+                    src={formatImageUrl(otherUserInfo.profileImage || (otherUserInfo.images && otherUserInfo.images[0]))}
+                    alt={otherUserInfo.name}
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       e.target.onerror = null;
@@ -813,7 +630,7 @@ const GymBrosMatchChat = ({ match, onClose }) => {
                 transition={{ delay: 0.2 }}
                 className="text-xl font-bold mb-2"
               >
-                Start chatting with {match.name}
+                Start chatting with {otherUserInfo.name}
               </motion.h3>
               
               <motion.p

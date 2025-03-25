@@ -29,9 +29,9 @@ const GymbrosMatchesList = () => {
   const [likedMeCount, setLikedMeCount] = useState(0);
   const [isPremium, setIsPremium] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [selectedMatch, setSelectedMatch] = useState(null);
   const [isShowingChat, setIsShowingChat] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedChat, setSelectedChat] = useState(null);
   
   // Animation state for the unlock card
   const [isHovering, setIsHovering] = useState(false);
@@ -139,10 +139,44 @@ const GymbrosMatchesList = () => {
     }
   };
   
-  // Handle opening chat with a match
-  const handleOpenChat = (match) => {
-    setSelectedMatch(match);
-    setIsShowingChat(true);
+  const handleOpenChat = async (user) => {
+    try {
+      console.log('Opening chat with:', user);
+      
+      // Determine the correct identifier based on user type
+      const targetIdentifier = user.userId || user.profileId;
+      
+      // Get actual match ID between current user and target user
+      const matchData = await gymbrosService.findMatch(targetIdentifier);
+      
+      // Handle different response cases
+      if (matchData === 'auth-required') {
+        return navigate('/login');
+      }
+      
+      if (!matchData?.matchId) {
+        // Create new match if one doesn't exist
+        const newMatch = await gymbrosService.createMatch(targetIdentifier);
+        if (!newMatch?.matchId) {
+          return toast.error('Could not start conversation');
+        }
+        return setSelectedChat({
+          userInfo: user,
+          matchId: newMatch.matchId
+        });
+      }
+  
+      // Open existing chat
+      setSelectedChat({
+        userInfo: user,
+        matchId: matchData.matchId
+      });
+      setIsShowingChat(true);
+  
+    } catch (error) {
+      console.error('Chat open error:', error);
+      toast.error(error.response?.data?.message || 'Failed to open chat');
+    }
   };
   
   // Handle horizontal scroll on matches carousel
@@ -563,13 +597,14 @@ const GymbrosMatchesList = () => {
       
       {/* Chat overlay when a match is selected */}
       <AnimatePresence>
-        {isShowingChat && selectedMatch && (
+        {isShowingChat && selectedChat && (
           <GymBrosMatchChat
-            match={selectedMatch}
+            key={selectedChat.matchId}
+            otherUserInfo={selectedChat.userInfo}
+            matchId={selectedChat.matchId}
             onClose={() => {
               setIsShowingChat(false);
-              setSelectedMatch(null);
-              // Refresh matches to update unread counts
+              setSelectedChat(null);
               fetchMatchesAndLikes();
             }}
           />

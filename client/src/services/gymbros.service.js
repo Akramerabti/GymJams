@@ -738,52 +738,84 @@ async uploadProfileImages(files) {
     }
   },
 
+  async sendMessage(messageData) {
+    try {
+      const config = this.configWithGuestToken({
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      const response = await api.post(`/matches/${messageData.matchId}/messages`, {
+        senderId: messageData.senderId,
+        receiverId: messageData.receiverId,
+        content: messageData.content,
+        tempId: messageData.tempId,
+        timestamp: messageData.timestamp
+      }, config);
+  
+      return response.data;
+    } catch (error) {
+      console.error('API sendMessage error:', error);
+      throw error;
+    }
+  },
+
   async fetchMatchMessages(matchId, options = {}) {
     try {
-      // Set up options with defaults
       const params = {
         limit: options.limit || 50,
         offset: options.offset || 0,
-        unreadOnly: options.unreadOnly || false
+        unreadOnly: options.unreadOnly ? 'true' : 'false'
       };
-      
-      // Add guest token to params if available
+  
       const config = this.configWithGuestToken({
         params
       });
-      
-      // Create a placeholder response if the API endpoint doesn't exist
-      // In a real implementation, this should be removed once the endpoint is available
-      console.log("Creating placeholder messages since the API endpoint isn't working");
-      
-      // Return placeholder messages with the match's basic info
-      return [
-        {
-          _id: `welcome-${matchId}`,
-          sender: matchId, // Assume the other user sent this
-          content: "Hi there! Great to connect with you for workouts!",
-          timestamp: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-          read: true
-        }
-      ];
-      
-      /* In a real implementation, uncomment this:
+  
       const response = await api.get(`/gym-bros/matches/${matchId}/messages`, config);
       
-      // Handle different response formats gracefully
-      if (Array.isArray(response.data)) {
-        return response.data;
-      } else if (response.data && Array.isArray(response.data.messages)) {
-        return response.data.messages;
-      } else {
-        console.warn('Unexpected response format from match messages API:', response.data);
-        return [];
+      if (response.data && response.data.success) {
+        return response.data.data;
       }
-      */
+      
+      console.warn('Unexpected response format:', response);
+      return [];
     } catch (error) {
       console.error('Error fetching match messages:', error);
-      // Return empty array instead of throwing to prevent UI errors
+      // Return empty array to prevent UI errors
       return [];
+    }
+  },
+
+  async findMatch(otherUserId) {
+    console.log('Finding match with user ID:', otherUserId);
+    try {
+      const config = this.configWithGuestToken();
+      const response = await api.get(`/gym-bros/matches/find-match/${otherUserId}`, config);
+      console.log('Find match response:', response.data);
+      if (response.data.success) {
+        return {
+          matchId: response.data.matchId,
+          users: response.data.users
+        };
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error finding match:', error);
+      
+      // Handle specific error cases
+      if (error.response) {
+        if (error.response.status === 404) {
+          console.log('No existing match found between users');
+          return null;
+        }
+        if (error.response.status === 401) {
+          console.error('Authentication required');
+          return 'auth-required';
+        }
+      }
+      
+      return 'error';
     }
   },
 
