@@ -505,37 +505,7 @@ const GymBrosMatchChat = ({ match, onClose }) => {
     return groups;
   }, [messages]);
 
-  // Find the last read message from current user
-  const [lastReadMessageId, setLastReadMessageId] = useState(null);
   
-  // Initialize lastReadMessageId when messages load
-  useEffect(() => {
-    if (messages.length > 0 && userId) {
-      // Get all messages sent by the user (current user)
-      const userMessages = messages.filter(msg => 
-        msg.sender === userId && !msg.pending
-      );
-      
-      if (userMessages.length === 0) return;
-      
-      // Sort in chronological order
-      userMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-      
-      // Find the last message that is read
-      let lastReadMsg = null;
-      
-      for (let i = userMessages.length - 1; i >= 0; i--) {
-        if (userMessages[i].read) {
-          lastReadMsg = userMessages[i];
-          break;
-        }
-      }
-      
-      setLastReadMessageId(lastReadMsg?._id || null);
-    }
-  }, [messages, userId]);
-  
-  // Format image URL helper
   const formatImageUrl = (url) => {
     if (!url) return "/api/placeholder/400/400";
     
@@ -720,11 +690,10 @@ const GymBrosMatchChat = ({ match, onClose }) => {
                 
                 {/* Messages for this date */}
                 <div className="space-y-4">
-                  {group.messages.map((message) => {
-                    const isCurrentUser = message.sender === userId;
-                    const isLastReadMessage = message._id === lastReadMessageId;
-                    
-                    return (
+                {group.messages.map((message) => {
+                      const isCurrentUser = message.sender === userId;
+
+                      return (
                       <div key={message._id} className="message-container">
                         <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
                           <div 
@@ -784,16 +753,6 @@ const GymBrosMatchChat = ({ match, onClose }) => {
                             </div>
                           </div>
                         </div>
-                        
-                        {/* Read receipt indicator */}
-                        {isLastReadMessage && (
-                          <div className="flex justify-end mt-1 pr-2">
-                            <div className="flex items-center text-gray-500 text-xs">
-                              <Eye className="w-3 h-3 mr-1" />
-                              <span>Seen</span>
-                            </div>
-                          </div>
-                        )}
                         
                         {/* Message sending indicator */}
                         {message.pending && (

@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import gymbrosService from '../../services/gymbros.service';
 import { usePoints } from '../../hooks/usePoints';
 import useAuthStore from '../../stores/authStore';
-import GymBrosMatchChat from './GymBrosMatchChat';
+import GymBrosMatchChat from './components/GymBrosMatchChat';
 import ActiveStatus from './components/ActiveStatus';
 import EmptyStateMessage from './components/EmptyStateMessage';
 
@@ -31,6 +31,42 @@ const GymBrosMatchesList = () => {
   // Refs
   const matchesCarouselRef = useRef(null);
   
+
+   
+  // Fetch matches and who liked me count
+  const fetchMatchesAndLikes = async () => {
+    setLoading(true);
+    try {
+      // Fetch matches with message preview
+      const matchesData = await gymbrosService.getMatchesWithPreview();
+      
+      // Process and sort matches by latest message
+      const sortedMatches = matchesData.sort((a, b) => {
+        const aLastMsg = a.lastMessage ? new Date(a.lastMessage.timestamp) : new Date(0);
+        const bLastMsg = b.lastMessage ? new Date(b.lastMessage.timestamp) : new Date(0);
+        return bLastMsg - aLastMsg; // Sort newest to oldest
+      });
+      
+      setMatches(sortedMatches);
+      
+      // Fetch who liked me count
+      const likedCount = await gymbrosService.getWhoLikedMeCount();
+      setLikedMeCount(likedCount);
+    } catch (error) {
+      console.error('Error fetching matches:', error);
+      toast.error('Failed to load matches');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle opening chat with a match
+  const handleOpenChat = (match) => {
+    setSelectedMatch(match);
+    setIsShowingChat(true);
+  };
+  
+
   // Fetch matches and liked count on component mount
   useEffect(() => {
     fetchMatchesAndLikes();
@@ -68,34 +104,6 @@ useEffect(() => {
     window.removeEventListener('highlightMatch', handleHighlightMatch);
   };
 }, [matches, fetchMatchesAndLikes, handleOpenChat]);
-  
-  // Fetch matches and who liked me count
-  const fetchMatchesAndLikes = async () => {
-    setLoading(true);
-    try {
-      // Fetch matches with message preview
-      const matchesData = await gymbrosService.getMatchesWithPreview();
-      
-      // Process and sort matches by latest message
-      const sortedMatches = matchesData.sort((a, b) => {
-        const aLastMsg = a.lastMessage ? new Date(a.lastMessage.timestamp) : new Date(0);
-        const bLastMsg = b.lastMessage ? new Date(b.lastMessage.timestamp) : new Date(0);
-        return bLastMsg - aLastMsg; // Sort newest to oldest
-      });
-      
-      setMatches(sortedMatches);
-      
-      // Fetch who liked me count
-      const likedCount = await gymbrosService.getWhoLikedMeCount();
-      setLikedMeCount(likedCount);
-    } catch (error) {
-      console.error('Error fetching matches:', error);
-      toast.error('Failed to load matches');
-    } finally {
-      setLoading(false);
-    }
-  };
-  
   // Pull-to-refresh handler
   const handleRefresh = async () => {
     if (refreshing) return;
@@ -112,11 +120,6 @@ useEffect(() => {
     }
   };
   
-  // Handle opening chat with a match
-  const handleOpenChat = (match) => {
-    setSelectedMatch(match);
-    setIsShowingChat(true);
-  };
   
   // Handle horizontal scroll on matches carousel
   const handleHorizontalScroll = (direction) => {

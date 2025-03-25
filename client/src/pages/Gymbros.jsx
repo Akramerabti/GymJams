@@ -19,6 +19,7 @@ import GymBrosFilters from '../components/gymBros/GymBrosFilters';
 import GymBrosSettings from '../components/gymBros/GymBrosSettings';
 import EnhancedGymBrosProfile from '../components/gymBros/ProfileEditor';
 import GymBrosShop from '../components/gymBros/GymBrosShop';
+import GymBrosMatchesList from '../components/gymBros/GymbrosMatchesList';
 import { Link } from 'react-router-dom';
 
 import { useLocation } from 'react-router-dom';
@@ -909,36 +910,7 @@ useEffect(() => {
       );
 
       case 'matches':
-        return (
-          <div className="h-[calc(100vh-136px)] overflow-y-auto pb-16">
-            <h2 className="text-xl font-bold mb-4 p-4">Your Matches</h2>
-            {matches.length > 0 ? (
-              <div className="space-y-4 px-4">
-                {matches.map(match => (
-                  <div key={match._id} className="bg-white rounded-lg shadow p-4 flex items-center">
-                    <img 
-                      src={match.profileImage || "/api/placeholder/50/50"} 
-                      alt={match.name} 
-                      className="w-16 h-16 rounded-full object-cover mr-4"
-                    />
-                    <div className="flex-1">
-                      <h3 className="font-bold">{match.name}, {match.age}</h3>
-                      <p className="text-sm text-gray-500">{match.bio?.substring(0, 50)}...</p>
-                    </div>
-                    <button className="p-2 bg-blue-100 rounded-full text-blue-500">
-                      <MessageCircle size={24} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                <Heart size={48} className="text-gray-300 mb-4" />
-                <p className="text-gray-500">No matches yet. Keep swiping!</p>
-              </div>
-            )}
-          </div>
-        );
+        return <GymBrosMatchesList />;
       
       case 'shop':
         return (
