@@ -31,6 +31,13 @@ import {
   getWhoLikedMeProfiles,
 } from '../controllers/gymBrosController.js';
 
+// Import message controllers
+import {
+  sendMessage,
+  getMessages,
+  markMessagesAsRead
+} from '../controllers/gymBrosMessagesController.js';
+
 // Apply guest user middleware to all routes
 router.use(handleGuestUser);
 
@@ -93,6 +100,9 @@ router.post('/check-phone', checkPhoneExists);
 router.post('/send-verification', sendVerificationCode);
 router.post('/verify-code', verifyCode);
 
-
+// New Message API Routes
+router.post('/matches/:matchId/messages', optionalAuthenticate, sendMessage);
+router.get('/matches/:matchId/messages', optionalAuthenticate, getMessages);
+router.put('/matches/:matchId/mark-read', optionalAuthenticate, markMessagesAsRead);
 
 export default router;
