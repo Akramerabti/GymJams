@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, useMotionValue, useTransform, useAnimation, AnimatePresence } from 'framer-motion';
 import { 
   Heart, X, Star, ChevronLeft, ChevronRight, 
-  Info, MapPin, Award, Dumbbell, Clock, RefreshCw
+  Plus, MapPin, Award, Dumbbell, Clock, RefreshCw
 } from 'lucide-react';
 import ActiveStatus from './ActiveStatus';
 
@@ -414,16 +414,25 @@ console.log('SwipeableCard rendered', profile);
               className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-80"
             />
             
-            {/* Info button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onInfoClick) onInfoClick(profile);
-              }}
-              className="absolute bottom-4 right-4 p-2 rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/50 transition-colors z-20"
-            >
-              <Info size={20} />
-            </button>
+            {/* Gradient Border Button */}
+            <div className="absolute top-3 right-3 p-[4px] rounded-full bg-gradient-to-br from-orange-500 via-amber-300 to-yellow-300 shadow-lg z-20">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onInfoClick) onInfoClick(profile);
+                }}
+                className="p-5 rounded-full bg-gradient-to-br from-blue-500/90 via-blue-700 to-purple-600/90 backdrop-blur-[2px] hover:shadow-inner transition-all duration-300 group flex items-center justify-center relative"
+              >
+                <Plus 
+                  size={28} 
+                  className="text-orange-300 group-hover:rotate-90 group-hover:scale-110 transition-all duration-300 absolute" 
+                  strokeWidth={3}
+                />
+
+                {/* Subtle glow effect */}
+                <span className="absolute inset-0 rounded-full bg-gradient-to-br from-white/10 to-white/5 group-hover:from-white/20 group-hover:to-white/10 transition-all duration-300" />
+              </button>
+            </div>
             
             {/* Profile Info */}
             <div className="absolute bottom-0 left-0 right-0 p-4 text-white z-10">

@@ -252,6 +252,15 @@ html, body {
   color: #feb47b; /* Lighter orange */
 }
 
+.highlight-match {
+  animation: pulse-highlight 2s;
+}
+
+@keyframes pulse-highlight {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(59, 130, 246, 0.15); }
+}
+
 /* Icons */
 .icon {
   color: rgba(255, 255, 255, 0.7);

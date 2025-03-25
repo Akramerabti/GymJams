@@ -149,38 +149,39 @@ const GymBros = () => {
     };
   }, [lastScrollY]);
 
-  useEffect(() => {
-    const handleNavigateToMatches = (event) => {
-      // Switch to the matches tab
-      setActiveTab('matches');
-      
-      // Refresh matches to ensure the new match is included
-      fetchMatches();
-      
-      // Optionally scroll to or highlight the new match
-      const matchedProfileId = event.detail?.matchedProfile?._id;
-      if (matchedProfileId) {
-        // You could set a state to indicate which match to highlight
-        // Or use DOM methods to scroll to the match element
-        setTimeout(() => {
-          const matchElement = document.getElementById(`match-${matchedProfileId}`);
-          if (matchElement) {
-            matchElement.scrollIntoView({ behavior: 'smooth' });
-            matchElement.classList.add('highlight-match'); // Add a CSS class for highlighting
-            setTimeout(() => {
-              matchElement.classList.remove('highlight-match');
-            }, 3000);
-          }
-        }, 300);
-      }
-    };
+
+useEffect(() => {
+  const handleNavigateToMatches = (event) => {
+    // Switch to the matches tab
+    setActiveTab('matches');
     
-    window.addEventListener('navigateToMatches', handleNavigateToMatches);
+    // Refresh matches to ensure the new match is included
+    fetchMatches();
     
-    return () => {
-      window.removeEventListener('navigateToMatches', handleNavigateToMatches);
-    };
-  }, []);
+    // Optionally scroll to or highlight the new match
+    const matchedProfileId = event.detail?.matchedProfile?._id;
+    if (matchedProfileId) {
+      // You could set a state to indicate which match to highlight
+      // Or use DOM methods to scroll to the match element
+      setTimeout(() => {
+        const matchElement = document.getElementById(`match-${matchedProfileId}`);
+        if (matchElement) {
+          matchElement.scrollIntoView({ behavior: 'smooth' });
+          matchElement.classList.add('highlight-match'); // Add a CSS class for highlighting
+          setTimeout(() => {
+            matchElement.classList.remove('highlight-match');
+          }, 3000);
+        }
+      }, 300);
+    }
+  };
+  
+  window.addEventListener('navigateToMatches', handleNavigateToMatches);
+  
+  return () => {
+    window.removeEventListener('navigateToMatches', handleNavigateToMatches);
+  };
+}, []);
 
   
   const checkUserProfile = async () => {

@@ -436,6 +436,8 @@ async dislikeProfile(profileId, viewDuration = 0) {
       const config = this.configWithGuestToken();
       
       const response = await api.get('/gym-bros/matches', config);
+
+      console.log('Matches response:', response.data);
       
       // Update guest token if returned
       if (response.data.guestToken) {

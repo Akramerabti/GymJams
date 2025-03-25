@@ -35,6 +35,39 @@ const GymBrosMatchesList = () => {
   useEffect(() => {
     fetchMatchesAndLikes();
   }, []);
+
+  // In GymbrosMatchesList.jsx, add to the useEffect section
+
+useEffect(() => {
+  // Listen for match highlight events
+  const handleHighlightMatch = (event) => {
+    const matchedProfile = event.detail?.matchedProfile;
+    if (matchedProfile) {
+      // Refresh matches to show the new match
+      fetchMatchesAndLikes();
+      
+      // Find the match in the list and potentially open the chat
+      const match = matches.find(m => 
+        m._id === matchedProfile._id || 
+        m.name === matchedProfile.name
+      );
+      
+      if (match) {
+        // Option 1: Automatically open chat with this match
+        handleOpenChat(match);
+        
+        // Option 2: Just highlight the match (visual indicator)
+        // You could add a class to the match element to make it pulse or glow
+      }
+    }
+  };
+  
+  window.addEventListener('highlightMatch', handleHighlightMatch);
+  
+  return () => {
+    window.removeEventListener('highlightMatch', handleHighlightMatch);
+  };
+}, [matches, fetchMatchesAndLikes, handleOpenChat]);
   
   // Fetch matches and who liked me count
   const fetchMatchesAndLikes = async () => {

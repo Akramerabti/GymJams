@@ -641,6 +641,7 @@ export const getGymBrosProfiles = async (req, res, next) => {
     });
   }
 };
+
 export const likeGymBrosProfile = async (req, res) => {
   try {
     const { profileId } = req.params;
@@ -686,6 +687,7 @@ export const likeGymBrosProfile = async (req, res) => {
     res.status(500).json({ error: 'Failed to process like' });
   }
 };
+
 // Dislike a GymBros profile
 export const dislikeGymBrosProfile = async (req, res) => {
   try {
@@ -729,9 +731,11 @@ export const dislikeGymBrosProfile = async (req, res) => {
 export const getGymBrosMatches = async (req, res) => {
   try {
     const effectiveUser = getEffectiveUser(req);
+    logger.debug(`getGymBrosMatches: Effective user data: ${JSON.stringify(effectiveUser)}`);
     
     // Need either userId or profileId
     if (!effectiveUser.userId && !effectiveUser.profileId && !effectiveUser.phone) {
+      logger.warn('getGymBrosMatches: No valid identifier found for user');
       return res.status(401).json({ 
         message: 'Authentication required to view matches',
         requiresVerification: true
@@ -740,31 +744,71 @@ export const getGymBrosMatches = async (req, res) => {
     
     // Determine the ID to use for finding matches
     const userIdentifier = effectiveUser.userId || effectiveUser.profileId;
+    logger.debug(`getGymBrosMatches: Using primary identifier: ${userIdentifier}`);
     
     // If no userIdentifier but we have a phone, try to find a profile with that phone
     let phoneProfile;
     if (!userIdentifier && effectiveUser.phone) {
+      logger.debug(`getGymBrosMatches: No direct ID, trying to find profile by phone: ${effectiveUser.phone}`);
       phoneProfile = await GymBrosProfile.findOne({ phone: effectiveUser.phone });
+      
       if (!phoneProfile) {
+        logger.warn(`getGymBrosMatches: No profile found for phone: ${effectiveUser.phone}`);
         return res.status(404).json({ 
           message: 'No profile found for this phone number',
           requiresVerification: true
         });
       }
+      
+      logger.debug(`getGymBrosMatches: Found profile by phone: ${phoneProfile._id}`);
     }
     
     const actualIdentifier = userIdentifier || phoneProfile._id;
+    logger.debug(`getGymBrosMatches: Final identifier to use for matches: ${actualIdentifier}`);
     
-    // Find all matches where this user is a participant
+    // Find all possible IDs for this user to ensure we find all matches
+    let possibleUserIds = [actualIdentifier]; 
+    
+    // If we have a userIdentifier, add possible profileId
+    if (effectiveUser.userId) {
+      const userProfile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+      if (userProfile) {
+        possibleUserIds.push(userProfile._id.toString());
+        logger.debug(`getGymBrosMatches: Added profile ID ${userProfile._id} to possible IDs`);
+      }
+    }
+    
+    logger.debug(`getGymBrosMatches: Searching for matches with any of these IDs: ${possibleUserIds.join(', ')}`);
+    
+    // Find all matches where this user is a participant with any of their IDs
     const matches = await GymBrosMatch.find({
-      users: actualIdentifier,
+      users: { $in: possibleUserIds },
       active: true
     });
     
+    logger.debug(`getGymBrosMatches: Found ${matches.length} matches`);
+    matches.forEach((match, index) => {
+      logger.debug(`getGymBrosMatches: Match ${index + 1}: ${match._id}, users: [${match.users.join(', ')}]`);
+    });
+    
     // Get the matched user IDs (excluding current user)
-    const matchedUserIds = matches.map(match => 
-      match.users.find(id => id.toString() !== actualIdentifier.toString())
-    );
+    const matchedUserIds = [];
+    
+    matches.forEach(match => {
+      // Find IDs in users array that don't match any of our possible user IDs
+      const otherUserIds = match.users.filter(id => 
+        !possibleUserIds.includes(id.toString())
+      );
+      
+      if (otherUserIds.length > 0) {
+        otherUserIds.forEach(id => matchedUserIds.push(id));
+        logger.debug(`getGymBrosMatches: Added other user ID from match: ${otherUserIds.join(', ')}`);
+      } else {
+        logger.warn(`getGymBrosMatches: Couldn't find other user ID in match ${match._id}`);
+      }
+    });
+    
+    logger.debug(`getGymBrosMatches: Final list of matched user IDs: ${matchedUserIds.join(', ')}`);
     
     // Get profiles for matched users
     const matchedProfiles = await GymBrosProfile.find({
@@ -774,9 +818,15 @@ export const getGymBrosMatches = async (req, res) => {
       ]
     });
     
+    logger.debug(`getGymBrosMatches: Found ${matchedProfiles.length} profiles for matched users`);
+    matchedProfiles.forEach((profile, index) => {
+      logger.debug(`getGymBrosMatches: Matched profile ${index + 1}: ${profile._id}, name: ${profile.name}, userId: ${profile.userId || 'N/A'}`);
+    });
+    
     // Include guest token in response if applicable
     if (effectiveUser.isGuest) {
       const guestToken = generateGuestToken(effectiveUser.phone, effectiveUser.profileId);
+      logger.debug(`getGymBrosMatches: Generated guest token for response: ${guestToken.substring(0, 20)}...`);
       
       const responseData = {
         matches: matchedProfiles,
@@ -784,12 +834,14 @@ export const getGymBrosMatches = async (req, res) => {
         isGuest: true
       };
       
+      logger.debug(`getGymBrosMatches: Returning ${matchedProfiles.length} profiles with guest token`);
       return res.json(responseData);
     }
     
+    logger.debug(`getGymBrosMatches: Returning ${matchedProfiles.length} profiles`);
     res.json(matchedProfiles);
   } catch (error) {
-    logger.error('Error in getGymBrosMatches:', error);
+    logger.error(`Error in getGymBrosMatches: ${error.message}`, error);
     res.status(500).json({ error: 'Failed to retrieve matches' });
   }
 };

@@ -14,6 +14,17 @@ const MatchModal = ({
   const confettiCanvasRef = useRef(null);
   const [confettiInstance, setConfettiInstance] = useState(null);
   
+  const handleSendMessage = () => {
+    // Dispatch custom event
+    const matchEvent = new CustomEvent('navigateToMatches', {
+      detail: { matchedProfile }
+    });
+    window.dispatchEvent(matchEvent);
+    
+    // Close modal and call the callback
+    onSendMessage();
+  };
+  
   // Set up confetti on mount
   useEffect(() => {
     if (isVisible && confettiCanvasRef.current) {

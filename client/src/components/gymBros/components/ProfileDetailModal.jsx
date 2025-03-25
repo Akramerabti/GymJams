@@ -447,12 +447,21 @@ const CompatibilityTabContent = () => (
           exit={{ opacity: 0 }}
           onClick={() => setIsImageFullscreen(false)}
         >
-          <button 
-            className="absolute top-4 left-4 z-20 p-2 rounded-full bg-black/50 text-white"
-            onClick={() => setIsImageFullscreen(false)}
-          >
-            <ArrowLeft size={24} />
-          </button>
+          <div className="absolute top-4 left-4 p-[3px] rounded-full bg-gradient-to-br from-gray-400 via-gray-300 to-gray-100 shadow-lg z-20">
+            <button 
+              onClick={() => setIsImageFullscreen(false)}
+              className="p-3 rounded-full bg-gradient-to-br from-gray-700/90 via-gray-800 to-gray-900/90 backdrop-blur-[2px] hover:shadow-inner transition-all duration-300 group flex items-center justify-center relative"
+            >
+              <ArrowLeft 
+                size={24} 
+                className="text-gray-100  group-hover:scale-110 transition-all duration-300 absolute" 
+                strokeWidth={2.5}
+              />
+              
+              {/* Subtle glow effect */}
+              <span className="absolute inset-0 rounded-full bg-gradient-to-br from-white/10 to-white/5 group-hover:from-white/20 group-hover:to-white/10 transition-all duration-300" />
+            </button>
+          </div>
           
           <div className="absolute top-4 right-4 flex space-x-2">
             <button
@@ -597,22 +606,42 @@ const CompatibilityTabContent = () => (
               
               {/* Header controls */}
               <div className="absolute top-0 left-0 right-0 p-3 flex justify-between items-center">
-                <button 
-                  onClick={onClose}
-                  className="p-2 rounded-full bg-black/30 backdrop-blur-sm text-white"
-                >
-                  <ArrowLeft size={20} />
-                </button>
-                
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleShare();
-                  }}
-                  className="p-2 rounded-full bg-black/30 backdrop-blur-sm text-white"
-                >
-                  <Share2 size={20} />
-                </button>
+                {/* Back Button */}
+                <div className="p-[2px] rounded-full bg-gradient-to-br from-gray-400 via-gray-300 to-gray-100 shadow-md">
+                  <button 
+                    onClick={onClose}
+                    className="p-2 rounded-full bg-gradient-to-br from-gray-700/90 via-gray-800 to-gray-900/90 backdrop-blur-[2px] hover:shadow-inner transition-all duration-300 group flex items-center justify-center relative"
+                  >
+                    <ArrowLeft 
+                      size={20} 
+                      className="text-gray-100 group-hover:-translate-x-0.5 group-hover:scale-105 transition-all duration-300" 
+                      strokeWidth={2.3}
+                    />
+
+                    {/* Subtle glow effect */}
+                    <span className="absolute inset-0 rounded-full bg-gradient-to-br from-white/10 to-white/5 group-hover:from-white/20 group-hover:to-white/10 transition-all duration-300" />
+                  </button>
+                </div>
+
+                {/* Share Button */}
+                <div className="p-[2px] rounded-full bg-gradient-to-br from-blue-400 via-blue-300 to-cyan-200 shadow-md">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleShare();
+                    }}
+                    className="p-2 rounded-full bg-gradient-to-br from-blue-600/90 via-blue-700 to-blue-800/90 backdrop-blur-[2px] hover:shadow-inner transition-all duration-300 group flex items-center justify-center relative"
+                  >
+                    <Share2 
+                      size={20} 
+                      className="text-blue-100 group-hover:rotate-12 group-hover:scale-105 transition-all duration-300" 
+                      strokeWidth={2.3}
+                    />
+
+                    {/* Subtle glow effect */}
+                    <span className="absolute inset-0 rounded-full bg-gradient-to-br from-white/10 to-white/5 group-hover:from-white/20 group-hover:to-white/10 transition-all duration-300" />
+                  </button>
+                </div>
               </div>
               
               {/* User info overlay */}

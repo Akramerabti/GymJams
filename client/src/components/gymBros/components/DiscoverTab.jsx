@@ -396,18 +396,24 @@ const DiscoverTab = ({
     toast.success('Profile recovered');
   };
   
-  const handleSendMessage = () => {
-    // Close the match modal
-    setShowMatchModal(false);
-    
-    // Navigate to the matches tab using the callback
-    if (onNavigateToMatches && typeof onNavigateToMatches === 'function') {
-      onNavigateToMatches(matchedProfile);
-    }
-    
-    // Now advance to next profile
+  // In DiscoverTab.jsx
+const handleSendMessage = () => {
+  // Close the match modal
+  setShowMatchModal(false);
+  
+  // Navigate to the matches tab with the matched profile
+  if (onNavigateToMatches && typeof onNavigateToMatches === 'function') {
+    onNavigateToMatches(matchedProfile);
+  }
+  
+  // Advance to next profile after a delay to allow for smooth transition
+  setTimeout(() => {
     setCurrentIndex(prev => prev + 1);
-  };
+    // Reset processing state to allow new swipes
+    setProcessingSwipe(false);
+    swipeLockRef.current = false;
+  }, 500);
+};
   
   const handleKeepSwiping = () => {
     console.log('Closing match modal and continuing to swipe');
@@ -564,67 +570,103 @@ const DiscoverTab = ({
         )}
       </div>
       
-      {/* Action buttons */}
-      <div className="absolute bottom-20 inset-x-4 flex items-center justify-center space-x-5 z-30">
-        {/* Rekindle Button */}
-        <button 
-          onClick={handleRekindle}
-          disabled={processingSwipe}
-          className={`p-3 rounded-full shadow-lg border-4 ${
-            isPremium 
-              ? 'text-purple-500 bg-white border-purple-500 hover:bg-purple-50' 
-              : 'text-gray-400 bg-white border-gray-300'
-          } ${processingSwipe ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          <RefreshCw size={18} />
-        </button>
+      {/* Premium Action Buttons */}
+<div className="absolute bottom-20 inset-x-4 flex items-center justify-center space-x-5 z-30">
+  
+  {/* Rekindle Button */}
+  <div className={`p-[3px] rounded-full ${isPremium ? 'bg-gradient-to-br from-purple-500 to-fuchsia-600' : 'bg-gradient-to-br from-gray-400 to-gray-500'} ${processingSwipe ? 'opacity-50 cursor-not-allowed' : ''}`}>
+    <button 
+      onClick={handleRekindle}
+      disabled={processingSwipe}
+      className={`p-3 rounded-full ${isPremium ? 'bg-gradient-to-br from-purple-600 to-fuchsia-700' : 'bg-gradient-to-br from-gray-500 to-gray-600'} hover:shadow-lg transition-all duration-300 group flex items-center justify-center relative`}
+    >
+      <RefreshCw 
+        size={18} 
+        className="text-white group-hover:rotate-180 transition-transform duration-300" 
+        strokeWidth={2.5}
+      />
+      <span className="absolute inset-0 rounded-full bg-white/10 group-hover:bg-white/20 transition-all duration-300" />
+    </button>
+  </div>
 
-        {/* Dislike Button */}
-        <button 
-          onClick={() => handleButtonSwipe('left')}
-          disabled={processingSwipe}
-          className={`p-4 rounded-full bg-white shadow-lg border-4 border-red-500 text-red-500 hover:bg-red-50 ${
-            processingSwipe ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
-        >
-          <X size={32} />
-        </button>
-        
-        {/* Super Like Button */}
-        <button 
-          onClick={() => handleButtonSwipe('up')}
-          disabled={processingSwipe}
-          className={`p-3 rounded-full bg-white shadow-lg border-4 border-blue-500 text-blue-500 hover:bg-blue-50 ${
-            processingSwipe ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
-        >
-          <Star size={29} />
-        </button>
-        
-        {/* Like Button */}
-        <button 
-          onClick={() => handleButtonSwipe('right')}
-          disabled={processingSwipe}
-          className={`p-4 rounded-full bg-white shadow-lg border-4 border-green-500 text-green-500 hover:bg-green-50 ${
-            processingSwipe ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
-        >
-          <Heart size={32} />
-        </button>
+  {/* Dislike Button */}
+  <div className={`p-[3px] rounded-full bg-gradient-to-br from-rose-300 to-red-600 ${processingSwipe ? 'opacity-50 cursor-not-allowed' : ''}`}>
+    <button 
+      onClick={() => handleButtonSwipe('left')}
+      disabled={processingSwipe}
+      className="p-4 rounded-full bg-gradient-to-br from-rose-600 to-red-700 hover:shadow-lg transition-all duration-300 group flex items-center justify-center relative"
+    >
+      <X 
+        size={32} 
+        className="text-white group-hover:scale-110 transition-transform duration-300" 
+        strokeWidth={3}
+      />
+      <span className="absolute inset-0 rounded-full bg-white/10 group-hover:bg-white/20 transition-all duration-300" />
+    </button>
+  </div>
+  
+  {/* Super Like Button */}
+  <div className={`p-[3px] rounded-full bg-gradient-to-br from-sky-400 to-blue-600 ${processingSwipe ? 'opacity-50 cursor-not-allowed' : ''}`}>
+    <button 
+      onClick={() => handleButtonSwipe('up')}
+      disabled={processingSwipe}
+      className="p-3 rounded-full bg-gradient-to-br from-sky-500 to-blue-700 hover:shadow-lg transition-all duration-300 group flex items-center justify-center relative"
+    >
+      <Star 
+        size={29} 
+        className="text-white group-hover:scale-110 transition-transform duration-300" 
+        strokeWidth={2.8}
+        fill="url(#superlike-gradient)"
+      />
+      <svg width="0" height="0">
+        <linearGradient id="superlike-gradient" x1="100%" y1="100%" x2="0%" y2="0%">
+          <stop stopColor="#7DD3FC" offset="0%" /> {/* sky-300 */}
+          <stop stopColor="#60A5FA" offset="100%" /> {/* blue-400 */}
+        </linearGradient>
+      </svg>
+      <span className="absolute inset-0 rounded-full bg-white/10 group-hover:bg-white/20 transition-all duration-300" />
+    </button>
+  </div>
+  
+  {/* Like Button */}
+  <div className={`p-[3px] rounded-full bg-gradient-to-br to-emerald-200 from-green-600 ${processingSwipe ? 'opacity-50 cursor-not-allowed' : ''}`}>
+    <button 
+      onClick={() => handleButtonSwipe('right')}
+      disabled={processingSwipe}
+      className="p-4 rounded-full bg-gradient-to-br from-emerald-500 to-green-700 hover:shadow-lg transition-all duration-300 group flex items-center justify-center relative"
+    >
+      <Heart 
+        size={32} 
+        className="text-white group-hover:scale-110 transition-transform duration-300" 
+        strokeWidth={3}
+        fill="url(#like-gradient)"
+      />
+      <svg width="0" height="0">
+        <linearGradient id="like-gradient" x1="100%" y1="100%" x2="0%" y2="0%">
+          <stop stopColor="#6EE7B7" offset="0%" /> {/* emerald-300 */}
+          <stop stopColor="#34D399" offset="100%" /> {/* emerald-400 */}
+        </linearGradient>
+      </svg>
+      <span className="absolute inset-0 rounded-full bg-white/10 group-hover:bg-white/20 transition-all duration-300" />
+    </button>
+  </div>
 
-        {/* Extra button (or empty) */}
-        <button 
-          onClick={handleRekindle}
-          disabled={processingSwipe}
-          className={`p-3 rounded-full shadow-lg border-4 ${
-            isPremium 
-              ? 'text-purple-500 bg-white border-purple-500 hover:bg-purple-50' 
-              : 'text-gray-400 bg-white border-gray-300'
-          } ${processingSwipe ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          <RefreshCw size={18} />
-        </button>
-      </div>
+  {/* Extra Rekindle Button */}
+  <div className={`p-[3px] rounded-full ${isPremium ? 'bg-gradient-to-br from-purple-500 to-fuchsia-600' : 'bg-gradient-to-br from-gray-400 to-gray-500'} ${processingSwipe ? 'opacity-50 cursor-not-allowed' : ''}`}>
+    <button 
+      onClick={handleRekindle}
+      disabled={processingSwipe}
+      className={`p-3 rounded-full ${isPremium ? 'bg-gradient-to-br from-purple-600 to-fuchsia-700' : 'bg-gradient-to-br from-gray-500 to-gray-600'} hover:shadow-lg transition-all duration-300 group flex items-center justify-center relative`}
+    >
+      <RefreshCw 
+        size={18} 
+        className="text-white group-hover:rotate-180 transition-transform duration-300" 
+        strokeWidth={2.5}
+      />
+      <span className="absolute inset-0 rounded-full bg-white/10 group-hover:bg-white/20 transition-all duration-300" />
+    </button>
+  </div>
+</div>
       
       {/* Loading more indicator */}
       <AnimatePresence>
