@@ -9,7 +9,7 @@ import gymbrosService from '../../../services/gymbros.service';
 
 const GymBrosMatchChat = ({ match, onClose }) => {
   const { user } = useAuthStore();
-  const { socket } = useSocket(); // Correctly destructure socket from context
+  const { socket, connected: socketConnected } = useSocket(); // Use connected from context
   
   // State
   const [messages, setMessages] = useState([]);
@@ -18,7 +18,6 @@ const GymBrosMatchChat = ({ match, onClose }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [socketConnected, setSocketConnected] = useState(false);
   const [expandedProfile, setExpandedProfile] = useState(false);
   
   // Refs for managing chat state
@@ -34,6 +33,7 @@ const GymBrosMatchChat = ({ match, onClose }) => {
   // Get user info
   const userId = user?.id || (user?.user && user?.user.id);
   const otherUserId = match?.userId || match?._id;
+  const matchId = match?._id; // Make sure to extract the match ID
   
   // Auto-scroll to bottom when messages change
   const scrollToBottom = useCallback(() => {
@@ -54,19 +54,16 @@ const GymBrosMatchChat = ({ match, onClose }) => {
         setIsLoading(true);
         let messageData = [];
         
-        // Try to use an alternate API endpoint if available
+        // Try to fetch messages from the server
         try {
-          // The original endpoint is returning 404, so we'll create placeholder messages
-          // In a real implementation, this would be replaced with the correct API call
-          
-          // Example: Placeholder messages based on match information
-          // We'll make this an empty array instead of adding a placeholder message
-          messageData = [];
-          
-          console.log("Initialized empty messages array for chat");
+          // In a real implementation, this would be a call to gymbrosService.fetchMatchMessages
+          // For now, we'll use an empty array
+          messageData = await gymbrosService.fetchMatchMessages(matchId);
+          console.log(`Fetched ${messageData.length} messages for match ${matchId}`);
         } catch (apiError) {
-          console.warn("Couldn't fetch messages from API:", apiError);
+          console.warn(`Couldn't fetch messages for match ${matchId}:`, apiError);
           // Continue with empty messages array
+          messageData = [];
         }
         
         // Reset processed message IDs
@@ -98,7 +95,7 @@ const GymBrosMatchChat = ({ match, onClose }) => {
       }
     };
 
-    if (match?._id) {
+    if (matchId) {
       fetchMessages();
     }
     
@@ -107,56 +104,23 @@ const GymBrosMatchChat = ({ match, onClose }) => {
       markingAsRead.current = false;
       processedMessageIds.current.clear();
     };
-  }, [match?._id, userId, otherUserId]);
+  }, [matchId, userId, otherUserId]);
 
-  // Set up socket connection monitoring
+  // Register user with socket when connected
   useEffect(() => {
-    // Guard against socket not being available
-    if (!socket) {
-      console.warn("Socket not available in chat component");
-      setSocketConnected(false);
-      return;
-    }
-    
-    const handleConnect = () => {
-      console.log('Socket connected in chat component');
-      setSocketConnected(true);
-      
-      // Re-register user ID when reconnected
-      if (userId) {
+    if (socket && socketConnected && userId) {
+      try {
+        console.log('GymBrosMatchChat: Registering user with socket:', userId);
         socket.emit('register', userId);
+      } catch (err) {
+        console.error('Error registering with socket:', err);
       }
-    };
-    
-    const handleDisconnect = () => {
-      console.log('Socket disconnected in chat component');
-      setSocketConnected(false);
-    };
-    
-    // Set initial connection state
-    setSocketConnected(socket.connected);
-    
-    // Register event listeners
-    socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
-    
-    // Register user with socket
-    if (userId) {
-      socket.emit('register', userId);
-      console.log('User registered with socket:', userId);
     }
-    
-    return () => {
-      if (socket) {
-        socket.off('connect', handleConnect);
-        socket.off('disconnect', handleDisconnect);
-      }
-    };
-  }, [socket, userId]);
+  }, [socket, socketConnected, userId]);
 
   // Mark messages as read
   const markMessagesAsRead = useCallback(async (messageIds) => {
-    if (!messageIds?.length || markingAsRead.current || !match?._id) return;
+    if (!messageIds?.length || markingAsRead.current || !matchId) return;
     
     try {
       markingAsRead.current = true;
@@ -172,13 +136,13 @@ const GymBrosMatchChat = ({ match, onClose }) => {
       // Update timestamp
       lastReadTimestamp.current = Date.now();
       
-      // Note: We'll skip the actual API call since it's not working
-      // In a real implementation, this would make an API request
+      // In a real implementation, this would call an API to mark messages as read
+      // For now, just simulate success
       
       // Emit socket event for real-time update to the sender
       if (socket && socketConnected) {
         socket.emit('messagesRead', {
-          matchId: match._id,
+          matchId, // Send matchId instead of subscriptionId
           messageIds,
           receiverId: otherUserId
         });
@@ -189,15 +153,21 @@ const GymBrosMatchChat = ({ match, onClose }) => {
     } finally {
       markingAsRead.current = false;
     }
-  }, [socket, socketConnected, match?._id, otherUserId]);
+  }, [socket, socketConnected, matchId, otherUserId]);
 
   // Socket event handlers for messages, typing, and read receipts
   useEffect(() => {
-    if (!socket || !match?._id) return;
+    if (!socket || !socketConnected || !matchId) return;
     
     // Handle receiving messages
     const handleReceiveMessage = (message) => {
-      console.log('Received message via socket:', message);
+      console.log('GymBrosMatchChat: Received message via socket:', message);
+      
+      // Only process messages for this match
+      if (message.matchId !== matchId) {
+        console.log(`Ignoring message for different match: ${message.matchId}`);
+        return;
+      }
       
       // Skip if already processed
       if (processedMessageIds.current.has(message._id)) {
@@ -236,6 +206,10 @@ const GymBrosMatchChat = ({ match, onClose }) => {
     
     // Handle typing indicators
     const handleTypingEvent = (data) => {
+      // Only process typing events for this match
+      if (data.matchId !== matchId) return;
+      
+      // Set typing state if sender is the other user
       if (data.senderId === otherUserId) {
         setOtherUserTyping(data.isTyping);
       }
@@ -243,31 +217,40 @@ const GymBrosMatchChat = ({ match, onClose }) => {
     
     // Handle message read receipts
     const handleMessagesRead = (data) => {
-      console.log('Messages read event received:', data);
+      console.log('GymBrosMatchChat: Messages read event received:', data);
       
-      if (data.matchId === match._id) {
-        setMessages(prev => 
-          prev.map(msg => 
-            data.messageIds.includes(msg._id) ? { ...msg, read: true } : msg
-          )
-        );
-      }
+      // Only process read receipts for this match
+      if (data.matchId !== matchId) return;
+      
+      setMessages(prev => 
+        prev.map(msg => 
+          data.messageIds.includes(msg._id) ? { ...msg, read: true } : msg
+        )
+      );
     };
     
-    // Register socket event listeners - with safety checks
-    socket.on('receiveMessage', handleReceiveMessage);
-    socket.on('typing', handleTypingEvent);
-    socket.on('messagesRead', handleMessagesRead);
+    // Register socket event listeners
+    try {
+      socket.on('receiveMessage', handleReceiveMessage);
+      socket.on('typing', handleTypingEvent);
+      socket.on('messagesRead', handleMessagesRead);
+    } catch (err) {
+      console.error('Error setting up socket event listeners:', err);
+    }
     
     return () => {
-      // Remove event listeners with safety checks
+      // Remove event listeners
       if (socket) {
-        socket.off('receiveMessage', handleReceiveMessage);
-        socket.off('typing', handleTypingEvent);
-        socket.off('messagesRead', handleMessagesRead);
+        try {
+          socket.off('receiveMessage', handleReceiveMessage);
+          socket.off('typing', handleTypingEvent);
+          socket.off('messagesRead', handleMessagesRead);
+        } catch (err) {
+          console.error('Error removing socket event listeners:', err);
+        }
       }
     };
-  }, [socket, userId, otherUserId, match?._id, markMessagesAsRead, isAtBottom]);
+  }, [socket, socketConnected, userId, otherUserId, matchId, markMessagesAsRead, isAtBottom]);
 
   // Check for unread messages when scrolling
   useEffect(() => {
@@ -296,37 +279,52 @@ const GymBrosMatchChat = ({ match, onClose }) => {
       clearTimeout(typingTimeoutRef.current);
     }
     
-    if (!socket || !socketConnected || !otherUserId) return;
+    if (!socket || !socketConnected || !otherUserId || !matchId) return;
     
     if (newMessage.trim()) {
       // Start typing indicator
       if (!isTyping) {
         setIsTyping(true);
-        socket.emit('typing', {
-          senderId: userId,
-          receiverId: otherUserId,
-          isTyping: true
-        });
+        try {
+          socket.emit('typing', {
+            senderId: userId,
+            receiverId: otherUserId,
+            isTyping: true,
+            matchId // Include matchId for proper routing
+          });
+        } catch (err) {
+          console.error('Error sending typing indicator:', err);
+        }
       }
       
       // Set timer to stop typing indicator
       typingTimeoutRef.current = setTimeout(() => {
         setIsTyping(false);
-        socket.emit('typing', {
-          senderId: userId,
-          receiverId: otherUserId,
-          isTyping: false
-        });
+        try {
+          socket.emit('typing', {
+            senderId: userId,
+            receiverId: otherUserId,
+            isTyping: false,
+            matchId // Include matchId for proper routing
+          });
+        } catch (err) {
+          console.error('Error sending typing stop indicator:', err);
+        }
       }, 2000);
     } else {
       // If message is empty, stop typing indicator
       if (isTyping) {
         setIsTyping(false);
-        socket.emit('typing', {
-          senderId: userId,
-          receiverId: otherUserId,
-          isTyping: false
-        });
+        try {
+          socket.emit('typing', {
+            senderId: userId,
+            receiverId: otherUserId,
+            isTyping: false,
+            matchId // Include matchId for proper routing
+          });
+        } catch (err) {
+          console.error('Error sending typing stop indicator:', err);
+        }
       }
     }
     
@@ -335,12 +333,136 @@ const GymBrosMatchChat = ({ match, onClose }) => {
         clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, [newMessage, socket, socketConnected, isTyping, userId, otherUserId]);
+  }, [newMessage, socket, socketConnected, isTyping, userId, otherUserId, matchId]);
 
   // Auto-scroll when messages change
   useEffect(() => {
     scrollToBottom();
   }, [messages, otherUserTyping, scrollToBottom]);
+
+  // Send message
+  const handleSendMessage = async () => {
+    if ((!newMessage.trim() && files.length === 0) || !socket || !socketConnected) return;
+    
+    try {
+      const timestamp = new Date().toISOString();
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Create temporary message
+      const tempMessage = {
+        _id: tempId,
+        sender: userId,
+        content: newMessage.trim(),
+        timestamp: timestamp,
+        read: false,
+        pending: true,
+        file: []
+      };
+      
+      // Add to messages immediately
+      setMessages(prev => [...prev, tempMessage]);
+      processedMessageIds.current.add(tempId);
+      
+      // Clear input and reset typing
+      setNewMessage('');
+      if (isTyping) {
+        setIsTyping(false);
+        try {
+          socket.emit('typing', {
+            senderId: userId,
+            receiverId: otherUserId,
+            isTyping: false,
+            matchId // Include matchId for proper routing
+          });
+        } catch (err) {
+          console.error('Error sending typing stop indicator:', err);
+        }
+      }
+      
+      // Upload files if any
+      let uploadedFiles = [];
+      if (files.length > 0) {
+        try {
+          // In a real implementation this would upload files
+          // For now just mock the response
+          uploadedFiles = files.map((file, index) => ({
+            path: URL.createObjectURL(file),
+            type: file.type
+          }));
+          
+          // Update temporary message with files
+          const fileAttachments = uploadedFiles.map(file => ({
+            path: file.path,
+            type: file.type
+          }));
+          
+          setMessages(prev => 
+            prev.map(msg => 
+              msg._id === tempId ? { ...msg, file: fileAttachments } : msg
+            )
+          );
+        } catch (error) {
+          console.error('Failed to upload files:', error);
+          toast.error('Failed to upload files');
+        }
+      }
+      
+      // Send via socket
+      try {
+        socket.emit('sendMessage', {
+          senderId: userId,
+          receiverId: otherUserId,
+          content: newMessage.trim(),
+          timestamp: timestamp,
+          file: uploadedFiles.map(file => ({
+            path: file.path,
+            type: file.type
+          })),
+          matchId // Include matchId instead of subscriptionId for proper routing
+        });
+        
+        console.log('Message sent via socket');
+      } catch (socketError) {
+        console.error('Error sending message via socket:', socketError);
+        toast.error('Failed to send message in real-time');
+      }
+      
+      // In a real implementation, this would also call an API to store the message
+      // Simulate a successful API call after a delay
+      setTimeout(() => {
+        // Replace temporary message with final message
+        const newMessage = {
+          _id: `message-${Date.now()}`,
+          sender: userId,
+          content: tempMessage.content,
+          timestamp: tempMessage.timestamp,
+          read: false,
+          file: tempMessage.file
+        };
+        
+        // Add to processed set
+        processedMessageIds.current.add(newMessage._id);
+        
+        // Update messages list
+        setMessages(prev => 
+          prev.filter(msg => msg._id !== tempId).concat(newMessage)
+        );
+        
+        // Scroll to bottom
+        scrollToBottom();
+      }, 1000);
+      
+      // Clear files
+      setFiles([]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      toast.error('Failed to send message. Please try again.');
+      
+      // Remove the temporary message on error
+      setMessages(prev => prev.filter(msg => msg._id !== tempId));
+    }
+  };
 
   // File upload handling
   const handleFileChange = (e) => {
@@ -374,118 +496,6 @@ const GymBrosMatchChat = ({ match, onClose }) => {
   const handleRemoveFile = (index) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
     if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  // Send message
-  const handleSendMessage = async () => {
-    if ((!newMessage.trim() && files.length === 0) || !socket) return;
-    
-    try {
-      const timestamp = new Date().toISOString();
-      const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Create temporary message
-      const tempMessage = {
-        _id: tempId,
-        sender: userId,
-        content: newMessage.trim(),
-        timestamp: timestamp,
-        read: false,
-        pending: true,
-        file: []
-      };
-      
-      // Add to messages immediately
-      setMessages(prev => [...prev, tempMessage]);
-      processedMessageIds.current.add(tempId);
-      
-      // Clear input and reset typing
-      setNewMessage('');
-      if (isTyping) {
-        setIsTyping(false);
-        socket.emit('typing', {
-          senderId: userId,
-          receiverId: otherUserId,
-          isTyping: false
-        });
-      }
-      
-      // Upload files if any
-      let uploadedFiles = [];
-      if (files.length > 0) {
-        try {
-          // In a real implementation this would upload files
-          // For now just mock the response
-          uploadedFiles = files.map((file, index) => ({
-            path: URL.createObjectURL(file),
-            type: file.type
-          }));
-          
-          // Update temporary message with files
-          const fileAttachments = uploadedFiles.map(file => ({
-            path: file.path,
-            type: file.type
-          }));
-          
-          setMessages(prev => 
-            prev.map(msg => 
-              msg._id === tempId ? { ...msg, file: fileAttachments } : msg
-            )
-          );
-        } catch (error) {
-          console.error('Failed to upload files:', error);
-          toast.error('Failed to upload files');
-        }
-      }
-      
-      // In a real implementation, this would send via API
-      // For now, just simulate a successful send after a delay
-      setTimeout(() => {
-        // Replace temporary message with final message
-        const newMessage = {
-          _id: `message-${Date.now()}`,
-          sender: userId,
-          content: tempMessage.content,
-          timestamp: tempMessage.timestamp,
-          read: false,
-          file: tempMessage.file
-        };
-        
-        // Add to processed set
-        processedMessageIds.current.add(newMessage._id);
-        
-        // Update messages list
-        setMessages(prev => 
-          prev.filter(msg => msg._id !== tempId).concat(newMessage)
-        );
-        
-        // Emit to socket if available
-        if (socket && socketConnected) {
-          // FIX: Include all required fields for the sendMessage event
-          socket.emit('sendMessage', {
-            senderId: userId,
-            receiverId: otherUserId, 
-            content: newMessage.content,
-            timestamp: newMessage.timestamp,
-            file: newMessage.file,
-            subscriptionId: match._id  // Added missing required field
-          });
-        }
-        
-        // Scroll to bottom
-        scrollToBottom();
-      }, 1000);
-      
-      // Clear files
-      setFiles([]);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      toast.error('Failed to send message. Please try again.');
-      
-      // Remove the temporary message on error
-      setMessages(prev => prev.filter(msg => msg._id !== tempId));
-    }
   };
 
   // Sort and group messages by date
@@ -531,6 +541,77 @@ const GymBrosMatchChat = ({ match, onClose }) => {
     return groups;
   }, [messages]);
 
+  // Find the last read message from current user
+  const [lastReadMessageId, setLastReadMessageId] = useState(null);
+  
+  // Initialize lastReadMessageId when messages load
+  useEffect(() => {
+    if (messages.length > 0 && userId) {
+      // Get all messages sent by the user (current user)
+      const userMessages = messages.filter(msg => 
+        msg.sender === userId && !msg.pending
+      );
+      
+      if (userMessages.length === 0) return;
+      
+      // Sort in chronological order
+      userMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      
+      // Find the last message that is read
+      let lastReadMsg = null;
+      
+      for (let i = userMessages.length - 1; i >= 0; i--) {
+        if (userMessages[i].read) {
+          lastReadMsg = userMessages[i];
+          break;
+        }
+      }
+      
+      setLastReadMessageId(lastReadMsg?._id || null);
+    }
+  }, [messages, userId]);
+  
+  // Update lastReadMessageId when receiving messagesRead event
+  useEffect(() => {
+    if (!socket || !socketConnected || !matchId) return;
+    
+    const handleMessagesReadEvent = (data) => {
+      console.log('Received messagesRead event:', data);
+      
+      if (data.matchId !== matchId) return;
+      
+      // Get messages sent by me (user) that were marked as read
+      const myMessages = messages.filter(msg => msg.sender === userId);
+      
+      const myReadMessages = myMessages.filter(msg => 
+        data.messageIds.includes(msg._id)
+      );
+      
+      // If any messages were marked as read, update the last read message ID
+      if (myReadMessages.length > 0) {
+        // Sort in reverse chronological order
+        myReadMessages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        const newLastReadMessageId = myReadMessages[0]._id;
+        setLastReadMessageId(newLastReadMessageId);
+      }
+    };
+    
+    try {
+      socket.on('messagesRead', handleMessagesReadEvent);
+    } catch (err) {
+      console.error('Error setting up messagesRead event listener:', err);
+    }
+    
+    return () => {
+      if (socket) {
+        try {
+          socket.off('messagesRead', handleMessagesReadEvent);
+        } catch (err) {
+          console.error('Error removing messagesRead event listener:', err);
+        }
+      }
+    };
+  }, [socket, socketConnected, matchId, userId, messages]);
   
   const formatImageUrl = (url) => {
     if (!url) return "/api/placeholder/400/400";
@@ -701,7 +782,7 @@ const GymBrosMatchChat = ({ match, onClose }) => {
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
           </div>
         ) : messages.length === 0 ? (
-          /* UPDATED EMPTY STATE UI */
+          /* Empty state UI */
           <div className="h-full flex flex-col items-center justify-center text-center p-4">
             <div className="w-full max-w-md flex flex-col items-center">
               <div className="relative mb-6">
@@ -785,6 +866,7 @@ const GymBrosMatchChat = ({ match, onClose }) => {
                 <div className="space-y-4">
                 {group.messages.map((message) => {
                       const isCurrentUser = message.sender === userId;
+                      const isLastReadMessage = message._id === lastReadMessageId;
 
                       return (
                       <div key={message._id} className="message-container">
@@ -846,6 +928,16 @@ const GymBrosMatchChat = ({ match, onClose }) => {
                             </div>
                           </div>
                         </div>
+                        
+                        {/* Read receipt indicator */}
+                        {isLastReadMessage && (
+                          <div className="flex justify-end mt-1 pr-2">
+                            <div className="flex items-center text-gray-500 text-xs">
+                              <Eye className="w-3 h-3 mr-1" />
+                              <span>Seen</span>
+                            </div>
+                          </div>
+                        )}
                         
                         {/* Message sending indicator */}
                         {message.pending && (

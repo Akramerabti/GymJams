@@ -53,6 +53,13 @@ export const SocketProvider = ({ children }) => {
     console.log("Using socket base URL:", baseUrl);
     
     try {
+      // Cleanup any existing socket
+      if (socketRef.current) {
+        console.log("Cleaning up existing socket connection");
+        socketRef.current.close();
+        socketRef.current = null;
+      }
+
       // Create socket connection with the correct base URL
       const socketInstance = io(baseUrl, {
         withCredentials: true,
@@ -61,7 +68,7 @@ export const SocketProvider = ({ children }) => {
         reconnection: true,
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,
-        timeout: 10000, // 10 second connection timeout
+        timeout: 20000, // Increased timeout
       });
 
       // Setup socket event handlers
@@ -90,7 +97,7 @@ export const SocketProvider = ({ children }) => {
           console.log("Will retry socket connection automatically");
         } else {
           toast.error('Connection issue', {
-            description: 'Having trouble connecting to chat service',
+            description: 'Having trouble connecting to chat service: ' + error.message,
             icon: <Wifi className="text-orange-500" />
           });
         }
@@ -100,6 +107,15 @@ export const SocketProvider = ({ children }) => {
         console.log('Socket disconnected:', reason);
         setConnected(false);
         setConnecting(false);
+        
+        // Attempt to reconnect automatically after a timeout
+        if (reason === "io server disconnect" || reason === "io client disconnect") {
+          // Manual reconnection needed
+          setTimeout(() => {
+            console.log("Attempting manual reconnection after disconnect");
+            socketInstance.connect();
+          }, 5000);
+        }
       });
 
       socketInstance.on('error', (error) => {
@@ -172,6 +188,11 @@ export const SocketProvider = ({ children }) => {
         ]);
       });
       
+      // Add listener for debug messages from server
+      socketInstance.on('debug', (message) => {
+        console.log('Socket DEBUG:', message);
+      });
+      
       // Store in both state and ref
       socketRef.current = socketInstance;
     } catch (error) {
@@ -182,7 +203,7 @@ export const SocketProvider = ({ children }) => {
       
       // Show error toast
       toast.error('Connection issue', {
-        description: 'Having trouble connecting to chat service',
+        description: 'Having trouble connecting to chat service: ' + error.message,
         icon: <Wifi className="text-orange-500" />
       });
     }
@@ -192,8 +213,23 @@ export const SocketProvider = ({ children }) => {
   useEffect(() => {
     initializeSocket();
 
+    // Add a debug ping for socket health check
+    const pingInterval = setInterval(() => {
+      if (socketRef.current && connected) {
+        try {
+          // Send a heartbeat message
+          socketRef.current.emit('heartbeat', { timestamp: new Date().toISOString() });
+          console.log('Socket heartbeat sent');
+        } catch (err) {
+          console.error("Error sending socket heartbeat:", err);
+        }
+      }
+    }, 30000); // Every 30 seconds
+
     // Cleanup function - only runs when component unmounts
     return () => {
+      clearInterval(pingInterval);
+      
       if (socketRef.current) {
         console.log("Disconnecting socket on cleanup");
         try {

@@ -287,6 +287,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
     }
   }, [messages, userId, markMessagesAsRead, isAtBottom]);
 
+  
   // Handle typing indicator with debounce
   useEffect(() => {
     if (typingTimeoutRef.current) {

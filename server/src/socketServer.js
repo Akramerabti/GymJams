@@ -3,6 +3,7 @@ import { Server } from 'socket.io';
 import mongoose from 'mongoose';
 import logger from './utils/logger.js';
 import Subscription from './models/Subscription.js';
+import GymBrosMatch from './models/GymBrosMatch.js';
 
 // Store active users and their socket connections
 export const activeUsers = new Map();
@@ -79,27 +80,66 @@ export const initializeSocket = (server) => {
       socket.userId = userId;
     });
 
-    // Handle sending messages
+    // Handle sending messages - now unified to handle both subscription and match messages
     socket.on('sendMessage', async (messageData) => {
-      const { senderId, receiverId, content, timestamp, file, subscriptionId } = messageData;
+      const { senderId, receiverId, content, timestamp, file, subscriptionId, matchId } = messageData;
       
       // Basic validation
-      if (!senderId || !receiverId || !subscriptionId) {
+      if (!senderId || !receiverId || (!subscriptionId && !matchId)) {
         logger.error('Missing required fields in sendMessage event');
         socket.emit('messageError', { error: 'Missing required fields' });
         return;
       }
 
       try {
+        // Determine context type (subscription or match)
+        const isSubscriptionMessage = !!subscriptionId;
+        const isMatchMessage = !!matchId;
+        
+        // Log what type of message is being sent
+        if (isSubscriptionMessage) {
+          logger.info(`Processing subscription message from ${senderId} to ${receiverId} for subscription ${subscriptionId}`);
+        } else if (isMatchMessage) {
+          logger.info(`Processing GymBros match message from ${senderId} to ${receiverId} for match ${matchId}`);
+        }
+
         // NOTE: We're not creating or saving messages here anymore
         // Message creation will only happen through the API to avoid duplicates
         
-        // We'll just acknowledge receipt to the sender
+        // We'll just acknowledge receipt to the sender with context-appropriate ID
         socket.emit('messageSent', {
           status: 'received',
-          subscriptionId,
+          subscriptionId: isSubscriptionMessage ? subscriptionId : undefined,
+          matchId: isMatchMessage ? matchId : undefined,
           timestamp: new Date().toISOString()
         });
+        
+        // Forward message to receiver if they are online
+        const receiverSocketId = activeUsers.get(receiverId);
+        if (receiverSocketId) {
+          // Create a message object for the receiver without the pending flag
+          const messageForReceiver = {
+            _id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            sender: senderId,
+            content,
+            timestamp,
+            read: false,
+            file: file || []
+          };
+          
+          // Include the appropriate ID (subscription or match)
+          if (isSubscriptionMessage) {
+            messageForReceiver.subscriptionId = subscriptionId;
+          } else if (isMatchMessage) {
+            messageForReceiver.matchId = matchId;
+          }
+          
+          // Send to the receiver
+          ioInstance.to(receiverSocketId).emit('receiveMessage', messageForReceiver);
+          logger.info(`Message forwarded to receiver ${receiverId} (socket: ${receiverSocketId})`);
+        } else {
+          logger.info(`Receiver ${receiverId} is offline, message will be delivered when they connect`);
+        }
         
         logger.info(`Message event acknowledged from ${senderId} to ${receiverId}`);
       } catch (error) {
@@ -108,9 +148,9 @@ export const initializeSocket = (server) => {
       }
     });
 
-    // Handle typing indicators
+    // Handle typing indicators - unified for both subscription and match contexts
     socket.on('typing', (data) => {
-      const { senderId, receiverId, isTyping } = data;
+      const { senderId, receiverId, isTyping, subscriptionId, matchId } = data;
       
       if (!senderId || !receiverId) {
         logger.warn('Missing required fields in typing event');
@@ -121,10 +161,13 @@ export const initializeSocket = (server) => {
         const receiverSocketId = activeUsers.get(receiverId);
         
         if (receiverSocketId) {
+          // Forward typing event with context information
           ioInstance.to(receiverSocketId).emit('typing', {
             senderId,
             isTyping,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            subscriptionId, // Will be undefined if not provided
+            matchId // Will be undefined if not provided
           });
           
           logger.debug(`Typing event (${isTyping ? 'started' : 'stopped'}) sent from ${senderId} to ${receiverId}`);
@@ -136,11 +179,12 @@ export const initializeSocket = (server) => {
       }
     });
 
-    // Handle read receipts
+    // Handle read receipts - unified for both subscription and match contexts
     socket.on('messagesRead', (data) => {
-      const { subscriptionId, messageIds, receiverId } = data;
+      const { subscriptionId, matchId, messageIds, receiverId } = data;
       
-      if (!subscriptionId || !messageIds || !messageIds.length || !receiverId) {
+      // Check if we have either a subscription ID or match ID
+      if ((!subscriptionId && !matchId) || !messageIds || !messageIds.length || !receiverId) {
         logger.warn('Invalid messagesRead event data');
         return;
       }
@@ -152,14 +196,17 @@ export const initializeSocket = (server) => {
         // Acknowledge receipt to the sender
         socket.emit('readReceiptSent', {
           subscriptionId,
+          matchId,
           messageIds,
           success: !!receiverSocketId
         });
         
         // If receiver is online, forward the read receipt
         if (receiverSocketId) {
+          // Include context-specific IDs
           ioInstance.to(receiverSocketId).emit('messagesRead', {
-            subscriptionId,
+            subscriptionId, // Will be undefined if not relevant
+            matchId, // Will be undefined if not relevant
             messageIds,
             timestamp: new Date().toISOString()
           });
@@ -243,8 +290,8 @@ export const emitToUsers = (event, data, userIds = null) => {
   }
 };
 
-// Specific function to notify a client about goal approval
-export const notifyGoalApproval = (userId, goalData) => {
+// Unified function to notify users about various events
+export const notifyUser = (userId, eventType, data) => {
   if (!ioInstance) {
     logger.error('Socket.io instance not initialized');
     return false;
@@ -253,38 +300,30 @@ export const notifyGoalApproval = (userId, goalData) => {
   try {
     const socketId = activeUsers.get(userId.toString());
     if (socketId) {
-      ioInstance.to(socketId).emit('goalApproved', goalData);
-      logger.info(`Goal approval notification sent to user ${userId}`);
+      ioInstance.to(socketId).emit(eventType, data);
+      logger.info(`${eventType} notification sent to user ${userId}`);
       return true;
     } else {
-      logger.info(`User ${userId} is offline, goal approval notification will be delivered when they connect`);
+      logger.info(`User ${userId} is offline, ${eventType} notification will be delivered when they connect`);
       return false;
     }
   } catch (error) {
-    logger.error(`Error sending goal approval notification:`, error);
+    logger.error(`Error sending ${eventType} notification:`, error);
     return false;
   }
 };
 
-// Specific function to notify a client about goal rejection
+// Specific function to notify a client about goal approval (preserved for backward compatibility)
+export const notifyGoalApproval = (userId, goalData) => {
+  return notifyUser(userId, 'goalApproved', goalData);
+};
+
+// Specific function to notify a client about goal rejection (preserved for backward compatibility)
 export const notifyGoalRejection = (userId, goalData) => {
-  if (!ioInstance) {
-    logger.error('Socket.io instance not initialized');
-    return false;
-  }
-  
-  try {
-    const socketId = activeUsers.get(userId.toString());
-    if (socketId) {
-      ioInstance.to(socketId).emit('goalRejected', goalData);
-      logger.info(`Goal rejection notification sent to user ${userId}`);
-      return true;
-    } else {
-      logger.info(`User ${userId} is offline, goal rejection notification will be delivered when they connect`);
-      return false;
-    }
-  } catch (error) {
-    logger.error(`Error sending goal rejection notification:`, error);
-    return false;
-  }
+  return notifyUser(userId, 'goalRejected', goalData);
+};
+
+// New function to notify about a new match
+export const notifyNewMatch = (userId, matchData) => {
+  return notifyUser(userId, 'newMatch', matchData);
 };
