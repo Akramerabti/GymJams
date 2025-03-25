@@ -14,29 +14,50 @@ const userTimeouts = new Map();
 // Store the io instance
 let ioInstance;
 
-/**
- * Initialize the socket.io server
- * @param {Server} server - HTTP or HTTPS server instance
- * @returns {Server} - Socket.io server instance
- */
 export const initializeSocket = (server) => {
+  if (ioInstance) {
+    logger.warn('Socket.io server already initialized, reusing existing instance');
+    return ioInstance;
+  }
+
+  // Configure Socket.io
   ioInstance = new Server(server, {
     cors: {
-      origin: [
-        process.env.CLIENT_URL,
-        'http://localhost:5173',
-        'http://localhost:3000'
-      ],
+      origin: process.env.NODE_ENV === 'production'
+        ? [
+            'https://gymtonic.ca',
+            'https://www.gymtonic.ca',
+            'https://gymtonic.onrender.com'
+          ]
+        : [
+            'http://localhost:5173',
+            'http://localhost:3000',
+            'http://localhost:5000'
+          ],
       methods: ['GET', 'POST'],
       credentials: true,
+      allowedHeaders: ['Content-Type', 'Authorization', 'x-gymbros-guest-token']
     },
     pingTimeout: 60000, // 60s timeout
     pingInterval: 25000, // 25s ping interval
     transports: ['websocket', 'polling'], // Use websocket when possible, fallback to polling
+    maxHttpBufferSize: 5e6, // 5MB max payload
+    allowUpgrades: true,
+    path: '/socket.io' // Default socket.io path
   });
 
+  logger.info('Socket.io server initialized');
+
+  // Connection handler
   ioInstance.on('connection', (socket) => {
-    logger.info('New socket connection:', socket.id);
+    logger.info(`New socket connection: ${socket.id}`);
+
+    // Send initial message to confirm connection
+    socket.emit('debug', {
+      message: 'Connected to server',
+      socketId: socket.id,
+      timestamp: new Date().toISOString()
+    });
 
     // Register user with their ID
     socket.on('register', (userId) => {
@@ -46,41 +67,44 @@ export const initializeSocket = (server) => {
         return;
       }
       
+      // Normalize userId to string
+      const userIdStr = userId.toString();
+      
       // Clear any pending timeout for this user
-      if (userTimeouts.has(userId)) {
-        clearTimeout(userTimeouts.get(userId));
-        userTimeouts.delete(userId);
-        logger.info(`Cleared reconnection timeout for user ${userId}`);
+      if (userTimeouts.has(userIdStr)) {
+        clearTimeout(userTimeouts.get(userIdStr));
+        userTimeouts.delete(userIdStr);
+        logger.info(`Cleared reconnection timeout for user ${userIdStr}`);
       }
       
       // Store previous socket ID if it exists
-      const previousSocketId = activeUsers.get(userId);
+      const previousSocketId = activeUsers.get(userIdStr);
       
       // Update the socket ID for this user
-      activeUsers.set(userId, socket.id);
+      activeUsers.set(userIdStr, socket.id);
       
       // Log registration
       if (previousSocketId && previousSocketId !== socket.id) {
-        logger.info(`User ${userId} re-registered with new socket ${socket.id} (old: ${previousSocketId})`);
+        logger.info(`User ${userIdStr} re-registered with new socket ${socket.id} (old: ${previousSocketId})`);
         
         // Disconnect the old socket if it still exists
         const oldSocket = ioInstance.sockets.sockets.get(previousSocketId);
         if (oldSocket) {
-          logger.info(`Disconnecting old socket ${previousSocketId} for user ${userId}`);
+          logger.info(`Disconnecting old socket ${previousSocketId} for user ${userIdStr}`);
           oldSocket.disconnect(true);
         }
       } else {
-        logger.info(`User ${userId} registered with socket ${socket.id}`);
+        logger.info(`User ${userIdStr} registered with socket ${socket.id}`);
       }
       
       // Confirm registration success
-      socket.emit('registrationSuccess', { userId });
+      socket.emit('registrationSuccess', { userId: userIdStr });
       
       // Store user ID on the socket for quick lookup on disconnect
-      socket.userId = userId;
+      socket.userId = userIdStr;
     });
 
-    // Handle sending messages - now unified to handle both subscription and match messages
+    // Handle sending messages - unified to handle both subscription and match messages
     socket.on('sendMessage', async (messageData) => {
       const { senderId, receiverId, content, timestamp, file, subscriptionId, matchId } = messageData;
       
@@ -97,16 +121,14 @@ export const initializeSocket = (server) => {
         const isMatchMessage = !!matchId;
         
         // Log what type of message is being sent
-        if (isSubscriptionMessage) {
-          logger.info(`Processing subscription message from ${senderId} to ${receiverId} for subscription ${subscriptionId}`);
-        } else if (isMatchMessage) {
-          logger.info(`Processing GymBros match message from ${senderId} to ${receiverId} for match ${matchId}`);
-        }
+        logger.debug(`Processing ${isSubscriptionMessage ? 'subscription' : 'match'} message 
+                     from ${senderId} to ${receiverId} for ${isSubscriptionMessage ? 'subscription' : 'match'} 
+                     ${isSubscriptionMessage ? subscriptionId : matchId}`);
 
         // NOTE: We're not creating or saving messages here anymore
         // Message creation will only happen through the API to avoid duplicates
         
-        // We'll just acknowledge receipt to the sender with context-appropriate ID
+        // Send acknowledgment to the sender
         socket.emit('messageSent', {
           status: 'received',
           subscriptionId: isSubscriptionMessage ? subscriptionId : undefined,
@@ -115,16 +137,16 @@ export const initializeSocket = (server) => {
         });
         
         // Forward message to receiver if they are online
-        const receiverSocketId = activeUsers.get(receiverId);
+        const receiverSocketId = activeUsers.get(receiverId.toString());
         if (receiverSocketId) {
           // Create a message object for the receiver without the pending flag
           const messageForReceiver = {
-            _id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            _id: messageData._id || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             sender: senderId,
-            content,
-            timestamp,
+            content: content || '',
+            timestamp: timestamp || new Date().toISOString(),
             read: false,
-            file: file || []
+            file: Array.isArray(file) ? file : []
           };
           
           // Include the appropriate ID (subscription or match)
@@ -136,19 +158,17 @@ export const initializeSocket = (server) => {
           
           // Send to the receiver
           ioInstance.to(receiverSocketId).emit('receiveMessage', messageForReceiver);
-          logger.info(`Message forwarded to receiver ${receiverId} (socket: ${receiverSocketId})`);
+          logger.debug(`Message forwarded to receiver ${receiverId} (socket: ${receiverSocketId})`);
         } else {
-          logger.info(`Receiver ${receiverId} is offline, message will be delivered when they connect`);
+          logger.debug(`Receiver ${receiverId} is offline, message will be delivered when they connect`);
         }
-        
-        logger.info(`Message event acknowledged from ${senderId} to ${receiverId}`);
       } catch (error) {
         logger.error('Error in sendMessage socket event:', error);
         socket.emit('messageError', { error: error.message });
       }
     });
 
-    // Handle typing indicators - unified for both subscription and match contexts
+    // Handle typing indicators
     socket.on('typing', (data) => {
       const { senderId, receiverId, isTyping, subscriptionId, matchId } = data;
       
@@ -158,7 +178,7 @@ export const initializeSocket = (server) => {
       }
       
       try {
-        const receiverSocketId = activeUsers.get(receiverId);
+        const receiverSocketId = activeUsers.get(receiverId.toString());
         
         if (receiverSocketId) {
           // Forward typing event with context information
@@ -166,8 +186,8 @@ export const initializeSocket = (server) => {
             senderId,
             isTyping,
             timestamp: Date.now(),
-            subscriptionId, // Will be undefined if not provided
-            matchId // Will be undefined if not provided
+            subscriptionId: subscriptionId || undefined, // Will be undefined if not provided
+            matchId: matchId || undefined // Will be undefined if not provided
           });
           
           logger.debug(`Typing event (${isTyping ? 'started' : 'stopped'}) sent from ${senderId} to ${receiverId}`);
@@ -179,7 +199,7 @@ export const initializeSocket = (server) => {
       }
     });
 
-    // Handle read receipts - unified for both subscription and match contexts
+    // Handle read receipts
     socket.on('messagesRead', (data) => {
       const { subscriptionId, matchId, messageIds, receiverId } = data;
       
@@ -191,7 +211,7 @@ export const initializeSocket = (server) => {
       
       try {
         // Find the receiver's socket ID
-        const receiverSocketId = activeUsers.get(receiverId);
+        const receiverSocketId = activeUsers.get(receiverId.toString());
         
         // Acknowledge receipt to the sender
         socket.emit('readReceiptSent', {
@@ -218,6 +238,17 @@ export const initializeSocket = (server) => {
       } catch (error) {
         logger.error('Error handling messagesRead event:', error);
       }
+    });
+
+    // Handle heartbeat pings
+    socket.on('heartbeat', (data) => {
+      logger.debug(`Heartbeat received from socket ${socket.id}, userId: ${socket.userId || 'unknown'}`);
+      
+      // Respond with a pong to confirm connection
+      socket.emit('heartbeat-ack', {
+        timestamp: new Date().toISOString(),
+        received: data?.timestamp
+      });
     });
 
     // Handle disconnection
@@ -259,7 +290,12 @@ export const initializeSocket = (server) => {
 };
 
 // Export function to get the io instance
-export const getIoInstance = () => ioInstance;
+export const getIoInstance = () => {
+  if (!ioInstance) {
+    logger.warn('Attempting to get Socket.io instance before initialization!');
+  }
+  return ioInstance;
+};
 
 // Export function to emit to all users or specific users
 export const emitToUsers = (event, data, userIds = null) => {
@@ -272,7 +308,7 @@ export const emitToUsers = (event, data, userIds = null) => {
     // If specific user IDs provided, emit only to them
     if (userIds && Array.isArray(userIds)) {
       userIds.forEach(userId => {
-        const socketId = activeUsers.get(userId);
+        const socketId = activeUsers.get(userId.toString());
         if (socketId) {
           ioInstance.to(socketId).emit(event, data);
         }
