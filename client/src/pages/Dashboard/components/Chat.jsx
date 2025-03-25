@@ -11,14 +11,14 @@ import { toast } from 'sonner';
 
 const Chat = ({ subscription, onClose }) => {
   const { user } = useAuth();
-  const socket = useSocket();
+  const { socket, connected, connecting, reconnect } = useSocket();
+  
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [files, setFiles] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [socketConnected, setSocketConnected] = useState(false);
   
   // Refs for managing chat state
   const typingTimeoutRef = useRef(null);
@@ -45,6 +45,14 @@ const Chat = ({ subscription, onClose }) => {
     const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
     return scrollHeight - (scrollTop + clientHeight) < 50;
   }, []);
+
+  // Try to reconnect socket if needed
+  useEffect(() => {
+    if (!connected && !connecting && socket === null) {
+      console.log('Chat: Socket not connected, attempting to reconnect...');
+      reconnect();
+    }
+  }, [connected, connecting, socket, reconnect]);
 
   // Fetch messages on component mount
   useEffect(() => {
@@ -104,43 +112,17 @@ const Chat = ({ subscription, onClose }) => {
     };
   }, [subscription?._id, userId]);
 
-  // Set up socket connection monitoring
+  // Register user with socket when connected
   useEffect(() => {
-    if (!socket) return;
-    
-    const handleConnect = () => {
-      console.log('Socket connected in chat component');
-      setSocketConnected(true);
-      
-      // Re-register user ID when reconnected
-      if (userId) {
+    if (socket && connected && userId) {
+      try {
+        console.log('Registering user with socket in Chat component:', userId);
         socket.emit('register', userId);
+      } catch (err) {
+        console.error('Error registering user with socket:', err);
       }
-    };
-    
-    const handleDisconnect = () => {
-      console.log('Socket disconnected in chat component');
-      setSocketConnected(false);
-    };
-    
-    // Set initial connection state
-    setSocketConnected(socket.connected);
-    
-    // Register event listeners
-    socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
-    
-    // Register user with socket
-    if (userId) {
-      socket.emit('register', userId);
-      console.log('User registered with socket:', userId);
     }
-    
-    return () => {
-      socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
-    };
-  }, [socket, userId]);
+  }, [socket, connected, userId]);
 
   // Mark messages as read
   const markMessagesAsRead = useCallback(async (messageIds) => {
@@ -164,26 +146,30 @@ const Chat = ({ subscription, onClose }) => {
       await subscriptionService.markMessagesAsRead(subscription._id, messageIds);
       
       // Emit socket event for real-time update to the sender
-      if (socket && socketConnected) {
-        socket.emit('messagesRead', {
-          subscriptionId: subscription._id,
-          messageIds,
-          receiverId: coachId
-        });
-        console.log('Read receipt sent via socket');
+      if (socket && connected && coachId) {
+        try {
+          socket.emit('messagesRead', {
+            subscriptionId: subscription._id,
+            messageIds,
+            receiverId: coachId
+          });
+          console.log('Read receipt sent via socket');
+        } catch (err) {
+          console.error('Error sending read receipt via socket:', err);
+        }
       }
     } catch (error) {
       console.error('Failed to mark messages as read:', error);
     } finally {
       markingAsRead.current = false;
     }
-  }, [socket, socketConnected, subscription?._id, coachId]);
+  }, [socket, connected, subscription?._id, coachId]);
 
   // Socket event handlers for messages, typing, and read receipts
   useEffect(() => {
-    if (!socket || !subscription?._id) return;
+    if (!socket || !connected || !subscription?._id) return;
     
-    // Handle receiving messages
+    // Handler functions
     const handleReceiveMessage = (message) => {
       console.log('Received message via socket:', message);
       
@@ -242,18 +228,28 @@ const Chat = ({ subscription, onClose }) => {
       }
     };
     
-    // Register socket event listeners
-    socket.on('receiveMessage', handleReceiveMessage);
-    socket.on('typing', handleTypingEvent);
-    socket.on('messagesRead', handleMessagesRead);
+    try {
+      // Register socket event listeners
+      socket.on('receiveMessage', handleReceiveMessage);
+      socket.on('typing', handleTypingEvent);
+      socket.on('messagesRead', handleMessagesRead);
+    } catch (err) {
+      console.error('Error setting up socket event listeners:', err);
+    }
     
     return () => {
       // Clean up event listeners
-      socket.off('receiveMessage', handleReceiveMessage);
-      socket.off('typing', handleTypingEvent);
-      socket.off('messagesRead', handleMessagesRead);
+      if (socket && connected) {
+        try {
+          socket.off('receiveMessage', handleReceiveMessage);
+          socket.off('typing', handleTypingEvent);
+          socket.off('messagesRead', handleMessagesRead);
+        } catch (err) {
+          console.error('Error removing socket event listeners:', err);
+        }
+      }
     };
-  }, [socket, userId, coachId, subscription?._id, markMessagesAsRead, isAtBottom]);
+  }, [socket, connected, userId, coachId, subscription?._id, markMessagesAsRead, isAtBottom]);
 
   // Check for unread messages when scrolling
   useEffect(() => {
@@ -282,37 +278,51 @@ const Chat = ({ subscription, onClose }) => {
       clearTimeout(typingTimeoutRef.current);
     }
     
-    if (!socket || !socketConnected || !coachId) return;
+    if (!socket || !connected || !coachId) return;
     
     if (newMessage.trim()) {
       // Start typing indicator
       if (!isTyping) {
         setIsTyping(true);
-        socket.emit('typing', {
-          senderId: userId,
-          receiverId: coachId,
-          isTyping: true
-        });
+        try {
+          socket.emit('typing', {
+            senderId: userId,
+            receiverId: coachId,
+            isTyping: true
+          });
+        } catch (err) {
+          console.error('Error sending typing indicator:', err);
+        }
       }
       
       // Set timer to stop typing indicator
       typingTimeoutRef.current = setTimeout(() => {
         setIsTyping(false);
-        socket.emit('typing', {
-          senderId: userId,
-          receiverId: coachId,
-          isTyping: false
-        });
+        if (socket && connected) {
+          try {
+            socket.emit('typing', {
+              senderId: userId,
+              receiverId: coachId,
+              isTyping: false
+            });
+          } catch (err) {
+            console.error('Error sending typing stop indicator:', err);
+          }
+        }
       }, 2000);
     } else {
       // If message is empty, stop typing indicator
       if (isTyping) {
         setIsTyping(false);
-        socket.emit('typing', {
-          senderId: userId,
-          receiverId: coachId,
-          isTyping: false
-        });
+        try {
+          socket.emit('typing', {
+            senderId: userId,
+            receiverId: coachId,
+            isTyping: false
+          });
+        } catch (err) {
+          console.error('Error sending typing stop indicator:', err);
+        }
       }
     }
     
@@ -321,7 +331,7 @@ const Chat = ({ subscription, onClose }) => {
         clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, [newMessage, socket, socketConnected, isTyping, userId, coachId]);
+  }, [newMessage, socket, connected, isTyping, userId, coachId]);
 
   // Auto-scroll when messages change
   useEffect(() => {
@@ -364,7 +374,11 @@ const Chat = ({ subscription, onClose }) => {
 
   // Send message
   const handleSendMessage = async () => {
-    if ((!newMessage.trim() && files.length === 0) || !socket) return;
+    if ((!newMessage.trim() && files.length === 0)) return;
+    if (!connected) {
+      toast.error('You are currently offline. Please try again when connected.');
+      return;
+    }
     
     try {
       const timestamp = new Date().toISOString();
@@ -389,11 +403,17 @@ const Chat = ({ subscription, onClose }) => {
       setNewMessage('');
       if (isTyping) {
         setIsTyping(false);
-        socket.emit('typing', {
-          senderId: userId,
-          receiverId: coachId,
-          isTyping: false
-        });
+        if (socket && connected) {
+          try {
+            socket.emit('typing', {
+              senderId: userId,
+              receiverId: coachId,
+              isTyping: false
+            });
+          } catch (err) {
+            console.error('Error sending typing stop indicator:', err);
+          }
+        }
       }
       
       // Upload files if any
@@ -423,11 +443,7 @@ const Chat = ({ subscription, onClose }) => {
         }
       }
       
-      // Choose one method for sending: either API or socket
-      // If socket is connected, use it to send the message and let the API handle persistence
-      // If socket is not connected, send directly via API
-      
-      // Make API call to ensure message is stored (this should be done regardless)
+      // Make API call to ensure message is stored
       const response = await subscriptionService.sendMessage(
         subscription._id,
         userId,
@@ -439,9 +455,6 @@ const Chat = ({ subscription, onClose }) => {
           type: file.type
         }))
       );
-      
-      // DON'T emit via socket - the backend will handle this
-      // To avoid duplicates, we'll let the backend handle both storage and real-time delivery
       
       // Replace temporary message with actual message
       if (response && response.messages) {
@@ -553,7 +566,7 @@ const Chat = ({ subscription, onClose }) => {
   
   // Update lastReadMessageId when receiving messagesRead event
   useEffect(() => {
-    if (!socket || !subscription?._id) return;
+    if (!socket || !connected || !subscription?._id) return;
 
     console.log('Setting up messagesRead event listener');
     
@@ -589,13 +602,22 @@ const Chat = ({ subscription, onClose }) => {
       }
     };
     
-    socket.on('messagesRead', handleMessagesReadEvent);
+    try {
+      socket.on('messagesRead', handleMessagesReadEvent);
+    } catch (err) {
+      console.error('Error setting up messagesRead event listener:', err);
+    }
     
     return () => {
-      console.log('Removing messagesRead event listener');
-      socket.off('messagesRead', handleMessagesReadEvent);
+      if (socket && connected) {
+        try {
+          socket.off('messagesRead', handleMessagesReadEvent);
+        } catch (err) {
+          console.error('Error removing messagesRead event listener:', err);
+        }
+      }
     };
-  }, [socket, subscription?._id, userId]);
+  }, [socket, connected, subscription?._id, userId, messages]);
 
   return (
     <AnimatePresence>
@@ -617,9 +639,9 @@ const Chat = ({ subscription, onClose }) => {
                 <ArrowLeft className="w-6 h-6" />
               </button>
               <h3 className="font-semibold text-lg text-white">Chat with Coach</h3>
-              {!socketConnected && (
+              {!connected && (
                 <div className="ml-auto rounded-full bg-red-500 px-3 py-1 text-xs text-white">
-                  Reconnecting...
+                  {connecting ? 'Connecting...' : 'Offline'}
                 </div>
               )}
             </div>
@@ -824,7 +846,7 @@ const Chat = ({ subscription, onClose }) => {
               />
               <Button
                 type="submit"
-                disabled={(!newMessage.trim() && files.length === 0) || !socketConnected}
+                disabled={(!newMessage.trim() && files.length === 0) || !connected}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-2 w-10 h-10 flex items-center justify-center shadow-md transition-colors disabled:bg-gray-400"
               >
                 <Send className="w-5 h-5" />

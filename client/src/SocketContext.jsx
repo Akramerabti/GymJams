@@ -1,13 +1,16 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './stores/authStore';
 import { toast } from 'sonner';
-import { Award, AlertTriangle } from 'lucide-react';
+import { Award, AlertTriangle, Wifi } from 'lucide-react';
 
 // Create context with a default value
 const SocketContext = createContext({
   socket: null,
-  notifications: []
+  notifications: [],
+  connected: false,
+  connecting: false,
+  reconnect: () => {}
 });
 
 // Separate named export for the hook - this is important for Fast Refresh
@@ -16,31 +19,40 @@ export function useSocket() {
 }
 
 export const SocketProvider = ({ children }) => {
-  const [socketState, setSocketState] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [connected, setConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const { user, isAuthenticated } = useAuth();
   const socketRef = useRef(null); // Keep a stable reference to socket
-  const [notifications, setNotifications] = useState([]);
+  const initAttemptsRef = useRef(0);
 
-  useEffect(() => {
-    // Initialize socket connection only once
-    if (!socketRef.current) {
-      console.log("Initializing socket connection...");
-      
-      // Extract the base URL without any paths
-      const getBaseUrl = (url) => {
-        if (!url) return 'http://localhost:5000';
-        try {
-          const parsed = new URL(url);
-          return `${parsed.protocol}//${parsed.host}`;
-        } catch (e) {
-          console.error("Invalid URL:", url, e);
-          return 'http://localhost:5000';
-        }
-      };
-      
-      const baseUrl = getBaseUrl(import.meta.env.VITE_API_URL);
-      console.log("Using socket base URL:", baseUrl);
-      
+  // Initialize or reconnect socket
+  const initializeSocket = useCallback(() => {
+    // Don't initialize multiple times
+    if (connecting || (socketRef.current && socketRef.current.connected)) {
+      return;
+    }
+
+    setConnecting(true);
+    initAttemptsRef.current += 1;
+    console.log(`Initializing socket connection (attempt #${initAttemptsRef.current})...`);
+    
+    // Extract the base URL without any paths
+    const getBaseUrl = (url) => {
+      if (!url) return 'http://localhost:5000';
+      try {
+        const parsed = new URL(url);
+        return `${parsed.protocol}//${parsed.host}`;
+      } catch (e) {
+        console.error("Invalid URL:", url, e);
+        return 'http://localhost:5000';
+      }
+    };
+    
+    const baseUrl = getBaseUrl(import.meta.env.VITE_API_URL);
+    console.log("Using socket base URL:", baseUrl);
+    
+    try {
       // Create socket connection with the correct base URL
       const socketInstance = io(baseUrl, {
         withCredentials: true,
@@ -49,11 +61,14 @@ export const SocketProvider = ({ children }) => {
         reconnection: true,
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,
+        timeout: 10000, // 10 second connection timeout
       });
 
       // Setup socket event handlers
       socketInstance.on('connect', () => {
         console.log('Socket connected successfully with ID:', socketInstance.id);
+        setConnected(true);
+        setConnecting(false);
         
         // Register user with socket when authenticated
         if (isAuthenticated && user) {
@@ -67,14 +82,30 @@ export const SocketProvider = ({ children }) => {
 
       socketInstance.on('connect_error', (error) => {
         console.error('Socket connection error:', error);
+        setConnected(false);
+        setConnecting(false);
+        
+        if (initAttemptsRef.current < 3) {
+          // Show error only after multiple failed attempts
+          console.log("Will retry socket connection automatically");
+        } else {
+          toast.error('Connection issue', {
+            description: 'Having trouble connecting to chat service',
+            icon: <Wifi className="text-orange-500" />
+          });
+        }
       });
 
       socketInstance.on('disconnect', (reason) => {
         console.log('Socket disconnected:', reason);
+        setConnected(false);
+        setConnecting(false);
       });
 
       socketInstance.on('error', (error) => {
         console.error('Socket error:', error);
+        setConnected(false);
+        setConnecting(false);
       });
       
       // Add listeners for goal approvals and rejections
@@ -143,18 +174,38 @@ export const SocketProvider = ({ children }) => {
       
       // Store in both state and ref
       socketRef.current = socketInstance;
-      setSocketState(socketInstance);
+    } catch (error) {
+      console.error("Error initializing socket:", error);
+      socketRef.current = null;
+      setConnected(false);
+      setConnecting(false);
+      
+      // Show error toast
+      toast.error('Connection issue', {
+        description: 'Having trouble connecting to chat service',
+        icon: <Wifi className="text-orange-500" />
+      });
     }
+  }, [isAuthenticated, user]);
+
+  // Initialize socket on mount
+  useEffect(() => {
+    initializeSocket();
 
     // Cleanup function - only runs when component unmounts
     return () => {
       if (socketRef.current) {
         console.log("Disconnecting socket on cleanup");
-        socketRef.current.disconnect();
+        try {
+          socketRef.current.disconnect();
+        } catch (err) {
+          console.error("Error disconnecting socket:", err);
+        }
         socketRef.current = null;
+        setConnected(false);
       }
     };
-  }, []); // Empty dependency array - only run once on mount
+  }, [initializeSocket]);
 
   // Re-register user when auth state changes
   useEffect(() => {
@@ -165,16 +216,28 @@ export const SocketProvider = ({ children }) => {
         
         // Check if socket is connected
         if (socketRef.current.connected) {
-          socketRef.current.emit('register', userId);
+          try {
+            socketRef.current.emit('register', userId);
+          } catch (err) {
+            console.error("Error emitting register event:", err);
+          }
         } else {
           // Add one-time connect listener if not connected
           const handleConnect = () => {
             console.log('Socket reconnected, registering user:', userId);
-            socketRef.current.emit('register', userId);
-            socketRef.current.off('connect', handleConnect);
+            try {
+              socketRef.current.emit('register', userId);
+              socketRef.current.off('connect', handleConnect);
+            } catch (err) {
+              console.error("Error in connect handler:", err);
+            }
           };
           
-          socketRef.current.once('connect', handleConnect);
+          try {
+            socketRef.current.once('connect', handleConnect);
+          } catch (err) {
+            console.error("Error adding connect handler:", err);
+          }
         }
       }
     }
@@ -182,8 +245,11 @@ export const SocketProvider = ({ children }) => {
 
   // Create the context value object
   const contextValue = {
-    socket: socketRef.current,
-    notifications
+    socket: socketRef.current, // Provide the socket instance
+    notifications,
+    connected,
+    connecting,
+    reconnect: initializeSocket
   };
 
   return (
