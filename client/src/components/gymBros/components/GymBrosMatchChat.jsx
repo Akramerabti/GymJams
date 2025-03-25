@@ -27,6 +27,8 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
   const chatContainerRef = useRef(null);
   const processedMessageIds = useRef(new Set());
   const userIdRef = useRef(null);
+  const markingAsRead = useRef(false);
+const lastReadTimestamp = useRef(0);
 
   // Get user info
   const userId = user?.id || (user?.user && user?.user.id);
@@ -74,7 +76,6 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     }
   }, [socket, socketConnected, userId]);
 
-  // Mark messages as read
   const markMessagesAsRead = useCallback(async (messageIds) => {
     if (!messageIds?.length || markingAsRead.current || !matchId) return;
     
@@ -92,13 +93,18 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
       // Update timestamp
       lastReadTimestamp.current = Date.now();
       
-      // In a real implementation, this would call an API to mark messages as read
-      // For now, just simulate success
+      // Call the API to mark messages as read
+      try {
+        await gymbrosService.markMatchMessagesAsRead(matchId, messageIds);
+      } catch (apiError) {
+        console.warn('API error marking messages as read:', apiError);
+        // Continue with socket event even if API fails
+      }
       
       // Emit socket event for real-time update to the sender
       if (socket && socketConnected) {
         socket.emit('messagesRead', {
-          matchId, // Send matchId instead of subscriptionId
+          matchId, 
           messageIds,
           receiverId: otherUserId
         });
@@ -244,85 +250,100 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     scrollToBottom();
   }, [messages, otherUserTyping, scrollToBottom]);
 
-  // Updated handleSendMessage function for GymBrosMatchChat.jsx
-const handleSendMessage = async () => {
-  if ((!newMessage.trim() && files.length === 0) || !socketConnected) return;
+  const handleSendMessage = async () => {
+    if ((!newMessage.trim() && files.length === 0) || !socketConnected) return;
+    
+    let tempId; // Declare outside try-catch block
+    try {
+      tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const timestamp = new Date().toISOString();
+      
+      // Create temporary message
+      const tempMessage = {
+        _id: tempId,
+        sender: userId,
+        content: newMessage.trim(),
+        timestamp,
+        pending: true,
+        read: false
+      };
   
-  let tempId; // Declare outside try-catch block
-  try {
-    tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const timestamp = new Date().toISOString();
-    
-    // Create temporary message
-    const tempMessage = {
-      _id: tempId,
-      sender: userId,
-      content: newMessage.trim(),
-      timestamp,
-      pending: true,
-      read: false
-    };
-
-    // Add to messages immediately
-    setMessages(prev => [...prev, tempMessage]);
-    setNewMessage('');
-    
-    let effectiveSenderId = userId || userIdRef.current;
-    
-    // If no userId is available (guest user), try to determine it from the match
-    if (!effectiveSenderId) {
-      try {
-        // Fetch match details to get both users
-        const matchDetails = await gymbrosService.findMatch(otherUserId);
-        
-        if (matchDetails && matchDetails.users && matchDetails.users.length === 2) {
-          // Find the user that's not the receiver
-          effectiveSenderId = matchDetails.users.find(id => 
-            id.toString() !== otherUserId.toString()
-          );
+      // Add to messages immediately
+      setMessages(prev => [...prev, tempMessage]);
+      setNewMessage('');
+      
+      let effectiveSenderId = userId || userIdRef.current;
+      
+      // If no userId is available (guest user), try to determine it from the match
+      if (!effectiveSenderId) {
+        try {
+          // Fetch match details to get both users
+          const matchDetails = await gymbrosService.findMatch(otherUserId);
           
-          console.log(`Determined sender ID for guest user: ${effectiveSenderId}`);
-        } else {
-          console.error('Could not determine sender ID for guest user');
-          throw new Error('Unable to determine sender ID');
+          if (matchDetails && matchDetails.users && matchDetails.users.length === 2) {
+            // Find the user that's not the receiver
+            effectiveSenderId = matchDetails.users.find(id => 
+              id.toString() !== otherUserId.toString()
+            );
+            
+            console.log(`Determined sender ID for guest user: ${effectiveSenderId}`);
+            userIdRef.current = effectiveSenderId; // Save for future use
+          } else {
+            console.error('Could not determine sender ID for guest user');
+            throw new Error('Unable to determine sender ID');
+          }
+        } catch (matchError) {
+          console.error('Error finding match details:', matchError);
+          throw new Error('Failed to determine sender ID');
         }
-      } catch (matchError) {
-        console.error('Error finding match details:', matchError);
-        throw new Error('Failed to determine sender ID');
+      }
+      
+      console.log('Sending message:', matchId, effectiveSenderId, otherUserId, newMessage.trim(), tempId, timestamp);
+  
+      // Socket emit with all required fields - using effectiveSenderId instead of userId
+      socket.emit('sendMessage', {
+        matchId,
+        senderId: effectiveSenderId,
+        receiverId: otherUserId,
+        content: newMessage.trim(),
+        timestamp,
+        tempId
+      });
+  
+      // API call with proper structure - using effectiveSenderId instead of userId
+      const response = await gymbrosService.sendMessage({
+        matchId,
+        senderId: effectiveSenderId,
+        receiverId: otherUserId,
+        content: newMessage.trim(),
+        tempId,
+        timestamp
+      });
+      
+      // Update the message to remove pending status
+      if (response && response.success) {
+        setMessages(prev => prev.map(msg => {
+          // If this is our temporary message, update it
+          if (msg._id === tempId) {
+            return {
+              ...msg,
+              pending: false,
+              _id: response.messageId || msg._id // Use server-assigned ID if available
+            };
+          }
+          return msg;
+        }));
+      }
+  
+    } catch (error) {
+      console.error('Send message error:', error);
+      toast.error('Failed to send message');
+      // Remove temp message if it was created
+      if (tempId) {
+        setMessages(prev => prev.filter(msg => msg._id !== tempId));
       }
     }
-    
-    console.log('Sending message:', matchId, effectiveSenderId, otherUserId, newMessage.trim(), tempId, timestamp);
-
-    // Socket emit with all required fields - using effectiveSenderId instead of userId
-    socket.emit('sendMessage', {
-      matchId,
-      senderId: effectiveSenderId,
-      receiverId: otherUserId,
-      content: newMessage.trim(),
-      timestamp,
-      tempId
-    });
-
-    // API call with proper structure - using effectiveSenderId instead of userId
-    await gymbrosService.sendMessage({
-      matchId,
-      senderId: effectiveSenderId,
-      receiverId: otherUserId,
-      content: newMessage.trim(),
-      tempId,
-      timestamp
-    });
-
-  } catch (error) {
-    console.error('Send message error:', error);
-    toast.error('Failed to send message');
-    // Remove temp message if it was created
-    if (tempId) {
-      setMessages(prev => prev.filter(msg => msg._id !== tempId));
-    }
-  }
-};
+  };
   // File upload handling
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files);
