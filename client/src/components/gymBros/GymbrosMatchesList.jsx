@@ -144,8 +144,9 @@ const GymbrosMatchesList = () => {
       console.log('Opening chat with:', user);
       
       // Determine the correct identifier based on user type
-      const targetIdentifier = user.userId || user.profileId;
+      const targetIdentifier = user.userId || user._id;
       
+      console.log('Target identifier:', targetIdentifier);
       // Get actual match ID between current user and target user
       const matchData = await gymbrosService.findMatch(targetIdentifier);
       

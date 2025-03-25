@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, ArrowLeft, Image, X, Eye, Loader2 } from 'lucide-react';
+import { Send, ArrowLeft, Image, X, Eye, Loader2, MapPin, Calendar, Award, Flag, Phone } from 'lucide-react';
 import { format, parseISO, isSameDay, formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { useSocket } from '../../../SocketContext';
@@ -28,11 +28,24 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
   const processedMessageIds = useRef(new Set());
   const userIdRef = useRef(null);
   const markingAsRead = useRef(false);
-const lastReadTimestamp = useRef(0);
+  const lastReadTimestamp = useRef(0);
 
   // Get user info
   const userId = user?.id || (user?.user && user?.user.id);
   const otherUserId = otherUserInfo.userId || otherUserInfo.profileId;
+  
+  // Debug IDs - helps debugging ID matching issues
+  useEffect(() => {
+    console.log('Current userId:', userId);
+    console.log('UserIdRef.current:', userIdRef.current);
+    console.log('OtherUserId:', otherUserId);
+  }, [userId, otherUserId]);
+
+  // Function to normalize IDs for comparison (ensures consistent string format)
+  const normalizeId = (id) => {
+    if (!id) return null;
+    return typeof id === 'object' ? id.toString() : String(id);
+  };
   
   // Auto-scroll to bottom when messages change
   const scrollToBottom = useCallback(() => {
@@ -46,22 +59,33 @@ const lastReadTimestamp = useRef(0);
     return scrollHeight - (scrollTop + clientHeight) < 50;
   }, []);
 
+  // Fetch messages effect
   useEffect(() => {
     const fetchMessages = async () => {
       try {
         setIsLoading(true);
         const messages = await gymbrosService.fetchMatchMessages(matchId);
         console.log('Fetched messages:', messages);
+        
+        // Debug the sender format in received messages
+        if (messages.length > 0) {
+          console.log('Example message sender format:', {
+            sender: messages[0].sender,
+            type: typeof messages[0].sender
+          });
+        }
+        
         setMessages(messages);
         processedMessageIds.current.clear();
         messages.forEach(msg => processedMessageIds.current.add(msg._id));
       } catch (error) {
+        console.error('Failed to load messages:', error);
         toast.error('Failed to load messages');
       } finally {
         setIsLoading(false);
       }
     };
-     fetchMessages();
+    fetchMessages();
   }, [matchId]);
 
   // Register user with socket when connected
@@ -76,6 +100,7 @@ const lastReadTimestamp = useRef(0);
     }
   }, [socket, socketConnected, userId]);
 
+  // Mark messages as read
   const markMessagesAsRead = useCallback(async (messageIds) => {
     if (!messageIds?.length || markingAsRead.current || !matchId) return;
     
@@ -122,6 +147,7 @@ const lastReadTimestamp = useRef(0);
     if (!socket || !socketConnected || !matchId) return;
 
     const handleReceiveMessage = (message) => {
+      console.log('Received message via socket:', message);
       if (message.matchId !== matchId) return;
       if (processedMessageIds.current.has(message._id)) return;
       
@@ -135,6 +161,7 @@ const lastReadTimestamp = useRef(0);
     };
 
     const handleMessagesRead = (data) => {
+      console.log('Messages read event received:', data);
       if (data.matchId !== matchId) return;
       setMessages(prev => prev.map(msg => 
         data.messageIds.includes(msg._id) ? { ...msg, read: true } : msg
@@ -156,8 +183,9 @@ const lastReadTimestamp = useRef(0);
   useEffect(() => {
     const handleScroll = () => {
       if (isAtBottom()) {
+        const effectiveSenderId = normalizeId(userId || userIdRef.current);
         const unreadMessages = messages
-          .filter(msg => !msg.read && msg.sender !== userId)
+          .filter(msg => !msg.read && normalizeId(msg.sender) !== effectiveSenderId)
           .map(msg => msg._id);
         
         if (unreadMessages.length > 0) {
@@ -173,6 +201,7 @@ const lastReadTimestamp = useRef(0);
     }
   }, [messages, userId, markMessagesAsRead, isAtBottom]);
 
+  // Handle typing indicator effect
   useEffect(() => {
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -244,12 +273,122 @@ const lastReadTimestamp = useRef(0);
     };
   }, [newMessage, socket, socketConnected, isTyping, userId, otherUserId, matchId, userIdRef.current]);
   
-
   // Auto-scroll when messages change
   useEffect(() => {
     scrollToBottom();
   }, [messages, otherUserTyping, scrollToBottom]);
 
+  // Determine guest user ID effect
+  useEffect(() => {
+    // If user is not authenticated (guest) or userId is null, fetch the match to determine the user's ID
+    if (!userId && matchId && otherUserId) {
+      const determineGuestUserId = async () => {
+        try {
+          console.log('GymBrosMatchChat: Determining guest user ID');
+          const matchDetails = await gymbrosService.findMatch(otherUserId);
+          
+          if (matchDetails && matchDetails.users && matchDetails.users.length === 2) {
+            // Find the user that's not the receiver (must be the sender/guest)
+            const guestUserId = matchDetails.users.find(id => 
+              normalizeId(id) !== normalizeId(otherUserId)
+            );
+            
+            if (guestUserId) {
+              console.log(`GymBrosMatchChat: Found guest user ID: ${guestUserId}`);
+              // Store the determined userId in a ref so we can use it later
+              userIdRef.current = guestUserId;
+            } else {
+              console.error('GymBrosMatchChat: Could not determine guest user ID');
+            }
+          }
+        } catch (error) {
+          console.error('GymBrosMatchChat: Error finding match details:', error);
+        }
+      };
+      
+      determineGuestUserId();
+    }
+  }, [userId, matchId, otherUserId]);
+
+  // Initialize lastReadMessageId when messages load
+  useEffect(() => {
+    if (messages.length > 0) {
+      // Use effectiveSenderId for identifying "my" messages
+      const effectiveSenderId = normalizeId(userId || userIdRef.current);
+      if (!effectiveSenderId) return;
+      
+      // Get all messages sent by the current user
+      const userMessages = messages.filter(msg => 
+        normalizeId(msg.sender) === effectiveSenderId && !msg.pending
+      );
+      
+      if (userMessages.length === 0) return;
+      
+      // Sort in chronological order
+      userMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      
+      // Find the last message that is read
+      let lastReadMsg = null;
+      
+      for (let i = userMessages.length - 1; i >= 0; i--) {
+        if (userMessages[i].read) {
+          lastReadMsg = userMessages[i];
+          break;
+        }
+      }
+      
+      setLastReadMessageId(lastReadMsg?._id || null);
+    }
+  }, [messages, userId]);
+  
+  // Update lastReadMessageId when receiving messagesRead event
+  useEffect(() => {
+    if (!socket || !socketConnected || !matchId) return;
+    
+    const handleMessagesReadEvent = (data) => {
+      console.log('Received messagesRead event:', data);
+      
+      if (data.matchId !== matchId) return;
+      
+      const effectiveSenderId = normalizeId(userId || userIdRef.current);
+      if (!effectiveSenderId) return;
+      
+      // Get messages sent by me that were marked as read
+      const myMessages = messages.filter(msg => 
+        normalizeId(msg.sender) === effectiveSenderId
+      );
+      
+      const myReadMessages = myMessages.filter(msg => 
+        data.messageIds.includes(msg._id)
+      );
+      
+      // If any messages were marked as read, update the last read message ID
+      if (myReadMessages.length > 0) {
+        // Sort in reverse chronological order
+        myReadMessages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        const newLastReadMessageId = myReadMessages[0]._id;
+        setLastReadMessageId(newLastReadMessageId);
+      }
+    };
+    
+    try {
+      socket.on('messagesRead', handleMessagesReadEvent);
+    } catch (err) {
+      console.error('Error setting up messagesRead event listener:', err);
+    }
+    
+    return () => {
+      if (socket) {
+        try {
+          socket.off('messagesRead', handleMessagesReadEvent);
+        } catch (err) {
+          console.error('Error removing messagesRead event listener:', err);
+        }
+      }
+    };
+  }, [socket, socketConnected, matchId, userId, messages]);
+
+  // Send message handler
   const handleSendMessage = async () => {
     if ((!newMessage.trim() && files.length === 0) || !socketConnected) return;
     
@@ -258,10 +397,13 @@ const lastReadTimestamp = useRef(0);
       tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       const timestamp = new Date().toISOString();
       
-      // Create temporary message
+      // Get effective sender ID for consistency
+      let effectiveSenderId = userId || userIdRef.current;
+      
+      // Create temporary message with effectiveSenderId
       const tempMessage = {
         _id: tempId,
-        sender: userId,
+        sender: effectiveSenderId, // Use effectiveSenderId here
         content: newMessage.trim(),
         timestamp,
         pending: true,
@@ -272,9 +414,7 @@ const lastReadTimestamp = useRef(0);
       setMessages(prev => [...prev, tempMessage]);
       setNewMessage('');
       
-      let effectiveSenderId = userId || userIdRef.current;
-      
-      // If no userId is available (guest user), try to determine it from the match
+      // If no effectiveSenderId is available, try to determine it
       if (!effectiveSenderId) {
         try {
           // Fetch match details to get both users
@@ -283,7 +423,7 @@ const lastReadTimestamp = useRef(0);
           if (matchDetails && matchDetails.users && matchDetails.users.length === 2) {
             // Find the user that's not the receiver
             effectiveSenderId = matchDetails.users.find(id => 
-              id.toString() !== otherUserId.toString()
+              normalizeId(id) !== normalizeId(otherUserId)
             );
             
             console.log(`Determined sender ID for guest user: ${effectiveSenderId}`);
@@ -300,7 +440,7 @@ const lastReadTimestamp = useRef(0);
       
       console.log('Sending message:', matchId, effectiveSenderId, otherUserId, newMessage.trim(), tempId, timestamp);
   
-      // Socket emit with all required fields - using effectiveSenderId instead of userId
+      // Socket emit with all required fields
       socket.emit('sendMessage', {
         matchId,
         senderId: effectiveSenderId,
@@ -310,7 +450,7 @@ const lastReadTimestamp = useRef(0);
         tempId
       });
   
-      // API call with proper structure - using effectiveSenderId instead of userId
+      // API call with proper structure
       const response = await gymbrosService.sendMessage({
         matchId,
         senderId: effectiveSenderId,
@@ -344,6 +484,7 @@ const lastReadTimestamp = useRef(0);
       }
     }
   };
+
   // File upload handling
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files);
@@ -376,6 +517,31 @@ const lastReadTimestamp = useRef(0);
   const handleRemoveFile = (index) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+  
+  // Format image URL helper
+  const formatImageUrl = (url) => {
+    if (!url) return "/api/placeholder/400/400";
+    
+    if (url.startsWith('blob:')) {
+      return url;
+    } else if (url.startsWith('http')) {
+      return url;
+    } else {
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
+    }
+  };
+
+  // Report user handler
+  const handleReportUser = () => {
+    toast('Report submitted', {
+      description: 'Our team will review this report within 24 hours',
+      icon: <Flag className="text-red-500" />
+    });
+    
+    // Close modal
+    setExpandedProfile(false);
   };
 
   // Sort and group messages by date
@@ -420,131 +586,6 @@ const lastReadTimestamp = useRef(0);
     
     return groups;
   }, [messages]);
-  
-  // Add this useEffect to GymBrosMatchChat.jsx just after state declarations
-useEffect(() => {
-  // If user is not authenticated (guest) or userId is null, fetch the match to determine the user's ID
-  if (!userId && matchId && otherUserId) {
-    const determineGuestUserId = async () => {
-      try {
-        console.log('GymBrosMatchChat: Determining guest user ID');
-        const matchDetails = await gymbrosService.findMatch(otherUserId);
-        
-        if (matchDetails && matchDetails.users && matchDetails.users.length === 2) {
-          // Find the user that's not the receiver (must be the sender/guest)
-          const guestUserId = matchDetails.users.find(id => 
-            id.toString() !== otherUserId.toString()
-          );
-          
-          if (guestUserId) {
-            console.log(`GymBrosMatchChat: Found guest user ID: ${guestUserId}`);
-            // Store the determined userId in a ref so we can use it later
-            userIdRef.current = guestUserId;
-          } else {
-            console.error('GymBrosMatchChat: Could not determine guest user ID');
-          }
-        }
-      } catch (error) {
-        console.error('GymBrosMatchChat: Error finding match details:', error);
-      }
-    };
-    
-    determineGuestUserId();
-  }
-}, [userId, matchId, otherUserId]);
-
-  // Initialize lastReadMessageId when messages load
-  useEffect(() => {
-    if (messages.length > 0 && userId) {
-      // Get all messages sent by the user (current user)
-      const userMessages = messages.filter(msg => 
-        msg.sender === userId && !msg.pending
-      );
-      
-      if (userMessages.length === 0) return;
-      
-      // Sort in chronological order
-      userMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-      
-      // Find the last message that is read
-      let lastReadMsg = null;
-      
-      for (let i = userMessages.length - 1; i >= 0; i--) {
-        if (userMessages[i].read) {
-          lastReadMsg = userMessages[i];
-          break;
-        }
-      }
-      
-      setLastReadMessageId(lastReadMsg?._id || null);
-    }
-  }, [messages, userId]);
-  
-  // Update lastReadMessageId when receiving messagesRead event
-  useEffect(() => {
-    if (!socket || !socketConnected || !matchId) return;
-    
-    const handleMessagesReadEvent = (data) => {
-      console.log('Received messagesRead event:', data);
-      
-      if (data.matchId !== matchId) return;
-      
-      // Get messages sent by me (user) that were marked as read
-      const myMessages = messages.filter(msg => msg.sender === userId);
-      
-      const myReadMessages = myMessages.filter(msg => 
-        data.messageIds.includes(msg._id)
-      );
-      
-      // If any messages were marked as read, update the last read message ID
-      if (myReadMessages.length > 0) {
-        // Sort in reverse chronological order
-        myReadMessages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        const newLastReadMessageId = myReadMessages[0]._id;
-        setLastReadMessageId(newLastReadMessageId);
-      }
-    };
-    
-    try {
-      socket.on('messagesRead', handleMessagesReadEvent);
-    } catch (err) {
-      console.error('Error setting up messagesRead event listener:', err);
-    }
-    
-    return () => {
-      if (socket) {
-        try {
-          socket.off('messagesRead', handleMessagesReadEvent);
-        } catch (err) {
-          console.error('Error removing messagesRead event listener:', err);
-        }
-      }
-    };
-  }, [socket, socketConnected, matchId, userId, messages]);
-  
-  const formatImageUrl = (url) => {
-    if (!url) return "/api/placeholder/400/400";
-    
-    if (url.startsWith('blob:')) {
-      return url;
-    } else if (url.startsWith('http')) {
-      return url;
-    } else {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
-    }
-  };
-
-  // Report user handler
-  const handleReportUser = () => {
-    toast('Report submitted', {
-      description: 'Our team will review this report within 24 hours',
-      icon: <Flag className="text-red-500" />
-    });
-    
-    // Close modal
-    setExpandedProfile(false);
-  };
 
   // Conversation starters for empty state
   const conversationStarters = [
@@ -769,7 +810,14 @@ useEffect(() => {
                 {/* Messages for this date */}
                 <div className="space-y-4">
                 {group.messages.map((message) => {
-                      const isCurrentUser = message.sender === userId;
+                      // FIXED: Use normalizeId to ensure consistent comparison
+                      const effectiveSenderId = normalizeId(userId || userIdRef.current);
+                      const messageSenderId = normalizeId(message.sender);
+                      
+                      // Log the values for debugging if needed
+                      // console.log(`Message: ${messageSenderId}, User: ${effectiveSenderId}, Match: ${messageSenderId === effectiveSenderId}`);
+                      
+                      const isCurrentUser = messageSenderId === effectiveSenderId;
                       const isLastReadMessage = message._id === lastReadMessageId;
 
                       return (
