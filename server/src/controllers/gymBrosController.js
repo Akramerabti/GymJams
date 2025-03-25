@@ -582,7 +582,17 @@ export const getGymBrosProfiles = async (req, res, next) => {
       });
     }
 
-    console.log('User profilessssssssssssss:', req.query);
+    // Update lastActive timestamp for the user profile
+    try {
+      userProfile.lastActive = new Date();
+      await userProfile.save();
+      logger.info(`Updated lastActive timestamp for user: ${effectiveUser.userId || effectiveUser.profileId}`);
+    } catch (updateError) {
+      // Log the error but continue with the request
+      logger.error(`Error updating lastActive timestamp: ${updateError.message}`);
+    }
+
+    console.log('User profiles:', req.query);
     const { 
       workoutTypes, 
       experienceLevel, 
@@ -606,7 +616,6 @@ export const getGymBrosProfiles = async (req, res, next) => {
       maxDistance: maxDistance ? parseInt(maxDistance, 10) : 50
     };
 
-  
     const recommendations = await getRecommendedProfiles(userProfile, filters);
     
     // For guest users, generate and include a new token
@@ -632,7 +641,6 @@ export const getGymBrosProfiles = async (req, res, next) => {
     });
   }
 };
-
 export const likeGymBrosProfile = async (req, res) => {
   try {
     const { profileId } = req.params;

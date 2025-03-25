@@ -89,7 +89,7 @@ const DiscoverTab = ({
   
   useEffect(() => {
     if (profiles.length > 0 && currentIndex >= profiles.length && hasMoreProfiles && !loadingMoreProfiles) {
-      log('DiscoverTab: No more profiles left, loading more...');
+    
       loadMoreProfiles();
     }
   }, [currentIndex, profiles.length, hasMoreProfiles, loadingMoreProfiles]);
@@ -120,11 +120,9 @@ const DiscoverTab = ({
       });
   
       if (moreProfiles.length > 0) {
-        log('DiscoverTab: Loaded more profiles:', moreProfiles.length);
         setProfiles(prev => [...prev, ...moreProfiles]);
         setHasMoreProfiles(moreProfiles.length >= 10); // Adjust this threshold as needed
       } else {
-        log('DiscoverTab: No more profiles available');
         setHasMoreProfiles(false); // No more profiles to load
       }
     } catch (error) {
@@ -342,20 +340,6 @@ const DiscoverTab = ({
       setForceSwipeDirection(null);
     }
   };
- const debug = true;
-const log = (...args) => {
-  if (debug) console.log(...args);
-};
-
-// Log when profiles are updated
-useEffect(() => {
-  log('DiscoverTab: profiles updated:', profiles.length);
-}, [profiles]);
-
-// Log when currentIndex is updated
-useEffect(() => {
-  log('DiscoverTab: currentIndex updated:', currentIndex);
-}, [currentIndex]);
 
   
   // Handle button click for swipe actions

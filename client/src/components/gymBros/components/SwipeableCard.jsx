@@ -19,7 +19,7 @@ const SwipeableCard = ({
     forceDirection = null  // Add this prop to handle button clicks
   }) => {
 
-
+console.log('SwipeableCard rendered', profile);
     // Motion values for swipe gestures
     const x = useMotionValue(0);
     const y = useMotionValue(0);
@@ -498,9 +498,9 @@ const SwipeableCard = ({
               {profile.matchScore && (
                 <div className="mt-2 flex items-center">
                   <Dumbbell size={12} className="mr-1 text-blue-300" />
-                  <div className="w-full h-1 bg-white/20 rounded-full overflow-visible">
+                  <div className="w-full h-2 bg-white/20 rounded-full overflow-visible">
                     <div 
-                      className="h-full bg-blue-400 rounded-full"
+                      className="h-full bg-blue-600 rounded-full"
                       style={{ width: `${profile.matchScore}%` }}
                     />
                   </div>

@@ -716,7 +716,156 @@ async uploadProfileImages(files) {
       console.error('Error converting guest to user:', error);
       throw error;
     }
+  },
+
+  // Add these functions to your gymBrosService.js file
+
+// Fetch messages for a specific match
+async fetchMatchMessages(matchId, options = {}) {
+  try {
+    // Set up options with defaults
+    const params = {
+      limit: options.limit || 50,
+      offset: options.offset || 0,
+      unreadOnly: options.unreadOnly || false
+    };
+    
+    // Add guest token to params if available
+    const config = this.configWithGuestToken({
+      params
+    });
+    
+    const response = await api.get(`/gym-bros/matches/${matchId}/messages`, config);
+    
+    // Handle different response formats gracefully
+    if (Array.isArray(response.data)) {
+      return response.data;
+    } else if (response.data && Array.isArray(response.data.messages)) {
+      return response.data.messages;
+    } else {
+      console.warn('Unexpected response format from match messages API:', response.data);
+      return [];
+    }
+  } catch (error) {
+    console.error('Error fetching match messages:', error);
+    throw error;
   }
+},
+
+// Send a message in a match
+async sendMatchMessage(matchId, content, files = []) {
+  try {
+    // Set up guest token in config
+    const config = this.configWithGuestToken();
+    
+    // Prepare message data
+    const messageData = {
+      content: content || '',
+      timestamp: new Date().toISOString(),
+      files: Array.isArray(files) ? files : []
+    };
+    
+    const response = await api.post(`/gym-bros/matches/${matchId}/messages`, messageData, config);
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error sending match message:', error);
+    throw error;
+  }
+},
+
+// Mark messages as read
+async markMatchMessagesAsRead(matchId, messageIds) {
+  try {
+    if (!matchId || !messageIds || !messageIds.length) {
+      throw new Error('Match ID and message IDs are required');
+    }
+    
+    // Set up guest token in config
+    const config = this.configWithGuestToken();
+    
+    const response = await api.put(`/gym-bros/matches/${matchId}/mark-read`, 
+      { messageIds }, 
+      config
+    );
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error marking messages as read:', error);
+    throw error;
+  }
+},
+
+// Get detailed match information including last message
+async getMatchDetails(matchId) {
+  try {
+    // Set up guest token in config
+    const config = this.configWithGuestToken();
+    
+    const response = await api.get(`/gym-bros/matches/${matchId}/details`, config);
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching match details:', error);
+    throw error;
+  }
+},
+
+// Get matches with last message preview
+async getMatchesWithPreview() {
+  try {
+    // Set up guest token in config
+    const config = this.configWithGuestToken();
+    
+    const response = await api.get('/gym-bros/matches/preview', config);
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return Array.isArray(response.data) ? response.data : [];
+  } catch (error) {
+    console.error('Error fetching matches with preview:', error);
+    throw error;
+  }
+},
+
+// Get count of users who liked me (for premium feature)
+async getWhoLikedMeCount() {
+  try {
+    // Set up guest token in config
+    const config = this.configWithGuestToken();
+    
+    const response = await api.get('/gym-bros/who-liked-me/count', config);
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return response.data.count || 0;
+  } catch (error) {
+    console.error('Error fetching who liked me count:', error);
+    return 0; // Return 0 on error as a safe default
+  }
+}
+
 };
 
 export default gymbrosService;

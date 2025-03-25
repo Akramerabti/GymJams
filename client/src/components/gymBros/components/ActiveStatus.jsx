@@ -1,19 +1,13 @@
 import React from 'react';
 
-/**
- * ActiveStatus - Displays a user's active status based on lastActive timestamp
- * 
- * @param {Object} props
- * @param {Date|string} props.lastActive - Timestamp of user's last activity
- * @param {string} props.textColorClass - Optional custom text color class
- * @param {string} props.dotColorClass - Optional custom dot color class
- */
 const ActiveStatus = ({ 
   lastActive, 
   textColorClass = "text-green-300", 
   dotColorClass = "bg-green-500"
 }) => {
   if (!lastActive) return null;
+
+  console.log(lastActive);
   
   // Calculate status based on how recently active
   const getActiveStatus = () => {
@@ -44,6 +38,7 @@ const ActiveStatus = ({
   
   // Only show status for recent activity (≤ 5 hours)
   const status = getActiveStatus();
+  console.log(status);
   const isRecent = status === 'Active now' || status === 'Recently active';
   
   if (!isRecent) return null;
