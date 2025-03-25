@@ -10,6 +10,9 @@ export const sendMessage = async (req, res) => {
     const { matchId } = req.params;
     const { content, file } = req.body;
     
+    console.log('Match ID:', matchId);
+    console.log('Content:', content);
+    
     // Get effective user (authenticated or guest)
     const effectiveUser = getEffectiveUser(req);
     

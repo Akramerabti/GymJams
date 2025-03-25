@@ -106,7 +106,7 @@ export const initializeSocket = (server) => {
 
     // Handle sending messages - unified to handle both subscription and match messages
     socket.on('sendMessage', async (messageData) => {
-      console.log('sendMessage event received:', messageData);
+
       const { senderId, receiverId, content, timestamp, file, subscriptionId, matchId } = messageData;
       
       // Basic validation
@@ -172,7 +172,7 @@ export const initializeSocket = (server) => {
     // Handle typing indicators
     socket.on('typing', (data) => {
       const { senderId, receiverId, isTyping, subscriptionId, matchId } = data;
-      
+    
       if (!senderId || !receiverId) {
         logger.warn('Missing required fields in typing event');
         return;

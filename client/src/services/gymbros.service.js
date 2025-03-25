@@ -743,8 +743,10 @@ async uploadProfileImages(files) {
       const config = this.configWithGuestToken({
         headers: { 'Content-Type': 'application/json' }
       });
+
+      console.log('Sending message with data:', messageData);
       
-      const response = await api.post(`/matches/${messageData.matchId}/messages`, {
+      const response = await api.post(`gym-bros/matches/${messageData.matchId}/messages`, {
         senderId: messageData.senderId,
         receiverId: messageData.receiverId,
         content: messageData.content,
@@ -786,38 +788,46 @@ async uploadProfileImages(files) {
     }
   },
 
-  async findMatch(otherUserId) {
-    console.log('Finding match with user ID:', otherUserId);
-    try {
-      const config = this.configWithGuestToken();
-      const response = await api.get(`/gym-bros/matches/find-match/${otherUserId}`, config);
-      console.log('Find match response:', response.data);
-      if (response.data.success) {
-        return {
-          matchId: response.data.matchId,
-          users: response.data.users
-        };
-      }
-
-      return null;
-    } catch (error) {
-      console.error('Error finding match:', error);
-      
-      // Handle specific error cases
-      if (error.response) {
-        if (error.response.status === 404) {
-          console.log('No existing match found between users');
-          return null;
-        }
-        if (error.response.status === 401) {
-          console.error('Authentication required');
-          return 'auth-required';
-        }
-      }
-      
-      return 'error';
+  // Enhanced findMatch method for gymbrosService.js
+async findMatch(otherUserId) {
+  console.log('Finding match with user ID:', otherUserId);
+  try {
+    const config = this.configWithGuestToken();
+    const response = await api.get(`/gym-bros/matches/find-match/${otherUserId}`, config);
+    console.log('Find match response:', response.data);
+    
+    // If successful, ensure we extract both users
+    if (response.data.success) {
+      // If we get back actual user objects, convert to IDs
+      const users = Array.isArray(response.data.users) ? 
+        response.data.users.map(user => typeof user === 'object' ? user._id : user) : 
+        response.data.users;
+        
+      return {
+        matchId: response.data.matchId,
+        users: users
+      };
     }
-  },
+
+    return null;
+  } catch (error) {
+    console.error('Error finding match:', error);
+    
+    // Handle specific error cases
+    if (error.response) {
+      if (error.response.status === 404) {
+        console.log('No existing match found between users');
+        return null;
+      }
+      if (error.response.status === 401) {
+        console.error('Authentication required');
+        return 'auth-required';
+      }
+    }
+    
+    return 'error';
+  }
+},
 
 // Send a message in a match
 async sendMatchMessage(matchId, content, files = []) {

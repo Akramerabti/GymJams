@@ -26,8 +26,8 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
   const processedMessageIds = useRef(new Set());
-  
-  console.log('GymBrosMatchChat: Rendering chat component', user);
+  const userIdRef = useRef(null);
+
   // Get user info
   const userId = user?.id || (user?.user && user?.user.id);
   const otherUserId = otherUserInfo.userId || otherUserInfo.profileId;
@@ -49,6 +49,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
       try {
         setIsLoading(true);
         const messages = await gymbrosService.fetchMatchMessages(matchId);
+        console.log('Fetched messages:', messages);
         setMessages(messages);
         processedMessageIds.current.clear();
         messages.forEach(msg => processedMessageIds.current.add(msg._id));
@@ -58,8 +59,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
         setIsLoading(false);
       }
     };
-
-    if (matchId) fetchMessages();
+     fetchMessages();
   }, [matchId]);
 
   // Register user with socket when connected
@@ -167,7 +167,6 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     }
   }, [messages, userId, markMessagesAsRead, isAtBottom]);
 
-  // Handle typing indicator with debounce
   useEffect(() => {
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -175,13 +174,23 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     
     if (!socket || !socketConnected || !otherUserId || !matchId) return;
     
+    // Get effective user ID (authenticated user or guest)
+    const effectiveSenderId = userId || userIdRef.current;
+    
+    // If we don't have a sender ID yet, we can't send typing indicators
+    if (!effectiveSenderId) {
+      console.log('Cannot send typing indicator - sender ID not yet determined');
+      return;
+    }
+    
     if (newMessage.trim()) {
       // Start typing indicator
       if (!isTyping) {
         setIsTyping(true);
         try {
+          console.log('Sending typing start with sender ID:', effectiveSenderId);
           socket.emit('typing', {
-            senderId: userId,
+            senderId: effectiveSenderId,
             receiverId: otherUserId,
             isTyping: true,
             matchId // Include matchId for proper routing
@@ -196,7 +205,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
         setIsTyping(false);
         try {
           socket.emit('typing', {
-            senderId: userId,
+            senderId: effectiveSenderId,
             receiverId: otherUserId,
             isTyping: false,
             matchId // Include matchId for proper routing
@@ -211,7 +220,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
         setIsTyping(false);
         try {
           socket.emit('typing', {
-            senderId: userId,
+            senderId: effectiveSenderId,
             receiverId: otherUserId,
             isTyping: false,
             matchId // Include matchId for proper routing
@@ -227,66 +236,93 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
         clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, [newMessage, socket, socketConnected, isTyping, userId, otherUserId, matchId]);
+  }, [newMessage, socket, socketConnected, isTyping, userId, otherUserId, matchId, userIdRef.current]);
+  
 
   // Auto-scroll when messages change
   useEffect(() => {
     scrollToBottom();
   }, [messages, otherUserTyping, scrollToBottom]);
 
-  const handleSendMessage = async () => {
-    if ((!newMessage.trim() && files.length === 0) || !socketConnected) return;
+  // Updated handleSendMessage function for GymBrosMatchChat.jsx
+const handleSendMessage = async () => {
+  if ((!newMessage.trim() && files.length === 0) || !socketConnected) return;
+  
+  let tempId; // Declare outside try-catch block
+  try {
+    tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const timestamp = new Date().toISOString();
     
-    let tempId; // Declare outside try-catch block
-    try {
-      tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-      const timestamp = new Date().toISOString();
-      
-      // Create temporary message
-      const tempMessage = {
-        _id: tempId,
-        sender: userId,
-        content: newMessage.trim(),
-        timestamp,
-        pending: true,
-        read: false
-      };
-  
-      // Add to messages immediately
-      setMessages(prev => [...prev, tempMessage]);
-      setNewMessage('');
-      
-      console.log('Sending message:', matchId, userId, otherUserId, newMessage.trim(), tempId, timestamp);
+    // Create temporary message
+    const tempMessage = {
+      _id: tempId,
+      sender: userId,
+      content: newMessage.trim(),
+      timestamp,
+      pending: true,
+      read: false
+    };
 
-      // Socket emit with all required fields
-      socket.emit('sendMessage', {
-        matchId,
-        senderId: userId,
-        receiverId: otherUserId,
-        content: newMessage.trim(),
-        timestamp,
-        tempId
-      });
-  
-      // API call with proper structure
-      await gymbrosService.sendMessage({
-        matchId,
-        senderId: userId,
-        receiverId: otherUserId,
-        content: newMessage.trim(),
-        tempId,
-        timestamp
-      });
-  
-    } catch (error) {
-      console.error('Send message error:', error);
-      toast.error('Failed to send message');
-      // Remove temp message if it was created
-      if (tempId) {
-        setMessages(prev => prev.filter(msg => msg._id !== tempId));
+    // Add to messages immediately
+    setMessages(prev => [...prev, tempMessage]);
+    setNewMessage('');
+    
+    let effectiveSenderId = userId || userIdRef.current;
+    
+    // If no userId is available (guest user), try to determine it from the match
+    if (!effectiveSenderId) {
+      try {
+        // Fetch match details to get both users
+        const matchDetails = await gymbrosService.findMatch(otherUserId);
+        
+        if (matchDetails && matchDetails.users && matchDetails.users.length === 2) {
+          // Find the user that's not the receiver
+          effectiveSenderId = matchDetails.users.find(id => 
+            id.toString() !== otherUserId.toString()
+          );
+          
+          console.log(`Determined sender ID for guest user: ${effectiveSenderId}`);
+        } else {
+          console.error('Could not determine sender ID for guest user');
+          throw new Error('Unable to determine sender ID');
+        }
+      } catch (matchError) {
+        console.error('Error finding match details:', matchError);
+        throw new Error('Failed to determine sender ID');
       }
     }
-  };
+    
+    console.log('Sending message:', matchId, effectiveSenderId, otherUserId, newMessage.trim(), tempId, timestamp);
+
+    // Socket emit with all required fields - using effectiveSenderId instead of userId
+    socket.emit('sendMessage', {
+      matchId,
+      senderId: effectiveSenderId,
+      receiverId: otherUserId,
+      content: newMessage.trim(),
+      timestamp,
+      tempId
+    });
+
+    // API call with proper structure - using effectiveSenderId instead of userId
+    await gymbrosService.sendMessage({
+      matchId,
+      senderId: effectiveSenderId,
+      receiverId: otherUserId,
+      content: newMessage.trim(),
+      tempId,
+      timestamp
+    });
+
+  } catch (error) {
+    console.error('Send message error:', error);
+    toast.error('Failed to send message');
+    // Remove temp message if it was created
+    if (tempId) {
+      setMessages(prev => prev.filter(msg => msg._id !== tempId));
+    }
+  }
+};
   // File upload handling
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files);
@@ -364,6 +400,38 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     return groups;
   }, [messages]);
   
+  // Add this useEffect to GymBrosMatchChat.jsx just after state declarations
+useEffect(() => {
+  // If user is not authenticated (guest) or userId is null, fetch the match to determine the user's ID
+  if (!userId && matchId && otherUserId) {
+    const determineGuestUserId = async () => {
+      try {
+        console.log('GymBrosMatchChat: Determining guest user ID');
+        const matchDetails = await gymbrosService.findMatch(otherUserId);
+        
+        if (matchDetails && matchDetails.users && matchDetails.users.length === 2) {
+          // Find the user that's not the receiver (must be the sender/guest)
+          const guestUserId = matchDetails.users.find(id => 
+            id.toString() !== otherUserId.toString()
+          );
+          
+          if (guestUserId) {
+            console.log(`GymBrosMatchChat: Found guest user ID: ${guestUserId}`);
+            // Store the determined userId in a ref so we can use it later
+            userIdRef.current = guestUserId;
+          } else {
+            console.error('GymBrosMatchChat: Could not determine guest user ID');
+          }
+        }
+      } catch (error) {
+        console.error('GymBrosMatchChat: Error finding match details:', error);
+      }
+    };
+    
+    determineGuestUserId();
+  }
+}, [userId, matchId, otherUserId]);
+
   // Initialize lastReadMessageId when messages load
   useEffect(() => {
     if (messages.length > 0 && userId) {
@@ -461,9 +529,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
   const conversationStarters = [
     "Hi! I see we both enjoy weightlifting. What's your favorite exercise?",
     `I usually work out in the ${otherUserInfo?.preferredTime?.toLowerCase() || 'evening'}. Does that work for you too?`,
-    `I'm ${otherUserInfo?.experienceLevel?.toLowerCase() || 'intermediate'} level. How long have you been working out?`,
-    "Looking for a workout buddy this weekend. Would you be interested?",
-    "What's your fitness goal for this month?"
+    "Looking for a workout buddy this weekend. Interested?",
   ];
 
   return (
