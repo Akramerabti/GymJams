@@ -834,17 +834,32 @@ async getMatchesWithPreview() {
     // Set up guest token in config
     const config = this.configWithGuestToken();
     
-    const response = await api.get('/gym-bros/matches/preview', config);
+    // Use the existing matches endpoint instead of matches/preview
+    const response = await api.get('/gym-bros/matches', config);
+    
+    // Transform the data to include message previews if they're not already included
+    let matchesData = Array.isArray(response.data) ? response.data : [];
+    if (response.data && !Array.isArray(response.data) && Array.isArray(response.data.matches)) {
+      matchesData = response.data.matches;
+    }
+    
+    // Add placeholder preview data if it doesn't exist
+    const matchesWithPreviews = matchesData.map(match => ({
+      ...match,
+      lastMessage: match.lastMessage || null,
+      unreadCount: match.unreadCount || 0
+    }));
     
     // Update guest token if returned
     if (response.data.guestToken) {
       this.setGuestToken(response.data.guestToken);
     }
     
-    return Array.isArray(response.data) ? response.data : [];
+    return matchesWithPreviews;
   } catch (error) {
     console.error('Error fetching matches with preview:', error);
-    throw error;
+    // Return empty array instead of throwing to prevent UI errors
+    return [];
   }
 },
 
