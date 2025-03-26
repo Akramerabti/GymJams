@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, Phone, MessageSquare } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import applicationService from '../../services/application.service';
 
 const Contact = () => {
   const [formData, setFormData] = useState({
@@ -15,10 +16,41 @@ const Contact = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Here you would typically send the form data to your backend
-    console.log('Form submitted:', formData);
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 3000);
+    setIsSubmitting(true);
+    
+    try {
+      // Create an application with type 'support'
+      const applicationData = {
+        name: formData.name,
+        email: formData.email,
+        applicationType: 'support', // Use 'support' type for contact form submissions
+        message: formData.message
+      };
+      
+      // Send the application to backend
+      await applicationService.submitApplication(applicationData);
+      
+      // Show success message
+      setSubmitted(true);
+      
+      // Reset form
+      setFormData({
+        name: '',
+        email: '',
+        subject: 'general',
+        message: ''
+      });
+      
+      // Hide success message after 3 seconds
+      setTimeout(() => {
+        setSubmitted(false);
+      }, 3000);
+    } catch (error) {
+      console.error('Error submitting contact form:', error);
+      toast.error('Failed to submit your message. Please try again later.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (e) => {

@@ -1,22 +1,32 @@
 import React from 'react';
+import { cn } from "@/lib/utils";
 
-const TextArea = ({ value, onChange, placeholder = 'Type your message...', className = '' }) => {
-  // Handling onChange event properly
-  const handleChange = (e) => {
-    if (onChange) {
-      onChange(e);  // Ensure onChange is called with the event
-    }
-  };
-
+const TextArea = React.forwardRef(({ 
+  className, 
+  value, 
+  onChange, 
+  placeholder = 'Type your message...', 
+  rows = 4,
+  ...props 
+}, ref) => {
   return (
     <textarea
+      ref={ref}
       value={value}
-      onChange={handleChange}
+      onChange={onChange}
       placeholder={placeholder}
-      className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none ${className}`}
-      rows={4}
+      className={cn(
+        "flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none",
+        className
+      )}
+      rows={rows}
+      {...props}
     />
   );
-};
+});
 
+TextArea.displayName = "TextArea";
+
+// Export both as default and named export for compatibility
+export { TextArea };
 export default TextArea;

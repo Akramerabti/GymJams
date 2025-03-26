@@ -40,6 +40,10 @@ import Contact from './pages/CustomerService/contact';
 import ProductPage from './pages/ProductPage';
 import GymBros from './pages/Gymbros';
 import OrderConfirmation from './pages/OrderConfirmation';
+import AboutUs from './pages/CustomerService/about';
+import FAQ from './pages/CustomerService/faq';
+import Returns from './pages/CustomerService/returns';
+import ApplicationForm from './pages/CustomerService/application';
 
 // Socket Context
 import { SocketProvider } from './SocketContext';
@@ -95,6 +99,11 @@ const App = () => {
               <Route path="/gymbros" element={<GymBros />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/about" element={<AboutUs />} />
+              <Route path="/faq" element={<FAQ />} />
+              <Route path="/returns" element={<Returns />} />
+              <Route path="/application" element={<ApplicationForm />} />
 
               {/* Protected Routes */}
               <Route path="/profile" element={
