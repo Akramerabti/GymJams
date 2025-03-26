@@ -10,8 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
-  PlusCircle, TagIcon, Package, Loader2, BarChart2, Filter,
-  Circle, ArrowUpDown, Trash2, CalendarClock, DollarSign, CheckCircle, XCircle, Search
+  PlusCircle, TagIcon, Package, Loader2, BarChart2, Filter, ListFilter,
+  Circle, ArrowUpDown, Trash2, CalendarClock, DollarSign, CheckCircle, XCircle, 
+  Search, ViewIcon, GridIcon, Menu, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { 
@@ -38,8 +39,23 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
-const Products = () => {
+const Products = ({ onRefreshDashboard }) => {
   const [products, setProducts] = useState([]);
   const [activeTab, setActiveTab] = useState("list");
   const [isLoading, setIsLoading] = useState(true);
@@ -48,6 +64,8 @@ const Products = () => {
   const [selectedStatus, setSelectedStatus] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
   const [productToDelete, setProductToDelete] = useState(null);
+  const [productToEdit, setProductToEdit] = useState(null);
+  const [productToPromote, setProductToPromote] = useState(null);
   const [bulkSelectMode, setBulkSelectMode] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [productStats, setProductStats] = useState({
@@ -57,7 +75,10 @@ const Products = () => {
     outOfStock: 0,
     withDiscount: 0
   });
+  const [viewMode, setViewMode] = useState('table'); // 'table' or 'grid'
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const { user } = useAuth();
+  const isMobile = window.innerWidth < 768;
 
   const categories = ['Weights', 'Machines', 'Accessories', 'CardioEquipment'];
 
@@ -67,6 +88,24 @@ const Products = () => {
 
   useEffect(() => {
     fetchProducts();
+  }, []);
+
+  useEffect(() => {
+    // Set view mode based on screen size
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setViewMode('grid');
+      }
+    };
+
+    // Initial check
+    handleResize();
+
+    // Add event listener
+    window.addEventListener('resize', handleResize);
+
+    // Clean up
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const fetchProducts = async () => {
@@ -118,9 +157,43 @@ const Products = () => {
       
       // Update stats
       calculateProductStats([...products, newProduct]);
+
+      // Trigger dashboard refresh if provided
+      if (onRefreshDashboard) onRefreshDashboard();
     } catch (error) {
       console.error('Error adding product:', error);
       toast.error('Failed to add product. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditProduct = async (productData) => {
+    if (getUserRole(user) !== 'taskforce' && getUserRole(user) !== 'admin') {
+      toast.error('Access denied. Only taskforce members can edit products.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const updatedProduct = await productService.updateProduct(productToEdit._id, productData);
+      
+      setProducts((prevProducts) =>
+        prevProducts.map((p) => (p._id === updatedProduct._id ? updatedProduct : p))
+      );
+      
+      setProductToEdit(null);
+      setActiveTab("list");
+      toast.success('Product updated successfully!');
+      
+      // Update stats
+      calculateProductStats(products.map(p => p._id === updatedProduct._id ? updatedProduct : p));
+
+      // Trigger dashboard refresh if provided
+      if (onRefreshDashboard) onRefreshDashboard();
+    } catch (error) {
+      console.error('Error updating product:', error);
+      toast.error('Failed to update product. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -142,6 +215,9 @@ const Products = () => {
       
       // Update stats
       calculateProductStats(updatedProducts);
+
+      // Trigger dashboard refresh if provided
+      if (onRefreshDashboard) onRefreshDashboard();
     } catch (error) {
       console.error('Error deleting product:', error);
       toast.error('Failed to delete product. Please try again.');
@@ -172,6 +248,9 @@ const Products = () => {
       
       // Update stats
       calculateProductStats(updatedProducts);
+
+      // Trigger dashboard refresh if provided
+      if (onRefreshDashboard) onRefreshDashboard();
     } catch (error) {
       console.error('Error deleting products in bulk:', error);
       toast.error('Failed to delete some products. Please try again.');
@@ -194,11 +273,15 @@ const Products = () => {
         prevProducts.map((p) => (p._id === updatedProduct._id ? updatedProduct : p))
       );
       
+      setProductToPromote(null);
       setActiveTab("list");
       toast.success('Promotion applied successfully!');
       
       // Update stats
       calculateProductStats(products.map(p => p._id === updatedProduct._id ? updatedProduct : p));
+
+      // Trigger dashboard refresh if provided
+      if (onRefreshDashboard) onRefreshDashboard();
     } catch (error) {
       console.error('Error applying promotion:', error);
       toast.error('Failed to apply promotion. Please try again.');
@@ -242,20 +325,20 @@ const Products = () => {
           product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (product.description && product.description.toLowerCase().includes(searchTerm.toLowerCase()));
         
-          const matchesCategory = selectedCategory === 'all' || selectedCategory === '' || product.category === selectedCategory;
+        const matchesCategory = selectedCategory === 'all' || selectedCategory === '' || product.category === selectedCategory;
 
-          // Apply status filter
-          let matchesStatus = true;
-          if (selectedStatus === 'inStock') {
-            matchesStatus = product.stockQuantity > 0;
-          } else if (selectedStatus === 'outOfStock') {
-            matchesStatus = product.stockQuantity <= 0;
-          } else if (selectedStatus === 'withDiscount') {
-            matchesStatus = product.discount && 
-              product.discount.percentage > 0 && 
-              new Date(product.discount.startDate) <= new Date() &&
-              new Date(product.discount.endDate) >= new Date();
-          }
+        // Apply status filter
+        let matchesStatus = true;
+        if (selectedStatus === 'inStock') {
+          matchesStatus = product.stockQuantity > 0;
+        } else if (selectedStatus === 'outOfStock') {
+          matchesStatus = product.stockQuantity <= 0;
+        } else if (selectedStatus === 'withDiscount') {
+          matchesStatus = product.discount && 
+            product.discount.percentage > 0 && 
+            new Date(product.discount.startDate) <= new Date() &&
+            new Date(product.discount.endDate) >= new Date();
+        }
         
         return matchesSearch && matchesCategory && matchesStatus;
       })
@@ -286,105 +369,127 @@ const Products = () => {
   const totalCount = products.length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Product Management</h2>
-          <p className="text-gray-500 mt-1">Manage your product catalog and promotions</p>
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900">Product Management</h2>
+          <p className="text-gray-500 mt-1 text-sm md:text-base">Manage your product catalog and promotions</p>
         </div>
-        <div className="flex gap-3">
+        
+        <div className="flex flex-wrap gap-2">
           <Button
             variant={activeTab === "add-product" ? "secondary" : "outline"}
-            onClick={() => setActiveTab("add-product")}
+            onClick={() => {
+              setActiveTab("add-product");
+              setProductToEdit(null);
+            }}
             className="gap-2"
+            size={isMobile ? "sm" : "default"}
           >
             <PlusCircle className="h-4 w-4" />
-            Add Product
+            <span className="hidden sm:inline">Add Product</span>
+            <span className="sm:hidden">Add</span>
           </Button>
           <Button
             variant={activeTab === "promotions" ? "secondary" : "outline"}
-            onClick={() => setActiveTab("promotions")}
+            onClick={() => {
+              setActiveTab("promotions");
+              setProductToPromote(null);
+            }}
             className="gap-2"
+            size={isMobile ? "sm" : "default"}
           >
             <TagIcon className="h-4 w-4" />
-            Promotions
+            <span className="hidden sm:inline">Promotions</span>
+            <span className="sm:hidden">Promo</span>
           </Button>
         </div>
       </div>
 
-      {/* Product Statistics Cards */}
+      {/* Product Statistics Cards - Mobile Friendly */}
       {activeTab === "list" && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <Card>
-            <CardContent className="p-4 flex justify-between items-center">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-4">
+          <Card className="h-full">
+            <CardContent className="p-3 md:p-4 flex justify-between items-center">
               <div>
-                <p className="text-sm font-medium text-gray-500">Total Products</p>
-                <p className="text-2xl font-bold">{productStats.total}</p>
+                <p className="text-xs md:text-sm font-medium text-gray-500">Total</p>
+                <p className="text-lg md:text-2xl font-bold">{productStats.total}</p>
               </div>
-              <Package className="h-8 w-8 text-blue-500" />
+              <Package className="h-6 w-6 md:h-8 md:w-8 text-blue-500" />
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4 flex justify-between items-center">
+          <Card className="h-full">
+            <CardContent className="p-3 md:p-4 flex justify-between items-center">
               <div>
-                <p className="text-sm font-medium text-gray-500">In Stock</p>
-                <p className="text-2xl font-bold">{productStats.inStock}</p>
+                <p className="text-xs md:text-sm font-medium text-gray-500">In Stock</p>
+                <p className="text-lg md:text-2xl font-bold">{productStats.inStock}</p>
               </div>
-              <CheckCircle className="h-8 w-8 text-green-500" />
+              <CheckCircle className="h-6 w-6 md:h-8 md:w-8 text-green-500" />
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4 flex justify-between items-center">
+          <Card className="h-full">
+            <CardContent className="p-3 md:p-4 flex justify-between items-center">
               <div>
-                <p className="text-sm font-medium text-gray-500">Out of Stock</p>
-                <p className="text-2xl font-bold">{productStats.outOfStock}</p>
+                <p className="text-xs md:text-sm font-medium text-gray-500">Out of Stock</p>
+                <p className="text-lg md:text-2xl font-bold">{productStats.outOfStock}</p>
               </div>
-              <XCircle className="h-8 w-8 text-red-500" />
+              <XCircle className="h-6 w-6 md:h-8 md:w-8 text-red-500" />
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4 flex justify-between items-center">
+          <Card className="h-full">
+            <CardContent className="p-3 md:p-4 flex justify-between items-center">
               <div>
-                <p className="text-sm font-medium text-gray-500">With Discount</p>
-                <p className="text-2xl font-bold">{productStats.withDiscount}</p>
+                <p className="text-xs md:text-sm font-medium text-gray-500">With Discount</p>
+                <p className="text-lg md:text-2xl font-bold">{productStats.withDiscount}</p>
               </div>
-              <DollarSign className="h-8 w-8 text-amber-500" />
+              <DollarSign className="h-6 w-6 md:h-8 md:w-8 text-amber-500" />
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4 flex justify-between items-center">
+          <Card className="h-full">
+            <CardContent className="p-3 md:p-4 flex justify-between items-center">
               <div>
-                <p className="text-sm font-medium text-gray-500">Featured</p>
-                <p className="text-2xl font-bold">{productStats.featured}</p>
+                <p className="text-xs md:text-sm font-medium text-gray-500">Featured</p>
+                <p className="text-lg md:text-2xl font-bold">{productStats.featured}</p>
               </div>
-              <BarChart2 className="h-8 w-8 text-purple-500" />
+              <BarChart2 className="h-6 w-6 md:h-8 md:w-8 text-purple-500" />
             </CardContent>
           </Card>
         </div>
       )}
 
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-4 md:p-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-6">
+            <TabsList className="mb-4 md:mb-6">
               <TabsTrigger value="list" className="gap-2">
                 <Package className="h-4 w-4" />
-                Product List
+                <span className="hidden sm:inline">Product List</span>
+                <span className="sm:hidden">Products</span>
               </TabsTrigger>
               <TabsTrigger value="add-product" className="gap-2">
                 <PlusCircle className="h-4 w-4" />
-                Add Product
+                <span className="hidden sm:inline">Add Product</span>
+                <span className="sm:hidden">Add</span>
               </TabsTrigger>
               <TabsTrigger value="promotions" className="gap-2">
                 <TagIcon className="h-4 w-4" />
-                Promotions
+                <span className="hidden sm:inline">Promotions</span>
+                <span className="sm:hidden">Promo</span>
               </TabsTrigger>
+              {productToEdit && (
+                <TabsTrigger value="edit-product" className="gap-2">
+                  <PlusCircle className="h-4 w-4" />
+                  <span className="hidden sm:inline">Edit Product</span>
+                  <span className="sm:hidden">Edit</span>
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="list" className="mt-0 space-y-4">
-              {/* Filter Controls */}
-              <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                <div className="relative w-full sm:w-64 flex-1">
+              {/* Mobile-Friendly Filter Controls */}
+              <div className="space-y-3">
+                {/* Search Bar */}
+                <div className="relative w-full flex-1">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search products..."
@@ -394,70 +499,188 @@ const Products = () => {
                   />
                 </div>
                 
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger className="w-full sm:w-40">
-                    <SelectValue placeholder="All Categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {categories.map(category => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                  
-                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                  <SelectTrigger className="w-full sm:w-40">
-                    <SelectValue placeholder="All Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="inStock">In Stock</SelectItem>
-                    <SelectItem value="outOfStock">Out of Stock</SelectItem>
-                    <SelectItem value="withDiscount">With Discount</SelectItem>
-                  </SelectContent>
-                </Select>
-                
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="gap-2">
-                      <Filter className="h-4 w-4" />
-                      More Filters
+                {/* Filter Collapsible for Mobile */}
+                <Collapsible 
+                  open={isFiltersOpen} 
+                  onOpenChange={setIsFiltersOpen}
+                  className="w-full md:hidden"
+                >
+                  <CollapsibleTrigger asChild>
+                    <Button variant="outline" className="w-full flex justify-between">
+                      <span className="flex items-center gap-2">
+                        <Filter className="h-4 w-4" />
+                        Filters
+                      </span>
+                      {isFiltersOpen ? 
+                        <ChevronUp className="h-4 w-4" /> : 
+                        <ChevronDown className="h-4 w-4" />
+                      }
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Sort By</DropdownMenuLabel>
-                    <DropdownMenuItem onClick={() => handleSort('name')}>
-                      Name {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleSort('price')}>
-                      Price {sortConfig.key === 'price' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleSort('stockQuantity')}>
-                      Stock {sortConfig.key === 'stockQuantity' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleSort('category')}>
-                      Category {sortConfig.key === 'category' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel>Bulk Actions</DropdownMenuLabel>
-                    <DropdownMenuItem onClick={() => setBulkSelectMode(!bulkSelectMode)}>
-                      {bulkSelectMode ? 'Exit Selection Mode' : 'Select Multiple'}
-                    </DropdownMenuItem>
-                    {bulkSelectMode && (
-                      <DropdownMenuItem 
-                        onClick={handleSelectAllProducts}
-                        disabled={filteredProducts.length === 0}
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-2 space-y-2">
+                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="All Categories" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        {categories.map(category => (
+                          <SelectItem key={category} value={category}>
+                            {category}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                      
+                    <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="All Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="inStock">In Stock</SelectItem>
+                        <SelectItem value="outOfStock">Out of Stock</SelectItem>
+                        <SelectItem value="withDiscount">With Discount</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    
+                    <div className="flex justify-between gap-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" className="flex-1 gap-2">
+                            <ArrowUpDown className="h-4 w-4" />
+                            Sort
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Sort By</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => handleSort('name')}>
+                            Name {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleSort('price')}>
+                            Price {sortConfig.key === 'price' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleSort('stockQuantity')}>
+                            Stock {sortConfig.key === 'stockQuantity' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleSort('category')}>
+                            Category {sortConfig.key === 'category' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      
+                      <Button 
+                        variant={viewMode === 'table' ? 'default' : 'outline'} 
+                        className="gap-2"
+                        onClick={() => setViewMode('table')}
                       >
-                        {selectedProducts.length === filteredProducts.length 
-                          ? 'Deselect All' 
-                          : 'Select All'}
+                        <ViewIcon className="h-4 w-4" />
+                      </Button>
+                      
+                      <Button 
+                        variant={viewMode === 'grid' ? 'default' : 'outline'} 
+                        className="gap-2"
+                        onClick={() => setViewMode('grid')}
+                      >
+                        <GridIcon className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2"
+                      onClick={() => setBulkSelectMode(!bulkSelectMode)}
+                    >
+                      {bulkSelectMode ? 'Exit Selection Mode' : 'Select Multiple'}
+                    </Button>
+                  </CollapsibleContent>
+                </Collapsible>
+                
+                {/* Desktop Filter Controls */}
+                <div className="hidden md:flex md:flex-row gap-4 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant={viewMode === 'table' ? 'default' : 'outline'} 
+                      size="sm"
+                      onClick={() => setViewMode('table')}
+                    >
+                      <ViewIcon className="h-4 w-4" />
+                    </Button>
+                    
+                    <Button 
+                      variant={viewMode === 'grid' ? 'default' : 'outline'} 
+                      size="sm"
+                      onClick={() => setViewMode('grid')}
+                    >
+                      <GridIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="All Categories" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {categories.map(category => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                    
+                  <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="All Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="inStock">In Stock</SelectItem>
+                      <SelectItem value="outOfStock">Out of Stock</SelectItem>
+                      <SelectItem value="withDiscount">With Discount</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="gap-2">
+                        <Filter className="h-4 w-4" />
+                        More Filters
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Sort By</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => handleSort('name')}>
+                        Name {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                      <DropdownMenuItem onClick={() => handleSort('price')}>
+                        Price {sortConfig.key === 'price' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSort('stockQuantity')}>
+                        Stock {sortConfig.key === 'stockQuantity' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSort('category')}>
+                        Category {sortConfig.key === 'category' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>Bulk Actions</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => setBulkSelectMode(!bulkSelectMode)}>
+                        {bulkSelectMode ? 'Exit Selection Mode' : 'Select Multiple'}
+                      </DropdownMenuItem>
+                      {bulkSelectMode && (
+                        <DropdownMenuItem 
+                          onClick={handleSelectAllProducts}
+                          disabled={filteredProducts.length === 0}
+                        >
+                          {selectedProducts.length === filteredProducts.length 
+                            ? 'Deselect All' 
+                            : 'Select All'}
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
               
               {/* Bulk Action Controls */}
@@ -471,7 +694,8 @@ const Products = () => {
                     <AlertDialogTrigger asChild>
                       <Button variant="destructive" size="sm" className="gap-1">
                         <Trash2 className="h-4 w-4" />
-                        Delete Selected
+                        <span className="hidden sm:inline">Delete Selected</span>
+                        <span className="sm:hidden">Delete</span>
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
@@ -518,13 +742,19 @@ const Products = () => {
                   <ProductList 
                     products={filteredProducts}
                     onDeleteProduct={(id) => setProductToDelete(id)}
+                    onEditProduct={(product) => {
+                      setProductToEdit(product);
+                      setActiveTab("edit-product");
+                    }}
                     bulkSelectMode={bulkSelectMode}
                     selectedProducts={selectedProducts}
                     onSelectProduct={handleSelectProduct}
                     onPromote={(productId) => {
+                      const product = products.find(p => p._id === productId);
+                      setProductToPromote(product);
                       setActiveTab("promotions");
-                      // Set the product ID for the promotion form (this would need to be implemented in the PromotionForm component)
                     }}
+                    viewMode={viewMode}
                   />
                   
                   {/* Product Count Info */}
@@ -559,6 +789,61 @@ const Products = () => {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+
+              {/* Mobile Drawer for Product Actions - Using Drawer component on mobile */}
+              {isMobile && (
+                <Drawer>
+                  <DrawerTrigger asChild>
+                    <Button className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg">
+                      <PlusCircle className="h-6 w-6" />
+                    </Button>
+                  </DrawerTrigger>
+                  <DrawerContent>
+                    <DrawerHeader>
+                      <DrawerTitle>Product Actions</DrawerTitle>
+                      <DrawerDescription>
+                        Quickly add or manage products
+                      </DrawerDescription>
+                    </DrawerHeader>
+                    <div className="p-4 space-y-2">
+                      <Button 
+                        className="w-full justify-start" 
+                        onClick={() => {
+                          setActiveTab("add-product");
+                          setProductToEdit(null);
+                        }}
+                      >
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Add New Product
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-start"
+                        onClick={() => {
+                          setActiveTab("promotions");
+                          setProductToPromote(null);
+                        }}
+                      >
+                        <TagIcon className="mr-2 h-4 w-4" />
+                        Create Promotion
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-start"
+                        onClick={() => setBulkSelectMode(!bulkSelectMode)}
+                      >
+                        {bulkSelectMode ? <XCircle className="mr-2 h-4 w-4" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+                        {bulkSelectMode ? 'Exit Selection Mode' : 'Select Multiple Products'}
+                      </Button>
+                    </div>
+                    <DrawerFooter>
+                      <DrawerClose asChild>
+                        <Button variant="outline">Close</Button>
+                      </DrawerClose>
+                    </DrawerFooter>
+                  </DrawerContent>
+                </Drawer>
+              )}
             </TabsContent>
 
             <TabsContent value="add-product" className="mt-0">
@@ -573,14 +858,41 @@ const Products = () => {
               </Card>
             </TabsContent>
 
+            <TabsContent value="edit-product" className="mt-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Edit Product</CardTitle>
+                  <CardDescription>Update details for {productToEdit?.name}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {productToEdit && (
+                    <ProductForm 
+                      categories={categories} 
+                      onAddProduct={handleEditProduct} 
+                      initialData={productToEdit}
+                      isEditing={true}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="promotions" className="mt-0">
               <Card>
                 <CardHeader>
                   <CardTitle>Apply Promotion</CardTitle>
-                  <CardDescription>Select a product and set up a promotion.</CardDescription>
+                  <CardDescription>
+                    {productToPromote 
+                      ? `Set up a promotion for ${productToPromote.name}` 
+                      : 'Select a product and set up a promotion.'}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <PromotionForm products={products} onApplyPromotion={handleApplyPromotion} />
+                  <PromotionForm 
+                    products={products} 
+                    onApplyPromotion={handleApplyPromotion} 
+                    selectedProductId={productToPromote?._id}
+                  />
                 </CardContent>
               </Card>
             </TabsContent>

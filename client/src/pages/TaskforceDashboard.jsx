@@ -4,7 +4,7 @@ import useAuthStore from '../stores/authStore';
 import { 
   PackageOpen, Users, HelpCircle, ClipboardList, BarChart3, 
   ArrowUp, ArrowDown, DollarSign, ShoppingCart, AlertTriangle, 
-  Settings, Calendar, Search, ShoppingBag
+  Settings, Calendar, Search, ShoppingBag, Menu, X
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
 
 // Import components
 import Products from './Taskforce/Products';
@@ -22,9 +24,11 @@ import InventoryManagement from './Taskforce/InventoryManagement';
 // Import services
 import productService from '../services/product.service';
 import inventoryService from '../services/inventory.service';
+import orderService from '../services/order.service';
 
 const TaskForceDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const [dashboardData, setDashboardData] = useState({
@@ -35,9 +39,27 @@ const TaskForceDashboard = () => {
     support: { open: 0, resolved: 0 }
   });
   const [loading, setLoading] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const isMobile = windowWidth < 768;
+
+  // Track window size for responsive adjustments
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const getUserRole = (user) => {
     return user?.user?.role || user?.role || '';
+  };
+
+  // Function to trigger refresh after operations
+  const triggerRefresh = () => {
+    setRefreshTrigger(prev => prev + 1);
   };
 
   useEffect(() => {
@@ -48,7 +70,7 @@ const TaskForceDashboard = () => {
     }
 
     fetchDashboardData();
-  }, [user, navigate]);
+  }, [user, navigate, refreshTrigger]);
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -56,6 +78,38 @@ const TaskForceDashboard = () => {
       // Fetch product data for statistics
       const productsResponse = await productService.getProducts();
       const products = productsResponse.data || [];
+      
+      // Fetch order data
+      let orders = [];
+      let orderStats = { recent: 0, pending: 0, total: 0 };
+      let revenueStats = { daily: 0, weekly: 0, monthly: 0 };
+      
+      try {
+        const ordersResponse = await orderService.getOrders();
+        orders = ordersResponse.data || [];
+        
+        // Calculate order stats
+        const now = new Date();
+        const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        
+        orderStats.total = orders.length;
+        orderStats.pending = orders.filter(order => order.status === 'pending').length;
+        orderStats.recent = orders.filter(order => new Date(order.createdAt) >= oneDayAgo).length;
+        
+        // Calculate revenue stats
+        const dailyOrders = orders.filter(order => new Date(order.createdAt) >= oneDayAgo);
+        const weeklyOrders = orders.filter(order => new Date(order.createdAt) >= sevenDaysAgo);
+        const monthlyOrders = orders.filter(order => new Date(order.createdAt) >= thirtyDaysAgo);
+        
+        revenueStats.daily = dailyOrders.reduce((total, order) => total + (order.total || 0), 0);
+        revenueStats.weekly = weeklyOrders.reduce((total, order) => total + (order.total || 0), 0);
+        revenueStats.monthly = monthlyOrders.reduce((total, order) => total + (order.total || 0), 0);
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+        // Continue with products data only
+      }
       
       // Fetch inventory data if available
       let inventoryData = [];
@@ -81,11 +135,10 @@ const TaskForceDashboard = () => {
           outOfStock, 
           lowStock 
         },
-        // Other data would come from corresponding API calls
-        orders: { recent: 5, pending: 3, total: 32 },
-        revenue: { daily: 350, weekly: 2450, monthly: 10500 },
-        applications: { pending: 2, approved: 15, rejected: 3 },
-        support: { open: 4, resolved: 12 }
+        orders: orderStats,
+        revenue: revenueStats,
+        applications: { pending: 2, approved: 15, rejected: 3 }, // Example data, would be replaced with real API data
+        support: { open: 4, resolved: 12 } // Example data, would be replaced with real API data
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -95,7 +148,7 @@ const TaskForceDashboard = () => {
   };
 
   const StatCard = ({ title, value, icon: Icon, trend, trendValue, trendType, loading }) => (
-    <Card>
+    <Card className="h-full">
       <CardContent className="pt-6">
         <div className="flex justify-between items-start">
           <div>
@@ -161,41 +214,90 @@ const TaskForceDashboard = () => {
     </div>
   );
 
+  const MobileTabMenu = () => (
+    <div className="md:hidden relative">
+      <Button
+        variant="outline"
+        className="flex items-center gap-2 w-full justify-between"
+        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+      >
+        {activeTab === 'overview' && <BarChart3 className="h-4 w-4" />}
+        {activeTab === 'products' && <PackageOpen className="h-4 w-4" />}
+        {activeTab === 'inventory' && <ClipboardList className="h-4 w-4" />}
+        {activeTab === 'applications' && <Users className="h-4 w-4" />}
+        {activeTab === 'support' && <HelpCircle className="h-4 w-4" />}
+        <span className="capitalize flex-1 text-left">
+          {activeTab}
+        </span>
+        {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+      </Button>
+
+      {mobileMenuOpen && (
+        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white shadow-lg rounded-md overflow-hidden">
+          <div className="p-2 space-y-1">
+            {['overview', 'products', 'inventory', 'applications', 'support'].map((tab) => (
+              <Button
+                key={tab}
+                variant={activeTab === tab ? "default" : "ghost"}
+                className="w-full justify-start gap-2"
+                onClick={() => {
+                  setActiveTab(tab);
+                  setMobileMenuOpen(false);
+                }}
+              >
+                {tab === 'overview' && <BarChart3 className="h-4 w-4" />}
+                {tab === 'products' && <PackageOpen className="h-4 w-4" />}
+                {tab === 'inventory' && <ClipboardList className="h-4 w-4" />}
+                {tab === 'applications' && <Users className="h-4 w-4" />}
+                {tab === 'support' && <HelpCircle className="h-4 w-4" />}
+                <span className="capitalize">{tab}</span>
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <div className="bg-gray-50 min-h-screen p-6">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">TaskForce Dashboard</h1>
+    <div className="bg-gray-50 min-h-screen p-4 md:p-6">
+      <header className="mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">TaskForce Dashboard</h1>
         <p className="text-gray-600 mt-1">Manage products, inventory, and support tickets</p>
       </header>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <div className="sticky top-0 z-10 bg-gray-50 pb-4">
-          <TabsList className="grid grid-cols-5 w-full">
+          {/* Mobile Menu */}
+          <MobileTabMenu />
+          
+          {/* Desktop Tabs */}
+          <TabsList className="hidden md:grid grid-cols-5 w-full">
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" />
-              Overview
+              <span className="hidden sm:inline">Overview</span>
             </TabsTrigger>
             <TabsTrigger value="products" className="gap-2">
               <PackageOpen className="h-4 w-4" />
-              Products
+              <span className="hidden sm:inline">Products</span>
             </TabsTrigger>
             <TabsTrigger value="inventory" className="gap-2">
               <ClipboardList className="h-4 w-4" />
-              Inventory
+              <span className="hidden sm:inline">Inventory</span>
             </TabsTrigger>
             <TabsTrigger value="applications" className="gap-2">
               <Users className="h-4 w-4" />
-              Applications
+              <span className="hidden sm:inline">Applications</span>
             </TabsTrigger>
             <TabsTrigger value="support" className="gap-2">
               <HelpCircle className="h-4 w-4" />
-              Support
+              <span className="hidden sm:inline">Support</span>
             </TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard 
               title="Total Products" 
               value={dashboardData.products.total}
@@ -228,8 +330,8 @@ const TaskForceDashboard = () => {
             />
           </div>
 
-          <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Alerts & Notifications</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <h2 className="text-xl font-semibold text-gray-900 mt-6 md:mt-8 mb-4">Alerts & Notifications</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
             <AlertCard 
               title="Out of Stock Items" 
               count={dashboardData.products.outOfStock} 
@@ -253,7 +355,7 @@ const TaskForceDashboard = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 md:mt-8">
             <Card>
               <CardHeader>
                 <CardTitle>Recent Activity</CardTitle>
@@ -266,8 +368,8 @@ const TaskForceDashboard = () => {
                       <div key={i} className="flex items-center">
                         <Skeleton className="h-10 w-10 rounded-full" />
                         <div className="ml-4 space-y-2">
-                          <Skeleton className="h-4 w-64" />
-                          <Skeleton className="h-3 w-40" />
+                          <Skeleton className="h-4 w-full md:w-64" />
+                          <Skeleton className="h-3 w-3/4 md:w-40" />
                         </div>
                       </div>
                     ))}
@@ -318,7 +420,7 @@ const TaskForceDashboard = () => {
                       <div key={i} className="flex items-center justify-between">
                         <div className="flex items-center">
                           <Skeleton className="h-5 w-5 rounded mr-2" />
-                          <Skeleton className="h-4 w-64" />
+                          <Skeleton className="h-4 w-full md:w-64" />
                         </div>
                         <Skeleton className="h-8 w-16" />
                       </div>
@@ -329,21 +431,21 @@ const TaskForceDashboard = () => {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
                         <input type="checkbox" className="mr-2" />
-                        <span>Review pending applications (2)</span>
+                        <span className="text-sm md:text-base">Review pending applications (2)</span>
                       </div>
                       <Badge>High</Badge>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
                         <input type="checkbox" className="mr-2" />
-                        <span>Restock out-of-stock items (3)</span>
+                        <span className="text-sm md:text-base">Restock out-of-stock items (3)</span>
                       </div>
                       <Badge variant="secondary">Medium</Badge>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
                         <input type="checkbox" className="mr-2" />
-                        <span>Respond to support tickets (4)</span>
+                        <span className="text-sm md:text-base">Respond to support tickets (4)</span>
                       </div>
                       <Badge variant="outline">Low</Badge>
                     </div>
@@ -361,11 +463,11 @@ const TaskForceDashboard = () => {
         </TabsContent>
 
         <TabsContent value="products">
-          <Products />
+          <Products onRefreshDashboard={triggerRefresh} />
         </TabsContent>
 
         <TabsContent value="inventory">
-          <InventoryManagement />
+          <InventoryManagement onRefreshDashboard={triggerRefresh} />
         </TabsContent>
 
         <TabsContent value="applications">
