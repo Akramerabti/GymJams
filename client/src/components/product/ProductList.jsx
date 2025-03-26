@@ -21,7 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { format } from 'date-fns';
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { useMediaQuery } from "react-responsive";
