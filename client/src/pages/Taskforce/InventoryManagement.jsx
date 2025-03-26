@@ -48,8 +48,8 @@ const InventoryManagement = ({ onRefreshDashboard }) => {
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
   const [editingProduct, setEditingProduct] = useState(null);
   const [editedStockQuantity, setEditedStockQuantity] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+const [selectedStatus, setSelectedStatus] = useState('all');
   const [viewMode, setViewMode] = useState('table');
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
@@ -546,24 +546,24 @@ const InventoryManagement = ({ onRefreshDashboard }) => {
               </CollapsibleTrigger>
               
               <CollapsibleContent className="pt-2 space-y-2">
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                   <SelectTrigger>
                     <SelectValue placeholder="All Categories" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Categories</SelectItem>
+                    <SelectItem value="all">All Categories</SelectItem>
                     {categories.map(category => (
                       <SelectItem key={category} value={category}>{category}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                
+
                 <Select value={selectedStatus} onValueChange={setSelectedStatus}>
                   <SelectTrigger>
                     <SelectValue placeholder="Stock Status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Stock Status</SelectItem>
+                    <SelectItem value="all">All Stock Status</SelectItem>
                     <SelectItem value="inStock">In Stock</SelectItem>
                     <SelectItem value="lowStock">Low Stock</SelectItem>
                     <SelectItem value="outOfStock">Out of Stock</SelectItem>
@@ -596,8 +596,8 @@ const InventoryManagement = ({ onRefreshDashboard }) => {
                   size="sm"
                   onClick={() => {
                     setSearchTerm('');
-                    setSelectedCategory('');
-                    setSelectedStatus('');
+                    setSelectedCategory('all');
+                    setSelectedStatus('all');
                   }}
                   className="w-full"
                 >
@@ -613,19 +613,19 @@ const InventoryManagement = ({ onRefreshDashboard }) => {
                   <SelectValue placeholder="All Categories" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Categories</SelectItem>
+                  <SelectItem value="all">All Categories</SelectItem>
                   {categories.map(category => (
                     <SelectItem key={category} value={category}>{category}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              
+                
               <Select value={selectedStatus} onValueChange={setSelectedStatus}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Stock Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Stock Status</SelectItem>
+                  <SelectItem value="all">All Stock Status</SelectItem>
                   <SelectItem value="inStock">In Stock</SelectItem>
                   <SelectItem value="lowStock">Low Stock</SelectItem>
                   <SelectItem value="outOfStock">Out of Stock</SelectItem>
@@ -650,16 +650,16 @@ const InventoryManagement = ({ onRefreshDashboard }) => {
               </div>
               
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setSearchTerm('');
-                  setSelectedCategory('');
-                  setSelectedStatus('');
-                }}
-              >
-                Clear Filters
-              </Button>
+              variant="ghost"
+  size="sm"
+  onClick={() => {
+    setSearchTerm('');
+    setSelectedCategory('all');
+    setSelectedStatus('all');
+              }}
+            >
+              Clear Filters
+            </Button>
             </div>
           </div>
 
