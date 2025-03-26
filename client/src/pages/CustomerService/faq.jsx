@@ -92,7 +92,7 @@ const FAQ = () => {
       },
       {
         question: 'How do I become a coach on GymJams?',
-        answer: 'Were always looking for qualified coaches to join our platform. You can apply through our Careers page and complete the coach application process.'
+        answer: 'Were always looking for qualified coaches to join our platform. You can apply through our Careers page and complete the coach application process. Visit our Application page and select "Fitness Coach" as your application type.'
       }
     ],
     orders: [
@@ -152,11 +152,11 @@ const FAQ = () => {
     careers: [
       {
         question: 'What positions are available at GymJams?',
-        answer: 'We regularly hire for roles including Fitness Coaches, Customer Support Specialists, Product Managers, Taskforce Members, and more. Visit our Careers page to see current openings.'
+        answer: 'We regularly hire for roles including Fitness Coaches, Customer Support Specialists, Product Managers, Taskforce Members, and more. Visit our Application page to see current openings and submit your application.'
       },
       {
         question: 'How do I apply for a job?',
-        answer: 'To apply for a position, visit our Application page, select the appropriate application type, and submit your information along with any required documents.'
+        answer: 'To apply for a position, visit our Application page, select the appropriate application type, and submit your information along with any required documents like a resume and cover letter.'
       },
       {
         question: 'What is the Taskforce team?',
@@ -287,11 +287,18 @@ const FAQ = () => {
           <p className="text-gray-600 mb-6">
             If you couldn't find the answer to your question, feel free to reach out to our support team.
           </p>
-          <Link to="/contact">
-            <Button>
-              Contact Us
-            </Button>
-          </Link>
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <Link to="/contact">
+              <Button className="w-full sm:w-auto">
+                Contact Us
+              </Button>
+            </Link>
+            <Link to="/application">
+              <Button variant="outline" className="w-full sm:w-auto">
+                Apply to Join Our Team
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
     </div>

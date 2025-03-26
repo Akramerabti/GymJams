@@ -8,6 +8,7 @@ import stripeRoutes from './stripe.routes.js';
 import gymBrosRoutes from './gymBrosRoutes.js';
 import inventoryRoutes from './inventory.routes.js';
 import clientRoutes from './client.routes.js';
+import applicationRoutes from './application.routes.js';
 
 const router = express.Router();
 
@@ -21,6 +22,7 @@ router.use('/stripe', stripeRoutes);
 router.use('/gym-bros', gymBrosRoutes);
 router.use('/inventory', inventoryRoutes);
 router.use('/client', clientRoutes);
+router.use('/applications', applicationRoutes);
 
 // Health check route
 router.get('/health', (req, res) => {

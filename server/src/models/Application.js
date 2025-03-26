@@ -19,19 +19,20 @@ const applicationSchema = new mongoose.Schema({
   },
   applicationType: {
     type: String,
-    required: true,
-    enum: ['coach', 'affiliate', 'general', 'support', 'taskforce']
+    required: [true, 'Application type is required'],
+    enum: ['coach', 'affiliate', 'taskforce', 'general', 'support'],
+    default: 'general'
   },
   message: {
     type: String,
     required: [true, 'Message is required']
   },
-  resume: {
-    type: String, // Path to uploaded resume file
-  },
   portfolioUrl: {
     type: String,
     trim: true
+  },
+  resume: {
+    type: String // Path to the uploaded resume file
   },
   status: {
     type: String,
@@ -47,14 +48,16 @@ const applicationSchema = new mongoose.Schema({
   },
   reviewedAt: {
     type: Date
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
   }
 }, {
   timestamps: true
 });
 
+// Virtual for time since submission
+applicationSchema.virtual('timeSinceSubmission').get(function() {
+  return new Date() - this.createdAt;
+});
+
 const Application = mongoose.model('Application', applicationSchema);
+
 export default Application;
