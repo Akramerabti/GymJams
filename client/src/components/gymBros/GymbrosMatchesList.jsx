@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Dumbbell, Lock, MessageCircle, Star, Shield, ChevronRight, 
-  ChevronLeft, Sparkles, Zap, Users, Info, Flame
+  ChevronLeft, Sparkles, Zap, Users, Info,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -306,7 +306,7 @@ const GymbrosMatchesList = () => {
               transition={{ duration: 1.5, repeat: Infinity, repeatType: "mirror" }}
               className="flex flex-col items-center"
             >
-              <Flame className="text-rose-300 h-6 w-6 mb-1" />
+              <Zap className="text-rose-300 h-6 w-6 mb-1" />
               <motion.div
                 animate={{ 
                   scale: isHovering ? [1, 1.1, 1] : 1,
