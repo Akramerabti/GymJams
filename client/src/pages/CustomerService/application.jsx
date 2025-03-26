@@ -1,6 +1,4 @@
-// client/src/pages/CustomerService/application.jsx
-import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useRef } from 'react';
 import { Upload, Paperclip, Send, Info, CheckCircle } from 'lucide-react';
 import { 
   Card, 
@@ -21,33 +19,271 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TextArea } from "@/components/ui/TextArea";
-import { 
-  Alert,
-  AlertDescription
-} from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { toast } from 'sonner';
-import applicationService from '../../services/application.service';
 
-const ApplicationForm = () => {
-  const navigate = useNavigate();
-  const fileInputRef = useRef(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    applicationType: '',
-    message: '',
-    portfolioUrl: '',
-  });
-  const [resumeFile, setResumeFile] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [errors, setErrors] = useState({});
+const ApplicationForm = ({ 
+  successMessage,
+  applicationForm,
+  errors,
+  applicationSubmitting,
+  resumeFile,
+  handleApplicationChange,
+  handleTypeChange, 
+  handleFileChange,
+  handleApplicationSubmit,
+  fileInputRef,
+}) => {
+  return (
+    <div className="space-y-8">
+      <div className="mb-8 text-center">
+        <h1 className="text-3xl font-bold mb-2">Join Our Team</h1>
+        <p className="text-gray-600">
+          We're looking for talented individuals to join the GymJams family. Fill out the form below to apply!
+        </p>
+      </div>
+      
+      {successMessage && (
+        <Alert className="mb-8 bg-green-50 border-green-200">
+          <CheckCircle className="h-5 w-5 text-green-600" />
+          <AlertDescription className="text-green-800">
+            {successMessage}
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Application Form</CardTitle>
+          <CardDescription>
+            Please fill out the form below to apply. Fields marked with * are required.
+          </CardDescription>
+        </CardHeader>
+        
+        <CardContent>
+          <form onSubmit={handleApplicationSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="name">
+                Full Name <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="name"
+                name="name"
+                value={applicationForm.name}
+                onChange={handleApplicationChange}
+                className={errors.name ? 'border-red-500' : ''}
+                placeholder="Enter your full name"
+              />
+              {errors.name && (
+                <p className="text-red-500 text-sm">{errors.name}</p>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="email">
+                Email <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                value={applicationForm.email}
+                onChange={handleApplicationChange}
+                className={errors.email ? 'border-red-500' : ''}
+                placeholder="Enter your email address"
+              />
+              {errors.email && (
+                <p className="text-red-500 text-sm">{errors.email}</p>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="phone">
+                Phone Number
+              </Label>
+              <Input
+                id="phone"
+                name="phone"
+                value={applicationForm.phone}
+                onChange={handleApplicationChange}
+                placeholder="Enter your phone number (optional)"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="applicationType">
+                Application Type <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={applicationForm.applicationType}
+                onValueChange={handleTypeChange}
+              >
+                <SelectTrigger className={errors.applicationType ? 'border-red-500' : ''}>
+                  <SelectValue placeholder="Select application type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="coach">Fitness Coach</SelectItem>
+                  <SelectItem value="affiliate">Affiliate Partner</SelectItem>
+                  <SelectItem value="taskforce">Taskforce Member</SelectItem>
+                  <SelectItem value="general">General Employment</SelectItem>
+                </SelectContent>
+              </Select>
+              {errors.applicationType && (
+                <p className="text-red-500 text-sm">{errors.applicationType}</p>
+              )}
+              
+              {applicationForm.applicationType && (
+                <div className="mt-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-auto p-0 text-blue-600">
+                        <Info className="h-4 w-4 mr-1" />
+                        <span className="text-sm">What is this?</span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80">
+                      {applicationForm.applicationType === 'coach' && (
+                        <div className="space-y-2">
+                          <h4 className="font-semibold">Fitness Coach</h4>
+                          <p className="text-sm">As a coach, you'll provide personalized fitness guidance to our users. You should have relevant certifications and experience in the fitness industry.</p>
+                        </div>
+                      )}
+                      {applicationForm.applicationType === 'affiliate' && (
+                        <div className="space-y-2">
+                          <h4 className="font-semibold">Affiliate Partner</h4>
+                          <p className="text-sm">Promote our products and services through your platform and earn commissions on sales generated through your unique referral links.</p>
+                        </div>
+                      )}
+                      {applicationForm.applicationType === 'taskforce' && (
+                        <div className="space-y-2">
+                          <h4 className="font-semibold">Taskforce Member</h4>
+                          <p className="text-sm">Join our internal team to help manage products, inventory, and support customer needs. This is a staff position with administrative access.</p>
+                        </div>
+                      )}
+                      {applicationForm.applicationType === 'general' && (
+                        <div className="space-y-2">
+                          <h4 className="font-semibold">General Employment</h4>
+                          <p className="text-sm">Apply for various positions within our organization including customer service, marketing, development, and more.</p>
+                        </div>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="resume">
+                Resume/CV 
+                {(applicationForm.applicationType === 'coach' || applicationForm.applicationType === 'taskforce') && 
+                  <span className="text-red-500"> *</span>
+                }
+              </Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  className="hidden"
+                  accept=".pdf,.doc,.docx"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current.click()}
+                  className={`flex items-center gap-2 ${errors.resume ? 'border-red-500' : ''}`}
+                >
+                  <Upload className="h-4 w-4" />
+                  Choose File
+                </Button>
+                <span className="text-sm text-gray-500">
+                  {resumeFile ? resumeFile.name : 'No file chosen'}
+                </span>
+              </div>
+              {errors.resume && (
+                <p className="text-red-500 text-sm">{errors.resume}</p>
+              )}
+              <p className="text-xs text-gray-500">Accepted formats: PDF, DOC, DOCX (max. 5MB)</p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="portfolioUrl">
+                Portfolio URL / LinkedIn
+              </Label>
+              <Input
+                id="portfolioUrl"
+                name="portfolioUrl"
+                value={applicationForm.portfolioUrl}
+                onChange={handleApplicationChange}
+                placeholder="https://your-portfolio.com or LinkedIn URL (optional)"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="message">
+                Why are you interested in this position? <span className="text-red-500">*</span>
+              </Label>
+              <TextArea
+                id="message"
+                name="message"
+                value={applicationForm.message}
+                onChange={handleApplicationChange}
+                className={`min-h-[150px] ${errors.message ? 'border-red-500' : ''}`}
+                placeholder="Tell us about yourself, your experience, and why you're interested in joining our team."
+              />
+              {errors.message && (
+                <p className="text-red-500 text-sm">{errors.message}</p>
+              )}
+            </div>
+            
+            <CardFooter className="flex justify-end px-0 pt-4">
+              <Button
+                type="submit"
+                disabled={applicationSubmitting}
+                className="w-full sm:w-auto"
+              >
+                {applicationSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Submitting...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <Send className="h-4 w-4" />
+                    Submit Application
+                  </span>
+                )}
+              </Button>
+            </CardFooter>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+const ApplicationFormPage = () => {
+    const navigate = useNavigate();
+    const fileInputRef = useRef(null);
+    const [formData, setFormData] = useState({
+      name: '',
+      email: '',
+      phone: '',
+      applicationType: '',
+      message: '',
+      portfolioUrl: '',
+    });
+    const [resumeFile, setResumeFile] = useState(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [successMessage, setSuccessMessage] = useState('');
+    const [errors, setErrors] = useState({});
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -431,4 +667,5 @@ const ApplicationForm = () => {
   );
 };
 
-export default ApplicationForm;
+export { ApplicationForm };
+export default ApplicationFormPage;
