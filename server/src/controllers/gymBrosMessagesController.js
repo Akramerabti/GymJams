@@ -12,7 +12,7 @@ export const sendMessage = async (req, res) => {
     
     console.log('Match ID:', matchId);
     console.log('Content:', content);
-    
+
     // Get effective user (authenticated or guest)
     const effectiveUser = getEffectiveUser(req);
     
@@ -135,9 +135,6 @@ export const getMessages = async (req, res) => {
           message: 'Match not found'
         });
       }
-      
-      console.log('Match:', match);
-
       // Check if user is part of the match
       const userId = effectiveUser.userId || effectiveUser.profileId;
 

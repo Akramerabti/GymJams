@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, ArrowLeft, Image, X, Eye, Loader2, MapPin, Calendar, Award, Flag, Phone } from 'lucide-react';
+import { Send, ArrowLeft, Image, X, Loader2, MapPin, Calendar, Award, Flag, Phone } from 'lucide-react';
 import { format, parseISO, isSameDay, formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { useSocket } from '../../../SocketContext';
@@ -17,7 +17,6 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [lastReadMessageId, setLastReadMessageId] = useState(null);
   const [expandedProfile, setExpandedProfile] = useState(false);
   
   // Refs
@@ -27,12 +26,11 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
   const chatContainerRef = useRef(null);
   const processedMessageIds = useRef(new Set());
   const userIdRef = useRef(null);
-  const markingAsRead = useRef(false);
-  const lastReadTimestamp = useRef(0);
+  const seenContentMessages = useRef(new Set());
 
   // Get user info
   const userId = user?.id || (user?.user && user?.user.id);
-  const otherUserId = otherUserInfo.userId || otherUserInfo.profileId;
+  const otherUserId = otherUserInfo.userId || otherUserInfo._id;
   
   // Debug IDs - helps debugging ID matching issues
   useEffect(() => {
@@ -41,10 +39,21 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     console.log('OtherUserId:', otherUserId);
   }, [userId, otherUserId]);
 
-  // Function to normalize IDs for comparison (ensures consistent string format)
+  // Function to normalize IDs for comparison
   const normalizeId = (id) => {
     if (!id) return null;
-    return typeof id === 'object' ? id.toString() : String(id);
+    
+    // If it's an object with an id property (from API)
+    if (typeof id === 'object' && id.id) return String(id.id);
+    
+    // If it's an object with an _id property (alternate API format)
+    if (typeof id === 'object' && id._id) return String(id._id);
+    
+    // If it's an object without id properties (like an ObjectId)
+    if (typeof id === 'object') return String(id);
+    
+    // If it's already a string, just return it
+    return String(id);
   };
   
   // Auto-scroll to bottom when messages change
@@ -59,7 +68,57 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     return scrollHeight - (scrollTop + clientHeight) < 50;
   }, []);
 
-  // Fetch messages effect
+  // Create a message deduplication key
+  const createMessageKey = (message) => {
+    const sender = normalizeId(message.sender);
+    const content = message.content || '';
+    const timestamp = message.timestamp ? new Date(message.timestamp).getTime() : Date.now();
+    return `${sender}:${content}:${timestamp}`;
+  };
+
+  const addMessageWithDeduplication = useCallback((newMessage, currentMessages) => {
+    // Skip if already processed by ID
+    if (processedMessageIds.current.has(newMessage._id)) {
+      console.log('Skipping duplicate message by ID:', newMessage._id);
+      return currentMessages;
+    }
+    
+    // Create a content key for deduplication
+    const messageKey = createMessageKey(newMessage);
+    
+    // Skip if we've seen this content recently (within 5 seconds)
+    if (seenContentMessages.current.has(messageKey)) {
+      console.log('Skipping duplicate message by content:', messageKey);
+      return currentMessages;
+    }
+    
+    // Add to processed IDs and content keys
+    processedMessageIds.current.add(newMessage._id);
+    seenContentMessages.current.add(messageKey);
+    
+    // Check for pending messages to replace
+    if (!newMessage.pending) {
+      const pendingIndex = currentMessages.findIndex(msg => 
+        msg.pending && 
+        normalizeId(msg.sender) === normalizeId(newMessage.sender) && 
+        msg.content === newMessage.content &&
+        Math.abs(new Date(msg.timestamp) - new Date(newMessage.timestamp)) < 10000 // Within 10 seconds
+      );
+      
+      if (pendingIndex >= 0) {
+        // Replace the pending message
+        console.log('Replacing pending message with confirmed message');
+        const updatedMessages = [...currentMessages];
+        updatedMessages[pendingIndex] = newMessage;
+        return updatedMessages;
+      }
+    }
+    
+    // Add new message
+    return [...currentMessages, newMessage];
+  }, []);
+
+  // Fetch messages effect with deduplication
   useEffect(() => {
     const fetchMessages = async () => {
       try {
@@ -75,9 +134,25 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
           });
         }
         
-        setMessages(messages);
+        // Normalize all messages and deduplicate
+        const normalizedMessages = [];
         processedMessageIds.current.clear();
-        messages.forEach(msg => processedMessageIds.current.add(msg._id));
+        seenContentMessages.current.clear();
+        
+        if (Array.isArray(messages)) {
+          // Process messages one by one with deduplication
+          messages.forEach(message => {
+            // Create a new messages array each time
+            const updatedMessages = addMessageWithDeduplication(message, normalizedMessages);
+            // Replace the array reference if it changed
+            if (updatedMessages !== normalizedMessages) {
+              normalizedMessages.length = 0;
+              normalizedMessages.push(...updatedMessages);
+            }
+          });
+        }
+        
+        setMessages(normalizedMessages);
       } catch (error) {
         console.error('Failed to load messages:', error);
         toast.error('Failed to load messages');
@@ -86,73 +161,60 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
       }
     };
     fetchMessages();
-  }, [matchId]);
+  }, [matchId, addMessageWithDeduplication]);
 
-  // Register user with socket when connected
   useEffect(() => {
-    if (socket && socketConnected && userId) {
+    if (socket && socketConnected) {
       try {
-        console.log('GymBrosMatchChat: Registering user with socket:', userId);
-        socket.emit('register', userId);
+        // For authenticated users, register with their user ID
+        if (userId) {
+          console.log('GymBrosMatchChat: Registering authenticated user with socket:', userId);
+          socket.emit('register', userId);
+        } 
+        // For guest users, check if we have a userIdRef value
+        else if (userIdRef.current) {
+          console.log('GymBrosMatchChat: Registering guest user with socket:', userIdRef.current);
+          socket.emit('register', userIdRef.current);
+        }
+        // For new guest users without an ID yet
+        else if (matchId && otherUserId) {
+          // Attempt to find the match details to determine the guest ID
+          console.log('GymBrosMatchChat: Attempting to determine guest ID for registration');
+          gymbrosService.findMatch(otherUserId)
+            .then(matchDetails => {
+              if (matchDetails && matchDetails.users && matchDetails.users.length === 2) {
+                // Find the user that's not the receiver (must be the sender/guest)
+                const guestUserId = matchDetails.users.find(id => 
+                  normalizeId(id) !== normalizeId(otherUserId)
+                );
+                
+                if (guestUserId) {
+                  console.log(`GymBrosMatchChat: Found and registering guest user ID: ${guestUserId}`);
+                  userIdRef.current = guestUserId;
+                  socket.emit('register', guestUserId);
+                }
+              }
+            })
+            .catch(error => {
+              console.error('Error finding match details for socket registration:', error);
+            });
+        }
       } catch (err) {
         console.error('Error registering with socket:', err);
       }
     }
-  }, [socket, socketConnected, userId]);
+  }, [socket, socketConnected, userId, matchId, otherUserId]);
 
-  // Mark messages as read
-  const markMessagesAsRead = useCallback(async (messageIds) => {
-    if (!messageIds?.length || markingAsRead.current || !matchId) return;
-    
-    try {
-      markingAsRead.current = true;
-      console.log('Marking messages as read:', messageIds);
-      
-      // Update local state immediately
-      setMessages(prev => 
-        prev.map(msg => 
-          messageIds.includes(msg._id) ? { ...msg, read: true } : msg
-        )
-      );
-      
-      // Update timestamp
-      lastReadTimestamp.current = Date.now();
-      
-      // Call the API to mark messages as read
-      try {
-        await gymbrosService.markMatchMessagesAsRead(matchId, messageIds);
-      } catch (apiError) {
-        console.warn('API error marking messages as read:', apiError);
-        // Continue with socket event even if API fails
-      }
-      
-      // Emit socket event for real-time update to the sender
-      if (socket && socketConnected) {
-        socket.emit('messagesRead', {
-          matchId, 
-          messageIds,
-          receiverId: otherUserId
-        });
-        console.log('Read receipt sent via socket');
-      }
-    } catch (error) {
-      console.error('Failed to mark messages as read:', error);
-    } finally {
-      markingAsRead.current = false;
-    }
-  }, [socket, socketConnected, matchId, otherUserId]);
-
-  // Socket event handlers for messages, typing, and read receipts
+  // Socket event handlers for messages and typing
   useEffect(() => {
     if (!socket || !socketConnected || !matchId) return;
 
     const handleReceiveMessage = (message) => {
       console.log('Received message via socket:', message);
       if (message.matchId !== matchId) return;
-      if (processedMessageIds.current.has(message._id)) return;
       
-      processedMessageIds.current.add(message._id);
-      setMessages(prev => [...prev, message]);
+      // Use the addMessageWithDeduplication function
+      setMessages(prev => addMessageWithDeduplication(message, prev));
     };
 
     const handleTypingEvent = (data) => {
@@ -160,46 +222,28 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
       setOtherUserTyping(data.isTyping);
     };
 
-    const handleMessagesRead = (data) => {
-      console.log('Messages read event received:', data);
-      if (data.matchId !== matchId) return;
-      setMessages(prev => prev.map(msg => 
-        data.messageIds.includes(msg._id) ? { ...msg, read: true } : msg
-      ));
-    };
-
     socket.on('receiveMessage', handleReceiveMessage);
     socket.on('typing', handleTypingEvent);
-    socket.on('messagesRead', handleMessagesRead);
 
     return () => {
       socket.off('receiveMessage', handleReceiveMessage);
       socket.off('typing', handleTypingEvent);
-      socket.off('messagesRead', handleMessagesRead);
     };
-  }, [socket, socketConnected, matchId, userId]);
+  }, [socket, socketConnected, matchId, addMessageWithDeduplication]);
 
-  // Check for unread messages when scrolling
   useEffect(() => {
-    const handleScroll = () => {
-      if (isAtBottom()) {
-        const effectiveSenderId = normalizeId(userId || userIdRef.current);
-        const unreadMessages = messages
-          .filter(msg => !msg.read && normalizeId(msg.sender) !== effectiveSenderId)
-          .map(msg => msg._id);
-        
-        if (unreadMessages.length > 0) {
-          markMessagesAsRead(unreadMessages);
-        }
-      }
-    };
-    
-    const container = chatContainerRef.current;
-    if (container) {
-      container.addEventListener('scroll', handleScroll);
-      return () => container.removeEventListener('scroll', handleScroll);
+    if (socket) {
+      const handleDebugMessage = (data) => {
+        console.log('Socket debug message:', data);
+      };
+      
+      socket.on('debug', handleDebugMessage);
+      
+      return () => {
+        socket.off('debug', handleDebugMessage);
+      };
     }
-  }, [messages, userId, markMessagesAsRead, isAtBottom]);
+  }, [socket]);
 
   // Handle typing indicator effect
   useEffect(() => {
@@ -310,84 +354,6 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     }
   }, [userId, matchId, otherUserId]);
 
-  // Initialize lastReadMessageId when messages load
-  useEffect(() => {
-    if (messages.length > 0) {
-      // Use effectiveSenderId for identifying "my" messages
-      const effectiveSenderId = normalizeId(userId || userIdRef.current);
-      if (!effectiveSenderId) return;
-      
-      // Get all messages sent by the current user
-      const userMessages = messages.filter(msg => 
-        normalizeId(msg.sender) === effectiveSenderId && !msg.pending
-      );
-      
-      if (userMessages.length === 0) return;
-      
-      // Sort in chronological order
-      userMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-      
-      // Find the last message that is read
-      let lastReadMsg = null;
-      
-      for (let i = userMessages.length - 1; i >= 0; i--) {
-        if (userMessages[i].read) {
-          lastReadMsg = userMessages[i];
-          break;
-        }
-      }
-      
-      setLastReadMessageId(lastReadMsg?._id || null);
-    }
-  }, [messages, userId]);
-  
-  // Update lastReadMessageId when receiving messagesRead event
-  useEffect(() => {
-    if (!socket || !socketConnected || !matchId) return;
-    
-    const handleMessagesReadEvent = (data) => {
-      console.log('Received messagesRead event:', data);
-      
-      if (data.matchId !== matchId) return;
-      
-      const effectiveSenderId = normalizeId(userId || userIdRef.current);
-      if (!effectiveSenderId) return;
-      
-      // Get messages sent by me that were marked as read
-      const myMessages = messages.filter(msg => 
-        normalizeId(msg.sender) === effectiveSenderId
-      );
-      
-      const myReadMessages = myMessages.filter(msg => 
-        data.messageIds.includes(msg._id)
-      );
-      
-      // If any messages were marked as read, update the last read message ID
-      if (myReadMessages.length > 0) {
-        // Sort in reverse chronological order
-        myReadMessages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        const newLastReadMessageId = myReadMessages[0]._id;
-        setLastReadMessageId(newLastReadMessageId);
-      }
-    };
-    
-    try {
-      socket.on('messagesRead', handleMessagesReadEvent);
-    } catch (err) {
-      console.error('Error setting up messagesRead event listener:', err);
-    }
-    
-    return () => {
-      if (socket) {
-        try {
-          socket.off('messagesRead', handleMessagesReadEvent);
-        } catch (err) {
-          console.error('Error removing messagesRead event listener:', err);
-        }
-      }
-    };
-  }, [socket, socketConnected, matchId, userId, messages]);
-
   // Send message handler
   const handleSendMessage = async () => {
     if ((!newMessage.trim() && files.length === 0) || !socketConnected) return;
@@ -406,12 +372,11 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
         sender: effectiveSenderId, // Use effectiveSenderId here
         content: newMessage.trim(),
         timestamp,
-        pending: true,
-        read: false
+        pending: true
       };
   
-      // Add to messages immediately
-      setMessages(prev => [...prev, tempMessage]);
+      // Add to messages with deduplication
+      setMessages(prev => addMessageWithDeduplication(tempMessage, prev));
       setNewMessage('');
       
       // If no effectiveSenderId is available, try to determine it
@@ -810,15 +775,10 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
                 {/* Messages for this date */}
                 <div className="space-y-4">
                 {group.messages.map((message) => {
-                      // FIXED: Use normalizeId to ensure consistent comparison
+                      // Use normalizeId to ensure consistent comparison
                       const effectiveSenderId = normalizeId(userId || userIdRef.current);
                       const messageSenderId = normalizeId(message.sender);
-                      
-                      // Log the values for debugging if needed
-                      // console.log(`Message: ${messageSenderId}, User: ${effectiveSenderId}, Match: ${messageSenderId === effectiveSenderId}`);
-                      
                       const isCurrentUser = messageSenderId === effectiveSenderId;
-                      const isLastReadMessage = message._id === lastReadMessageId;
 
                       return (
                       <div key={message._id} className="message-container">
@@ -880,16 +840,6 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
                             </div>
                           </div>
                         </div>
-                        
-                        {/* Read receipt indicator */}
-                        {isLastReadMessage && (
-                          <div className="flex justify-end mt-1 pr-2">
-                            <div className="flex items-center text-gray-500 text-xs">
-                              <Eye className="w-3 h-3 mr-1" />
-                              <span>Seen</span>
-                            </div>
-                          </div>
-                        )}
                         
                         {/* Message sending indicator */}
                         {message.pending && (
