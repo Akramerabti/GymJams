@@ -1490,8 +1490,9 @@ export const sendVerificationCode = async (req, res) => {
     }
     
     try {
-      // Initialize Twilio client
-      const twilioClient = require('twilio')(accountSid, authToken);
+      // Import Twilio using ES modules syntax
+      const twilio = await import('twilio');
+      const twilioClient = twilio.default(accountSid, authToken);
       
       // Send the SMS
       await twilioClient.messages.create({
