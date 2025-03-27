@@ -52,31 +52,55 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
       console.log("Initializing form with data:", initialData);
       
       // Format dates for input fields
-      let formattedDiscount = { ...initialData.discount } || { percentage: '', startDate: '', endDate: '' };
-      if (formattedDiscount.startDate) {
-        formattedDiscount.startDate = format(new Date(formattedDiscount.startDate), 'yyyy-MM-dd');
-      }
-      if (formattedDiscount.endDate) {
-        formattedDiscount.endDate = format(new Date(formattedDiscount.endDate), 'yyyy-MM-dd');
-      }
+      let formattedDiscount = { 
+        percentage: initialData.discount?.percentage || '',
+        startDate: initialData.discount?.startDate ? format(new Date(initialData.discount.startDate), 'yyyy-MM-dd') : '',
+        endDate: initialData.discount?.endDate ? format(new Date(initialData.discount.endDate), 'yyyy-MM-dd') : ''
+      };
 
-      // Create image previews for existing images
-      const existingImages = Array.isArray(initialData.images) ? initialData.images : [];
+      // Handle image URLs - can be in either imageUrls or images field
+      const existingImages = Array.isArray(initialData.imageUrls) 
+        ? initialData.imageUrls 
+        : (Array.isArray(initialData.images) ? initialData.images : []);
+      
       setExistingImageCount(existingImages.length);
       
+      // Create full URLs for images
       const imagePreviews = existingImages.map(image => {
-        return image.startsWith('http') 
-          ? image 
-          : `${import.meta.env.VITE_API_URL}/${image}`;
+        // If it's a full URL, use it directly
+        if (image.startsWith('http')) {
+          return image;
+        }
+        // Otherwise, prepend the API URL, ensuring correct path formatting
+        const apiUrl = import.meta.env.VITE_API_URL;
+        // If image starts with a slash and API URL ends with a slash, avoid double slash
+        if (image.startsWith('/') && apiUrl.endsWith('/')) {
+          return apiUrl + image.substring(1);
+        }
+        // If image doesn't start with slash and API URL doesn't end with slash, add one
+        if (!image.startsWith('/') && !apiUrl.endsWith('/')) {
+          return `${apiUrl}/${image}`;
+        }
+        // Otherwise just concatenate them
+        return `${apiUrl}${image}`;
       });
 
       console.log("Setting image previews:", imagePreviews);
 
+      // Set the product state with all the data
       setProduct({
         ...initialData,
+        price: initialData.price.toString(),
+        stockQuantity: initialData.stockQuantity.toString(),
         discount: formattedDiscount,
         imagePreviews,
         images: [], // We don't need to re-upload images unless new ones are added
+        specs: {
+          weight: initialData.specs?.weight || '',
+          dimensions: initialData.specs?.dimensions || '',
+          material: initialData.specs?.material || '',
+          warranty: initialData.specs?.warranty || '',
+        }
       });
     }
   }, [initialData, isEditing]);
@@ -281,24 +305,37 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
       if (isEditing && initialData?._id) {
         formData.append('_id', initialData._id);
         
-        // Pass existing image paths if available
-        if (initialData.images && initialData.images.length > 0) {
+        // Handle existing images - they could be in imageUrls or images
+        const existingImagesArray = initialData.imageUrls || initialData.images || [];
+        
+        if (existingImagesArray && existingImagesArray.length > 0) {
           // If we're editing and have removed some images, create a list of remaining images
-          if (product.imagePreviews.length < initialData.images.length) {
-            // Find which images to keep based on their URLs
-            const keptImages = initialData.images.filter((imgPath, idx) => {
-              const fullUrl = imgPath.startsWith('http') 
-                ? imgPath 
-                : `${import.meta.env.VITE_API_URL}/${imgPath}`;
-              
-              // Check if this image URL is still in the previews
-              return product.imagePreviews.includes(fullUrl);
+          if (product.imagePreviews.length < existingImageCount) {
+            // We need to map back from full URLs to relative paths
+            const apiUrl = import.meta.env.VITE_API_URL;
+            
+            // Extract original paths by comparing with initial images
+            const remainingImagePaths = [];
+            
+            // For each preview that's still shown
+            product.imagePreviews.slice(0, existingImageCount).forEach(previewUrl => {
+              // Find the matching original path
+              for (const originalPath of existingImagesArray) {
+                const fullUrl = originalPath.startsWith('http') 
+                  ? originalPath 
+                  : `${apiUrl}${originalPath.startsWith('/') ? '' : '/'}${originalPath}`;
+                
+                if (previewUrl === fullUrl) {
+                  remainingImagePaths.push(originalPath);
+                  break;
+                }
+              }
             });
             
-            formData.append('existingImages', JSON.stringify(keptImages));
+            formData.append('existingImages', JSON.stringify(remainingImagePaths));
           } else {
             // Keep all existing images
-            formData.append('existingImages', JSON.stringify(initialData.images));
+            formData.append('existingImages', JSON.stringify(existingImagesArray));
           }
         }
       }
@@ -307,9 +344,6 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
       product.images.forEach((file) => {
         formData.append('images', file);
       });
-  
-      // Log the data being sent
-      console.log('Sending product data:', Object.fromEntries(formData));
   
       // Call the parent function to handle the API request
       const response = await onAddProduct(formData);

@@ -114,23 +114,49 @@ const ProductList = ({
     }
   };
 
+  // Get the first product image, handling different possible image fields
+  const getFirstProductImage = (product) => {
+    // Check all possible image field names
+    if (Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
+      return product.imageUrls[0];
+    } else if (Array.isArray(product.images) && product.images.length > 0) {
+      return product.images[0];
+    } else {
+      return null;
+    }
+  };
+
   // Process and normalize product image path/url
   const getImageUrl = (imagePath) => {
     if (!imagePath) return null;
     
-    return imagePath.startsWith('http') 
-      ? imagePath 
-      : `${import.meta.env.VITE_API_URL}/${imagePath}`;
+    if (imagePath.startsWith('http')) {
+      return imagePath;
+    }
+    
+    // Ensure proper path construction with API URL
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    
+    // Handle cases where both path and API URL might have slashes
+    if (imagePath.startsWith('/') && apiUrl.endsWith('/')) {
+      return apiUrl + imagePath.substring(1);
+    }
+    
+    // Handle cases where neither has a slash
+    if (!imagePath.startsWith('/') && !apiUrl.endsWith('/')) {
+      return `${apiUrl}/${imagePath}`;
+    }
+    
+    // Default case - just concatenate them
+    return `${apiUrl}${imagePath}`;
   };
 
   // Display image thumbnail
   const getThumbnail = (product) => {
-    // Ensure images exists and is an array
-    const images = Array.isArray(product.images) ? product.images : [];
+    const imagePath = getFirstProductImage(product);
     
-    // Choose the first image if available
-    if (images.length > 0) {
-      const imageUrl = getImageUrl(images[0]);
+    if (imagePath) {
+      const imageUrl = getImageUrl(imagePath);
       
       return (
         <div className="relative w-12 h-12 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
@@ -195,9 +221,8 @@ const ProductList = ({
   const GridView = () => (
     <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
       {products.map((product) => {
-        // Ensure images is an array
-        const images = Array.isArray(product.images) ? product.images : [];
-        const productImage = images.length > 0 ? getImageUrl(images[0]) : null;
+        const imagePath = getFirstProductImage(product);
+        const productImage = imagePath ? getImageUrl(imagePath) : null;
         
         return (
           <Card key={product._id} className="overflow-hidden group">
