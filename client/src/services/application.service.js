@@ -5,7 +5,7 @@ const applicationService = {
   // Submit a new application
   async submitApplication(formData) {
     try {
-      const response = await api.post('/applications', formData, {
+      const response = await api.post('/applications/submit', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
