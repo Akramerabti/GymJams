@@ -114,16 +114,23 @@ const ProductList = ({
     }
   };
 
+  // Process and normalize product image path/url
+  const getImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    
+    return imagePath.startsWith('http') 
+      ? imagePath 
+      : `${import.meta.env.VITE_API_URL}/${imagePath}`;
+  };
+
   // Display image thumbnail
   const getThumbnail = (product) => {
+    // Ensure images exists and is an array
+    const images = Array.isArray(product.images) ? product.images : [];
+    
     // Choose the first image if available
-    if (product.images && product.images.length > 0) {
-      const imagePath = product.images[0];
-      
-      // Handle different image path formats
-      const imageUrl = imagePath.startsWith('http') 
-        ? imagePath 
-        : `${import.meta.env.VITE_API_URL}/${imagePath}`;
+    if (images.length > 0) {
+      const imageUrl = getImageUrl(images[0]);
       
       return (
         <div className="relative w-12 h-12 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
@@ -187,113 +194,117 @@ const ProductList = ({
   // Grid View Component
   const GridView = () => (
     <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-      {products.map((product) => (
-        <Card key={product._id} className="overflow-hidden group">
-          <div className="relative h-40 bg-gray-100">
-            {product.images && product.images.length > 0 ? (
-              <img
-                src={product.images[0].startsWith('http') 
-                  ? product.images[0] 
-                  : `${import.meta.env.VITE_API_URL}/${product.images[0]}`}
-                alt={product.name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.src = '/placeholder-image.jpg';
-                  e.target.onerror = null;
-                }}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <Image className="h-12 w-12 text-gray-400" />
-              </div>
-            )}
-            
-            {/* Status badge positioned top-left */}
-            <div className="absolute top-2 left-2">
-              {getStockBadge(product.stockQuantity)}
-            </div>
-            
-            {/* Discount badge if applicable */}
-            {isOnSale(product) && (
-              <div className="absolute top-2 right-2">
-                <Badge className="bg-red-500">{product.discount.percentage}% OFF</Badge>
-              </div>
-            )}
-            
-            {/* Quick actions overlay (appears on hover) */}
-            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-              <Button 
-                variant="default" 
-                size="icon" 
-                className="rounded-full"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEditProduct?.(product);
-                }}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button 
-                variant="default" 
-                size="icon" 
-                className="rounded-full"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.open(`/product/${product._id}`, '_blank');
-                }}
-              >
-                <Eye className="h-4 w-4" />
-              </Button>
-              <Button 
-                variant="destructive" 
-                size="icon" 
-                className="rounded-full"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDeleteProduct(product._id);
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-          <CardContent className="p-4">
-            {/* Selection checkbox when in bulk select mode */}
-            {bulkSelectMode && (
-              <div className="flex justify-end mb-2">
-                <Checkbox
-                  checked={selectedProducts.includes(product._id)}
-                  onCheckedChange={() => onSelectProduct(product._id)}
-                  aria-label={`Select ${product.name}`}
+      {products.map((product) => {
+        // Ensure images is an array
+        const images = Array.isArray(product.images) ? product.images : [];
+        const productImage = images.length > 0 ? getImageUrl(images[0]) : null;
+        
+        return (
+          <Card key={product._id} className="overflow-hidden group">
+            <div className="relative h-40 bg-gray-100">
+              {productImage ? (
+                <img
+                  src={productImage}
+                  alt={product.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.src = '/placeholder-image.jpg';
+                    e.target.onerror = null;
+                  }}
                 />
-              </div>
-            )}
-            
-            <div className="space-y-2">
-              <div className="flex justify-between items-start">
-                <h3 className="font-medium truncate">{product.name}</h3>
-                <Badge variant="outline">{product.category}</Badge>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Image className="h-12 w-12 text-gray-400" />
+                </div>
+              )}
+              
+              {/* Status badge positioned top-left */}
+              <div className="absolute top-2 left-2">
+                {getStockBadge(product.stockQuantity)}
               </div>
               
-              <div className="flex justify-between items-center">
-                <div>
-                  {isOnSale(product) ? (
-                    <div>
-                      <span className="font-bold text-red-600">{formatPrice(getSalePrice(product))}</span>
-                      <span className="text-gray-500 line-through text-xs ml-2">
-                        {formatPrice(product.price)}
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="font-bold">{formatPrice(product.price)}</span>
-                  )}
+              {/* Discount badge if applicable */}
+              {isOnSale(product) && (
+                <div className="absolute top-2 right-2">
+                  <Badge className="bg-red-500">{product.discount.percentage}% OFF</Badge>
                 </div>
-                <ActionsMenu product={product} />
+              )}
+              
+              {/* Quick actions overlay (appears on hover) */}
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                <Button 
+                  variant="default" 
+                  size="icon" 
+                  className="rounded-full"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditProduct?.(product);
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button 
+                  variant="default" 
+                  size="icon" 
+                  className="rounded-full"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(`/product/${product._id}`, '_blank');
+                  }}
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  size="icon" 
+                  className="rounded-full"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteProduct(product._id);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      ))}
+            <CardContent className="p-4">
+              {/* Selection checkbox when in bulk select mode */}
+              {bulkSelectMode && (
+                <div className="flex justify-end mb-2">
+                  <Checkbox
+                    checked={selectedProducts.includes(product._id)}
+                    onCheckedChange={() => onSelectProduct(product._id)}
+                    aria-label={`Select ${product.name}`}
+                  />
+                </div>
+              )}
+              
+              <div className="space-y-2">
+                <div className="flex justify-between items-start">
+                  <h3 className="font-medium truncate">{product.name}</h3>
+                  <Badge variant="outline">{product.category}</Badge>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <div>
+                    {isOnSale(product) ? (
+                      <div>
+                        <span className="font-bold text-red-600">{formatPrice(getSalePrice(product))}</span>
+                        <span className="text-gray-500 line-through text-xs ml-2">
+                          {formatPrice(product.price)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="font-bold">{formatPrice(product.price)}</span>
+                    )}
+                  </div>
+                  <ActionsMenu product={product} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 

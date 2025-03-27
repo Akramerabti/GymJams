@@ -644,10 +644,10 @@ const Applications = () => {
                 </TableHeader>
                 <TableBody>
                   {filteredApplications.map((application) => (
-                    <TableRow key={application._id} className={application.status === 'pending' ? 'bg-yellow-50' : ''}>
-                      <TableCell className="font-medium">
+                    <TableRow key={application._id} className={application.status === 'pending' ? 'bg-yellow-50 text-black' : ' text-black'}>
+                      <TableCell className="font-medium text-black">
                         <div>{application.name}</div>
-                        <div className="text-sm text-gray-500">{application.email}</div>
+                        <div className="text-sm text-black">{application.email}</div>
                       </TableCell>
                       <TableCell>{getApplicationTypeLabel(application.applicationType)}</TableCell>
                       <TableCell>{formatDate(application.createdAt)}</TableCell>
@@ -659,12 +659,13 @@ const Applications = () => {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleViewDetails(application)}
+                              className="bg-blue-400 "
                             >
-                              <Eye className="h-4 w-4 mr-1" />
+                              <Eye className="h-4 w-4 mr-1 " />
                               View
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-3xl max-h-[90vh]">
+                          <DialogContent className="max-w-3xl max-h-[90vh] z-50">
                             <DialogHeader>
                               <DialogTitle>Application Details</DialogTitle>
                               <DialogDescription>

@@ -6,7 +6,7 @@ import TextArea from "@/components/ui/TextArea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/Switch";
-import { Upload, Image as ImageIcon, Smartphone, Monitor, X, Save, ArrowLeft, Loader2, Plus, Trash } from 'lucide-react';
+import { Eye, Heart, Badge, ShoppingCart, Upload, Image as ImageIcon, Smartphone, Monitor, X, Save, ArrowLeft, Loader2, Plus, Trash } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -24,7 +24,7 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
     price: '',
     category: '',
     stockQuantity: '',
-    images: [], // Array of File objects
+    images: [], // Array of File objects for new uploads
     imagePreviews: [], // Array of image URLs for preview
     featured: false,
     specs: {
@@ -44,12 +44,15 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [existingImageCount, setExistingImageCount] = useState(0);
 
   // Initialize form with data if editing
   useEffect(() => {
     if (initialData && isEditing) {
+      console.log("Initializing form with data:", initialData);
+      
       // Format dates for input fields
-      let formattedDiscount = { ...initialData.discount };
+      let formattedDiscount = { ...initialData.discount } || { percentage: '', startDate: '', endDate: '' };
       if (formattedDiscount.startDate) {
         formattedDiscount.startDate = format(new Date(formattedDiscount.startDate), 'yyyy-MM-dd');
       }
@@ -58,11 +61,16 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
       }
 
       // Create image previews for existing images
-      const imagePreviews = initialData.images?.map(image => {
+      const existingImages = Array.isArray(initialData.images) ? initialData.images : [];
+      setExistingImageCount(existingImages.length);
+      
+      const imagePreviews = existingImages.map(image => {
         return image.startsWith('http') 
           ? image 
           : `${import.meta.env.VITE_API_URL}/${image}`;
-      }) || [];
+      });
+
+      console.log("Setting image previews:", imagePreviews);
 
       setProduct({
         ...initialData,
@@ -111,40 +119,64 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
 
   const handleImageChange = (e) => {
     const files = Array.from(e.target.files);
+    if (!files.length) return;
+    
     console.log('Selected Files:', files);
   
-    const totalImages = product.images.length + files.length;
+    const totalImages = product.images.length + product.imagePreviews.length + files.length;
   
     // Only enforce the maximum limit during file selection
     if (totalImages > 8) {
       setErrors({ ...errors, images: 'Maximum 8 images allowed' });
+      toast.error('Maximum 8 images allowed');
       return;
     }
   
-    const newImages = [...product.images, ...files];
+    // Create object URLs for preview
     const newPreviews = files.map(file => URL.createObjectURL(file));
   
-    setProduct({
-      ...product,
-      images: newImages,
-      imagePreviews: [...product.imagePreviews, ...newPreviews],
-    });
+    setProduct(prev => ({
+      ...prev,
+      images: [...prev.images, ...files],
+      imagePreviews: [...prev.imagePreviews, ...newPreviews],
+    }));
+    
     setTouched({ ...touched, images: true });
-    validateField('images', newImages);
+    validateField('images', [...product.images, ...files]);
   };
 
   const removeImage = (index) => {
-    const newImages = [...product.images];
-    const newPreviews = [...product.imagePreviews];
-    newImages.splice(index, 1);
-    newPreviews.splice(index, 1);
-
-    setProduct({
-      ...product,
-      images: newImages,
-      imagePreviews: newPreviews,
-    });
-    validateField('images', newImages);
+    // Handle differently based on whether it's a new upload or existing image
+    if (index < existingImageCount) {
+      // This is an existing image, mark it for removal but keep track of it
+      const newImagePreviews = [...product.imagePreviews];
+      newImagePreviews.splice(index, 1);
+      
+      setExistingImageCount(prev => prev - 1);
+      setProduct(prev => ({
+        ...prev,
+        imagePreviews: newImagePreviews,
+      }));
+    } else {
+      // This is a newly uploaded image
+      const adjustedIndex = index - existingImageCount;
+      const newImages = [...product.images];
+      const newPreviews = [...product.imagePreviews];
+      
+      // Revoke the object URL to prevent memory leaks
+      URL.revokeObjectURL(newPreviews[index]);
+      
+      newImages.splice(adjustedIndex, 1);
+      newPreviews.splice(index, 1);
+      
+      setProduct(prev => ({
+        ...prev,
+        images: newImages,
+        imagePreviews: newPreviews,
+      }));
+    }
+    
+    validateField('images', product.images);
   };
 
   const handleCategoryChange = (value) => {
@@ -181,12 +213,14 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
         else delete newErrors.stockQuantity;
         break;
       case 'images':
+        const totalImageCount = (Array.isArray(value) ? value.length : 0) + product.imagePreviews.length;
+        
         // When editing, we don't require new images if there are already previews
         if (isEditing && product.imagePreviews.length >= 2) {
           delete newErrors.images;
-        } else if (value.length + product.imagePreviews.length < 2) {
+        } else if (totalImageCount < 2) {
           newErrors.images = 'Minimum 2 images required';
-        } else if (value.length + product.imagePreviews.length > 8) {
+        } else if (totalImageCount > 8) {
           newErrors.images = 'Maximum 8 images allowed';
         } else {
           delete newErrors.images;
@@ -222,7 +256,8 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
     }
   
     // Check minimum image requirement
-    if (!isEditing && product.images.length < 2 && product.imagePreviews.length < 2) {
+    const totalImageCount = product.images.length + product.imagePreviews.length;
+    if (totalImageCount < 2) {
       toast.error('Please upload at least 2 images.');
       setIsSubmitting(false);
       return;
@@ -246,9 +281,25 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
       if (isEditing && initialData?._id) {
         formData.append('_id', initialData._id);
         
-        // Also pass existing image paths
+        // Pass existing image paths if available
         if (initialData.images && initialData.images.length > 0) {
-          formData.append('existingImages', JSON.stringify(initialData.images));
+          // If we're editing and have removed some images, create a list of remaining images
+          if (product.imagePreviews.length < initialData.images.length) {
+            // Find which images to keep based on their URLs
+            const keptImages = initialData.images.filter((imgPath, idx) => {
+              const fullUrl = imgPath.startsWith('http') 
+                ? imgPath 
+                : `${import.meta.env.VITE_API_URL}/${imgPath}`;
+              
+              // Check if this image URL is still in the previews
+              return product.imagePreviews.includes(fullUrl);
+            });
+            
+            formData.append('existingImages', JSON.stringify(keptImages));
+          } else {
+            // Keep all existing images
+            formData.append('existingImages', JSON.stringify(initialData.images));
+          }
         }
       }
   
@@ -258,7 +309,7 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
       });
   
       // Log the data being sent
-      console.log('Sending product data:', formData);
+      console.log('Sending product data:', Object.fromEntries(formData));
   
       // Call the parent function to handle the API request
       const response = await onAddProduct(formData);
@@ -372,7 +423,7 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
         <Label htmlFor="images" className="flex justify-between">
           Product Images
           <span className="text-sm text-gray-500">
-            {product.images.length + product.imagePreviews.length}/8 images
+            {product.imagePreviews.length}/8 images
           </span>
         </Label>
         <div className={cn(
@@ -645,7 +696,7 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
             <Label htmlFor="images" className="flex justify-between">
               Product Images
               <span className="text-sm text-gray-500">
-                {product.images.length + product.imagePreviews.length}/8 images
+                {product.imagePreviews.length}/8 images
               </span>
             </Label>
             <div className={cn(
