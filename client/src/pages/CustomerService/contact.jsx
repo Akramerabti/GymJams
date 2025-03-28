@@ -4,6 +4,7 @@ import {
   Mail, Phone, MessageSquare, Send, Info, CheckCircle, Search, Home, ArrowRight
 } from 'lucide-react';
 import applicationService from '../../services/application.service';
+import supportTicketService from '../../services/supportTicket.service';
 import { toast } from 'sonner';
 
 // Import components from other files
@@ -99,22 +100,38 @@ const Contact = () => {
     }
   }, [activeTab, faqScrollPosition]);
 
-  // Handle Contact Form submission
+
   const handleContactSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     
     try {
-      // Create an application with type 'support'
-      const applicationData = {
-        name: contactForm.name,
-        email: contactForm.email,
-        applicationType: 'support', // Use 'support' type for contact form submissions
-        message: contactForm.message
-      };
+      // Determine if this is a support request or job application based on subject
+      const isJobApplication = contactForm.subject === 'career' || contactForm.subject === 'job' || contactForm.subject === 'application';
       
-      // Send the application to backend
-      await applicationService.submitApplication(applicationData);
+      if (isJobApplication) {
+        // For job applications, use the application service
+        const applicationData = {
+          name: contactForm.name,
+          email: contactForm.email,
+          applicationType: 'general', // Use 'general' type for job applications
+          message: contactForm.message
+        };
+        
+        // Send the application to backend
+        await applicationService.submitApplication(applicationData);
+      } else {
+        // For support requests, use the support ticket service
+        const ticketData = {
+          subject: contactForm.subject,
+          userName: contactForm.name,
+          userEmail: contactForm.email,
+          message: contactForm.message
+        };
+        
+        // Use the supportTicket service
+        await supportTicketService.createSupportTicket(ticketData);
+      }
       
       // Show success message
       setSubmitted(true);
@@ -132,7 +149,7 @@ const Contact = () => {
         setSubmitted(false);
       }, 5000);
     } catch (error) {
-      console.error('Error submitting contact form:', error);
+      console.error('Error submitting form:', error);
       toast.error('Failed to submit your message. Please try again later.');
     } finally {
       setIsSubmitting(false);
@@ -377,11 +394,11 @@ const Contact = () => {
                   value={contactForm.subject}
                   onChange={handleContactChange}
                 >
-                  <option value="general">General Inquiry</option>
-                  <option value="support">Technical Support</option>
-                  <option value="billing">Billing Question</option>
-                  <option value="feature">Feature Request</option>
-                  <option value="other">Other</option>
+                  <option value="general" className='text-black'>General Inquiry</option>
+                  <option value="support"className='text-black'>Technical Support</option>
+                  <option value="billing"className='text-black'>Billing Question</option>
+                  <option value="feature"className='text-black'>Feature Request</option>
+                  <option value="other"className='text-black'>Other</option>
                 </select>
               </div>
 

@@ -1,4 +1,5 @@
-// server/src/routes/supportTicket.routes.js
+// Update server/src/routes/supportTicket.routes.js
+
 import express from 'express';
 import { 
   handleIncomingEmail, 
@@ -6,7 +7,8 @@ import {
   getSupportTicketById, 
   updateSupportTicket, 
   addResponseToTicket,
-  getSupportTicketStats
+  getSupportTicketStats,
+  createFromContact // Add this new import
 } from '../controllers/supportTicket.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 
@@ -14,6 +16,9 @@ const router = express.Router();
 
 // Public webhook route for email services like Mailgun
 router.post('/email-webhook', handleIncomingEmail);
+
+// Add new route for contact form submissions
+router.post('/contact', createFromContact);
 
 // Protected routes (taskforce/admin only)
 router.use(authenticate);

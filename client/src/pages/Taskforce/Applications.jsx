@@ -335,18 +335,25 @@ const Applications = () => {
     
     try {
       setLoading(true);
-      const response = await applicationService.getApplications();
+      // Only exclude 'support' type applications, but keep job applications
+      const response = await applicationService.getApplications({ 
+        excludeType: 'support' // Only exclude support requests
+      });
       
       const apps = response.data || [];
-      setApplications(apps);
-      setFilteredApplications(apps);
       
-      // Calculate stats
+      // Filter out any migrated applications if they exist
+      const activeApps = apps.filter(app => app.status !== 'migrated');
+      
+      setApplications(activeApps);
+      setFilteredApplications(activeApps);
+      
+      // Calculate stats with the updated list
       const stats = {
-        pending: apps.filter(app => app.status === 'pending').length,
-        approved: apps.filter(app => app.status === 'approved').length,
-        rejected: apps.filter(app => app.status === 'rejected').length,
-        total: apps.length
+        pending: activeApps.filter(app => app.status === 'pending').length,
+        approved: activeApps.filter(app => app.status === 'approved').length,
+        rejected: activeApps.filter(app => app.status === 'rejected').length,
+        total: activeApps.length
       };
       setStats(stats);
     } catch (error) {

@@ -8,6 +8,7 @@ import * as z from 'zod';
 import api from '../../services/api';
 import { useAuth } from '../../stores/authStore';
 import { motion, AnimatePresence } from 'framer-motion';
+import SocialLoginButtons from './SocialLoginButtons';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -219,6 +220,20 @@ const LoginForm = () => {
               {errors.password && (
                 <p className="mt-1 text-sm text-red-500">{errors.password.message}</p>
               )}
+              <div className="mt-6">
+  <div className="relative">
+    <div className="absolute inset-0 flex items-center">
+      <div className="w-full border-t border-gray-300"></div>
+    </div>
+    <div className="relative flex justify-center text-sm">
+      <span className="px-2 bg-white text-gray-500">Or continue with</span>
+    </div>
+  </div>
+
+  <div className="mt-6">
+    <SocialLoginButtons />
+  </div>
+</div>
             </motion.div>
           </div>
 

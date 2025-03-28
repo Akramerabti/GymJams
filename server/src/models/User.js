@@ -48,6 +48,11 @@ const userSchema = new mongoose.Schema({
       message: 'This phone number is already registered'
     }
   },
+  oauth: {
+    googleId: String,
+    facebookId: String,
+    lastProvider: String
+  },
   stripeCustomerId: {
     type: String,
     unique: true,

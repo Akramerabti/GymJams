@@ -2,6 +2,17 @@
 import api from './api';
 
 const supportTicketService = {
+
+  async createSupportTicket(ticketData) {
+    try {
+      const response = await api.post('/support-tickets/contact', ticketData);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to create support ticket:', error);
+      throw error;
+    }
+  },
+
   // Get support tickets with filters
   async getSupportTickets(options = {}) {
     try {

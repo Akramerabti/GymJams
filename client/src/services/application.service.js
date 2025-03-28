@@ -23,6 +23,7 @@ const applicationService = {
       const params = new URLSearchParams();
       if (filters.status) params.append('status', filters.status);
       if (filters.type) params.append('type', filters.type);
+      if (filters.excludeType) params.append('excludeType', filters.excludeType);
       
       const response = await api.get(`/applications?${params.toString()}`);
       return response.data;

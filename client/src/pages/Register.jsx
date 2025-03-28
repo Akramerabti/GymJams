@@ -8,6 +8,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
 import { countryCodes, formatE164, isValidPhoneNumber } from '../utils/phoneUtils';
+import SocialLoginButtons from '../components/auth/SocialLoginButtons';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -388,6 +389,20 @@ const Register = () => {
                 'Create Account'
               )}
             </Button>
+            <div className="mt-6">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">Or sign up with</span>
+                </div>
+              </div>
+                        
+              <div className="mt-6">
+                <SocialLoginButtons />
+              </div>
+            </div>
           </form>
         </CardContent>
 

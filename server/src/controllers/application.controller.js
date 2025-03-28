@@ -59,15 +59,25 @@ export const submitApplication = async (req, res) => {
   }
 };
 
-// Get all applications (for admin/taskforce)
 export const getApplications = async (req, res) => {
   try {
-    const { status, type } = req.query;
+    const { status, type, excludeType } = req.query;
     
     // Create filter object
     const filter = {};
     if (status) filter.status = status;
     if (type) filter.applicationType = type;
+    
+    // If excludeType is specified, filter out that type
+    if (excludeType) {
+      // Handle multiple excluded types separated by commas
+      if (excludeType.includes(',')) {
+        const typesToExclude = excludeType.split(',');
+        filter.applicationType = { $nin: typesToExclude };
+      } else {
+        filter.applicationType = { $ne: excludeType };
+      }
+    }
     
     const applications = await Application.find(filter)
       .sort({ createdAt: -1 }) // Newest first

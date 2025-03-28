@@ -18,7 +18,7 @@ import authRoutes from './routes/auth.routes.js';
 import { initStripe } from './config/stripe.js';
 import stripe from './config/stripe.js';
 import { handleWebhook } from '../src/controllers/subscription.Controller.js';
-
+import session from 'express-session';
 // Import routes
 import routes from './routes/index.js';
 
@@ -47,6 +47,22 @@ connectDB();
 initStripe();
 
 app.use(cors(corsOptions));
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Initialize passport (you already have this)
+app.use(passport.initialize());
+
+// Use passport session
+app.use(passport.session());
 
 app.post('/api/subscription/webhook', 
   express.raw({ type: 'application/json' }),

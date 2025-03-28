@@ -380,3 +380,58 @@ export const getSupportTicketStats = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch support ticket statistics' });
   }
 };
+
+export const createFromContact = async (req, res) => {
+  try {
+    const { subject, userName, userEmail, message } = req.body;
+    
+    if (!userEmail || !message) {
+      return res.status(400).json({ error: 'Email and message are required' });
+    }
+    
+    // Look up if user exists in our system
+    let userId = null;
+    const user = await User.findOne({ email: userEmail });
+    if (user) {
+      userId = user._id;
+    }
+    
+    // Create new support ticket
+    const newTicket = new SupportTicket({
+      subject: subject || 'Support Request',
+      userEmail,
+      userName: userName || '',
+      userId,
+      status: 'open',
+      priority: 'medium',
+      messages: [{
+        sender: 'user',
+        content: message,
+        timestamp: new Date()
+      }]
+    });
+    
+    await newTicket.save();
+    
+    // Send auto-response to user
+    try {
+      await sendEmail({
+        email: userEmail,
+        subject: `[Ticket #${newTicket._id}] ${newTicket.subject}`,
+        message: `Thank you for contacting GymJams support.\n\nYour support ticket has been created with ID #${newTicket._id}. A member of our team will get back to you shortly.\n\nPlease keep the ticket ID in the subject when replying to this email.\n\nRegards,\nGymJams Support Team`
+      });
+    } catch (emailError) {
+      logger.error('Failed to send auto-response:', emailError);
+      // Continue even if email fails
+    }
+    
+    res.status(201).json({
+      success: true,
+      message: 'Support ticket created successfully',
+      ticketId: newTicket._id
+    });
+  } catch (error) {
+    logger.error('Error creating support ticket from contact:', error);
+    res.status(500).json({ error: 'Failed to create support ticket' });
+  }
+};

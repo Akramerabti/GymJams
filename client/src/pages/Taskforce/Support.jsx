@@ -494,7 +494,7 @@ const Support = () => {
 
       {/* Ticket Detail Dialog */}
       <Dialog open={viewTicketDialogOpen} onOpenChange={setViewTicketDialogOpen}>
-        <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+        <DialogContent className="max-w-4xl h-[80vh] flex flex-col z-[50]">
           <DialogHeader>
             <DialogTitle>Support Ticket #{selectedTicket?._id}</DialogTitle>
             <DialogDescription>

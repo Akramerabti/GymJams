@@ -842,3 +842,73 @@ export const registerWithPhone = async (req, res) => {
     });
   }
 };
+
+export const completeOAuthProfile = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    const userId = req.user.id;
+
+    // Validate phone number
+    if (!phone) {
+      return res.status(400).json({ message: 'Phone number is required' });
+    }
+
+    // Check if phone is already in use by another account
+    const existingUserWithPhone = await User.findOne({ 
+      phone, 
+      _id: { $ne: userId } 
+    });
+
+    if (existingUserWithPhone) {
+      return res.status(400).json({ message: 'This phone number is already in use' });
+    }
+
+    // Update user profile
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { phone },
+      { new: true }
+    ).select('-password');
+
+    // Return updated user
+    res.json({
+      message: 'Profile completed successfully',
+      user
+    });
+  } catch (error) {
+    logger.error('Complete OAuth Profile error:', error);
+    res.status(500).json({ message: 'Error completing profile' });
+  }
+};
+
+// Check if OAuth account exists
+export const checkOAuthAccount = async (req, res) => {
+  try {
+    const { provider, providerId } = req.body;
+    
+    if (!provider || !providerId) {
+      return res.status(400).json({ message: 'Provider and providerId are required' });
+    }
+    
+    // Determine query based on provider
+    const query = {};
+    if (provider === 'google') {
+      query['oauth.googleId'] = providerId;
+    } else if (provider === 'facebook') {
+      query['oauth.facebookId'] = providerId;
+    } else {
+      return res.status(400).json({ message: 'Invalid provider' });
+    }
+    
+    // Check if account exists
+    const user = await User.findOne(query).select('_id');
+    
+    res.json({
+      exists: !!user,
+      userId: user ? user._id : null
+    });
+  } catch (error) {
+    logger.error('Check OAuth account error:', error);
+    res.status(500).json({ message: 'Error checking account status' });
+  }
+};

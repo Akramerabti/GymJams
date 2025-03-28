@@ -213,37 +213,39 @@ const useAuthStore = create(
         }
       },
 
-      // Login with token
       loginWithToken: async (token) => {
         const { setLoading, setError, setUser, setToken } = get();
         setLoading(true);
         setError(null);
-      
+    
         try {
-          // Make API call to validate the token and fetch user data
-          const response = await api.post('/auth/loginwithtoken', { token });
-        
-          // Extract user and token from the response
-          const { user, token: newToken } = response.data;
-        
-          // Set user and token in the store
-          setToken(newToken);
+          // Store the token
+          setToken(token);
+          
+          // Fetch user data using the token
+          const response = await api.get('/auth/profile', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          const user = response.data;
+          
+          // Set user in the store
           setUser(user);
-        
+          
           // Update points balance
           if (user.points !== undefined) {
             usePoints.getState().setBalance(user.points);
           }
-        
-          console.log('has received login bonus', user.hasReceivedFirstLoginBonus);
+          
+          // Check first login bonus
           if (!user.hasReceivedFirstLoginBonus) {
             set({ showOnboarding: true });
-            usePoints.getState().updatePointsInBackend(user.points + 100);
+            usePoints.getState().updatePointsInBackend((user.points)+100);
           }
-        
-          return { token: newToken, user };
+          
+          return { token, user };
         } catch (error) {
-          const message = error.response?.data?.message || 'Login with token failed';
+          const message = error.response?.data?.message || 'Token login failed';
           setError(message);
           throw error;
         } finally {
