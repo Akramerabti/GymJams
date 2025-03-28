@@ -761,32 +761,58 @@ async uploadProfileImages(files) {
     }
   },
 
-  async fetchMatchMessages(matchId, options = {}) {
-    try {
-      const params = {
-        limit: options.limit || 50,
-        offset: options.offset || 0,
-        unreadOnly: options.unreadOnly ? 'true' : 'false'
-      };
+  // Enhanced fetchMatchMessages method
+async fetchMatchMessages(matchId, options = {}) {
+  if (!matchId) {
+    console.log('No matchId provided to fetchMatchMessages');
+    return [];
+  }
   
-      const config = this.configWithGuestToken({
-        params
-      });
-  
-      const response = await api.get(`/gym-bros/matches/${matchId}/messages`, config);
-      
-      if (response.data && response.data.success) {
-        return response.data.data;
+  try {
+    const params = {
+      limit: options.limit || 50,
+      offset: options.offset || 0,
+      unreadOnly: options.unreadOnly ? 'true' : 'false'
+    };
+
+    // Add guest token to config
+    const config = this.configWithGuestToken({
+      params
+    });
+
+    console.log(`Fetching messages for match: ${matchId}`);
+    const response = await api.get(`/gym-bros/matches/${matchId}/messages`, config);
+    
+    let messages = [];
+    
+    // Handle different response formats
+    if (response.data && response.data.success) {
+      if (Array.isArray(response.data.data)) {
+        messages = response.data.data;
+      } else if (response.data.messages) {
+        messages = response.data.messages;
       }
-      
-      console.warn('Unexpected response format:', response);
-      return [];
-    } catch (error) {
-      console.error('Error fetching match messages:', error);
-      // Return empty array to prevent UI errors
-      return [];
+    } else if (Array.isArray(response.data)) {
+      messages = response.data;
+    } else {
+      console.warn('Unexpected response format from match messages API:', response.data);
     }
-  },
+    
+    console.log(`Received ${messages.length} messages for match ${matchId}`);
+    
+    // Update guest token if returned
+    if (response.data && response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return messages;
+  } catch (error) {
+    console.error(`Error fetching messages for match ${matchId}:`, error);
+    
+    // Don't throw, just return empty array to prevent UI errors
+    return [];
+  }
+},
 
   // Enhanced findMatch method for gymbrosService.js
 async findMatch(otherUserId) {
@@ -903,34 +929,130 @@ async getMatchDetails(matchId) {
   }
 },
 
-// Get matches with last message preview
 async getMatchesWithPreview() {
   try {
+    // Get effective user ID
+    const effectiveUserId = this.userId || localStorage.getItem('gymbrosUserId');
+    console.log('Effective user ID for message comparison:', effectiveUserId);
+    
     // Set up guest token in config
     const config = this.configWithGuestToken();
     
-    // Use the existing matches endpoint instead of matches/preview
-    const response = await api.get('/gym-bros/matches', config);
+    // Step 1: Fetch matched profiles
+    const profilesResponse = await api.get('/gym-bros/matches', config);
     
-    // Transform the data to include message previews if they're not already included
-    let matchesData = Array.isArray(response.data) ? response.data : [];
-    if (response.data && !Array.isArray(response.data) && Array.isArray(response.data.matches)) {
-      matchesData = response.data.matches;
+    // Handle different response formats for profiles
+    let matchedProfiles = [];
+    
+    if (Array.isArray(profilesResponse.data)) {
+      matchedProfiles = profilesResponse.data;
+    } else if (profilesResponse.data && Array.isArray(profilesResponse.data.matches)) {
+      matchedProfiles = profilesResponse.data.matches;
+    } else {
+      console.warn('Unexpected response format from matches API:', profilesResponse.data);
+      matchedProfiles = [];
     }
     
-    // Add placeholder preview data if it doesn't exist
-    const matchesWithPreviews = matchesData.map(match => ({
-      ...match,
-      lastMessage: match.lastMessage || null,
-      unreadCount: match.unreadCount || 0
+    console.log(`Found ${matchedProfiles.length} matched profiles`);
+    
+    // If no matches, return empty array
+    if (matchedProfiles.length === 0) {
+      return [];
+    }
+    
+    // Step 2: For each profile, fetch conversation data
+    const enhancedMatches = await Promise.all(matchedProfiles.map(async (profile) => {
+      try {
+        // Get the match ID between current user and this profile
+        const targetId = profile.userId || profile._id;
+        const matchData = await this.findMatch(targetId);
+        
+        if (!matchData?.matchId) {
+          // No messages yet - this is a new match
+          return {
+            ...profile,
+            messages: [],
+            lastMessage: null,
+            hasConversation: false,
+            unreadCount: 0
+          };
+        }
+        
+        // Fetch messages for this match
+        const messages = await this.fetchMatchMessages(matchData.matchId);
+        
+        // Get the latest message if there are any
+        let lastMessage = null;
+        let isLastMessageFromUser = false;
+        
+        if (messages && messages.length > 0) {
+          // Sort messages by timestamp (newest first)
+          const sortedMessages = [...messages].sort((a, b) => 
+            new Date(b.timestamp) - new Date(a.timestamp)
+          );
+          
+          // Get the latest message
+          const latestMsg = sortedMessages[0];
+          
+          // Determine if the latest message is from the current user
+          isLastMessageFromUser = 
+            latestMsg.sender === effectiveUserId || 
+            (latestMsg.sender && latestMsg.sender._id === effectiveUserId) ||
+            (typeof latestMsg.sender === 'object' && latestMsg.sender.id === effectiveUserId);
+          
+          console.log(`Latest message from ${latestMsg.sender}, current user: ${effectiveUserId}, isFromUser: ${isLastMessageFromUser}`);
+          
+          // Create a lastMessage object with content
+          lastMessage = {
+            content: latestMsg.content || (latestMsg.file?.length ? "Media message" : ""),
+            sender: latestMsg.sender,
+            timestamp: latestMsg.timestamp,
+            isYours: isLastMessageFromUser
+          };
+        }
+        
+        // Count unread messages - ONLY from the other person, not your own messages
+        const unreadCount = messages.filter(msg => {
+          // Get sender ID, handling different formats
+          const senderId = 
+            (typeof msg.sender === 'object' && msg.sender._id) ? msg.sender._id : 
+            (typeof msg.sender === 'object' && msg.sender.id) ? msg.sender.id : 
+            msg.sender;
+          
+          // Only count unread messages from others, not from yourself
+          return !msg.read && senderId !== effectiveUserId;
+        }).length;
+        
+        // Return enhanced match with conversation data
+        return {
+          ...profile,
+          messages,
+          lastMessage,
+          hasConversation: messages.length > 0,
+          unreadCount,
+          matchId: matchData.matchId
+        };
+      } catch (error) {
+        console.error(`Error fetching conversation for match with ${profile.name}:`, error);
+        // Return the profile with empty conversation data
+        return {
+          ...profile,
+          messages: [],
+          lastMessage: null,
+          hasConversation: false,
+          unreadCount: 0
+        };
+      }
     }));
     
+    console.log(`Enhanced ${enhancedMatches.length} matches with conversation data`);
+    
     // Update guest token if returned
-    if (response.data.guestToken) {
-      this.setGuestToken(response.data.guestToken);
+    if (profilesResponse.data && profilesResponse.data.guestToken) {
+      this.setGuestToken(profilesResponse.data.guestToken);
     }
     
-    return matchesWithPreviews;
+    return enhancedMatches;
   } catch (error) {
     console.error('Error fetching matches with preview:', error);
     // Return empty array instead of throwing to prevent UI errors
@@ -938,29 +1060,56 @@ async getMatchesWithPreview() {
   }
 },
 
+
 async getWhoLikedMeCount() {
   try {
+    // Add caching
+    const cachedCount = localStorage.getItem('gymbros_liked_me_count');
+    const cachedTimestamp = localStorage.getItem('gymbros_liked_me_count_timestamp');
+    const now = Date.now();
+    
+    // Use cached value if it's less than 5 minutes old
+    if (cachedCount && cachedTimestamp && (now - parseInt(cachedTimestamp)) < 5 * 60 * 1000) {
+      console.log('Using cached likes count');
+      return parseInt(cachedCount);
+    }
+    
     // Set up guest token in config
     const config = this.configWithGuestToken();
     
     const response = await api.get('/gym-bros/who-liked-me/count', config);
     
+    // Handle different response formats
+    let count = 0;
+    if (typeof response.data === 'number') {
+      count = response.data;
+    } else if (response.data && typeof response.data.count === 'number') {
+      count = response.data.count;
+    } else {
+      console.warn('Unexpected response format from who-liked-me/count:', response.data);
+    }
+    
+    // Cache the result
+    localStorage.setItem('gymbros_liked_me_count', count.toString());
+    localStorage.setItem('gymbros_liked_me_count_timestamp', now.toString());
+    
     // Update guest token if returned
-    if (response.data.guestToken) {
+    if (response.data && response.data.guestToken) {
       this.setGuestToken(response.data.guestToken);
     }
     
-    // Handle different response formats
-    if (typeof response.data === 'number') {
-      return response.data;
-    } else if (response.data && typeof response.data.count === 'number') {
-      return response.data.count;
-    } else {
-      console.warn('Unexpected response format from who-liked-me/count:', response.data);
-      return 0;
-    }
+    return count;
   } catch (error) {
     console.error('Error fetching who liked me count:', error);
+    
+    // If rate limited, just return cached count if available
+    if (error.response?.status === 429) {
+      const cachedCount = localStorage.getItem('gymbros_liked_me_count');
+      if (cachedCount) {
+        return parseInt(cachedCount);
+      }
+    }
+    
     return 0; // Return 0 on error as a safe default
   }
 },

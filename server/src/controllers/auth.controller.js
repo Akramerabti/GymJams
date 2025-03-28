@@ -848,14 +848,22 @@ export const completeOAuthProfile = async (req, res) => {
     const { phone } = req.body;
     const userId = req.user.id;
 
-    // Validate phone number
-    if (!phone) {
+    // Basic validation
+    if (!phone || phone.trim() === '') {
       return res.status(400).json({ message: 'Phone number is required' });
+    }
+
+    // Format the phone number (extract digits only)
+    const formattedPhone = phone.replace(/\D/g, '');
+    
+    // Ensure it has at least 10 digits
+    if (formattedPhone.length < 10) {
+      return res.status(400).json({ message: 'Please enter a valid phone number (at least 10 digits)' });
     }
 
     // Check if phone is already in use by another account
     const existingUserWithPhone = await User.findOne({ 
-      phone, 
+      phone: formattedPhone, 
       _id: { $ne: userId } 
     });
 
@@ -863,12 +871,19 @@ export const completeOAuthProfile = async (req, res) => {
       return res.status(400).json({ message: 'This phone number is already in use' });
     }
 
-    // Update user profile
+    // Update user profile with the phone number and mark profile as complete
     const user = await User.findByIdAndUpdate(
       userId,
-      { phone },
+      { 
+        phone: formattedPhone,
+        'oauth.needsPhoneNumber': false // Mark profile as complete
+      },
       { new: true }
     ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
 
     // Return updated user
     res.json({
@@ -876,7 +891,7 @@ export const completeOAuthProfile = async (req, res) => {
       user
     });
   } catch (error) {
-    logger.error('Complete OAuth Profile error:', error);
+    console.error('Complete OAuth Profile error:', error);
     res.status(500).json({ message: 'Error completing profile' });
   }
 };
@@ -912,3 +927,4 @@ export const checkOAuthAccount = async (req, res) => {
     res.status(500).json({ message: 'Error checking account status' });
   }
 };
+

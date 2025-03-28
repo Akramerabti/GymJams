@@ -38,6 +38,8 @@ const GymbrosMatchesList = () => {
   
   // Refs
   const matchesCarouselRef = useRef(null);
+  const userIdRef = useRef(null);
+const lastLikesCountFetchRef = useRef(0);
   
   // Fetch matches and liked count on component mount
   useEffect(() => {
@@ -72,56 +74,140 @@ const GymbrosMatchesList = () => {
     };
   }, [matches]);
   
-  // Separate matches into new matches and conversations
   useEffect(() => {
-    if (matches.length > 0) {
-      // Matches without messages are new matches
-      const newMatchesList = matches.filter(match => 
-        !match.lastMessage || !match.lastMessage.content
-      );
-      
-      // Matches with messages are conversations
-      const conversationsList = matches.filter(match => 
-        match.lastMessage && match.lastMessage.content
-      );
-      
-      // Sort conversations by most recent message
-      conversationsList.sort((a, b) => {
-        const aTime = a.lastMessage?.timestamp ? new Date(a.lastMessage.timestamp) : new Date(0);
-        const bTime = b.lastMessage?.timestamp ? new Date(b.lastMessage.timestamp) : new Date(0);
-        return bTime - aTime;
-      });
-      
-      setNewMatches(newMatchesList);
-      setConversations(conversationsList);
+    // For authenticated users, store the user ID in the ref
+    if (user?.id) {
+      userIdRef.current = user.id;
+    } else if (user?.user?.id) {
+      userIdRef.current = user.user.id;
     } else {
-      setNewMatches([]);
-      setConversations([]);
+      // For guest users, try to get the ID from localStorage
+      const guestToken = localStorage.getItem('gymbros_guest_token');
+      
+      if (guestToken) {
+        try {
+          // Try to decode the JWT token to get the user ID
+          // This is a simple decoder, not a validator
+          const base64Url = guestToken.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const payload = JSON.parse(window.atob(base64));
+          
+          // Guest tokens could have profileId or guestId
+          userIdRef.current = payload.profileId || payload.guestId;
+          
+          console.log('Found guest user ID from token:', userIdRef.current);
+        } catch (e) {
+          console.error('Error decoding guest token:', e);
+        }
+      }
     }
-  }, [matches]);
+  }, [user]);
+
+useEffect(() => {
+  if (matches.length > 0) {
+    console.log('Processing matches:', matches);
+    
+    // More robust filtering based on whether the match has messages
+    const conversationsList = matches.filter(match => {
+      // Check if match has a conversation based on our enhanced data
+      if (match.hasConversation === true) {
+        return true;
+      }
+      
+      // Check if match has messages array with content
+      if (match.messages && match.messages.length > 0) {
+        return true;
+      }
+      
+      // Check if match has lastMessage object with content
+      if (match.lastMessage && match.lastMessage.content) {
+        return true;
+      }
+      
+      // No messages found
+      return false;
+    });
+    
+    // All other matches are considered new
+    const newMatchesList = matches.filter(match => !conversationsList.includes(match));
+    
+    // Sort conversations by most recent message time
+    conversationsList.sort((a, b) => {
+      // Get timestamp from whatever form lastMessage takes
+      const getTimestamp = (match) => {
+        if (match.lastMessage && match.lastMessage.timestamp) {
+          return new Date(match.lastMessage.timestamp);
+        }
+        
+        if (match.messages && match.messages.length > 0) {
+          // Get the latest message timestamp
+          const timestamps = match.messages.map(msg => new Date(msg.timestamp));
+          return new Date(Math.max(...timestamps.map(date => date.getTime())));
+        }
+        
+        return new Date(0);
+      };
+      
+      return getTimestamp(b) - getTimestamp(a);
+    });
+    
+    console.log(`Sorted into ${conversationsList.length} conversations and ${newMatchesList.length} new matches`);
+    setNewMatches(newMatchesList);
+    setConversations(conversationsList);
+  } else {
+    setNewMatches([]);
+    setConversations([]);
+  }
+}, [matches]);
   
-  // Fetch matches and who liked me count
-  const fetchMatchesAndLikes = async () => {
-    setLoading(true);
-    try {
-      // Fetch matches with message preview
-      const matchesData = await gymbrosService.getMatchesWithPreview();
-      
-      // Process and sort matches by latest message
-      const sortedMatches = Array.isArray(matchesData) ? matchesData : [];
-      
-      setMatches(sortedMatches);
-      
-      // Fetch who liked me count
-      const likedCount = await gymbrosService.getWhoLikedMeCount();
-      setLikedMeCount(likedCount);
-    } catch (error) {
-      console.error('Error fetching matches:', error);
-      toast.error('Failed to load matches');
-    } finally {
-      setLoading(false);
+const fetchMatchesAndLikes = async () => {
+  setLoading(true);
+  try {
+    // Fetch matches with message preview
+    const matchesData = await gymbrosService.getMatchesWithPreview();
+    
+    // Process and sort matches
+    const sortedMatches = Array.isArray(matchesData) ? matchesData : [];
+    setMatches(sortedMatches);
+    
+    // Check if we should fetch the likes count based on time
+    const now = Date.now();
+    const timeSinceLastFetch = now - lastLikesCountFetchRef.current;
+    const MIN_FETCH_INTERVAL = 60000; // 1 minute minimum between fetches
+    
+    if (timeSinceLastFetch > MIN_FETCH_INTERVAL) {
+      try {
+        // Fetch who liked me count
+        const likedCount = await gymbrosService.getWhoLikedMeCount();
+        setLikedMeCount(likedCount);
+        
+        // Update the last fetch timestamp
+        lastLikesCountFetchRef.current = now;
+      } catch (likeError) {
+        // Handle rate limiting for likes count specifically
+        if (likeError.response?.status === 429) {
+          console.log('Rate limited on likes count, using previous value');
+          // Don't show toast for this specific error to avoid spamming the user
+        } else {
+          console.error('Error fetching who liked me count:', likeError);
+          // Only show toast for non-rate-limit errors
+          toast.error('Could not update likes count');
+        }
+        // Keep the previous likes count value
+      }
+    } else {
+      console.log('Skipping likes count fetch due to rate limiting', {
+        timeSince: timeSinceLastFetch,
+        minInterval: MIN_FETCH_INTERVAL
+      });
     }
-  };
+  } catch (error) {
+    console.error('Error fetching matches:', error);
+    toast.error('Failed to load matches');
+  } finally {
+    setLoading(false);
+  }
+};
   
   // Pull-to-refresh handler
   const handleRefresh = async () => {
@@ -456,33 +542,48 @@ const GymbrosMatchesList = () => {
       </div>
     </div>
   );
+ 
+// Updated renderConversations with bold text for messages from others
+const renderConversations = () => {
+  // Get userId from the authentication store or from ref for guest users
+  const currentUserId = user?.id || (user?.user && user?.user.id) || userIdRef.current;
   
-  // Render conversation list
-  const renderConversations = () => {
-    return (
-      <div className="flex-1 overflow-y-auto pb-4">
-        <div className="flex justify-between items-center mb-3">
-          <div className="flex items-center">
-            <MessageCircle size={18} className="text-blue-600 mr-2" />
-            <h3 className="font-bold text-lg">Messages</h3>
-          </div>
-          
-          <button
-            onClick={handleRefresh}
-            className="p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
-          >
-            <motion.div
-              animate={refreshing ? { rotate: 360 } : {}}
-              transition={{ duration: 1, repeat: refreshing ? Infinity : 0, ease: "linear" }}
-            >
-              <ChevronRight size={18} className="rotate-90" />
-            </motion.div>
-          </button>
+  return (
+    <div className="flex-1 overflow-y-auto pb-4">
+      <div className="flex justify-between items-center mb-3">
+        <div className="flex items-center">
+          <MessageCircle size={18} className="text-blue-600 mr-2" />
+          <h3 className="font-bold text-lg">Messages</h3>
         </div>
         
-        {conversations.length > 0 ? (
-          <div className="space-y-3">
-            {conversations.map(match => (
+        <button
+          onClick={handleRefresh}
+          className="p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
+        >
+          <motion.div
+            animate={refreshing ? { rotate: 360 } : {}}
+            transition={{ duration: 1, repeat: refreshing ? Infinity : 0, ease: "linear" }}
+          >
+            <ChevronRight size={18} className="rotate-90" />
+          </motion.div>
+        </button>
+      </div>
+      
+      {conversations.length > 0 ? (
+        <div className="space-y-3">
+          {conversations.map(match => {
+            // More thorough check if last message is from current user with fallback checks
+            const isLastMessageFromUser = match.lastMessage && (
+              match.lastMessage.isYours === true || 
+              (currentUserId && match.lastMessage.sender === currentUserId) ||
+              (typeof match.lastMessage.sender === 'object' && match.lastMessage.sender?._id === currentUserId) ||
+              (typeof match.lastMessage.sender === 'object' && match.lastMessage.sender?.id === currentUserId)
+            );
+            
+            // IMPORTANT: Never show unread count notification badge
+            const displayUnreadCount = false;
+            
+            return (
               <motion.div
                 key={match._id}
                 whileHover={{ scale: 1.02, backgroundColor: "rgba(249, 250, 251, 1)" }}
@@ -503,15 +604,7 @@ const GymbrosMatchesList = () => {
                       />
                     </div>
                     
-                    {match.unreadCount > 0 && (
-                      <motion.div 
-                        className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs"
-                        animate={{ scale: [1, 1.15, 1] }}
-                        transition={{ duration: 1.5, repeat: Infinity }}
-                      >
-                        {match.unreadCount}
-                      </motion.div>
-                    )}
+                    {/* Notification badge removed */}
                   </div>
                   
                   <div className="ml-3 flex-1 min-w-0">
@@ -526,47 +619,49 @@ const GymbrosMatchesList = () => {
                     
                     <ActiveStatus lastActive={match.lastActive} />
                     
-                    <p className={`text-sm truncate ${match.unreadCount ? 'font-medium text-gray-900' : 'text-gray-500'}`}>
+                    {/* Make text bold ONLY when it's not from the current user */}
+                    <p className={`text-sm truncate ${isLastMessageFromUser ? 'text-gray-500' : 'font-medium text-gray-900'}`}>
                       {match.lastMessage 
-                        ? `${match.lastMessage.isYours ? 'You: ' : ''}${match.lastMessage.content || 'Sent an image'}`
+                        ? `${isLastMessageFromUser ? 'You: ' : ''}${match.lastMessage.content || 'Sent an image'}`
                         : 'Start a conversation'}
                     </p>
                   </div>
                 </div>
               </motion.div>
-            ))}
-          </div>
-        ) : (
-          <div className="bg-gray-50 rounded-xl p-6 mt-2 text-center">
+            );
+          })}
+        </div>
+      ) : (
+        <div className="bg-gray-50 rounded-xl p-6 mt-2 text-center">
+          <motion.div
+            className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-3"
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ duration: 3, repeat: Infinity }}
+          >
+            <MessageCircle size={28} className="text-blue-500" />
+          </motion.div>
+          <h4 className="text-lg font-medium text-gray-800 mb-1">No messages yet</h4>
+          <p className="text-gray-500 text-sm mb-4">Start a conversation with your new matches</p>
+          
+          <motion.div
+            className="inline-block"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
             <motion.div
-              className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-3"
-              animate={{ scale: [1, 1.05, 1] }}
-              transition={{ duration: 3, repeat: Infinity }}
+              className="text-xs text-blue-600 flex items-center justify-center"
+              animate={{ y: [0, -3, 0] }}
+              transition={{ duration: 2, repeat: Infinity }}
             >
-              <MessageCircle size={28} className="text-blue-500" />
+              <ChevronLeft className="h-4 w-4 rotate-90" />
+              <span>Check out your matches above</span>
             </motion.div>
-            <h4 className="text-lg font-medium text-gray-800 mb-1">No messages yet</h4>
-            <p className="text-gray-500 text-sm mb-4">Start a conversation with your new matches</p>
-            
-            <motion.div
-              className="inline-block"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <motion.div
-                className="text-xs text-blue-600 flex items-center justify-center"
-                animate={{ y: [0, -3, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              >
-                <ChevronLeft className="h-4 w-4 rotate-90" />
-                <span>Check out your matches above</span>
-              </motion.div>
-            </motion.div>
-          </div>
-        )}
-      </div>
-    );
-  };
+          </motion.div>
+        </div>
+      )}
+    </div>
+  );
+};
   
   return (
     <div className="h-[calc(100vh-136px)] flex flex-col p-4 overflow-hidden bg-gray-50">

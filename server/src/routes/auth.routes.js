@@ -1,7 +1,7 @@
 import express from 'express';
 import { verifyEmail, register, login, getCoach,deleteAccount , getCoachById, getProfile, 
     updateProfile, validateToken, resendVerificationEmail, validatePhone, forgotPassword,
-     resetPassword, logout, loginWithPhone, registerWithPhone, loginWithTokenFORPHONE} from '../controllers/auth.controller.js';
+     resetPassword, logout, loginWithPhone, registerWithPhone, loginWithTokenFORPHONE, completeOAuthProfile} from '../controllers/auth.controller.js';
 import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
 import { validateRegistration, validateLogin, validatePasswordReset } from '../middleware/validate.middleware.js';
 import passport from '../config/passport.js';
@@ -25,6 +25,7 @@ router.delete('/delete-account', authenticate, deleteAccount);
 router.get('/coach/:coachId', optionalAuthenticate, getCoachById);
 router.post('/phone-login', loginWithPhone);
 router.post('/phone-register', registerWithPhone);
+router.post('/complete-oauth-profile', authenticate, completeOAuthProfile);
 
 router.get('/google', 
     passport.authenticate('google', { scope: ['profile', 'email'] })
@@ -32,22 +33,6 @@ router.get('/google',
   
   router.get('/google/callback', 
     passport.authenticate('google', { session: false, failureRedirect: '/login?error=google-auth-failed' }),
-    (req, res) => {
-      // Generate JWT token
-      const token = generateToken({ id: req.user._id });
-      
-      // Redirect to frontend with token
-      res.redirect(`${process.env.CLIENT_URL}/oauth-callback?token=${token}`);
-    }
-  );
-  
-  // Facebook OAuth routes
-  router.get('/facebook', 
-    passport.authenticate('facebook', { scope: ['email'] })
-  );
-  
-  router.get('/facebook/callback', 
-    passport.authenticate('facebook', { session: false, failureRedirect: '/login?error=facebook-auth-failed' }),
     (req, res) => {
       // Generate JWT token
       const token = generateToken({ id: req.user._id });
