@@ -46,6 +46,8 @@ import Returns from './pages/CustomerService/returns';
 import ApplicationForm from './pages/CustomerService/application';
 import OAuthCallback from './pages/OAuthCallback';
 import Blog from './pages/Blog';
+import BlogManagement from './pages/Taskforce/BlogManagement';
+import AdManagement from './pages/Taskforce/AdManagement';
 
 // Socket Context
 import { SocketProvider } from './SocketContext';

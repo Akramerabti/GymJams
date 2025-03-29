@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   PlusCircle, Edit, Trash2, ArrowLeft, AlertTriangle, 
-  DollarSign, BarChart, Code, Toggle, Devices, Eye,
+  DollarSign, BarChart, Code, Smartphone, Tablet, Monitor, Eye,
   MoreHorizontal
 } from 'lucide-react';
 import { toast } from 'sonner';
 import blogService from '../../services/blog.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import TextArea from '@/components/ui/TextArea';
 import { 
   Table, 
   TableBody, 
@@ -40,7 +40,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { Slider } from '@/components/ui/slider';
+import  Slider from '@/components/ui/Slider';
 import { useAuth } from '../../stores/authStore';
 
 const AdManagement = () => {
@@ -609,7 +609,7 @@ const AdManagement = () => {
               <label className="block text-sm font-medium mb-2 text-gray-700">
                 Ad Code
               </label>
-              <Textarea
+              <TextArea
                 value={adForm.adCode}
                 onChange={(e) => handleFormChange('adCode', e.target.value)}
                 placeholder="Paste your ad code here..."
