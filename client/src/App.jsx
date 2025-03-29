@@ -2,6 +2,8 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import adSenseService from './services/adsense';
+import AdDebugger from './components/blog/AdDebugger';
 
 // Import global CSS
 import './global.css';
@@ -54,6 +56,7 @@ const App = () => {
   const { checkAuth, logout, showOnboarding, setShowOnboarding } = useAuthStore();
 
   useEffect(() => {
+    // Token validation
     const validateTokenOnLoad = async () => {
       try {
         const token = localStorage.getItem('token');
@@ -70,7 +73,22 @@ const App = () => {
       }
     };
 
+    // Initialize AdSense
+    const initAdSense = async () => {
+      try {
+        await adSenseService.init();
+        
+        // Optional: Force an ad refresh
+        if (window.adsbygoogle) {
+          (window.adsbygoogle = window.adsbygoogle || []).push({});
+        }
+      } catch (error) {
+        console.error('AdSense initialization failed', error);
+      }
+    };
+
     validateTokenOnLoad();
+    initAdSense();
   }, [checkAuth, logout]);
 
   return (
