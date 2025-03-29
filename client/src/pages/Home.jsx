@@ -328,25 +328,10 @@ const handleTouchEnd = (e) => {
   setTouchIdentifier(null);
   setIsDragging(false);
   
-  // Mobile-only snapping
-  if (isMobile && containerRef.current) {
-    const container = containerRef.current;
-    const viewportHeight = container.clientHeight;
-    
-    // Get the section we're closest to
-    const sectionIndex = Math.round(container.scrollTop / viewportHeight);
-    
-    // Immediately snap to it
-    container.scrollTop = sectionIndex * viewportHeight;
-    
-    // Update current section if needed
-    if (sectionIndex !== currentSection) {
-      setPrevSection(currentSection);
-      setCurrentSection(sectionIndex);
-    }
-  }
+  // No section snapping for mobile - let it scroll freely
+  
   // Desktop behavior handled separately
-  else {
+  if (!isMobile) {
     finishDragging();
   }
 };
