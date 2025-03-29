@@ -1,4 +1,4 @@
-// Touch handlers with perfectly consistent inertia for true ice-like flow
+// Touch handlers with ultra-smooth physics for natural motion at all speeds
 const handleTouchStart = (e) => {
   // Prevent handling when touching interactive elements
   if (e.target.closest('button') || e.target.closest('a')) {
@@ -39,41 +39,20 @@ const handleTouchMove = (e) => {
   const container = containerRef.current;
   if (!container) return;
   
-  // Calculate drag distance - exact 1:1 ratio for all sizes
+  // Calculate exact drag distance with no manipulation
   const dragAmount = isMobile 
     ? startDragPos.y - touch.clientY 
     : startDragPos.x - touch.clientX;
   
-  // For true ice-like effect, the multiplier should be larger for small movements
-  // and slightly decrease for larger movements to simulate the way ice has less friction
-  // initially but increases as you move faster
+  // For truly fluid motion at all speeds, we use a simpler approach:
+  // 1. Apply a consistent multiplier that feels natural (no varying multipliers)
+  // 2. Let the browser handle the natural physics
   
-  // Base multiplier - higher than before to be more responsive
-  const baseMultiplier = 1.3;
+  // Use a fixed multiplier for consistent behavior
+  const fluidMultiplier = 1.0; // Natural 1:1 ratio feels most predictable
   
-  // Ice physics - variable multiplier based on movement size
-  // - Small movements get amplified (low friction)
-  // - Large movements get normal treatment (normal friction)
-  const getNaturalIceMultiplier = (amount) => {
-    const absAmount = Math.abs(amount);
-    // Perfect ice curve: higher multiplier for small movements
-    if (absAmount < 10) {
-      return baseMultiplier * 1.2; // 20% boost for tiny movements
-    } else if (absAmount < 50) {
-      return baseMultiplier * 1.1; // 10% boost for small movements
-    } else if (absAmount < 100) {
-      return baseMultiplier; // Base multiplier for medium movements
-    } else {
-      // For large movements, gradually decrease multiplier (simulate increased friction)
-      return baseMultiplier * (1 - Math.min((absAmount - 100) / 1000, 0.15));
-    }
-  };
-  
-  // Get our ice-like multiplier
-  const iceMultiplier = getNaturalIceMultiplier(dragAmount);
-  
-  // Calculate new position with natural ice physics
-  const newPosition = lastScrollPos + (dragAmount * iceMultiplier);
+  // Calculate new position with the fixed multiplier
+  const newPosition = lastScrollPos + (dragAmount * fluidMultiplier);
   
   // Update scroll position using the native properties
   if (isMobile) {
@@ -84,8 +63,8 @@ const handleTouchMove = (e) => {
   
   setCurrentDragAmount(dragAmount);
   
-  // Prevent default to avoid conflicting with page scrolling
-  // but only for significant movements to allow small adjustments
+  // Only prevent default once we've moved a significant amount
+  // This allows small adjustments without blocking normal scroll behavior
   if (Math.abs(dragAmount) > 5) {
     e.preventDefault();
   }
@@ -232,15 +211,22 @@ useEffect(() => {
   }
 }, [currentSection, prevSection]);
 
-// Handle touch behavior for mobile scrolling
+// Handle touch behavior specifically for natural mobile scrolling
 useEffect(() => {
-  // Only for handling very specific touch events that need prevention
-  // Regular scrolling should work with default touch behavior
-  const handleTouchMove = (e) => {
-    // Only prevent default if we're actively dragging
-    // and it's a horizontal swipe on mobile
-    if (isDragging && isMobile && Math.abs(currentDragAmount) > 10) {
-      // Prevent only for touches we're tracking
+  // Function to handle touch move with passive true for better performance
+  const handlePassiveTouchMove = (e) => {
+    // Don't do anything special here, let the browser handle it naturally
+    // This is just to ensure we have proper scrolling behavior
+  };
+  
+  // Use passive touch handlers for smooth native scrolling
+  document.addEventListener('touchmove', handlePassiveTouchMove, { passive: true });
+  
+  // Only prevent default in very specific cases
+  const handlePreventDefault = (e) => {
+    // Only prevent default if we're actively dragging and it's a significant movement
+    if (isDragging && Math.abs(currentDragAmount) > 20) {
+      // Find if this is the touch we're tracking
       for (let i = 0; i < e.touches.length; i++) {
         if (e.touches[i].identifier === touchIdentifier) {
           e.preventDefault();
@@ -250,26 +236,32 @@ useEffect(() => {
     }
   };
   
-  // Use passive: false only when needed for mobile
-  document.addEventListener('touchmove', handleTouchMove, { passive: false });
+  // Specific handler for preventing defaults only when needed
+  document.addEventListener('touchmove', handlePreventDefault, { passive: false });
+  
   return () => {
-    document.removeEventListener('touchmove', handleTouchMove);
+    document.removeEventListener('touchmove', handlePassiveTouchMove);
+    document.removeEventListener('touchmove', handlePreventDefault);
   };
-}, [isDragging, isMobile, currentDragAmount, touchIdentifier]);
+}, [isDragging, currentDragAmount, touchIdentifier]);
 
-// Update current section based on scroll position
+// Update current section based on scroll position with natural speed
 const updateCurrentSection = () => {
   const container = containerRef.current;
   if (!container || isDragging) return;
   
   const scrollPos = isMobile ? container.scrollTop : container.scrollLeft;
   const viewportSize = isMobile ? container.clientHeight : container.clientWidth;
+  
+  // Use a simple round for more natural transitions
+  // This aligns the section to the closest snap point intuitively
   const sectionIndex = Math.round(scrollPos / viewportSize);
   
   if (sectionIndex !== currentSection) {
     setPrevSection(currentSection);
     setCurrentSection(Math.max(0, Math.min(sectionIndex, sections.length - 1)));
   }
+  
   setLastScrollPos(scrollPos);
 };
 
@@ -320,7 +312,7 @@ useEffect(() => {
   });
 }, []);
 
-// Navigate to section with ice-like momentum
+// Navigate to section with pure smooth animation
 const goToSection = (index, behavior = 'smooth') => {
   if (!containerRef.current) return;
   
@@ -335,23 +327,20 @@ const goToSection = (index, behavior = 'smooth') => {
   
   setPrevSection(currentSection);
   
-  // For very fast swipes, use 'auto' to create that ice-like snap
-  // For normal transitions, use smooth scrolling
-  const scrollBehavior = behavior === 'auto' ? 'auto' : 'smooth';
-  
-  // Try using scroll behavior for seamless effect
+  // Always use the browser's built-in smooth scroll
+  // which tends to be the most fluid and natural
   try {
     if (isMobile) {
       container.scrollTo({
         left: 0,
         top: boundedIndex * viewportSize,
-        behavior: scrollBehavior
+        behavior: 'smooth' // Always use smooth for natural feel
       });
     } else {
       container.scrollTo({
         left: boundedIndex * viewportSize,
         top: 0,
-        behavior: scrollBehavior
+        behavior: 'smooth' // Always use smooth for natural feel
       });
     }
   } catch (err) {
@@ -464,7 +453,7 @@ const handleTouchEnd = (e) => {
   finishDragging();
 };
 
-// Mouse drag handlers with improved ice-like physics for desktop
+// Mouse drag handlers with simplified natural motion
 const handleMouseDown = (e) => {
   // Only handle left button dragging
   if (e.button !== 0) return;
@@ -487,38 +476,18 @@ const handleMouseMove = (e) => {
   const container = containerRef.current;
   if (!container) return;
   
-  // Calculate drag distance with consistent ratio for all movements
+  // Calculate drag distance with a more natural movement pattern
   const dragAmount = isMobile 
     ? startDragPos.y - e.clientY 
     : startDragPos.x - e.clientX;
   
-  // Use the same natural ice physics as touch events
-  // Base multiplier - slightly higher for desktop
-  const baseMultiplier = 1.4;
+  // Use the same simple multiplier as touch for consistency
+  const fluidMultiplier = 1.0;
   
-  // Reuse the same ice physics function for consistency
-  const getNaturalIceMultiplier = (amount) => {
-    const absAmount = Math.abs(amount);
-    // Perfect ice curve: higher multiplier for small movements
-    if (absAmount < 10) {
-      return baseMultiplier * 1.2; // 20% boost for tiny movements
-    } else if (absAmount < 50) {
-      return baseMultiplier * 1.1; // 10% boost for small movements
-    } else if (absAmount < 100) {
-      return baseMultiplier; // Base multiplier for medium movements
-    } else {
-      // For large movements, gradually decrease multiplier (simulate increased friction)
-      return baseMultiplier * (1 - Math.min((absAmount - 100) / 1000, 0.15));
-    }
-  };
+  // Calculate position with natural movement
+  const newPosition = lastScrollPos + (dragAmount * fluidMultiplier);
   
-  // Get our ice-like multiplier
-  const iceMultiplier = getNaturalIceMultiplier(dragAmount);
-  
-  // Calculate position with natural ice physics
-  const newPosition = lastScrollPos + (dragAmount * iceMultiplier);
-  
-  // Update scroll with momentum feel
+  // Update scroll with natural feel
   if (isMobile) {
     container.scrollTop = newPosition;
   } else {
@@ -534,7 +503,7 @@ const handleMouseUp = () => {
   finishDragging();
 };
 
-// Common logic to finish dragging with true ice-like physics and inertia
+// Improved smooth finish with natural speed transition
 const finishDragging = () => {
   setIsDragging(false);
   
@@ -548,10 +517,8 @@ const finishDragging = () => {
   const viewportSize = isMobile ? container.clientHeight : container.clientWidth;
   const currentPos = isMobile ? container.scrollTop : container.scrollLeft;
   
-  // Get current section index based on scroll position
+  // Get current section index and progress
   const currentIndex = Math.floor(currentPos / viewportSize);
-  
-  // Calculate how far into the section we are (0-1)
   const sectionProgress = (currentPos % viewportSize) / viewportSize;
   
   // Determine direction based on drag amount
@@ -560,57 +527,52 @@ const finishDragging = () => {
   // Get the absolute drag amount
   const absAmount = Math.abs(currentDragAmount);
   
-  // Tap detection - almost no movement
-  if (absAmount < 3) {
-    // Treat as a tap, stay on current section
-    goToSection(currentIndex);
+  // For truly natural motion:
+  // - Very small movements (taps/slight touches) - stay in place
+  // - Larger movements - use a more generous threshold that feels natural
+  // - Fast movements - respect the momentum
+  
+  // Tap or very tiny movement detection
+  if (absAmount < 5) {
+    goToSection(currentIndex, 'smooth');
     setCurrentDragAmount(0);
     return;
   }
   
-  // For a true ice-like effect with inertia:
-  // 1. Small movements should be amplified (ice is slippery with little force)
-  // 2. Medium movements should use normal thresholds
-  // 3. Large/fast movements should have momentum
+  // Natural threshold calculation - small, easy-to-cross threshold feels smooth
+  const NATURAL_THRESHOLD = 0.15; // Only need to cross 15% of screen
   
-  // Calculate velocity metrics
-  const swipeVelocity = Math.min(absAmount / 40, 2.0); // Higher cap for more responsive ice effect
-  const isHighVelocity = swipeVelocity > 0.8;
+  // For extremely small screens, make threshold even smaller
+  const adjustedThreshold = viewportSize < 400 ? 0.1 : NATURAL_THRESHOLD;
   
-  // Adaptive thresholds - decrease with velocity (faster swipes need less distance)
-  // Make small swipes more effective on ice by lowering threshold significantly
-  const velocityFactor = 1 / (1 + swipeVelocity * 1.5); // More dramatic reduction for ice effect
-  const baseThreshold = 0.08 + (velocityFactor * 0.25); // Range from 0.08 to 0.33
-  
-  // Dynamic threshold based on momentum and friction - real ice physics
-  // Lower threshold = easier to slide between sections
   let targetSection;
   
-  // Fast swipe detection - always move in swipe direction
-  if (isHighVelocity && absAmount > 8) {
+  // Simple velocity calculation
+  const velocity = absAmount / 100;
+  const isFastMovement = velocity > 0.5;
+  
+  // Determine target section based on direction, progress and velocity
+  if (isFastMovement) {
+    // Fast movement - go with the flow direction
     targetSection = isDraggingForward
       ? Math.min(currentIndex + 1, sections.length - 1)
       : Math.max(currentIndex - 1, 0);
-  }
-  // For medium-speed movements, use position-based threshold
-  else if (isDraggingForward && sectionProgress > baseThreshold) {
+  } 
+  else if (isDraggingForward && sectionProgress > adjustedThreshold) {
+    // Moving forward past threshold
     targetSection = Math.min(currentIndex + 1, sections.length - 1);
   } 
-  else if (!isDraggingForward && sectionProgress < (1 - baseThreshold)) {
+  else if (!isDraggingForward && sectionProgress < (1 - adjustedThreshold)) {
+    // Moving backward past threshold
     targetSection = Math.max(currentIndex - 1, 0);
-  }
-  // Default - snap back to current section
+  } 
   else {
+    // Default - return to current section
     targetSection = currentIndex;
   }
   
-  // Use different scroll behavior based on velocity to simulate inertia:
-  // - Fast movement = instant snap (like sliding fast on ice)
-  // - Medium/slow = smooth scroll (like gentle ice gliding)
-  const behavior = isHighVelocity ? 'auto' : 'smooth';
-  
-  // Snap to target section with appropriate inertia
-  goToSection(targetSection, behavior);
+  // Always use smooth scrolling for natural feel at all speeds
+  goToSection(targetSection, 'smooth');
   
   // Reset drag amount
   setCurrentDragAmount(0);
@@ -633,11 +595,12 @@ return (
     {/* Main scrolling container */}
     <div 
       ref={containerRef}
-      className={`h-full w-full ${isMobile ? 'overflow-y-auto' : 'overflow-x-auto'} scroll-smooth will-change-transform`}
+      className={`h-full w-full ${isMobile ? 'overflow-y-auto' : 'overflow-x-auto'} scroll-smooth overscroll-none`}
       style={{ 
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
+        scrollBehavior: 'smooth', // Ensure CSS smooth scrolling
         cursor: isDragging ? 'grabbing' : 'grab',
         visibility: hasLoaded ? 'visible' : 'hidden'
       }}
