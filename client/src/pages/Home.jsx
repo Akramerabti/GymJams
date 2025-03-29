@@ -1,74 +1,5 @@
-// Touch handlers with ultra-smooth physics for natural motion at all speeds
-const handleTouchStart = (e) => {
-  // Prevent handling when touching interactive elements
-  if (e.target.closest('button') || e.target.closest('a')) {
-    return;
-  }
-  
-  // Only track the first touch point
-  if (touchIdentifier !== null) return;
-  
-  const touch = e.touches[0];
-  setTouchIdentifier(touch.identifier);
-  
-  setIsDragging(true);
-  setStartDragPos({ x: touch.clientX, y: touch.clientY });
-  setCurrentDragAmount(0);
-  
-  // Store the current scroll position
-  const container = containerRef.current;
-  if (container) {
-    setLastScrollPos(isMobile ? container.scrollTop : container.scrollLeft);
-  }
-};
-
-const handleTouchMove = (e) => {
-  if (!isDragging) return;
-  
-  // Find the touch point we're tracking
-  let touch = null;
-  for (let i = 0; i < e.changedTouches.length; i++) {
-    if (e.changedTouches[i].identifier === touchIdentifier) {
-      touch = e.changedTouches[i];
-      break;
-    }
-  }
-  
-  if (!touch) return;
-  
-  const container = containerRef.current;
-  if (!container) return;
-  
-  // Calculate exact drag distance with no manipulation
-  const dragAmount = isMobile 
-    ? startDragPos.y - touch.clientY 
-    : startDragPos.x - touch.clientX;
-  
-  // For truly fluid motion at all speeds, we use a simpler approach:
-  // 1. Apply a consistent multiplier that feels natural (no varying multipliers)
-  // 2. Let the browser handle the natural physics
-  
-  // Use a fixed multiplier for consistent behavior
-  const fluidMultiplier = 1.0; // Natural 1:1 ratio feels most predictable
-  
-  // Calculate new position with the fixed multiplier
-  const newPosition = lastScrollPos + (dragAmount * fluidMultiplier);
-  
-  // Update scroll position using the native properties
-  if (isMobile) {
-    container.scrollTop = newPosition;
-  } else {
-    container.scrollLeft = newPosition;
-  }
-  
-  setCurrentDragAmount(dragAmount);
-  
-  // Only prevent default once we've moved a significant amount
-  // This allows small adjustments without blocking normal scroll behavior
-  if (Math.abs(dragAmount) > 5) {
-    e.preventDefault();
-  }
-};import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const Home = () => {
@@ -87,6 +18,9 @@ const [lastScrollPos, setLastScrollPos] = useState(0);
 const [isTransitioning, setIsTransitioning] = useState(false);
 const [touchIdentifier, setTouchIdentifier] = useState(null);
 const [hasLoaded, setHasLoaded] = useState(false);
+const [dragStartTime, setDragStartTime] = useState(0);
+const [lastDragTime, setLastDragTime] = useState(0);
+const [dragVelocity, setDragVelocity] = useState(0);
 
 // Section data
 const sections = [
@@ -211,41 +145,17 @@ useEffect(() => {
   }
 }, [currentSection, prevSection]);
 
-// Handle touch behavior specifically for natural mobile scrolling
+// Handle touch behavior for native scrolling feel
 useEffect(() => {
-  // Function to handle touch move with passive true for better performance
-  const handlePassiveTouchMove = (e) => {
-    // Don't do anything special here, let the browser handle it naturally
-    // This is just to ensure we have proper scrolling behavior
-  };
-  
-  // Use passive touch handlers for smooth native scrolling
-  document.addEventListener('touchmove', handlePassiveTouchMove, { passive: true });
-  
-  // Only prevent default in very specific cases
-  const handlePreventDefault = (e) => {
-    // Only prevent default if we're actively dragging and it's a significant movement
-    if (isDragging && Math.abs(currentDragAmount) > 20) {
-      // Find if this is the touch we're tracking
-      for (let i = 0; i < e.touches.length; i++) {
-        if (e.touches[i].identifier === touchIdentifier) {
-          e.preventDefault();
-          break;
-        }
-      }
-    }
-  };
-  
-  // Specific handler for preventing defaults only when needed
-  document.addEventListener('touchmove', handlePreventDefault, { passive: false });
+  // Passive event listener for better performance
+  document.addEventListener('touchmove', () => {}, { passive: true });
   
   return () => {
-    document.removeEventListener('touchmove', handlePassiveTouchMove);
-    document.removeEventListener('touchmove', handlePreventDefault);
+    document.removeEventListener('touchmove', () => {});
   };
-}, [isDragging, currentDragAmount, touchIdentifier]);
+}, []);
 
-// Update current section based on scroll position with natural speed
+// Update current section based on scroll position
 const updateCurrentSection = () => {
   const container = containerRef.current;
   if (!container || isDragging) return;
@@ -253,19 +163,18 @@ const updateCurrentSection = () => {
   const scrollPos = isMobile ? container.scrollTop : container.scrollLeft;
   const viewportSize = isMobile ? container.clientHeight : container.clientWidth;
   
-  // Use a simple round for more natural transitions
-  // This aligns the section to the closest snap point intuitively
+  // Calculate the section index
   const sectionIndex = Math.round(scrollPos / viewportSize);
   
-  if (sectionIndex !== currentSection) {
+  if (sectionIndex !== currentSection && sectionIndex >= 0 && sectionIndex < sections.length) {
     setPrevSection(currentSection);
-    setCurrentSection(Math.max(0, Math.min(sectionIndex, sections.length - 1)));
+    setCurrentSection(sectionIndex);
   }
   
   setLastScrollPos(scrollPos);
 };
 
-// Use the more efficient requestAnimationFrame for scroll handling
+// Use requestAnimationFrame for efficient scroll handling
 useEffect(() => {
   const container = containerRef.current;
   if (!container) return;
@@ -297,12 +206,9 @@ useEffect(() => {
     
     const video = document.createElement('video');
     video.src = section.videoSrc;
-    video.preload = 'auto';
+    video.preload = 'metadata';
     video.muted = true;
     video.playsInline = true;
-    
-    // Preload metadata only to save bandwidth
-    video.preload = "metadata";
     
     // Force low resolution for mobile devices
     if (window.innerWidth < 768) {
@@ -312,7 +218,7 @@ useEffect(() => {
   });
 }, []);
 
-// Navigate to section with pure smooth animation
+// Navigate to section with smooth animation
 const goToSection = (index, behavior = 'smooth') => {
   if (!containerRef.current) return;
   
@@ -327,20 +233,19 @@ const goToSection = (index, behavior = 'smooth') => {
   
   setPrevSection(currentSection);
   
-  // Always use the browser's built-in smooth scroll
-  // which tends to be the most fluid and natural
+  // Use the browser's built-in smooth scroll
   try {
     if (isMobile) {
       container.scrollTo({
         left: 0,
         top: boundedIndex * viewportSize,
-        behavior: 'smooth' // Always use smooth for natural feel
+        behavior
       });
     } else {
       container.scrollTo({
         left: boundedIndex * viewportSize,
         top: 0,
-        behavior: 'smooth' // Always use smooth for natural feel
+        behavior
       });
     }
   } catch (err) {
@@ -355,7 +260,7 @@ const goToSection = (index, behavior = 'smooth') => {
   setCurrentSection(boundedIndex);
 };
 
-// Touch handlers with improved inertia and natural "ice-like" flow
+// Enhanced touch handlers with better inertia
 const handleTouchStart = (e) => {
   // Prevent handling when touching interactive elements
   if (e.target.closest('button') || e.target.closest('a')) {
@@ -371,6 +276,9 @@ const handleTouchStart = (e) => {
   setIsDragging(true);
   setStartDragPos({ x: touch.clientX, y: touch.clientY });
   setCurrentDragAmount(0);
+  setDragStartTime(performance.now());
+  setLastDragTime(performance.now());
+  setDragVelocity(0);
   
   // Store the current scroll position
   const container = containerRef.current;
@@ -396,29 +304,35 @@ const handleTouchMove = (e) => {
   const container = containerRef.current;
   if (!container) return;
   
-  // Calculate drag distance - maintain exact ratio for all drag sizes
+  // Calculate drag distance
   const dragAmount = isMobile 
     ? startDragPos.y - touch.clientY 
     : startDragPos.x - touch.clientX;
   
-  // Use a consistent multiplier regardless of drag size
-  // This ensures small and large movements feel the same
-  const consistentMultiplier = 1.2;
+  // Calculate time elapsed since last update for velocity
+  const now = performance.now();
+  const deltaTime = now - lastDragTime;
   
-  // Ice-like effect: reduce resistance for small movements
-  // and gradually increase for larger ones (feels like momentum on ice)
-  const maxDragThreshold = 300; // Max threshold for calculating resistance
-  const normalizedDrag = Math.min(Math.abs(dragAmount), maxDragThreshold);
+  if (deltaTime > 0) {
+    // Calculate instantaneous velocity (pixels per millisecond)
+    const instantVelocity = (dragAmount - currentDragAmount) / deltaTime;
+    
+    // Smooth the velocity with low-pass filter
+    const smoothingFactor = 0.8;
+    const newVelocity = dragVelocity * smoothingFactor + instantVelocity * (1 - smoothingFactor);
+    
+    setDragVelocity(newVelocity);
+    setLastDragTime(now);
+  }
   
-  // For small movements: less resistance (more slippery)
-  // For large movements: more resistance (natural damping)
-  const resistanceRatio = normalizedDrag / maxDragThreshold;
-  const iceEffect = 1 - (resistanceRatio * 0.3); // 0.7 to 1.0 range
+  // Enhanced touch feel with increased sensitivity for small movements
+  // and natural resistance for large movements
+  const multiplier = Math.min(1.5, 1 + (0.5 * Math.exp(-Math.abs(dragAmount) / 300)));
   
-  // Calculate the new position with our ice-like physics
-  const newPosition = lastScrollPos + (dragAmount * consistentMultiplier * iceEffect);
+  // Calculate new position
+  const newPosition = lastScrollPos + (dragAmount * multiplier);
   
-  // Update the scroll position with fluid movement
+  // Update the scroll position
   if (isMobile) {
     container.scrollTop = newPosition;
   } else {
@@ -426,11 +340,6 @@ const handleTouchMove = (e) => {
   }
   
   setCurrentDragAmount(dragAmount);
-  
-  // Only prevent default for significant drags to allow small adjustments
-  if (Math.abs(dragAmount) > 5) {
-    e.preventDefault();
-  }
 };
 
 const handleTouchEnd = (e) => {
@@ -453,7 +362,7 @@ const handleTouchEnd = (e) => {
   finishDragging();
 };
 
-// Mouse drag handlers with simplified natural motion
+// Mouse drag handlers with improved inertia
 const handleMouseDown = (e) => {
   // Only handle left button dragging
   if (e.button !== 0) return;
@@ -464,6 +373,15 @@ const handleMouseDown = (e) => {
   setIsDragging(true);
   setStartDragPos({ x: e.clientX, y: e.clientY });
   setCurrentDragAmount(0);
+  setDragStartTime(performance.now());
+  setLastDragTime(performance.now());
+  setDragVelocity(0);
+  
+  // Store the current scroll position
+  const container = containerRef.current;
+  if (container) {
+    setLastScrollPos(isMobile ? container.scrollTop : container.scrollLeft);
+  }
   
   // Change cursor style
   document.body.style.cursor = 'grabbing';
@@ -476,18 +394,35 @@ const handleMouseMove = (e) => {
   const container = containerRef.current;
   if (!container) return;
   
-  // Calculate drag distance with a more natural movement pattern
+  // Calculate drag distance
   const dragAmount = isMobile 
     ? startDragPos.y - e.clientY 
     : startDragPos.x - e.clientX;
   
-  // Use the same simple multiplier as touch for consistency
-  const fluidMultiplier = 1.0;
+  // Calculate time elapsed since last update for velocity
+  const now = performance.now();
+  const deltaTime = now - lastDragTime;
   
-  // Calculate position with natural movement
-  const newPosition = lastScrollPos + (dragAmount * fluidMultiplier);
+  if (deltaTime > 0) {
+    // Calculate instantaneous velocity (pixels per millisecond)
+    const instantVelocity = (dragAmount - currentDragAmount) / deltaTime;
+    
+    // Smooth the velocity with low-pass filter
+    const smoothingFactor = 0.8;
+    const newVelocity = dragVelocity * smoothingFactor + instantVelocity * (1 - smoothingFactor);
+    
+    setDragVelocity(newVelocity);
+    setLastDragTime(now);
+  }
   
-  // Update scroll with natural feel
+  // Enhanced mouse feel with increased sensitivity for small movements
+  // and natural resistance for large movements
+  const multiplier = Math.min(1.5, 1 + (0.5 * Math.exp(-Math.abs(dragAmount) / 300)));
+  
+  // Calculate new position
+  const newPosition = lastScrollPos + (dragAmount * multiplier);
+  
+  // Update the scroll position
   if (isMobile) {
     container.scrollTop = newPosition;
   } else {
@@ -503,7 +438,7 @@ const handleMouseUp = () => {
   finishDragging();
 };
 
-// Improved smooth finish with natural speed transition
+// Improved inertial scrolling with natural momentum
 const finishDragging = () => {
   setIsDragging(false);
   
@@ -521,61 +456,59 @@ const finishDragging = () => {
   const currentIndex = Math.floor(currentPos / viewportSize);
   const sectionProgress = (currentPos % viewportSize) / viewportSize;
   
-  // Determine direction based on drag amount
-  const isDraggingForward = currentDragAmount > 0;
+  // Get drag duration and velocity
+  const dragDuration = performance.now() - dragStartTime;
   
-  // Get the absolute drag amount
-  const absAmount = Math.abs(currentDragAmount);
+  // Calculate absolute velocity (positive value)
+  const absVelocity = Math.abs(dragVelocity * 1000); // Convert to pixels per second
   
-  // For truly natural motion:
-  // - Very small movements (taps/slight touches) - stay in place
-  // - Larger movements - use a more generous threshold that feels natural
-  // - Fast movements - respect the momentum
-  
-  // Tap or very tiny movement detection
-  if (absAmount < 5) {
+  // Very small drag detection (less than 5px)
+  if (Math.abs(currentDragAmount) < 5) {
     goToSection(currentIndex, 'smooth');
-    setCurrentDragAmount(0);
     return;
   }
   
-  // Natural threshold calculation - small, easy-to-cross threshold feels smooth
-  const NATURAL_THRESHOLD = 0.15; // Only need to cross 15% of screen
+  // Determine direction based on drag velocity
+  const isMovingForward = dragVelocity > 0;
   
-  // For extremely small screens, make threshold even smaller
-  const adjustedThreshold = viewportSize < 400 ? 0.1 : NATURAL_THRESHOLD;
+  // Improved threshold calculation with velocity sensitivity
+  // Lower threshold for quick flicks, higher for slow drags
+  const velocityFactor = Math.min(1, absVelocity / 1500); // Normalize to max 1.0
+  const dynamicThreshold = 0.3 - (0.25 * velocityFactor); // Range from 0.05 to 0.3
   
+  // Get target section based on momentum physics
   let targetSection;
   
-  // Simple velocity calculation
-  const velocity = absAmount / 100;
-  const isFastMovement = velocity > 0.5;
-  
-  // Determine target section based on direction, progress and velocity
-  if (isFastMovement) {
-    // Fast movement - go with the flow direction
-    targetSection = isDraggingForward
+  // For fast flicks, prioritize the velocity direction
+  if (absVelocity > 300) {
+    targetSection = isMovingForward
       ? Math.min(currentIndex + 1, sections.length - 1)
       : Math.max(currentIndex - 1, 0);
-  } 
-  else if (isDraggingForward && sectionProgress > adjustedThreshold) {
-    // Moving forward past threshold
-    targetSection = Math.min(currentIndex + 1, sections.length - 1);
-  } 
-  else if (!isDraggingForward && sectionProgress < (1 - adjustedThreshold)) {
-    // Moving backward past threshold
-    targetSection = Math.max(currentIndex - 1, 0);
-  } 
+  }
+  // For medium movements, use both progress and velocity
+  else if (absVelocity > 100) {
+    if (isMovingForward && sectionProgress > dynamicThreshold) {
+      targetSection = Math.min(currentIndex + 1, sections.length - 1);
+    } else if (!isMovingForward && sectionProgress < (1 - dynamicThreshold)) {
+      targetSection = Math.max(currentIndex - 1, 0);
+    } else {
+      targetSection = currentIndex;
+    }
+  }
+  // For slow movements or holds, use position progress with a generous threshold
   else {
-    // Default - return to current section
-    targetSection = currentIndex;
+    if (sectionProgress > 0.5) {
+      targetSection = Math.min(currentIndex + 1, sections.length - 1);
+    } else {
+      targetSection = currentIndex;
+    }
   }
   
-  // Always use smooth scrolling for natural feel at all speeds
-  goToSection(targetSection, 'smooth');
+  // Calculate how "natural" the scroll should feel
+  const naturalBehavior = absVelocity > 200 ? 'smooth' : 'auto';
   
-  // Reset drag amount
-  setCurrentDragAmount(0);
+  // Navigate with appropriate behavior
+  goToSection(targetSection, naturalBehavior);
 };
 
 // Navigation (would use router in real app)
@@ -762,20 +695,6 @@ return (
         />
       ))}
     </div>
-    
-    {/* Direction indicators - show when dragging */}
-    {isDragging && Math.abs(currentDragAmount) > 20 && (
-      <div className="fixed inset-0 pointer-events-none z-10 flex items-center justify-center">
-        <div 
-          className={`text-white/20 text-9xl transition-opacity duration-300 ${Math.abs(currentDragAmount) > 50 ? 'opacity-100' : 'opacity-50'}`}
-        >
-          {currentDragAmount > 0 ? 
-            (isMobile ? '↓' : '→') : 
-            (isMobile ? '↑' : '←')
-          }
-        </div>
-      </div>
-    )}
     
     {/* Left/Right navigation arrows (desktop only) */}
     {!isMobile && (
