@@ -229,7 +229,7 @@ const Home = () => {
     });
   }, []);
   
-  // Navigate to section with optimized animation
+  // Navigate to section with ice-like momentum
   const goToSection = (index, behavior = 'smooth') => {
     if (!containerRef.current) return;
     
@@ -244,36 +244,38 @@ const Home = () => {
     
     setPrevSection(currentSection);
     
-    // For mobile, direct scrollTo is often more reliable
-    if (isMobile) {
-      container.scrollTo({
-        left: 0,
-        top: boundedIndex * viewportSize,
-        behavior
-      });
-    } else {
-      // For desktop, try to use scrollIntoView first
-      const targetElement = container.querySelector(`[data-section="${boundedIndex}"]`);
-      if (targetElement) {
-        targetElement.scrollIntoView({
-          behavior: behavior,
-          block: 'nearest',
-          inline: 'start'
+    // For very fast swipes, use 'auto' to create that ice-like snap
+    // For normal transitions, use smooth scrolling
+    const scrollBehavior = behavior === 'auto' ? 'auto' : 'smooth';
+    
+    // Try using scroll behavior for seamless effect
+    try {
+      if (isMobile) {
+        container.scrollTo({
+          left: 0,
+          top: boundedIndex * viewportSize,
+          behavior: scrollBehavior
         });
       } else {
-        // Fallback to scrollTo
         container.scrollTo({
           left: boundedIndex * viewportSize,
           top: 0,
-          behavior
+          behavior: scrollBehavior
         });
+      }
+    } catch (err) {
+      // Fallback for browsers without smooth scrolling support
+      if (isMobile) {
+        container.scrollTop = boundedIndex * viewportSize;
+      } else {
+        container.scrollLeft = boundedIndex * viewportSize;
       }
     }
     
     setCurrentSection(boundedIndex);
   };
   
-  // Touch handlers with improved performance for mobile
+  // Touch handlers with improved inertia and natural "ice-like" flow
   const handleTouchStart = (e) => {
     // Prevent handling when touching interactive elements
     if (e.target.closest('button') || e.target.closest('a')) {
@@ -314,24 +316,29 @@ const Home = () => {
     const container = containerRef.current;
     if (!container) return;
     
-    // Calculate drag distance
+    // Calculate drag distance - maintain exact ratio for all drag sizes
     const dragAmount = isMobile 
       ? startDragPos.y - touch.clientY 
       : startDragPos.x - touch.clientX;
     
-    // Skip tiny movements (prevents jitter)
-    if (Math.abs(dragAmount) < 5) return;
+    // Use a consistent multiplier regardless of drag size
+    // This ensures small and large movements feel the same
+    const consistentMultiplier = 1.2;
     
-    // Apply different sensitivity for vertical vs horizontal scrolling
-    const sensitivity = isMobile ? 1.0 : 1.2;
+    // Ice-like effect: reduce resistance for small movements
+    // and gradually increase for larger ones (feels like momentum on ice)
+    const maxDragThreshold = 300; // Max threshold for calculating resistance
+    const normalizedDrag = Math.min(Math.abs(dragAmount), maxDragThreshold);
     
-    // Apply a gradual resistance as drag increases
-    const resistance = Math.max(0.7, 1 - (Math.abs(dragAmount) / 500));
+    // For small movements: less resistance (more slippery)
+    // For large movements: more resistance (natural damping)
+    const resistanceRatio = normalizedDrag / maxDragThreshold;
+    const iceEffect = 1 - (resistanceRatio * 0.3); // 0.7 to 1.0 range
     
-    // Calculate the new position with resistance
-    const newPosition = lastScrollPos + (dragAmount * sensitivity * resistance);
+    // Calculate the new position with our ice-like physics
+    const newPosition = lastScrollPos + (dragAmount * consistentMultiplier * iceEffect);
     
-    // Update the scroll position using the native scroll properties
+    // Update the scroll position with fluid movement
     if (isMobile) {
       container.scrollTop = newPosition;
     } else {
@@ -340,8 +347,8 @@ const Home = () => {
     
     setCurrentDragAmount(dragAmount);
     
-    // Only prevent default for significant drags to allow small scrolls
-    if (Math.abs(dragAmount) > 10) {
+    // Only prevent default for significant drags to allow small adjustments
+    if (Math.abs(dragAmount) > 5) {
       e.preventDefault();
     }
   };
@@ -366,7 +373,7 @@ const Home = () => {
     finishDragging();
   };
   
-  // Mouse drag handlers (for horizontal scrolling on desktop)
+  // Mouse drag handlers with ice-like physics for desktop
   const handleMouseDown = (e) => {
     // Only handle left button dragging
     if (e.button !== 0) return;
@@ -389,19 +396,30 @@ const Home = () => {
     const container = containerRef.current;
     if (!container) return;
     
-    // Calculate drag distance
+    // Calculate drag distance with consistent ratio for all movements
     const dragAmount = isMobile 
       ? startDragPos.y - e.clientY 
       : startDragPos.x - e.clientX;
     
-    // Apply a multiplier to make dragging more sensitive
-    const dragMultiplier = 1.2;
+    // Use the same ice-like physics as touch events
+    const maxDragThreshold = 300;
+    const normalizedDrag = Math.min(Math.abs(dragAmount), maxDragThreshold);
+    const resistanceRatio = normalizedDrag / maxDragThreshold;
     
-    // Update container scroll position
+    // Less resistance for small movements (feels like ice)
+    const iceEffect = 1 - (resistanceRatio * 0.2); // Subtle resistance increase for large movements
+    
+    // Higher multiplier for desktop to match touch behavior
+    const desktopMultiplier = 1.2;
+    
+    // Calculate position with ice-like physics
+    const newPosition = lastScrollPos + (dragAmount * desktopMultiplier * iceEffect);
+    
+    // Update scroll with momentum feel
     if (isMobile) {
-      container.scrollTop = lastScrollPos + (dragAmount * dragMultiplier);
+      container.scrollTop = newPosition;
     } else {
-      container.scrollLeft = lastScrollPos + (dragAmount * dragMultiplier);
+      container.scrollLeft = newPosition;
     }
     
     setCurrentDragAmount(dragAmount);
@@ -413,7 +431,7 @@ const Home = () => {
     finishDragging();
   };
   
-  // Common logic to finish dragging and decide where to snap
+  // Common logic to finish dragging with momentum-based snapping
   const finishDragging = () => {
     setIsDragging(false);
     
@@ -436,44 +454,49 @@ const Home = () => {
     // Determine direction based on drag amount
     const isDraggingForward = currentDragAmount > 0;
     
-    // No movement or tiny movements - stay on current section
-    if (Math.abs(currentDragAmount) < 10) {
-      // If barely moved, just stay on current section
-      goToSection(currentIndex);
-      setCurrentDragAmount(0);
-      return;
-    }
+    // Apply ice-like physics for momentum effect
+    // Use the same ratio for small and large movements
     
-    // For mobile, make small drags more responsive
-    const baseThreshold = isMobile ? 0.15 : 0.25;
+    // Calculate the "velocity" of the swipe
+    const absAmount = Math.abs(currentDragAmount);
+    const swipeVelocity = Math.min(absAmount / 50, 1.5); // Cap velocity for stability
     
-    // Apply velocity-based thresholds - faster swipes need less distance
-    const swipeVelocity = Math.abs(currentDragAmount) / 100;
-    const velocityThreshold = isMobile ? 0.3 : 0.5; // Lower threshold for mobile
+    // For ice-like effect: small movements should have proportionally the same effect as large ones
+    // Use a non-linear scaling that feels natural at all magnitudes
     
-    // Adjust threshold based on velocity (faster swipe = lower threshold)
-    const dragThreshold = Math.max(0.1, baseThreshold - (swipeVelocity * 0.1));
+    // Base threshold adjusted by velocity
+    const baseThreshold = 0.1 + (0.3 / (1 + swipeVelocity)); // Ranges from 0.1 to 0.4
     
+    // Determine next section based on progress and momentum
     let targetSection;
     
-    if (sectionProgress > dragThreshold && isDraggingForward) {
-      // Dragged forward past threshold, go to next section
-      targetSection = Math.min(currentIndex + 1, sections.length - 1);
-    } else if (sectionProgress < (1 - dragThreshold) && !isDraggingForward) {
-      // Dragged backward past threshold, go to previous section
-      targetSection = Math.max(currentIndex - 1, 0);
-    } else if (swipeVelocity > velocityThreshold) {
-      // Fast swipe - move in the direction of the swipe
-      targetSection = isDraggingForward 
+    // Extremely small movements (tap/click) - stay on current
+    if (absAmount < 3) {
+      targetSection = currentIndex;
+    } 
+    // Fast swipe with sufficient movement - follow direction
+    else if (swipeVelocity > 0.7 && absAmount > 10) {
+      targetSection = isDraggingForward
         ? Math.min(currentIndex + 1, sections.length - 1)
         : Math.max(currentIndex - 1, 0);
-    } else {
-      // Otherwise, stay on current section
+    }
+    // Medium-velocity swipe - use position-based threshold
+    else if (isDraggingForward && sectionProgress > baseThreshold) {
+      targetSection = Math.min(currentIndex + 1, sections.length - 1);
+    } 
+    else if (!isDraggingForward && sectionProgress < (1 - baseThreshold)) {
+      targetSection = Math.max(currentIndex - 1, 0);
+    }
+    // Default - stay on current section
+    else {
       targetSection = currentIndex;
     }
     
-    // Snap to target section
-    goToSection(targetSection);
+    // Apply true momentum effect
+    const momentum = Math.min(Math.max(swipeVelocity * 0.8, 0.5), 1.0);
+    
+    // Snap to target section with speed based on momentum
+    goToSection(targetSection, momentum > 0.8 ? 'auto' : 'smooth');
     
     // Reset drag amount
     setCurrentDragAmount(0);
