@@ -218,7 +218,7 @@ useEffect(() => {
   });
 }, []);
 
-// Navigate to section without smooth scrolling
+// Navigate to section with approach based on device type
 const goToSection = (index, behavior = 'auto') => {
   if (!containerRef.current) return;
   
@@ -233,11 +233,22 @@ const goToSection = (index, behavior = 'auto') => {
   
   setPrevSection(currentSection);
   
-  // Use instant scrolling by default (no smooth animation)
+  // Mobile: Instant scrolling without animation
   if (isMobile) {
     container.scrollTop = boundedIndex * viewportSize;
-  } else {
-    container.scrollLeft = boundedIndex * viewportSize;
+  } 
+  // Desktop/PC: Keep original smooth scrolling behavior
+  else {
+    try {
+      container.scrollTo({
+        left: boundedIndex * viewportSize,
+        top: 0,
+        behavior: 'smooth'
+      });
+    } catch (err) {
+      // Fallback for browsers without smooth scrolling support
+      container.scrollLeft = boundedIndex * viewportSize;
+    }
   }
   
   setCurrentSection(boundedIndex);
@@ -417,7 +428,7 @@ const handleMouseUp = () => {
   finishDragging();
 };
 
-  // Scrollbar-like inertial ending with section centering only on mobile
+  // Device-specific drag finishing behavior
 const finishDragging = () => {
   setIsDragging(false);
   
@@ -428,36 +439,55 @@ const finishDragging = () => {
   const container = containerRef.current;
   if (!container) return;
   
-  const viewportSize = isMobile ? container.clientHeight : container.clientWidth;
-  const currentPos = isMobile ? container.scrollTop : container.scrollLeft;
-  
-  // Get current section index and progress
-  const currentIndex = Math.floor(currentPos / viewportSize);
-  const sectionProgress = (currentPos % viewportSize) / viewportSize;
-  
-  let targetSection;
-  
-  // Simple position-based decision for mobile (centering after drag)
+  // MOBILE-ONLY BEHAVIOR - Simple position-based centering
   if (isMobile) {
-    // If closer to next section, go there; otherwise stay
-    if (sectionProgress > 0.5) {
-      targetSection = Math.min(currentIndex + 1, sections.length - 1);
-    } else {
-      targetSection = currentIndex;
+    const viewportSize = container.clientHeight;
+    const currentPos = container.scrollTop;
+    
+    // Simple snapping to nearest section
+    const sectionIndex = Math.round(currentPos / viewportSize);
+    container.scrollTop = sectionIndex * viewportSize;
+    
+    // Update current section if needed
+    if (sectionIndex !== currentSection) {
+      setPrevSection(currentSection);
+      setCurrentSection(sectionIndex);
+    }
+  } 
+  // DESKTOP/PC BEHAVIOR - Keep original physics/inertia
+  else {
+    const viewportSize = container.clientWidth;
+    const currentPos = container.scrollLeft;
+    
+    // Get current section index and progress
+    const currentIndex = Math.floor(currentPos / viewportSize);
+    const sectionProgress = (currentPos % viewportSize) / viewportSize;
+    
+    // Get final drag velocity (pixels per second)
+    const pixelsPerSecond = Math.abs(dragVelocity * 1000);
+    
+    // Determine target section with velocity-aware navigation
+    let targetSection;
+    
+    // For fast flicks, prioritize the velocity direction
+    const isDraggingForward = dragVelocity > 0;
+    
+    if (pixelsPerSecond > 200) {
+      targetSection = isDraggingForward
+        ? Math.min(currentIndex + 1, sections.length - 1)
+        : Math.max(currentIndex - 1, 0);
+    }
+    // For medium/slow movements, check position progress
+    else {
+      if (sectionProgress > 0.5) {
+        targetSection = Math.min(currentIndex + 1, sections.length - 1);
+      } else {
+        targetSection = currentIndex;
+      }
     }
     
-    // Apply immediate centering for mobile after drag finishes
-    container.scrollTop = targetSection * viewportSize;
-  } else {
-    // Desktop - no special centering, just normal scrollbar behavior
-    // Let native scrolling handle it
-    return;
-  }
-  
-  // Update current section
-  if (targetSection !== currentSection) {
-    setPrevSection(currentSection);
-    setCurrentSection(targetSection);
+    // Navigate with smooth scrolling for desktop
+    goToSection(targetSection, 'smooth');
   }
 };
 
@@ -483,9 +513,9 @@ return (
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
-        scrollBehavior: 'auto', // No smooth scrolling
         cursor: isDragging ? 'grabbing' : 'grab',
-        visibility: hasLoaded ? 'visible' : 'hidden'
+        visibility: hasLoaded ? 'visible' : 'hidden',
+        ...scrollBehaviorStyle
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
