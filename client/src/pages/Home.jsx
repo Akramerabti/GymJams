@@ -16,6 +16,7 @@ const Home = () => {
   const [lastScrollPos, setLastScrollPos] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [touchIdentifier, setTouchIdentifier] = useState(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
   
   // Section data
   const sections = [
@@ -97,7 +98,7 @@ const Home = () => {
     });
   }, [currentSection, isTransitioning]);
   
-  // Handle device size
+  // Handle device size and initial loading
   useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth < 768;
@@ -117,6 +118,12 @@ const Home = () => {
     };
     
     handleResize();
+    
+    // Mark as loaded after a short delay to ensure everything is rendered
+    setTimeout(() => {
+      setHasLoaded(true);
+    }, 100);
+    
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [currentSection]);
@@ -134,19 +141,30 @@ const Home = () => {
     }
   }, [currentSection, prevSection]);
   
-  // Disable browser default touch behavior
+  // Handle touch behavior for mobile scrolling
   useEffect(() => {
-    const preventDefaultTouchMove = (e) => {
-      if (isDragging) {
-        e.preventDefault();
+    // Only for handling very specific touch events that need prevention
+    // Regular scrolling should work with default touch behavior
+    const handleTouchMove = (e) => {
+      // Only prevent default if we're actively dragging
+      // and it's a horizontal swipe on mobile
+      if (isDragging && isMobile && Math.abs(currentDragAmount) > 10) {
+        // Prevent only for touches we're tracking
+        for (let i = 0; i < e.touches.length; i++) {
+          if (e.touches[i].identifier === touchIdentifier) {
+            e.preventDefault();
+            break;
+          }
+        }
       }
     };
     
-    document.addEventListener('touchmove', preventDefaultTouchMove, { passive: false });
+    // Use passive: false only when needed for mobile
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
     return () => {
-      document.removeEventListener('touchmove', preventDefaultTouchMove);
+      document.removeEventListener('touchmove', handleTouchMove);
     };
-  }, [isDragging]);
+  }, [isDragging, isMobile, currentDragAmount, touchIdentifier]);
   
   // Update current section based on scroll position
   const updateCurrentSection = () => {
@@ -214,35 +232,54 @@ const Home = () => {
   // Navigate to section with optimized animation
   const goToSection = (index, behavior = 'smooth') => {
     if (!containerRef.current) return;
+    
+    // No change needed
     if (index === currentSection) return;
+    
+    // Ensure index is within bounds
+    const boundedIndex = Math.max(0, Math.min(index, sections.length - 1));
     
     const container = containerRef.current;
     const viewportSize = isMobile ? container.clientHeight : container.clientWidth;
     
     setPrevSection(currentSection);
     
-    // Use native scrollIntoView for better performance
-    const targetElement = container.children[0].children[index];
-    if (targetElement) {
-      targetElement.scrollIntoView({
-        behavior: behavior,
-        block: 'nearest',
-        inline: 'nearest'
-      });
-    } else {
-      // Fallback to scrollTo
+    // For mobile, direct scrollTo is often more reliable
+    if (isMobile) {
       container.scrollTo({
-        left: isMobile ? 0 : index * viewportSize,
-        top: isMobile ? index * viewportSize : 0,
+        left: 0,
+        top: boundedIndex * viewportSize,
         behavior
       });
+    } else {
+      // For desktop, try to use scrollIntoView first
+      const targetElement = container.querySelector(`[data-section="${boundedIndex}"]`);
+      if (targetElement) {
+        targetElement.scrollIntoView({
+          behavior: behavior,
+          block: 'nearest',
+          inline: 'start'
+        });
+      } else {
+        // Fallback to scrollTo
+        container.scrollTo({
+          left: boundedIndex * viewportSize,
+          top: 0,
+          behavior
+        });
+      }
     }
     
-    setCurrentSection(index);
+    setCurrentSection(boundedIndex);
   };
   
-  // Touch handlers with improved performance
+  // Touch handlers with improved performance for mobile
   const handleTouchStart = (e) => {
+    // Prevent handling when touching interactive elements
+    if (e.target.closest('button') || e.target.closest('a')) {
+      return;
+    }
+    
     // Only track the first touch point
     if (touchIdentifier !== null) return;
     
@@ -282,21 +319,20 @@ const Home = () => {
       ? startDragPos.y - touch.clientY 
       : startDragPos.x - touch.clientX;
     
-    // Determine the direction of the swipe
-    const isVertical = isMobile;
+    // Skip tiny movements (prevents jitter)
+    if (Math.abs(dragAmount) < 5) return;
     
-    // Apply a weight to make it feel more responsive
-    const dragWeight = Math.min(Math.abs(dragAmount) / 100, 1);
+    // Apply different sensitivity for vertical vs horizontal scrolling
+    const sensitivity = isMobile ? 1.0 : 1.2;
     
-    // Apply a progressive resistance to make it feel more natural
-    const resistance = 0.5 + (0.5 * (1 - dragWeight));
+    // Apply a gradual resistance as drag increases
+    const resistance = Math.max(0.7, 1 - (Math.abs(dragAmount) / 500));
     
-    // Calculate the new position with inertia and resistance
-    const newPosition = lastScrollPos + (dragAmount * resistance);
+    // Calculate the new position with resistance
+    const newPosition = lastScrollPos + (dragAmount * sensitivity * resistance);
     
-    // Smoothly update the scroll position using transform instead of scroll
-    // for better performance during the drag
-    if (isVertical) {
+    // Update the scroll position using the native scroll properties
+    if (isMobile) {
       container.scrollTop = newPosition;
     } else {
       container.scrollLeft = newPosition;
@@ -304,8 +340,10 @@ const Home = () => {
     
     setCurrentDragAmount(dragAmount);
     
-    // Prevent default to avoid page scrolling
-    e.preventDefault();
+    // Only prevent default for significant drags to allow small scrolls
+    if (Math.abs(dragAmount) > 10) {
+      e.preventDefault();
+    }
   };
   
   const handleTouchEnd = (e) => {
@@ -398,19 +436,31 @@ const Home = () => {
     // Determine direction based on drag amount
     const isDraggingForward = currentDragAmount > 0;
     
-    // Apply velocity-based snapping
-    // The faster the swipe, the easier it is to move to the next section
+    // No movement or tiny movements - stay on current section
+    if (Math.abs(currentDragAmount) < 10) {
+      // If barely moved, just stay on current section
+      goToSection(currentIndex);
+      setCurrentDragAmount(0);
+      return;
+    }
+    
+    // For mobile, make small drags more responsive
+    const baseThreshold = isMobile ? 0.15 : 0.25;
+    
+    // Apply velocity-based thresholds - faster swipes need less distance
     const swipeVelocity = Math.abs(currentDragAmount) / 100;
-    const velocityThreshold = 0.5; // Adjust this threshold as needed
-    const dragThreshold = Math.max(0.2, 0.4 - (swipeVelocity * 0.2));
+    const velocityThreshold = isMobile ? 0.3 : 0.5; // Lower threshold for mobile
+    
+    // Adjust threshold based on velocity (faster swipe = lower threshold)
+    const dragThreshold = Math.max(0.1, baseThreshold - (swipeVelocity * 0.1));
     
     let targetSection;
     
     if (sectionProgress > dragThreshold && isDraggingForward) {
-      // If we've dragged forward past threshold, go to next section
+      // Dragged forward past threshold, go to next section
       targetSection = Math.min(currentIndex + 1, sections.length - 1);
     } else if (sectionProgress < (1 - dragThreshold) && !isDraggingForward) {
-      // If we've dragged backward past threshold, go to previous section
+      // Dragged backward past threshold, go to previous section
       targetSection = Math.max(currentIndex - 1, 0);
     } else if (swipeVelocity > velocityThreshold) {
       // Fast swipe - move in the direction of the swipe
@@ -435,16 +485,24 @@ const Home = () => {
   };
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-black will-change-transform">
+    <div className="fixed inset-0 overflow-hidden bg-black">
+      {/* Loading indicator */}
+      {!hasLoaded && (
+        <div className="absolute inset-0 bg-black flex items-center justify-center z-50">
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      )}
+      
       {/* Main scrolling container */}
       <div 
         ref={containerRef}
-        className={`h-full w-full ${isMobile ? 'overflow-y-auto' : 'overflow-x-auto'} overflow-hidden scroll-smooth will-change-transform`}
+        className={`h-full w-full ${isMobile ? 'overflow-y-auto' : 'overflow-x-auto'} scroll-smooth will-change-transform`}
         style={{ 
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
           WebkitOverflowScrolling: 'touch',
-          cursor: isDragging ? 'grabbing' : 'grab'
+          cursor: isDragging ? 'grabbing' : 'grab',
+          visibility: hasLoaded ? 'visible' : 'hidden'
         }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -489,30 +547,44 @@ const Home = () => {
           {sections.map((section, index) => (
             <div
               key={section.id}
+              data-section={index}
               className="relative h-screen w-screen flex-shrink-0 will-change-transform"
               style={{
                 transform: 'translateZ(0)', // Force GPU acceleration
               }}
             >
-              {/* Video background */}
+              {/* Video or Image background */}
               <div className="absolute inset-0 overflow-hidden">
-                <video
-                  ref={el => videoRefs.current[index] = el}
-                  src={section.videoSrc}
-                  className={`absolute inset-0 object-cover w-full h-full video-transition ${
-                    currentSection === index 
-                      ? 'opacity-100 scale-100' 
-                      : 'opacity-0 scale-110'
-                  }`}
-                  playsInline
-                  muted
-                  loop
-                  autoPlay={index === 0}
-                  preload="metadata" // Only preload metadata initially
-                  style={{
-                    transform: 'translateZ(0)', // Force GPU acceleration
-                  }}
-                />
+                {/* Use image placeholder on mobile for better performance */}
+                {isMobile ? (
+                  <div 
+                    className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${
+                      currentSection === index ? 'opacity-100' : 'opacity-0'
+                    }`}
+                    style={{
+                      backgroundImage: `url(${section.videoSrc})`,
+                      transform: 'translateZ(0)', // Force GPU acceleration
+                    }}
+                  />
+                ) : (
+                  <video
+                    ref={el => videoRefs.current[index] = el}
+                    src={section.videoSrc}
+                    className={`absolute inset-0 object-cover w-full h-full video-transition ${
+                      currentSection === index 
+                        ? 'opacity-100 scale-100' 
+                        : 'opacity-0 scale-110'
+                    }`}
+                    playsInline
+                    muted
+                    loop
+                    autoPlay={index === 0}
+                    preload="metadata" // Only preload metadata initially
+                    style={{
+                      transform: 'translateZ(0)', // Force GPU acceleration
+                    }}
+                  />
+                )}
                 {/* Color overlay gradient */}
                 <div 
                   className={`absolute inset-0 bg-gradient-to-br ${section.color} transition-opacity duration-1000 ${
@@ -639,19 +711,46 @@ const Home = () => {
         </div>
       </div>
       
-      {/* Swipe instruction (first visit only) */}
-      <div 
-        className="fixed bottom-8 left-1/2 -translate-x-1/2 z-20 text-white/70 text-sm bg-black/30 backdrop-blur-sm px-4 py-2 rounded-full flex items-center gap-2 pointer-events-none"
-        style={{
-          opacity: currentSection === 0 ? 0.7 : 0,
-          transition: 'opacity 0.5s ease-in-out',
-          transform: 'translateX(-50%)',
-        }}
-      >
-        <ChevronLeft className="w-4 h-4" />
-        {isMobile ? 'Swipe up/down' : 'Drag or swipe to navigate'} 
-        <ChevronRight className="w-4 h-4" />
-      </div>
+      {/* Mobile swipe instruction (more prominent) */}
+      {isMobile && hasLoaded && (
+        <div 
+          className="fixed bottom-16 left-1/2 -translate-x-1/2 z-30 text-white text-base bg-blue-600/80 backdrop-blur-sm px-4 py-3 rounded-full flex items-center gap-2 pointer-events-none shadow-lg animate-pulse"
+          style={{
+            opacity: currentSection === 0 ? 1 : 0,
+            transition: 'opacity 0.5s ease-in-out',
+            transform: 'translateX(-50%)',
+          }}
+        >
+          <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            width="24" 
+            height="24" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2"
+            className="animate-bounce"
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+          Swipe to explore
+        </div>
+      )}
+      
+      {/* Desktop instruction (first visit only) */}
+      {!isMobile && (
+        <div 
+          className="fixed bottom-8 left-1/2 -translate-x-1/2 z-20 text-white/70 text-sm bg-black/30 backdrop-blur-sm px-4 py-2 rounded-full flex items-center gap-2 pointer-events-none"
+          style={{
+            opacity: currentSection === 0 ? 0.7 : 0,
+            transition: 'opacity 0.5s ease-in-out',
+          }}
+        >
+          <ChevronLeft className="w-4 h-4" />
+          Drag or swipe to navigate
+          <ChevronRight className="w-4 h-4" />
+        </div>
+      )}
     </div>
   );
 };
