@@ -6,6 +6,7 @@ const Home = () => {
 // DOM references
 const containerRef = useRef(null);
 const videoRefs = useRef([]);
+const scrollTimeoutRef = useRef(null);
 
 // State
 const [currentSection, setCurrentSection] = useState(0);
@@ -513,9 +514,9 @@ return (
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
+        scrollBehavior: isMobile ? 'auto' : 'smooth',
         cursor: isDragging ? 'grabbing' : 'grab',
-        visibility: hasLoaded ? 'visible' : 'hidden',
-        ...scrollBehaviorStyle
+        visibility: hasLoaded ? 'visible' : 'hidden'
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
