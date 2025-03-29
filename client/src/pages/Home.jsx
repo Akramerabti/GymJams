@@ -218,8 +218,8 @@ useEffect(() => {
   });
 }, []);
 
-// Navigate to section with smooth animation
-const goToSection = (index, behavior = 'smooth') => {
+// Navigate to section without smooth scrolling
+const goToSection = (index, behavior = 'auto') => {
   if (!containerRef.current) return;
   
   // No change needed
@@ -233,28 +233,11 @@ const goToSection = (index, behavior = 'smooth') => {
   
   setPrevSection(currentSection);
   
-  // Use the browser's built-in smooth scroll
-  try {
-    if (isMobile) {
-      container.scrollTo({
-        left: 0,
-        top: boundedIndex * viewportSize,
-        behavior
-      });
-    } else {
-      container.scrollTo({
-        left: boundedIndex * viewportSize,
-        top: 0,
-        behavior
-      });
-    }
-  } catch (err) {
-    // Fallback for browsers without smooth scrolling support
-    if (isMobile) {
-      container.scrollTop = boundedIndex * viewportSize;
-    } else {
-      container.scrollLeft = boundedIndex * viewportSize;
-    }
+  // Use instant scrolling by default (no smooth animation)
+  if (isMobile) {
+    container.scrollTop = boundedIndex * viewportSize;
+  } else {
+    container.scrollLeft = boundedIndex * viewportSize;
   }
   
   setCurrentSection(boundedIndex);
@@ -434,7 +417,7 @@ const handleMouseUp = () => {
   finishDragging();
 };
 
-// Scrollbar-like inertial ending with precise physics
+  // Scrollbar-like inertial ending with section centering only on mobile
 const finishDragging = () => {
   setIsDragging(false);
   
@@ -452,55 +435,30 @@ const finishDragging = () => {
   const currentIndex = Math.floor(currentPos / viewportSize);
   const sectionProgress = (currentPos % viewportSize) / viewportSize;
   
-  // Get final drag velocity (pixels per second)
-  const pixelsPerSecond = Math.abs(dragVelocity * 1000);
-  
-  // Very small drag detection (tap vs drag distinction)
-  if (Math.abs(currentDragAmount) < 3) {
-    goToSection(currentIndex, 'smooth');
-    return;
-  }
-  
-  // Determine direction based on the final drag amount
-  const isMovingForward = dragVelocity > 0;
-  
-  // Super-responsive flick detection - even tiny flicks will work if they're fast enough
-  // This makes small, quick flicks very effective for navigation
-  const isQuickFlick = pixelsPerSecond > 200 && Math.abs(currentDragAmount) > 5;
-  
   let targetSection;
   
-  if (isQuickFlick) {
-    // Fast flicks always go to the next section in the flick direction
-    targetSection = isMovingForward
-      ? Math.min(currentIndex + 1, sections.length - 1)
-      : Math.max(currentIndex - 1, 0);
-  } 
-  else if (pixelsPerSecond > 50) {
-    // Medium speed movements use a combination of position and direction
-    // For more natural feel, use a smaller threshold for faster movements
-    const velocityAdjustedThreshold = Math.max(0.1, 0.4 - (pixelsPerSecond / 1000));
-    
-    if (isMovingForward && sectionProgress > velocityAdjustedThreshold) {
-      targetSection = Math.min(currentIndex + 1, sections.length - 1);
-    } else if (!isMovingForward && sectionProgress < (1 - velocityAdjustedThreshold)) {
-      targetSection = Math.max(currentIndex - 1, 0);
-    } else {
-      targetSection = currentIndex;
-    }
-  }
-  else {
-    // Slow or maintained drags use position-based decision (like a scrollbar)
-    // If you've dragged more than halfway, go to the next section
+  // Simple position-based decision for mobile (centering after drag)
+  if (isMobile) {
+    // If closer to next section, go there; otherwise stay
     if (sectionProgress > 0.5) {
       targetSection = Math.min(currentIndex + 1, sections.length - 1);
     } else {
       targetSection = currentIndex;
     }
+    
+    // Apply immediate centering for mobile after drag finishes
+    container.scrollTop = targetSection * viewportSize;
+  } else {
+    // Desktop - no special centering, just normal scrollbar behavior
+    // Let native scrolling handle it
+    return;
   }
   
-  // Always use smooth scrolling for consistency
-  goToSection(targetSection, 'smooth');
+  // Update current section
+  if (targetSection !== currentSection) {
+    setPrevSection(currentSection);
+    setCurrentSection(targetSection);
+  }
 };
 
 // Navigation (would use router in real app)
@@ -525,7 +483,7 @@ return (
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
-        scrollBehavior: 'smooth', // Ensure CSS smooth scrolling
+        scrollBehavior: 'auto', // No smooth scrolling
         cursor: isDragging ? 'grabbing' : 'grab',
         visibility: hasLoaded ? 'visible' : 'hidden'
       }}
@@ -722,46 +680,9 @@ return (
       </div>
     </div>
     
-    {/* Mobile swipe instruction (more prominent) */}
-    {isMobile && hasLoaded && (
-      <div 
-        className="fixed bottom-16 left-1/2 -translate-x-1/2 z-30 text-white text-base bg-blue-600/80 backdrop-blur-sm px-4 py-3 rounded-full flex items-center gap-2 pointer-events-none shadow-lg animate-pulse"
-        style={{
-          opacity: currentSection === 0 ? 1 : 0,
-          transition: 'opacity 0.5s ease-in-out',
-          transform: 'translateX(-50%)',
-        }}
-      >
-        <svg 
-          xmlns="http://www.w3.org/2000/svg" 
-          width="24" 
-          height="24" 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="currentColor" 
-          strokeWidth="2"
-          className="animate-bounce"
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-        Swipe to explore
-      </div>
-    )}
+    {/* Mobile swipe instruction removed */}
     
-    {/* Desktop instruction (first visit only) */}
-    {!isMobile && (
-      <div 
-        className="fixed bottom-8 left-1/2 -translate-x-1/2 z-20 text-white/70 text-sm bg-black/30 backdrop-blur-sm px-4 py-2 rounded-full flex items-center gap-2 pointer-events-none"
-        style={{
-          opacity: currentSection === 0 ? 0.7 : 0,
-          transition: 'opacity 0.5s ease-in-out',
-        }}
-      >
-        <ChevronLeft className="w-4 h-4" />
-        Drag or swipe to navigate
-        <ChevronRight className="w-4 h-4" />
-      </div>
-    )}
+    {/* Desktop instruction removed */}
   </div>
 );
 };
