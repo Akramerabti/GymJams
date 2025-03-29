@@ -39,7 +39,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
+import { Switch } from '@/components/ui/Switch';
 import  Slider from '@/components/ui/Slider';
 import { useAuth } from '../../stores/authStore';
 
