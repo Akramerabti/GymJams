@@ -15,6 +15,7 @@ const Home = () => {
   const [currentDragAmount, setCurrentDragAmount] = useState(0);
   const [lastScrollPos, setLastScrollPos] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [touchIdentifier, setTouchIdentifier] = useState(null);
   
   // Section data
   const sections = [
@@ -80,7 +81,10 @@ const Home = () => {
       if (index === currentSection) {
         if (videoRef.paused) {
           try {
-            videoRef.play().catch(err => console.error("Video play error:", err));
+            const playPromise = videoRef.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(err => console.error("Video play error:", err));
+            }
           } catch (err) {
             console.error("Video play error:", err);
           }
@@ -96,13 +100,26 @@ const Home = () => {
   // Handle device size
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      
+      // Reset scroll position when switching between mobile and desktop
+      const container = containerRef.current;
+      if (container) {
+        if (mobile) {
+          container.scrollTop = currentSection * container.clientHeight;
+          container.scrollLeft = 0;
+        } else {
+          container.scrollLeft = currentSection * container.clientWidth;
+          container.scrollTop = 0;
+        }
+      }
     };
     
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [currentSection]);
   
   // Handle section transition
   useEffect(() => {
@@ -117,54 +134,198 @@ const Home = () => {
     }
   }, [currentSection, prevSection]);
   
+  // Disable browser default touch behavior
+  useEffect(() => {
+    const preventDefaultTouchMove = (e) => {
+      if (isDragging) {
+        e.preventDefault();
+      }
+    };
+    
+    document.addEventListener('touchmove', preventDefaultTouchMove, { passive: false });
+    return () => {
+      document.removeEventListener('touchmove', preventDefaultTouchMove);
+    };
+  }, [isDragging]);
+  
   // Update current section based on scroll position
+  const updateCurrentSection = () => {
+    const container = containerRef.current;
+    if (!container || isDragging) return;
+    
+    const scrollPos = isMobile ? container.scrollTop : container.scrollLeft;
+    const viewportSize = isMobile ? container.clientHeight : container.clientWidth;
+    const sectionIndex = Math.round(scrollPos / viewportSize);
+    
+    if (sectionIndex !== currentSection) {
+      setPrevSection(currentSection);
+      setCurrentSection(Math.max(0, Math.min(sectionIndex, sections.length - 1)));
+    }
+    setLastScrollPos(scrollPos);
+  };
+  
+  // Use the more efficient requestAnimationFrame for scroll handling
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     
+    let rafId;
     const handleScroll = () => {
-      if (isDragging) return; // Don't update during active dragging
-      
-      const scrollPos = isMobile ? container.scrollTop : container.scrollLeft;
-      const viewportSize = isMobile ? container.clientHeight : container.clientWidth;
-      const sectionIndex = Math.round(scrollPos / viewportSize);
-      
-      if (sectionIndex !== currentSection) {
-        setPrevSection(currentSection);
-        setCurrentSection(Math.max(0, Math.min(sectionIndex, sections.length - 1)));
+      // Cancel any pending animation frame
+      if (rafId) {
+        cancelAnimationFrame(rafId);
       }
-      setLastScrollPos(scrollPos);
+      
+      // Schedule the update on the next animation frame
+      rafId = requestAnimationFrame(updateCurrentSection);
     };
     
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+    };
   }, [isDragging, isMobile, sections.length, currentSection]);
   
   // Preload videos
   useEffect(() => {
     sections.forEach((section) => {
+      if (!section.videoSrc) return;
+      
       const video = document.createElement('video');
       video.src = section.videoSrc;
       video.preload = 'auto';
+      video.muted = true;
+      video.playsInline = true;
+      
+      // Preload metadata only to save bandwidth
+      video.preload = "metadata";
+      
+      // Force low resolution for mobile devices
+      if (window.innerWidth < 768) {
+        video.setAttribute('playsinline', '');
+        video.setAttribute('webkit-playsinline', '');
+      }
     });
   }, []);
   
-  // Navigate to section
+  // Navigate to section with optimized animation
   const goToSection = (index, behavior = 'smooth') => {
     if (!containerRef.current) return;
+    if (index === currentSection) return;
     
     const container = containerRef.current;
     const viewportSize = isMobile ? container.clientHeight : container.clientWidth;
     
     setPrevSection(currentSection);
     
-    container.scrollTo({
-      left: isMobile ? 0 : index * viewportSize,
-      top: isMobile ? index * viewportSize : 0,
-      behavior
-    });
+    // Use native scrollIntoView for better performance
+    const targetElement = container.children[0].children[index];
+    if (targetElement) {
+      targetElement.scrollIntoView({
+        behavior: behavior,
+        block: 'nearest',
+        inline: 'nearest'
+      });
+    } else {
+      // Fallback to scrollTo
+      container.scrollTo({
+        left: isMobile ? 0 : index * viewportSize,
+        top: isMobile ? index * viewportSize : 0,
+        behavior
+      });
+    }
     
     setCurrentSection(index);
+  };
+  
+  // Touch handlers with improved performance
+  const handleTouchStart = (e) => {
+    // Only track the first touch point
+    if (touchIdentifier !== null) return;
+    
+    const touch = e.touches[0];
+    setTouchIdentifier(touch.identifier);
+    
+    setIsDragging(true);
+    setStartDragPos({ x: touch.clientX, y: touch.clientY });
+    setCurrentDragAmount(0);
+    
+    // Store the current scroll position
+    const container = containerRef.current;
+    if (container) {
+      setLastScrollPos(isMobile ? container.scrollTop : container.scrollLeft);
+    }
+  };
+  
+  const handleTouchMove = (e) => {
+    if (!isDragging) return;
+    
+    // Find the touch point we're tracking
+    let touch = null;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      if (e.changedTouches[i].identifier === touchIdentifier) {
+        touch = e.changedTouches[i];
+        break;
+      }
+    }
+    
+    if (!touch) return;
+    
+    const container = containerRef.current;
+    if (!container) return;
+    
+    // Calculate drag distance
+    const dragAmount = isMobile 
+      ? startDragPos.y - touch.clientY 
+      : startDragPos.x - touch.clientX;
+    
+    // Determine the direction of the swipe
+    const isVertical = isMobile;
+    
+    // Apply a weight to make it feel more responsive
+    const dragWeight = Math.min(Math.abs(dragAmount) / 100, 1);
+    
+    // Apply a progressive resistance to make it feel more natural
+    const resistance = 0.5 + (0.5 * (1 - dragWeight));
+    
+    // Calculate the new position with inertia and resistance
+    const newPosition = lastScrollPos + (dragAmount * resistance);
+    
+    // Smoothly update the scroll position using transform instead of scroll
+    // for better performance during the drag
+    if (isVertical) {
+      container.scrollTop = newPosition;
+    } else {
+      container.scrollLeft = newPosition;
+    }
+    
+    setCurrentDragAmount(dragAmount);
+    
+    // Prevent default to avoid page scrolling
+    e.preventDefault();
+  };
+  
+  const handleTouchEnd = (e) => {
+    // Find the touch point we're tracking
+    let touchFound = false;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      if (e.changedTouches[i].identifier === touchIdentifier) {
+        touchFound = true;
+        break;
+      }
+    }
+    
+    if (!touchFound) return;
+    
+    // Reset touch tracking
+    setTouchIdentifier(null);
+    
+    if (!isDragging) return;
+    
+    finishDragging();
   };
   
   // Mouse drag handlers (for horizontal scrolling on desktop)
@@ -194,9 +355,9 @@ const Home = () => {
     const dragAmount = isMobile 
       ? startDragPos.y - e.clientY 
       : startDragPos.x - e.clientX;
-      
+    
     // Apply a multiplier to make dragging more sensitive
-    const dragMultiplier = 1.5;
+    const dragMultiplier = 1.2;
     
     // Update container scroll position
     if (isMobile) {
@@ -208,58 +369,7 @@ const Home = () => {
     setCurrentDragAmount(dragAmount);
   };
   
-  const handleMouseUp = (e) => {
-    if (!isDragging) return;
-    
-    finishDragging();
-  };
-
-  // Touch handlers (for both desktop and mobile)
-  const handleTouchStart = (e) => {
-    const touch = e.touches[0];
-    
-    setIsDragging(true);
-    setStartDragPos({ x: touch.clientX, y: touch.clientY });
-    setCurrentDragAmount(0);
-    
-    // Store the current scroll position
-    const container = containerRef.current;
-    if (container) {
-      setLastScrollPos(isMobile ? container.scrollTop : container.scrollLeft);
-    }
-  };
-  
-  const handleTouchMove = (e) => {
-    if (!isDragging) return;
-    
-    const touch = e.touches[0];
-    const container = containerRef.current;
-    if (!container) return;
-    
-    // Calculate drag distance
-    const dragAmount = isMobile 
-      ? startDragPos.y - touch.clientY 
-      : startDragPos.x - touch.clientX;
-      
-    // Apply a multiplier to make dragging more sensitive
-    const dragMultiplier = 1.8;
-    
-    // Update container scroll position with the multiplier
-    if (isMobile) {
-      container.scrollTop = lastScrollPos + (dragAmount * dragMultiplier);
-    } else {
-      container.scrollLeft = lastScrollPos + (dragAmount * dragMultiplier);
-    }
-    
-    setCurrentDragAmount(dragAmount);
-    
-    // Prevent default to avoid page scrolling
-    if (Math.abs(dragAmount) > 10) {
-      e.preventDefault();
-    }
-  };
-  
-  const handleTouchEnd = () => {
+  const handleMouseUp = () => {
     if (!isDragging) return;
     
     finishDragging();
@@ -288,9 +398,11 @@ const Home = () => {
     // Determine direction based on drag amount
     const isDraggingForward = currentDragAmount > 0;
     
-    // Threshold for switching sections (lower = more sensitive)
-    // Only need to drag 25% of screen width to switch sections
-    const dragThreshold = 0.25;
+    // Apply velocity-based snapping
+    // The faster the swipe, the easier it is to move to the next section
+    const swipeVelocity = Math.abs(currentDragAmount) / 100;
+    const velocityThreshold = 0.5; // Adjust this threshold as needed
+    const dragThreshold = Math.max(0.2, 0.4 - (swipeVelocity * 0.2));
     
     let targetSection;
     
@@ -300,6 +412,11 @@ const Home = () => {
     } else if (sectionProgress < (1 - dragThreshold) && !isDraggingForward) {
       // If we've dragged backward past threshold, go to previous section
       targetSection = Math.max(currentIndex - 1, 0);
+    } else if (swipeVelocity > velocityThreshold) {
+      // Fast swipe - move in the direction of the swipe
+      targetSection = isDraggingForward 
+        ? Math.min(currentIndex + 1, sections.length - 1)
+        : Math.max(currentIndex - 1, 0);
     } else {
       // Otherwise, stay on current section
       targetSection = currentIndex;
@@ -314,15 +431,15 @@ const Home = () => {
   
   // Navigation (would use router in real app)
   const handleNavigate = (route) => {
-    alert(`Navigating to: ${route}`);
+    window.location.href = route;
   };
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-black">
+    <div className="fixed inset-0 overflow-hidden bg-black will-change-transform">
       {/* Main scrolling container */}
       <div 
         ref={containerRef}
-        className={`h-full w-full ${isMobile ? 'overflow-y-auto' : 'overflow-x-auto'} overflow-hidden scroll-smooth`}
+        className={`h-full w-full ${isMobile ? 'overflow-y-auto' : 'overflow-x-auto'} overflow-hidden scroll-smooth will-change-transform`}
         style={{ 
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
@@ -336,6 +453,7 @@ const Home = () => {
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
       >
         {/* Hide scrollbar */}
         <style jsx="true">{`
@@ -346,10 +464,17 @@ const Home = () => {
           .info-box {
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
+            transform: translateZ(0);
           }
           
           .video-transition {
             transition: opacity 1s ease-in-out, transform 1.2s ease-in-out;
+            will-change: opacity, transform;
+          }
+          
+          .content-transition {
+            transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+            will-change: opacity, transform;
           }
           
           @keyframes float {
@@ -360,16 +485,17 @@ const Home = () => {
         `}</style>
         
         {/* Sections container */}
-        <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} h-full w-full`}>
+        <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} h-full w-full will-change-transform`}>
           {sections.map((section, index) => (
             <div
               key={section.id}
-              className="relative h-screen w-screen flex-shrink-0"
+              className="relative h-screen w-screen flex-shrink-0 will-change-transform"
+              style={{
+                transform: 'translateZ(0)', // Force GPU acceleration
+              }}
             >
               {/* Video background */}
-              <div 
-                className="absolute inset-0 overflow-hidden"
-              >
+              <div className="absolute inset-0 overflow-hidden">
                 <video
                   ref={el => videoRefs.current[index] = el}
                   src={section.videoSrc}
@@ -378,28 +504,39 @@ const Home = () => {
                       ? 'opacity-100 scale-100' 
                       : 'opacity-0 scale-110'
                   }`}
-                  autoPlay={index === 0}
-                  loop
-                  muted
                   playsInline
-                  preload="auto"
+                  muted
+                  loop
+                  autoPlay={index === 0}
+                  preload="metadata" // Only preload metadata initially
+                  style={{
+                    transform: 'translateZ(0)', // Force GPU acceleration
+                  }}
                 />
                 {/* Color overlay gradient */}
                 <div 
                   className={`absolute inset-0 bg-gradient-to-br ${section.color} transition-opacity duration-1000 ${
                     currentSection === index ? 'opacity-80' : 'opacity-0'
                   }`}
+                  style={{
+                    transform: 'translateZ(0)', // Force GPU acceleration
+                  }}
                 />
               </div>
               
               {/* Content with fade effect */}
               <div className="absolute inset-0 flex items-center justify-center p-6 md:p-12 pointer-events-none">
                 <div 
-                  className={`max-w-4xl mx-auto transition-all duration-700 ease-in-out ${
+                  className={`max-w-4xl mx-auto content-transition ${
                     currentSection === index 
                       ? 'opacity-100 translate-y-0' 
                       : 'opacity-0 translate-y-8'
                   }`}
+                  style={{
+                    transform: currentSection === index 
+                      ? 'translateY(0) translateZ(0)'
+                      : 'translateY(2rem) translateZ(0)',
+                  }}
                 >
                   {/* Semi-transparent info box */}
                   <div className="info-box bg-gray-900/40 rounded-xl p-6 md:p-8 border border-white/20 shadow-xl text-center pointer-events-auto">
@@ -427,13 +564,18 @@ const Home = () => {
         </div>
       </div>
       
-      {/* Navigation dots */}
+      {/* Navigation dots - Use transform for better performance */}
       <div 
         className={`fixed z-20 ${
           isMobile 
-            ? 'right-4 top-1/2 -translate-y-1/2 flex-col'
-            : 'bottom-8 left-1/2 -translate-x-1/2 flex-row'
+            ? 'right-4 top-1/2 flex-col'
+            : 'bottom-8 left-1/2 flex-row'
         } flex gap-3`}
+        style={{
+          transform: isMobile 
+            ? 'translateY(-50%)' 
+            : 'translateX(-50%)',
+        }}
       >
         {sections.map((_, index) => (
           <button
@@ -503,6 +645,7 @@ const Home = () => {
         style={{
           opacity: currentSection === 0 ? 0.7 : 0,
           transition: 'opacity 0.5s ease-in-out',
+          transform: 'translateX(-50%)',
         }}
       >
         <ChevronLeft className="w-4 h-4" />
