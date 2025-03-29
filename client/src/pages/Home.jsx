@@ -260,7 +260,7 @@ const goToSection = (index, behavior = 'smooth') => {
   setCurrentSection(boundedIndex);
 };
 
-// Enhanced touch handlers with better inertia
+// Direct touch handlers with immediate response
 const handleTouchStart = (e) => {
   // Prevent handling when touching interactive elements
   if (e.target.closest('button') || e.target.closest('a')) {
@@ -304,10 +304,10 @@ const handleTouchMove = (e) => {
   const container = containerRef.current;
   if (!container) return;
   
-  // Calculate drag distance
-  const dragAmount = isMobile 
-    ? startDragPos.y - touch.clientY 
-    : startDragPos.x - touch.clientX;
+  // Calculate drag distance - direct 1:1 mapping
+  const currentTouchPos = isMobile ? touch.clientY : touch.clientX;
+  const startPos = isMobile ? startDragPos.y : startDragPos.x;
+  const dragAmount = startPos - currentTouchPos;
   
   // Calculate time elapsed since last update for velocity
   const now = performance.now();
@@ -317,22 +317,18 @@ const handleTouchMove = (e) => {
     // Calculate instantaneous velocity (pixels per millisecond)
     const instantVelocity = (dragAmount - currentDragAmount) / deltaTime;
     
-    // Smooth the velocity with low-pass filter
-    const smoothingFactor = 0.8;
+    // Use minimal smoothing during active drag for immediate direction changes
+    const smoothingFactor = 0.3; // Reduced from 0.8 for more direct response
     const newVelocity = dragVelocity * smoothingFactor + instantVelocity * (1 - smoothingFactor);
     
     setDragVelocity(newVelocity);
     setLastDragTime(now);
   }
   
-  // Enhanced touch feel with increased sensitivity for small movements
-  // and natural resistance for large movements
-  const multiplier = Math.min(1.5, 1 + (0.5 * Math.exp(-Math.abs(dragAmount) / 300)));
+  // Direct 1:1 scrolling like normal scrollbar
+  const newPosition = lastScrollPos + dragAmount;
   
-  // Calculate new position
-  const newPosition = lastScrollPos + (dragAmount * multiplier);
-  
-  // Update the scroll position
+  // Update the scroll position immediately
   if (isMobile) {
     container.scrollTop = newPosition;
   } else {
@@ -438,7 +434,7 @@ const handleMouseUp = () => {
   finishDragging();
 };
 
-// Improved inertial scrolling with natural momentum
+// Scrollbar-like inertial ending with precise physics
 const finishDragging = () => {
   setIsDragging(false);
   
@@ -456,47 +452,46 @@ const finishDragging = () => {
   const currentIndex = Math.floor(currentPos / viewportSize);
   const sectionProgress = (currentPos % viewportSize) / viewportSize;
   
-  // Get drag duration and velocity
-  const dragDuration = performance.now() - dragStartTime;
+  // Get final drag velocity (pixels per second)
+  const pixelsPerSecond = Math.abs(dragVelocity * 1000);
   
-  // Calculate absolute velocity (positive value)
-  const absVelocity = Math.abs(dragVelocity * 1000); // Convert to pixels per second
-  
-  // Very small drag detection (less than 5px)
-  if (Math.abs(currentDragAmount) < 5) {
+  // Very small drag detection (tap vs drag distinction)
+  if (Math.abs(currentDragAmount) < 3) {
     goToSection(currentIndex, 'smooth');
     return;
   }
   
-  // Determine direction based on drag velocity
+  // Determine direction based on the final drag amount
   const isMovingForward = dragVelocity > 0;
   
-  // Improved threshold calculation with velocity sensitivity
-  // Lower threshold for quick flicks, higher for slow drags
-  const velocityFactor = Math.min(1, absVelocity / 1500); // Normalize to max 1.0
-  const dynamicThreshold = 0.3 - (0.25 * velocityFactor); // Range from 0.05 to 0.3
+  // Super-responsive flick detection - even tiny flicks will work if they're fast enough
+  // This makes small, quick flicks very effective for navigation
+  const isQuickFlick = pixelsPerSecond > 200 && Math.abs(currentDragAmount) > 5;
   
-  // Get target section based on momentum physics
   let targetSection;
   
-  // For fast flicks, prioritize the velocity direction
-  if (absVelocity > 300) {
+  if (isQuickFlick) {
+    // Fast flicks always go to the next section in the flick direction
     targetSection = isMovingForward
       ? Math.min(currentIndex + 1, sections.length - 1)
       : Math.max(currentIndex - 1, 0);
-  }
-  // For medium movements, use both progress and velocity
-  else if (absVelocity > 100) {
-    if (isMovingForward && sectionProgress > dynamicThreshold) {
+  } 
+  else if (pixelsPerSecond > 50) {
+    // Medium speed movements use a combination of position and direction
+    // For more natural feel, use a smaller threshold for faster movements
+    const velocityAdjustedThreshold = Math.max(0.1, 0.4 - (pixelsPerSecond / 1000));
+    
+    if (isMovingForward && sectionProgress > velocityAdjustedThreshold) {
       targetSection = Math.min(currentIndex + 1, sections.length - 1);
-    } else if (!isMovingForward && sectionProgress < (1 - dynamicThreshold)) {
+    } else if (!isMovingForward && sectionProgress < (1 - velocityAdjustedThreshold)) {
       targetSection = Math.max(currentIndex - 1, 0);
     } else {
       targetSection = currentIndex;
     }
   }
-  // For slow movements or holds, use position progress with a generous threshold
   else {
+    // Slow or maintained drags use position-based decision (like a scrollbar)
+    // If you've dragged more than halfway, go to the next section
     if (sectionProgress > 0.5) {
       targetSection = Math.min(currentIndex + 1, sections.length - 1);
     } else {
@@ -504,11 +499,8 @@ const finishDragging = () => {
     }
   }
   
-  // Calculate how "natural" the scroll should feel
-  const naturalBehavior = absVelocity > 200 ? 'smooth' : 'auto';
-  
-  // Navigate with appropriate behavior
-  goToSection(targetSection, naturalBehavior);
+  // Always use smooth scrolling for consistency
+  goToSection(targetSection, 'smooth');
 };
 
 // Navigation (would use router in real app)
