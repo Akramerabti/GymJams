@@ -306,10 +306,6 @@ class ContentIntegrationService {
     }
   }
 
-  /**
-   * Schedule regular content imports
-   * @param {Object} options - Schedule options
-   */
   scheduleImports(options = {}) {
     const {
       interval = 24 * 60 * 60 * 1000, // 24 hours by default

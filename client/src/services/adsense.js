@@ -1,11 +1,4 @@
-/**
- * Google AdSense integration service
- * 
- * This service handles ad initialization, loading, and tracking
- */
-
-// Mock AdSense account ID - replace with your actual AdSense publisher ID in production
-const ADSENSE_PUBLISHER_ID = 'pub-1234567890123456';
+const ADSENSE_PUBLISHER_ID = 'pub-2652838159140308';
 
 class AdSenseService {
   constructor() {

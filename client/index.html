@@ -29,9 +29,29 @@
     <!-- Stripe script -->
     <script defer src="https://js.stripe.com/v3/"></script>
     
+    <!-- Google AdSense -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2652838159140308"
+     crossorigin="anonymous"></script>
+    
+    <!-- Google Tag Manager -->
+    <script async src="https://securepubads.g.doubleclick.net/tag/js/gpt.js"></script>
+    <script>
+      window.googletag = window.googletag || {cmd: []};
+      googletag.cmd.push(function() {
+        // Define ad slots
+        googletag.defineSlot('/22639388920/GymJams_Top', [728, 90], 'div-gpt-ad-top').addService(googletag.pubads());
+        googletag.defineSlot('/22639388920/GymJams_Sidebar', [300, 250], 'div-gpt-ad-sidebar').addService(googletag.pubads());
+        googletag.defineSlot('/22639388920/GymJams_InContent', [300, 250], 'div-gpt-ad-incontent').addService(googletag.pubads());
+        
+        // Enable services
+        googletag.pubads().enableSingleRequest();
+        googletag.enableServices();
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <div id="ad-blocker-container" style="display:none;"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
