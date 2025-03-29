@@ -255,86 +255,65 @@ const goToSection = (index, behavior = 'auto') => {
   setCurrentSection(boundedIndex);
 };
 
-// Direct touch handlers with immediate response
+// Simplified direct touch handlers for mobile
 const handleTouchStart = (e) => {
-  // Prevent handling when touching interactive elements
+  // Skip if touching interactive elements
   if (e.target.closest('button') || e.target.closest('a')) {
     return;
   }
   
-  // Only track the first touch point
-  if (touchIdentifier !== null) return;
-  
+  // Only track primary touch
   const touch = e.touches[0];
   setTouchIdentifier(touch.identifier);
   
   setIsDragging(true);
   setStartDragPos({ x: touch.clientX, y: touch.clientY });
-  setCurrentDragAmount(0);
-  setDragStartTime(performance.now());
-  setLastDragTime(performance.now());
-  setDragVelocity(0);
   
-  // Store the current scroll position
-  const container = containerRef.current;
-  if (container) {
-    setLastScrollPos(isMobile ? container.scrollTop : container.scrollLeft);
+  // For mobile, use the actual current scroll position
+  if (containerRef.current) {
+    setLastScrollPos(isMobile ? containerRef.current.scrollTop : containerRef.current.scrollLeft);
   }
 };
 
 const handleTouchMove = (e) => {
-  if (!isDragging) return;
+  if (!isDragging || !containerRef.current) return;
   
-  // Find the touch point we're tracking
+  // Find our tracked touch point
   let touch = null;
-  for (let i = 0; i < e.changedTouches.length; i++) {
-    if (e.changedTouches[i].identifier === touchIdentifier) {
-      touch = e.changedTouches[i];
+  for (let i = 0; i < e.touches.length; i++) {
+    if (e.touches[i].identifier === touchIdentifier) {
+      touch = e.touches[i];
       break;
     }
   }
   
   if (!touch) return;
   
-  const container = containerRef.current;
-  if (!container) return;
+  // Calculate delta - how far we've moved from the start position
+  const deltaY = startDragPos.y - touch.clientY;
+  const deltaX = startDragPos.x - touch.clientX;
   
-  // Calculate drag distance - direct 1:1 mapping
-  const currentTouchPos = isMobile ? touch.clientY : touch.clientX;
-  const startPos = isMobile ? startDragPos.y : startDragPos.x;
-  const dragAmount = startPos - currentTouchPos;
+  // Use the appropriate delta based on device orientation
+  const delta = isMobile ? deltaY : deltaX;
   
-  // Calculate time elapsed since last update for velocity
-  const now = performance.now();
-  const deltaTime = now - lastDragTime;
-  
-  if (deltaTime > 0) {
-    // Calculate instantaneous velocity (pixels per millisecond)
-    const instantVelocity = (dragAmount - currentDragAmount) / deltaTime;
-    
-    // Use minimal smoothing during active drag for immediate direction changes
-    const smoothingFactor = 0.3; // Reduced from 0.8 for more direct response
-    const newVelocity = dragVelocity * smoothingFactor + instantVelocity * (1 - smoothingFactor);
-    
-    setDragVelocity(newVelocity);
-    setLastDragTime(now);
-  }
-  
-  // Direct 1:1 scrolling like normal scrollbar
-  const newPosition = lastScrollPos + dragAmount;
-  
-  // Update the scroll position immediately
+  // Apply direct scrolling - exact 1:1 with finger movement
   if (isMobile) {
-    container.scrollTop = newPosition;
+    containerRef.current.scrollTop = lastScrollPos + delta;
   } else {
-    container.scrollLeft = newPosition;
+    containerRef.current.scrollLeft = lastScrollPos + delta;
   }
   
-  setCurrentDragAmount(dragAmount);
+  // Store the current drag amount for velocity calculations
+  setCurrentDragAmount(delta);
+  
+  // Prevent default only for significant movements to avoid blocking taps
+  if (Math.abs(delta) > 10) {
+    e.preventDefault();
+  }
 };
 
 const handleTouchEnd = (e) => {
-  // Find the touch point we're tracking
+  // Check if this is our tracked touch
   let touchFound = false;
   for (let i = 0; i < e.changedTouches.length; i++) {
     if (e.changedTouches[i].identifier === touchIdentifier) {
@@ -345,36 +324,52 @@ const handleTouchEnd = (e) => {
   
   if (!touchFound) return;
   
-  // Reset touch tracking
+  // Reset tracking
   setTouchIdentifier(null);
+  setIsDragging(false);
   
-  if (!isDragging) return;
-  
-  finishDragging();
+  // Mobile-only snapping
+  if (isMobile && containerRef.current) {
+    const container = containerRef.current;
+    const viewportHeight = container.clientHeight;
+    
+    // Get the section we're closest to
+    const sectionIndex = Math.round(container.scrollTop / viewportHeight);
+    
+    // Immediately snap to it
+    container.scrollTop = sectionIndex * viewportHeight;
+    
+    // Update current section if needed
+    if (sectionIndex !== currentSection) {
+      setPrevSection(currentSection);
+      setCurrentSection(sectionIndex);
+    }
+  }
+  // Desktop behavior handled separately
+  else {
+    finishDragging();
+  }
 };
 
-// Mouse drag handlers with improved inertia
+// Handle mouse movements
 const handleMouseDown = (e) => {
-  // Only handle left button dragging
+  // Only handle left button
   if (e.button !== 0) return;
   
-  // Prevent default to avoid text selection
+  // Prevent text selection
   e.preventDefault();
   
   setIsDragging(true);
   setStartDragPos({ x: e.clientX, y: e.clientY });
   setCurrentDragAmount(0);
-  setDragStartTime(performance.now());
-  setLastDragTime(performance.now());
-  setDragVelocity(0);
   
-  // Store the current scroll position
+  // Store current position
   const container = containerRef.current;
   if (container) {
     setLastScrollPos(isMobile ? container.scrollTop : container.scrollLeft);
   }
   
-  // Change cursor style
+  // Set cursors
   document.body.style.cursor = 'grabbing';
   document.body.style.userSelect = 'none';
 };
