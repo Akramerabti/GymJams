@@ -63,8 +63,8 @@ const BlogManagement = () => {
   });
   const [filters, setFilters] = useState({
     search: '',
-    status: '',
-    category: '',
+    status: 'all',  // Changed from empty string to 'all'
+    category: 'all', // Changed from empty string to 'all'
     page: 1,
     limit: 10,
     sort: 'publishDate:desc'
@@ -105,10 +105,15 @@ const BlogManagement = () => {
         // Author ID is used to get both published and draft blogs for the current user
         const authorParams = user?.role === 'admin' ? {} : { author: user?.id };
         
-        const response = await blogService.getBlogs({
+        // Convert 'all' filter values to empty strings for the API
+        const apiFilters = {
           ...filters,
+          status: filters.status === 'all' ? '' : filters.status,
+          category: filters.category === 'all' ? '' : filters.category,
           ...authorParams
-        });
+        };
+        
+        const response = await blogService.getBlogs(apiFilters);
         
         setBlogs(response.data);
         setPagination({
@@ -194,8 +199,8 @@ const BlogManagement = () => {
   const clearFilters = () => {
     setFilters({
       search: '',
-      status: '',
-      category: '',
+      status: 'all',
+      category: 'all',
       page: 1,
       limit: 10,
       sort: 'publishDate:desc'
@@ -452,7 +457,7 @@ const BlogManagement = () => {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Status</SelectItem>
+                <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="published">Published</SelectItem>
                 <SelectItem value="draft">Draft</SelectItem>
                 <SelectItem value="archived">Archived</SelectItem>
@@ -470,7 +475,7 @@ const BlogManagement = () => {
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Categories</SelectItem>
+                <SelectItem value="all">All Categories</SelectItem>
                 <SelectItem value="Fitness">Fitness</SelectItem>
                 <SelectItem value="Nutrition">Nutrition</SelectItem>
                 <SelectItem value="Workout Plans">Workout Plans</SelectItem>
@@ -503,7 +508,7 @@ const BlogManagement = () => {
           </div>
           
           {/* Reset filters button */}
-          {(filters.search || filters.status || filters.category) && (
+          {(filters.search || filters.status !== 'all' || filters.category !== 'all') && (
             <Button
               variant="ghost"
               onClick={clearFilters}

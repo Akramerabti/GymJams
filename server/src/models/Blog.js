@@ -1,3 +1,4 @@
+// server/src/models/Blog.js
 import mongoose from 'mongoose';
 import slugify from 'slugify';
 
@@ -40,7 +41,7 @@ const commentSchema = new mongoose.Schema({
 const adPlacementSchema = new mongoose.Schema({
   position: {
     type: String,
-    enum: ['top', 'middle', 'bottom', 'sidebar', 'in-content'],
+    enum: ['top', 'middle', 'bottom', 'sidebar', 'in-content', 'exit-intent'],
     required: true
   },
   adNetwork: {
@@ -57,12 +58,19 @@ const adPlacementSchema = new mongoose.Schema({
     default: true
   },
   displayCondition: {
-    minReadTime: { type: Number, default: 0 }, // min read time to display ad
+    minReadTime: { type: Number, default: 0 },
     deviceTypes: {
       type: [String],
       enum: ['mobile', 'tablet', 'desktop', 'all'],
       default: ['all']
     }
+  },
+  // Added fields for ad performance tracking
+  performance: {
+    impressions: { type: Number, default: 0 },
+    clicks: { type: Number, default: 0 },
+    ctr: { type: Number, default: 0 },
+    revenue: { type: Number, default: 0 }
   }
 });
 
@@ -106,7 +114,7 @@ const blogSchema = new mongoose.Schema({
   category: {
     type: String,
     required: true,
-    enum: ['Fitness', 'Nutrition', 'Workout Plans', 'Equipment Reviews', 'Success Stories', 'Health Tips', 'Motivation']
+    enum: ['Fitness', 'Nutrition', 'Workout Plans', 'Equipment Reviews', 'Success Stories', 'Health Tips', 'Motivation', 'Supplements']
   },
   subcategory: {
     type: String,
@@ -156,7 +164,22 @@ const blogSchema = new mongoose.Schema({
   relatedPosts: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Blog'
-  }]
+  }],
+  // New fields for third-party content
+  source: {
+    name: String, // Source name (e.g., "Medical News Today")
+    url: String,  // Original article URL
+    type: String, // Source type (e.g., "newsapi", "spoonacular")
+    importedAt: Date // When the article was imported
+  },
+  // New fields for monetization
+  monetization: {
+    isMonetized: { type: Boolean, default: true },
+    adDensity: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
+    adPositions: { type: [String], default: ['top', 'middle', 'bottom', 'sidebar'] },
+    adsenseCategory: String, // Category for AdSense targeting
+    customKeywords: [String] // Keywords for ad targeting
+  }
 }, { 
   timestamps: true,
   toJSON: { virtuals: true },
@@ -196,6 +219,36 @@ blogSchema.pre('save', function(next) {
     this.publishDate = new Date();
   }
 
+  // Set default monetization fields for AdSense
+  if (this.isNew && this.monetization) {
+    // Generate ad category based on blog category
+    if (!this.monetization.adsenseCategory) {
+      const categoryMap = {
+        'Fitness': 'Health & Fitness',
+        'Nutrition': 'Food & Drink',
+        'Workout Plans': 'Health & Fitness',
+        'Equipment Reviews': 'Sports Equipment',
+        'Success Stories': 'Health & Fitness',
+        'Health Tips': 'Health',
+        'Motivation': 'Self Improvement',
+        'Supplements': 'Health'
+      };
+      
+      this.monetization.adsenseCategory = categoryMap[this.category] || 'Health & Fitness';
+    }
+    
+    // Add keywords based on tags and category
+    if (!this.monetization.customKeywords || this.monetization.customKeywords.length === 0) {
+      this.monetization.customKeywords = [
+        this.category.toLowerCase(),
+        ...(this.tags || []),
+        'fitness',
+        'health',
+        'wellness'
+      ];
+    }
+  }
+
   next();
 });
 
@@ -208,6 +261,10 @@ blogSchema.methods.incrementViews = async function() {
 blogSchema.methods.addComment = async function(userId, content) {
   this.comments.push({ user: userId, content });
   return this.save();
+};
+
+blogSchema.methods.isThirdPartyContent = function() {
+  return !!(this.source && this.source.url);
 };
 
 // Static methods
@@ -233,6 +290,24 @@ blogSchema.statics.findByTag = function(tag, limit) {
   return limit 
     ? this.find(query).limit(limit) 
     : this.find(query);
+};
+
+blogSchema.statics.findThirdPartyContent = function(options = {}) {
+  const query = { 
+    'source.url': { $exists: true, $ne: '' },
+    status: 'published'
+  };
+  
+  if (options.source) {
+    query['source.type'] = options.source;
+  }
+  
+  const sortField = options.sort || 'publishDate';
+  const sortOrder = options.order === 'asc' ? 1 : -1;
+  
+  return this.find(query)
+    .sort({ [sortField]: sortOrder })
+    .limit(options.limit || 20);
 };
 
 const Blog = mongoose.model('Blog', blogSchema);

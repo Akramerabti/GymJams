@@ -23,10 +23,8 @@ const Navbar = () => {
 
   // Navigation items based on user role
   const navigationItems = [
-    { name: 'Blog', path: '/blog' },
+    
     { name: 'Shop', path: '/shop' },
-    { name: 'Coaching', path: '/coaching' },
-    { name: 'Games', path: '/games' },
     {
       name:
         getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin'
@@ -37,6 +35,9 @@ const Navbar = () => {
           ? '/taskforce-dashboard'
           : '/gymbros',
     },
+    { name: 'Coaching', path: '/coaching' },
+    { name: 'Games', path: '/games' },
+    { name: 'Blog', path: '/blog' },
     { name: 'Contact', path: '/contact' },
   ];
 
