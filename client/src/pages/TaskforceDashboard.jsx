@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, Routes, Route, useLocation } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { 
   PackageOpen, Users, HelpCircle, ClipboardList, BarChart3, 
   ArrowUp, ArrowDown, DollarSign, ShoppingCart, AlertTriangle, 
@@ -82,8 +82,6 @@ const TaskForceDashboard = () => {
     // Set the active tab based on the route
     if (isAdManagementRoute) {
       setActiveTab('ads');
-    } else if (location.pathname.includes('/blog')) {
-      setActiveTab('blog');
     }
 
     fetchDashboardData();
@@ -276,9 +274,6 @@ const TaskForceDashboard = () => {
                 onClick={() => {
                   setActiveTab(tab);
                   setMobileMenuOpen(false);
-                  if (tab === 'blog' || tab === 'ads') {
-                    navigate(`/taskforce-dashboard/${tab}`);
-                  }
                 }}
               >
                 {tab === 'overview' && <BarChart3 className="h-4 w-4" />}
@@ -309,12 +304,7 @@ const TaskForceDashboard = () => {
         <p className="text-gray-600 mt-1">Manage products, inventory, and support tickets</p>
       </header>
 
-      <Tabs value={activeTab} onValueChange={(value) => {
-        setActiveTab(value);
-        if (value === 'blog' && !location.pathname.includes('/blog')) {
-          navigate('/taskforce-dashboard/blog');
-        }
-      }} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <div className="sticky top-0 z-10 bg-gray-50 pb-4">
           {/* Mobile Menu */}
           <MobileTabMenu />

@@ -73,6 +73,11 @@ const BlogManagement = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [blogToDelete, setBlogToDelete] = useState(null);
 
+  const getUserRole = (user) => {
+    return user?.user?.role || user?.role || '';
+  };
+
+
   // Check for dark mode
   useEffect(() => {
     const savedTheme = localStorage.getItem('siteTheme');
@@ -312,7 +317,7 @@ const BlogManagement = () => {
   ];
 
   // Check if user has access to this page
-  if (!user || (user.role !== 'admin' && user.role !== 'taskforce')) {
+  if (getUserRole(user) !== 'taskforce' && getUserRole(user) !== 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
