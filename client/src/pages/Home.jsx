@@ -1,66 +1,97 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const Home = () => {
   // DOM references
   const containerRef = useRef(null);
+  const videoRefs = useRef([]);
   
   // State
   const [currentSection, setCurrentSection] = useState(0);
+  const [prevSection, setPrevSection] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [startDragPos, setStartDragPos] = useState({ x: 0, y: 0 });
   const [currentDragAmount, setCurrentDragAmount] = useState(0);
   const [lastScrollPos, setLastScrollPos] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   
   // Section data
   const sections = [
     {
       id: 'hero',
       title: 'Elevate Your Fitness Journey',
-      description: 'Premium equipment, expert coaching, and community support.',
+      description: 'Premium equipment, expert coaching, and community support to help you reach your fitness goals. Start your transformation today.',
       buttonText: 'Get Started',
       route: '/',
-      bgImage: "/api/placeholder/1920/1080",
-      color: 'from-blue-800 to-blue-900'
+      videoSrc: "/api/placeholder/1920/1080", // Replace with actual video URLs
+      color: 'from-blue-800/80 to-blue-900/80'
     },
     {
       id: 'shop',
       title: 'Premium Equipment Shop',
-      description: 'Discover professional-grade fitness equipment for home and commercial gyms.',
+      description: 'Discover professional-grade fitness equipment for home and commercial gyms. Quality gear that lasts, designed for optimal performance.',
       buttonText: 'Shop Now',
       route: '/shop',
-      bgImage: "/api/placeholder/1920/1080",
-      color: 'from-indigo-600 to-indigo-900'
+      videoSrc: "/api/placeholder/1920/1080", // Replace with actual video URLs
+      color: 'from-indigo-600/80 to-indigo-900/80'
     },
     {
       id: 'gymBros',
       title: 'Track Your Gains',
-      description: 'Monitor your progress, set new records, and celebrate achievements.',
+      description: 'Monitor your progress, set new records, and celebrate achievements. Our intelligent tracking helps you visualize your journey and stay motivated.',
       buttonText: 'Track Gains',
       route: '/gymbros',
-      bgImage: "/api/placeholder/1920/1080",
-      color: 'from-purple-600 to-purple-900'
+      videoSrc: "/api/placeholder/1920/1080", // Replace with actual video URLs
+      color: 'from-purple-600/80 to-purple-900/80'
     },
     {
       id: 'games',
       title: 'Fitness Games',
-      description: 'Play exclusive games, earn points, and unlock special rewards.',
+      description: 'Play exclusive games, earn points, and unlock special rewards. Make your workout fun and engaging with gamified fitness experiences.',
       buttonText: 'Play Games',
       route: '/games',
-      bgImage: "/api/placeholder/1920/1080",
-      color: 'from-green-600 to-green-900'
+      videoSrc: "/api/placeholder/1920/1080", // Replace with actual video URLs
+      color: 'from-green-600/80 to-green-900/80'
     },
     {
       id: 'coaching',
       title: 'Expert Coaching',
-      description: 'Transform your fitness journey with guidance from certified trainers.',
+      description: 'Transform your fitness journey with guidance from certified trainers. Personalized plans, real-time feedback, and continuous support.',
       buttonText: 'Find a Coach',
       route: '/coaching',
-      bgImage: "/api/placeholder/1920/1080",
-      color: 'from-red-600 to-red-900'
+      videoSrc: "/api/placeholder/1920/1080", // Replace with actual video URLs
+      color: 'from-red-600/80 to-red-900/80'
     }
   ];
+  
+  // Initialize video refs array
+  useEffect(() => {
+    videoRefs.current = videoRefs.current.slice(0, sections.length);
+  }, [sections.length]);
+  
+  // Play current section video and pause others
+  useEffect(() => {
+    if (isTransitioning) return;
+    
+    videoRefs.current.forEach((videoRef, index) => {
+      if (!videoRef) return;
+      
+      if (index === currentSection) {
+        if (videoRef.paused) {
+          try {
+            videoRef.play().catch(err => console.error("Video play error:", err));
+          } catch (err) {
+            console.error("Video play error:", err);
+          }
+        }
+      } else {
+        if (!videoRef.paused) {
+          videoRef.pause();
+        }
+      }
+    });
+  }, [currentSection, isTransitioning]);
   
   // Handle device size
   useEffect(() => {
@@ -72,6 +103,19 @@ const Home = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+  
+  // Handle section transition
+  useEffect(() => {
+    if (prevSection !== currentSection) {
+      setIsTransitioning(true);
+      const timer = setTimeout(() => {
+        setIsTransitioning(false);
+      }, 1000); // Match this with your CSS transition duration
+      
+      setPrevSection(currentSection);
+      return () => clearTimeout(timer);
+    }
+  }, [currentSection, prevSection]);
   
   // Update current section based on scroll position
   useEffect(() => {
@@ -85,13 +129,25 @@ const Home = () => {
       const viewportSize = isMobile ? container.clientHeight : container.clientWidth;
       const sectionIndex = Math.round(scrollPos / viewportSize);
       
-      setCurrentSection(Math.max(0, Math.min(sectionIndex, sections.length - 1)));
+      if (sectionIndex !== currentSection) {
+        setPrevSection(currentSection);
+        setCurrentSection(Math.max(0, Math.min(sectionIndex, sections.length - 1)));
+      }
       setLastScrollPos(scrollPos);
     };
     
     container.addEventListener('scroll', handleScroll);
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [isDragging, isMobile, sections.length]);
+  }, [isDragging, isMobile, sections.length, currentSection]);
+  
+  // Preload videos
+  useEffect(() => {
+    sections.forEach((section) => {
+      const video = document.createElement('video');
+      video.src = section.videoSrc;
+      video.preload = 'auto';
+    });
+  }, []);
   
   // Navigate to section
   const goToSection = (index, behavior = 'smooth') => {
@@ -99,6 +155,8 @@ const Home = () => {
     
     const container = containerRef.current;
     const viewportSize = isMobile ? container.clientHeight : container.clientWidth;
+    
+    setPrevSection(currentSection);
     
     container.scrollTo({
       left: isMobile ? 0 : index * viewportSize,
@@ -231,8 +289,8 @@ const Home = () => {
     const isDraggingForward = currentDragAmount > 0;
     
     // Threshold for switching sections (lower = more sensitive)
-    // Only need to drag 30% of screen width to switch sections
-    const dragThreshold = 0.3;
+    // Only need to drag 25% of screen width to switch sections
+    const dragThreshold = 0.25;
     
     let targetSection;
     
@@ -280,9 +338,24 @@ const Home = () => {
         onTouchEnd={handleTouchEnd}
       >
         {/* Hide scrollbar */}
-        <style jsx>{`
+        <style jsx="true">{`
           div::-webkit-scrollbar {
             display: none;
+          }
+          
+          .info-box {
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+          }
+          
+          .video-transition {
+            transition: opacity 1s ease-in-out, transform 1.2s ease-in-out;
+          }
+          
+          @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+            100% { transform: translateY(0px); }
           }
         `}</style>
         
@@ -293,45 +366,60 @@ const Home = () => {
               key={section.id}
               className="relative h-screen w-screen flex-shrink-0"
             >
-              {/* Parallax background */}
+              {/* Video background */}
               <div 
-                className="absolute inset-0 bg-cover bg-center transition-all duration-500"
-                style={{ 
-                  backgroundImage: `url(${section.bgImage})`,
-                  transform: `translate${isMobile ? 'Y' : 'X'}(${(index - currentSection) * -5}%)` // Parallax effect
-                }}
+                className="absolute inset-0 overflow-hidden"
               >
-                {/* Color overlay */}
-                <div className={`absolute inset-0 bg-gradient-to-br ${section.color} opacity-70`}></div>
+                <video
+                  ref={el => videoRefs.current[index] = el}
+                  src={section.videoSrc}
+                  className={`absolute inset-0 object-cover w-full h-full video-transition ${
+                    currentSection === index 
+                      ? 'opacity-100 scale-100' 
+                      : 'opacity-0 scale-110'
+                  }`}
+                  autoPlay={index === 0}
+                  loop
+                  muted
+                  playsInline
+                  preload="auto"
+                />
+                {/* Color overlay gradient */}
+                <div 
+                  className={`absolute inset-0 bg-gradient-to-br ${section.color} transition-opacity duration-1000 ${
+                    currentSection === index ? 'opacity-80' : 'opacity-0'
+                  }`}
+                />
               </div>
               
               {/* Content with fade effect */}
-              <div className="absolute inset-0 flex items-center justify-center px-6">
+              <div className="absolute inset-0 flex items-center justify-center p-6 md:p-12 pointer-events-none">
                 <div 
-                  className="max-w-4xl mx-auto text-center transition-all duration-500"
-                  style={{
-                    opacity: index === currentSection ? 1 : 0,
-                    transform: `translate${isMobile ? 'Y' : 'X'}(${
-                      index === currentSection ? 0 : 
-                      index < currentSection ? -50 : 50
-                    }px)`
-                  }}
+                  className={`max-w-4xl mx-auto transition-all duration-700 ease-in-out ${
+                    currentSection === index 
+                      ? 'opacity-100 translate-y-0' 
+                      : 'opacity-0 translate-y-8'
+                  }`}
                 >
-                  <h2 className="text-4xl md:text-6xl font-bold text-white mb-6">
-                    {section.title}
-                  </h2>
-                  
-                  <p className="text-xl text-white/90 mb-8 max-w-xl mx-auto">
-                    {section.description}
-                  </p>
-                  
-                  <button
-                    onClick={() => handleNavigate(section.route)}
-                    className="px-8 py-3 bg-white text-gray-900 font-bold rounded-full flex items-center gap-2 mx-auto hover:bg-opacity-90 transition-all hover:scale-105"
-                  >
-                    {section.buttonText}
-                    <ArrowRight className="w-5 h-5" />
-                  </button>
+                  {/* Semi-transparent info box */}
+                  <div className="info-box bg-gray-900/40 rounded-xl p-6 md:p-8 border border-white/20 shadow-xl text-center pointer-events-auto">
+                    <h2 className="text-3xl md:text-5xl font-bold text-white mb-4 md:mb-6">
+                      {section.title}
+                    </h2>
+                    
+                    <p className="text-lg md:text-xl text-white/90 mb-6 md:mb-8 max-w-2xl mx-auto leading-relaxed">
+                      {section.description}
+                    </p>
+                    
+                    <button
+                      onClick={() => handleNavigate(section.route)}
+                      className="relative overflow-hidden group px-8 py-3 bg-white text-gray-900 font-bold rounded-full flex items-center gap-2 mx-auto hover:bg-opacity-95 transition-all"
+                    >
+                      <span className="relative z-10">{section.buttonText}</span>
+                      <ArrowRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" />
+                      <span className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-300/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -344,7 +432,7 @@ const Home = () => {
         className={`fixed z-20 ${
           isMobile 
             ? 'right-4 top-1/2 -translate-y-1/2 flex-col'
-            : 'bottom-6 left-1/2 -translate-x-1/2 flex-row'
+            : 'bottom-8 left-1/2 -translate-x-1/2 flex-row'
         } flex gap-3`}
       >
         {sections.map((_, index) => (
@@ -384,9 +472,7 @@ const Home = () => {
               className="fixed left-6 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/30 p-3 rounded-full transition-all"
               aria-label="Previous section"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
-              </svg>
+              <ChevronLeft className="w-6 h-6 text-white" />
             </button>
           )}
           
@@ -396,15 +482,22 @@ const Home = () => {
               className="fixed right-6 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/30 p-3 rounded-full transition-all"
               aria-label="Next section"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                <path d="M5 12h14M12 5l7 7-7 7"/>
-              </svg>
+              <ChevronRight className="w-6 h-6 text-white" />
             </button>
           )}
         </>
       )}
       
-      {/* Drag instruction (first visit only) */}
+      {/* Section title indicator (mobile and desktop) */}
+      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-20">
+        <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-full">
+          <p className="text-white/90 text-sm font-medium">
+            {sections[currentSection].id.charAt(0).toUpperCase() + sections[currentSection].id.slice(1)}
+          </p>
+        </div>
+      </div>
+      
+      {/* Swipe instruction (first visit only) */}
       <div 
         className="fixed bottom-8 left-1/2 -translate-x-1/2 z-20 text-white/70 text-sm bg-black/30 backdrop-blur-sm px-4 py-2 rounded-full flex items-center gap-2 pointer-events-none"
         style={{
@@ -412,13 +505,9 @@ const Home = () => {
           transition: 'opacity 0.5s ease-in-out',
         }}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 6l-6 6 6 6"/>
-        </svg>
+        <ChevronLeft className="w-4 h-4" />
         {isMobile ? 'Swipe up/down' : 'Drag or swipe to navigate'} 
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M10 6l6 6-6 6"/>
-        </svg>
+        <ChevronRight className="w-4 h-4" />
       </div>
     </div>
   );
