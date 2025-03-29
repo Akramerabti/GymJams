@@ -1,713 +1,701 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Dumbbell, Lock, MessageCircle, Star, Shield, ChevronRight, 
-  ChevronLeft, Sparkles, Zap, Users, Info,
-} from 'lucide-react';
-import { format, formatDistanceToNow } from 'date-fns';
-import { toast } from 'sonner';
-import gymbrosService from '../../services/gymbros.service';
-import { usePoints } from '../../hooks/usePoints';
-import useAuthStore from '../../stores/authStore';
-import GymBrosMatchChat from './components/GymBrosMatchChat';
-import ActiveStatus from './components/ActiveStatus';
-import EmptyStateMessage from './components/EmptyStateMessage';
+import { useNavigate } from 'react-router-dom';
+import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 
-// Premium feature unlock cost
-const PREMIUM_FEATURES = {
-  WHO_LIKED_ME: 100
-};
+const Home = () => {
+// DOM references
+const containerRef = useRef(null);
+const videoRefs = useRef([]);
+const scrollTimeoutRef = useRef(null);
 
-const GymbrosMatchesList = () => {
-  const { user, isAuthenticated } = useAuthStore();
-  const { balance: pointsBalance, subtractPoints, updatePointsInBackend } = usePoints();
-  
-  // State
-  const [matches, setMatches] = useState([]);
-  const [newMatches, setNewMatches] = useState([]);
-  const [conversations, setConversations] = useState([]);
-  const [likedMeCount, setLikedMeCount] = useState(0);
-  const [isPremium, setIsPremium] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [isShowingChat, setIsShowingChat] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [selectedChat, setSelectedChat] = useState(null);
-  
-  // Animation state for the unlock card
-  const [isHovering, setIsHovering] = useState(false);
-  
-  // Refs
-  const matchesCarouselRef = useRef(null);
-  const userIdRef = useRef(null);
-const lastLikesCountFetchRef = useRef(0);
-  
-  // Fetch matches and liked count on component mount
-  useEffect(() => {
-    fetchMatchesAndLikes();
-  }, []);
+// State
+const [currentSection, setCurrentSection] = useState(0);
+const [prevSection, setPrevSection] = useState(0);
+const [isMobile, setIsMobile] = useState(false);
+const [isDragging, setIsDragging] = useState(false);
+const [startDragPos, setStartDragPos] = useState({ x: 0, y: 0 });
+const [currentDragAmount, setCurrentDragAmount] = useState(0);
+const [lastScrollPos, setLastScrollPos] = useState(0);
+const [isTransitioning, setIsTransitioning] = useState(false);
+const [touchIdentifier, setTouchIdentifier] = useState(null);
+const [hasLoaded, setHasLoaded] = useState(false);
+const [dragStartTime, setDragStartTime] = useState(0);
+const [lastDragTime, setLastDragTime] = useState(0);
+const [dragVelocity, setDragVelocity] = useState(0);
+const [scrollProgress, setScrollProgress] = useState(0);
 
-  useEffect(() => {
-    // Listen for match highlight events
-    const handleHighlightMatch = (event) => {
-      const matchedProfile = event.detail?.matchedProfile;
-      if (matchedProfile) {
-        // Refresh matches to show the new match
-        fetchMatchesAndLikes();
-        
-        // Find the match in the list and potentially open the chat
-        const match = matches.find(m => 
-          m._id === matchedProfile._id || 
-          m.name === matchedProfile.name
-        );
-        
-        if (match) {
-          // Automatically open chat with this match
-          handleOpenChat(match);
-        }
-      }
-    };
-    
-    window.addEventListener('highlightMatch', handleHighlightMatch);
-    
-    return () => {
-      window.removeEventListener('highlightMatch', handleHighlightMatch);
-    };
-  }, [matches]);
-  
-  useEffect(() => {
-    // For authenticated users, store the user ID in the ref
-    if (user?.id) {
-      userIdRef.current = user.id;
-    } else if (user?.user?.id) {
-      userIdRef.current = user.user.id;
-    } else {
-      // For guest users, try to get the ID from localStorage
-      const guestToken = localStorage.getItem('gymbros_guest_token');
-      
-      if (guestToken) {
-        try {
-          // Try to decode the JWT token to get the user ID
-          // This is a simple decoder, not a validator
-          const base64Url = guestToken.split('.')[1];
-          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-          const payload = JSON.parse(window.atob(base64));
-          
-          // Guest tokens could have profileId or guestId
-          userIdRef.current = payload.profileId || payload.guestId;
-          
-          console.log('Found guest user ID from token:', userIdRef.current);
-        } catch (e) {
-          console.error('Error decoding guest token:', e);
-        }
-      }
-    }
-  }, [user]);
+// Section data
+const sections = [
+  {
+    id: 'hero',
+    title: 'Elevate Your Fitness Journey',
+    description: 'Premium equipment, expert coaching, and community support to help you reach your fitness goals. Start your transformation today.',
+    buttonText: 'Get Started',
+    route: '/',
+    videoSrc: "/api/placeholder/1920/1080", // Replace with actual video URLs
+    color: 'from-blue-800/80 to-blue-900/80'
+  },
+  {
+    id: 'shop',
+    title: 'Premium Equipment Shop',
+    description: 'Discover professional-grade fitness equipment for home and commercial gyms. Quality gear that lasts, designed for optimal performance.',
+    buttonText: 'Shop Now',
+    route: '/shop',
+    videoSrc: "/api/placeholder/1920/1080", // Replace with actual video URLs
+    color: 'from-indigo-600/80 to-indigo-900/80'
+  },
+  {
+    id: 'gymBros',
+    title: 'Track Your Gains',
+    description: 'Monitor your progress, set new records, and celebrate achievements. Our intelligent tracking helps you visualize your journey and stay motivated.',
+    buttonText: 'Track Gains',
+    route: '/gymbros',
+    videoSrc: "/api/placeholder/1920/1080", // Replace with actual video URLs
+    color: 'from-purple-600/80 to-purple-900/80'
+  },
+  {
+    id: 'games',
+    title: 'Fitness Games',
+    description: 'Play exclusive games, earn points, and unlock special rewards. Make your workout fun and engaging with gamified fitness experiences.',
+    buttonText: 'Play Games',
+    route: '/games',
+    videoSrc: "/api/placeholder/1920/1080", // Replace with actual video URLs
+    color: 'from-green-600/80 to-green-900/80'
+  },
+  {
+    id: 'coaching',
+    title: 'Expert Coaching',
+    description: 'Transform your fitness journey with guidance from certified trainers. Personalized plans, real-time feedback, and continuous support.',
+    buttonText: 'Find a Coach',
+    route: '/coaching',
+    videoSrc: "/api/placeholder/1920/1080", // Replace with actual video URLs
+    color: 'from-red-600/80 to-red-900/80'
+  }
+];
 
+// Initialize video refs array
 useEffect(() => {
-  if (matches.length > 0) {
-    console.log('Processing matches:', matches);
+  videoRefs.current = videoRefs.current.slice(0, sections.length);
+}, [sections.length]);
+
+// Update PlayRefs to handle multiple videos
+useEffect(() => {
+  videoRefs.current.forEach((videoRef, index) => {
+    if (!videoRef) return;
     
-    // More robust filtering based on whether the match has messages
-    const conversationsList = matches.filter(match => {
-      // Check if match has a conversation based on our enhanced data
-      if (match.hasConversation === true) {
-        return true;
-      }
-      
-      // Check if match has messages array with content
-      if (match.messages && match.messages.length > 0) {
-        return true;
-      }
-      
-      // Check if match has lastMessage object with content
-      if (match.lastMessage && match.lastMessage.content) {
-        return true;
-      }
-      
-      // No messages found
-      return false;
-    });
+    // Check if this video is close to the current section (current or adjacent)
+    const isNearby = Math.abs(index - currentSection) <= 1;
     
-    // All other matches are considered new
-    const newMatchesList = matches.filter(match => !conversationsList.includes(match));
-    
-    // Sort conversations by most recent message time
-    conversationsList.sort((a, b) => {
-      // Get timestamp from whatever form lastMessage takes
-      const getTimestamp = (match) => {
-        if (match.lastMessage && match.lastMessage.timestamp) {
-          return new Date(match.lastMessage.timestamp);
+    // For videos close to view, ensure they're playing
+    if (isNearby) {
+      if (videoRef.paused) {
+        try {
+          const playPromise = videoRef.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(err => console.error("Video play error:", err));
+          }
+        } catch (err) {
+          console.error("Video play error:", err);
         }
-        
-        if (match.messages && match.messages.length > 0) {
-          // Get the latest message timestamp
-          const timestamps = match.messages.map(msg => new Date(msg.timestamp));
-          return new Date(Math.max(...timestamps.map(date => date.getTime())));
-        }
-        
-        return new Date(0);
-      };
-      
-      return getTimestamp(b) - getTimestamp(a);
-    });
-    
-    console.log(`Sorted into ${conversationsList.length} conversations and ${newMatchesList.length} new matches`);
-    setNewMatches(newMatchesList);
-    setConversations(conversationsList);
-  } else {
-    setNewMatches([]);
-    setConversations([]);
-  }
-}, [matches]);
-  
-const fetchMatchesAndLikes = async () => {
-  setLoading(true);
-  try {
-    // Fetch matches with message preview
-    const matchesData = await gymbrosService.getMatchesWithPreview();
-    
-    // Process and sort matches
-    const sortedMatches = Array.isArray(matchesData) ? matchesData : [];
-    setMatches(sortedMatches);
-    
-    // Check if we should fetch the likes count based on time
-    const now = Date.now();
-    const timeSinceLastFetch = now - lastLikesCountFetchRef.current;
-    const MIN_FETCH_INTERVAL = 60000; // 1 minute minimum between fetches
-    
-    if (timeSinceLastFetch > MIN_FETCH_INTERVAL) {
-      try {
-        // Fetch who liked me count
-        const likedCount = await gymbrosService.getWhoLikedMeCount();
-        setLikedMeCount(likedCount);
-        
-        // Update the last fetch timestamp
-        lastLikesCountFetchRef.current = now;
-      } catch (likeError) {
-        // Handle rate limiting for likes count specifically
-        if (likeError.response?.status === 429) {
-          console.log('Rate limited on likes count, using previous value');
-          // Don't show toast for this specific error to avoid spamming the user
-        } else {
-          console.error('Error fetching who liked me count:', likeError);
-          // Only show toast for non-rate-limit errors
-          toast.error('Could not update likes count');
-        }
-        // Keep the previous likes count value
       }
     } else {
-      console.log('Skipping likes count fetch due to rate limiting', {
-        timeSince: timeSinceLastFetch,
-        minInterval: MIN_FETCH_INTERVAL
-      });
+      // Pause videos far from view
+      if (!videoRef.paused) {
+        videoRef.pause();
+      }
     }
-  } catch (error) {
-    console.error('Error fetching matches:', error);
-    toast.error('Failed to load matches');
-  } finally {
-    setLoading(false);
+  });
+}, [currentSection]);
+
+// Handle device size and initial loading
+useEffect(() => {
+  const handleResize = () => {
+    const mobile = window.innerWidth < 768;
+    setIsMobile(mobile);
+    
+    // Reset scroll position when switching between mobile and desktop
+    const container = containerRef.current;
+    if (container) {
+      if (mobile) {
+        container.scrollTop = currentSection * container.clientHeight;
+        container.scrollLeft = 0;
+      } else {
+        container.scrollLeft = currentSection * container.clientWidth;
+        container.scrollTop = 0;
+      }
+    }
+  };
+  
+  handleResize();
+  
+  // Mark as loaded after a short delay to ensure everything is rendered
+  setTimeout(() => {
+    setHasLoaded(true);
+  }, 100);
+  
+  window.addEventListener('resize', handleResize);
+  return () => window.removeEventListener('resize', handleResize);
+}, [currentSection]);
+
+// Handle section transition
+useEffect(() => {
+  if (prevSection !== currentSection) {
+    setIsTransitioning(true);
+    const timer = setTimeout(() => {
+      setIsTransitioning(false);
+    }, 1000); // Match this with your CSS transition duration
+    
+    setPrevSection(currentSection);
+    return () => clearTimeout(timer);
+  }
+}, [currentSection, prevSection]);
+
+// Handle touch behavior for native scrolling feel
+useEffect(() => {
+  // Passive event listener for better performance
+  document.addEventListener('touchmove', () => {}, { passive: true });
+  
+  return () => {
+    document.removeEventListener('touchmove', () => {});
+  };
+}, []);
+
+// Update current section based on scroll position
+const updateCurrentSection = () => {
+  const container = containerRef.current;
+  if (!container || isDragging) return;
+  
+  const scrollPos = isMobile ? container.scrollTop : container.scrollLeft;
+  const viewportSize = isMobile ? container.clientHeight : container.clientWidth;
+  
+  // Calculate the section index
+  const sectionIndex = Math.round(scrollPos / viewportSize);
+  
+  if (sectionIndex !== currentSection && sectionIndex >= 0 && sectionIndex < sections.length) {
+    setPrevSection(currentSection);
+    setCurrentSection(sectionIndex);
+  }
+  
+  setLastScrollPos(scrollPos);
+};
+
+// Use requestAnimationFrame for efficient scroll handling
+useEffect(() => {
+  const container = containerRef.current;
+  if (!container) return;
+  
+  let rafId;
+  const handleScroll = () => {
+    // Cancel any pending animation frame
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+    }
+    
+    // Schedule the update on the next animation frame
+    rafId = requestAnimationFrame(updateCurrentSection);
+  };
+  
+  container.addEventListener('scroll', handleScroll, { passive: true });
+  return () => {
+    container.removeEventListener('scroll', handleScroll);
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+    }
+  };
+}, [isDragging, isMobile, sections.length, currentSection]);
+
+// Preload videos
+useEffect(() => {
+  sections.forEach((section) => {
+    if (!section.videoSrc) return;
+    
+    const video = document.createElement('video');
+    video.src = section.videoSrc;
+    video.preload = 'metadata';
+    video.muted = true;
+    video.playsInline = true;
+    
+    // Force low resolution for mobile devices
+    if (window.innerWidth < 768) {
+      video.setAttribute('playsinline', '');
+      video.setAttribute('webkit-playsinline', '');
+    }
+  });
+}, []);
+
+// Navigate to section with approach based on device type
+const goToSection = (index, behavior = 'auto') => {
+  if (!containerRef.current) return;
+  
+  // No change needed
+  if (index === currentSection) return;
+  
+  // Ensure index is within bounds
+  const boundedIndex = Math.max(0, Math.min(index, sections.length - 1));
+  
+  const container = containerRef.current;
+  const viewportSize = isMobile ? container.clientHeight : container.clientWidth;
+  
+  setPrevSection(currentSection);
+  
+  // Mobile: Instant scrolling without animation
+  if (isMobile) {
+    container.scrollTop = boundedIndex * viewportSize;
+  } 
+  // Desktop/PC: Keep original smooth scrolling behavior
+  else {
+    try {
+      container.scrollTo({
+        left: boundedIndex * viewportSize,
+        top: 0,
+        behavior: 'smooth'
+      });
+    } catch (err) {
+      // Fallback for browsers without smooth scrolling support
+      container.scrollLeft = boundedIndex * viewportSize;
+    }
+  }
+  
+  setCurrentSection(boundedIndex);
+};
+
+// Simplified direct touch handlers for mobile
+const handleTouchStart = (e) => {
+  // Skip if touching interactive elements
+  if (e.target.closest('button') || e.target.closest('a')) {
+    return;
+  }
+  
+  // Only track primary touch
+  const touch = e.touches[0];
+  setTouchIdentifier(touch.identifier);
+  
+  setIsDragging(true);
+  setStartDragPos({ x: touch.clientX, y: touch.clientY });
+  
+  // For mobile, use the actual current scroll position
+  if (containerRef.current) {
+    setLastScrollPos(isMobile ? containerRef.current.scrollTop : containerRef.current.scrollLeft);
   }
 };
+
+const handleTouchMove = (e) => {
+  if (!isDragging || !containerRef.current) return;
   
-  // Pull-to-refresh handler
-  const handleRefresh = async () => {
-    if (refreshing) return;
-    
-    setRefreshing(true);
-    try {
-      await fetchMatchesAndLikes();
-      toast.success('Matches refreshed');
-    } catch (error) {
-      console.error('Error refreshing matches:', error);
-      toast.error('Failed to refresh matches');
-    } finally {
-      setRefreshing(false);
+  // Find our tracked touch point
+  let touch = null;
+  for (let i = 0; i < e.touches.length; i++) {
+    if (e.touches[i].identifier === touchIdentifier) {
+      touch = e.touches[i];
+      break;
     }
-  };
-  
-  const handleOpenChat = async (user) => {
-    try {
-      console.log('Opening chat with:', user);
-      
-      // Determine the correct identifier based on user type
-      const targetIdentifier = user.userId || user._id;
-      
-      console.log('Target identifier:', targetIdentifier);
-      // Get actual match ID between current user and target user
-      const matchData = await gymbrosService.findMatch(targetIdentifier);
-      
-      // Handle different response cases
-      if (matchData === 'auth-required') {
-        return navigate('/login');
-      }
-      
-      if (!matchData?.matchId) {
-        // Create new match if one doesn't exist
-        const newMatch = await gymbrosService.createMatch(targetIdentifier);
-        if (!newMatch?.matchId) {
-          return toast.error('Could not start conversation');
-        }
-        return setSelectedChat({
-          userInfo: user,
-          matchId: newMatch.matchId
-        });
-      }
-  
-      // Open existing chat
-      setSelectedChat({
-        userInfo: user,
-        matchId: matchData.matchId
-      });
-      setIsShowingChat(true);
-  
-    } catch (error) {
-      console.error('Chat open error:', error);
-      toast.error(error.response?.data?.message || 'Failed to open chat');
-    }
-  };
-  
-  // Handle horizontal scroll on matches carousel
-  const handleHorizontalScroll = (direction) => {
-    if (!matchesCarouselRef.current) return;
-    
-    const scrollAmount = 200; // px
-    const currentScroll = matchesCarouselRef.current.scrollLeft;
-    
-    matchesCarouselRef.current.scrollTo({
-      left: direction === 'right' ? currentScroll + scrollAmount : currentScroll - scrollAmount,
-      behavior: 'smooth'
-    });
-  };
-  
-  // Handle unlocking who liked me
-  const handleUnlockWhoLikedMe = () => {
-    if (!isAuthenticated) {
-      toast.error('Please log in to use premium features');
-      return;
-    }
-    
-    if (pointsBalance < PREMIUM_FEATURES.WHO_LIKED_ME) {
-      toast.error(`Not enough points! You need ${PREMIUM_FEATURES.WHO_LIKED_ME} points to unlock.`);
-      return;
-    }
-    
-    // Deduct points
-    subtractPoints(PREMIUM_FEATURES.WHO_LIKED_ME);
-    updatePointsInBackend(-PREMIUM_FEATURES.WHO_LIKED_ME);
-    
-    // Set premium status
-    setIsPremium(true);
-    
-    toast.success('Premium feature unlocked!');
-    
-    // Vibrate if supported
-    if (navigator.vibrate) {
-      navigator.vibrate([100, 50, 100]);
-    }
-  };
-  
-  // Format image URL helper
-  const formatImageUrl = (url) => {
-    if (!url) return "/api/placeholder/400/400";
-    
-    if (url.startsWith('blob:')) {
-      return url;
-    } else if (url.startsWith('http')) {
-      return url;
-    } else {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
-    }
-  };
-  
-  // Placeholder component for loading state
-  if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <motion.div 
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-        >
-          <Dumbbell size={32} className="text-blue-500" />
-        </motion.div>
-        <p className="ml-4 text-gray-600">Loading your matches...</p>
-      </div>
-    );
   }
   
-  // Render enhanced unlock card for "Who Liked You"
-  const renderUnlockCard = () => (
-    <motion.div
-      className="w-28 snap-start"
-      whileHover={{ scale: 1.05 }}
-      onHoverStart={() => setIsHovering(true)}
-      onHoverEnd={() => setIsHovering(false)}
-      onClick={handleUnlockWhoLikedMe}
-    >
-      <div className="relative w-28 aspect-[7/10] rounded-lg overflow-hidden shadow-lg cursor-pointer">
-        {/* Animated gradient background */}
-        <motion.div 
-          className="absolute inset-0 bg-gradient-to-br from-pink-500 via-purple-600 to-indigo-700"
-          animate={{ 
-            background: isHovering 
-              ? [
-                  "linear-gradient(to bottom right, #ec4899, #8b5cf6, #3b82f6)", 
-                  "linear-gradient(to bottom right, #8b5cf6, #3b82f6, #ec4899)", 
-                  "linear-gradient(to bottom right, #3b82f6, #ec4899, #8b5cf6)"
-                ]
-              : "linear-gradient(to bottom right, #ec4899, #8b5cf6, #3b82f6)"
-          }}
-          transition={{ 
-            duration: isHovering ? 3 : 0,
-            repeat: isHovering ? Infinity : 0,
-            repeatType: "reverse" 
-          }}
-        />
-        
-        {/* Animated border */}
-        <motion.div 
-          className="absolute inset-0 rounded-lg"
-          style={{ 
-            background: "conic-gradient(from 0deg, #f9a8d4, #c084fc, #93c5fd, #f9a8d4)",
-            backgroundSize: "400% 400%",
-            padding: "2px"
-          }}
-          animate={{ 
-            backgroundPosition: isHovering 
-              ? ["0% 0%", "100% 100%"] 
-              : "0% 0%" 
-          }}
-          transition={{ 
-            duration: 3, 
-            repeat: Infinity,
-            repeatType: "mirror" 
-          }}
-        />
-        
-        {/* Content */}
-        <div className="absolute inset-[2px] rounded-lg bg-gradient-to-br from-pink-500/80 via-purple-600/80 to-indigo-700/80 backdrop-blur-sm">
-          <div className="absolute inset-0 flex flex-col items-center justify-between py-4 px-2">
-            <motion.div
-              animate={{ y: isHovering ? [0, -5, 0] : 0 }}
-              transition={{ duration: 1.5, repeat: Infinity, repeatType: "mirror" }}
-              className="flex flex-col items-center"
-            >
-              <Zap className="text-rose-300 h-6 w-6 mb-1" />
-              <motion.div
-                animate={{ 
-                  scale: isHovering ? [1, 1.1, 1] : 1,
-                  color: isHovering 
-                    ? ["rgba(255,255,255,0.9)", "rgba(255,255,255,1)", "rgba(255,255,255,0.9)"] 
-                    : "rgba(255,255,255,0.9)"
-                }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-                className="text-xl font-bold text-white"
-              >
-                {likedMeCount}
-              </motion.div>
-              <p className="text-xs text-white/90 text-center">people like you</p>
-            </motion.div>
-            
-            <motion.div
-              className="bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full mt-2"
-              whileHover={{ scale: 1.05, backgroundColor: "rgba(255,255,255,0.3)" }}
-              animate={{
-                boxShadow: isHovering 
-                  ? [
-                      "0 0 0 rgba(255,255,255,0.4)",
-                      "0 0 20px rgba(255,255,255,0.4)",
-                      "0 0 0 rgba(255,255,255,0.4)"
-                    ]
-                  : "0 0 0 rgba(255,255,255,0.4)"
-              }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            >
-              <div className="flex items-center justify-center">
-                <motion.div
-                  animate={{ 
-                    rotate: isHovering ? [0, 15, 0, -15, 0] : 0 
-                  }}
-                  transition={{ 
-                    duration: 1,
-                    repeat: isHovering ? Infinity : 0, 
-                    repeatDelay: 1
-                  }}
-                >
-                  <Sparkles size={12} className="text-yellow-200 mr-1" />
-                </motion.div>
-                <span className="text-xs font-medium text-white">Unlock</span>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-        
-        {/* Pulsing effect */}
-        <motion.div
-          className="absolute inset-0 rounded-lg"
-          animate={{ 
-            boxShadow: isHovering 
-              ? [
-                  "0 0 0 rgba(219,39,119,0)", 
-                  "0 0 25px rgba(219,39,119,0.5)", 
-                  "0 0 0 rgba(219,39,119,0)"
-                ] 
-              : "0 0 0 rgba(219,39,119,0)" 
-          }}
-          transition={{ 
-            duration: 2,
-            repeat: Infinity
-          }}
-        />
-      </div>
-    </motion.div>
-  );
+  if (!touch) return;
   
-  // Render new matches carousel
-  const renderNewMatches = () => (
-    <div className="mb-6">
-      <div className="flex justify-between items-center mb-3">
-        <div className="flex items-center">
-          <Users size={18} className="text-blue-600 mr-2" />
-          <h3 className="font-bold text-lg">New Matches</h3>
-        </div>
-        
-        <div className="flex">
-          <button
-            onClick={() => handleHorizontalScroll('left')}
-            className="p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 mr-1 flex items-center justify-center"
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <button
-            onClick={() => handleHorizontalScroll('right')}
-            className="p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
+  // Calculate delta - how far we've moved from the start position
+  const deltaY = startDragPos.y - touch.clientY;
+  const deltaX = startDragPos.x - touch.clientX;
+  
+  // Use the appropriate delta based on device orientation
+  const delta = isMobile ? deltaY : deltaX;
+  
+  // Apply direct scrolling - exact 1:1 with finger movement
+  if (isMobile) {
+    containerRef.current.scrollTop = lastScrollPos + delta;
+  } else {
+    containerRef.current.scrollLeft = lastScrollPos + delta;
+  }
+  
+  // Store the current drag amount for velocity calculations
+  setCurrentDragAmount(delta);
+  
+  // Prevent default only for significant movements to avoid blocking taps
+  if (Math.abs(delta) > 10) {
+    e.preventDefault();
+  }
+};
+
+const handleTouchEnd = (e) => {
+  // Check if this is our tracked touch
+  let touchFound = false;
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    if (e.changedTouches[i].identifier === touchIdentifier) {
+      touchFound = true;
+      break;
+    }
+  }
+  
+  if (!touchFound) return;
+  
+  // Reset tracking
+  setTouchIdentifier(null);
+  setIsDragging(false);
+  
+  // No section snapping for mobile - let it scroll freely
+  
+  // Desktop behavior handled separately
+  if (!isMobile) {
+    finishDragging();
+  }
+};
+
+// Handle mouse movements
+const handleMouseDown = (e) => {
+  // Only handle left button
+  if (e.button !== 0) return;
+  
+  // Prevent text selection
+  e.preventDefault();
+  
+  setIsDragging(true);
+  setStartDragPos({ x: e.clientX, y: e.clientY });
+  setCurrentDragAmount(0);
+  
+  // Store current position
+  const container = containerRef.current;
+  if (container) {
+    setLastScrollPos(isMobile ? container.scrollTop : container.scrollLeft);
+  }
+  
+  // Set cursors
+  document.body.style.cursor = 'grabbing';
+  document.body.style.userSelect = 'none';
+};
+
+const handleMouseMove = (e) => {
+  if (!isDragging) return;
+  
+  const container = containerRef.current;
+  if (!container) return;
+  
+  // Calculate drag distance
+  const dragAmount = isMobile 
+    ? startDragPos.y - e.clientY 
+    : startDragPos.x - e.clientX;
+  
+  // Calculate time elapsed since last update for velocity
+  const now = performance.now();
+  const deltaTime = now - lastDragTime;
+  
+  if (deltaTime > 0) {
+    // Calculate instantaneous velocity (pixels per millisecond)
+    const instantVelocity = (dragAmount - currentDragAmount) / deltaTime;
+    
+    // Smooth the velocity with low-pass filter
+    const smoothingFactor = 0.8;
+    const newVelocity = dragVelocity * smoothingFactor + instantVelocity * (1 - smoothingFactor);
+    
+    setDragVelocity(newVelocity);
+    setLastDragTime(now);
+  }
+  
+  // Enhanced mouse feel with increased sensitivity for small movements
+  // and natural resistance for large movements
+  const multiplier = Math.min(1.5, 1 + (0.5 * Math.exp(-Math.abs(dragAmount) / 300)));
+  
+  // Calculate new position
+  const newPosition = lastScrollPos + (dragAmount * multiplier);
+  
+  // Update the scroll position
+  if (isMobile) {
+    container.scrollTop = newPosition;
+  } else {
+    container.scrollLeft = newPosition;
+  }
+  
+  setCurrentDragAmount(dragAmount);
+};
+
+const handleMouseUp = () => {
+  if (!isDragging) return;
+  
+  finishDragging();
+};
+
+  // Device-specific drag finishing behavior
+const finishDragging = () => {
+  setIsDragging(false);
+  
+  // Reset styles
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+  
+  const container = containerRef.current;
+  if (!container) return;
+  
+  // MOBILE-ONLY BEHAVIOR - Simple position-based centering
+  if (isMobile) {
+    const viewportSize = container.clientHeight;
+    const currentPos = container.scrollTop;
+    
+    // Simple snapping to nearest section
+    const sectionIndex = Math.round(currentPos / viewportSize);
+    container.scrollTop = sectionIndex * viewportSize;
+    
+    // Update current section if needed
+    if (sectionIndex !== currentSection) {
+      setPrevSection(currentSection);
+      setCurrentSection(sectionIndex);
+    }
+  } 
+  // DESKTOP/PC BEHAVIOR - Keep original physics/inertia
+  else {
+    const viewportSize = container.clientWidth;
+    const currentPos = container.scrollLeft;
+    
+    // Get current section index and progress
+    const currentIndex = Math.floor(currentPos / viewportSize);
+    const sectionProgress = (currentPos % viewportSize) / viewportSize;
+    
+    // Get final drag velocity (pixels per second)
+    const pixelsPerSecond = Math.abs(dragVelocity * 1000);
+    
+    // Determine target section with velocity-aware navigation
+    let targetSection;
+    
+    // For fast flicks, prioritize the velocity direction
+    const isDraggingForward = dragVelocity > 0;
+    
+    if (pixelsPerSecond > 200) {
+      targetSection = isDraggingForward
+        ? Math.min(currentIndex + 1, sections.length - 1)
+        : Math.max(currentIndex - 1, 0);
+    }
+    // For medium/slow movements, check position progress
+    else {
+      if (sectionProgress > 0.5) {
+        targetSection = Math.min(currentIndex + 1, sections.length - 1);
+      } else {
+        targetSection = currentIndex;
+      }
+    }
+    
+    // Navigate with smooth scrolling for desktop
+    goToSection(targetSection, 'smooth');
+  }
+};
+
+// Navigation (would use router in real app)
+const handleNavigate = (route) => {
+  window.location.href = route;
+};
+
+return (
+  <div className="fixed inset-0 overflow-hidden bg-black">
+    {/* Loading indicator */}
+    {!hasLoaded && (
+      <div className="absolute inset-0 bg-black flex items-center justify-center z-50">
+        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
       </div>
-      
-      <div
-        ref={matchesCarouselRef}
-        className="flex overflow-x-auto gap-4 pb-3 scrollbar-hide snap-x snap-mandatory"
-      >
-        {/* Who Liked You card (first position) */}
-        {renderUnlockCard()}
+    )}
+    
+    {/* Main scrolling container */}
+    <div 
+      ref={containerRef}
+      className={`h-full w-full ${isMobile ? 'overflow-y-auto' : 'overflow-x-auto'} scroll-smooth overscroll-none`}
+      style={{ 
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+        WebkitOverflowScrolling: 'touch',
+        cursor: isDragging ? 'grabbing' : 'grab',
+        visibility: hasLoaded ? 'visible' : 'hidden',
+        ...(isMobile 
+          ? { scrollBehavior: 'auto' } 
+          : { scrollBehavior: 'smooth' })
+      }}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
+    >
+      {/* Hide scrollbar */}
+      <style jsx="true">{`
+        div::-webkit-scrollbar {
+          display: none;
+        }
         
-        {/* New Matches */}
-        {newMatches.length > 0 ? (
-          newMatches.map(match => (
-            <motion.div
-              key={match._id}
-              className="w-28 snap-start"
-              whileHover={{ scale: 1.03 }}
-              onClick={() => handleOpenChat(match)}
-            >
-              <div className="relative w-28 aspect-[7/10] rounded-lg overflow-hidden shadow-md bg-gray-100">
-                <img
-                  src={formatImageUrl(match.profileImage || (match.images && match.images[0]))}
-                  alt={match.name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = "/api/placeholder/400/400";
+        .info-box {
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          transform: translateZ(0);
+        }
+        
+        .video-transition {
+          transition: opacity 1s ease-in-out, transform 1.2s ease-in-out;
+          will-change: opacity, transform;
+        }
+        
+        .content-transition {
+          transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+          will-change: opacity, transform;
+        }
+        
+        @keyframes float {
+          0% { transform: translateY(0px); }
+          50% { transform: translateY(-20px); }
+          100% { transform: translateY(0px); }
+        }
+      `}</style>
+      
+      {/* Sections container */}
+      <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} h-full w-full will-change-transform`}>
+        {sections.map((section, index) => (
+          <div
+            key={section.id}
+            data-section={index}
+            className="relative h-screen w-screen flex-shrink-0 will-change-transform"
+            style={{
+              transform: 'translateZ(0)', // Force GPU acceleration
+            }}
+          >
+            {/* Video or Image background */}
+            <div className="absolute inset-0 overflow-hidden">
+              {/* Use image placeholder on mobile for better performance */}
+              {isMobile ? (
+                <div 
+                  className="absolute inset-0 bg-cover bg-center"
+                  style={{
+                    backgroundImage: `url(${section.videoSrc})`,
+                    transform: 'translateZ(0)', // Force GPU acceleration
+                    opacity: Math.max(0, 1 - 1.5 * Math.abs(scrollProgress - index)),
+                    transition: 'opacity 0.1s ease-out' // Faster transition for scrolling
                   }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-70"></div>
-                <div className="absolute bottom-0 left-0 right-0 p-2">
-                  <p className="text-white text-sm font-semibold truncate">{match.name}, {match.age}</p>
-                  <div className="flex items-center mt-1">
-                    <motion.div
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ duration: 1.5, repeat: Infinity }}
-                    >
-                      <Zap size={12} className="text-blue-300 mr-1" />
-                    </motion.div>
-                    <p className="text-white/90 text-xs">New Match</p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          ))
-        ) : (
-          // Show empty placeholders if no new matches
-          Array.from({ length: 3 }).map((_, index) => (
-            <div key={`empty-${index}`} className="w-28 snap-start">
-              <div className="w-28 aspect-[7/10] rounded-lg bg-gray-100 border border-dashed border-gray-300 flex items-center justify-center">
-                <p className="text-gray-400 text-xs text-center px-2">No more matches</p>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
- 
-// Updated renderConversations with bold text for messages from others
-const renderConversations = () => {
-  // Get userId from the authentication store or from ref for guest users
-  const currentUserId = user?.id || (user?.user && user?.user.id) || userIdRef.current;
-  
-  return (
-    <div className="flex-1 overflow-y-auto pb-4">
-      <div className="flex justify-between items-center mb-3">
-        <div className="flex items-center">
-          <MessageCircle size={18} className="text-blue-600 mr-2" />
-          <h3 className="font-bold text-lg">Messages</h3>
-        </div>
-        
-        <button
-          onClick={handleRefresh}
-          className="p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
-        >
-          <motion.div
-            animate={refreshing ? { rotate: 360 } : {}}
-            transition={{ duration: 1, repeat: refreshing ? Infinity : 0, ease: "linear" }}
-          >
-            <ChevronRight size={18} className="rotate-90" />
-          </motion.div>
-        </button>
-      </div>
-      
-      {conversations.length > 0 ? (
-        <div className="space-y-3">
-          {conversations.map(match => {
-            // More thorough check if last message is from current user with fallback checks
-            const isLastMessageFromUser = match.lastMessage && (
-              match.lastMessage.isYours === true || 
-              (currentUserId && match.lastMessage.sender === currentUserId) ||
-              (typeof match.lastMessage.sender === 'object' && match.lastMessage.sender?._id === currentUserId) ||
-              (typeof match.lastMessage.sender === 'object' && match.lastMessage.sender?.id === currentUserId)
-            );
-            
-            // IMPORTANT: Never show unread count notification badge
-            const displayUnreadCount = false;
-            
-            return (
-              <motion.div
-                key={match._id}
-                whileHover={{ scale: 1.02, backgroundColor: "rgba(249, 250, 251, 1)" }}
-                className="bg-white rounded-xl shadow-sm overflow-hidden cursor-pointer transition-all"
-                onClick={() => handleOpenChat(match)}
-              >
-                <div className="p-3 flex items-center">
-                  <div className="relative">
-                    <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-gray-100">
-                      <img
-                        src={formatImageUrl(match.profileImage || (match.images && match.images[0]))}
-                        alt={match.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = "/api/placeholder/400/400";
-                        }}
-                      />
-                    </div>
-                    
-                    {/* Notification badge removed */}
-                  </div>
-                  
-                  <div className="ml-3 flex-1 min-w-0">
-                    <div className="flex justify-between items-center">
-                      <h4 className="font-semibold truncate">{match.name}</h4>
-                      <p className="text-xs text-gray-500">
-                        {match.lastMessage?.timestamp 
-                          ? formatDistanceToNow(new Date(match.lastMessage.timestamp), { addSuffix: true })
-                          : 'New match'}
-                      </p>
-                    </div>
-                    
-                    <ActiveStatus lastActive={match.lastActive} />
-                    
-                    {/* Make text bold ONLY when it's not from the current user */}
-                    <p className={`text-sm truncate ${isLastMessageFromUser ? 'text-gray-500' : 'font-medium text-gray-900'}`}>
-                      {match.lastMessage 
-                        ? `${isLastMessageFromUser ? 'You: ' : ''}${match.lastMessage.content || 'Sent an image'}`
-                        : 'Start a conversation'}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="bg-gray-50 rounded-xl p-6 mt-2 text-center">
-          <motion.div
-            className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-3"
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 3, repeat: Infinity }}
-          >
-            <MessageCircle size={28} className="text-blue-500" />
-          </motion.div>
-          <h4 className="text-lg font-medium text-gray-800 mb-1">No messages yet</h4>
-          <p className="text-gray-500 text-sm mb-4">Start a conversation with your new matches</p>
-          
-          <motion.div
-            className="inline-block"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <motion.div
-              className="text-xs text-blue-600 flex items-center justify-center"
-              animate={{ y: [0, -3, 0] }}
-              transition={{ duration: 2, repeat: Infinity }}
-            >
-              <ChevronLeft className="h-4 w-4 rotate-90" />
-              <span>Check out your matches above</span>
-            </motion.div>
-          </motion.div>
-        </div>
-      )}
-    </div>
-  );
-};
-  
-  return (
-    <div className="h-[calc(100vh-136px)] flex flex-col p-4 overflow-hidden bg-gray-50">
-      {/* Main content area */}
-      <div className="flex-1 overflow-hidden flex flex-col">
-        {/* If no matches at all, show empty state with unlock card */}
-        {matches.length === 0 && !loading ? (
-          <div className="flex-1 flex flex-col">
-            {/* Always show new matches section with unlock card */}
-            {renderNewMatches()}
-            
-            <div className="flex-1 flex items-center justify-center">
-              <EmptyStateMessage
-                type="noMatches"
-                onRefresh={handleRefresh}
+              ) : (
+                <video
+                  ref={el => videoRefs.current[index] = el}
+                  src={section.videoSrc}
+                  className="absolute inset-0 object-cover w-full h-full"
+                  style={{
+                    transform: 'translateZ(0)', // Force GPU acceleration
+                    opacity: Math.max(0, 1 - 1.5 * Math.abs(scrollProgress - index)),
+                    transition: 'opacity 0.1s ease-out' // Faster transition for scrolling
+                  }}
+                  playsInline
+                  muted
+                  loop
+                  autoPlay={index === 0}
+                  preload="metadata" // Only preload metadata initially
+                />
+              )}
+              {/* Color overlay gradient with smooth transitions */}
+              <div 
+                className={`absolute inset-0 bg-gradient-to-br ${section.color}`}
+                style={{
+                  transform: 'translateZ(0)', // Force GPU acceleration
+                  opacity: Math.max(0, 0.8 - 1.2 * Math.abs(scrollProgress - index)),
+                  transition: 'opacity 0.1s ease-out' // Faster transition for scrolling
+                }}
               />
             </div>
-          </div>
-        ) : (
-          <>
-            {/* New Matches */}
-            {renderNewMatches()}
             
-            {/* Messages - always show the section even if empty */}
-            {renderConversations()}
-          </>
-        )}
+            {/* Content with continuous fade effect */}
+            <div className="absolute inset-0 flex items-center justify-center p-6 md:p-12 pointer-events-none">
+              <div 
+                className="max-w-4xl mx-auto"
+                style={{
+                  opacity: Math.max(0, 1 - 2 * Math.abs(scrollProgress - index)),
+                  transform: `translateY(${Math.abs(scrollProgress - index) * 2}rem) translateZ(0)`,
+                  transition: 'opacity 0.1s ease-out, transform 0.1s ease-out' // Faster transition for scrolling
+                }}
+              >
+                {/* Semi-transparent info box */}
+                <div className="info-box bg-gray-900/40 rounded-xl p-6 md:p-8 border border-white/20 shadow-xl text-center pointer-events-auto">
+                  <h2 className="text-3xl md:text-5xl font-bold text-white mb-4 md:mb-6">
+                    {section.title}
+                  </h2>
+                  
+                  <p className="text-lg md:text-xl text-white/90 mb-6 md:mb-8 max-w-2xl mx-auto leading-relaxed">
+                    {section.description}
+                  </p>
+                  
+                  <button
+                    onClick={() => handleNavigate(section.route)}
+                    className="relative overflow-hidden group px-8 py-3 bg-white text-gray-900 font-bold rounded-full flex items-center gap-2 mx-auto hover:bg-opacity-95 transition-all"
+                  >
+                    <span className="relative z-10">{section.buttonText}</span>
+                    <ArrowRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" />
+                    <span className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-300/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
-      
-      {/* Chat overlay when a match is selected */}
-      <AnimatePresence>
-        {isShowingChat && selectedChat && (
-          <GymBrosMatchChat
-            key={selectedChat.matchId}
-            otherUserInfo={selectedChat.userInfo}
-            matchId={selectedChat.matchId}
-            onClose={() => {
-              setIsShowingChat(false);
-              setSelectedChat(null);
-              fetchMatchesAndLikes();
-            }}
-          />
-        )}
-      </AnimatePresence>
     </div>
-  );
+    
+    {/* Navigation dots - Use transform for better performance */}
+    <div 
+      className={`fixed z-20 ${
+        isMobile 
+          ? 'right-4 top-1/2 flex-col'
+          : 'bottom-8 left-1/2 flex-row'
+      } flex gap-3`}
+      style={{
+        transform: isMobile 
+          ? 'translateY(-50%)' 
+          : 'translateX(-50%)',
+      }}
+    >
+      {sections.map((_, index) => (
+        <button
+          key={index}
+          onClick={() => goToSection(index)}
+          className={`w-3 h-3 rounded-full transition-all duration-300 ${
+            currentSection === index
+              ? 'bg-white scale-125'
+              : 'bg-white/30 hover:bg-white/50'
+          }`}
+          aria-label={`Go to section ${index + 1}`}
+        />
+      ))}
+    </div>
+    
+    {/* Left/Right navigation arrows (desktop only) */}
+    {!isMobile && (
+      <>
+        {currentSection > 0 && (
+          <button
+            onClick={() => goToSection(currentSection - 1)}
+            className="fixed left-6 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/30 p-3 rounded-full transition-all"
+            aria-label="Previous section"
+          >
+            <ChevronLeft className="w-6 h-6 text-white" />
+          </button>
+        )}
+        
+        {currentSection < sections.length - 1 && (
+          <button
+            onClick={() => goToSection(currentSection + 1)}
+            className="fixed right-6 top-1/2 -translate-y-1/2 z-20 bg-white/20 hover:bg-white/30 p-3 rounded-full transition-all"
+            aria-label="Next section"
+          >
+            <ChevronRight className="w-6 h-6 text-white" />
+          </button>
+        )}
+      </>
+    )}
+    
+    {/* Section title indicator (mobile and desktop) */}
+    <div className="fixed top-6 left-1/2 -translate-x-1/2 z-20">
+      <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-full">
+        <p className="text-white/90 text-sm font-medium">
+          {sections[currentSection].id.charAt(0).toUpperCase() + sections[currentSection].id.slice(1)}
+        </p>
+      </div>
+    </div>
+    
+    {/* Mobile swipe instruction removed */}
+    
+    {/* Desktop instruction removed */}
+  </div>
+);
 };
 
-export default GymbrosMatchesList;
+export default Home;

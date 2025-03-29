@@ -10,6 +10,7 @@ import inventoryRoutes from './inventory.routes.js';
 import clientRoutes from './client.routes.js';
 import applicationRoutes from './application.routes.js';
 import supportTicketRoutes from './supportTicket.routes.js';
+import blogRoutes from './blog.routes.js'; // Import the blog routes
 
 const router = express.Router();
 
@@ -25,6 +26,7 @@ router.use('/inventory', inventoryRoutes);
 router.use('/client', clientRoutes);
 router.use('/applications', applicationRoutes);
 router.use('/support-tickets', supportTicketRoutes);
+router.use('/blog', blogRoutes); // Add this line
 
 // Health check route
 router.get('/health', (req, res) => {

@@ -45,6 +45,7 @@
     "pdfkit-table": "^0.1.99",
     "resend": "^4.0.1",
     "sharp": "^0.33.1",
+    "slugify": "^1.6.6",
     "socket.io": "^4.8.1",
     "stripe": "^14.10.0",
     "swagger-ui-express": "^5.0.1",

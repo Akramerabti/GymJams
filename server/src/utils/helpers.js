@@ -2,7 +2,7 @@
  * JWT helper functions
  */
 import jwt from 'jsonwebtoken';
-import logger from './logger';
+import logger from './logger.js';
 
 export const generateToken = (payload, expiresIn = '24h') => {
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
