@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import useAuthStore from '../stores/authStore';
+import { useNavigate, useParams, Routes, Route, useLocation } from 'react-router-dom';
 import { 
   PackageOpen, Users, HelpCircle, ClipboardList, BarChart3, 
   ArrowUp, ArrowDown, DollarSign, ShoppingCart, AlertTriangle, 
-  Settings, Calendar, Search, ShoppingBag, Menu, X
+  Settings, Calendar, Search, ShoppingBag, Menu, X,
+  FileText, Archive, Edit, Pencil
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,23 +20,30 @@ import Products from './Taskforce/Products';
 import Applications from './Taskforce/Applications';
 import Support from './Taskforce/Support';
 import InventoryManagement from './Taskforce/InventoryManagement';
+import BlogManagement from './Taskforce/BlogManagement';
+import AdManagement from './Taskforce/AdManagement';
 
 // Import services
 import productService from '../services/product.service';
 import inventoryService from '../services/inventory.service';
 import orderService from '../services/order.service';
+import blogService from '../services/blog.service';
+import { useAuth } from '../stores/authStore';
 
 const TaskForceDashboard = () => {
+  const { slug } = useParams();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('overview');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user } = useAuthStore();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [dashboardData, setDashboardData] = useState({
     products: { total: 0, outOfStock: 0, lowStock: 0 },
     orders: { recent: 0, pending: 0, total: 0 },
     revenue: { daily: 0, weekly: 0, monthly: 0 },
     applications: { pending: 0, approved: 0, rejected: 0 },
-    support: { open: 0, resolved: 0 }
+    support: { open: 0, resolved: 0 },
+    blogs: { total: 0, published: 0, draft: 0 }
   });
   const [loading, setLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -62,6 +69,9 @@ const TaskForceDashboard = () => {
     setRefreshTrigger(prev => prev + 1);
   };
 
+  // Determine if we're in a specific ad management route
+  const isAdManagementRoute = location.pathname.includes('/ads/');
+  
   useEffect(() => {
     // Check if user has permissions
     if (getUserRole(user) !== 'admin' && getUserRole(user) !== 'taskforce') {
@@ -69,8 +79,15 @@ const TaskForceDashboard = () => {
       return;
     }
 
+    // Set the active tab based on the route
+    if (isAdManagementRoute) {
+      setActiveTab('ads');
+    } else if (location.pathname.includes('/blog')) {
+      setActiveTab('blog');
+    }
+
     fetchDashboardData();
-  }, [user, navigate, refreshTrigger]);
+  }, [user, navigate, refreshTrigger, location.pathname]);
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -121,6 +138,19 @@ const TaskForceDashboard = () => {
         // Continue with products data only
       }
       
+      // Fetch blog data if available
+      let blogStats = { total: 0, published: 0, draft: 0 };
+      try {
+        const blogResponse = await blogService.getBlogs();
+        const blogs = blogResponse.data || [];
+        
+        blogStats.total = blogs.length;
+        blogStats.published = blogs.filter(blog => blog.status === 'published').length;
+        blogStats.draft = blogs.filter(blog => blog.status === 'draft').length;
+      } catch (error) {
+        console.error('Error fetching blogs:', error);
+      }
+      
       // Combine data for statistics or use product data if inventory not available
       const stockData = inventoryData.length > 0 ? inventoryData : products;
       
@@ -138,7 +168,8 @@ const TaskForceDashboard = () => {
         orders: orderStats,
         revenue: revenueStats,
         applications: { pending: 2, approved: 15, rejected: 3 }, // Example data, would be replaced with real API data
-        support: { open: 4, resolved: 12 } // Example data, would be replaced with real API data
+        support: { open: 4, resolved: 12 }, // Example data, would be replaced with real API data
+        blogs: blogStats
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -226,6 +257,8 @@ const TaskForceDashboard = () => {
         {activeTab === 'inventory' && <ClipboardList className="h-4 w-4" />}
         {activeTab === 'applications' && <Users className="h-4 w-4" />}
         {activeTab === 'support' && <HelpCircle className="h-4 w-4" />}
+        {activeTab === 'blog' && <FileText className="h-4 w-4" />}
+        {activeTab === 'ads' && <Edit className="h-4 w-4" />}
         <span className="capitalize flex-1 text-left">
           {activeTab}
         </span>
@@ -235,7 +268,7 @@ const TaskForceDashboard = () => {
       {mobileMenuOpen && (
         <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white shadow-lg rounded-md overflow-hidden">
           <div className="p-2 space-y-1">
-            {['overview', 'products', 'inventory', 'applications', 'support'].map((tab) => (
+            {['overview', 'products', 'inventory', 'applications', 'support', 'blog'].map((tab) => (
               <Button
                 key={tab}
                 variant={activeTab === tab ? "default" : "ghost"}
@@ -243,6 +276,9 @@ const TaskForceDashboard = () => {
                 onClick={() => {
                   setActiveTab(tab);
                   setMobileMenuOpen(false);
+                  if (tab === 'blog' || tab === 'ads') {
+                    navigate(`/taskforce-dashboard/${tab}`);
+                  }
                 }}
               >
                 {tab === 'overview' && <BarChart3 className="h-4 w-4" />}
@@ -250,6 +286,8 @@ const TaskForceDashboard = () => {
                 {tab === 'inventory' && <ClipboardList className="h-4 w-4" />}
                 {tab === 'applications' && <Users className="h-4 w-4" />}
                 {tab === 'support' && <HelpCircle className="h-4 w-4" />}
+                {tab === 'blog' && <FileText className="h-4 w-4" />}
+                {tab === 'ads' && <Edit className="h-4 w-4" />}
                 <span className="capitalize">{tab}</span>
               </Button>
             ))}
@@ -259,6 +297,11 @@ const TaskForceDashboard = () => {
     </div>
   );
 
+  // If we're in ad management route, render the AdManagement component
+  if (isAdManagementRoute) {
+    return <AdManagement />;
+  }
+
   return (
     <div className="bg-gray-50 min-h-screen p-4 md:p-6">
       <header className="mb-6 md:mb-8">
@@ -266,13 +309,18 @@ const TaskForceDashboard = () => {
         <p className="text-gray-600 mt-1">Manage products, inventory, and support tickets</p>
       </header>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={(value) => {
+        setActiveTab(value);
+        if (value === 'blog' && !location.pathname.includes('/blog')) {
+          navigate('/taskforce-dashboard/blog');
+        }
+      }} className="space-y-6">
         <div className="sticky top-0 z-10 bg-gray-50 pb-4">
           {/* Mobile Menu */}
           <MobileTabMenu />
           
           {/* Desktop Tabs */}
-          <TabsList className="hidden md:grid grid-cols-5 w-full">
+          <TabsList className="hidden md:grid grid-cols-7 w-full">
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" />
               <span className="hidden sm:inline">Overview</span>
@@ -292,6 +340,14 @@ const TaskForceDashboard = () => {
             <TabsTrigger value="support" className="gap-2">
               <HelpCircle className="h-4 w-4" />
               <span className="hidden sm:inline">Support</span>
+            </TabsTrigger>
+            <TabsTrigger value="blog" className="gap-2">
+              <FileText className="h-4 w-4" />
+              <span className="hidden sm:inline">Blog</span>
+            </TabsTrigger>
+            <TabsTrigger value="ads" className="gap-2" disabled={!slug}>
+              <Edit className="h-4 w-4" />
+              <span className="hidden sm:inline">Ad Management</span>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -323,9 +379,9 @@ const TaskForceDashboard = () => {
               loading={loading}
             />
             <StatCard 
-              title="Pending Applications" 
-              value={dashboardData.applications.pending}
-              icon={Calendar} 
+              title="Blog Posts" 
+              value={dashboardData.blogs.total}
+              icon={FileText} 
               loading={loading}
             />
           </div>
@@ -403,6 +459,15 @@ const TaskForceDashboard = () => {
                         <p className="text-sm text-gray-500">5 hours ago</p>
                       </div>
                     </div>
+                    <div className="flex items-start">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-50 text-purple-600">
+                        <FileText className="h-5 w-5" />
+                      </span>
+                      <div className="ml-4">
+                        <p className="text-sm font-medium">New blog post published</p>
+                        <p className="text-sm text-gray-500">1 day ago</p>
+                      </div>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -449,6 +514,13 @@ const TaskForceDashboard = () => {
                       </div>
                       <Badge variant="outline">Low</Badge>
                     </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <input type="checkbox" className="mr-2" />
+                        <span className="text-sm md:text-base">Update blog content (1)</span>
+                      </div>
+                      <Badge variant="secondary">Medium</Badge>
+                    </div>
                   </div>
                 )}
                 <div className="mt-4">
@@ -476,6 +548,27 @@ const TaskForceDashboard = () => {
 
         <TabsContent value="support">
           <Support />
+        </TabsContent>
+
+        <TabsContent value="blog">
+          <BlogManagement />
+        </TabsContent>
+
+        <TabsContent value="ads">
+          {slug ? (
+            <AdManagement />
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Edit className="h-16 w-16 text-gray-300 mb-4" />
+              <h3 className="text-xl font-medium text-gray-900 mb-2">Ad Management</h3>
+              <p className="text-gray-500 text-center max-w-md mb-6">
+                Select a blog post from the Blog section to manage its ad placements.
+              </p>
+              <Button onClick={() => setActiveTab('blog')}>
+                Go to Blog Management
+              </Button>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

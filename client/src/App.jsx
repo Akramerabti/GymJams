@@ -45,6 +45,7 @@ import FAQ from './pages/CustomerService/faq';
 import Returns from './pages/CustomerService/returns';
 import ApplicationForm from './pages/CustomerService/application';
 import OAuthCallback from './pages/OAuthCallback';
+import Blog from './pages/Blog';
 
 // Socket Context
 import { SocketProvider } from './SocketContext';
@@ -106,6 +107,7 @@ const App = () => {
               <Route path="/returns" element={<Returns />} />
               <Route path="/application" element={<ApplicationForm />} />
               <Route path="/oauth-callback" element={<OAuthCallback />} />
+              <Route path="/blog" element={<Blog />} />
               
               {/* Protected Routes */}
               <Route path="/profile" element={

@@ -23,7 +23,7 @@ const Navbar = () => {
 
   // Navigation items based on user role
   const navigationItems = [
-    { name: 'Blog', path: '/' },
+    { name: 'Blog', path: '/blog' },
     { name: 'Shop', path: '/shop' },
     { name: 'Coaching', path: '/coaching' },
     { name: 'Games', path: '/games' },

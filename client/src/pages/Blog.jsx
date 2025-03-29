@@ -9,7 +9,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent } from '../components/ui/card';
 import AdBanner from '../components/blog/AdBanner';
-import BlogSidebar from '../components/blog/BlogSidebar';
+import BlogSidebar from '../components/blog/BlogSideBar';
 import BlogCard from '../components/blog/BlogCard';
 import { toast } from 'sonner';
 
