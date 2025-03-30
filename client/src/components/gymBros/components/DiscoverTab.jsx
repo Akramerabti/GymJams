@@ -12,6 +12,7 @@ import SwipeableCard from './SwipeableCard';
 import gymbrosService from '../../../services/gymbros.service';
 import { usePoints } from '../../../hooks/usePoints';
 import useAuthStore from '../../../stores/authStore';
+import ActiveBoostNotification from './ActiveBoostNotification';
 
 // Premium feature costs
 const PREMIUM_FEATURES = {
@@ -529,6 +530,7 @@ const handleSendMessage = () => {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
+      <ActiveBoostNotification />
       {/* Pull to refresh indicator */}
       {isPulling && pullDistance > 0 && (
         <div className="absolute top-0 left-0 right-0 flex justify-center items-center pointer-events-none">

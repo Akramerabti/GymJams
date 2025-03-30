@@ -1144,6 +1144,96 @@ async getWhoLikedMeProfiles() {
   }
 },
 
+async activateBoost(boostData) {
+  try {
+    // Add guest token to config
+    const config = this.configWithGuestToken();
+    
+    const response = await api.post('/gym-bros/boosts', boostData, config);
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error activating boost:', error);
+    throw error;
+  }
+},
+
+// Get active boosts
+async getActiveBoosts() {
+  try {
+    // Add guest token to config
+    const config = this.configWithGuestToken();
+    
+    const response = await api.get('/gym-bros/boosts', config);
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    // Return boosts array from response data
+    return response.data.boosts || [];
+  } catch (error) {
+    console.error('Error fetching active boosts:', error);
+    return []; // Return empty array on error to prevent UI crashes
+  }
+},
+
+// Cancel a boost
+async cancelBoost(boostId) {
+  try {
+    // Add guest token to config
+    const config = this.configWithGuestToken();
+    
+    const response = await api.delete(`/gym-bros/boosts/${boostId}`, config);
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error cancelling boost:', error);
+    throw error;
+  }
+},
+
+// Get the highest active boost factor for the current user
+async getActiveBoostFactor() {
+  try {
+    const activeBoosts = await this.getActiveBoosts();
+    
+    if (!activeBoosts || activeBoosts.length === 0) {
+      return 1; // Default to 1x if no active boosts
+    }
+    
+    // Find the highest boost factor
+    return Math.max(...activeBoosts.map(boost => boost.boostFactor));
+  } catch (error) {
+    console.error('Error getting active boost factor:', error);
+    return 1; // Default to 1x on error
+  }
+},
+
+// Check if a specific boost type is already active
+async isBoostTypeActive(boostType) {
+  try {
+    const activeBoosts = await this.getActiveBoosts();
+    
+    return activeBoosts.some(boost => boost.boostType === boostType);
+  } catch (error) {
+    console.error('Error checking if boost type is active:', error);
+    return false;
+  }
+},
+
 };
+
 
 export default gymbrosService;

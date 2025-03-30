@@ -40,6 +40,14 @@ import {
   findMatch,
 } from '../controllers/gymBrosMessagesController.js';
 
+// Add these routes to server/src/routes/gymBrosRoutes.js
+
+import { 
+  activateBoost, 
+  getActiveBoosts, 
+  cancelBoost 
+} from '../controllers/gymBrosBoostController.js';
+
 // Apply guest user middleware to all routes
 router.use(handleGuestUser);
 
@@ -107,5 +115,10 @@ router.post('/matches/:matchId/messages', optionalAuthenticate, sendMessage);
 router.get('/matches/:matchId/messages', optionalAuthenticate, getMessages);
 router.put('/matches/:matchId/mark-read', optionalAuthenticate, markMessagesAsRead);
 router.get('/matches/find-match/:userId', optionalAuthenticate, findMatch);
+
+// Boost management endpoints
+router.post('/boosts', optionalAuthenticate, activateBoost);
+router.get('/boosts', optionalAuthenticate, getActiveBoosts);
+router.delete('/boosts/:boostId', optionalAuthenticate, cancelBoost);
 
 export default router;

@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ShoppingBag, Zap, Star, Medal, Crown, Link, LogIn, Dumbbell, 
-  Info, X, CreditCard, Sparkles, ArrowRight, Tag
+  Info, X, CreditCard, Sparkles, ArrowRight, Tag, Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePoints } from '../../hooks/usePoints';
 import { Link as RouterLink } from 'react-router-dom';
 import useAuthStore from '../../stores/authStore';
+import gymbrosService from '../../services/gymbros.service';
 
 const GymBrosShop = () => {
   const { balance, subtractPoints, updatePointsInBackend } = usePoints();
@@ -16,6 +17,11 @@ const GymBrosShop = () => {
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [promptShown, setPromptShown] = useState(false);
+  const [activeBoosts, setActiveBoosts] = useState([]);
+  const [showBoostConfirmation, setShowBoostConfirmation] = useState(false);
+  const [selectedBoost, setSelectedBoost] = useState(null);
+  const [isConfirmationWithPoints, setIsConfirmationWithPoints] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
   
   // Show login prompt once for logged-out users
   useEffect(() => {
@@ -24,6 +30,30 @@ const GymBrosShop = () => {
       setPromptShown(true);
     }
   }, [isAuthenticated, promptShown]);
+
+  // Fetch active boosts on component mount
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchActiveBoosts();
+    }
+  }, [isAuthenticated]);
+
+  // Fetch active boosts
+  const fetchActiveBoosts = async () => {
+    try {
+      const boosts = await gymbrosService.getActiveBoosts();
+      setActiveBoosts(boosts);
+    } catch (error) {
+      console.error('Failed to fetch active boosts:', error);
+    }
+  };
+
+  // Open boost confirmation modal
+  const openBoostConfirmation = (item, withPoints) => {
+    setSelectedBoost(item);
+    setIsConfirmationWithPoints(withPoints);
+    setShowBoostConfirmation(true);
+  };
 
   // Handle purchase with points
   const handlePurchaseWithPoints = (item) => {
@@ -40,48 +70,192 @@ const GymBrosShop = () => {
       });
       return;
     }
-    
-    // Deduct points and update backend
-    subtractPoints(item.cost);
-    updatePointsInBackend(balance-item.cost); // Negative to subtract
-    
-    toast.success(`${item.name} purchased!`, {
-      description: `${item.cost} points deducted from your balance.`
-    });
-    
-    // Handle specific item effects
+
     if (item.category === 'boosts') {
-      toast.info(`Your profile boost will activate the next time you open the Discover tab.`);
-    } else if (item.category === 'superlikes') {
-      toast.info(`Super Likes available in your Discover tab.`);
-    } else if (item.category === 'membership') {
-      toast.info(`Membership benefits activated for ${item.duration}.`);
+      openBoostConfirmation(item, true);
+    } else {
+      completePurchaseWithPoints(item);
+    }
+  };
+
+  // Complete the purchase with points
+  const completePurchaseWithPoints = async (item) => {
+    try {
+      setProcessingPayment(true);
+      
+      // Deduct points first
+      subtractPoints(item.cost);
+      
+      if (item.category === 'boosts') {
+        // Call the service to activate the boost
+        const result = await gymbrosService.activateBoost({
+          boostType: item.id,
+          boostFactor: getBoostFactor(item),
+          duration: parseDuration(item.duration),
+          paymentMethod: 'points',
+          pointsUsed: item.cost
+        });
+        
+        // Update the points in the backend
+        await updatePointsInBackend(balance - item.cost);
+        
+        // Show success message
+        toast.success(`${item.name} activated!`, {
+          description: `Your profile visibility is now boosted ${getBoostFactor(item)}x for ${item.duration}.`
+        });
+        
+        // Update active boosts
+        fetchActiveBoosts();
+      } else {
+        // Handle other types of purchases
+        await updatePointsInBackend(balance - item.cost);
+        
+        toast.success(`${item.name} purchased!`, {
+          description: `${item.cost} points deducted from your balance.`
+        });
+        
+        // Handle specific item effects
+        if (item.category === 'superlikes') {
+          toast.info(`Super Likes available in your Discover tab.`);
+        } else if (item.category === 'membership') {
+          toast.info(`Membership benefits activated for ${item.duration}.`);
+        }
+      }
+      
+      // Close confirmation if it was open
+      setShowBoostConfirmation(false);
+    } catch (error) {
+      console.error('Purchase error:', error);
+      
+      // Restore points on failure
+      toast.error('Purchase failed', {
+        description: 'There was an error processing your purchase. Your points have been refunded.'
+      });
+      
+      // Add the points back
+      subtractPoints(-item.cost);
+    } finally {
+      setProcessingPayment(false);
     }
   };
 
   // Handle purchase with money
   const handlePurchaseWithMoney = (item) => {
-    // This would typically integrate with a payment gateway like Stripe
-    // For now, we'll just show a toast
-    toast.success(`Processing payment for ${item.name}`, {
-      description: `Redirecting to payment for ${item.price}`
-    });
+    if (!isAuthenticated) {
+      toast.error('Please log in to make purchases', {
+        description: 'Sign in to complete your purchase'
+      });
+      return;
+    }
     
-    // Simulating a payment success after 2 seconds
-    setTimeout(() => {
-      toast.success(`${item.name} purchased successfully!`, {
-        description: `Your purchase has been activated.`
+    if (item.category === 'boosts') {
+      openBoostConfirmation(item, false);
+    } else {
+      completePurchaseWithMoney(item);
+    }
+  };
+
+  // Complete the purchase with money
+  const completePurchaseWithMoney = async (item) => {
+    try {
+      setProcessingPayment(true);
+      
+      // This would typically integrate with a payment gateway like Stripe
+      // For now, we'll simulate a payment process
+      toast.success(`Processing payment for ${item.name}`, {
+        description: `Please complete the payment for ${item.price}`
       });
       
-      // Handle specific item effects
-      if (item.category === 'boosts') {
-        toast.info(`Your profile boost will activate the next time you open the Discover tab.`);
-      } else if (item.category === 'superlikes') {
-        toast.info(`Super Likes available in your Discover tab.`);
-      } else if (item.category === 'membership') {
-        toast.info(`Membership benefits activated for ${item.duration}.`);
-      }
-    }, 2000);
+      // Simulate payment processing
+      setTimeout(async () => {
+        try {
+          if (item.category === 'boosts') {
+            // Call the service to activate the boost
+            const result = await gymbrosService.activateBoost({
+              boostType: item.id,
+              boostFactor: getBoostFactor(item),
+              duration: parseDuration(item.duration),
+              paymentMethod: 'stripe',
+              amount: parseFloat(item.price.replace('$', ''))
+            });
+            
+            // Show success message
+            toast.success(`${item.name} activated!`, {
+              description: `Your profile visibility is now boosted ${getBoostFactor(item)}x for ${item.duration}.`
+            });
+            
+            // Update active boosts
+            fetchActiveBoosts();
+          } else {
+            // Handle other types of purchases
+            toast.success(`${item.name} purchased successfully!`, {
+              description: `Your purchase has been activated.`
+            });
+            
+            // Handle specific item effects
+            if (item.category === 'superlikes') {
+              toast.info(`Super Likes available in your Discover tab.`);
+            } else if (item.category === 'membership') {
+              toast.info(`Membership benefits activated for ${item.duration}.`);
+            }
+          }
+          
+          // Close confirmation if it was open
+          setShowBoostConfirmation(false);
+        } catch (error) {
+          console.error('Error activating item after payment:', error);
+          toast.error('Failed to activate your purchase');
+        } finally {
+          setProcessingPayment(false);
+        }
+      }, 2000);
+    } catch (error) {
+      console.error('Payment error:', error);
+      toast.error('Payment failed', {
+        description: 'There was an error processing your payment.'
+      });
+      setProcessingPayment(false);
+    }
+  };
+
+  // Helper function to get boost factor from item
+  const getBoostFactor = (item) => {
+    if (item.id === 'boost-basic') return 3;
+    if (item.id === 'boost-premium') return 5;
+    if (item.id === 'boost-ultra') return 10;
+    return 1;
+  };
+
+  // Helper function to parse duration string to minutes
+  const parseDuration = (durationStr) => {
+    if (durationStr.includes('minute')) {
+      return parseInt(durationStr.split(' ')[0]);
+    } else if (durationStr.includes('hour')) {
+      return parseInt(durationStr.split(' ')[0]) * 60;
+    } else if (durationStr.includes('day')) {
+      return parseInt(durationStr.split(' ')[0]) * 60 * 24;
+    }
+    return 30; // Default to 30 minutes
+  };
+
+  // Format remaining time for active boosts
+  const formatRemainingTime = (expiresAt) => {
+    const now = new Date();
+    const expiry = new Date(expiresAt);
+    const diffMs = expiry - now;
+    
+    // If expired, return "Expired"
+    if (diffMs <= 0) return "Expired";
+    
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    
+    if (diffMinutes < 60) {
+      return `${diffMinutes}m remaining`;
+    } else {
+      const hours = Math.floor(diffMinutes / 60);
+      const minutes = diffMinutes % 60;
+      return `${hours}h ${minutes}m remaining`;
+    }
   };
 
   // Define item categories and products
@@ -305,6 +479,153 @@ const GymBrosShop = () => {
       </motion.div>
     </motion.div>
   );
+
+  // Boost Confirmation Modal
+  const BoostConfirmationModal = () => {
+    if (!selectedBoost) return null;
+    
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        onClick={() => !processingPayment && setShowBoostConfirmation(false)}
+      >
+        <motion.div
+          initial={{ scale: 0.9, y: 20 }}
+          animate={{ scale: 1, y: 0 }}
+          exit={{ scale: 0.9, y: 20 }}
+          className="bg-white rounded-lg max-w-md w-full p-6"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className={`${selectedBoost.color} bg-opacity-10 p-4 rounded-lg flex items-center mb-4`}>
+            {selectedBoost.icon}
+            <div className="ml-3">
+              <h3 className="text-xl font-bold">{selectedBoost.name}</h3>
+              <p className="text-gray-600">{selectedBoost.description}</p>
+            </div>
+          </div>
+          
+          <div className="mb-6">
+            <h4 className="font-semibold mb-2">Boost Benefits:</h4>
+            <ul className="list-disc pl-5 space-y-2 text-gray-700">
+              <li>
+                <span className="font-medium">{getBoostFactor(selectedBoost)}x visibility</span> in the discover feed
+              </li>
+              <li>Shown to <span className="font-medium">{getBoostFactor(selectedBoost) * 2}x more</span> potential matches</li>
+              <li>Active for <span className="font-medium">{selectedBoost.duration}</span></li>
+              <li>Activate immediately after purchase</li>
+            </ul>
+          </div>
+          
+          <div className="flex justify-between items-center mb-6">
+            <div className="text-gray-700">
+              <p>You're paying with:</p>
+              <p className="font-bold text-lg">
+                {isConfirmationWithPoints 
+                  ? <span className="flex items-center"><Sparkles className="h-4 w-4 text-blue-500 mr-1" /> {selectedBoost.cost} points</span>
+                  : <span>{selectedBoost.price}</span>
+                }
+              </p>
+            </div>
+            
+            <div className={`p-3 rounded-full ${selectedBoost.color} bg-opacity-20`}>
+              {isConfirmationWithPoints 
+                ? <Tag className="h-6 w-6 text-blue-600" />
+                : <CreditCard className="h-6 w-6 text-gray-700" />
+              }
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => !processingPayment && setShowBoostConfirmation(false)}
+              className="py-3 px-4 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              disabled={processingPayment}
+            >
+              Cancel
+            </button>
+            
+            <button
+              onClick={() => isConfirmationWithPoints 
+                ? completePurchaseWithPoints(selectedBoost)
+                : completePurchaseWithMoney(selectedBoost)
+              }
+              className="py-3 px-4 bg-blue-600 rounded-lg font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center"
+              disabled={processingPayment}
+            >
+              {processingPayment ? (
+                <>
+                  <Loader2 className="animate-spin mr-2 h-5 w-5" />
+                  Processing...
+                </>
+              ) : (
+                <>Confirm Purchase</>
+              )}
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    );
+  };
+
+  // Render active boosts section
+  const renderActiveBoosts = () => {
+    if (activeBoosts.length === 0) return null;
+    
+    return (
+      <div className="mb-6 bg-gradient-to-r from-violet-100 to-fuchsia-100 p-4 rounded-lg">
+        <h3 className="text-lg font-bold mb-3 flex items-center">
+          <Zap className="text-purple-600 mr-2 h-5 w-5" />
+          Your Active Boosts
+        </h3>
+        
+        <div className="space-y-3">
+          {activeBoosts.map(boost => (
+            <div key={boost.id} className="bg-white rounded-lg p-3 shadow-sm flex justify-between items-center">
+              <div className="flex items-center">
+                <div className={`p-2 rounded-lg ${getBoostColor(boost.boostType)} bg-opacity-10 mr-3`}>
+                  <Zap className={`h-5 w-5 ${getBoostTextColor(boost.boostType)}`} />
+                </div>
+                <div>
+                  <h4 className="font-medium">{getBoostName(boost.boostType)}</h4>
+                  <p className="text-sm text-gray-600">{boost.boostFactor}x visibility</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center">
+                <Clock className="h-4 w-4 text-gray-400 mr-1" />
+                <span className="text-sm text-gray-600">{formatRemainingTime(boost.expiresAt)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Helper functions for boosts
+  const getBoostName = (boostType) => {
+    if (boostType === 'boost-basic') return 'Basic Boost';
+    if (boostType === 'boost-premium') return 'Premium Boost';
+    if (boostType === 'boost-ultra') return 'Ultra Boost';
+    return 'Boost';
+  };
+
+  const getBoostColor = (boostType) => {
+    if (boostType === 'boost-basic') return 'bg-purple-500';
+    if (boostType === 'boost-premium') return 'bg-purple-600';
+    if (boostType === 'boost-ultra') return 'bg-purple-700';
+    return 'bg-purple-500';
+  };
+
+  const getBoostTextColor = (boostType) => {
+    if (boostType === 'boost-basic') return 'text-purple-500';
+    if (boostType === 'boost-premium') return 'text-purple-600';
+    if (boostType === 'boost-ultra') return 'text-purple-700';
+    return 'text-purple-500';
+  };
 
   // Render the category boxes when no category is selected
   const renderCategoryBoxes = () => {
@@ -536,6 +857,9 @@ const GymBrosShop = () => {
         )}
       </div>
 
+      {/* Active Boosts Section */}
+      {renderActiveBoosts()}
+
       {/* Main Content Area - Different based on if a category is selected */}
       {selectedCategory ? renderProducts() : (
         <>
@@ -547,10 +871,8 @@ const GymBrosShop = () => {
       {/* Modals */}
       <AnimatePresence>
         {showInfoModal && <InfoModal />}
-      </AnimatePresence>
-
-      <AnimatePresence>
         {showLoginPrompt && <LoginPrompt />}
+        {showBoostConfirmation && <BoostConfirmationModal />}
       </AnimatePresence>
     </div>
   );
