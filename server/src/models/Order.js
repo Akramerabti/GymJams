@@ -114,7 +114,55 @@ const orderSchema = new mongoose.Schema({
     amount: Number,
     date: Date
   },
-  cancelledAt: Date
+  cancelledAt: Date,
+  fulfillment: {
+    status: {
+      type: String,
+      enum: ['pending', 'processing', 'allocated', 'picked', 'packed', 'shipped', 'delivered', 'exception', 'canceled'],
+      default: 'pending'
+    },
+    warehouse: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Warehouse'
+    },
+    thirdPartyId: String,
+    pickedAt: Date,
+    packedAt: Date,
+    shippedAt: Date,
+    carrier: String,
+    serviceLevel: String,
+    tracking: {
+      number: String,
+      url: String,
+      events: [{
+        status: String,
+        location: String,
+        timestamp: Date,
+        description: String
+      }],
+      lastUpdated: Date
+    },
+    packagingDetails: {
+      packages: [{
+        trackingNumber: String,
+        weight: Number,
+        dimensions: {
+          length: Number,
+          width: Number,
+          height: Number
+        }
+      }]
+    },
+    exception: {
+      code: String,
+      message: String,
+      timestamp: Date,
+      resolved: {
+        type: Boolean,
+        default: false
+      }
+    }
+  },
 }, {
   timestamps: true
 });

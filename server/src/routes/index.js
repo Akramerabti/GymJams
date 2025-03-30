@@ -11,6 +11,8 @@ import clientRoutes from './client.routes.js';
 import applicationRoutes from './application.routes.js';
 import supportTicketRoutes from './supportTicket.routes.js';
 import blogRoutes from './blog.routes.js'; // Import the blog routes
+import thirdPartyLogisticsRoutes from './thirdPartyLogistics.routes.js'; // Import the 3PL routes
+
 
 const router = express.Router();
 
@@ -27,6 +29,7 @@ router.use('/client', clientRoutes);
 router.use('/applications', applicationRoutes);
 router.use('/support-tickets', supportTicketRoutes);
 router.use('/blog', blogRoutes); // Add this line
+router.use('/3pl', thirdPartyLogisticsRoutes); 
 
 // Health check route
 router.get('/health', (req, res) => {

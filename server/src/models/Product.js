@@ -62,7 +62,51 @@ const productSchema = new mongoose.Schema({
     percentage: Number,
     startDate: Date,
     endDate: Date
-  }
+  },
+  thirdPartyData: {
+    sku3PL: {
+      type: String,
+      sparse: true,
+      index: true
+    },
+    warehouses: [{
+      warehouse: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Warehouse'
+      },
+      stockQuantity: {
+        type: Number,
+        default: 0
+      },
+      binLocation: String,
+      lastSyncDate: Date
+    }],
+    dimensions: {
+      length: Number,
+      width: Number,
+      height: Number,
+      weight: Number,
+      unit: {
+        type: String,
+        enum: ['in', 'cm'],
+        default: 'in'
+      },
+      weightUnit: {
+        type: String,
+        enum: ['oz', 'lb', 'g', 'kg'],
+        default: 'oz'
+      }
+    },
+    handlingInstructions: String,
+    hazardous: {
+      type: Boolean,
+      default: false
+    },
+    requiresTemperatureControl: {
+      type: Boolean,
+      default: false
+    }
+  },
 }, {
   timestamps: true,
   toJSON: { virtuals: true }

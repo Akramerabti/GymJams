@@ -14,6 +14,7 @@ import useCartStore from '../stores/cartStore';
 import inventoryService from '../services/inventory.service';
 import { Loader2, AlertTriangle, ShoppingCart, Truck, MapPin, CreditCard, Check, ChevronRight } from 'lucide-react';
 import { useAuth } from '../stores/authStore';
+import thirdPartyLogisticsService from '../services/thirdPartyLogistics.service';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
@@ -105,6 +106,9 @@ const ShopCheckout = () => {
   const [stockWarnings, setStockWarnings] = useState([]);
   const [clientSecret, setClientSecret] = useState(null);
   const [orderId, setOrderId] = useState(null);
+  const [shippingMethods, setShippingMethods] = useState([]);
+  const [loadingShippingRates, setLoadingShippingRates] = useState(false);
+  const [shippingRateError, setShippingRateError] = useState(null);
 
   const [formData, setFormData] = useState({
     shipping: {
@@ -134,6 +138,71 @@ const ShopCheckout = () => {
   });
 
   const [formErrors, setFormErrors] = useState({});
+
+  useEffect(() => {
+    const fetchShippingRates = async () => {
+      // Only fetch shipping rates when we have enough address information
+      if (!formData.shipping.zipCode || !formData.shipping.country) {
+        return;
+      }
+      
+      try {
+        setLoadingShippingRates(true);
+        setShippingRateError(null);
+        
+        // Format items for rate request
+        const itemsForRates = items.map(item => ({
+          id: item.id,
+          quantity: item.quantity,
+          price: item.price
+        }));
+        
+        // Get rates from 3PL service
+        const response = await thirdPartyLogisticsService.getShippingRates(
+          itemsForRates,
+          formData.shipping
+        );
+        
+        if (response.rates && response.rates.length > 0) {
+          setShippingMethods(response.rates);
+          
+          // If user hasn't selected a shipping method yet, select the first one
+          if (!formData.shippingMethod) {
+            handleShippingMethodChange(response.rates[0].id);
+          }
+        } else {
+          setShippingRateError("No shipping methods available for this address");
+        }
+      } catch (error) {
+        console.error('Error fetching shipping rates:', error);
+        setShippingRateError("Could not calculate shipping rates. Please try again.");
+        
+        // Fall back to default shipping methods
+        setShippingMethods([
+          { 
+            id: 'standard', 
+            name: 'Standard Shipping', 
+            price: subtotal >= 100 ? 0 : 10,
+            estimatedDeliveryDays: { min: 3, max: 5 },
+            carrier: 'Various'
+          },
+          { 
+            id: 'express', 
+            name: 'Express Shipping', 
+            price: 25,
+            estimatedDeliveryDays: { min: 1, max: 2 },
+            carrier: 'Various'
+          }
+        ]);
+      } finally {
+        setLoadingShippingRates(false);
+      }
+    };
+    if (step === 2) {
+      fetchShippingRates();
+    }
+  }, [formData.shipping.zipCode, formData.shipping.country, step]);
+  
 
   useEffect(() => {
     const validateStock = async () => {
@@ -207,12 +276,17 @@ const ShopCheckout = () => {
     }));
   };
 
-  const handleShippingMethodChange = (method) => {
-    setFormData((prev) => ({
+  const handleShippingMethodChange = (methodId) => {
+    // Find the selected method to get its price
+    const selectedMethod = shippingMethods.find(method => method.id === methodId);
+    
+    setFormData(prev => ({
       ...prev,
-      shippingMethod: method,
+      shippingMethod: methodId,
+      selectedShippingRate: selectedMethod
     }));
   };
+  
 
   const validateForm = () => {
     const newErrors = {};
@@ -386,8 +460,11 @@ const ShopCheckout = () => {
     );
   }
 
-  // Calculate shipping cost based on method
-  const shippingCost = formData.shippingMethod === 'express' ? 25 : shipping;
+  const selectedMethod = formData.shippingMethod 
+  ? shippingMethods.find(m => m.id === formData.shippingMethod) 
+  : null;
+
+  const shippingCost = selectedMethod ? selectedMethod.price : shipping;
 
   const finalTotal = parseFloat(Math.max(0, subtotal + shippingCost + tax - pointsDiscount).toFixed(2));
 
@@ -617,35 +694,48 @@ const ShopCheckout = () => {
                       </div>
 
                       <div className="space-y-4">
-                        <h3 className="font-semibold">Shipping Method</h3>
-                        <RadioGroup
-                          defaultValue="standard"
-                          value={formData.shippingMethod}
-                          onValueChange={handleShippingMethodChange}
-                          className="space-y-3"
-                        >
-                          <div className="flex items-center justify-between space-x-2 p-4 rounded-md border">
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="standard" id="standard" />
-                              <Label htmlFor="standard" className="cursor-pointer">
-                                Standard Shipping (3-5 business days)
-                              </Label>
-                            </div>
-                            <div className="font-semibold">
-                              {subtotal >= 100 ? 'FREE' : '$10.00'}
-                            </div>
+                            <h3 className="font-semibold">Shipping Method</h3>
+
+                            {loadingShippingRates ? (
+                              <div className="text-center py-4">
+                                <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                                <p className="text-sm text-gray-500">Calculating shipping rates...</p>
+                              </div>
+                            ) : shippingRateError ? (
+                              <div className="p-4 border border-amber-200 bg-amber-50 rounded-md">
+                                <p className="text-amber-800 text-sm">{shippingRateError}</p>
+                                <p className="text-sm mt-2">Using default shipping options instead.</p>
+                              </div>
+                            ) : (
+                              <RadioGroup
+                                defaultValue={formData.shippingMethod}
+                                value={formData.shippingMethod}
+                                onValueChange={handleShippingMethodChange}
+                                className="space-y-3"
+                              >
+                                {shippingMethods.map(method => (
+                                  <div key={method.id} className="flex items-center justify-between space-x-2 p-4 rounded-md border">
+                                    <div className="flex items-center space-x-2">
+                                      <RadioGroupItem value={method.id} id={method.id} />
+                                      <Label htmlFor={method.id} className="cursor-pointer">
+                                        <div>
+                                          <p className="font-medium">{method.name}</p>
+                                          <div className="text-sm text-gray-500 flex flex-col space-y-1">
+                                            <span>
+                                              {method.carrier} ({method.estimatedDeliveryDays.min}-{method.estimatedDeliveryDays.max} business days)
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </Label>
+                                    </div>
+                                    <div className="font-semibold">
+                                      {method.price === 0 ? 'FREE' : `$${method.price.toFixed(2)}`}
+                                    </div>
+                                  </div>
+                                ))}
+                              </RadioGroup>
+                            )}
                           </div>
-                          <div className="flex items-center justify-between space-x-2 p-4 rounded-md border">
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="express" id="express" />
-                              <Label htmlFor="express" className="cursor-pointer">
-                                Express Shipping (1-2 business days)
-                              </Label>
-                            </div>
-                            <div className="font-semibold">$25.00</div>
-                          </div>
-                        </RadioGroup>
-                      </div>
 
                       <div className="space-y-4">
                         <h3 className="font-semibold">Billing Address</h3>
