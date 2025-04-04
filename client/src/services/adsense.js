@@ -23,8 +23,8 @@ class AdService {
     
     const sizeMap = {
       'top': 'data-ad-format="auto" data-full-width-responsive="true"',
-      'sidebar': 'style="display:block; min-height: 250px;" data-ad-format="rectangle"',
-      'in-content': 'style="display:block; min-height: 250px;" data-ad-format="fluid" data-ad-layout="in-article"'
+      'sidebar': 'style="display:block; min-width:300px; min-height:250px;" data-ad-format="rectangle"',
+      'in-content': 'style="display:block; min-width:300px; min-height:250px;" data-ad-format="fluid" data-ad-layout="in-article"'
     };
     
     const slotMap = {
@@ -45,6 +45,9 @@ class AdService {
            ${size}
            data-ad-client="${publisherId}"
            data-ad-slot="${slot}"></ins>
+      <script>
+        (window.adsbygoogle = window.adsbygoogle || []).push({});
+      </script>
     `;
   }
 
@@ -74,7 +77,7 @@ class AdService {
     const adId = AdService.generateAdId(position);
     
     return `
-      <div id="${adId}" class="fallback-ad">
+      <div id="${adId}" class="fallback-ad" style="min-width:300px; min-height:250px;">
         <a href="${ad.linkUrl}" target="_blank" rel="noopener noreferrer">
           <img src="${ad.imageUrl}" alt="${ad.altText}" style="width:100%; height:auto;" />
         </a>
@@ -153,6 +156,13 @@ class AdService {
       if (adId) {
         const adElement = document.getElementById(adId);
         if (adElement && !this.processedAds.has(adId)) {
+          // Check element dimensions
+          const rect = adElement.getBoundingClientRect();
+          if (rect.width < 300 || rect.height < 250) {
+            console.warn(`Ad ${adId} has insufficient dimensions: ${rect.width}x${rect.height}`);
+            return false;
+          }
+
           window.adsbygoogle.push({});
           this.processedAds.add(adId);
           return true;
@@ -165,10 +175,10 @@ class AdService {
       
       if (adElements.length === 0) return false;
 
-      // Try to push ads only to visible elements with non-zero width
+      // Try to push ads only to visible elements with sufficient width
       const visibleAdElements = Array.from(adElements).filter(el => {
         const rect = el.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0 && 
+        return rect.width >= 300 && rect.height >= 250 && 
                window.getComputedStyle(el).display !== 'none';
       });
 

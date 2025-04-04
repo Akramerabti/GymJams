@@ -6,6 +6,32 @@ const AdBanner = ({ position, adCode, className = '' }) => {
   const [adLoaded, setAdLoaded] = useState(false);
   const [adError, setAdError] = useState(false);
   const [adId] = useState(() => generateAdId(position));
+  const [containerWidth, setContainerWidth] = useState('100%');
+
+  // Ensure container has a width and track size changes
+  useEffect(() => {
+    const updateWidth = () => {
+      if (adRef.current) {
+        const width = adRef.current.getBoundingClientRect().width;
+        setContainerWidth(width > 0 ? `${width}px` : '100%');
+      }
+    };
+
+    // Initial width check
+    updateWidth();
+
+    // Resize observer to track width changes
+    const resizeObserver = new ResizeObserver(updateWidth);
+    if (adRef.current) {
+      resizeObserver.observe(adRef.current);
+    }
+
+    return () => {
+      if (adRef.current) {
+        resizeObserver.unobserve(adRef.current);
+      }
+    };
+  }, []);
 
   // Initialize ads when the component mounts
   useEffect(() => {
@@ -14,22 +40,28 @@ const AdBanner = ({ position, adCode, className = '' }) => {
       try {
         await adService.init();
         
-        // Defer ad processing to ensure DOM is ready
+        // Defer ad processing to ensure DOM is ready and has width
         const processAd = () => {
-          const processed = adService.processAds(adId);
-          setAdLoaded(processed);
-          
-          // If not processed, try again after a short delay
-          if (!processed) {
-            setTimeout(() => {
-              const retryProcessed = adService.processAds(adId);
-              setAdLoaded(retryProcessed);
-            }, 1000);
+          // Only process if container has a width
+          const adElement = document.getElementById(adId);
+          if (adElement) {
+            const rect = adElement.getBoundingClientRect();
+            if (rect.width > 0) {
+              const processed = adService.processAds(adId);
+              setAdLoaded(processed);
+            } else {
+              // Retry processing with a delay
+              setTimeout(() => {
+                const retryProcessed = adService.processAds(adId);
+                setAdLoaded(retryProcessed);
+              }, 2000);
+            }
           }
         };
 
-        // Use requestAnimationFrame to process after render
+        // Use multiple techniques to ensure processing
         window.requestAnimationFrame(processAd);
+        setTimeout(processAd, 1000);
       } catch (err) {
         console.warn('Ad loading error:', err);
         setAdError(true);
@@ -91,17 +123,20 @@ const AdBanner = ({ position, adCode, className = '' }) => {
       className={`ad-container ad-${position} ${className}`}
       data-ad-position={position}
       style={{ 
+        width: containerWidth,
+        minWidth: '300px',
         minHeight: '250px', 
         display: 'flex', 
         justifyContent: 'center', 
-        alignItems: 'center' 
+        alignItems: 'center',
+        overflow: 'hidden'
       }}
     >
       <div 
         className="ad-content relative w-full" 
+        style={{ width: '100%' }}
         dangerouslySetInnerHTML={{ __html: finalAdCode }}
       />
-      <div className="text-xs text-gray-400 text-center mt-1">Advertisement</div>
     </div>
   );
 };
