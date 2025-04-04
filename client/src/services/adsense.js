@@ -47,11 +47,16 @@ class AdService {
         return;
       }
 
-      // Set a safeCORS flag to use no-cors mode for fetch requests
+      // Initialize googletag with safeCORS flag
       if (typeof window.googletag === 'undefined') {
         window.googletag = { cmd: [] };
       }
-      window.googletag.safeCORS = true;
+      
+      // Set safeCORS explicitly to use no-cors mode
+      window.googletag.cmd.push(() => {
+        window.googletag.pubads().set('page_url', window.location.href);
+        window.googletag.safeCORS = true;
+      });
       
       // Create the GPT script
       const script = document.createElement('script');
@@ -70,18 +75,31 @@ class AdService {
               // Enable Single Request Architecture
               googletag.pubads().enableSingleRequest();
               
-              // Set SafeFrame configuration
+              // Enable lazy loading
+              googletag.pubads().enableLazyLoad({
+                fetchMarginPercent: 100,
+                renderMarginPercent: 50,
+                mobileScaling: 2.0
+              });
+              
+              // Use Safe Frame (for secure iframe rendering)
               googletag.pubads().setSafeFrameConfig({
                 allowOverlayExpansion: true,
                 allowPushExpansion: true,
                 sandbox: true
               });
               
-              // Set page-level targeting if needed
-              // googletag.pubads().setTargeting('key', 'value');
+              // Add privacy-friendly configuration
+              if (googletag.pubads().disableInitialLoad) {
+                googletag.pubads().disableInitialLoad(); // Let us control when ads load
+              }
               
-              // Set cookie options for improved privacy
-              googletag.pubads().setCookieOptions(1);
+              // Use Limited Ads instead of cookies
+              if (googletag.pubads().setPrivacySettings) {
+                googletag.pubads().setPrivacySettings({
+                  restrictDataProcessing: true
+                });
+              }
               
               // Enable services
               googletag.enableServices();
@@ -201,6 +219,7 @@ class AdService {
         try {
           // Make sure the element exists before trying to display an ad in it
           if (document.getElementById(divId)) {
+            // Use display with opaque request approach (no-cors)
             googletag.display(divId);
           }
         } catch (innerError) {

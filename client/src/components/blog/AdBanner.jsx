@@ -58,10 +58,15 @@ const AdBanner = ({ position, className = '' }) => {
           return;
         }
         
-        // Display the ad
-        const success = adService.displayAd(position);
-        setAdLoaded(success);
-        setAdError(!success);
+        // Add a short delay to ensure DOM is ready
+        setTimeout(() => {
+          // Display the ad
+          const success = adService.displayAd(position);
+          if (mounted) {
+            setAdLoaded(success);
+            setAdError(!success);
+          }
+        }, 100);
         
       } catch (error) {
         console.error('Error setting up ad:', error);

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
-import adSenseService from './services/adsense';
+import adService from './services/adsense';
 import AdDebugger from './components/blog/AdDebugger';
 
 // Import global CSS
@@ -13,7 +13,6 @@ import { GuestFlowProvider } from './components/gymBros/components/GuestFlowCont
 // Layout Components
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
-import adService from './services/adsense'; // Adjust the import path as necessary
 
 // Page Components
 import Home from './pages/Home';
@@ -61,13 +60,13 @@ const RouteChangeHandler = () => {
       try {
         await adService.init();
         
-        // Wait for DOM to update before refreshing ads
+        // Wait longer for DOM to update before refreshing ads
         setTimeout(() => {
           const existingAds = document.querySelectorAll('[id^="div-gpt-ad-"]');
           if (existingAds.length > 0) {
             adService.refreshAds();
           }
-        }, 1000);
+        }, 1500);
       } catch (error) {
         console.error('Error refreshing ads on route change:', error);
       }
@@ -100,14 +99,20 @@ const App = () => {
       }
     };
 
-    // Initialize Google Ad Manager
-    const initGAM = async () => {
+    // Initialize Google Ad Manager with retry
+    const initGAM = async (retryCount = 0) => {
       try {
         // Initialize and set up slots
         await adService.init();
         console.log('Google Ad Manager initialized successfully');
       } catch (error) {
         console.error('Google Ad Manager initialization error:', error);
+        // Retry initialization a few times with exponential backoff
+        if (retryCount < 3) {
+          const delay = Math.pow(2, retryCount) * 1000;
+          console.log(`Retrying GAM initialization in ${delay}ms...`);
+          setTimeout(() => initGAM(retryCount + 1), delay);
+        }
       }
     };
 

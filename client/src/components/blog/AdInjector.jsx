@@ -82,13 +82,18 @@ const AdInjector = ({ content, adPlacements, readingProgress, isDarkMode, setAdV
       // After a brief delay to allow DOM update, display the ad (in production only)
       if (!isDevelopment) {
         setTimeout(() => {
-          adService.displayAd('in-content');
-          
-          // Track as viewed for analytics
-          if (setAdViewEvents) {
-            setAdViewEvents(prev => ({ ...prev, [adId]: true }));
+          // Using try-catch to handle potential errors
+          try {
+            adService.displayAd('in-content');
+            
+            // Track as viewed for analytics
+            if (setAdViewEvents) {
+              setAdViewEvents(prev => ({ ...prev, [adId]: true }));
+            }
+          } catch (error) {
+            console.warn('Error displaying in-content ad:', error);
           }
-        }, 500);
+        }, 800); // Longer delay to ensure DOM is ready
       } else {
         // In development, just mark it as viewed for analytics testing
         if (setAdViewEvents) {
