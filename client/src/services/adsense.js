@@ -7,6 +7,7 @@ class AdService {
     this.slots = {};
     this.initPromise = null;
     this.networkId = '22639388920';
+    this.scriptAdded = false; // Track if script was added
     
     // Detect if we're in development or production
     this.isDevelopment = typeof window !== 'undefined' && 
@@ -47,91 +48,59 @@ class AdService {
         return;
       }
 
-      // Initialize googletag with safeCORS flag
+      // Check if googletag is already defined and ready
+      if (typeof window.googletag !== 'undefined' && window.googletag.apiReady) {
+        console.log('GPT already initialized, using existing instance');
+        this.defineAdSlots();
+        this.initialized = true;
+        resolve(true);
+        return;
+      }
+
+      // Initialize googletag
       if (typeof window.googletag === 'undefined') {
         window.googletag = { cmd: [] };
       }
       
-      // Set safeCORS explicitly to use no-cors mode
-      window.googletag.cmd.push(() => {
-        window.googletag.pubads().set('page_url', window.location.href);
-        window.googletag.safeCORS = true;
-      });
+      // Check if the script is already in the document
+      const existingScript = document.querySelector('script[src*="securepubads.g.doubleclick.net"]');
+      if (existingScript) {
+        // Script already exists, just initialize
+        this.scriptAdded = true;
+        googletag.cmd.push(() => {
+          this.defineAdSlots();
+          this.initialized = true;
+          resolve(true);
+        });
+        return;
+      }
       
-      // Create the GPT script
-      const script = document.createElement('script');
-      script.src = 'https://securepubads.g.doubleclick.net/tag/js/gpt.js';
-      script.async = true;
-      script.crossOrigin = "anonymous"; // Add crossOrigin attribute
+      // Create the GPT script if not already added
+      if (!this.scriptAdded) {
+        const script = document.createElement('script');
+        script.src = 'https://securepubads.g.doubleclick.net/tag/js/gpt.js';
+        script.async = true;
+        this.scriptAdded = true;
 
-      script.onload = () => {
-        // Initialize googletag
-        if (window.googletag) {
+        script.onload = () => {
+          // Initialize googletag
           googletag.cmd.push(() => {
-            try {
-              // Configure the ad slots
-              this.defineAdSlots();
-              
-              // Enable Single Request Architecture
-              googletag.pubads().enableSingleRequest();
-              
-              // Enable lazy loading
-              googletag.pubads().enableLazyLoad({
-                fetchMarginPercent: 100,
-                renderMarginPercent: 50,
-                mobileScaling: 2.0
-              });
-              
-              // Use Safe Frame (for secure iframe rendering)
-              googletag.pubads().setSafeFrameConfig({
-                allowOverlayExpansion: true,
-                allowPushExpansion: true,
-                sandbox: true
-              });
-              
-              // Add privacy-friendly configuration
-              if (googletag.pubads().disableInitialLoad) {
-                googletag.pubads().disableInitialLoad(); // Let us control when ads load
-              }
-              
-              // Use Limited Ads instead of cookies
-              if (googletag.pubads().setPrivacySettings) {
-                googletag.pubads().setPrivacySettings({
-                  restrictDataProcessing: true
-                });
-              }
-              
-              // Enable services
-              googletag.enableServices();
-              
-              console.log('Google Publisher Tags initialized successfully');
-              
-              // Mark as initialized
-              this.initialized = true;
-              resolve(true);
-            } catch (error) {
-              console.error('Error initializing GPT:', error);
-              this.initialized = true;
-              resolve(false);
-            }
+            this.defineAdSlots();
+            this.initialized = true;
+            resolve(true);
           });
-        } else {
-          console.warn('googletag not available after script load');
+        };
+
+        script.onerror = (error) => {
+          console.warn('Failed to load GPT script:', error);
           this.adBlocked = true;
           this.initialized = true;
           resolve(false);
-        }
-      };
+        };
 
-      script.onerror = (error) => {
-        console.warn('Failed to load GPT script:', error);
-        this.adBlocked = true;
-        this.initialized = true;
-        resolve(false);
-      };
-
-      // Add the script to the page
-      document.head.appendChild(script);
+        // Add the script to the page
+        document.head.appendChild(script);
+      }
       
       // Set a timeout in case script hangs
       setTimeout(() => {
@@ -154,11 +123,17 @@ class AdService {
     
     try {
       googletag.cmd.push(() => {
-        // Clear any existing slots first
+        // Check if slots are already defined to prevent duplicate definitions
         if (googletag.pubads && googletag.pubads().getSlots) {
           const existingSlots = googletag.pubads().getSlots();
-          if (existingSlots && existingSlots.length > 0) {
-            googletag.destroySlots();
+          const slotIds = existingSlots.map(s => s.getSlotElementId());
+          
+          // Skip if our slots are already defined
+          if (slotIds.includes('div-gpt-ad-GymJams_Top') && 
+              slotIds.includes('div-gpt-ad-GymJams_Sidebar') && 
+              slotIds.includes('div-gpt-ad-GymJams_InContent')) {
+            console.log('Ad slots already defined, skipping definition');
+            return;
           }
         }
 
@@ -182,13 +157,17 @@ class AdService {
           [[300, 250], [336, 280]], // Common in-content sizes
           'div-gpt-ad-GymJams_InContent'
         ).addService(googletag.pubads());
+        
+        // Basic configuration - keep it simple
+        googletag.pubads().enableSingleRequest();
+        googletag.enableServices();
       });
     } catch (error) {
       console.error('Error defining ad slots:', error);
     }
   }
 
-  // Display an ad in the specified position
+  // The rest of your methods remain unchanged
   displayAd(position) {
     // Skip actual ad display in development mode
     if (this.isDevelopment) {
@@ -219,7 +198,6 @@ class AdService {
         try {
           // Make sure the element exists before trying to display an ad in it
           if (document.getElementById(divId)) {
-            // Use display with opaque request approach (no-cors)
             googletag.display(divId);
           }
         } catch (innerError) {
