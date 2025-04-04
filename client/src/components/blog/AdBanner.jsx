@@ -1,37 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
 import adService, { generateAdId, getAdCode } from '../../services/adsense.js';
 
+// Define fixed dimensions for different ad positions
+const AD_DIMENSIONS = {
+  'top': { width: '100%', height: '250px', minWidth: '728px' },
+  'sidebar': { width: '300px', height: '250px' },
+  'in-content': { width: '336px', height: '280px' }
+};
+
 const AdBanner = ({ position, adCode, className = '' }) => {
   const adRef = useRef(null);
   const [adLoaded, setAdLoaded] = useState(false);
   const [adError, setAdError] = useState(false);
   const [adId] = useState(() => generateAdId(position));
-  const [containerWidth, setContainerWidth] = useState('100%');
 
-  // Ensure container has a width and track size changes
-  useEffect(() => {
-    const updateWidth = () => {
-      if (adRef.current) {
-        const width = adRef.current.getBoundingClientRect().width;
-        setContainerWidth(width > 0 ? `${width}px` : '100%');
-      }
-    };
-
-    // Initial width check
-    updateWidth();
-
-    // Resize observer to track width changes
-    const resizeObserver = new ResizeObserver(updateWidth);
-    if (adRef.current) {
-      resizeObserver.observe(adRef.current);
-    }
-
-    return () => {
-      if (adRef.current) {
-        resizeObserver.unobserve(adRef.current);
-      }
-    };
-  }, []);
+  // Get fixed dimensions for the ad
+  const dimensions = AD_DIMENSIONS[position] || AD_DIMENSIONS['sidebar'];
 
   // Initialize ads when the component mounts
   useEffect(() => {
@@ -40,28 +24,24 @@ const AdBanner = ({ position, adCode, className = '' }) => {
       try {
         await adService.init();
         
-        // Defer ad processing to ensure DOM is ready and has width
+        // Ensure ad is processed with fixed dimensions
         const processAd = () => {
-          // Only process if container has a width
           const adElement = document.getElementById(adId);
           if (adElement) {
-            const rect = adElement.getBoundingClientRect();
-            if (rect.width > 0) {
-              const processed = adService.processAds(adId);
-              setAdLoaded(processed);
-            } else {
-              // Retry processing with a delay
-              setTimeout(() => {
-                const retryProcessed = adService.processAds(adId);
-                setAdLoaded(retryProcessed);
-              }, 2000);
-            }
+            // Force dimensions
+            adElement.style.width = dimensions.width;
+            adElement.style.height = dimensions.height;
+            adElement.style.minWidth = dimensions.minWidth || dimensions.width;
+            
+            const processed = adService.processAds(adId);
+            setAdLoaded(processed);
           }
         };
 
-        // Use multiple techniques to ensure processing
+        // Multiple processing attempts
         window.requestAnimationFrame(processAd);
-        setTimeout(processAd, 1000);
+        setTimeout(processAd, 500);
+        setTimeout(processAd, 1500);
       } catch (err) {
         console.warn('Ad loading error:', err);
         setAdError(true);
@@ -70,7 +50,7 @@ const AdBanner = ({ position, adCode, className = '' }) => {
     };
     
     initAds();
-  }, [adId]);
+  }, [adId, dimensions]);
   
   // Handle visibility tracking for ads
   useEffect(() => {
@@ -84,11 +64,7 @@ const AdBanner = ({ position, adCode, className = '' }) => {
           if (entry.isIntersecting) {
             // Track impression for this specific ad
             try {
-              // Only track if ad is visible and has sufficient width
-              const rect = entry.boundingClientRect;
-              if (rect.width > 0 && rect.height > 0) {
-                adService.trackImpression(adId, position);
-              }
+              adService.trackImpression(adId, position);
             } catch (error) {
               console.error('Impression tracking error:', error);
             }
@@ -123,9 +99,9 @@ const AdBanner = ({ position, adCode, className = '' }) => {
       className={`ad-container ad-${position} ${className}`}
       data-ad-position={position}
       style={{ 
-        width: containerWidth,
-        minWidth: '300px',
-        minHeight: '250px', 
+        width: dimensions.width,
+        height: dimensions.height,
+        minWidth: dimensions.minWidth || dimensions.width,
         display: 'flex', 
         justifyContent: 'center', 
         alignItems: 'center',
@@ -133,10 +109,14 @@ const AdBanner = ({ position, adCode, className = '' }) => {
       }}
     >
       <div 
-        className="ad-content relative w-full" 
-        style={{ width: '100%' }}
+        className="ad-content relative" 
+        style={{ 
+          width: '100%', 
+          height: '100%' 
+        }}
         dangerouslySetInnerHTML={{ __html: finalAdCode }}
       />
+      <div className="text-xs text-gray-400 text-center mt-1">Advertisement</div>
     </div>
   );
 };

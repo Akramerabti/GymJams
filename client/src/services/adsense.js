@@ -22,19 +22,21 @@ class AdService {
     }
     
     const sizeMap = {
-      'top': 'data-ad-format="auto" data-full-width-responsive="true"',
-      'sidebar': 'style="display:block; min-width:300px; min-height:250px;" data-ad-format="rectangle"',
-      'in-content': 'style="display:block; min-width:300px; min-height:250px;" data-ad-format="fluid" data-ad-layout="in-article"'
+      'top': {
+        format: 'data-ad-format="auto" data-full-width-responsive="true"',
+        slot: '5273146000'
+      },
+      'sidebar': {
+        format: 'style="display:block; width:300px; height:250px;" data-ad-format="rectangle"',
+        slot: '5273146000'
+      },
+      'in-content': {
+        format: 'style="display:block; width:336px; height:280px;" data-ad-format="fluid" data-ad-layout="in-article"',
+        slot: '2613401062'
+      }
     };
     
-    const slotMap = {
-      'top': '5273146000',
-      'sidebar': '5273146000',
-      'in-content': '2613401062'
-    };
-    
-    const size = sizeMap[position] || sizeMap['sidebar'];
-    const slot = slotMap[position] || slotMap['sidebar'];
+    const adConfig = sizeMap[position] || sizeMap['sidebar'];
     
     // Generate a unique ad ID
     const adId = AdService.generateAdId(position);
@@ -42,9 +44,9 @@ class AdService {
     return `
       <ins class="adsbygoogle ${adId}"
            id="${adId}"
-           ${size}
+           ${adConfig.format}
            data-ad-client="${publisherId}"
-           data-ad-slot="${slot}"></ins>
+           data-ad-slot="${adConfig.slot}"></ins>
       <script>
         (window.adsbygoogle = window.adsbygoogle || []).push({});
       </script>
@@ -57,17 +59,23 @@ class AdService {
       'sidebar': {
         imageUrl: '/images/ads/sidebar-fallback.jpg',
         linkUrl: '/shop?source=ad_fallback',
-        altText: 'Special Offer'
+        altText: 'Special Offer',
+        width: '300px',
+        height: '250px'
       },
       'in-content': {
         imageUrl: '/images/ads/content-fallback.jpg',
         linkUrl: '/coaching?source=ad_fallback',
-        altText: 'Coaching Special'
+        altText: 'Coaching Special',
+        width: '336px',
+        height: '280px'
       },
       'top': {
         imageUrl: '/images/ads/banner-fallback.jpg',
         linkUrl: '/subscription?source=ad_fallback',
-        altText: 'Premium Subscription'
+        altText: 'Premium Subscription',
+        width: '100%',
+        height: '250px'
       }
     };
 
@@ -77,9 +85,9 @@ class AdService {
     const adId = AdService.generateAdId(position);
     
     return `
-      <div id="${adId}" class="fallback-ad" style="min-width:300px; min-height:250px;">
+      <div id="${adId}" class="fallback-ad" style="width:${ad.width}; height:${ad.height};">
         <a href="${ad.linkUrl}" target="_blank" rel="noopener noreferrer">
-          <img src="${ad.imageUrl}" alt="${ad.altText}" style="width:100%; height:auto;" />
+          <img src="${ad.imageUrl}" alt="${ad.altText}" style="width:100%; height:100%; object-fit:cover;" />
         </a>
       </div>
     `;
@@ -156,12 +164,11 @@ class AdService {
       if (adId) {
         const adElement = document.getElementById(adId);
         if (adElement && !this.processedAds.has(adId)) {
-          // Check element dimensions
-          const rect = adElement.getBoundingClientRect();
-          if (rect.width < 300 || rect.height < 250) {
-            console.warn(`Ad ${adId} has insufficient dimensions: ${rect.width}x${rect.height}`);
-            return false;
-          }
+          // Force minimum dimensions
+          adElement.style.width = '300px';
+          adElement.style.height = '250px';
+          adElement.style.minWidth = '300px';
+          adElement.style.display = 'block';
 
           window.adsbygoogle.push({});
           this.processedAds.add(adId);
@@ -175,19 +182,16 @@ class AdService {
       
       if (adElements.length === 0) return false;
 
-      // Try to push ads only to visible elements with sufficient width
-      const visibleAdElements = Array.from(adElements).filter(el => {
-        const rect = el.getBoundingClientRect();
-        return rect.width >= 300 && rect.height >= 250 && 
-               window.getComputedStyle(el).display !== 'none';
-      });
-
-      if (visibleAdElements.length === 0) return false;
-
       // Push ads and mark as processed
       window.adsbygoogle.push({});
       
-      visibleAdElements.forEach(el => {
+      adElements.forEach(el => {
+        // Force minimum dimensions
+        el.style.width = '300px';
+        el.style.height = '250px';
+        el.style.minWidth = '300px';
+        el.style.display = 'block';
+
         el.classList.add('adsbygoogle-processed');
         
         // Ensure the ad has an ID for tracking
@@ -218,6 +222,11 @@ class AdService {
       console.log(`Tracked impression for ${adUnitId} at ${position}`);
     }
   }
+
+  // Detect ad blocker (for debugging)
+  isAdBlockerDetected() {
+    return this.adBlocked;
+  }
 }
 
 // Create a singleton instance
@@ -230,4 +239,4 @@ window.addEventListener('load', () => {
 
 // Export the singleton and static methods
 export default adService;
-export const { generateAdId, getAdCode } = AdService;
+export const { generateAdId, getAdCode, isAdBlockerDetected } = AdService;
