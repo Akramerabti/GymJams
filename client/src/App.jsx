@@ -1,4 +1,3 @@
-// client/src/App.jsx
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
@@ -76,11 +75,18 @@ const App = () => {
     // Initialize AdSense
     const initAdSense = async () => {
       try {
-        await adSenseService.init();
+        // Ensure only existing ad elements are processed
+        const existingAdElements = document.querySelectorAll('.adsbygoogle:not(.adsbygoogle-processed)');
         
-        // Optional: Force an ad refresh
-        if (window.adsbygoogle) {
-          (window.adsbygoogle = window.adsbygoogle || []).push({});
+        if (existingAdElements.length > 0) {
+          const initialized = await adSenseService.init();
+          
+          if (initialized) {
+            // Add class to prevent reprocessing
+            existingAdElements.forEach(el => {
+              el.classList.add('adsbygoogle-processed');
+            });
+          }
         }
       } catch (error) {
         console.error('AdSense initialization failed', error);
@@ -151,6 +157,7 @@ const App = () => {
             )}
 
             <Toaster />
+            <AdDebugger />
           </Layout>
         </Router>
       </GuestFlowProvider>
