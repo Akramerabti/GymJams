@@ -1,3 +1,4 @@
+// server/src/config/cors.js
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
     ? [
@@ -11,13 +12,17 @@ const corsOptions = {
         'https://hooks.stripe.com',
         'https://dashboard.stripe.com',
         'https://gymtonic.onrender.com/api/subscription/webhook',
-        // Add Google AdSense domains
-        'https://pagead2.googlesyndication.com',
+        // Ad network domains
+        'https://securepubads.g.doubleclick.net',
         'https://googleads.g.doubleclick.net',
+        'https://pagead2.googlesyndication.com',
         'https://partner.googleadservices.com',
         'https://www.google.com',
+        'https://www.googletagservices.com',
         'https://tpc.googlesyndication.com',
-        'https://adservice.google.com'
+        'https://adservice.google.com',
+        'https://s.amazon-adsystem.com',
+        'https://c.amazon-adsystem.com'
       ]
     : [
         'http://localhost:3000', 
@@ -25,16 +30,19 @@ const corsOptions = {
         'http://localhost:5000', 
         'https://api.stripe.com',
         'https://dashboard.stripe.com',
-        // Also add AdSense domains for testing
-        'https://pagead2.googlesyndication.com',
+        // Ad network domains (for testing)
+        'https://securepubads.g.doubleclick.net',
         'https://googleads.g.doubleclick.net',
+        'https://pagead2.googlesyndication.com',
         'https://partner.googleadservices.com',
         'https://www.google.com',
+        'https://www.googletagservices.com',
         'https://tpc.googlesyndication.com',
-        'https://adservice.google.com'
+        'https://adservice.google.com',
+        'https://s.amazon-adsystem.com',
+        'https://c.amazon-adsystem.com'
       ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-
   allowedHeaders: [
     'Content-Type', 
     'Authorization',

@@ -7,6 +7,7 @@ const AdBanner = ({ position, className = '' }) => {
   const [adLoaded, setAdLoaded] = useState(false);
   const [adError, setAdError] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
+  const isDevelopment = adService.isInDevelopmentMode();
 
   // Get dimensions based on position
   const dimensions = adService.getAdDimensions(position);
@@ -26,6 +27,12 @@ const AdBanner = ({ position, className = '' }) => {
         
         // Mark as initialized to avoid duplicate initialization
         setHasInitialized(true);
+        
+        // In development mode, always show fallbacks and mark as loaded
+        if (isDevelopment) {
+          setAdLoaded(true);
+          return;
+        }
         
         if (!initialized) {
           // Ad service failed to initialize (likely blocked)
@@ -75,7 +82,44 @@ const AdBanner = ({ position, className = '' }) => {
         clearTimeout(retryTimer);
       }
     };
-  }, [position, hasInitialized]);
+  }, [position, hasInitialized, isDevelopment]);
+
+  // In development mode, always show fallback content
+  if (isDevelopment) {
+    return (
+      <div 
+        className={`ad-container ad-${position} ${className}`}
+        style={{ 
+          width: dimensions.width,
+          height: dimensions.height,
+          maxWidth: dimensions.maxWidth || 'none',
+          margin: '0 auto',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <div 
+          style={{ width: '100%', height: '100%' }}
+          dangerouslySetInnerHTML={{ __html: adService.getFallbackAdHtml(position) }}
+        />
+        <div 
+          className="ad-label"
+          style={{
+            fontSize: '10px',
+            lineHeight: '1',
+            color: '#999',
+            textAlign: 'center',
+            marginTop: '2px',
+          }}
+        >
+          Advertisement (Dev Mode)
+        </div>
+      </div>
+    );
+  }
 
   // If there was an error loading the ad, try to show a fallback
   if (adError) {
@@ -93,8 +137,24 @@ const AdBanner = ({ position, className = '' }) => {
           alignItems: 'center',
           justifyContent: 'center',
         }}
-        dangerouslySetInnerHTML={{ __html: adService.getFallbackAdHtml(position) }}
-      />
+      >
+        <div
+          style={{ width: '100%', height: '100%' }}
+          dangerouslySetInnerHTML={{ __html: adService.getFallbackAdHtml(position) }}
+        />
+        <div 
+          className="ad-label"
+          style={{
+            fontSize: '10px',
+            lineHeight: '1',
+            color: '#999',
+            textAlign: 'center',
+            marginTop: '2px',
+          }}
+        >
+          Advertisement (Fallback)
+        </div>
+      </div>
     );
   }
 

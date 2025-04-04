@@ -6,7 +6,14 @@ class AdService {
     this.adBlocked = false;
     this.slots = {};
     this.initPromise = null;
-    this.networkId = '22639388920'; // Your network ID from the console output
+    this.networkId = '22639388920';
+    
+    // Detect if we're in development or production
+    this.isDevelopment = typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || 
+       window.location.hostname === '127.0.0.1' ||
+       window.location.port === '5173' ||
+       window.location.port === '3000');
   }
 
   // Initialize the Ad Manager (returns a promise that resolves when ready)
@@ -32,30 +39,70 @@ class AdService {
         return;
       }
 
+      // Skip actual ad loading in development mode to avoid CORS issues
+      if (this.isDevelopment) {
+        console.log('Development mode: Using fallback ads instead of GPT');
+        this.initialized = true;
+        resolve(true);
+        return;
+      }
+
+      // Set a safeCORS flag to use no-cors mode for fetch requests
+      if (typeof window.googletag === 'undefined') {
+        window.googletag = { cmd: [] };
+      }
+      window.googletag.safeCORS = true;
+      
       // Create the GPT script
       const script = document.createElement('script');
       script.src = 'https://securepubads.g.doubleclick.net/tag/js/gpt.js';
       script.async = true;
+      script.crossOrigin = "anonymous"; // Add crossOrigin attribute
 
       script.onload = () => {
         // Initialize googletag
-        window.googletag = window.googletag || { cmd: [] };
-        
-        // Configure the ad slots
-        googletag.cmd.push(() => {
-          // Define common slots
-          this.defineAdSlots();
-          
-          // Enable Single Request Architecture
-          googletag.pubads().enableSingleRequest();
-          
-          // Enable services
-          googletag.enableServices();
-          
-          console.log('Google Publisher Tags initialized successfully');
+        if (window.googletag) {
+          googletag.cmd.push(() => {
+            try {
+              // Configure the ad slots
+              this.defineAdSlots();
+              
+              // Enable Single Request Architecture
+              googletag.pubads().enableSingleRequest();
+              
+              // Set SafeFrame configuration
+              googletag.pubads().setSafeFrameConfig({
+                allowOverlayExpansion: true,
+                allowPushExpansion: true,
+                sandbox: true
+              });
+              
+              // Set page-level targeting if needed
+              // googletag.pubads().setTargeting('key', 'value');
+              
+              // Set cookie options for improved privacy
+              googletag.pubads().setCookieOptions(1);
+              
+              // Enable services
+              googletag.enableServices();
+              
+              console.log('Google Publisher Tags initialized successfully');
+              
+              // Mark as initialized
+              this.initialized = true;
+              resolve(true);
+            } catch (error) {
+              console.error('Error initializing GPT:', error);
+              this.initialized = true;
+              resolve(false);
+            }
+          });
+        } else {
+          console.warn('googletag not available after script load');
+          this.adBlocked = true;
           this.initialized = true;
-          resolve(true);
-        });
+          resolve(false);
+        }
       };
 
       script.onerror = (error) => {
@@ -84,6 +131,9 @@ class AdService {
 
   // Define the ad slots
   defineAdSlots() {
+    // Skip in development mode
+    if (this.isDevelopment) return;
+    
     try {
       googletag.cmd.push(() => {
         // Clear any existing slots first
@@ -114,23 +164,6 @@ class AdService {
           [[300, 250], [336, 280]], // Common in-content sizes
           'div-gpt-ad-GymJams_InContent'
         ).addService(googletag.pubads());
-
-        // Set any global targeting parameters
-        // googletag.pubads().setTargeting('site', 'gymjams');
-        
-        // Set safe-frame config
-        googletag.pubads().setSafeFrameConfig({
-          allowOverlayExpansion: true,
-          allowPushExpansion: true,
-          sandbox: true
-        });
-        
-        // Enable lazy loading (optional)
-        googletag.pubads().enableLazyLoad({
-          fetchMarginPercent: 200,  // Fetch slots within 2 viewports
-          renderMarginPercent: 100,  // Render slots within 1 viewport
-          mobileScaling: 2.0  // Double the fetch margin on mobile
-        });
       });
     } catch (error) {
       console.error('Error defining ad slots:', error);
@@ -139,6 +172,11 @@ class AdService {
 
   // Display an ad in the specified position
   displayAd(position) {
+    // Skip actual ad display in development mode
+    if (this.isDevelopment) {
+      return true; // Pretend it worked
+    }
+    
     if (!this.initialized || this.adBlocked) {
       return false;
     }
@@ -156,20 +194,33 @@ class AdService {
       return false;
     }
 
-    // Display the ad
+    // Display the ad, with error handling
     try {
+      // Wrap in try-catch since this might be executed before GPT is ready
       googletag.cmd.push(() => {
-        googletag.display(divId);
+        try {
+          // Make sure the element exists before trying to display an ad in it
+          if (document.getElementById(divId)) {
+            googletag.display(divId);
+          }
+        } catch (innerError) {
+          console.warn(`Error displaying ad in ${position}:`, innerError);
+        }
       });
       return true;
     } catch (error) {
-      console.warn(`Error displaying ad in ${position}:`, error);
+      console.warn(`Error queuing ad display for ${position}:`, error);
       return false;
     }
   }
 
   // Get the HTML for an ad container
   getAdHtml(position) {
+    // In development mode, use fallbacks
+    if (this.isDevelopment) {
+      return this.getFallbackAdHtml(position);
+    }
+    
     const slotMapping = {
       'top': 'div-gpt-ad-GymJams_Top',
       'sidebar': 'div-gpt-ad-GymJams_Sidebar',
@@ -183,7 +234,7 @@ class AdService {
     return `<div id="${divId}" style="width:100%; height:100%;"></div>`;
   }
 
-  // Get fallback ad HTML if ads are blocked
+  // Get fallback ad HTML if ads are blocked or in development
   getFallbackAdHtml(position) {
     const fallbackAds = {
       'top': {
@@ -206,6 +257,13 @@ class AdService {
         altText: 'Premium Subscription',
         width: '336px',
         height: '280px'
+      },
+      'footer': {
+        imageUrl: '/api/placeholder/728/90', 
+        linkUrl: '/subscription?source=ad_fallback',
+        altText: 'Premium Subscription',
+        width: '728px',
+        height: '90px'
       }
     };
 
@@ -237,8 +295,18 @@ class AdService {
     return this.adBlocked;
   }
 
+  // Check if we're in development mode
+  isInDevelopmentMode() {
+    return this.isDevelopment;
+  }
+
   // Refresh all ads on the page
   refreshAds() {
+    // Skip in development mode
+    if (this.isDevelopment) {
+      return true;
+    }
+    
     if (!this.initialized || this.adBlocked) {
       return false;
     }
