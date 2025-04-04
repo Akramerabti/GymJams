@@ -1,6 +1,23 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MapPin, Search, Loader, Navigation } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Fix Leaflet marker icon issue
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+
+let DefaultIcon = L.icon({
+  iconUrl: icon,
+  shadowUrl: iconShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+L.Marker.prototype.options.icon = DefaultIcon;
 
 const containerStyle = {
   width: '100%',
@@ -9,6 +26,163 @@ const containerStyle = {
   borderRadius: '12px',
   overflow: 'hidden',
   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+};
+
+// This component helps us respond to map events and keep track of the map instance
+const MapController = ({ position, zoom, onClick }) => {
+  const map = useMap();
+  
+  // Handle click events on map
+  useEffect(() => {
+    if (!map) return;
+    
+    const handleClick = (e) => {
+      onClick(e.latlng);
+    };
+
+    map.on('click', handleClick);
+    
+    return () => {
+      map.off('click', handleClick);
+    };
+  }, [map, onClick]);
+
+  // Update map view when position changes
+  useEffect(() => {
+    if (map && position) {
+      map.setView([position.lat, position.lng], zoom || map.getZoom());
+    }
+  }, [map, position, zoom]);
+
+  return null;
+};
+
+// Format address in the desired format
+const formatAddress = (addressData) => {
+  try {
+    // If we didn't get address details, return the display name
+    if (!addressData.address) {
+      return addressData.display_name || "Address not found";
+    }
+    
+    const address = addressData.address;
+    
+    // Extract components (with fallbacks for each part)
+    const houseNumber = address.house_number || '';
+    const street = address.road || address.street || address.pedestrian || '';
+    const city = address.city || address.town || address.village || address.hamlet || '';
+    const state = address.state || address.province || '';
+    const postcode = address.postcode || '';
+    const country = address.country || '';
+    
+    // Build address parts
+    const parts = [];
+    
+    // Street address
+    if (houseNumber && street) {
+      parts.push(`${houseNumber} ${street}`);
+    } else if (street) {
+      parts.push(street);
+    }
+    
+    // City
+    if (city) {
+      parts.push(city);
+    }
+    
+    // State/Province with abbreviation for Canada
+    if (state) {
+      let stateAbbr = state;
+      // Canadian province abbreviations
+      if (country === 'Canada') {
+        const provinceMap = {
+          'Alberta': 'AB',
+          'British Columbia': 'BC',
+          'Manitoba': 'MB',
+          'New Brunswick': 'NB',
+          'Newfoundland and Labrador': 'NL',
+          'Northwest Territories': 'NT',
+          'Nova Scotia': 'NS',
+          'Nunavut': 'NU',
+          'Ontario': 'ON',
+          'Prince Edward Island': 'PE',
+          'Quebec': 'QC',
+          'Saskatchewan': 'SK',
+          'Yukon': 'YT'
+        };
+        stateAbbr = provinceMap[state] || state;
+      }
+      parts.push(stateAbbr);
+    }
+    
+    // Postal code
+    if (postcode) {
+      parts.push(postcode);
+    }
+    
+    // Country
+    if (country) {
+      parts.push(country);
+    }
+    
+    // Join everything with commas
+    return parts.join(', ');
+  } catch (error) {
+    console.error('Error formatting address:', error);
+    return addressData.display_name || "Address not found";
+  }
+};
+
+// Free geocoding using Nominatim (OpenStreetMap)
+const geocodeLocation = async (lat, lng) => {
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
+    
+    if (!response.ok) {
+      throw new Error('Geocoding failed');
+    }
+    
+    const data = await response.json();
+    return formatAddress(data);
+  } catch (error) {
+    console.error("Geocoding error:", error);
+    return "Location found (address unavailable)";
+  }
+};
+
+// Geocode a search query
+const searchLocation = async (query) => {
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&addressdetails=1`);
+    
+    if (!response.ok) {
+      throw new Error('Search failed');
+    }
+    
+    const data = await response.json();
+    
+    if (data && data.length > 0) {
+      const formattedAddress = formatAddress(data[0]);
+      return {
+        lat: parseFloat(data[0].lat),
+        lng: parseFloat(data[0].lon),
+        address: formattedAddress
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error("Search error:", error);
+    return null;
+  }
+};
+
+// Debounce function to limit API requests
+const debounce = (func, wait) => {
+  let timeout;
+  return (...args) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
 };
 
 const LocationPicker = ({ location, onLocationChange }) => {
@@ -20,105 +194,107 @@ const LocationPicker = ({ location, onLocationChange }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [mapZoom, setMapZoom] = useState(13);
-  const [markerAnimation, setMarkerAnimation] = useState(null);
+  const [mapCenter, setMapCenter] = useState(markerPosition);
+  
+  // Refs to track last geocoding request time to avoid rate limiting
+  const lastGeocodingRequest = useRef(0);
+  const geocodeDelayMs = 1000; // Min time between requests
 
-  const { isLoaded, loadError } = useJsApiLoader({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-    libraries: ['places'],
-  });
-
-  const [map, setMap] = useState(null);
-
-  const onLoad = useCallback(function callback(mapInstance) {
-    setMap(mapInstance);
-  }, []);
-
-  const onUnmount = useCallback(function callback() {
-    setMap(null);
-  }, []);
-
-  // Reverse geocoding function
+  // Reverse geocoding function with rate limiting
   const reverseGeocode = useCallback(async (position) => {
-    if (!map) return;
-    
     try {
-      const geocoder = new window.google.maps.Geocoder();
-      const response = await new Promise((resolve, reject) => {
-        geocoder.geocode({ location: position }, (results, status) => {
-          if (status === 'OK' && results[0]) {
-            resolve(results[0]);
-          } else {
-            reject(new Error(`Geocoding failed: ${status}`));
-          }
-        });
-      });
+      // Rate limiting check
+      const now = Date.now();
+      const timeElapsed = now - lastGeocodingRequest.current;
       
-      setAddress(response.formatted_address);
+      if (timeElapsed < geocodeDelayMs) {
+        await new Promise(resolve => setTimeout(resolve, geocodeDelayMs - timeElapsed));
+      }
+      
+      lastGeocodingRequest.current = Date.now();
+      
+      // Get address from coordinates
+      const formattedAddress = await geocodeLocation(position.lat, position.lng);
+      
+      setAddress(formattedAddress);
+      
+      // Send complete location data back to parent
       onLocationChange({
         lat: position.lat,
         lng: position.lng,
-        address: response.formatted_address,
+        address: formattedAddress,
       });
     } catch (error) {
       console.error("Geocoding error:", error);
       setAddress("Location found (address unavailable)");
     }
-  }, [map, onLocationChange]);
+  }, [onLocationChange]);
+
+  // Debounced version of reverseGeocode to limit API calls
+  const debouncedReverseGeocode = useCallback(
+    debounce((position) => reverseGeocode(position), 500),
+    [reverseGeocode]
+  );
 
   // Handle map click
-  const onMapClick = useCallback((event) => {
+  const handleMapClick = useCallback((latlng) => {
     const newPosition = { 
-      lat: event.latLng.lat(), 
-      lng: event.latLng.lng() 
+      lat: latlng.lat, 
+      lng: latlng.lng 
     };
     
     setMarkerPosition(newPosition);
-    setMarkerAnimation(window.google.maps.Animation.DROP);
-    
-    // Reset animation after it plays
-    setTimeout(() => setMarkerAnimation(null), 750);
-  }, []);
+    debouncedReverseGeocode(newPosition);
+  }, [debouncedReverseGeocode]);
 
   // Handle location search
   const handleSearch = useCallback(async () => {
-    if (!map || !searchQuery.trim()) return;
+    if (!searchQuery.trim()) return;
     
     setIsSearching(true);
     try {
-      const geocoder = new window.google.maps.Geocoder();
-      const response = await new Promise((resolve, reject) => {
-        geocoder.geocode({ address: searchQuery }, (results, status) => {
-          if (status === 'OK' && results[0]) {
-            resolve(results[0]);
-          } else {
-            reject(new Error(`Search failed: ${status}`));
-          }
-        });
-      });
+      // First try if it's coordinates
+      const coordsRegex = /^(-?\d+(\.\d+)?),\s*(-?\d+(\.\d+)?)$/;
+      const match = searchQuery.match(coordsRegex);
       
-      const newPosition = {
-        lat: response.geometry.location.lat(),
-        lng: response.geometry.location.lng()
-      };
-      
-      setMarkerPosition(newPosition);
-      setAddress(response.formatted_address);
-      setMapZoom(15); // Zoom in when a location is found
-      
-      map.panTo(newPosition);
-      setMarkerAnimation(window.google.maps.Animation.DROP);
-      
-      onLocationChange({
-        lat: newPosition.lat,
-        lng: newPosition.lng,
-        address: response.formatted_address,
-      });
+      if (match) {
+        const lat = parseFloat(match[1]);
+        const lng = parseFloat(match[3]);
+        
+        if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+          const newPosition = { lat, lng };
+          setMarkerPosition(newPosition);
+          setMapCenter(newPosition);
+          setMapZoom(15);
+          reverseGeocode(newPosition);
+        } else {
+          alert('Invalid coordinates. Latitude must be between -90 and 90, longitude between -180 and 180.');
+        }
+      } else {
+        // Otherwise do a search by address
+        const result = await searchLocation(searchQuery);
+        if (result) {
+          setMarkerPosition(result);
+          setMapCenter(result);
+          setMapZoom(15);
+          setAddress(result.address);
+          
+          onLocationChange({
+            lat: result.lat,
+            lng: result.lng,
+            address: result.address,
+          });
+        } else {
+          alert('Location not found. Try a different search term or coordinates.');
+        }
+      }
     } catch (error) {
       console.error("Search error:", error);
+      alert('Error searching for location. Please try again.');
     } finally {
       setIsSearching(false);
     }
-  }, [map, searchQuery, onLocationChange]);
+  }, [searchQuery, reverseGeocode, onLocationChange]);
 
   // Get user's current location
   const getUserLocation = () => {
@@ -131,27 +307,33 @@ const LocationPicker = ({ location, onLocationChange }) => {
           };
           
           setMarkerPosition(newPosition);
+          setMapCenter(newPosition);
           setMapZoom(15);
           
-          if (map) {
-            map.panTo(newPosition);
-          }
-          
-          setMarkerAnimation(window.google.maps.Animation.DROP);
+          reverseGeocode(newPosition);
         },
         (error) => {
           console.error("Error getting user location:", error);
+          alert('Unable to get your location. Please ensure location services are enabled.');
         }
       );
+    } else {
+      alert('Geolocation is not supported by this browser.');
     }
   };
 
-  // Update address when marker position changes
-  useEffect(() => {
-    if (markerPosition.lat && markerPosition.lng) {
-      reverseGeocode(markerPosition);
-    }
-  }, [markerPosition, reverseGeocode]);
+  // Update address when marker position changes via dragging
+  const handleMarkerDrag = useCallback((event) => {
+    const marker = event.target;
+    const position = marker.getLatLng();
+    const newPosition = {
+      lat: position.lat,
+      lng: position.lng
+    };
+    
+    setMarkerPosition(newPosition);
+    debouncedReverseGeocode(newPosition);
+  }, [debouncedReverseGeocode]);
 
   // Handle enter key in search input
   const handleKeyDown = (e) => {
@@ -159,20 +341,6 @@ const LocationPicker = ({ location, onLocationChange }) => {
       e.preventDefault();
       handleSearch();
     }
-  };
-
-  if (loadError) return <div className="p-4 text-red-500">Error loading maps</div>;
-  if (!isLoaded) return <div className="p-4 flex items-center"><Loader className="animate-spin mr-2" size={20} /> Loading map...</div>;
-
-  // Custom marker icon (SVG path for a pin)
-  const customMarkerIcon = {
-    path: "M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 7 8 11.7z",
-    fillColor: "#2563eb",
-    fillOpacity: 1,
-    strokeColor: "#ffffff",
-    strokeWeight: 2,
-    scale: 1.5,
-    anchor: new window.google.maps.Point(12, 21.7),
   };
 
   return (
@@ -184,12 +352,11 @@ const LocationPicker = ({ location, onLocationChange }) => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Find location..."
+          placeholder="Find location by address or coordinates..."
           className="w-full p-3 pl-10 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
         <Search className="absolute left-3 top-3.5 text-gray-400" size={18} />
         
-
         <button
           onClick={getUserLocation}
           className="absolute right-2 top-2 p-1.5 text-blue-500 hover:text-blue-700 transition-colors"
@@ -200,56 +367,42 @@ const LocationPicker = ({ location, onLocationChange }) => {
         
         <button
           onClick={handleSearch}
-          disabled={isSearching}
-          className="absolute right-12 top-2 px-2 py-1.5 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+          disabled={isSearching || !searchQuery.trim()}
+          className="absolute right-12 top-2 px-2 py-1.5 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors disabled:bg-blue-300"
         >
           {isSearching ? <Loader className="animate-spin" size={16} /> : "Find"}
         </button>
       </div>
 
-      {/* Google Map */}
-      <GoogleMap
-        mapContainerStyle={containerStyle}
-        center={markerPosition}
+      {/* OpenStreetMap/Leaflet Map */}
+      <MapContainer
+        center={[markerPosition.lat, markerPosition.lng]}
         zoom={mapZoom}
-        onLoad={onLoad}
-        onUnmount={onUnmount}
-        onClick={onMapClick}
-        options={{
-          streetViewControl: false,
-          mapTypeControl: false,
-          fullscreenControl: false,
-          zoomControl: true,
-          styles: [
-            {
-              featureType: "poi",
-              elementType: "labels",
-              stylers: [{ visibility: "off" }]
-            }
-          ]
-        }}
+        style={containerStyle}
       >
-        <Marker
-          position={markerPosition}
-          animation={markerAnimation}
-          icon={customMarkerIcon}
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        <Marker 
+          position={[markerPosition.lat, markerPosition.lng]}
           draggable={true}
-          onDragEnd={(e) => {
-            const newPosition = {
-              lat: e.latLng.lat(),
-              lng: e.latLng.lng()
-            };
-            setMarkerPosition(newPosition);
+          eventHandlers={{
+            dragend: handleMarkerDrag,
           }}
         />
-      </GoogleMap>
+        <MapController 
+          position={mapCenter} 
+          zoom={mapZoom} 
+          onClick={handleMapClick} 
+        />
+      </MapContainer>
 
       {/* Display selected address */}
       <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
         <div className="flex items-start">
           <MapPin className="text-blue-500 mt-1 mr-2 flex-shrink-0" size={20} />
           <div>
-
             <p className="font-medium text-gray-900">{address || "No location selected"}</p>
           </div>
         </div>
