@@ -1,4 +1,3 @@
-// AdBanner.jsx - Production-ready component
 import React, { useEffect, useRef, useState } from 'react';
 import adService from '../../services/adsense.js';
 
@@ -6,8 +5,8 @@ const AdBanner = ({ position, adCode, className = '' }) => {
   const adRef = useRef(null);
   const [adLoaded, setAdLoaded] = useState(false);
   const [adError, setAdError] = useState(false);
-  const [adId] = useState(`ad-${position}-${Math.random().toString(36).substr(2, 9)}`);
-  
+  const [adId] = useState(() => adService.generateAdId(position));
+
   // Initialize ads when the component mounts
   useEffect(() => {
     // Initialize ad service if not already done
@@ -36,13 +35,12 @@ const AdBanner = ({ position, adCode, className = '' }) => {
       (entries) => {
         entries.forEach(entry => {
           if (entry.isIntersecting) {
-            // Log that the ad is visible (in development)
-            if (process.env.NODE_ENV !== 'production') {
-              console.log(`Ad in position ${position} is now visible`);
+            // Track impression for this specific ad
+            try {
+              adService.trackImpression(adId, position);
+            } catch (error) {
+              console.error('Impression tracking error:', error);
             }
-            
-            // Track impression
-            adService.trackImpression(adId, position);
             
             // Stop observing once seen
             observer.unobserve(adElement);
