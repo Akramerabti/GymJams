@@ -3,12 +3,54 @@ class AdService {
     this.initialized = false;
     this.adBlocked = false;
     this.adsLoaded = false;
-    this.impressions = {};
-    this.processedAds = new Set(); // Track processed ad IDs
+    this.processedAds = new Set();
     this.publisherId = process.env.NODE_ENV === 'production' 
-      ? 'ca-pub-2652838159140308' // Replace with your actual AdSense publisher ID
+      ? 'ca-pub-2652838159140308' 
       : null;
-    this.fallbackAds = {
+  }
+
+  // Static method to generate ad ID
+  static generateAdId(position) {
+    return `ad-${position}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  // Static method for getting ad code
+  static getAdCode(position, customCode = null, publisherId = 'ca-pub-2652838159140308') {
+    // Development or ad-blocked mode fallback
+    if (process.env.NODE_ENV !== 'production' || !publisherId) {
+      return AdService.getFallbackAdHtml(position);
+    }
+    
+    const sizeMap = {
+      'top': 'data-ad-format="auto" data-full-width-responsive="true"',
+      'sidebar': 'style="display:block; min-height: 250px;" data-ad-format="rectangle"',
+      'in-content': 'style="display:block; min-height: 250px;" data-ad-format="fluid" data-ad-layout="in-article"'
+    };
+    
+    const slotMap = {
+      'top': '5273146000',
+      'sidebar': '5273146000',
+      'in-content': '2613401062'
+    };
+    
+    const size = sizeMap[position] || sizeMap['sidebar'];
+    const slot = slotMap[position] || slotMap['sidebar'];
+    
+    // Generate a unique ad ID
+    const adId = AdService.generateAdId(position);
+    
+    return `
+      <ins class="adsbygoogle ${adId}"
+           id="${adId}"
+           ${size}
+           data-ad-client="${publisherId}"
+           data-ad-slot="${slot}"></ins>
+    `;
+  }
+
+  // Fallback HTML for ads
+  static getFallbackAdHtml(position) {
+    const fallbackAds = {
       'sidebar': {
         imageUrl: '/images/ads/sidebar-fallback.jpg',
         linkUrl: '/shop?source=ad_fallback',
@@ -25,8 +67,22 @@ class AdService {
         altText: 'Premium Subscription'
       }
     };
+
+    const ad = fallbackAds[position] || fallbackAds['sidebar'];
+    
+    // Generate a unique ad ID for fallback ads
+    const adId = AdService.generateAdId(position);
+    
+    return `
+      <div id="${adId}" class="fallback-ad">
+        <a href="${ad.linkUrl}" target="_blank" rel="noopener noreferrer">
+          <img src="${ad.imageUrl}" alt="${ad.altText}" style="width:100%; height:auto;" />
+        </a>
+      </div>
+    `;
   }
 
+  // Initialize AdSense
   init() {
     // If already initialized or in development mode, return immediately
     if (this.initialized || process.env.NODE_ENV !== 'production' || !this.publisherId) {
@@ -88,7 +144,7 @@ class AdService {
     });
   }
 
-  // Safely push ads to unprocessed elements
+  // Process ads
   processAds(adId = null) {
     if (!window.adsbygoogle) return false;
 
@@ -140,60 +196,17 @@ class AdService {
     }
   }
 
-  // Generate a unique ad ID
-  generateAdId(position) {
-    return `ad-${position}-${Math.random().toString(36).substr(2, 9)}`;
-  }
-  
-  getGenericAdCode(position) {
-    const sizeMap = {
-      'top': 'data-ad-format="auto" data-full-width-responsive="true"',
-      'sidebar': 'style="display:block; min-height: 250px;" data-ad-format="rectangle"',
-      'in-content': 'style="display:block; min-height: 250px;" data-ad-format="fluid" data-ad-layout="in-article"'
-    };
-    
-    const slotMap = {
-      'top': '5273146000',
-      'sidebar': '5273146000',
-      'in-content': '2613401062'
-    };
-    
-    const size = sizeMap[position] || sizeMap['sidebar'];
-    const slot = slotMap[position] || slotMap['sidebar'];
-    
-    // Generate a unique ad ID
-    const adId = this.generateAdId(position);
-    
-    return `
-      <ins class="adsbygoogle ${adId}"
-           id="${adId}"
-           ${size}
-           data-ad-client="${this.publisherId}"
-           data-ad-slot="${slot}"></ins>
-    `;
-  }
+  // Track impressions
+  trackImpression(adUnitId, position) {
+    if (!adUnitId || typeof adUnitId !== 'string') {
+      console.warn('Invalid adUnitId provided to trackImpression', adUnitId);
+      return;
+    }
 
-  getFallbackAdHtml(position) {
-    const ad = this.fallbackAds[position] || this.fallbackAds['sidebar'];
-    
-    // Generate a unique ad ID for fallback ads
-    const adId = this.generateAdId(position);
-    
-    return `
-      <div id="${adId}" class="fallback-ad">
-        <a href="${ad.linkUrl}" target="_blank" rel="noopener noreferrer">
-          <img src="${ad.imageUrl}" alt="${ad.altText}" style="width:100%; height:auto;" />
-        </a>
-      </div>
-    `;
-  }
-
-  isAdBlockerDetected() {
-    return this.adBlocked;
-  }
-
-  getImpressionData() {
-    return this.impressions;
+    // Optional logging in non-production environments
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Tracked impression for ${adUnitId} at ${position}`);
+    }
   }
 }
 
@@ -205,5 +218,6 @@ window.addEventListener('load', () => {
   adService.processAds();
 });
 
-// Export the singleton
+// Export the singleton and static methods
 export default adService;
+export const { generateAdId, getAdCode } = AdService;

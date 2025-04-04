@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import adService from '../../services/adsense.js';
+import adService, { generateAdId, getAdCode } from '../../services/adsense.js';
 
 const AdBanner = ({ position, adCode, className = '' }) => {
   const adRef = useRef(null);
   const [adLoaded, setAdLoaded] = useState(false);
   const [adError, setAdError] = useState(false);
-  const [adId] = useState(() => adService.generateAdId(position));
+  const [adId] = useState(() => generateAdId(position));
 
   // Initialize ads when the component mounts
   useEffect(() => {
@@ -81,8 +81,8 @@ const AdBanner = ({ position, adCode, className = '' }) => {
     return null;
   }
   
-  // Get the appropriate ad code
-  const finalAdCode = adService.getAdCode(position, adCode);
+  // Get the appropriate ad code using the exported static method
+  const finalAdCode = getAdCode(position, adCode);
   
   return (
     <div 
