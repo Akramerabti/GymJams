@@ -1,3 +1,4 @@
+// server/src/app.js
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
@@ -19,12 +20,14 @@ import { initStripe } from './config/stripe.js';
 import stripe from './config/stripe.js';
 import { handleWebhook } from '../src/controllers/subscription.Controller.js';
 import session from 'express-session';
+
 // Import routes
 import routes from './routes/index.js';
 
 // Import middleware
 import { handleError, handleNotFound } from './middleware/error.middleware.js';
 import { authRateLimiter, apiRateLimiter } from './middleware/auth.middleware.js';
+import customCorsMiddleware from './middleware/custom-cors.middleware.js';
 
 // Import logger
 import logger from './utils/logger.js';
@@ -46,7 +49,8 @@ connectDB();
 // Initialize Stripe
 initStripe();
 
-app.use(cors(corsOptions));
+// Use custom CORS middleware to handle ad networks specially
+app.use(customCorsMiddleware);
 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your-secret-key',
@@ -58,12 +62,13 @@ app.use(session({
   }
 }));
 
-// Initialize passport (you already have this)
+// Initialize passport
 app.use(passport.initialize());
 
 // Use passport session
 app.use(passport.session());
 
+// Special handling for Stripe webhook
 app.post('/api/subscription/webhook', 
   express.raw({ type: 'application/json' }),
   async (req, res) => {
@@ -83,8 +88,21 @@ app.post('/api/subscription/webhook',
   }
 );
 
-// Security Middleware
-app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
+// Security Middleware - Configure for ad networks
+const helmetConfig = {
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "*.doubleclick.net", "*.googlesyndication.com", "*.google.com", "*.googletagservices.com", "*.amazon-adsystem.com", "*.stripe.com"],
+      connectSrc: ["'self'", "*.doubleclick.net", "*.googlesyndication.com", "*.google.com", "*.googletagservices.com", "*.amazon-adsystem.com", "*.stripe.com"],
+      frameSrc: ["'self'", "*.doubleclick.net", "*.googlesyndication.com", "*.google.com", "*.stripe.com"],
+      imgSrc: ["'self'", "data:", "*.doubleclick.net", "*.googlesyndication.com", "*.google.com", "*.googletagservices.com", "*.amazon-adsystem.com"],
+    }
+  }
+};
+
+app.use(helmet(helmetConfig));
 app.use('/api/auth/login', authRateLimiter);
 app.use('/api/auth/register', authRateLimiter);
 app.use('/api/auth', apiRateLimiter);
@@ -106,11 +124,9 @@ if (process.env.NODE_ENV === 'development') {
 // Compress responses
 app.use(compression());
 
-// Initialize passport
-app.use(passport.initialize());
-
+// Log request URLs for debugging
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url}`);
+  console.log(`${req.method} ${req.url} (Origin: ${req.headers.origin || 'unknown'})`);
   next();
 });
 
@@ -162,7 +178,6 @@ try {
 // Initialize WebSocket server
 import { initializeSocket } from './socketServer.js';
 const io = initializeSocket(server);
-
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {

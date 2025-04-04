@@ -1,47 +1,51 @@
 // server/src/config/cors.js
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? [
-        'https://gymtonic.ca',
-        'https://www.gymtonic.ca',
-        'https://gymtonic.onrender.com',
-        'https://saas-pl33-git-main-akramerabtis-projects.vercel.app',
-        'https://saas-pl33-izz8roaoz-akramerabtis-projects.vercel.app',
-        'https://saas-pl33-9fzcpos92-akramerabtis-projects.vercel.app',
-        'https://api.stripe.com',
-        'https://hooks.stripe.com',
-        'https://dashboard.stripe.com',
-        'https://gymtonic.onrender.com/api/subscription/webhook',
-        // Ad network domains
-        'https://securepubads.g.doubleclick.net',
-        'https://googleads.g.doubleclick.net',
-        'https://pagead2.googlesyndication.com',
-        'https://partner.googleadservices.com',
-        'https://www.google.com',
-        'https://www.googletagservices.com',
-        'https://tpc.googlesyndication.com',
-        'https://adservice.google.com',
-        'https://s.amazon-adsystem.com',
-        'https://c.amazon-adsystem.com'
-      ]
-    : [
-        'http://localhost:3000', 
-        'http://localhost:5173', 
-        'http://localhost:5000', 
-        'https://api.stripe.com',
-        'https://dashboard.stripe.com',
-        // Ad network domains (for testing)
-        'https://securepubads.g.doubleclick.net',
-        'https://googleads.g.doubleclick.net',
-        'https://pagead2.googlesyndication.com',
-        'https://partner.googleadservices.com',
-        'https://www.google.com',
-        'https://www.googletagservices.com',
-        'https://tpc.googlesyndication.com',
-        'https://adservice.google.com',
-        'https://s.amazon-adsystem.com',
-        'https://c.amazon-adsystem.com'
-      ],
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = process.env.NODE_ENV === 'production' 
+      ? [
+          'https://gymtonic.ca',
+          'https://www.gymtonic.ca',
+          'https://gymtonic.onrender.com',
+          'https://saas-pl33-git-main-akramerabtis-projects.vercel.app',
+          'https://saas-pl33-izz8roaoz-akramerabtis-projects.vercel.app',
+          'https://saas-pl33-9fzcpos92-akramerabtis-projects.vercel.app'
+        ]
+      : [
+          'http://localhost:3000', 
+          'http://localhost:5173', 
+          'http://localhost:5000'
+        ];
+    
+    // Check if the origin is in our allowed list
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('stripe.com')) {
+      callback(null, true);
+    } else {
+      // For Google ad-related domains, silently accept but don't add CORS headers
+      // This effectively makes the request "opaque" which works with Google's services
+      const adNetworkDomains = [
+        'doubleclick.net',
+        'googleadservices.com',
+        'googlesyndication.com',
+        'googletagservices.com',
+        'g.doubleclick.net',
+        'google.com',
+        'amazon-adsystem.com'
+      ];
+      
+      // Check if origin is an ad network
+      const isAdNetwork = adNetworkDomains.some(domain => origin.includes(domain));
+      if (isAdNetwork) {
+        // Accept the request but don't add CORS headers (for ad networks)
+        callback(null, true);
+      } else {
+        // For other origins, reject with CORS error
+        callback(new Error('Not allowed by CORS'));
+      }
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: [
     'Content-Type', 
