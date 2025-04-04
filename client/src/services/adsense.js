@@ -155,51 +155,60 @@ class AdService {
     });
   }
 
-  // Process ads
   processAds(adId = null) {
-    if (!window.adsbygoogle) return false;
+    if (!window.adsbygoogle) {
+      console.warn('adsbygoogle not available');
+      return false;
+    }
 
     try {
-      // If a specific ad ID is provided, only process that ad
+      // If a specific ad ID is provided
       if (adId) {
         const adElement = document.getElementById(adId);
-        if (adElement && !this.processedAds.has(adId)) {
-          // Force minimum dimensions
-          adElement.style.width = '300px';
-          adElement.style.height = '250px';
-          adElement.style.minWidth = '300px';
-          adElement.style.display = 'block';
+        if (!adElement) {
+          console.warn(`Ad element not found: ${adId}`);
+          return false;
+        }
 
-          window.adsbygoogle.push({});
-          this.processedAds.add(adId);
+        // Skip if already processed
+        if (this.processedAds.has(adId)) {
           return true;
         }
-        return false;
+
+        // Ensure element is visible and has dimensions
+        const rect = adElement.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) {
+          console.warn(`Ad element has zero dimensions: ${adId}`);
+          return false;
+        }
+
+        // Process the ad
+        (window.adsbygoogle = window.adsbygoogle || []).push({});
+        this.processedAds.add(adId);
+        return true;
       }
 
-      // Find all unprocessed AdSense elements
-      const adElements = document.querySelectorAll('.adsbygoogle:not(.adsbygoogle-processed)');
+      // Process all unprocessed ads
+      const adElements = Array.from(document.querySelectorAll('.adsbygoogle:not(.adsbygoogle-processed)'));
       
       if (adElements.length === 0) return false;
 
-      // Push ads and mark as processed
-      window.adsbygoogle.push({});
-      
-      adElements.forEach(el => {
-        // Force minimum dimensions
-        el.style.width = '300px';
-        el.style.height = '250px';
-        el.style.minWidth = '300px';
-        el.style.display = 'block';
+      // Filter out elements with zero dimensions
+      const validAds = adElements.filter(el => {
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      });
 
-        el.classList.add('adsbygoogle-processed');
-        
-        // Ensure the ad has an ID for tracking
+      if (validAds.length === 0) return false;
+
+      // Process valid ads
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+      
+      validAds.forEach(el => {
         if (!el.id) {
           el.id = `ad-${Math.random().toString(36).substr(2, 9)}`;
         }
-        
-        // Add to processed set
+        el.classList.add('adsbygoogle-processed');
         this.processedAds.add(el.id);
       });
 

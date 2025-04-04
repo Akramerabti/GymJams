@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import adService, { generateAdId, getAdCode } from '../../services/adsense.js';
 
-// Define fixed dimensions for different ad positions
 const AD_DIMENSIONS = {
   'top': { width: '100%', height: '250px', minWidth: '728px' },
   'sidebar': { width: '300px', height: '250px' },
@@ -13,68 +12,89 @@ const AdBanner = ({ position, adCode, className = '' }) => {
   const [adLoaded, setAdLoaded] = useState(false);
   const [adError, setAdError] = useState(false);
   const [adId] = useState(() => generateAdId(position));
-
-  // Get fixed dimensions for the ad
+  const [retryCount, setRetryCount] = useState(0);
   const dimensions = AD_DIMENSIONS[position] || AD_DIMENSIONS['sidebar'];
 
   // Initialize ads when the component mounts
   useEffect(() => {
-    // Initialize ad service if not already done
+    let mounted = true;
+    let retryTimer;
+    
     const initAds = async () => {
       try {
         await adService.init();
         
-        // Ensure ad is processed with fixed dimensions
         const processAd = () => {
+          if (!mounted) return;
+          
           const adElement = document.getElementById(adId);
-          if (adElement) {
-            // Force dimensions
-            adElement.style.width = dimensions.width;
-            adElement.style.height = dimensions.height;
-            adElement.style.minWidth = dimensions.minWidth || dimensions.width;
-            
+          if (!adElement) {
+            if (retryCount < 3) {
+              retryTimer = setTimeout(() => {
+                setRetryCount(prev => prev + 1);
+                processAd();
+              }, 500);
+            }
+            return;
+          }
+          
+          // Ensure element is visible and has dimensions
+          adElement.style.display = 'block';
+          adElement.style.width = dimensions.width;
+          adElement.style.height = dimensions.height;
+          adElement.style.minWidth = dimensions.minWidth || dimensions.width;
+          
+          // Check if element is in viewport
+          const rect = adElement.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
             const processed = adService.processAds(adId);
-            setAdLoaded(processed);
+            if (processed) {
+              setAdLoaded(true);
+            } else if (retryCount < 3) {
+              retryTimer = setTimeout(() => {
+                setRetryCount(prev => prev + 1);
+                processAd();
+              }, 500);
+            }
           }
         };
 
-        // Multiple processing attempts
-        window.requestAnimationFrame(processAd);
-        setTimeout(processAd, 500);
-        setTimeout(processAd, 1500);
+        // Initial processing attempt
+        processAd();
       } catch (err) {
-        console.warn('Ad loading error:', err);
-        setAdError(true);
-        setAdLoaded(false);
+        if (mounted) {
+          console.warn('Ad loading error:', err);
+          setAdError(true);
+          setAdLoaded(false);
+        }
       }
     };
     
     initAds();
-  }, [adId, dimensions]);
+    
+    return () => {
+      mounted = false;
+      clearTimeout(retryTimer);
+    };
+  }, [adId, dimensions, retryCount]);
   
   // Handle visibility tracking for ads
   useEffect(() => {
-    const adElement = adRef.current;
-    if (!adElement || !adLoaded) return;
+    if (!adLoaded) return;
     
-    // Track viewability and impressions
+    const adElement = adRef.current;
+    if (!adElement) return;
+    
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach(entry => {
           if (entry.isIntersecting) {
-            // Track impression for this specific ad
-            try {
-              adService.trackImpression(adId, position);
-            } catch (error) {
-              console.error('Impression tracking error:', error);
-            }
-            
-            // Stop observing once seen
+            adService.trackImpression(adId, position);
             observer.unobserve(adElement);
           }
         });
       }, 
-      { threshold: 0.5 } // 50% of the ad must be visible
+      { threshold: 0.5 }
     );
     
     observer.observe(adElement);
@@ -84,12 +104,10 @@ const AdBanner = ({ position, adCode, className = '' }) => {
     };
   }, [adLoaded, position, adId]);
   
-  // Don't render anything if there's an error loading the ad service
   if (adError) {
     return null;
   }
   
-  // Get the appropriate ad code using the exported static method
   const finalAdCode = getAdCode(position, adCode);
   
   return (
@@ -105,15 +123,13 @@ const AdBanner = ({ position, adCode, className = '' }) => {
         display: 'flex', 
         justifyContent: 'center', 
         alignItems: 'center',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        visibility: adLoaded ? 'visible' : 'hidden'
       }}
     >
       <div 
         className="ad-content relative" 
-        style={{ 
-          width: '100%', 
-          height: '100%' 
-        }}
+        style={{ width: '100%', height: '100%' }}
         dangerouslySetInnerHTML={{ __html: finalAdCode }}
       />
       <div className="text-xs text-gray-400 text-center mt-1">Advertisement</div>
