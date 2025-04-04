@@ -13,6 +13,7 @@ import { GuestFlowProvider } from './components/gymBros/components/GuestFlowCont
 // Layout Components
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import adService from './services/adsense'; // Adjust the import path as necessary
 
 // Page Components
 import Home from './pages/Home';
@@ -72,30 +73,37 @@ const App = () => {
       }
     };
 
-    // Initialize AdSense
-    const initAdSense = async () => {
+    // Initialize AdSense once at app load
+    const initializeAdSense = async () => {
       try {
-        // Ensure only existing ad elements are processed
-        const existingAdElements = document.querySelectorAll('.adsbygoogle:not(.adsbygoogle-processed)');
-        
-        if (existingAdElements.length > 0) {
-          const initialized = await adSenseService.init();
-          
-          if (initialized) {
-            // Add class to prevent reprocessing
-            existingAdElements.forEach(el => {
-              el.classList.add('adsbygoogle-processed');
-            });
-          }
-        }
+        // Initialize the ad service - will only attempt to load the script once
+        await adService.init();
+        console.log('AdSense initialization complete');
       } catch (error) {
-        console.error('AdSense initialization failed', error);
+        console.error('AdSense initialization error:', error);
       }
     };
 
-    validateTokenOnLoad();
-    initAdSense();
+    // Run initializations in parallel
+    Promise.all([
+      validateTokenOnLoad(),
+      initializeAdSense()
+    ]).catch(error => {
+      console.error('App initialization error:', error);
+    });
   }, [checkAuth, logout]);
+
+  // Define a function to handle page views (for analytics)
+  const handlePageChange = () => {
+    // This could be hooked up to react-router-dom's events
+    // Process any ads on the page after route changes
+    setTimeout(() => {
+      const existingAds = document.querySelectorAll('.adsbygoogle:not(.adsbygoogle-processed)');
+      if (existingAds.length > 0) {
+        adService.processAds();
+      }
+    }, 1000);
+  };
 
   return (
     <SocketProvider>
@@ -157,7 +165,7 @@ const App = () => {
             )}
 
             <Toaster />
-            <AdDebugger />
+            {process.env.NODE_ENV !== 'production' && <AdDebugger />}
           </Layout>
         </Router>
       </GuestFlowProvider>

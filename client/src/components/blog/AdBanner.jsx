@@ -1,138 +1,172 @@
+// components/blog/AdBanner.jsx
 import React, { useEffect, useRef, useState } from 'react';
-import adService, { generateAdId, getAdCode } from '../../services/adsense.js';
+import adService from '../../services/adsense.js';
 
 const AD_DIMENSIONS = {
-  'top': { width: '100%', height: '250px', minWidth: '728px' },
+  'top': { width: '100%', height: '90px', maxWidth: '728px' },
   'sidebar': { width: '300px', height: '250px' },
-  'in-content': { width: '336px', height: '280px' }
+  'in-content': { width: '336px', height: '280px' },
+  'footer': { width: '100%', height: '90px', maxWidth: '728px' }
 };
 
 const AdBanner = ({ position, adCode, className = '' }) => {
   const adRef = useRef(null);
+  const [adId] = useState(() => adService.generateAdId(position));
   const [adLoaded, setAdLoaded] = useState(false);
   const [adError, setAdError] = useState(false);
-  const [adId] = useState(() => generateAdId(position));
-  const [retryCount, setRetryCount] = useState(0);
   const dimensions = AD_DIMENSIONS[position] || AD_DIMENSIONS['sidebar'];
+  const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Initialize ads when the component mounts
+  // Initialize ad service and set up ad
   useEffect(() => {
     let mounted = true;
-    let retryTimer;
+    let retryCount = 0;
+    let retryTimer = null;
     
-    const initAds = async () => {
+    // Set up ad with retry mechanism
+    const setupAd = async () => {
       try {
-        await adService.init();
+        // First, initialize the ad service
+        const initialized = await adService.init();
         
-        const processAd = () => {
-          if (!mounted) return;
-          
-          const adElement = document.getElementById(adId);
-          if (!adElement) {
-            if (retryCount < 3) {
-              retryTimer = setTimeout(() => {
-                setRetryCount(prev => prev + 1);
-                processAd();
-              }, 500);
-            }
-            return;
+        if (!mounted) return;
+        
+        // Mark as initialized to avoid duplicate initialization
+        setHasInitialized(true);
+        
+        if (!initialized) {
+          // AdSense was blocked or failed to initialize
+          console.log('Ad service initialization failed, using fallback');
+          // We'll still render the element, but with fallback content
+          setAdLoaded(true);
+          return;
+        }
+        
+        // AdSense script loaded successfully, now create the ad element
+        const adContainer = document.getElementById(adId);
+        
+        if (!adContainer) {
+          // Ad container not found, retry if we haven't exhausted retries
+          if (retryCount < 3) {
+            retryTimer = setTimeout(() => {
+              retryCount++;
+              setupAd();
+            }, 500);
+          } else {
+            setAdError(true);
           }
-          
-          // Ensure element is visible and has dimensions
-          adElement.style.display = 'block';
-          adElement.style.width = dimensions.width;
-          adElement.style.height = dimensions.height;
-          adElement.style.minWidth = dimensions.minWidth || dimensions.width;
-          
-          // Check if element is in viewport
-          const rect = adElement.getBoundingClientRect();
-          if (rect.width > 0 && rect.height > 0) {
-            const processed = adService.processAds(adId);
-            if (processed) {
-              setAdLoaded(true);
-            } else if (retryCount < 3) {
-              retryTimer = setTimeout(() => {
-                setRetryCount(prev => prev + 1);
-                processAd();
-              }, 500);
-            }
-          }
-        };
-
-        // Initial processing attempt
-        processAd();
-      } catch (err) {
+          return;
+        }
+        
+        // Mark ad as loaded
+        setAdLoaded(true);
+        
+      } catch (error) {
+        console.error('Error setting up ad:', error);
         if (mounted) {
-          console.warn('Ad loading error:', err);
           setAdError(true);
-          setAdLoaded(false);
         }
       }
     };
     
-    initAds();
+    // Only run setup if not already initialized
+    if (!hasInitialized) {
+      setupAd();
+    }
     
     return () => {
       mounted = false;
-      clearTimeout(retryTimer);
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+      }
     };
-  }, [adId, dimensions, retryCount]);
+  }, [adId, position, hasInitialized]);
   
-  // Handle visibility tracking for ads
+  // Track ad visibility for impression tracking
   useEffect(() => {
-    if (!adLoaded) return;
+    // Skip if ad isn't loaded or component isn't mounted
+    if (!adLoaded || !adRef.current) return;
     
-    const adElement = adRef.current;
-    if (!adElement) return;
+    let observer;
     
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
+    // Set up intersection observer if it's available
+    if ('IntersectionObserver' in window) {
+      observer = new IntersectionObserver(
+        (entries) => {
+          const entry = entries[0];
+          if (entry && entry.isIntersecting) {
+            // Track the impression once ad is visible
             adService.trackImpression(adId, position);
-            observer.unobserve(adElement);
+            // Stop observing after first impression
+            observer.disconnect();
           }
-        });
-      }, 
-      { threshold: 0.5 }
-    );
-    
-    observer.observe(adElement);
+        },
+        { threshold: 0.5 } // 50% visibility required to count an impression
+      );
+      
+      // Start observing the ad container
+      observer.observe(adRef.current);
+    } else {
+      // Fallback for browsers that don't support IntersectionObserver
+      adService.trackImpression(adId, position);
+    }
     
     return () => {
-      if (adElement) observer.unobserve(adElement);
+      if (observer) {
+        observer.disconnect();
+      }
     };
-  }, [adLoaded, position, adId]);
+  }, [adLoaded, adId, position]);
   
+  // Prepare the ad content
+  const adContent = adService.getAdCode(position, adCode);
+  
+  // If there was an error loading the ad, render nothing
   if (adError) {
     return null;
   }
-  
-  const finalAdCode = getAdCode(position, adCode);
   
   return (
     <div 
       ref={adRef}
       id={adId}
       className={`ad-container ad-${position} ${className}`}
-      data-ad-position={position}
       style={{ 
         width: dimensions.width,
         height: dimensions.height,
-        minWidth: dimensions.minWidth || dimensions.width,
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center',
+        maxWidth: dimensions.maxWidth || '100%',
+        margin: '0 auto',
         overflow: 'hidden',
-        visibility: adLoaded ? 'visible' : 'hidden'
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
       }}
     >
       <div 
-        className="ad-content relative" 
-        style={{ width: '100%', height: '100%' }}
-        dangerouslySetInnerHTML={{ __html: finalAdCode }}
+        className="ad-content"
+        style={{ 
+          width: '100%', 
+          height: '100%',
+          opacity: adLoaded ? 1 : 0,
+          transition: 'opacity 0.3s ease-in-out',
+        }}
+        dangerouslySetInnerHTML={{ __html: adContent }}
       />
-      <div className="text-xs text-gray-400 text-center mt-1">Advertisement</div>
+      
+      {/* Advertisement label */}
+      <div 
+        className="ad-label"
+        style={{
+          fontSize: '10px',
+          lineHeight: '1',
+          color: '#999',
+          textAlign: 'center',
+          marginTop: '2px',
+        }}
+      >
+        Advertisement
+      </div>
     </div>
   );
 };
