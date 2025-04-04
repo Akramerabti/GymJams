@@ -52,6 +52,33 @@ import Blog from './pages/Blog';
 // Socket Context
 import { SocketProvider } from './SocketContext';
 
+const RouteChangeHandler = () => {
+  const location = useLocation();
+  
+  useEffect(() => {
+    // When the route changes, initialize/refresh ads
+    const refreshAdsOnRouteChange = async () => {
+      try {
+        await adService.init();
+        
+        // Wait for DOM to update before refreshing ads
+        setTimeout(() => {
+          const existingAds = document.querySelectorAll('[id^="div-gpt-ad-"]');
+          if (existingAds.length > 0) {
+            adService.refreshAds();
+          }
+        }, 1000);
+      } catch (error) {
+        console.error('Error refreshing ads on route change:', error);
+      }
+    };
+    
+    refreshAdsOnRouteChange();
+  }, [location.pathname]);
+  
+  return null;
+};
+
 const App = () => {
   const { checkAuth, logout, showOnboarding, setShowOnboarding } = useAuthStore();
 
@@ -73,37 +100,25 @@ const App = () => {
       }
     };
 
-    // Initialize AdSense once at app load
-    const initializeAdSense = async () => {
+    // Initialize Google Ad Manager
+    const initGAM = async () => {
       try {
-        // Initialize the ad service - will only attempt to load the script once
+        // Initialize and set up slots
         await adService.init();
-        console.log('AdSense initialization complete');
+        console.log('Google Ad Manager initialized successfully');
       } catch (error) {
-        console.error('AdSense initialization error:', error);
+        console.error('Google Ad Manager initialization error:', error);
       }
     };
 
     // Run initializations in parallel
     Promise.all([
       validateTokenOnLoad(),
-      initializeAdSense()
+      initGAM()
     ]).catch(error => {
       console.error('App initialization error:', error);
     });
   }, [checkAuth, logout]);
-
-  // Define a function to handle page views (for analytics)
-  const handlePageChange = () => {
-    // This could be hooked up to react-router-dom's events
-    // Process any ads on the page after route changes
-    setTimeout(() => {
-      const existingAds = document.querySelectorAll('.adsbygoogle:not(.adsbygoogle-processed)');
-      if (existingAds.length > 0) {
-        adService.processAds();
-      }
-    }, 1000);
-  };
 
   return (
     <SocketProvider>

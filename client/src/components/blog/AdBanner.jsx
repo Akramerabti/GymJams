@@ -2,31 +2,24 @@
 import React, { useEffect, useRef, useState } from 'react';
 import adService from '../../services/adsense.js';
 
-const AD_DIMENSIONS = {
-  'top': { width: '100%', height: '90px', maxWidth: '728px' },
-  'sidebar': { width: '300px', height: '250px' },
-  'in-content': { width: '336px', height: '280px' },
-  'footer': { width: '100%', height: '90px', maxWidth: '728px' }
-};
-
-const AdBanner = ({ position, adCode, className = '' }) => {
+const AdBanner = ({ position, className = '' }) => {
   const adRef = useRef(null);
-  const [adId] = useState(() => adService.generateAdId(position));
   const [adLoaded, setAdLoaded] = useState(false);
   const [adError, setAdError] = useState(false);
-  const dimensions = AD_DIMENSIONS[position] || AD_DIMENSIONS['sidebar'];
   const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Initialize ad service and set up ad
+  // Get dimensions based on position
+  const dimensions = adService.getAdDimensions(position);
+
+  // Initialize ad service and display ad
   useEffect(() => {
     let mounted = true;
     let retryCount = 0;
     let retryTimer = null;
     
-    // Set up ad with retry mechanism
     const setupAd = async () => {
       try {
-        // First, initialize the ad service
+        // Initialize the ad service first
         const initialized = await adService.init();
         
         if (!mounted) return;
@@ -35,31 +28,33 @@ const AdBanner = ({ position, adCode, className = '' }) => {
         setHasInitialized(true);
         
         if (!initialized) {
-          // AdSense was blocked or failed to initialize
-          console.log('Ad service initialization failed, using fallback');
-          // We'll still render the element, but with fallback content
-          setAdLoaded(true);
+          // Ad service failed to initialize (likely blocked)
+          console.log('Ad service initialization failed, using fallback if available');
+          setAdError(adService.isAdBlockerDetected());
+          setAdLoaded(true); // Still mark as loaded to display fallback
           return;
         }
         
-        // AdSense script loaded successfully, now create the ad element
-        const adContainer = document.getElementById(adId);
+        // Service initialized successfully, now display the ad
+        const adContainer = adRef.current;
         
         if (!adContainer) {
-          // Ad container not found, retry if we haven't exhausted retries
+          // Ad container ref not found, retry if we haven't exhausted retries
           if (retryCount < 3) {
             retryTimer = setTimeout(() => {
               retryCount++;
               setupAd();
-            }, 500);
+            }, 300);
           } else {
             setAdError(true);
           }
           return;
         }
         
-        // Mark ad as loaded
-        setAdLoaded(true);
+        // Display the ad
+        const success = adService.displayAd(position);
+        setAdLoaded(success);
+        setAdError(!success);
         
       } catch (error) {
         console.error('Error setting up ad:', error);
@@ -80,61 +75,37 @@ const AdBanner = ({ position, adCode, className = '' }) => {
         clearTimeout(retryTimer);
       }
     };
-  }, [adId, position, hasInitialized]);
-  
-  // Track ad visibility for impression tracking
-  useEffect(() => {
-    // Skip if ad isn't loaded or component isn't mounted
-    if (!adLoaded || !adRef.current) return;
-    
-    let observer;
-    
-    // Set up intersection observer if it's available
-    if ('IntersectionObserver' in window) {
-      observer = new IntersectionObserver(
-        (entries) => {
-          const entry = entries[0];
-          if (entry && entry.isIntersecting) {
-            // Track the impression once ad is visible
-            adService.trackImpression(adId, position);
-            // Stop observing after first impression
-            observer.disconnect();
-          }
-        },
-        { threshold: 0.5 } // 50% visibility required to count an impression
-      );
-      
-      // Start observing the ad container
-      observer.observe(adRef.current);
-    } else {
-      // Fallback for browsers that don't support IntersectionObserver
-      adService.trackImpression(adId, position);
-    }
-    
-    return () => {
-      if (observer) {
-        observer.disconnect();
-      }
-    };
-  }, [adLoaded, adId, position]);
-  
-  // Prepare the ad content
-  const adContent = adService.getAdCode(position, adCode);
-  
-  // If there was an error loading the ad, render nothing
+  }, [position, hasInitialized]);
+
+  // If there was an error loading the ad, try to show a fallback
   if (adError) {
-    return null;
+    return (
+      <div 
+        className={`ad-container ad-${position} ${className}`}
+        style={{ 
+          width: dimensions.width,
+          height: dimensions.height,
+          maxWidth: dimensions.maxWidth || 'none',
+          margin: '0 auto',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        dangerouslySetInnerHTML={{ __html: adService.getFallbackAdHtml(position) }}
+      />
+    );
   }
-  
+
   return (
     <div 
       ref={adRef}
-      id={adId}
       className={`ad-container ad-${position} ${className}`}
       style={{ 
         width: dimensions.width,
         height: dimensions.height,
-        maxWidth: dimensions.maxWidth || '100%',
+        maxWidth: dimensions.maxWidth || 'none',
         margin: '0 auto',
         overflow: 'hidden',
         display: 'flex',
@@ -143,15 +114,15 @@ const AdBanner = ({ position, adCode, className = '' }) => {
         justifyContent: 'center',
       }}
     >
+      {/* The ad container div with exact ID required by GAM */}
       <div 
-        className="ad-content"
         style={{ 
           width: '100%', 
           height: '100%',
           opacity: adLoaded ? 1 : 0,
           transition: 'opacity 0.3s ease-in-out',
         }}
-        dangerouslySetInnerHTML={{ __html: adContent }}
+        dangerouslySetInnerHTML={{ __html: adService.getAdHtml(position) }}
       />
       
       {/* Advertisement label */}

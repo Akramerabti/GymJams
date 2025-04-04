@@ -4,8 +4,8 @@ import adService from '../../services/adService';
 
 const AdInjector = ({ content, adPlacements, readingProgress, isDarkMode, setAdViewEvents }) => {
   const [processedContent, setProcessedContent] = useState('');
-  const [processedAdIds, setProcessedAdIds] = useState([]);
-  
+  const [adIdsInjected, setAdIdsInjected] = useState([]);
+
   // Process content and inject ads
   useEffect(() => {
     // If we have no content or no ad placements, just return the content as-is
@@ -16,38 +16,14 @@ const AdInjector = ({ content, adPlacements, readingProgress, isDarkMode, setAdV
     
     // Initialize ad service first
     adService.init().then(() => {
-      // First filter the ad placements by position and active status
+      // Filter the ad placements to only include in-content ads that are active
       const inContentAds = adPlacements
         .filter(ad => ad.position === 'in-content' && ad.isActive)
         .filter(ad => {
-          // Check for device compatibility (exclude if not compatible)
-          if (ad.displayCondition?.deviceTypes) {
-            const isMobile = window.innerWidth <= 768;
-            const isTablet = window.innerWidth <= 1024 && window.innerWidth > 768;
-            const isDesktop = window.innerWidth > 1024;
-            
-            // Skip if the device isn't included
-            const deviceTypes = ad.displayCondition.deviceTypes;
-            if (deviceTypes.includes('all')) {
-              return true;
-            }
-            
-            if (isMobile && !deviceTypes.includes('mobile')) {
-              return false;
-            }
-            if (isTablet && !deviceTypes.includes('tablet')) {
-              return false;
-            }
-            if (isDesktop && !deviceTypes.includes('desktop')) {
-              return false;
-            }
-          }
-          
-          // Check for minimum reading time
+          // Check for minimum reading time condition
           if (ad.displayCondition?.minReadTime) {
             return readingProgress >= (ad.displayCondition.minReadTime * 20); // Rough conversion to %
           }
-          
           return true;
         })
         .sort((a, b) => {
@@ -63,83 +39,39 @@ const AdInjector = ({ content, adPlacements, readingProgress, isDarkMode, setAdV
         return;
       }
       
-      // Generate unique IDs for each ad and keep track of them
-      const adIds = inContentAds.map(() => adService.generateAdId('in-content'));
-      setProcessedAdIds(adIds);
-      
-      // Split content on paragraph tags
+      // Split content on paragraph tags to find insertion points
       let contentParts = content.split('</p>');
       
-      // Determine where to insert each ad
-      inContentAds.forEach((ad, index) => {
-        const adId = adIds[index];
-        
-        // Get appropriate ad code
-        const adCode = adService.getAdCode('in-content', ad.adCode);
-        
-        // Calculate position - spread out ads evenly after the minReadTime threshold
-        let insertPos = 0;
-        
-        if (ad.displayCondition?.minReadTime) {
-          // Convert min read time to paragraph position (rough estimate)
-          insertPos = Math.floor((contentParts.length * ad.displayCondition.minReadTime) / 10);
-        } else {
-          // Distribute evenly
-          insertPos = Math.floor((index + 1) * contentParts.length / (inContentAds.length + 1));
-        }
-        
-        // Ensure position is within valid range
-        insertPos = Math.max(1, Math.min(insertPos, contentParts.length - 1));
-        
-        // Create ad HTML
-        const adHTML = `
-          </p>
-          <div id="${adId}" class="ad-container in-content-ad my-6 py-4 px-4 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}">
-            <div class="text-center text-xs text-gray-500 mb-2">Advertisement</div>
-            <div class="ad-content flex items-center justify-center">
-              ${adCode}
-            </div>
-          </div>
-        `;
-        
-        // Insert the ad
-        contentParts[insertPos] = contentParts[insertPos] + adHTML;
-      });
+      // Generate unique ID for the in-content ad
+      const adId = 'div-gpt-ad-GymJams_InContent';
+      setAdIdsInjected([adId]);
+      
+      // Calculate best position for the ad (after intro paragraphs)
+      const insertPos = Math.min(Math.max(2, Math.floor(contentParts.length * 0.2)), contentParts.length - 1);
+      
+      // Create ad HTML
+      const adHTML = `
+        </p>
+        <div class="ad-container in-content-ad my-6 py-4 px-4 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'} text-center">
+          <div class="text-xs text-gray-500 mb-2">Advertisement</div>
+          <div id="${adId}" style="width:336px; height:280px; max-width:100%; margin:0 auto;"></div>
+        </div>
+      `;
+      
+      // Insert the ad at the calculated position
+      contentParts[insertPos] = contentParts[insertPos] + adHTML;
       
       // Reunite the content
       setProcessedContent(contentParts.join('</p>'));
       
-      // After a short delay (to let the DOM update), actually process the ads
+      // After a brief delay to allow DOM update, display the ad
       setTimeout(() => {
-        adIds.forEach(adId => {
-          try {
-            const adElement = document.getElementById(adId);
-            if (adElement) {
-              adService.processAds(adId);
-              
-              // Track visibility for analytics
-              const observer = new IntersectionObserver(
-                (entries) => {
-                  entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                      // Mark this ad as viewed
-                      setAdViewEvents(prev => ({ ...prev, [adId]: true }));
-                      // Track impression
-                      adService.trackImpression(adId, 'in-content');
-                      // Stop observing
-                      observer.unobserve(entry.target);
-                    }
-                  });
-                },
-                { threshold: 0.5 } // 50% visibility
-              );
-              
-              observer.observe(adElement);
-            }
-          } catch (error) {
-            console.warn(`Error processing ad ${adId}:`, error);
-          }
-        });
+        adService.displayAd('in-content');
+        
+        // Track as viewed for analytics
+        if (setAdViewEvents) {
+          setAdViewEvents(prev => ({ ...prev, [adId]: true }));
+        }
       }, 500);
     }).catch(err => {
       console.warn('Failed to initialize ad service:', err);
