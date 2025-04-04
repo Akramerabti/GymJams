@@ -13,6 +13,22 @@ const AdBanner = ({ position, adCode, className = '' }) => {
     const initAds = async () => {
       try {
         await adService.init();
+        
+        // Force ad processing
+        const processAds = () => {
+          try {
+            if (window.adsbygoogle) {
+              window.adsbygoogle.push({});
+            }
+          } catch (pushError) {
+            console.warn('AdSense push error:', pushError);
+          }
+        };
+
+        // Try processing ads immediately and after a short delay
+        processAds();
+        setTimeout(processAds, 500);
+
         setAdLoaded(true);
       } catch (err) {
         console.warn('Ad loading error:', err);
