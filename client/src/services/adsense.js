@@ -1,23 +1,46 @@
-const ADSENSE_PUBLISHER_ID = 'pub-2652838159140308';
 
-class AdSenseService {
+class AdService {
   constructor() {
     this.initialized = false;
     this.adBlocked = false;
     this.adsLoaded = false;
     this.impressions = {};
     this.viewabilityTrackers = {};
+    this.publisherId = process.env.NODE_ENV === 'production' 
+      ? 'ca-pub-2652838159140308' // Replace with your actual AdSense publisher ID in production
+      : null;
+    this.fallbackAds = {
+      'sidebar': {
+        imageUrl: '/images/ads/sidebar-fallback.jpg',
+        linkUrl: '/shop?source=ad_fallback',
+        altText: 'Special Offer'
+      },
+      'in-content': {
+        imageUrl: '/images/ads/content-fallback.jpg',
+        linkUrl: '/coaching?source=ad_fallback',
+        altText: 'Coaching Special'
+      },
+      'top': {
+        imageUrl: '/images/ads/banner-fallback.jpg',
+        linkUrl: '/subscription?source=ad_fallback',
+        altText: 'Premium Subscription'
+      }
+    };
   }
 
   /**
-   * Initialize AdSense script
-   * Should be called once when the application loads
+   * Initialize AdSense script with robust error handling
    */
   init() {
-    // Skip if already initialized
-    if (this.initialized) return;
+    // Skip if already initialized or in development
+    if (this.initialized) return Promise.resolve(true);
+    if (process.env.NODE_ENV !== 'production' || !this.publisherId) {
+      console.log('AdSense disabled in development mode');
+      this.initialized = true;
+      return Promise.resolve(false);
+    }
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       try {
         // Check if AdSense is already loaded
         if (window.adsbygoogle) {
@@ -29,7 +52,7 @@ class AdSenseService {
 
         // Create the AdSense script element
         const script = document.createElement('script');
-        script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_PUBLISHER_ID}`;
+        script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${this.publisherId}`;
         script.async = true;
         script.crossOrigin = 'anonymous';
         
@@ -38,37 +61,107 @@ class AdSenseService {
           this.initialized = true;
           this.adsLoaded = true;
           
-          // Detect ad blocking - look for window.adsbygoogle
-          if (!window.adsbygoogle) {
-            this.adBlocked = true;
-            console.warn('AdSense appears to be blocked by an ad blocker');
+          // Initialize adsbygoogle if needed
+          if (window.adsbygoogle) {
+            try {
+              window.adsbygoogle.push({});
+            } catch (error) {
+              console.warn('AdSense push error:', error);
+            }
           }
           
           resolve(true);
         };
         
         script.onerror = (error) => {
+          console.warn('AdSense load error - using fallbacks:', error);
           this.adBlocked = true;
-          console.error('Failed to load AdSense script:', error);
-          reject(error);
+          this.initialized = true; // Still mark as initialized
+          resolve(false);
         };
+        
+        // Set timeout for script loading
+        setTimeout(() => {
+          if (!this.adsLoaded) {
+            console.warn('AdSense load timeout - using fallbacks');
+            this.adBlocked = true;
+            resolve(false);
+          }
+        }, 5000);
         
         // Append the script to the document
         document.head.appendChild(script);
-        
-        // Set initialized flag
-        this.initialized = true;
       } catch (error) {
-        console.error('Error initializing AdSense:', error);
-        reject(error);
+        console.warn('AdSense initialization error:', error);
+        this.adBlocked = true;
+        this.initialized = true; // Still mark as initialized
+        resolve(false);
       }
     });
   }
 
   /**
+   * Get appropriate ad code based on availability
+   */
+  getAdCode(position, customCode = null) {
+    // If ads are blocked or in development, return fallback
+    if (this.adBlocked || process.env.NODE_ENV !== 'production') {
+      return this.getFallbackAdHtml(position);
+    }
+    
+    // Return the custom ad code if provided, or generic AdSense code
+    return customCode || this.getGenericAdCode(position);
+  }
+  
+  /**
+   * Generate generic AdSense ad code
+   */
+  getGenericAdCode(position) {
+    // Map positions to sizes
+    const sizeMap = {
+      'top': 'data-ad-format="auto" data-full-width-responsive="true"',
+      'sidebar': 'style="display:block" data-ad-format="rectangle"',
+      'in-content': 'style="display:block" data-ad-format="fluid" data-ad-layout="in-article"'
+    };
+    
+    // Map positions to slot IDs (replace with actual slot IDs)
+    const slotMap = {
+      'top': '5273146000',
+      'sidebar': '5273146000',
+      'in-content': '2613401062'
+    };
+    
+    const size = sizeMap[position] || sizeMap['sidebar'];
+    const slot = slotMap[position] || slotMap['sidebar'];
+    
+    return `
+      <ins class="adsbygoogle"
+           ${size}
+           data-ad-client="${this.publisherId}"
+           data-ad-slot="${slot}"></ins>
+      <script>
+         (adsbygoogle = window.adsbygoogle || []).push({});
+      </script>
+    `;
+  }
+  
+  /**
+   * Get HTML for fallback ads
+   */
+  getFallbackAdHtml(position) {
+    const ad = this.fallbackAds[position] || this.fallbackAds['sidebar'];
+    
+    return `
+      <div class="fallback-ad">
+        <a href="${ad.linkUrl}" target="_blank" rel="noopener noreferrer">
+          <img src="${ad.imageUrl}" alt="${ad.altText}" style="width:100%; height:auto;" />
+        </a>
+      </div>
+    `;
+  }
+
+  /**
    * Track ad impressions for reporting
-   * @param {string} adUnitId - The ad unit ID
-   * @param {string} position - The position of the ad (e.g., 'top', 'sidebar')
    */
   trackImpression(adUnitId, position) {
     if (!this.impressions[adUnitId]) {
@@ -86,15 +179,14 @@ class AdSenseService {
     
     this.impressions[adUnitId].positions[position]++;
     
-    // Optional: Send impression data to your analytics server
-    this.sendImpressionToAnalytics(adUnitId, position);
+    // Send to analytics in production
+    if (process.env.NODE_ENV === 'production') {
+      this.sendImpressionToAnalytics(adUnitId, position);
+    }
   }
 
   /**
-   * Track when ads become viewable
-   * @param {string} adElementId - The DOM element ID of the ad container
-   * @param {string} adUnitId - The ad unit ID
-   * @param {string} position - The position of the ad
+   * Track ad visibility
    */
   trackViewability(adElementId, adUnitId, position) {
     // Skip if browser doesn't support IntersectionObserver
@@ -129,29 +221,35 @@ class AdSenseService {
     this.viewabilityTrackers[adElementId] = observer;
   }
 
-
+  /**
+   * Send impression data to analytics
+   */
   sendImpressionToAnalytics(adUnitId, position) {
-    // In a real implementation, you would send this data to your analytics server
-    // This is just a mock implementation
-    console.log(`Ad impression tracked: ${adUnitId} at position ${position}`);
+    // Only log in development
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Ad impression tracked: ${adUnitId} at position ${position}`);
+      return;
+    }
     
-    // Example of sending data to your server:
-    /*
-    fetch('/api/analytics/ad-impression', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        adUnitId,
-        position,
-        timestamp: new Date().toISOString(),
-        page: window.location.pathname
-      })
-    }).catch(error => {
-      console.error('Failed to send impression data:', error);
-    });
-    */
+    // In production, send to analytics endpoint
+    try {
+      fetch('/api/analytics/ad-impression', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          adUnitId,
+          position,
+          timestamp: new Date().toISOString(),
+          page: window.location.pathname
+        })
+      }).catch(() => {
+        // Silently fail - impression tracking shouldn't break the experience
+      });
+    } catch (error) {
+      // Silently fail
+    }
   }
 
   isAdBlockerDetected() {
@@ -161,21 +259,10 @@ class AdSenseService {
   getImpressionData() {
     return this.impressions;
   }
-
-  showAdBlockerMessage(containerId) {
-    if (!this.adBlocked) return;
-    
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    
-    container.innerHTML = `
-      <div class="ad-blocker-message">
-        <h3>Ad Blocker Detected</h3>
-        <p>We notice you're using an ad blocker. We rely on advertising to help fund our site.</p>
-        <p>Please consider supporting us by disabling your ad blocker for this site.</p>
-      </div>
-    `;
-  }
 }
 
-export default new AdSenseService();
+// Create a singleton instance
+const adService = new AdService();
+
+// Export the singleton
+export default adService;

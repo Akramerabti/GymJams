@@ -1,53 +1,50 @@
-// AdBanner.jsx
+// AdBanner.jsx - Production-ready component
 import React, { useEffect, useRef, useState } from 'react';
+import adService from '../../services/adsense.js';
 
 const AdBanner = ({ position, adCode, className = '' }) => {
   const adRef = useRef(null);
   const [adLoaded, setAdLoaded] = useState(false);
   const [adError, setAdError] = useState(false);
+  const [adId] = useState(`ad-${position}-${Math.random().toString(36).substr(2, 9)}`);
   
   // Initialize ads when the component mounts
   useEffect(() => {
-    // Check if we're in a browser environment
-    if (typeof window === 'undefined') return;
-    
-    // Initialize Google Ad Manager if it doesn't exist
-    if (!window.googletag) {
-      window.googletag = window.googletag || {};
-      window.googletag.cmd = window.googletag.cmd || [];
-    }
-    
-    try {
-      // Attempt to render the ad
-      window.googletag.cmd.push(function() {
-        // Signal that the ad container is ready
+    // Initialize ad service if not already done
+    const initAds = async () => {
+      try {
+        await adService.init();
         setAdLoaded(true);
-      });
-    } catch (err) {
-      console.error('Ad loading error:', err);
-      setAdError(true);
-    }
-    
-    // Clean up
-    return () => {
-      // Cleanup would go here if needed
+      } catch (err) {
+        console.warn('Ad loading error:', err);
+        setAdError(true);
+        // Still mark as loaded so we can show fallbacks
+        setAdLoaded(true);
+      }
     };
+    
+    initAds();
   }, []);
   
   // Handle visibility tracking for ads
   useEffect(() => {
     const adElement = adRef.current;
-    if (!adElement) return;
+    if (!adElement || !adLoaded) return;
     
+    // Track viewability and impressions
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach(entry => {
           if (entry.isIntersecting) {
-            // Ad is visible, log impression
-            console.log(`Ad in position ${position} is now visible`);
-            // Here you would implement impression tracking logic
+            // Log that the ad is visible (in development)
+            if (process.env.NODE_ENV !== 'production') {
+              console.log(`Ad in position ${position} is now visible`);
+            }
             
-            // Stop observing once it's been seen
+            // Track impression
+            adService.trackImpression(adId, position);
+            
+            // Stop observing once seen
             observer.unobserve(adElement);
           }
         });
@@ -60,21 +57,26 @@ const AdBanner = ({ position, adCode, className = '' }) => {
     return () => {
       if (adElement) observer.unobserve(adElement);
     };
-  }, [adLoaded, position]);
+  }, [adLoaded, position, adId]);
   
-  if (adError) {
-    return null; // Don't show anything if ad fails
+  // Don't render anything if there's an error loading the ad service
+  if (adError && !adService.adBlocked) {
+    return null;
   }
+  
+  // Get the appropriate ad code
+  const finalAdCode = adService.getAdCode(position, adCode);
   
   return (
     <div 
       ref={adRef}
+      id={adId}
       className={`ad-container ad-${position} ${className}`}
       data-ad-position={position}
     >
       <div 
-        className="ad-content" 
-        dangerouslySetInnerHTML={{ __html: adCode }}
+        className="ad-content relative" 
+        dangerouslySetInnerHTML={{ __html: finalAdCode }}
       />
       <div className="text-xs text-gray-400 text-center mt-1">Advertisement</div>
     </div>
