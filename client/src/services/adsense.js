@@ -4,6 +4,7 @@ class AdService {
     this.adBlocked = false;
     this.adsLoaded = false;
     this.impressions = {};
+    this.processedAds = new Set(); // Track processed ad IDs
     this.publisherId = process.env.NODE_ENV === 'production' 
       ? 'ca-pub-2652838159140308' // Replace with your actual AdSense publisher ID
       : null;
@@ -37,7 +38,6 @@ class AdService {
       if (document.querySelector('script[src*="pagead2.googlesyndication.com"]')) {
         this.initialized = true;
         this.adsLoaded = true;
-        this.processAds();
         resolve(true);
         return;
       }
@@ -48,16 +48,11 @@ class AdService {
       script.async = true;
       script.crossOrigin = "anonymous";
 
-      // Prevent multiple ad initialization
-      script.setAttribute('data-ad-client', this.publisherId);
-
       script.onload = () => {
         try {
-          // Use try-catch to handle potential push errors
           if (window.adsbygoogle) {
             this.initialized = true;
             this.adsLoaded = true;
-            this.processAds();
             resolve(true);
           } else {
             console.warn('AdSense script loaded but adsbygoogle is not available');
@@ -65,7 +60,7 @@ class AdService {
             resolve(false);
           }
         } catch (pushError) {
-          console.warn('AdSense push error:', pushError);
+          console.warn('AdSense initialization error:', pushError);
           this.adBlocked = true;
           resolve(false);
         }
@@ -93,76 +88,58 @@ class AdService {
     });
   }
 
-  // Process and push ads
-  processAds() {
-    if (!window.adsbygoogle) return;
-
-    // Find all unprocessed AdSense elements
-    const adElements = document.querySelectorAll('.adsbygoogle:not(.adsbygoogle-processed)');
-    
-    if (adElements.length === 0) return;
+  // Safely push ads to unprocessed elements
+  processAds(adId = null) {
+    if (!window.adsbygoogle) return false;
 
     try {
-      // Push ads
-      window.adsbygoogle.push({});
+      // If a specific ad ID is provided, only process that ad
+      if (adId) {
+        const adElement = document.getElementById(adId);
+        if (adElement && !this.processedAds.has(adId)) {
+          window.adsbygoogle.push({});
+          this.processedAds.add(adId);
+          return true;
+        }
+        return false;
+      }
 
-      // Mark as processed
-      adElements.forEach(el => {
+      // Find all unprocessed AdSense elements
+      const adElements = document.querySelectorAll('.adsbygoogle:not(.adsbygoogle-processed)');
+      
+      if (adElements.length === 0) return false;
+
+      // Try to push ads only to visible elements with non-zero width
+      const visibleAdElements = Array.from(adElements).filter(el => {
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && 
+               window.getComputedStyle(el).display !== 'none';
+      });
+
+      if (visibleAdElements.length === 0) return false;
+
+      // Push ads and mark as processed
+      window.adsbygoogle.push({});
+      
+      visibleAdElements.forEach(el => {
         el.classList.add('adsbygoogle-processed');
         
         // Ensure the ad has an ID for tracking
         if (!el.id) {
           el.id = `ad-${Math.random().toString(36).substr(2, 9)}`;
         }
+        
+        // Add to processed set
+        this.processedAds.add(el.id);
       });
+
+      return true;
     } catch (error) {
       console.warn('Error processing ads:', error);
+      return false;
     }
   }
 
-  // Robust implementation of trackImpression
-  trackImpression(adUnitId, position) {
-    // Validate inputs
-    if (!adUnitId || typeof adUnitId !== 'string') {
-      console.warn('Invalid adUnitId provided to trackImpression', adUnitId);
-      return;
-    }
-
-    // Initialize impressions for this ad unit if it doesn't exist
-    if (!this.impressions[adUnitId]) {
-      this.impressions[adUnitId] = {
-        count: 0,
-        positions: {}
-      };
-    }
-    
-    // Increment total impressions
-    this.impressions[adUnitId].count++;
-    
-    // Track impressions by position
-    if (!this.impressions[adUnitId].positions[position]) {
-      this.impressions[adUnitId].positions[position] = 0;
-    }
-    
-    this.impressions[adUnitId].positions[position]++;
-    
-    // Optional: Log tracking (can be removed in production)
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`Tracked impression for ${adUnitId} at ${position}:`, this.impressions[adUnitId]);
-    }
-  }
-
-  // Robust getAdCode method
-  getAdCode(position, customCode = null) {
-    // If ads are blocked or in development, return fallback
-    if (this.adBlocked || process.env.NODE_ENV !== 'production') {
-      return this.getFallbackAdHtml(position);
-    }
-    
-    // Return the custom ad code if provided, or generic AdSense code
-    return customCode || this.getGenericAdCode(position);
-  }
-  
   // Generate a unique ad ID
   generateAdId(position) {
     return `ad-${position}-${Math.random().toString(36).substr(2, 9)}`;
@@ -171,8 +148,8 @@ class AdService {
   getGenericAdCode(position) {
     const sizeMap = {
       'top': 'data-ad-format="auto" data-full-width-responsive="true"',
-      'sidebar': 'style="display:block" data-ad-format="rectangle"',
-      'in-content': 'style="display:block" data-ad-format="fluid" data-ad-layout="in-article"'
+      'sidebar': 'style="display:block; min-height: 250px;" data-ad-format="rectangle"',
+      'in-content': 'style="display:block; min-height: 250px;" data-ad-format="fluid" data-ad-layout="in-article"'
     };
     
     const slotMap = {
@@ -193,9 +170,6 @@ class AdService {
            ${size}
            data-ad-client="${this.publisherId}"
            data-ad-slot="${slot}"></ins>
-      <script>
-        (adsbygoogle = window.adsbygoogle || []).push({});
-      </script>
     `;
   }
 

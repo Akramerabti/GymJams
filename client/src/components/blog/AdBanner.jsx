@@ -14,32 +14,31 @@ const AdBanner = ({ position, adCode, className = '' }) => {
       try {
         await adService.init();
         
-        // Force ad processing
-        const processAds = () => {
-          try {
-            if (window.adsbygoogle) {
-              window.adsbygoogle.push({});
-            }
-          } catch (pushError) {
-            console.warn('AdSense push error:', pushError);
+        // Defer ad processing to ensure DOM is ready
+        const processAd = () => {
+          const processed = adService.processAds(adId);
+          setAdLoaded(processed);
+          
+          // If not processed, try again after a short delay
+          if (!processed) {
+            setTimeout(() => {
+              const retryProcessed = adService.processAds(adId);
+              setAdLoaded(retryProcessed);
+            }, 1000);
           }
         };
 
-        // Try processing ads immediately and after a short delay
-        processAds();
-        setTimeout(processAds, 500);
-
-        setAdLoaded(true);
+        // Use requestAnimationFrame to process after render
+        window.requestAnimationFrame(processAd);
       } catch (err) {
         console.warn('Ad loading error:', err);
         setAdError(true);
-        // Still mark as loaded so we can show fallbacks
-        setAdLoaded(true);
+        setAdLoaded(false);
       }
     };
     
     initAds();
-  }, []);
+  }, [adId]);
   
   // Handle visibility tracking for ads
   useEffect(() => {
@@ -53,7 +52,11 @@ const AdBanner = ({ position, adCode, className = '' }) => {
           if (entry.isIntersecting) {
             // Track impression for this specific ad
             try {
-              adService.trackImpression(adId, position);
+              // Only track if ad is visible and has sufficient width
+              const rect = entry.boundingClientRect;
+              if (rect.width > 0 && rect.height > 0) {
+                adService.trackImpression(adId, position);
+              }
             } catch (error) {
               console.error('Impression tracking error:', error);
             }
@@ -74,7 +77,7 @@ const AdBanner = ({ position, adCode, className = '' }) => {
   }, [adLoaded, position, adId]);
   
   // Don't render anything if there's an error loading the ad service
-  if (adError && !adService.adBlocked) {
+  if (adError) {
     return null;
   }
   
@@ -87,9 +90,15 @@ const AdBanner = ({ position, adCode, className = '' }) => {
       id={adId}
       className={`ad-container ad-${position} ${className}`}
       data-ad-position={position}
+      style={{ 
+        minHeight: '250px', 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center' 
+      }}
     >
       <div 
-        className="ad-content relative" 
+        className="ad-content relative w-full" 
         dangerouslySetInnerHTML={{ __html: finalAdCode }}
       />
       <div className="text-xs text-gray-400 text-center mt-1">Advertisement</div>
