@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   PlusCircle, Edit, Trash2, Eye, AlertTriangle, ChevronLeft, ChevronRight,
@@ -48,10 +48,10 @@ import {
   CardDescription
 } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Textarea } from '@/components/ui/textarea';
+import { TextArea } from '@/components/ui/TextArea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
+import Progress from '@/components/ui/progress';
 import { useAuth } from '../../stores/authStore';
 
 const BlogManagement = () => {
@@ -107,6 +107,26 @@ const BlogManagement = () => {
     approved: 0,
     rejected: 0
   });
+  
+  // State for Imported Blogs Review tab
+  const [pendingBlogs, setPendingBlogs] = useState([]);
+  const [pendingBlogsLoading, setPendingBlogsLoading] = useState(false);
+  const [pendingBlogsFilters, setPendingBlogsFilters] = useState({
+    search: '',
+    source: 'all',
+    category: 'all',
+    page: 1,
+    limit: 10
+  });
+  const [pendingBlogsPagination, setPendingBlogsPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0
+  });
+  const [selectedPendingBlogs, setSelectedPendingBlogs] = useState([]);
+  const [viewBlogDialogOpen, setViewBlogDialogOpen] = useState(false);
+  const [blogToView, setBlogToView] = useState(null);
+  const [refreshStats, setRefreshStats] = useState(false);
 
   const getUserRole = (user) => {
     return user?.user?.role || user?.role || '';
@@ -151,7 +171,7 @@ const BlogManagement = () => {
     };
     
     fetchImportStats();
-  }, [user]);
+  }, [user, refreshStats]);
 
   // Fetch blogs
   useEffect(() => {
@@ -168,6 +188,14 @@ const BlogManagement = () => {
           category: filters.category === 'all' ? '' : filters.category,
           ...authorParams
         };
+        
+        if (activeTab === 'imported') {
+          // Only fetch imported blogs
+          apiFilters.imported = true;
+        } else {
+          // Exclude imported blogs for other tabs
+          apiFilters.imported = false;
+        }
         
         const response = await blogService.getBlogs(apiFilters);
         
@@ -201,8 +229,50 @@ const BlogManagement = () => {
       }
     };
     
-    fetchBlogs();
-  }, [filters, user]);
+    if (activeTab !== 'pending') {
+      fetchBlogs();
+    }
+  }, [filters, user, activeTab]);
+  
+  // Fetch pending review blogs
+  useEffect(() => {
+    const fetchPendingBlogs = async () => {
+      if (activeTab !== 'pending') return;
+      
+      setPendingBlogsLoading(true);
+      try {
+        // Build query parameters for pending review blogs
+        const queryParams = {
+          page: pendingBlogsFilters.page,
+          limit: pendingBlogsFilters.limit,
+          status: 'draft',
+          imported: true // Only imported blogs
+        };
+        
+        if (pendingBlogsFilters.search) queryParams.search = pendingBlogsFilters.search;
+        if (pendingBlogsFilters.source !== 'all') queryParams.source = pendingBlogsFilters.source;
+        if (pendingBlogsFilters.category !== 'all') queryParams.category = pendingBlogsFilters.category;
+        
+        const response = await blogService.getBlogs(queryParams);
+        
+        setPendingBlogs(response.data);
+        setPendingBlogsPagination({
+          currentPage: response.pagination.currentPage,
+          totalPages: response.pagination.totalPages,
+          totalItems: response.pagination.totalItems
+        });
+      } catch (error) {
+        console.error('Error fetching pending blogs:', error);
+        toast.error('Failed to load pending blogs');
+      } finally {
+        setPendingBlogsLoading(false);
+      }
+    };
+    
+    if (activeTab === 'pending') {
+      fetchPendingBlogs();
+    }
+  }, [pendingBlogsFilters, activeTab]);
 
   // Fetch ad performance data (admin only)
   useEffect(() => {
@@ -245,22 +315,47 @@ const BlogManagement = () => {
     }));
   };
 
+  // Handle pending blogs filter changes
+  const handlePendingBlogsFilterChange = (key, value) => {
+    setPendingBlogsFilters(prev => ({
+      ...prev,
+      [key]: value,
+      // Reset to page 1 when filters change (except when changing page)
+      page: key === 'page' ? value : 1
+    }));
+  };
+
   // Handle search submission
   const handleSearch = (e) => {
     e.preventDefault();
-    handleFilterChange('search', filters.search);
+    
+    if (activeTab === 'pending') {
+      handlePendingBlogsFilterChange('search', pendingBlogsFilters.search);
+    } else {
+      handleFilterChange('search', filters.search);
+    }
   };
 
   // Clear filters
   const clearFilters = () => {
-    setFilters({
-      search: '',
-      status: 'all',
-      category: 'all',
-      page: 1,
-      limit: 10,
-      sort: 'publishDate:desc'
-    });
+    if (activeTab === 'pending') {
+      setPendingBlogsFilters({
+        search: '',
+        source: 'all',
+        category: 'all',
+        page: 1,
+        limit: 10
+      });
+    } else {
+      setFilters({
+        search: '',
+        status: 'all',
+        category: 'all',
+        page: 1,
+        limit: 10,
+        sort: 'publishDate:desc'
+      });
+    }
   };
 
   // Format date helper
@@ -294,6 +389,17 @@ const BlogManagement = () => {
         {label}
       </span>
     );
+  };
+
+  // Get source badge color
+  const getSourceBadgeClass = (source) => {
+    const sources = {
+      'newsapi': isDarkMode ? 'bg-blue-900 text-blue-300' : 'bg-blue-100 text-blue-800',
+      'rss': isDarkMode ? 'bg-green-900 text-green-300' : 'bg-green-100 text-green-800',
+      'spoonacular': isDarkMode ? 'bg-amber-900 text-amber-300' : 'bg-amber-100 text-amber-800'
+    };
+    
+    return sources[source] || (isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-800');
   };
 
   // Delete blog dialog and handling
@@ -427,6 +533,17 @@ const BlogManagement = () => {
       }
     });
   };
+  
+  // Toggle selection of pending review blog
+  const togglePendingBlogSelection = (blogId) => {
+    setSelectedPendingBlogs(prev => {
+      if (prev.includes(blogId)) {
+        return prev.filter(id => id !== blogId);
+      } else {
+        return [...prev, blogId];
+      }
+    });
+  };
 
   // Select/Deselect all blogs
   const toggleSelectAll = () => {
@@ -434,6 +551,15 @@ const BlogManagement = () => {
       setSelectedImportedBlogs([]);
     } else {
       setSelectedImportedBlogs(importedBlogs.map(blog => blog._id));
+    }
+  };
+  
+  // Select/Deselect all pending blogs
+  const toggleSelectAllPending = () => {
+    if (selectedPendingBlogs.length === pendingBlogs.length) {
+      setSelectedPendingBlogs([]);
+    } else {
+      setSelectedPendingBlogs(pendingBlogs.map(blog => blog._id));
     }
   };
 
@@ -494,12 +620,20 @@ const BlogManagement = () => {
         currentImportedBlog
       );
       
-      // Update in the list
-      setImportedBlogs(prev => 
-        prev.map(blog => 
-          blog._id === currentImportedBlog._id ? response.data : blog
-        )
-      );
+      // Update in the list - either pending blogs or imported blogs
+      if (activeTab === 'pending') {
+        setPendingBlogs(prev => 
+          prev.map(blog => 
+            blog._id === currentImportedBlog._id ? response.data : blog
+          )
+        );
+      } else {
+        setImportedBlogs(prev => 
+          prev.map(blog => 
+            blog._id === currentImportedBlog._id ? response.data : blog
+          )
+        );
+      }
       
       toast.success('Blog post updated successfully');
       setEditImportedBlogOpen(false);
@@ -509,59 +643,89 @@ const BlogManagement = () => {
     }
   };
 
+  // Open view dialog for blog
+  const handleViewBlog = (blog) => {
+    setBlogToView(blog);
+    setViewBlogDialogOpen(true);
+  };
+
   // Approve selected blogs
-  const approveSelectedBlogs = async () => {
-    if (selectedImportedBlogs.length === 0) {
+  const approveSelectedBlogs = async (blogIds = null) => {
+    // If blogIds is provided, use it, otherwise use selectedImportedBlogs or selectedPendingBlogs
+    const idsToApprove = blogIds || 
+      (activeTab === 'pending' ? selectedPendingBlogs : selectedImportedBlogs);
+    
+    if (idsToApprove.length === 0) {
       toast.info('No blogs selected');
       return;
     }
     
     try {
-      const response = await blogService.approveImportedBlogs(selectedImportedBlogs);
+      const response = await blogService.approveImportedBlogs(idsToApprove);
       
-      toast.success(`Approved ${response.data.count} blog posts`);
+      toast.success(`${response.data.count} blogs approved`);
       
       // Remove approved blogs from the list
-      setImportedBlogs(prev => 
-        prev.filter(blog => !selectedImportedBlogs.includes(blog._id))
-      );
-      setSelectedImportedBlogs([]);
+      if (activeTab === 'pending') {
+        setPendingBlogs(prev => 
+          prev.filter(blog => !idsToApprove.includes(blog._id))
+        );
+        setSelectedPendingBlogs([]);
+      } else {
+        setImportedBlogs(prev => 
+          prev.filter(blog => !idsToApprove.includes(blog._id))
+        );
+        setSelectedImportedBlogs([]);
+      }
       
-      // Refresh import stats
-      const statsResponse = await blogService.getImportStats();
-      setImportStats(statsResponse.data);
+      // Close dialogs if open
+      setViewBlogDialogOpen(false);
       
+      // Refresh stats
+      setRefreshStats(prev => !prev);
     } catch (error) {
       console.error('Error approving blogs:', error);
-      toast.error('Failed to approve blog posts');
+      toast.error('Failed to approve blogs');
     }
   };
 
   // Reject selected blogs
-  const rejectSelectedBlogs = async () => {
-    if (selectedImportedBlogs.length === 0) {
+  const rejectSelectedBlogs = async (blogIds = null) => {
+    // If blogIds is provided, use it, otherwise use selectedImportedBlogs or selectedPendingBlogs
+    const idsToReject = blogIds || 
+      (activeTab === 'pending' ? selectedPendingBlogs : selectedImportedBlogs);
+    
+    if (idsToReject.length === 0) {
       toast.info('No blogs selected');
       return;
     }
     
     try {
-      const response = await blogService.rejectImportedBlogs(selectedImportedBlogs);
+      const response = await blogService.rejectImportedBlogs(idsToReject);
       
-      toast.success(`Rejected ${response.data.count} blog posts`);
+      toast.success(`${response.data.count} blogs rejected`);
       
       // Remove rejected blogs from the list
-      setImportedBlogs(prev => 
-        prev.filter(blog => !selectedImportedBlogs.includes(blog._id))
-      );
-      setSelectedImportedBlogs([]);
+      if (activeTab === 'pending') {
+        setPendingBlogs(prev => 
+          prev.filter(blog => !idsToReject.includes(blog._id))
+        );
+        setSelectedPendingBlogs([]);
+      } else {
+        setImportedBlogs(prev => 
+          prev.filter(blog => !idsToReject.includes(blog._id))
+        );
+        setSelectedImportedBlogs([]);
+      }
       
-      // Refresh import stats
-      const statsResponse = await blogService.getImportStats();
-      setImportStats(statsResponse.data);
+      // Close dialogs if open
+      setViewBlogDialogOpen(false);
       
+      // Refresh stats
+      setRefreshStats(prev => !prev);
     } catch (error) {
       console.error('Error rejecting blogs:', error);
-      toast.error('Failed to reject blog posts');
+      toast.error('Failed to reject blogs');
     }
   };
 
@@ -701,7 +865,7 @@ const BlogManagement = () => {
         ))}
       </div>
       
-      {/* Import Stats Summary - NEW */}
+      {/* Import Stats Summary */}
       <Card className={isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'}>
         <CardHeader>
           <CardTitle className={isDarkMode ? 'text-white' : ''}>Content Import Stats</CardTitle>
@@ -733,25 +897,29 @@ const BlogManagement = () => {
           <Button 
             variant="outline" 
             size="sm"
-            onClick={openImportDialog}
+            onClick={() => {
+              setActiveTab('pending');
+              setRefreshStats(prev => !prev);
+            }}
             className={isDarkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : ''}
           >
-            <RefreshCw className="h-4 w-4 mr-2" />
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshStats ? 'animate-spin' : ''}`} />
             Manage Imported Content
           </Button>
         </CardFooter>
       </Card>
       
-      {/* Tabs for published/draft/imported blogs */}
+      {/* Tabs for different blog types */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-4">
           <TabsTrigger value="published">Published</TabsTrigger>
           <TabsTrigger value="draft">Draft</TabsTrigger>
+          <TabsTrigger value="pending">Pending Review</TabsTrigger>
           <TabsTrigger value="imported">Imported</TabsTrigger>
         </TabsList>
         
-        {/* Filters */}
-        <TabsContent value="published" className="p-0">
+        {/* Published/Draft/Imported Blogs Tab */}
+        <TabsContent value={activeTab === 'pending' ? 'hidden' : activeTab} className="p-0">
           <Card className={`shadow-sm ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'}`}>
             <CardHeader>
               <div className="flex flex-col md:flex-row md:items-center gap-4">
@@ -1022,6 +1190,317 @@ const BlogManagement = () => {
             </CardContent>
           </Card>
         </TabsContent>
+        
+        {/* Pending Review Blogs Tab */}
+        <TabsContent value="pending" className="p-0">
+          <Card className={`shadow-sm ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'}`}>
+            <CardHeader>
+              <div className="flex flex-col md:flex-row md:items-center gap-4">
+                {/* Search box */}
+                <div className="w-full md:w-1/3">
+                  <form onSubmit={handleSearch} className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                    <Input
+                      type="text"
+                      placeholder="Search pending blogs..."
+                      value={pendingBlogsFilters.search}
+                      onChange={(e) => setPendingBlogsFilters({...pendingBlogsFilters, search: e.target.value})}
+                      className={`pl-10 w-full ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}`}
+                    />
+                  </form>
+                </div>
+                
+                {/* Source filter */}
+                <div className="w-full md:w-1/4">
+                  <Select
+                    value={pendingBlogsFilters.source}
+                    onValueChange={(value) => handlePendingBlogsFilterChange('source', value)}
+                  >
+                    <SelectTrigger className={isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}>
+                      <SelectValue placeholder="Source" />
+                    </SelectTrigger>
+                    <SelectContent className={isDarkMode ? 'bg-gray-800 text-white border-gray-700' : ''}>
+                      <SelectItem value="all">All Sources</SelectItem>
+                      <SelectItem value="newsapi">News API</SelectItem>
+                      <SelectItem value="rss">RSS Feeds</SelectItem>
+                      <SelectItem value="spoonacular">Spoonacular</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Category filter */}
+                <div className="w-full md:w-1/4">
+                  <Select
+                    value={pendingBlogsFilters.category}
+                    onValueChange={(value) => handlePendingBlogsFilterChange('category', value)}
+                  >
+                    <SelectTrigger className={isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}>
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent className={isDarkMode ? 'bg-gray-800 text-white border-gray-700' : ''}>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      <SelectItem value="Fitness">Fitness</SelectItem>
+                      <SelectItem value="Nutrition">Nutrition</SelectItem>
+                      <SelectItem value="Workout Plans">Workout Plans</SelectItem>
+                      <SelectItem value="Health Tips">Health Tips</SelectItem>
+                      <SelectItem value="Motivation">Motivation</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Reset filters button */}
+                {(pendingBlogsFilters.search || pendingBlogsFilters.source !== 'all' || pendingBlogsFilters.category !== 'all') && (
+                  <Button
+                    variant="ghost"
+                    onClick={clearFilters}
+                    className="px-2.5"
+                  >
+                    <X size={16} className="mr-1" />
+                    Reset
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            
+            <CardContent>
+              {/* Action Buttons */}
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    checked={selectedPendingBlogs.length === pendingBlogs.length && pendingBlogs.length > 0}
+                    onCheckedChange={toggleSelectAllPending}
+                    id="select-all-pending" 
+                    className={isDarkMode ? 'data-[state=checked]:bg-blue-600 border-gray-600' : ''}
+                  />
+                  <label 
+                    htmlFor="select-all-pending" 
+                    className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}
+                  >
+                    {selectedPendingBlogs.length === 0 
+                      ? 'Select All' 
+                      : `Selected ${selectedPendingBlogs.length} of ${pendingBlogs.length}`
+                    }
+                  </label>
+                </div>
+                
+                <div className="flex space-x-2">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => rejectSelectedBlogs()}
+                    disabled={selectedPendingBlogs.length === 0}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Reject Selected
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => approveSelectedBlogs()}
+                    disabled={selectedPendingBlogs.length === 0}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <Check className="h-4 w-4 mr-2" />
+                    Approve Selected
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Blogs Table */}
+              <div className="border rounded-md overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className={isDarkMode ? 'bg-gray-700 hover:bg-gray-700' : ''}>
+                      <TableHead className="w-[40px]"></TableHead>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Source</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Imported</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingBlogsLoading ? (
+                      // Loading state
+                      [...Array(5)].map((_, index) => (
+                        <TableRow key={index} className={isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : ''}>
+                          {[...Array(6)].map((_, cellIndex) => (
+                            <TableCell key={cellIndex}>
+                              <div className={`h-5 w-full rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))
+                    ) : pendingBlogs.length === 0 ? (
+                      // Empty state
+                      <TableRow className={isDarkMode ? 'hover:bg-gray-800' : ''}>
+                        <TableCell colSpan={6} className="text-center py-8">
+                          <div className="flex flex-col items-center">
+                            <div className={`p-3 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                              <Filter className={`h-6 w-6 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                            </div>
+                            <h3 className={`mt-2 text-base font-medium ${isDarkMode ? 'text-gray-300' : ''}`}>No imported blogs found</h3>
+                            <p className={`mt-1 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              Try adjusting your filters or import new content
+                            </p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      // Blog list
+                      pendingBlogs.map((blog) => (
+                        <TableRow key={blog._id} className={isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
+                          <TableCell className="pr-0">
+                            <Checkbox 
+                              checked={selectedPendingBlogs.includes(blog._id)} 
+                              onCheckedChange={() => togglePendingBlogSelection(blog._id)}
+                              className={isDarkMode ? 'data-[state=checked]:bg-blue-600 border-gray-600' : ''}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <p className={`font-medium ${isDarkMode ? 'text-white' : ''}`}>
+                                {blog.title.length > 60 ? `${blog.title.substring(0, 60)}...` : blog.title}
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {blog.tags?.slice(0, 3).map(tag => (
+                                  <Badge 
+                                    key={tag} 
+                                    variant="outline" 
+                                    className={isDarkMode ? 'border-gray-600 text-gray-300' : ''}
+                                  >
+                                    {tag}
+                                  </Badge>
+                                ))}
+                                {blog.tags?.length > 3 && (
+                                  <Badge variant="outline" className={isDarkMode ? 'border-gray-600 text-gray-300' : ''}>
+                                    +{blog.tags.length - 3} more
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={getSourceBadgeClass(blog.source?.type)}>
+                              {blog.source?.name || blog.source?.type || 'Unknown'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{blog.category || 'Uncategorized'}</TableCell>
+                          <TableCell>
+                            {blog.source?.importedAt ? formatDate(blog.source.importedAt) : 'Unknown'}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex space-x-1 justify-end">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleViewBlog(blog)}
+                                className={isDarkMode ? 'hover:bg-gray-700 text-gray-300' : ''}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditImportedBlog(blog)}
+                                className={isDarkMode ? 'hover:bg-gray-700 text-gray-300' : ''}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => window.open(blog.source?.url, '_blank')}
+                                className={isDarkMode ? 'hover:bg-gray-700 text-gray-300' : ''}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              
+              {/* Pagination */}
+              {pendingBlogsPagination.totalPages > 1 && (
+                <div className="flex justify-between items-center mt-4">
+                  <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Showing {pendingBlogs.length} of {pendingBlogsPagination.totalItems} results
+                  </div>
+                  <div className="flex space-x-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePendingBlogsFilterChange('page', Math.max(1, pendingBlogsFilters.page - 1))}
+                      disabled={pendingBlogsFilters.page === 1}
+                      className={isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    
+                    {[...Array(pendingBlogsPagination.totalPages)].map((_, index) => {
+                      const pageNumber = index + 1;
+                      const isCurrentPage = pageNumber === pendingBlogsFilters.page;
+                      
+                      // Show first page, last page, current page, and adjacent pages
+                      if (
+                        pageNumber === 1 ||
+                        pageNumber === pendingBlogsPagination.totalPages ||
+                        (pageNumber >= pendingBlogsFilters.page - 1 && pageNumber <= pendingBlogsFilters.page + 1)
+                      ) {
+                        return (
+                          <Button
+                            key={pageNumber}
+                            variant={isCurrentPage ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => handlePendingBlogsFilterChange('page', pageNumber)}
+                            className={isDarkMode && !isCurrentPage ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
+                          >
+                            {pageNumber}
+                          </Button>
+                        );
+                      }
+                      
+                      // Show dots for skipped pages, but only once
+                      if (
+                        (pageNumber === 2 && pendingBlogsFilters.page > 3) ||
+                        (pageNumber === pendingBlogsPagination.totalPages - 1 && 
+                         pendingBlogsFilters.page < pendingBlogsPagination.totalPages - 2)
+                      ) {
+                        return (
+                          <Button
+                            key={pageNumber}
+                            variant="outline"
+                            size="sm"
+                            disabled
+                            className={isDarkMode ? 'border-gray-700 text-gray-500' : ''}
+                          >
+                            ...
+                          </Button>
+                        );
+                      }
+                      
+                      return null;
+                    })}
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePendingBlogsFilterChange('page', 
+                        Math.min(pendingBlogsPagination.totalPages, pendingBlogsFilters.page + 1))}
+                      disabled={pendingBlogsFilters.page === pendingBlogsPagination.totalPages}
+                      className={isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
       
       {/* Delete confirmation dialog */}
@@ -1058,7 +1537,7 @@ const BlogManagement = () => {
         </DialogContent>
       </Dialog>
       
-      {/* Blog Import Dialog - NEW */}
+      {/* Blog Import Dialog */}
       <Dialog 
         open={importDialogOpen} 
         onOpenChange={(open) => {
@@ -1381,14 +1860,14 @@ const BlogManagement = () => {
                 <div className="flex space-x-2">
                   <Button
                     variant="destructive"
-                    onClick={rejectSelectedBlogs}
+                    onClick={() => rejectSelectedBlogs()}
                     disabled={selectedImportedBlogs.length === 0}
                   >
                     <X className="h-4 w-4 mr-2" />
                     Reject Selected
                   </Button>
                   <Button
-                    onClick={approveSelectedBlogs}
+                    onClick={() => approveSelectedBlogs()}
                     disabled={selectedImportedBlogs.length === 0}
                     className="bg-green-600 hover:bg-green-700"
                   >
@@ -1402,7 +1881,7 @@ const BlogManagement = () => {
         </DialogContent>
       </Dialog>
       
-      {/* Edit Imported Blog Dialog - NEW */}
+      {/* Edit Imported Blog Dialog */}
       <Dialog open={editImportedBlogOpen} onOpenChange={setEditImportedBlogOpen}>
         <DialogContent className={`max-w-3xl ${isDarkMode ? 'bg-gray-800 text-white border-gray-700' : ''}`}>
           <DialogHeader>
