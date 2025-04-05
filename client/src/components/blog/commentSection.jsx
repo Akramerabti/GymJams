@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Heart, Reply, MoreHorizontal } from 'lucide-react';
-import { Textarea } from '../ui/textarea';
+import { TextArea } from '../ui/TextArea';
 import { toast } from 'sonner';
 import api from '../../services/api';
 
@@ -119,7 +119,7 @@ const CommentSection = ({ comments, postId, postSlug, user, isDarkMode }) => {
             </Avatar>
             
             <div className="flex-1">
-              <Textarea
+              <TextArea
                 placeholder="Add a comment..."
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
@@ -232,7 +232,7 @@ const CommentSection = ({ comments, postId, postSlug, user, isDarkMode }) => {
                       )}
                       
                       <div className="flex-1">
-                        <Textarea
+                        <TextArea
                           placeholder={`Reply to ${comment.user.firstName}...`}
                           value={replyText}
                           onChange={(e) => setReplyText(e.target.value)}

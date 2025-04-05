@@ -687,21 +687,26 @@ const parseRSSFeeds = async (categories) => {
     feedsToFetch = [...fitnessFeeds, ...nutritionFeeds];
   }
   
-  const parser = new RSS();
-  const results = [];
+  const parser = new RSS({
+    customFields: {
+      item: [
+        ['content:encoded', 'fullContent'],  // Add this line to get full content
+        ['description', 'description']
+      ]
+    }
+  });
   
   for (const feedUrl of feedsToFetch) {
     try {
       const feed = await parser.parseURL(feedUrl);
       
-      // Get the feed name/source
-      const sourceName = feed.title || new URL(feedUrl).hostname;
-      
       // Process each item
       const items = feed.items.map(item => ({
         title: item.title,
+        // Use full content instead of excerpt if available
         description: item.contentSnippet || item.description?.substring(0, 160) || '',
-        content: item.content || item.description || '',
+        // Use the full content field instead of description
+        content: item.fullContent || item.content || item.description || '',
         url: item.link,
         publishDate: item.pubDate ? new Date(item.pubDate) : new Date(),
         source: {
@@ -715,11 +720,79 @@ const parseRSSFeeds = async (categories) => {
       results.push(...items);
     } catch (error) {
       logger.error(`Error parsing RSS feed ${feedUrl}:`, error);
-      // Continue with other feeds even if one fails
     }
   }
   
   return results;
+};
+
+const fetchFullContentFromWordPress = async (url) => {
+  try {
+    // Extract the post ID from the URL if possible
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split('/').filter(Boolean);
+    const postSlug = pathParts[pathParts.length - 1];
+    
+    // Try to get the WordPress API endpoint
+    const apiUrl = `${urlObj.origin}/wp-json/wp/v2/posts?slug=${postSlug}`;
+    
+    const response = await axios.get(apiUrl);
+    
+    if (response.data && response.data.length > 0) {
+      // WordPress API response includes rendered content
+      return response.data[0].content.rendered;
+    }
+    
+    // If API fails, try to scrape the content
+    return await scrapeContentFromURL(url);
+  } catch (error) {
+    logger.error(`Error fetching WordPress content from ${url}:`, error);
+    // Fallback to scraping if API fails
+    return await scrapeContentFromURL(url);
+  }
+};
+
+const scrapeContentFromURL = async (url) => {
+  try {
+    const response = await axios.get(url);
+    const html = response.data;
+    const dom = new JSDOM(html);
+    const document = dom.window.document;
+    
+    // Try various common content selectors
+    const selectors = [
+      'article .entry-content', 
+      '.post-content', 
+      '.article-content',
+      'article',
+      '.content',
+      'main .entry-content',
+      '.post-body',
+      '.post .entry',
+      '#content .post'
+    ];
+    
+    for (const selector of selectors) {
+      const contentElement = document.querySelector(selector);
+      if (contentElement) {
+        // Clean up the content
+        let content = contentElement.innerHTML;
+        
+        // Remove navigation, related posts, etc.
+        content = content.replace(/<div class="navigation">.*?<\/div>/gs, '');
+        content = content.replace(/<div class="related-posts">.*?<\/div>/gs, '');
+        content = content.replace(/<div class="sharedaddy">.*?<\/div>/gs, '');
+        content = content.replace(/\[&#8230;\]/g, ''); // Remove ellipsis
+        
+        return content;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    logger.error(`Error scraping content from ${url}:`, error);
+    return null;
+  }
 };
 
 // Fetch from News API
@@ -868,73 +941,365 @@ const fetchFromSpoonacular = async () => {
   }
 };
 
-// Clean and process imported content
-const processContent = (articles, categories) => {
-  return articles.map(article => {
-    // Determine category based on content and title
-    let category = 'Fitness'; // Default
+// Complete updated processContent function for blog.controller.js
+
+// First add these helper functions above processContent
+
+// Function to fetch full content from a URL
+const fetchFullContent = async (url) => {
+  try {
+    const response = await axios.get(url);
+    const html = response.data;
+    const dom = new JSDOM(html);
+    const document = dom.window.document;
     
-    const title = article.title.toLowerCase();
-    const content = article.content.toLowerCase();
+    // Try various common content selectors
+    const selectors = [
+      'article .entry-content', 
+      '.post-content', 
+      '.article-content',
+      'article',
+      '.content',
+      '.entry-content',
+      'main .entry-content',
+      '.post-body',
+      '.post .entry',
+      '#content .post',
+      '.post-container',
+      '.blog-post-content'
+    ];
     
-    // Simple keyword-based categorization
-    if (title.includes('nutrition') || title.includes('diet') || title.includes('food') || 
-        content.includes('nutrition') || content.includes('diet') || content.includes('food')) {
-      category = 'Nutrition';
-    } else if (title.includes('workout plan') || title.includes('training program') || 
-               content.includes('workout plan') || content.includes('training program')) {
-      category = 'Workout Plans';
-    } else if (title.includes('health tips') || title.includes('wellness') || 
-               content.includes('health tips') || content.includes('wellness')) {
-      category = 'Health Tips';
-    }
-    
-    // Extract potential tags from content
-    const potentialTags = [];
-    const keywordSets = {
-      'Strength Training': ['strength training', 'weightlifting', 'resistance', 'weights'],
-      'Cardio': ['cardio', 'aerobic', 'running', 'cycling', 'hiit'],
-      'Nutrition': ['protein', 'carbs', 'fats', 'macros', 'diet', 'nutrition'],
-      'Weight Loss': ['weight loss', 'fat loss', 'cutting', 'calorie deficit'],
-      'Muscle Building': ['muscle', 'hypertrophy', 'bulking', 'gains'],
-      'Recovery': ['recovery', 'rest', 'sleep', 'stretching', 'mobility']
-    };
-    
-    // Check content for keywords
-    for (const [tag, keywords] of Object.entries(keywordSets)) {
-      for (const keyword of keywords) {
-        if (content.includes(keyword) || title.includes(keyword)) {
-          potentialTags.push(tag);
-          break; // Found one keyword match for this tag, move to next tag
+    for (const selector of selectors) {
+      const contentElement = document.querySelector(selector);
+      if (contentElement) {
+        // Clean up the content
+        let content = contentElement.innerHTML;
+        
+        // Remove navigation, related posts, sharing widgets, etc.
+        const elementsToRemove = [
+          '.navigation', '.post-navigation', '.nav-links',
+          '.related-posts', '.yarpp-related', '.related-content',
+          '.sharedaddy', '.share-buttons', '.social-share',
+          '.comments', '#comments', '.comment-section',
+          '.adsbygoogle', '.advertisement', '.ad-container',
+          '.sidebar', '.widget-area',
+          '.author-bio', '.about-author',
+          '.post-tags', '.tag-links'
+        ];
+        
+        for (const selector of elementsToRemove) {
+          const elements = contentElement.querySelectorAll(selector);
+          elements.forEach(el => el.parentNode?.removeChild(el));
         }
+        
+        // Get the cleaned content
+        content = contentElement.innerHTML;
+        
+        // Remove empty paragraphs and divs
+        content = content.replace(/<p>\s*<\/p>/g, '');
+        content = content.replace(/<div>\s*<\/div>/g, '');
+        
+        // Remove ellipsis markers
+        content = content.replace(/\[&#8230;\]/g, '');
+        content = content.replace(/\[…\]/g, '');
+        content = content.replace(/\.\.\.\s*$/g, '');
+        content = content.replace(/&hellip;/g, '');
+        
+        // Clean up any "read more" or "continue reading" links
+        content = content.replace(/<a[^>]*>Read more.*?<\/a>/gi, '');
+        content = content.replace(/<a[^>]*>Continue reading.*?<\/a>/gi, '');
+        
+        return content;
       }
     }
     
-    // Remove duplicate tags
-    const tags = [...new Set(potentialTags)];
+    // If no selectors match, try getting the entire body content
+    const bodyContent = document.querySelector('body');
+    if (bodyContent) {
+      // Use a simpler extraction approach
+      // Try to find the largest text block which is likely the main content
+      const paragraphs = bodyContent.querySelectorAll('p');
+      let largestTextBlock = '';
+      let maxLength = 0;
+      
+      // Group adjacent paragraphs to find the main content
+      let currentBlock = '';
+      for (let i = 0; i < paragraphs.length; i++) {
+        const p = paragraphs[i];
+        const text = p.textContent.trim();
+        
+        if (text.length > 20) { // Minimum paragraph length
+          currentBlock += p.outerHTML;
+          
+          // Check if we're at the end or next paragraph is far away
+          if (i === paragraphs.length - 1 || 
+              !p.nextElementSibling || 
+              p.nextElementSibling.tagName !== 'P') {
+            
+            if (currentBlock.length > maxLength) {
+              maxLength = currentBlock.length;
+              largestTextBlock = currentBlock;
+            }
+            currentBlock = '';
+          }
+        }
+      }
+      
+      if (largestTextBlock.length > 200) { // Minimum content length
+        return largestTextBlock;
+      }
+    }
     
-    // Clean and sanitize content
-    let cleanContent = article.content;
-    // Remove common boilerplate elements
-    cleanContent = cleanContent
-      .replace(/<div class="advertisement">.*?<\/div>/gi, '')
-      .replace(/<script>.*?<\/script>/gi, '')
-      .replace(/<ins class="adsbygoogle.*?<\/ins>/gi, '');
+    return null;
+  } catch (error) {
+    console.error(`Error fetching content from ${url}:`, error);
+    return null;
+  }
+};
+
+
+// Extract potential category based on content analysis
+const determineCategory = (article) => {
+  const title = (article.title || '').toLowerCase();
+  const content = (article.content || '').toLowerCase();
+  const combinedText = title + ' ' + content;
+  
+  // Define category keywords
+  const categoryKeywords = {
+    'Fitness': ['fitness', 'workout', 'exercise', 'training', 'gym', 'cardio', 'strength'],
+    'Nutrition': ['nutrition', 'diet', 'food', 'eating', 'meal', 'protein', 'carbs'],
+    'Workout Plans': ['workout plan', 'training program', 'routine', 'split', 'schedule'],
+    'Equipment Reviews': ['review', 'gear', 'equipment', 'machine', 'product'],
+    'Success Stories': ['transformation', 'success', 'journey', 'progress', 'before and after'],
+    'Health Tips': ['health', 'wellness', 'tips', 'advice', 'lifestyle'],
+    'Motivation': ['motivation', 'inspire', 'mindset', 'mental', 'goals']
+  };
+  
+  // Find the category with the most keyword matches
+  let bestCategory = 'Fitness'; // Default
+  let maxMatches = 0;
+  
+  for (const [category, keywords] of Object.entries(categoryKeywords)) {
+    let matches = 0;
+    for (const keyword of keywords) {
+      if (combinedText.includes(keyword)) {
+        matches++;
+      }
+    }
     
-    // Sanitize HTML
-    cleanContent = sanitizeHtml(cleanContent);
+    if (matches > maxMatches) {
+      maxMatches = matches;
+      bestCategory = category;
+    }
+  }
+  
+  return bestCategory;
+};
+
+// Extract tags from content
+const extractTags = (article) => {
+  const title = (article.title || '').toLowerCase();
+  const content = (article.content || '').toLowerCase();
+  const combinedText = title + ' ' + content;
+  
+  // Define tag keywords
+  const tagKeywords = {
+    'Strength Training': ['strength', 'weight', 'lifting', 'resistance', 'barbell', 'dumbbell', 'powerlifting'],
+    'Cardio': ['cardio', 'aerobic', 'running', 'jogging', 'cycling', 'hiit'],
+    'Bodybuilding': ['bodybuilding', 'muscle', 'hypertrophy', 'physique', 'mass', 'olympia', 'ifbb'],
+    'Weight Loss': ['weight loss', 'fat loss', 'cutting', 'calorie deficit', 'diet'],
+    'Muscle Building': ['muscle', 'gain', 'bulk', 'mass', 'hypertrophy', 'growth'],
+    'Recovery': ['recovery', 'rest', 'sleep', 'stretching', 'mobility', 'flexibility'],
+    'Supplements': ['supplement', 'protein', 'creatine', 'pre-workout', 'bcaa', 'vitamins'],
+    'Beginner': ['beginner', 'starting', 'novice', 'new', 'basics'],
+    'Advanced': ['advanced', 'expert', 'elite', 'professional', 'competition'],
+    'Nutrition': ['nutrition', 'diet', 'food', 'macro', 'calorie', 'eating', 'meal'],
+    'Mental Health': ['mental', 'mind', 'psychology', 'stress', 'anxiety', 'motivation']
+  };
+  
+  // Find matching tags
+  const matchedTags = [];
+  
+  for (const [tag, keywords] of Object.entries(tagKeywords)) {
+    for (const keyword of keywords) {
+      if (combinedText.includes(keyword)) {
+        matchedTags.push(tag);
+        break; // One match per tag is enough
+      }
+    }
+  }
+  
+  // Limit to 5 most relevant tags
+  return matchedTags.slice(0, 5);
+};
+
+// The main processContent function
+const processContent = async (articles, categories) => {
+  const processedArticles = [];
+  
+  for (const article of articles) {
+    try {
+      console.log(`Processing article: "${article.title}"`);
+      
+      // Check if content is truncated
+      let finalContent = article.content || '';
+      
+      if (isContentTruncated(finalContent) && article.source?.url) {
+        console.log(`Content appears to be truncated, attempting to fetch full content from: ${article.source.url}`);
+        
+        // Try to fetch full content
+        const fetchedContent = await fetchFullContent(article.source.url);
+        
+        if (fetchedContent && fetchedContent.length > finalContent.length) {
+          console.log(`Successfully fetched full content (${fetchedContent.length} chars vs. original ${finalContent.length} chars)`);
+          finalContent = fetchedContent;
+        } else {
+          console.log(`Could not fetch fuller content, using original (${finalContent.length} chars)`);
+        }
+      }
+      
+      // Convert common HTML entities
+      finalContent = finalContent
+        .replace(/&#8217;/g, "'")
+        .replace(/&#8216;/g, "'")
+        .replace(/&#8220;/g, '"')
+        .replace(/&#8221;/g, '"')
+        .replace(/&#8211;/g, '–')
+        .replace(/&#8212;/g, '—')
+        .replace(/&#8230;/g, '...')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>');
+      
+      // Determine category
+      let category = article.category || '';
+      
+      if (!category || !categories.includes(category)) {
+        category = determineCategory(article);
+      }
+      
+      // Extract tags if not provided
+      const tags = article.tags?.length > 0 ? article.tags : extractTags({
+        title: article.title,
+        content: finalContent
+      });
+      
+      // Create meta description if not provided
+      let metaDescription = article.metaDescription || article.description || '';
+      
+      if (!metaDescription) {
+        // Extract first paragraph text for meta description
+        const textContent = finalContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        metaDescription = textContent.substring(0, 160);
+        
+        if (metaDescription.length >= 160) {
+          metaDescription = metaDescription.substring(0, 157) + '...';
+        }
+      }
+      
+      // Calculate reading time
+      const readingTime = calculateReadingTime(finalContent);
+      
+      // Create the processed article
+      processedArticles.push({
+        title: article.title || 'Untitled Article',
+        slug: article.slug || generateSlug(article.title),
+        metaDescription: metaDescription,
+        content: finalContent,
+        category: category,
+        tags: tags,
+        status: 'draft', // Default to draft
+        source: article.source || {
+          name: 'Unknown',
+          url: '',
+          type: 'manual',
+          importedAt: new Date()
+        },
+        readingTime: readingTime,
+        publishDate: article.publishDate || new Date()
+      });
+      
+      console.log(`Processed "${article.title}" - ${finalContent.length} chars, ${readingTime} min read time`);
+      
+    } catch (error) {
+      console.error(`Error processing article "${article.title}":`, error);
+      // Skip this article if processing fails
+    }
+  }
+  
+  return processedArticles;
+};
+
+// Helper function to calculate reading time
+const calculateReadingTime = (content) => {
+  if (!content) return 1;
+  
+  // Remove HTML tags
+  const textContent = content.replace(/<[^>]+>/g, ' ');
+  
+  // Count words (approximately)
+  const wordCount = textContent.split(/\s+/).filter(Boolean).length;
+  
+  // Average reading speed: 200-250 words per minute
+  const wordsPerMinute = 225;
+  
+  // Calculate minutes and round up
+  const minutes = Math.ceil(wordCount / wordsPerMinute);
+  
+  // Return at least 1 minute
+  return Math.max(1, minutes);
+};
+
+// Helper function to generate a slug
+const generateSlug = (title) => {
+  if (!title) return '';
+  
+  return title
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '') // Remove special characters
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+    .trim() + '-' + Math.random().toString(36).substring(2, 8); // Add random string for uniqueness
+};
+
+const isContentTruncated = (content) => {
+  return (
+    content.includes('[&#8230;]') || 
+    content.includes('...') ||
+    content.endsWith('…') ||
+    content.includes('continue reading') ||
+    content.includes('read more')
+  );
+};
+
+export const trackBlogView = async (req, res) => {
+  try {
+    const blog = await Blog.findOne({ slug: req.params.slug });
     
-    return {
-      title: article.title,
-      metaDescription: article.description?.substring(0, 160) || '',
-      content: cleanContent,
-      category,
-      tags,
-      source: article.source,
-      status: 'draft',
-      readingTime: generateReadingTime(cleanContent)
-    };
-  });
+    if (!blog) {
+      return res.status(404).json({
+        success: false,
+        message: 'Blog not found'
+      });
+    }
+    
+    // Increment view count
+    blog.analytics.views += 1;
+    await blog.save();
+    
+    res.status(200).json({
+      success: true,
+      data: { views: blog.analytics.views }
+    });
+  } catch (error) {
+    logger.error('Error tracking blog view:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
 };
 
 export const importContent = async (req, res) => {
@@ -1002,19 +1367,15 @@ export const importContent = async (req, res) => {
     
     // Limit to requested count
     const limitedArticles = processedArticles.slice(0, count);
-    
-    // Skip duplicate checks for now to ensure we get some content
-    
-    // Save to database as draft blogs
+
     const importedBlogs = [];
-    
-    console.log('Blog Schema Structure:', Blog.schema.paths);
 
     for (const article of limitedArticles) {
       try {
         const blog = new Blog();
         blog.title = article.title || 'Untitled Article';
         blog.metaDescription = article.description?.substring(0, 160) || 'No description available';
+        console.log('Article Content:', article.content);
         blog.content = article.content || '<p>Content unavailable</p>';
         blog.category = article.category || selectedCategories[0];
         blog.tags = article.tags || [];

@@ -22,7 +22,8 @@ import {
   getImportStats,
   updateImportedContent,
   approveImportedBlogs,
-  rejectImportedBlogs
+  rejectImportedBlogs,
+  trackBlogView,
 } from '../controllers/blog.controller.js';
 import { authenticate, isAdmin, optionalAuthenticate, isTaskforce } from '../middleware/auth.middleware.js';
 import upload from '../config/multer.js';
@@ -43,6 +44,7 @@ router.use(authenticate);
 router.post('/', createBlog);
 router.put('/:slug', updateBlog);
 router.delete('/:slug', deleteBlog);
+router.post('/:slug/view', optionalAuthenticate, trackBlogView);
 
 // Comments
 router.post('/:slug/comments', addComment);

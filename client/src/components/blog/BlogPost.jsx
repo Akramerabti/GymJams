@@ -1,19 +1,13 @@
-// components/blog/BlogPost.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   Clock, Tag, User, Calendar, ChevronLeft, Share2, Bookmark, 
   Heart, MessageSquare, Facebook, Twitter, Linkedin, Copy, CheckCircle
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 import api from '../../services/api';
 import { Button } from '../ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '../ui/avatar';
-import AdBanner from './AdBanner';
-import RelatedPosts from './RelatedPosts';
-import CommentSection from './CommentSection';
-import AdInjector from './AdInjector';
-import { toast } from 'sonner';
 import { useAuth } from '../../stores/authStore';
 
 const BlogPost = () => {
@@ -23,39 +17,10 @@ const BlogPost = () => {
   const [blog, setBlog] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [relatedPosts, setRelatedPosts] = useState([]);
   const [showShareOptions, setShowShareOptions] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [readingProgress, setReadingProgress] = useState(0);
-  const [showAdPopup, setShowAdPopup] = useState(false);
-  const [adViewEvents, setAdViewEvents] = useState({});
   const [imageLoaded, setImageLoaded] = useState(false);
-  const contentRef = useRef(null);
-  const adTimerRef = useRef(null);
-
-  // Track reading position for targeted ads
-  const trackScrollPosition = () => {
-    if (!contentRef.current) return;
-    
-    const element = contentRef.current;
-    const totalHeight = element.scrollHeight - element.clientHeight;
-    const scrolled = element.scrollTop;
-    
-    const calculatedProgress = Math.min(Math.round((scrolled / totalHeight) * 100), 100);
-    setReadingProgress(calculatedProgress);
-    
-    // Show popup ad when reader is 50% through the article
-    if (calculatedProgress >= 50 && !showAdPopup && !adViewEvents.popup) {
-      if (adTimerRef.current) clearTimeout(adTimerRef.current);
-      
-      adTimerRef.current = setTimeout(() => {
-        setShowAdPopup(true);
-        // Mark this ad as viewed
-        setAdViewEvents(prev => ({ ...prev, popup: true }));
-      }, 2000);
-    }
-  };
 
   // Detect dark mode preference
   useEffect(() => {
@@ -77,22 +42,6 @@ const BlogPost = () => {
     return () => window.removeEventListener('themeChange', handleThemeChange);
   }, []);
 
-  // Set up scroll tracking
-  useEffect(() => {
-    const content = contentRef.current;
-    if (content) {
-      content.addEventListener('scroll', trackScrollPosition);
-      return () => content.removeEventListener('scroll', trackScrollPosition);
-    }
-  }, []);
-
-  // Clean up timer on unmount
-  useEffect(() => {
-    return () => {
-      if (adTimerRef.current) clearTimeout(adTimerRef.current);
-    };
-  }, []);
-
   // Fetch blog post data
   useEffect(() => {
     const fetchBlog = async () => {
@@ -101,10 +50,6 @@ const BlogPost = () => {
       try {
         const response = await api.get(`/blog/${slug}`);
         setBlog(response.data.data);
-        
-        // Fetch related posts
-        const relatedResponse = await api.get(`/blog/${slug}/related`);
-        setRelatedPosts(relatedResponse.data.data);
       } catch (err) {
         console.error('Error fetching blog post:', err);
         setError('Failed to load blog post. It may have been removed or does not exist.');
@@ -113,23 +58,37 @@ const BlogPost = () => {
       }
     };
     
-    fetchBlog();
+    if (slug) {
+      fetchBlog();
+    }
   }, [slug]);
   
-  // Increment view count once the post is loaded
-  useEffect(() => {
-    if (blog && !loading) {
-      const trackView = async () => {
+// In your BlogPost.jsx file, update the view tracking code to handle errors gracefully
+
+// Replace the existing useEffect for tracking views with this improved version
+useEffect(() => {
+  if (blog && !loading) {
+    const trackView = async () => {
+      try {
+        // First check if the endpoint exists by making a non-state-changing request
+        await api.get(`/blog/${slug}`);
+        
+        // If that succeeds, try to track the view
         try {
           await api.post(`/blog/${slug}/view`);
-        } catch (error) {
-          console.warn('Failed to track view:', error);
+        } catch (viewError) {
+          // If view tracking fails, just log it - don't show errors to users
+          console.warn('View tracking not available:', viewError.message);
         }
-      };
-      
-      trackView();
-    }
-  }, [blog, loading, slug]);
+      } catch (error) {
+        console.error('Error with blog post:', error);
+        // Don't show this error to the user as long as the blog content loaded
+      }
+    };
+    
+    trackView();
+  }
+}, [blog, loading, slug]);
 
   // Handle social sharing
   const handleShare = (platform) => {
@@ -162,45 +121,12 @@ const BlogPost = () => {
     setShowShareOptions(false);
   };
 
-  // Share options dropdown animation
-  const shareOptionsVariants = {
-    hidden: { opacity: 0, y: -10 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.2 } },
-    exit: { opacity: 0, y: -10, transition: { duration: 0.1 } }
-  };
-
   // Format date for display
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'long', day: 'numeric' };
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
-  // Close popup ad
-  const handleClosePopup = () => {
-    setShowAdPopup(false);
-  };
-
-  // Process content with injected ads
-  const processContentWithAds = (content) => {
-    if (!content) return '';
-    
-    // Only inject ads if we have them configured
-    if (blog?.adPlacements?.length > 0) {
-      return (
-        <AdInjector
-          content={content}
-          adPlacements={blog.adPlacements}
-          readingProgress={readingProgress}
-          isDarkMode={isDarkMode}
-          setAdViewEvents={setAdViewEvents}
-        />
-      );
-    }
-    
-    // Otherwise just return the content
-    return <div dangerouslySetInnerHTML={{ __html: content }} />;
-  };
-  
   // Handle image loading
   const handleImageLoad = () => {
     setImageLoaded(true);
@@ -250,11 +176,6 @@ const BlogPost = () => {
 
   return (
     <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
-      {/* Top Ad Banner */}
-      <div className="container mx-auto px-4 pt-8">
-        <AdBanner position="top" className="max-w-5xl mx-auto" />
-      </div>
-      
       {/* Back to blog link */}
       <div className="container mx-auto px-4 py-6">
         <Link 
@@ -380,296 +301,176 @@ const BlogPost = () => {
         </div>
       )}
       
-      {/* Main content with sidebar */}
+      {/* Main content */}
       <div className="container mx-auto px-4 pb-16">
-        <div className="flex flex-col lg:flex-row gap-8 max-w-7xl mx-auto">
-          {/* Main content */}
-          <main className="lg:w-3/4">
-            <div className="max-w-3xl mx-auto">
-              {/* Social sharing */}
-              <div className="sticky top-6 z-10 float-left mr-6">
-                <div className="flex flex-col items-center space-y-3">
-                  <div className="relative">
+        <div className="max-w-4xl mx-auto">
+          {/* Social sharing */}
+          <div className="sticky top-6 z-10 float-left mr-6">
+            <div className="flex flex-col items-center space-y-3">
+              <Button
+                variant="outline"
+                size="icon"
+                className={`rounded-full ${
+                  isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700' : ''
+                }`}
+                onClick={() => setShowShareOptions(!showShareOptions)}
+              >
+                <Share2 size={18} />
+              </Button>
+              
+              {showShareOptions && (
+                <div
+                  className={`absolute left-full ml-2 py-2 px-1 rounded-lg shadow-lg ${
+                    isDarkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'
+                  }`}
+                >
+                  <div className="flex flex-col items-center space-y-2">
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="icon"
-                      className={`rounded-full ${
-                        isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700' : ''
-                      }`}
-                      onClick={() => setShowShareOptions(!showShareOptions)}
+                      className="rounded-full hover:bg-blue-100 hover:text-blue-600"
+                      onClick={() => handleShare('facebook')}
+                      title="Share on Facebook"
                     >
-                      <Share2 size={18} />
+                      <Facebook size={18} />
                     </Button>
                     
-                    <AnimatePresence>
-                      {showShareOptions && (
-                        <motion.div
-                          initial="hidden"
-                          animate="visible"
-                          exit="exit"
-                          variants={shareOptionsVariants}
-                          className={`absolute left-full ml-2 py-2 px-1 rounded-lg shadow-lg ${
-                            isDarkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'
-                          }`}
-                        >
-                          <div className="flex flex-col items-center space-y-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="rounded-full hover:bg-blue-100 hover:text-blue-600"
-                              onClick={() => handleShare('facebook')}
-                              title="Share on Facebook"
-                            >
-                              <Facebook size={18} />
-                            </Button>
-                            
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="rounded-full hover:bg-blue-100 hover:text-blue-500"
-                              onClick={() => handleShare('twitter')}
-                              title="Share on Twitter"
-                            >
-                              <Twitter size={18} />
-                            </Button>
-                            
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="rounded-full hover:bg-blue-100 hover:text-blue-700"
-                              onClick={() => handleShare('linkedin')}
-                              title="Share on LinkedIn"
-                            >
-                              <Linkedin size={18} />
-                            </Button>
-                            
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="rounded-full hover:bg-gray-100"
-                              onClick={() => handleShare('copy')}
-                              title="Copy link"
-                            >
-                              {copied ? <CheckCircle size={18} className="text-green-500" /> : <Copy size={18} />}
-                            </Button>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                  
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className={`rounded-full ${
-                      isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700' : ''
-                    }`}
-                    title="Save for later"
-                  >
-                    <Bookmark size={18} />
-                  </Button>
-                  
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className={`rounded-full ${
-                      isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700' : ''
-                    }`}
-                    title="Like this article"
-                  >
-                    <Heart size={18} />
-                  </Button>
-                </div>
-              </div>
-              
-              {/* Article content */}
-              <article 
-                ref={contentRef}
-                className={`prose max-w-none ${
-                  isDarkMode ? 'prose-invert' : ''
-                } overflow-auto max-h-[800px] pr-4`}
-              >
-                {processContentWithAds(blog.content)}
-              </article>
-              
-              <div className="clear-both"></div>
-              
-              {/* Tags */}
-              {blog.tags && blog.tags.length > 0 && (
-                <div className="mt-12">
-                  <h3 className={`text-lg font-medium mb-3 ${
-                    isDarkMode ? 'text-gray-200' : 'text-gray-800'
-                  }`}>
-                    Tags
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {blog.tags.map((tag) => (
-                      <Link
-                        key={tag}
-                        to={`/blog?tag=${tag}`}
-                        className={`px-3 py-1 rounded-full text-sm ${
-                          isDarkMode 
-                            ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
-                            : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                        }`}
-                      >
-                        {tag}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {/* Author bio (expanded) */}
-              <div className={`mt-12 p-6 rounded-lg ${
-                isDarkMode ? 'bg-gray-800' : 'bg-gray-100'
-              }`}>
-                <div className="flex flex-col sm:flex-row gap-6">
-                  <Avatar className="h-20 w-20">
-                    {blog.author.profileImage ? (
-                      <AvatarImage src={blog.author.profileImage} alt={`${blog.author.firstName} ${blog.author.lastName}`} />
-                    ) : (
-                      <AvatarFallback className="text-xl">
-                        {blog.author.firstName.charAt(0)}{blog.author.lastName.charAt(0)}
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
-                  
-                  <div>
-                    <h3 className="text-xl font-bold mb-2">
-                      {blog.author.firstName} {blog.author.lastName}
-                    </h3>
-                    
-                    {blog.author.bio && (
-                      <p className={`mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {blog.author.bio}
-                      </p>
-                    )}
-                    
-                    <Link
-                      to={`/blog?author=${blog.author._id}`}
-                      className={`text-sm font-medium ${
-                        isDarkMode 
-                          ? 'text-blue-400 hover:text-blue-300' 
-                          : 'text-blue-600 hover:text-blue-500'
-                      }`}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-full hover:bg-blue-100 hover:text-blue-500"
+                      onClick={() => handleShare('twitter')}
+                      title="Share on Twitter"
                     >
-                      More articles from this author
-                    </Link>
+                      <Twitter size={18} />
+                    </Button>
+                    
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-full hover:bg-blue-100 hover:text-blue-700"
+                      onClick={() => handleShare('linkedin')}
+                      title="Share on LinkedIn"
+                    >
+                      <Linkedin size={18} />
+                    </Button>
+                    
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-full hover:bg-gray-100"
+                      onClick={() => handleShare('copy')}
+                      title="Copy link"
+                    >
+                      {copied ? <CheckCircle size={18} className="text-green-500" /> : <Copy size={18} />}
+                    </Button>
                   </div>
-                </div>
-              </div>
-              
-              {/* Comment section */}
-              <CommentSection 
-                comments={blog.comments} 
-                postId={blog._id}
-                postSlug={blog.slug}
-                user={user}
-                isDarkMode={isDarkMode}
-              />
-            </div>
-          </main>
-          
-          {/* Sidebar */}
-          <aside className="lg:w-1/4">
-            <div className="sticky top-6">
-              {/* Sidebar ad */}
-              <div className="mb-8">
-                <AdBanner position="sidebar" />
-              </div>
-              
-              {/* Related posts */}
-              {relatedPosts.length > 0 && (
-                <div className={`rounded-lg ${
-                  isDarkMode ? 'bg-gray-800' : 'bg-white border border-gray-200'
-                } p-6 mb-8`}>
-                  <h3 className="text-lg font-semibold mb-4">Related Articles</h3>
-                  <RelatedPosts 
-                    posts={relatedPosts}
-                    isDarkMode={isDarkMode}
-                  />
                 </div>
               )}
               
-              {/* Newsletter signup */}
-              <div className={`rounded-lg ${
-                isDarkMode ? 'bg-gray-800' : 'bg-white border border-gray-200'
-              } p-6`}>
-                <h3 className="text-lg font-semibold mb-2">Stay Updated</h3>
-                <p className={`text-sm mb-4 ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                }`}>
-                  Subscribe to our newsletter for the latest fitness tips and exclusive content.
-                </p>
-                
-                <form className="space-y-3">
-                  <input
-                    type="email"
-                    placeholder="Your email address"
-                    className={`w-full p-2 rounded-md text-sm ${
+              <Button
+                variant="outline"
+                size="icon"
+                className={`rounded-full ${
+                  isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700' : ''
+                }`}
+                title="Save for later"
+              >
+                <Bookmark size={18} />
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="icon"
+                className={`rounded-full ${
+                  isDarkMode ? 'bg-gray-800 border-gray-700 hover:bg-gray-700' : ''
+                }`}
+                title="Like this article"
+              >
+                <Heart size={18} />
+              </Button>
+            </div>
+          </div>
+          
+          {/* Article content */}
+          <article 
+            className={`prose max-w-none ${
+              isDarkMode ? 'prose-invert' : ''
+            }`}
+          >
+            {/* Display the full content with proper HTML rendering */}
+            <div dangerouslySetInnerHTML={{ __html: blog.content }} />
+          </article>
+          
+          <div className="clear-both"></div>
+          
+          {/* Tags */}
+          {blog.tags && blog.tags.length > 0 && (
+            <div className="mt-12">
+              <h3 className={`text-lg font-medium mb-3 ${
+                isDarkMode ? 'text-gray-200' : 'text-gray-800'
+              }`}>
+                Tags
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {blog.tags.map((tag) => (
+                  <Link
+                    key={tag}
+                    to={`/blog?tag=${tag}`}
+                    className={`px-3 py-1 rounded-full text-sm ${
                       isDarkMode 
-                        ? 'bg-gray-700 border-gray-600 text-white placeholder:text-gray-400' 
-                        : 'border border-gray-300'
+                        ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
                     }`}
-                    required
-                  />
-                  <Button className="w-full">Subscribe</Button>
-                </form>
+                  >
+                    {tag}
+                  </Link>
+                ))}
               </div>
             </div>
-          </aside>
+          )}
+          
+          {/* Author bio (expanded) */}
+          <div className={`mt-12 p-6 rounded-lg ${
+            isDarkMode ? 'bg-gray-800' : 'bg-gray-100'
+          }`}>
+            <div className="flex flex-col sm:flex-row gap-6">
+              <Avatar className="h-20 w-20">
+                {blog.author.profileImage ? (
+                  <AvatarImage src={blog.author.profileImage} alt={`${blog.author.firstName} ${blog.author.lastName}`} />
+                ) : (
+                  <AvatarFallback className="text-xl">
+                    {blog.author.firstName.charAt(0)}{blog.author.lastName.charAt(0)}
+                  </AvatarFallback>
+                )}
+              </Avatar>
+              
+              <div>
+                <h3 className="text-xl font-bold mb-2">
+                  {blog.author.firstName} {blog.author.lastName}
+                </h3>
+                
+                {blog.author.bio && (
+                  <p className={`mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {blog.author.bio}
+                  </p>
+                )}
+                
+                <Link
+                  to={`/blog?author=${blog.author._id}`}
+                  className={`text-sm font-medium ${
+                    isDarkMode 
+                      ? 'text-blue-400 hover:text-blue-300' 
+                      : 'text-blue-600 hover:text-blue-500'
+                  }`}
+                >
+                  More articles from this author
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-      
-      {/* Bottom Ad Banner */}
-      <div className="container mx-auto px-4 pb-8">
-        <AdBanner position="footer" className="max-w-5xl mx-auto" />
-      </div>
-      
-      {/* Popup ad (displayed when user reaches 50% of article) */}
-      <AnimatePresence>
-        {showAdPopup && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="fixed bottom-6 right-6 z-50 max-w-sm"
-          >
-            <div className={`rounded-lg shadow-xl overflow-hidden ${
-              isDarkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'
-            }`}>
-              <div className="relative">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute top-2 right-2 rounded-full bg-black/20 hover:bg-black/30 text-white z-10"
-                  onClick={handleClosePopup}
-                >
-                  <span>×</span>
-                </Button>
-                
-                <div className="p-4">
-                  <h4 className="text-lg font-bold mb-2">Special Offer</h4>
-                  <p className={`text-sm mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                    Get 15% off premium exercise equipment this week only!
-                  </p>
-                  
-                  <Button 
-                    className="w-full"
-                    onClick={() => {
-                      navigate('/shop?promo=BLOG15');
-                      handleClosePopup();
-                    }}
-                  >
-                    Shop Now
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
