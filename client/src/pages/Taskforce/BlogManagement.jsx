@@ -1889,7 +1889,7 @@ const BlogManagement = () => {
           </DialogHeader>
           
           {currentImportedBlog && (
-            <div className="py-4 space-y-4">
+            <div className="py-4 space-y-4 z-[1000]">
               {/* Title */}
               <div>
                 <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -1907,7 +1907,7 @@ const BlogManagement = () => {
                 <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                   Content
                 </label>
-                <Textarea
+                <TextArea
                   value={currentImportedBlog.content}
                   onChange={(e) => handleImportedBlogChange('content', e.target.value)}
                   rows={10}
@@ -1920,7 +1920,7 @@ const BlogManagement = () => {
                 <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                   Meta Description
                 </label>
-                <Textarea
+                <TextArea
                   value={currentImportedBlog.metaDescription}
                   onChange={(e) => handleImportedBlogChange('metaDescription', e.target.value)}
                   rows={2}

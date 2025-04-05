@@ -1008,23 +1008,25 @@ export const importContent = async (req, res) => {
     // Save to database as draft blogs
     const importedBlogs = [];
     
+    console.log('Blog Schema Structure:', Blog.schema.paths);
+
     for (const article of limitedArticles) {
       try {
-        const blog = new Blog({
-          title: article.title || 'Untitled Article',
-          metaDescription: article.description?.substring(0, 160) || 'No description available',
-          content: article.content || '<p>Content unavailable</p>',
-          category: article.category || selectedCategories[0],
-          tags: article.tags || [],
-          author: req.user._id,
-          status: 'draft',
-          source: {
-            name: article.source?.name || 'Unknown',
-            url: article.source?.url || '',
-            type: article.source?.type || 'unknown',
-            importedAt: new Date()
-          }
-        });
+        const blog = new Blog();
+        blog.title = article.title || 'Untitled Article';
+        blog.metaDescription = article.description?.substring(0, 160) || 'No description available';
+        blog.content = article.content || '<p>Content unavailable</p>';
+        blog.category = article.category || selectedCategories[0];
+        blog.tags = article.tags || [];
+        blog.author = req.user._id;
+        blog.status = 'draft';
+        blog.source = {
+          name: String(article.source?.name || 'Unknown'), 
+          url: String(article.source?.url || ''),
+          type: String(article.source?.type || 'unknown'),
+          importedAt: new Date()
+        };
+await blog.save();
         
         await blog.save();
         importedBlogs.push(blog);

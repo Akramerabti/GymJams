@@ -1,4 +1,3 @@
-// server/src/models/Blog.js
 import mongoose from 'mongoose';
 import slugify from 'slugify';
 
@@ -65,13 +64,19 @@ const adPlacementSchema = new mongoose.Schema({
       default: ['all']
     }
   },
-  // Added fields for ad performance tracking
   performance: {
     impressions: { type: Number, default: 0 },
     clicks: { type: Number, default: 0 },
     ctr: { type: Number, default: 0 },
     revenue: { type: Number, default: 0 }
   }
+});
+
+const sourceSchema = new mongoose.Schema({
+  name: String,
+  url: String,
+  type: String,
+  importedAt: Date
 });
 
 const blogSchema = new mongoose.Schema({
@@ -165,14 +170,7 @@ const blogSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Blog'
   }],
-  // New fields for third-party content
-  source: {
-    name: String, // Source name (e.g., "Medical News Today")
-    url: String,  // Original article URL
-    type: String, // Source type (e.g., "newsapi", "spoonacular")
-    importedAt: Date // When the article was imported
-  },
-  // New fields for monetization
+  source: sourceSchema,
   monetization: {
     isMonetized: { type: Boolean, default: true },
     adDensity: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
@@ -310,6 +308,5 @@ blogSchema.statics.findThirdPartyContent = function(options = {}) {
     .limit(options.limit || 20);
 };
 
-const Blog = mongoose.model('Blog', blogSchema);
-
+const Blog = mongoose.models.Blog || mongoose.model('Blog', blogSchema);
 export default Blog;
