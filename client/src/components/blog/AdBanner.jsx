@@ -58,15 +58,22 @@ const AdBanner = ({ position, className = '' }) => {
           return;
         }
         
-        // AdSense requires a short delay to ensure DOM is ready
         setTimeout(() => {
-          // Display the ad using AdSense's method
-          const success = adSenseService.displayAd(adContainer);
-          if (mounted) {
-            setAdLoaded(success);
-            setAdError(!success);
+          // Check if container exists and has dimensions before displaying ad
+          if (adContainer && adContainer.offsetWidth > 0 && adContainer.offsetHeight > 0) {
+            console.log(`Ad container is ready with width: ${adContainer.offsetWidth}px`);
+            const success = adSenseService.displayAd(adContainer);
+            if (mounted) {
+              setAdLoaded(success);
+              setAdError(!success);
+            }
+          } else {
+            console.warn(`Ad container has insufficient dimensions:`, adContainer);
+            if (mounted) {
+              setAdError(true);
+            }
           }
-        }, 100);
+        }, 500);
         
       } catch (error) {
         console.error('Error setting up ad:', error);
@@ -92,11 +99,15 @@ const AdBanner = ({ position, className = '' }) => {
   // In development mode, always show fallback content
   if (isDevelopment) {
     return (
+      
       <div 
+        ref={adRef}
         className={`ad-container ad-${position} ${className}`}
         style={{ 
           width: dimensions.width,
           height: dimensions.height,
+          minWidth: "300px", // Add explicit minimum width
+          minHeight: "50px", // Add explicit minimum height
           maxWidth: dimensions.maxWidth || 'none',
           margin: '0 auto',
           overflow: 'hidden',

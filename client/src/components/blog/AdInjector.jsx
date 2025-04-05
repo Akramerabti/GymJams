@@ -44,7 +44,7 @@ const AdInjector = ({ content, adPlacements, readingProgress, isDarkMode, setAdV
       let contentParts = content.split('</p>');
       
       // Generate unique ID for the in-content ad
-      const adId = 'div-gpt-ad-GymJams_InContent';
+      const adId = `adsense-in-content-${Date.now()}`;
       setAdIdsInjected([adId]);
       
       // Calculate best position for the ad (after intro paragraphs)
@@ -54,7 +54,7 @@ const AdInjector = ({ content, adPlacements, readingProgress, isDarkMode, setAdV
       let adHTML;
       if (isDevelopment) {
         // In development, use fallback HTML directly
-        const fallbackHtml = adService.getFallbackAdHtml('in-content');
+        const fallbackHtml = adService.getFallbackAdHtml('inContent');
         adHTML = `
           </p>
           <div class="ad-container in-content-ad my-6 py-4 px-4 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'} text-center">
@@ -63,12 +63,17 @@ const AdInjector = ({ content, adPlacements, readingProgress, isDarkMode, setAdV
           </div>
         `;
       } else {
-        // In production, use the actual ad container
+        // In production, use the proper AdSense code
         adHTML = `
           </p>
-          <div class="ad-container in-content-ad my-6 py-4 px-4 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'} text-center">
+          <div class="ad-container in-content-ad my-6 py-4 px-4 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'} text-center" id="${adId}" style="min-width:336px; min-height:280px;">
             <div class="text-xs text-gray-500 mb-2">Advertisement</div>
-            <div id="${adId}" style="width:336px; height:280px; max-width:100%; margin:0 auto;"></div>
+            <ins class="adsbygoogle"
+                 style="display:block; min-width:300px; min-height:250px; max-width:100%; margin:0 auto;"
+                 data-ad-client="ca-pub-2652838159140308"
+                 data-ad-slot="3378784695"
+                 data-ad-format="auto"
+                 data-full-width-responsive="true"></ins>
           </div>
         `;
       }
@@ -79,21 +84,31 @@ const AdInjector = ({ content, adPlacements, readingProgress, isDarkMode, setAdV
       // Reunite the content
       setProcessedContent(contentParts.join('</p>'));
       
-      // After a brief delay to allow DOM update, display the ad (in production only)
+      // After a brief delay to allow DOM update, initialize the ad (in production only)
       if (!isDevelopment) {
         setTimeout(() => {
           // Using try-catch to handle potential errors
           try {
-            adService.displayAd('in-content');
+            // Find all AdSense ads and initialize them
+            const adElement = document.querySelector(`#${adId} .adsbygoogle`);
             
-            // Track as viewed for analytics
-            if (setAdViewEvents) {
-              setAdViewEvents(prev => ({ ...prev, [adId]: true }));
+            if (adElement) {
+              console.log(`Found ad element with size: ${adElement.offsetWidth}x${adElement.offsetHeight}`);
+              
+              // Initialize AdSense ad
+              (window.adsbygoogle = window.adsbygoogle || []).push({});
+              
+              // Track as viewed for analytics
+              if (setAdViewEvents) {
+                setAdViewEvents(prev => ({ ...prev, [adId]: true }));
+              }
+            } else {
+              console.warn(`AdSense element not found for ID: ${adId}`);
             }
           } catch (error) {
-            console.warn('Error displaying in-content ad:', error);
+            console.warn('Error displaying in-content AdSense ad:', error);
           }
-        }, 800); // Longer delay to ensure DOM is ready
+        }, 1000); // Longer delay to ensure DOM is ready
       } else {
         // In development, just mark it as viewed for analytics testing
         if (setAdViewEvents) {

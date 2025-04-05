@@ -60,13 +60,16 @@ const RouteChangeHandler = () => {
       try {
         await adService.init();
         
-        // Wait longer for DOM to update before refreshing ads
         setTimeout(() => {
-          const existingAds = document.querySelectorAll('[id^="div-gpt-ad-"]');
+          // AdSense doesn't use the same selectors as GPT
+          const existingAds = document.querySelectorAll('.adsbygoogle');
           if (existingAds.length > 0) {
             adService.refreshAds();
           }
         }, 1500);
+        
+        // And change this log message
+        console.log('Google AdSense initialized successfully');
       } catch (error) {
         console.error('Error refreshing ads on route change:', error);
       }
