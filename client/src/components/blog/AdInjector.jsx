@@ -71,7 +71,7 @@ const AdInjector = ({ content, adPlacements, readingProgress, isDarkMode, setAdV
             <ins class="adsbygoogle"
                  style="display:block; min-width:300px; min-height:250px; max-width:100%; margin:0 auto;"
                  data-ad-client="ca-pub-2652838159140308"
-                 data-ad-slot="3378784695"
+                 data-ad-slot="2613401062"
                  data-ad-format="auto"
                  data-full-width-responsive="true"></ins>
           </div>
@@ -86,21 +86,44 @@ const AdInjector = ({ content, adPlacements, readingProgress, isDarkMode, setAdV
       
       // After a brief delay to allow DOM update, initialize the ad (in production only)
       if (!isDevelopment) {
+        // Use a longer delay to ensure DOM is ready and any layout shifts have settled
         setTimeout(() => {
           // Using try-catch to handle potential errors
           try {
-            // Find all AdSense ads and initialize them
+            // Find the AdSense element by ID
             const adElement = document.querySelector(`#${adId} .adsbygoogle`);
             
             if (adElement) {
-              console.log(`Found ad element with size: ${adElement.offsetWidth}x${adElement.offsetHeight}`);
-              
-              // Initialize AdSense ad
-              (window.adsbygoogle = window.adsbygoogle || []).push({});
-              
-              // Track as viewed for analytics
-              if (setAdViewEvents) {
-                setAdViewEvents(prev => ({ ...prev, [adId]: true }));
+              // Check if element has dimensions before initializing
+              if (adElement.offsetWidth > 0 && adElement.offsetHeight > 0) {
+                console.log(`In-content ad element ready with dimensions: ${adElement.offsetWidth}x${adElement.offsetHeight}`);
+                
+                // Initialize AdSense ad
+                (window.adsbygoogle = window.adsbygoogle || []).push({});
+                
+                // Track as viewed for analytics
+                if (setAdViewEvents) {
+                  setAdViewEvents(prev => ({ ...prev, [adId]: true }));
+                }
+              } else {
+                // If the element has no dimensions, try again once more after a longer delay
+                console.log(`In-content ad element has no dimensions yet, retrying...`);
+                
+                setTimeout(() => {
+                  if (adElement.offsetWidth > 0 && adElement.offsetHeight > 0) {
+                    console.log(`In-content ad element now has dimensions: ${adElement.offsetWidth}x${adElement.offsetHeight}`);
+                    
+                    // Initialize AdSense ad
+                    (window.adsbygoogle = window.adsbygoogle || []).push({});
+                    
+                    // Track as viewed for analytics
+                    if (setAdViewEvents) {
+                      setAdViewEvents(prev => ({ ...prev, [adId]: true }));
+                    }
+                  } else {
+                    console.warn(`In-content ad element still has no dimensions after retry`);
+                  }
+                }, 1500);
               }
             } else {
               console.warn(`AdSense element not found for ID: ${adId}`);
@@ -108,7 +131,7 @@ const AdInjector = ({ content, adPlacements, readingProgress, isDarkMode, setAdV
           } catch (error) {
             console.warn('Error displaying in-content AdSense ad:', error);
           }
-        }, 1000); // Longer delay to ensure DOM is ready
+        }, 1000);
       } else {
         // In development, just mark it as viewed for analytics testing
         if (setAdViewEvents) {

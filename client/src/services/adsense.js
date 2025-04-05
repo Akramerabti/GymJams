@@ -6,10 +6,10 @@ class AdSenseService {
     this.adBlocked = false;
     this.initPromise = null;
     this.adUnits = {
-      // Replace with your actual AdSense ad units from your AdSense dashboard
-      top: 'ca-pub-2652838159140308',     // Replace with your AdSense publisher ID
-      sidebar: 'ca-pub-2652838159140308',  // Replace with your AdSense publisher ID
-      inContent: 'ca-pub-2652838159140308' // Replace with your AdSense publisher ID
+      // These should already be your actual AdSense publisher ID
+      top: 'ca-pub-2652838159140308',
+      sidebar: 'ca-pub-2652838159140308',
+      inContent: 'ca-pub-2652838159140308'
     };
     this.scriptAdded = false;
     
@@ -137,12 +137,12 @@ class AdSenseService {
 
   // Helper to get appropriate ad slot based on position
   getAdSlot(position) {
-    // Replace these with your actual ad slots from AdSense dashboard
+    // These are your actual ad slots from AdSense dashboard
     const adSlots = {
-      'top': '5273146000',       // Replace with your actual slot ID
-      'sidebar': '5273146000',   // Replace with your actual slot ID
-      'inContent': '2613401062', // Replace with your actual slot ID
-      'footer': '5273146000'     // Replace with your actual slot ID
+      'top': '5273146000',       // Your top banner ad slot
+      'sidebar': '5273146000',   // Your sidebar ad slot
+      'inContent': '2613401062', // Your in-content ad slot
+      'footer': '5273146000'     // Your footer ad slot
     };
     
     return adSlots[position] || adSlots.sidebar;
@@ -259,11 +259,23 @@ class AdSenseService {
     }
 
     try {
-      // For AdSense, we need to recreate the ads
-      // Find all ad containers and recreate them
-      document.querySelectorAll('.adsbygoogle').forEach(adElement => {
-        // Try to push a new ad to this element
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
+      // Find all AdSense ads and reinitialize them
+      const adElements = document.querySelectorAll('.adsbygoogle');
+      console.log(`Refreshing ${adElements.length} AdSense ads`);
+      
+      // Try to refresh each ad
+      adElements.forEach((adElement, index) => {
+        try {
+          // Only refresh if it has dimensions
+          if (adElement.offsetWidth > 0 && adElement.offsetHeight > 0) {
+            // Create a new AdSense ad
+            (window.adsbygoogle = window.adsbygoogle || []).push({});
+          } else {
+            console.warn(`Skipping refresh for ad #${index} with zero dimensions`);
+          }
+        } catch (error) {
+          console.warn(`Error refreshing ad #${index}:`, error);
+        }
       });
       
       return true;
