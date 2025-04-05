@@ -6,52 +6,17 @@ const AdBanner = ({ position, className = '' }) => {
   const adRef = useRef(null);
   const [adLoaded, setAdLoaded] = useState(false);
   const [adError, setAdError] = useState(false);
-  const [hasAttemptedInit, setHasAttemptedInit] = useState(false);
   const isDevelopment = adService.isInDevelopmentMode();
+  const retryCountRef = useRef(0);
+  const maxRetries = 3;
   
   // Get dimensions based on position
   const dimensions = adService.getAdDimensions(position);
 
-  // Function to initialize the ad
-  const initializeAd = (container) => {
-    if (adLoaded || hasAttemptedInit) return; // Prevent duplicate initialization
-    
-    setHasAttemptedInit(true);
-    
-    console.log(`Initializing ad for ${position} with dimensions:`, {
-      width: container.offsetWidth,
-      height: container.offsetHeight,
-      style: container.style.cssText
-    });
-    
-    // Find the AdSense ins element
-    const adElement = container.querySelector('.adsbygoogle');
-    
-    if (adElement && container.offsetWidth > 0) {
-      try {
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
-        setAdLoaded(true);
-      } catch (error) {
-        console.error('Error initializing AdSense:', error);
-        setAdError(true);
-      }
-    } else {
-      if (!adElement) {
-        console.warn('AdSense element not found in container');
-      }
-      if (container.offsetWidth <= 0) {
-        console.warn('Ad container has zero width, not displaying ad');
-      }
-      setAdError(true);
-    }
-  };
-
   // Initialize and display ad
   useEffect(() => {
     let mounted = true;
-    let initTimeout = null;
-    let observer = null;
-    let resizeObserver = null;
+    let retryTimer = null;
     
     const initAd = async () => {
       try {
@@ -66,87 +31,90 @@ const AdBanner = ({ position, className = '' }) => {
         
         // Check if the adRef exists and is in the DOM
         if (!adRef.current) {
-          console.warn('Ad container ref not found');
+          console.warn(`Ad container ref not found for ${position}`);
           setAdError(true);
           return;
         }
         
-        const container = adRef.current;
-        
-        // Set up a MutationObserver to detect when the container becomes visible
-        observer = new MutationObserver((mutations) => {
-          if (!mounted || adLoaded) return;
+        // Measure and display ad
+        const measureAndDisplay = () => {
+          if (!mounted || !adRef.current) return;
           
-          for (const mutation of mutations) {
-            if (mutation.type === 'attributes' && 
-                (mutation.attributeName === 'class' || 
-                 mutation.attributeName === 'style')) {
-              
-              // Check if element is now visible
-              if (container.offsetWidth > 0) {
-                initializeAd(container);
-              }
-            }
-          }
-        });
-        
-        observer.observe(container, { 
-          attributes: true,
-          attributeFilter: ['class', 'style']
-        });
-        
-        // Also add a resize observer to detect dimension changes
-        resizeObserver = new ResizeObserver(entries => {
-          if (!mounted || adLoaded) return;
+          const container = adRef.current;
+          const parentVisible = isElementVisible(container.parentElement);
           
-          for (const entry of entries) {
-            if (entry.target.offsetWidth > 0) {
-              initializeAd(entry.target);
-            }
-          }
-        });
-        
-        resizeObserver.observe(container);
-        
-        // Initial check with delay based on position
-        const delay = position === 'sidebar' ? 1500 : 500;
-        
-        initTimeout = setTimeout(() => {
-          if (!mounted) return;
+          // Debug dimensions and visibility
+          console.log(`Ad container dimensions for ${position}:`, {
+            width: container.offsetWidth,
+            height: container.offsetHeight,
+            style: container.style.cssText,
+            parentIsVisible: parentVisible,
+            retryCount: retryCountRef.current
+          });
           
+          // Check if container has dimensions
           if (container.offsetWidth > 0) {
-            initializeAd(container);
-          } else {
-            // For sidebar ads, try one more time with a longer delay
-            if (position === 'sidebar') {
-              setTimeout(() => {
-                if (!mounted) return;
-                if (container.offsetWidth > 0) {
-                  initializeAd(container);
-                } else {
-                  console.warn(`Ad container for ${position} still has no width after extra delay`);
-                  setAdError(true);
-                }
-              }, 2000);
+            // Find the AdSense ins element
+            const adElement = container.querySelector('.adsbygoogle');
+            
+            if (adElement) {
+              // Initialize AdSense ad
+              try {
+                (window.adsbygoogle = window.adsbygoogle || []).push({});
+                setAdLoaded(true);
+                retryCountRef.current = 0; // Reset counter on success
+              } catch (error) {
+                console.error(`Error initializing AdSense for ${position}:`, error);
+                setAdError(true);
+              }
             } else {
+              console.warn(`AdSense element not found in container for ${position}`);
+              setAdError(true);
+            }
+          } else {
+            console.warn(`Ad container has zero width for ${position}, retryCount: ${retryCountRef.current}`);
+            
+            // Retry with exponential backoff if we haven't reached max retries
+            if (retryCountRef.current < maxRetries) {
+              retryCountRef.current++;
+              const delay = Math.min(1000 * Math.pow(2, retryCountRef.current - 1), 5000);
+              console.log(`Retrying ad initialization for ${position} in ${delay}ms...`);
+              
+              retryTimer = setTimeout(measureAndDisplay, delay);
+            } else {
+              console.warn(`Max retries reached for ${position} ad, giving up`);
               setAdError(true);
             }
           }
-        }, delay);
+        };
+        
+        // Initial measurement after a short delay to ensure render
+        setTimeout(measureAndDisplay, 300);
         
       } catch (error) {
-        console.error('Error setting up ad:', error);
+        console.error(`Error setting up ad for ${position}:`, error);
         if (mounted) setAdError(true);
       }
     };
     
+    // Helper function to check if an element is visible
+    const isElementVisible = (element) => {
+      if (!element) return false;
+      
+      const style = window.getComputedStyle(element);
+      return style.display !== 'none' && 
+             style.visibility !== 'hidden' && 
+             style.opacity !== '0';
+    };
+    
     initAd();
     
+    // Cleanup function
     return () => {
       mounted = false;
-      if (initTimeout) clearTimeout(initTimeout);
-      if (observer) observer.disconnect();
-      if (resizeObserver) resizeObserver.disconnect();
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+      }
     };
   }, [position, isDevelopment]);
 
@@ -224,7 +192,7 @@ const AdBanner = ({ position, className = '' }) => {
     );
   }
 
-  // Default ad display
+  // Default ad display - use inline style to ensure dimensions
   return (
     <div 
       ref={adRef}
@@ -241,6 +209,8 @@ const AdBanner = ({ position, className = '' }) => {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
+        position: 'relative', // Ensure position context
+        visibility: 'visible', // Force visibility
       }}
     >
       {/* The AdSense ad container */}
@@ -250,6 +220,7 @@ const AdBanner = ({ position, className = '' }) => {
           display: 'block',
           width: '100%',
           height: '100%',
+          minWidth: position === 'sidebar' ? '300px' : '336px',
           minHeight: position === 'sidebar' ? '250px' : '280px',
           opacity: adLoaded ? 1 : 0,
           transition: 'opacity 0.3s ease-in-out',
@@ -279,12 +250,12 @@ const AdBanner = ({ position, className = '' }) => {
 
 // Helper function to get ad slot based on position
 function getAdSlot(position) {
-  // These are the actual ad slots from your AdSense account
+  // Using your actual ad slot IDs
   const slots = {
-    'top': '5273146000',       // Your top banner ad slot
-    'sidebar': '5273146000',   // Your sidebar ad slot 
-    'inContent': '2613401062', // Your in-content ad slot
-    'footer': '5273146000'     // Your footer ad slot
+    'top': '5273146000',       // Your actual slot ID
+    'sidebar': '5273146000',   // Your actual slot ID
+    'inContent': '2613401062', // Your actual slot ID
+    'footer': '5273146000'     // Your actual slot ID
   };
   
   return slots[position] || slots.sidebar;
