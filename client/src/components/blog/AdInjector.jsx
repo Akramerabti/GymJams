@@ -43,76 +43,88 @@ const AdInjector = ({ content, adPlacements, readingProgress, isDarkMode, setAdV
       // Split content on paragraph tags to find insertion points
       let contentParts = content.split('</p>');
       
-      // Generate unique ID for the in-content ad
-      const adId = `adsense-in-content-${Date.now()}`;
-      setAdIdsInjected([adId]);
-      
-      // Calculate best position for the ad (after intro paragraphs)
-      const insertPos = Math.min(Math.max(2, Math.floor(contentParts.length * 0.2)), contentParts.length - 1);
-      
-      // Create ad HTML - different approach for development vs production
-      let adHTML;
-      if (isDevelopment) {
-        // In development, use fallback HTML directly
-        const fallbackHtml = adService.getFallbackAdHtml('inContent');
-        adHTML = `
-          </p>
-          <div class="ad-container in-content-ad my-6 py-4 px-4 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'} text-center">
-            <div class="text-xs text-gray-500 mb-2">Advertisement (Dev Mode)</div>
-            ${fallbackHtml}
-          </div>
-        `;
-      } else {
-        // In production, use the proper AdSense code
-        adHTML = `
-          </p>
-          <div class="ad-container in-content-ad my-6 py-4 px-4 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'} text-center" id="${adId}" style="min-width:336px; min-height:280px;">
-            <div class="text-xs text-gray-500 mb-2">Advertisement</div>
-            <ins class="adsbygoogle"
-                 style="display:block; min-width:300px; min-height:250px; max-width:100%; margin:0 auto;"
-                 data-ad-client="ca-pub-2652838159140308"
-                 data-ad-slot="3378784695"
-                 data-ad-format="auto"
-                 data-full-width-responsive="true"></ins>
-          </div>
-        `;
+      // Use safer positions for ad insertion (avoid first and last paragraphs)
+      const possiblePositions = [];
+      for (let i = 2; i < contentParts.length - 1; i += 3) {
+        possiblePositions.push(i);
       }
       
-      // Insert the ad at the calculated position
-      contentParts[insertPos] = contentParts[insertPos] + adHTML;
+      // Cap the number of ads to insert at 2 or fewer
+      const numAdsToInsert = Math.min(2, inContentAds.length, possiblePositions.length);
+      const adIds = [];
+      
+      for (let i = 0; i < numAdsToInsert; i++) {
+        // Generate unique ID for each in-content ad
+        const adId = `adsense-in-content-${Date.now()}-${i}`;
+        adIds.push(adId);
+        
+        // Get insertion position
+        const insertPos = possiblePositions[i];
+        
+        // Create ad HTML - different approach for development vs production
+        let adHTML;
+        if (isDevelopment) {
+          // In development, use fallback HTML directly
+          const fallbackHtml = adService.getFallbackAdHtml('inContent');
+          adHTML = `
+            </p>
+            <div class="ad-container in-content-ad my-6 py-4 px-4 rounded-lg text-center" id="${adId}">
+              <div class="text-xs text-gray-500 mb-2">Advertisement (Dev Mode)</div>
+              ${fallbackHtml}
+            </div>
+          `;
+        } else {
+          // In production, use the proper AdSense code with improved responsive settings
+          adHTML = `
+            </p>
+            <div class="ad-container in-content-ad my-6 py-4 px-4 rounded-lg text-center" id="${adId}">
+              <div class="text-xs text-gray-500 mb-2">Advertisement</div>
+              <ins class="adsbygoogle"
+                   style="display:block; min-width:300px; min-height:250px; width:336px; height:280px; max-width:100%; margin:0 auto;"
+                   data-ad-client="ca-pub-2652838159140308"
+                   data-ad-slot="2613401062"
+                   data-ad-format="rectangle"
+                   data-full-width-responsive="true"></ins>
+            </div>
+          `;
+        }
+        
+        // Insert the ad at the calculated position
+        contentParts[insertPos] = contentParts[insertPos] + adHTML;
+      }
       
       // Reunite the content
       setProcessedContent(contentParts.join('</p>'));
+      setAdIdsInjected(adIds);
       
-      // After a brief delay to allow DOM update, initialize the ad (in production only)
+      // After a brief delay to allow DOM update, initialize the ads (in production only)
       if (!isDevelopment) {
         setTimeout(() => {
-          // Using try-catch to handle potential errors
-          try {
-            // Find all AdSense ads and initialize them
-            const adElement = document.querySelector(`#${adId} .adsbygoogle`);
-            
-            if (adElement) {
-              console.log(`Found ad element with size: ${adElement.offsetWidth}x${adElement.offsetHeight}`);
+          adIds.forEach(adId => {
+            try {
+              // Find the adElement and initialize
+              const adElement = document.querySelector(`#${adId} .adsbygoogle`);
               
-              // Initialize AdSense ad
-              (window.adsbygoogle = window.adsbygoogle || []).push({});
-              
-              // Track as viewed for analytics
-              if (setAdViewEvents) {
-                setAdViewEvents(prev => ({ ...prev, [adId]: true }));
+              if (adElement) {
+                // Initialize AdSense ad
+                (window.adsbygoogle = window.adsbygoogle || []).push({});
+                
+                // Track as viewed for analytics
+                if (setAdViewEvents) {
+                  setAdViewEvents(prev => ({ ...prev, [adId]: true }));
+                }
               }
-            } else {
-              console.warn(`AdSense element not found for ID: ${adId}`);
+            } catch (error) {
+              console.warn(`Error initializing AdSense ad ${adId}:`, error);
             }
-          } catch (error) {
-            console.warn('Error displaying in-content AdSense ad:', error);
-          }
-        }, 1000); // Longer delay to ensure DOM is ready
+          });
+        }, 500);
       } else {
-        // In development, just mark it as viewed for analytics testing
+        // In development, just mark ads as viewed for analytics testing
         if (setAdViewEvents) {
-          setAdViewEvents(prev => ({ ...prev, [adId]: true }));
+          adIds.forEach(adId => {
+            setAdViewEvents(prev => ({ ...prev, [adId]: true }));
+          });
         }
       }
     }).catch(err => {

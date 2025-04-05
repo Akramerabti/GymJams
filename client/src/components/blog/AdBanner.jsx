@@ -8,17 +8,45 @@ const AdBanner = ({ position, className = '' }) => {
   const [adError, setAdError] = useState(false);
   const isDevelopment = adService.isInDevelopmentMode();
   
-  // FIXED DIMENSIONS - NO FLEXIBILITY
-  const fixedDimensions = {
-    'top': { width: '728px', height: '90px' },
-    'sidebar': { width: '300px', height: '250px' },
-    'inContent': { width: '336px', height: '280px' },
-    'footer': { width: '728px', height: '90px' }
+  // Define responsive dimensions with fallbacks
+  const responsiveDimensions = {
+    'top': { 
+      width: '728px', 
+      height: '90px',
+      mobileWidth: '320px',
+      mobileHeight: '100px' 
+    },
+    'sidebar': { 
+      width: '300px', 
+      height: '250px',
+      mobileWidth: '300px',
+      mobileHeight: '250px'
+    },
+    'inContent': { 
+      width: '336px', 
+      height: '280px',
+      mobileWidth: '300px',
+      mobileHeight: '250px'
+    },
+    'footer': { 
+      width: '728px', 
+      height: '90px',
+      mobileWidth: '320px',
+      mobileHeight: '100px'
+    }
   };
   
-  // Get the dimensions for this position
-  const dims = fixedDimensions[position] || fixedDimensions.sidebar;
-
+  // Get dimensions based on position and screen size
+  const getDimensions = () => {
+    const dims = responsiveDimensions[position] || responsiveDimensions.sidebar;
+    const isMobile = window.innerWidth < 768;
+    
+    return {
+      width: isMobile ? dims.mobileWidth : dims.width,
+      height: isMobile ? dims.mobileHeight : dims.height
+    };
+  };
+  
   // Initialize ad service and display ad
   useEffect(() => {
     let mounted = true;
@@ -34,27 +62,18 @@ const AdBanner = ({ position, className = '' }) => {
           return;
         }
         
+        // Set dimensions based on screen size
+        const dims = getDimensions();
+        
         // Force dimensions immediately after rendering
         if (adRef.current) {
-          // FORCE DIMENSIONS WITH !IMPORTANT
-          adRef.current.style.cssText = `
-            display: block !important;
-            width: ${dims.width} !important;
-            height: ${dims.height} !important;
-            min-width: ${dims.width} !important;
-            min-height: ${dims.height} !important;
-            visibility: visible !important;
-            position: relative !important;
-            margin: 0 auto !important;
-            overflow: hidden !important;
-          `;
-          
-          // Log that we're forcing dimensions
-          console.log(`FORCING dimensions for ${position} ad:`, {
-            width: dims.width,
-            height: dims.height,
-            element: adRef.current
-          });
+          // Set container dimensions
+          adRef.current.style.display = 'block';
+          adRef.current.style.width = dims.width;
+          adRef.current.style.height = dims.height;
+          adRef.current.style.maxWidth = '100%';
+          adRef.current.style.margin = '0 auto';
+          adRef.current.style.overflow = 'hidden';
           
           // Delay to ensure DOM is updated
           setTimeout(() => {
@@ -66,14 +85,11 @@ const AdBanner = ({ position, className = '' }) => {
               const adElement = adRef.current.querySelector('.adsbygoogle');
               
               if (adElement) {
-                // Force dimensions on the AdSense element too
-                adElement.style.cssText = `
-                  display: block !important;
-                  width: ${dims.width} !important;
-                  height: ${dims.height} !important;
-                  min-width: ${dims.width} !important;
-                  min-height: ${dims.height} !important;
-                `;
+                // Set AdSense element dimensions
+                adElement.style.display = 'block';
+                adElement.style.width = dims.width;
+                adElement.style.height = dims.height;
+                adElement.style.maxWidth = '100%';
                 
                 // Push to AdSense
                 (window.adsbygoogle = window.adsbygoogle || []).push({});
@@ -97,21 +113,40 @@ const AdBanner = ({ position, className = '' }) => {
       }
     };
     
+    // Add resize listener to update ad dimensions
+    const handleResize = () => {
+      if (adRef.current) {
+        const dims = getDimensions();
+        adRef.current.style.width = dims.width;
+        adRef.current.style.height = dims.height;
+        
+        const adElement = adRef.current.querySelector('.adsbygoogle');
+        if (adElement) {
+          adElement.style.width = dims.width;
+          adElement.style.height = dims.height;
+        }
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
     initAd();
     
     return () => {
       mounted = false;
+      window.removeEventListener('resize', handleResize);
     };
-  }, [position, isDevelopment, dims.width, dims.height]);
+  }, [position, isDevelopment]);
 
   // Show fallback ad in development
   if (isDevelopment) {
+    const dims = getDimensions();
     return (
       <div 
         className={`ad-container ad-${position} ${className}`}
         style={{ 
           width: dims.width,
           height: dims.height,
+          maxWidth: '100%',
           margin: '0 auto',
           display: 'block'
         }}
@@ -126,12 +161,14 @@ const AdBanner = ({ position, className = '' }) => {
 
   // Show fallback on error
   if (adError) {
+    const dims = getDimensions();
     return (
       <div 
         className={`ad-container ad-${position} ${className}`}
         style={{ 
           width: dims.width,
           height: dims.height,
+          maxWidth: '100%',
           margin: '0 auto',
           display: 'block'
         }}
@@ -144,7 +181,8 @@ const AdBanner = ({ position, className = '' }) => {
     );
   }
 
-  // Return the AdSense container with FIXED dimensions
+  // Return the AdSense container with responsive dimensions
+  const dims = getDimensions();
   return (
     <div 
       ref={adRef}
@@ -153,28 +191,24 @@ const AdBanner = ({ position, className = '' }) => {
         display: 'block',
         width: dims.width,
         height: dims.height,
-        minWidth: dims.width,
-        minHeight: dims.height,
+        maxWidth: '100%',
         margin: '0 auto',
-        position: 'relative',
-        visibility: 'visible',
         overflow: 'hidden'
       }}
     >
-      {/* AdSense ad with FIXED dimensions */}
+      {/* AdSense ad */}
       <ins 
         className="adsbygoogle"
         style={{ 
           display: 'block',
           width: dims.width,
           height: dims.height,
-          minWidth: dims.width,
-          minHeight: dims.height
+          maxWidth: '100%'
         }}
         data-ad-client="ca-pub-2652838159140308"
         data-ad-slot={getAdSlot(position)}
-        data-ad-format="rectangle"
-        data-full-width-responsive="false"
+        data-ad-format="auto"
+        data-full-width-responsive="true"
       ></ins>
       
       {/* Ad label */}
