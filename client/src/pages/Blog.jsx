@@ -1,55 +1,47 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+// src/pages/Blog.jsx
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { 
-  Search, Filter, Grid, List, Calendar, Tag as TagIcon, 
-  ChevronDown, SlidersHorizontal
+  Search, Filter, ChevronRight, ChevronLeft, CalendarIcon, 
+  Clock, User, TagIcon, Grid, List, SlidersHorizontal, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'sonner';
 import blogService from '../services/blog.service';
-import adService from '../services/adsense.js'; // Import the improved ad service
-import BlogCard from '../components/blog/BlogCard';
-import BlogSidebar from '../components/blog/BlogSideBar';
-import AdBanner from '../components/blog/AdBanner'; // Import the improved AdBanner component
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/select';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '../components/ui/dropdown-menu';
+import BlogCard from '../components/blog/BlogCard';
+import BlogSidebar from '../components/blog/BlogSideBar';
+import AdBanner from '../components/blog/AdBanner';
 import { useAuth } from '../stores/authStore';
 
 const Blog = () => {
-  const location = useLocation();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+  const contentRef = useRef(null);
   
-  // States
-  const [blogs, setBlogs] = useState([]);
+  // State for blog posts and metadata
+  const [posts, setPosts] = useState([]);
+  const [featuredPosts, setFeaturedPosts] = useState([]);
+  const [popularPosts, setPopularPosts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [categories, setCategories] = useState([]);
-  const [tags, setTags] = useState([]);
-  const [featuredBlogs, setFeaturedBlogs] = useState([]);
-  const [popularBlogs, setPopularBlogs] = useState([]);
+  const [error, setError] = useState(null);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  
+  // Pagination state
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
     totalItems: 0
   });
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
-  const [isDarkMode, setIsDarkMode] = useState(false);
   
-  // Filter states
+  // Categories and tags
+  const [categories, setCategories] = useState([]);
+  const [tags, setTags] = useState([]);
+  
+  // Filter state
   const [filters, setFilters] = useState({
     search: '',
     category: '',
@@ -57,10 +49,29 @@ const Blog = () => {
     author: '',
     sort: 'publishDate:desc',
     page: 1,
-    limit: 12
+    limit: 9
   });
   
-  // Detect dark mode preference
+  // Parse query params on mount and when URL changes
+  useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    
+    const newFilters = {
+      ...filters,
+      search: queryParams.get('search') || '',
+      category: queryParams.get('category') || '',
+      tag: queryParams.get('tag') || '',
+      author: queryParams.get('author') || '',
+      sort: queryParams.get('sort') || 'publishDate:desc',
+      page: parseInt(queryParams.get('page') || '1', 10)
+    };
+    
+    setFilters(newFilters);
+    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
+  
+  // Check for dark mode
   useEffect(() => {
     const savedTheme = localStorage.getItem('siteTheme');
     if (savedTheme) {
@@ -79,53 +90,51 @@ const Blog = () => {
     return () => window.removeEventListener('themeChange', handleThemeChange);
   }, []);
   
-  // Initialize AdService
-  useEffect(() => {
-    // Initialize the ad service when the component mounts
-    adService.init().catch(err => {
-      console.warn('Ad service initialization warning:', err);
-      // Continue with the app even if ad service fails
-    });
-  }, []);
-  
-  // Apply URL params to filters on initial load
-  useEffect(() => {
-    const searchParams = new URLSearchParams(location.search);
-    const newFilters = { ...filters };
-    
-    // Extract filter values from URL
-    if (searchParams.has('search')) newFilters.search = searchParams.get('search');
-    if (searchParams.has('category')) newFilters.category = searchParams.get('category');
-    if (searchParams.has('tag')) newFilters.tag = searchParams.get('tag');
-    if (searchParams.has('author')) newFilters.author = searchParams.get('author');
-    if (searchParams.has('sort')) newFilters.sort = searchParams.get('sort');
-    if (searchParams.has('page')) newFilters.page = parseInt(searchParams.get('page')) || 1;
-    
-    setFilters(newFilters);
-  }, [location.search]);
-  
-  // Fetch blogs when filters change
+  // Fetch blog posts based on filters
   useEffect(() => {
     const fetchBlogs = async () => {
       setLoading(true);
+      setError(null);
+      
       try {
-        // Fetch blogs with current filters
-        const response = await blogService.getBlogs(filters);
+        // Convert filters to query params
+        const queryParams = { ...filters };
         
-        // Update state with blog data
-        setBlogs(response.data);
+        // Filter out empty values
+        Object.keys(queryParams).forEach(key => {
+          if (!queryParams[key]) delete queryParams[key];
+        });
+        
+        // Fetch blog posts with filters
+        const response = await blogService.getBlogs(queryParams);
+        
+        setPosts(response.data || []);
         setPagination({
           currentPage: response.pagination.currentPage,
           totalPages: response.pagination.totalPages,
           totalItems: response.pagination.totalItems
         });
         
-        // Update URL with current filters
-        updateUrl();
-        
+        // If first page, also fetch featured and popular posts
+        if (queryParams.page === 1 || !queryParams.page) {
+          // Fetch featured posts (most recent with featured flag)
+          const featuredResponse = await blogService.getBlogs({
+            limit: 3, 
+            featured: true,
+            sort: 'publishDate:desc'
+          });
+          setFeaturedPosts(featuredResponse.data || []);
+          
+          // Fetch popular posts (most viewed)
+          const popularResponse = await blogService.getBlogs({
+            limit: 5,
+            sort: 'analytics.views:desc'
+          });
+          setPopularPosts(popularResponse.data || []);
+        }
       } catch (error) {
         console.error('Error fetching blogs:', error);
-        toast.error('Failed to load blog posts');
+        setError('Failed to load blog posts');
       } finally {
         setLoading(false);
       }
@@ -134,65 +143,62 @@ const Blog = () => {
     fetchBlogs();
   }, [filters]);
   
-  // Fetch categories, tags, and special blog lists
+  // Fetch categories and tags
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchCategoriesAndTags = async () => {
       try {
-        const [categoriesResponse, tagsResponse, featuredResponse, popularResponse] = await Promise.all([
+        const [categoriesResponse, tagsResponse] = await Promise.all([
           blogService.getCategories(),
-          blogService.getTags(),
-          blogService.getBlogs({ featured: true, limit: 4 }),
-          blogService.getBlogs({ sort: 'analytics.views:desc', limit: 5 })
+          blogService.getTags()
         ]);
         
-        setCategories(categoriesResponse.data);
-        setTags(tagsResponse.data);
-        setFeaturedBlogs(featuredResponse.data);
-        setPopularBlogs(popularResponse.data);
-        
+        setCategories(categoriesResponse.data || []);
+        setTags(tagsResponse.data || []);
       } catch (error) {
-        console.error('Error fetching blog metadata:', error);
+        console.error('Error fetching categories and tags:', error);
       }
     };
     
-    fetchData();
+    fetchCategoriesAndTags();
   }, []);
-  
-  // Update URL with current filters
-  const updateUrl = () => {
-    const params = new URLSearchParams();
-    
-    // Only add non-empty and non-default filters
-    if (filters.search) params.set('search', filters.search);
-    if (filters.category) params.set('category', filters.category);
-    if (filters.tag) params.set('tag', filters.tag);
-    if (filters.author) params.set('author', filters.author);
-    if (filters.sort !== 'publishDate:desc') params.set('sort', filters.sort);
-    if (filters.page > 1) params.set('page', filters.page.toString());
-    
-    // Update URL without triggering a navigation
-    const newUrl = `${location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
-    window.history.replaceState({}, '', newUrl);
-  };
   
   // Handle filter changes
   const handleFilterChange = (key, value) => {
-    setFilters(prev => ({
-      ...prev,
+    // Create new filters object
+    const newFilters = {
+      ...filters,
       [key]: value,
-      // Reset to first page when changing filters other than page
+      // Reset to page 1 when filters change (except for page changes)
       page: key === 'page' ? value : 1
-    }));
+    };
+    
+    // Update URL with new filters
+    const queryParams = new URLSearchParams();
+    
+    // Only add non-empty values to query params
+    Object.entries(newFilters).forEach(([key, value]) => {
+      if (value !== '' && value !== undefined && key !== 'limit') {
+        queryParams.append(key, value);
+      }
+    });
+    
+    // Navigate to new URL
+    navigate(`${location.pathname}?${queryParams.toString()}`);
+    
+    // Update filters state
+    setFilters(newFilters);
   };
   
-  // Handle search form submission
-  const handleSearchSubmit = (e) => {
+  // Handle search submission
+  const handleSearch = (e) => {
     e.preventDefault();
     handleFilterChange('search', filters.search);
   };
   
-  // Clear all filters
+  // Clear filters
   const clearFilters = () => {
+    navigate(`${location.pathname}`);
+    
     setFilters({
       search: '',
       category: '',
@@ -200,546 +206,796 @@ const Blog = () => {
       author: '',
       sort: 'publishDate:desc',
       page: 1,
-      limit: 12
+      limit: 9
     });
   };
   
-  // Navigate to a specific page
-  const goToPage = (page) => {
-    handleFilterChange('page', page);
-    // Scroll to top when changing pages
-    window.scrollTo(0, 0);
+  // Get page numbers to display
+  const getPageNumbers = () => {
+    const { currentPage, totalPages } = pagination;
+    const pageNumbers = [];
+    
+    // Always show first and last pages
+    if (totalPages <= 5) {
+      // If total pages <= 5, show all pages
+      for (let i = 1; i <= totalPages; i++) {
+        pageNumbers.push(i);
+      }
+    } else {
+      // Show first page
+      pageNumbers.push(1);
+      
+      // Show pages around current page
+      const startPage = Math.max(2, currentPage - 1);
+      const endPage = Math.min(totalPages - 1, currentPage + 1);
+      
+      // Add ellipsis after first page if needed
+      if (startPage > 2) {
+        pageNumbers.push('...');
+      }
+      
+      // Add pages around current page
+      for (let i = startPage; i <= endPage; i++) {
+        pageNumbers.push(i);
+      }
+      
+      // Add ellipsis before last page if needed
+      if (endPage < totalPages - 1) {
+        pageNumbers.push('...');
+      }
+      
+      // Show last page
+      pageNumbers.push(totalPages);
+    }
+    
+    return pageNumbers;
   };
   
-  // Get active filter count for mobile button badge
+  // Format date
+  const formatDate = (dateString) => {
+    const options = { year: 'numeric', month: 'short', day: 'numeric' };
+    return new Date(dateString).toLocaleDateString(undefined, options);
+  };
+  
+  // Get active filter count
   const getActiveFilterCount = () => {
     let count = 0;
     if (filters.search) count++;
     if (filters.category) count++;
     if (filters.tag) count++;
     if (filters.author) count++;
-    if (filters.sort !== 'publishDate:desc') count++;
+    if (filters.sort && filters.sort !== 'publishDate:desc') count++;
     return count;
   };
   
-  return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
-      {/* Top Ad Banner */}
-      <div className="w-full py-4">
-        <div className="container mx-auto px-4">
-          <AdBanner
-            position="top"
-            className="max-w-5xl mx-auto"
-          />
+  // Render loading state
+  if (loading && posts.length === 0) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${
+        isDarkMode ? 'bg-gray-900' : 'bg-gray-50'
+      }`}>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+  
+  // Render error state
+  if (error && posts.length === 0) {
+    return (
+      <div className={`min-h-screen flex flex-col items-center justify-center ${
+        isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-50'
+      }`}>
+        <div className="text-center max-w-md p-6">
+          <h2 className="text-2xl font-bold mb-4">Something went wrong</h2>
+          <p className={`mb-6 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>{error}</p>
+          <Button onClick={() => window.location.reload()}>Try again</Button>
         </div>
       </div>
-      
-      {/* Blog Header */}
-      <header className={`py-12 ${
-        isDarkMode 
-          ? 'bg-gradient-to-b from-gray-800 to-gray-900' 
-          : 'bg-gradient-to-b from-blue-50 to-gray-50'
-      }`}>
-        <div className="container mx-auto px-4">
-          <div className="max-w-4xl mx-auto text-center">
-            <h1 className="text-3xl md:text-5xl font-bold mb-4">
-              Blog & Articles
-            </h1>
-            <p className={`text-lg md:text-xl ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-              Expert advice on fitness, nutrition, and achieving your health goals
-            </p>
-            
-            {/* Search bar */}
-            <div className="mt-8 max-w-lg mx-auto">
-              <form onSubmit={handleSearchSubmit}>
-                <div className="relative">
-                  <Input
-                    type="text"
-                    placeholder="Search articles..."
-                    className={`pr-10 ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : ''}`}
-                    value={filters.search}
-                    onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                  />
-                  <button
-                    type="submit"
-                    className={`absolute inset-y-0 right-0 flex items-center px-3 ${
-                      isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                    }`}
-                  >
-                    <Search size={18} />
-                  </button>
+    );
+  }
+  
+  return (
+    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-50'}`}>
+      {/* Hero section with featured post */}
+      {featuredPosts.length > 0 && !filters.search && !filters.category && !filters.tag && filters.page === 1 && (
+        <div className={`py-16 ${isDarkMode ? 'bg-gradient-to-b from-gray-800 to-gray-900' : 'bg-gradient-to-b from-blue-50 to-gray-50'}`}>
+          <div className="container mx-auto px-4">
+            <div className="max-w-7xl mx-auto">
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                {/* Main featured post */}
+                <div className="lg:col-span-3">
+                  <Link to={`/blog/${featuredPosts[0]?.slug}`} className="block group">
+                    <div className="rounded-lg overflow-hidden shadow-lg">
+                      {featuredPosts[0]?.featuredImage?.url ? (
+                        <div className="relative h-80 overflow-hidden">
+                          <img
+                            src={featuredPosts[0].featuredImage.url}
+                            alt={featuredPosts[0].title}
+                            className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
+                          <div className="absolute bottom-0 left-0 p-6">
+                            <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium mb-3 ${
+                              isDarkMode ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {featuredPosts[0].category}
+                            </span>
+                            <h2 className="text-2xl md:text-3xl font-bold text-white mb-2 line-clamp-2 group-hover:underline">
+                              {featuredPosts[0].title}
+                            </h2>
+                            <p className="text-gray-200 mb-2 line-clamp-2">
+                              {featuredPosts[0].metaDescription}
+                            </p>
+                            <div className="flex items-center text-gray-300 text-sm">
+                              <span className="flex items-center">
+                                <CalendarIcon className="h-4 w-4 mr-1" />
+                                {formatDate(featuredPosts[0].publishDate)}
+                              </span>
+                              <span className="mx-2">•</span>
+                              <span className="flex items-center">
+                                <Clock className="h-4 w-4 mr-1" />
+                                {featuredPosts[0].readingTime} min read
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className={`relative h-80 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-200'}`}>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-4xl">📝</span>
+                          </div>
+                          <div className="absolute bottom-0 left-0 p-6">
+                            <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
+                              {featuredPosts[0].title}
+                            </h2>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </Link>
                 </div>
-              </form>
+                
+                {/* Secondary featured posts */}
+                <div className="lg:col-span-2">
+                  <div className="space-y-4">
+                    {featuredPosts.slice(1, 3).map((post, index) => (
+                      <Link key={post._id} to={`/blog/${post.slug}`} className="block group">
+                        <div className="rounded-lg overflow-hidden shadow-lg">
+                          <div className="grid grid-cols-5">
+                            {/* Image */}
+                            <div className="col-span-2">
+                              {post.featuredImage?.url ? (
+                                <div className="h-32 overflow-hidden">
+                                  <img
+                                    src={post.featuredImage.url}
+                                    alt={post.title}
+                                    className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+                                  />
+                                </div>
+                              ) : (
+                                <div className={`h-32 flex items-center justify-center ${
+                                  isDarkMode ? 'bg-gray-800' : 'bg-gray-200'
+                                }`}>
+                                  <span className="text-2xl">📝</span>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Content */}
+                            <div className="col-span-3 p-4">
+                              <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mb-2 ${
+                                isDarkMode ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-800'
+                              }`}>
+                                {post.category}
+                              </span>
+                              <h3 className={`font-bold mb-2 line-clamp-2 group-hover:underline ${
+                                isDarkMode ? 'text-white' : 'text-gray-800'
+                              }`}>
+                                {post.title}
+                              </h3>
+                              <div className={`flex items-center text-xs ${
+                                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                              }`}>
+                                <span className="flex items-center">
+                                  <Clock className="h-3 w-3 mr-1" />
+                                  {post.readingTime} min
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </header>
+      )}
+      
+      {/* Ad banner (top) */}
+      <div className="max-w-5xl mx-auto my-8">
+        <AdBanner position="top" className="mx-auto" />
+      </div>
       
       {/* Main content */}
-      <main className="container mx-auto px-4 py-12">
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar */}
-          <aside className="hidden lg:block lg:w-1/4 space-y-8">
-            <BlogSidebar
-              categories={categories}
-              tags={tags}
-              popularPosts={popularBlogs}
-              featuredPosts={featuredBlogs}
-              activeFilters={{
-                category: filters.category,
-                tag: filters.tag
-              }}
-              onFilterChange={handleFilterChange}
-              isDarkMode={isDarkMode}
-            />
-          </aside>
+      <div className="container mx-auto px-4 pb-16">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row justify-between items-center mb-8">
+            <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+              Blog
+            </h1>
+            
+            {user?.role === 'admin' || user?.role === 'taskforce' ? (
+              <Button
+                onClick={() => navigate('/admin/blog/new')}
+                className="mt-4 md:mt-0"
+              >
+                New Post
+              </Button>
+            ) : null}
+          </div>
           
-          {/* Blog posts grid */}
-          <div className="lg:w-3/4">
-            {/* Mobile filters button */}
-            <div className="flex lg:hidden justify-between items-center mb-6">
+          {/* Filters */}
+          <div className="flex flex-col lg:flex-row space-y-4 lg:space-y-0 lg:space-x-4 mb-8">
+            {/* Search form */}
+            <div className="lg:w-2/3">
+              <form onSubmit={handleSearch} className="flex space-x-2">
+                <div className="relative flex-grow">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                  <Input
+                    type="text"
+                    placeholder="Search blog posts..."
+                    value={filters.search}
+                    onChange={(e) => setFilters({...filters, search: e.target.value})}
+                    className={`pl-10 ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : ''}`}
+                  />
+                </div>
+                <Button type="submit">
+                  Search
+                </Button>
+              </form>
+            </div>
+            
+            {/* Filter button on mobile */}
+            <div className="lg:hidden">
               <Button
                 variant="outline"
-                onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
-                className={isDarkMode ? 'border-gray-700 hover:bg-gray-800' : ''}
+                onClick={() => setFiltersOpen(true)}
+                className={`w-full justify-between ${
+                  isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : ''
+                }`}
               >
-                <SlidersHorizontal size={16} className="mr-2" />
-                Filters
+                <div className="flex items-center">
+                  <Filter className="mr-2 h-4 w-4" />
+                  <span>Filters</span>
+                </div>
                 {getActiveFilterCount() > 0 && (
-                  <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-600 text-white">
+                  <span className={`ml-2 h-5 w-5 rounded-full text-xs flex items-center justify-center ${
+                    isDarkMode ? 'bg-blue-900 text-white' : 'bg-blue-100 text-blue-800'
+                  }`}>
                     {getActiveFilterCount()}
                   </span>
                 )}
               </Button>
+            </div>
+            
+            {/* Sort and view options */}
+            <div className="flex space-x-2 lg:w-1/3">
+              <select
+                value={filters.sort}
+                onChange={(e) => handleFilterChange('sort', e.target.value)}
+                className={`rounded-md border text-sm px-3 py-2 flex-grow ${
+                  isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'border-gray-300'
+                }`}
+              >
+                <option value="publishDate:desc">Newest First</option>
+                <option value="publishDate:asc">Oldest First</option>
+                <option value="analytics.views:desc">Most Viewed</option>
+                <option value="title:asc">Title (A-Z)</option>
+                <option value="title:desc">Title (Z-A)</option>
+                <option value="analytics.likes:desc">Most Liked</option>
+              </select>
               
-              <div className="flex items-center">
-                <button 
+              {/* View mode toggle */}
+              <div className={`flex rounded-md border ${
+                isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300'
+              }`}>
+                <button
                   onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded-l ${
+                  className={`p-2 flex items-center justify-center ${
                     viewMode === 'grid' 
-                      ? isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'
-                      : isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'
+                      ? isDarkMode 
+                        ? 'bg-gray-700 text-white' 
+                        : 'bg-gray-100 text-gray-800'
+                      : isDarkMode
+                        ? 'text-gray-400'
+                        : 'text-gray-500'
                   }`}
                 >
-                  <Grid size={16} />
+                  <Grid className="h-4 w-4" />
                 </button>
-                <button 
+                <button
                   onClick={() => setViewMode('list')}
-                  className={`p-2 rounded-r ${
+                  className={`p-2 flex items-center justify-center ${
                     viewMode === 'list' 
-                      ? isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'
-                      : isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'
+                      ? isDarkMode 
+                        ? 'bg-gray-700 text-white' 
+                        : 'bg-gray-100 text-gray-800'
+                      : isDarkMode
+                        ? 'text-gray-400'
+                        : 'text-gray-500'
                   }`}
                 >
-                  <List size={16} />
+                  <List className="h-4 w-4" />
                 </button>
               </div>
             </div>
-            
-            {/* Mobile filters dialog */}
-            <AnimatePresence>
-              {mobileFiltersOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className={`lg:hidden z-20 mb-6 p-4 rounded-lg shadow ${
-                    isDarkMode ? 'bg-gray-800' : 'bg-white'
-                  }`}
-                >
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-semibold">Filters</h3>
-                    <button onClick={() => setMobileFiltersOpen(false)}>
-                      <X size={18} />
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    {/* Category filter */}
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        Category
-                      </label>
-                      <Select 
-                        value={filters.category} 
-                        onValueChange={(value) => handleFilterChange('category', value)}
-                      >
-                        <SelectTrigger className={isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}>
-                          <SelectValue placeholder="All Categories" />
-                        </SelectTrigger>
-                        <SelectContent className={isDarkMode ? 'bg-gray-800 text-white border-gray-700' : ''}>
-                          <SelectItem value="">All Categories</SelectItem>
-                          {categories.map((category) => (
-                            <SelectItem key={category._id} value={category._id}>
-                              {category._id} ({category.count})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    {/* Tags filter */}
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        Tag
-                      </label>
-                      <Select 
-                        value={filters.tag} 
-                        onValueChange={(value) => handleFilterChange('tag', value)}
-                      >
-                        <SelectTrigger className={isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}>
-                          <SelectValue placeholder="All Tags" />
-                        </SelectTrigger>
-                        <SelectContent className={isDarkMode ? 'bg-gray-800 text-white border-gray-700' : ''}>
-                          <SelectItem value="">All Tags</SelectItem>
-                          {tags.slice(0, 10).map((tag) => (
-                            <SelectItem key={tag._id} value={tag._id}>
-                              {tag._id} ({tag.count})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    {/* Sort options */}
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        Sort By
-                      </label>
-                      <Select
-                        value={filters.sort}
-                        onValueChange={(value) => handleFilterChange('sort', value)}
-                      >
-                        <SelectTrigger className={isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className={isDarkMode ? 'bg-gray-800 text-white border-gray-700' : ''}>
-                          <SelectItem value="publishDate:desc">Newest First</SelectItem>
-                          <SelectItem value="publishDate:asc">Oldest First</SelectItem>
-                          <SelectItem value="analytics.views:desc">Most Viewed</SelectItem>
-                          <SelectItem value="analytics.likes:desc">Most Liked</SelectItem>
-                          <SelectItem value="title:asc">Title (A-Z)</SelectItem>
-                          <SelectItem value="title:desc">Title (Z-A)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    {/* Clear filters button */}
-                    {getActiveFilterCount() > 0 && (
-                      <Button
-                        variant="outline"
-                        onClick={clearFilters}
-                        className="w-full mt-2"
-                      >
-                        Clear All Filters
-                      </Button>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-            
-            {/* Active filters display */}
-            {getActiveFilterCount() > 0 && (
-              <div className={`mb-6 p-3 rounded-lg ${
-                isDarkMode ? 'bg-gray-800' : 'bg-gray-100'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <Filter size={16} className="mr-2" />
-                    <span className="text-sm font-medium">Active Filters:</span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearFilters}
-                    className="text-sm"
+          </div>
+          
+          {/* Filter pills */}
+          {getActiveFilterCount() > 0 && (
+            <div className="flex flex-wrap gap-2 mb-6">
+              {filters.category && (
+                <div className={`flex items-center px-3 py-1 rounded-full text-sm ${
+                  isDarkMode ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-800'
+                }`}>
+                  <span>Category: {filters.category}</span>
+                  <button
+                    onClick={() => handleFilterChange('category', '')}
+                    className="ml-2 hover:text-gray-700"
                   >
-                    Clear All
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+              
+              {filters.tag && (
+                <div className={`flex items-center px-3 py-1 rounded-full text-sm ${
+                  isDarkMode ? 'bg-purple-900 text-purple-200' : 'bg-purple-100 text-purple-800'
+                }`}>
+                  <span>Tag: {filters.tag}</span>
+                  <button
+                    onClick={() => handleFilterChange('tag', '')}
+                    className="ml-2 hover:text-gray-700"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+              
+              {filters.author && (
+                <div className={`flex items-center px-3 py-1 rounded-full text-sm ${
+                  isDarkMode ? 'bg-green-900 text-green-200' : 'bg-green-100 text-green-800'
+                }`}>
+                  <span>Author: {filters.author}</span>
+                  <button
+                    onClick={() => handleFilterChange('author', '')}
+                    className="ml-2 hover:text-gray-700"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+              
+              {filters.search && (
+                <div className={`flex items-center px-3 py-1 rounded-full text-sm ${
+                  isDarkMode ? 'bg-amber-900 text-amber-200' : 'bg-amber-100 text-amber-800'
+                }`}>
+                  <span>Search: {filters.search}</span>
+                  <button
+                    onClick={() => handleFilterChange('search', '')}
+                    className="ml-2 hover:text-gray-700"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+              
+              {filters.sort && filters.sort !== 'publishDate:desc' && (
+                <div className={`flex items-center px-3 py-1 rounded-full text-sm ${
+                  isDarkMode ? 'bg-gray-800 text-gray-200' : 'bg-gray-100 text-gray-800'
+                }`}>
+                  <span>
+                    Sort: {
+                      filters.sort === 'publishDate:asc' ? 'Oldest First' :
+                      filters.sort === 'analytics.views:desc' ? 'Most Viewed' :
+                      filters.sort === 'title:asc' ? 'Title (A-Z)' :
+                      filters.sort === 'title:desc' ? 'Title (Z-A)' :
+                      filters.sort === 'analytics.likes:desc' ? 'Most Liked' :
+                      filters.sort
+                    }
+                  </span>
+                  <button
+                    onClick={() => handleFilterChange('sort', 'publishDate:desc')}
+                    className="ml-2 hover:text-gray-700"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+              
+              <button
+                onClick={clearFilters}
+                className={`flex items-center px-3 py-1 rounded-full text-sm ${
+                  isDarkMode ? 'bg-red-900 text-red-200' : 'bg-red-100 text-red-800'
+                }`}
+              >
+                <span>Clear all</span>
+                <X className="h-3 w-3 ml-1" />
+              </button>
+            </div>
+          )}
+          
+          {/* Main content area */}
+          <div className="flex flex-col lg:flex-row gap-8">
+            {/* Blog posts */}
+            <div className="lg:w-2/3">
+              {/* No results message */}
+              {posts.length === 0 && !loading ? (
+                <div className={`flex flex-col items-center justify-center py-16 px-4 text-center rounded-lg ${
+                  isDarkMode ? 'bg-gray-800' : 'bg-white shadow'
+                }`}>
+                  <Filter className={`h-12 w-12 mb-4 ${
+                    isDarkMode ? 'text-gray-600' : 'text-gray-400'
+                  }`} />
+                  <h3 className="text-xl font-bold mb-2">No blog posts found</h3>
+                  <p className={`max-w-md mb-6 ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    We couldn't find any blog posts matching your search criteria. Try adjusting your filters or browse our latest posts.
+                  </p>
+                  <Button onClick={clearFilters}>
+                    View all posts
                   </Button>
                 </div>
-                
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {filters.search && (
-                    <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
-                      isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700 border border-gray-200'
-                    }`}>
-                      <Search size={12} />
-                      <span>{filters.search}</span>
-                      <button 
-                        onClick={() => handleFilterChange('search', '')}
-                        className="ml-1"
-                      >
-                        <X size={12} />
-                      </button>
+              ) : (
+                <>
+                  {/* Grid view */}
+                  {viewMode === 'grid' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-6">
+                      {posts.map((post) => (
+                        <BlogCard key={post._id} blog={post} isDarkMode={isDarkMode} />
+                      ))}
                     </div>
                   )}
                   
-                  {filters.category && (
-                    <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
-                      isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700 border border-gray-200'
-                    }`}>
-                      <TagIcon size={12} />
-                      <span>{filters.category}</span>
-                      <button 
-                        onClick={() => handleFilterChange('category', '')}
-                        className="ml-1"
-                      >
-                        <X size={12} />
-                      </button>
+                  {/* List view */}
+                  {viewMode === 'list' && (
+                    <div className="space-y-6">
+                      {posts.map((post) => (
+                        <div key={post._id} className={`rounded-lg overflow-hidden ${
+                          isDarkMode ? 'bg-gray-800' : 'bg-white shadow'
+                        }`}>
+                          <div className="flex flex-col md:flex-row">
+                            {/* Image */}
+                            {post.featuredImage?.url ? (
+                              <div className="md:w-1/3">
+                                <Link to={`/blog/${post.slug}`}>
+                                  <div className="h-48 md:h-full overflow-hidden">
+                                    <img
+                                      src={post.featuredImage.url}
+                                      alt={post.title}
+                                      className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                                    />
+                                  </div>
+                                </Link>
+                              </div>
+                            ) : (
+                              <div className={`md:w-1/3 h-48 md:h-auto flex items-center justify-center ${
+                                isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
+                              }`}>
+                                <span className="text-4xl">📝</span>
+                              </div>
+                            )}
+                            
+                            {/* Content */}
+                            <div className="md:w-2/3 p-6">
+                              <div className="flex flex-wrap items-center gap-2 mb-3">
+                                <Link
+                                  to={`/blog?category=${post.category}`}
+                                  className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                    isDarkMode ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-800'
+                                  }`}
+                                >
+                                  {post.category}
+                                </Link>
+                                
+                                <div className={`flex items-center text-xs ${
+                                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                }`}>
+                                  <Clock className="h-3 w-3 mr-1" />
+                                  <span>{post.readingTime} min read</span>
+                                </div>
+                              </div>
+                              
+                              <Link to={`/blog/${post.slug}`}>
+                                <h2 className={`text-xl font-bold mb-3 hover:underline ${
+                                  isDarkMode ? 'text-white' : 'text-gray-900'
+                                }`}>
+                                  {post.title}
+                                </h2>
+                              </Link>
+                              
+                              <p className={`mb-4 line-clamp-2 ${
+                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                              }`}>
+                                {post.metaDescription}
+                              </p>
+                              
+                              <div className="flex justify-between items-center">
+                                <div className="flex items-center">
+                                  <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 mr-3">
+                                    {post.author?.profileImage ? (
+                                      <img
+                                        src={post.author.profileImage}
+                                        alt={`${post.author.firstName} ${post.author.lastName}`}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className={`w-full h-full flex items-center justify-center ${
+                                        isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                                      }`}>
+                                        <User className="h-4 w-4 text-gray-500" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <Link
+                                      to={`/blog?author=${post.author?._id}`}
+                                      className={`text-sm font-medium hover:underline ${
+                                        isDarkMode ? 'text-gray-200' : 'text-gray-800'
+                                      }`}
+                                    >
+                                      {post.author?.firstName} {post.author?.lastName}
+                                    </Link>
+                                    <p className={`text-xs ${
+                                      isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                    }`}>
+                                      {formatDate(post.publishDate)}
+                                    </p>
+                                  </div>
+                                </div>
+                                
+                                <Link
+                                  to={`/blog/${post.slug}`}
+                                  className={`flex items-center text-sm ${
+                                    isDarkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-500'
+                                  }`}
+                                >
+                                  <span>Read more</span>
+                                  <ChevronRight className="h-4 w-4 ml-1" />
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                   
-                  {filters.tag && (
-                    <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
-                      isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700 border border-gray-200'
-                    }`}>
-                      <TagIcon size={12} />
-                      <span>{filters.tag}</span>
-                      <button 
-                        onClick={() => handleFilterChange('tag', '')}
-                        className="ml-1"
-                      >
-                        <X size={12} />
-                      </button>
+                  {/* In-content ad */}
+                  {posts.length > 3 && (
+                    <div className="my-8">
+                      <AdBanner position="inContent" className="mx-auto" />
                     </div>
                   )}
                   
-                  {filters.sort !== 'publishDate:desc' && (
-                    <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
-                      isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-700 border border-gray-200'
-                    }`}>
-                      <span>
-                        {filters.sort === 'publishDate:asc' ? 'Oldest First' :
-                         filters.sort === 'analytics.views:desc' ? 'Most Viewed' :
-                         filters.sort === 'analytics.likes:desc' ? 'Most Liked' :
-                         filters.sort === 'title:asc' ? 'Title (A-Z)' :
-                         filters.sort === 'title:desc' ? 'Title (Z-A)' : filters.sort}
-                      </span>
-                      <button 
-                        onClick={() => handleFilterChange('sort', 'publishDate:desc')}
-                        className="ml-1"
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            {/* Desktop sorting and view options */}
-            <div className="hidden lg:flex justify-between items-center mb-6">
-              <div className="flex items-center">
-                <span className={`mr-2 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Sort by:
-                </span>
-                <Select
-                  value={filters.sort}
-                  onValueChange={(value) => handleFilterChange('sort', value)}
-                >
-                  <SelectTrigger className={`w-[180px] ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : ''}`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className={isDarkMode ? 'bg-gray-800 text-white border-gray-700' : ''}>
-                    <SelectItem value="publishDate:desc">Newest First</SelectItem>
-                    <SelectItem value="publishDate:asc">Oldest First</SelectItem>
-                    <SelectItem value="analytics.views:desc">Most Viewed</SelectItem>
-                    <SelectItem value="analytics.likes:desc">Most Liked</SelectItem>
-                    <SelectItem value="title:asc">Title (A-Z)</SelectItem>
-                    <SelectItem value="title:desc">Title (Z-A)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="flex items-center">
-                <span className={`mr-2 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  View:
-                </span>
-                <div className="flex">
-                  <button 
-                    onClick={() => setViewMode('grid')}
-                    className={`p-2 rounded-l ${
-                      viewMode === 'grid' 
-                        ? isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'
-                        : isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'
-                    }`}
-                  >
-                    <Grid size={16} />
-                  </button>
-                  <button 
-                    onClick={() => setViewMode('list')}
-                    className={`p-2 rounded-r ${
-                      viewMode === 'list' 
-                        ? isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'
-                        : isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'
-                    }`}
-                  >
-                    <List size={16} />
-                  </button>
-                </div>
-              </div>
-            </div>
-            
-            {/* Blog posts */}
-            {loading ? (
-              // Loading skeleton
-              <div className={`grid ${
-                viewMode === 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'
-              } gap-6`}>
-                {[...Array(6)].map((_, index) => (
-                  <div 
-                    key={index} 
-                    className={`animate-pulse rounded-lg overflow-hidden ${
-                      isDarkMode ? 'bg-gray-800' : 'bg-white'
-                    }`}
-                  >
-                    <div className={`h-48 ${
-                      isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                    }`}></div>
-                    <div className="p-5 space-y-3">
-                      <div className={`h-6 rounded ${
-                        isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                      }`}></div>
-                      <div className={`h-4 rounded ${
-                        isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                      }`}></div>
-                      <div className={`h-4 rounded ${
-                        isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                      }`}></div>
-                      <div className="flex space-x-2">
-                        <div className={`h-4 w-20 rounded ${
-                          isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                        }`}></div>
-                        <div className={`h-4 w-20 rounded ${
-                          isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                        }`}></div>
+                  {/* Pagination */}
+                  {pagination.totalPages > 1 && (
+                    <div className="flex justify-center mt-12">
+                      <div className="flex items-center space-x-1">
+                        <Button
+                          variant="outline"
+                          onClick={() => handleFilterChange('page', Math.max(1, pagination.currentPage - 1))}
+                          disabled={pagination.currentPage === 1}
+                          className={`${isDarkMode ? 'border-gray-700 text-gray-300' : ''}`}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        
+                        {getPageNumbers().map((page, index) => (
+                          <React.Fragment key={index}>
+                            {page === '...' ? (
+                              <span className={`px-4 py-2 ${
+                                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                              }`}>...</span>
+                            ) : (
+                              <Button
+                                variant={page === pagination.currentPage ? 'default' : 'outline'}
+                                onClick={() => handleFilterChange('page', page)}
+                                className={page === pagination.currentPage ? '' : isDarkMode ? 'border-gray-700 text-gray-300' : ''}
+                              >
+                                {page}
+                              </Button>
+                            )}
+                          </React.Fragment>
+                        ))}
+                        
+                        <Button
+                          variant="outline"
+                          onClick={() => handleFilterChange('page', Math.min(pagination.totalPages, pagination.currentPage + 1))}
+                          disabled={pagination.currentPage === pagination.totalPages}
+                          className={`${isDarkMode ? 'border-gray-700 text-gray-300' : ''}`}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            ) : blogs.length === 0 ? (
-              // Empty state
-              <div className={`text-center py-16 ${
-                isDarkMode ? 'bg-gray-800' : 'bg-white'
-              } rounded-lg`}>
-                <div className="mx-auto w-16 h-16 flex items-center justify-center rounded-full bg-gray-100">
-                  <Filter className="h-8 w-8 text-gray-400" />
-                </div>
-                <h3 className="mt-4 text-lg font-medium">No blog posts found</h3>
-                <p className={`mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Try adjusting your search or filters
-                </p>
-                {getActiveFilterCount() > 0 && (
-                  <Button
-                    variant="outline"
-                    onClick={clearFilters}
-                    className="mt-4"
-                  >
-                    Clear All Filters
-                  </Button>
-                )}
-              </div>
-            ) : (
-              // Blog posts grid
-              <div className={`grid ${
-                viewMode === 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'
-              } gap-6`}>
-                {blogs.map((blog) => (
-                  <BlogCard 
-                    key={blog._id} 
-                    blog={blog}
-                    isDarkMode={isDarkMode}
-                  />
-                ))}
-              </div>
-            )}
+                  )}
+                </>
+              )}
+            </div>
             
-            {/* In-content ad after the 6th post */}
-            {blogs.length > 6 && (
-              <div className="my-8">
-                <AdBanner
-                  position="in-content"
-                  className="max-w-3xl mx-auto"
+            {/* Sidebar */}
+            <div className="lg:w-1/3">
+              <div className="sticky top-20">
+                <BlogSidebar
+                  categories={categories}
+                  tags={tags}
+                  popularPosts={popularPosts}
+                  featuredPosts={featuredPosts.slice(0, 3)}
+                  activeFilters={filters}
+                  onFilterChange={handleFilterChange}
+                  isDarkMode={isDarkMode}
                 />
-              </div>
-            )}
-            
-            {/* Pagination */}
-            {pagination.totalPages > 1 && (
-              <div className="flex justify-center mt-12">
-                <div className="flex space-x-1">
-                  <Button
-                    variant="outline"
-                    onClick={() => goToPage(Math.max(1, filters.page - 1))}
-                    disabled={filters.page === 1}
-                    className={`px-3 ${isDarkMode ? 'border-gray-700 hover:bg-gray-800' : ''}`}
-                  >
-                    <ChevronLeft size={18} />
-                  </Button>
-                  
-                  {Array.from({ length: pagination.totalPages }).map((_, index) => {
-                    const pageNumber = index + 1;
-                    
-                    // Show first, last, current and adjacent pages
-                    if (
-                      pageNumber === 1 ||
-                      pageNumber === pagination.totalPages ||
-                      (pageNumber >= filters.page - 1 && pageNumber <= filters.page + 1)
-                    ) {
-                      return (
-                        <Button
-                          key={pageNumber}
-                          variant={pageNumber === filters.page ? 'default' : 'outline'}
-                          onClick={() => goToPage(pageNumber)}
-                          className={pageNumber === filters.page ? '' : isDarkMode ? 'border-gray-700 hover:bg-gray-800' : ''}
-                        >
-                          {pageNumber}
-                        </Button>
-                      );
-                    }
-                    
-                    // Show ellipsis for skipped pages
-                    if (
-                      (pageNumber === 2 && filters.page > 3) ||
-                      (pageNumber === pagination.totalPages - 1 && filters.page < pagination.totalPages - 2)
-                    ) {
-                      return (
-                        <Button
-                          key={`ellipsis-${pageNumber}`}
-                          variant="outline"
-                          disabled
-                          className={isDarkMode ? 'border-gray-700' : ''}
-                        >
-                          ...
-                        </Button>
-                      );
-                    }
-                    
-                    return null;
-                  })}
-                  
-                  <Button
-                    variant="outline"
-                    onClick={() => goToPage(Math.min(pagination.totalPages, filters.page + 1))}
-                    disabled={filters.page === pagination.totalPages}
-                    className={`px-3 ${isDarkMode ? 'border-gray-700 hover:bg-gray-800' : ''}`}
-                  >
-                    <ChevronRight size={18} />
-                  </Button>
+                
+                {/* Sidebar ad */}
+                <div className="mt-8">
+                  <AdBanner position="sidebar" />
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
-      </main>
+      </div>
+      
+      {/* Mobile filters drawer */}
+      <AnimatePresence>
+        {filtersOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex lg:hidden"
+            onClick={() => setFiltersOpen(false)}
+          >
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'tween', duration: 0.3 }}
+              className={`ml-auto w-4/5 max-w-sm h-full overflow-y-auto ${
+                isDarkMode ? 'bg-gray-900' : 'bg-white'
+              }`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-4 border-b flex justify-between items-center">
+                <div className="flex items-center">
+                  <SlidersHorizontal className="h-5 w-5 mr-2" />
+                  <h3 className="text-lg font-semibold">Filters</h3>
+                </div>
+                <button onClick={() => setFiltersOpen(false)}>
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              
+              <div className="p-4 space-y-6">
+                {/* Categories */}
+                <div>
+                  <h4 className="font-medium mb-3">Categories</h4>
+                  <div className="space-y-2">
+                    {categories.map((category) => (
+                      <button
+                        key={category._id}
+                        onClick={() => {
+                          handleFilterChange('category', category._id);
+                          setFiltersOpen(false);
+                        }}
+                        className={`flex justify-between w-full p-2 rounded-md text-sm ${
+                          filters.category === category._id
+                            ? isDarkMode 
+                              ? 'bg-blue-900 text-blue-100' 
+                              : 'bg-blue-100 text-blue-800'
+                            : isDarkMode 
+                              ? 'text-gray-300 hover:bg-gray-800' 
+                              : 'hover:bg-gray-100'
+                        }`}
+                      >
+                        <span>{category._id}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${
+                          isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-200 text-gray-700'
+                        }`}>
+                          {category.count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Tags */}
+                <div>
+                  <h4 className="font-medium mb-3">Popular Tags</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {tags.map((tag) => (
+                      <button
+                        key={tag._id}
+                        onClick={() => {
+                          handleFilterChange('tag', tag._id);
+                          setFiltersOpen(false);
+                        }}
+                        className={`px-3 py-1 rounded-full text-xs ${
+                          filters.tag === tag._id
+                            ? isDarkMode 
+                              ? 'bg-blue-900 text-blue-100' 
+                              : 'bg-blue-100 text-blue-800'
+                            : isDarkMode 
+                              ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                              : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
+                      >
+                        {tag._id} ({tag.count})
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Sort options */}
+                <div>
+                  <h4 className="font-medium mb-3">Sort By</h4>
+                  <div className="space-y-2">
+                    {[
+                      { value: 'publishDate:desc', label: 'Newest First' },
+                      { value: 'publishDate:asc', label: 'Oldest First' },
+                      { value: 'analytics.views:desc', label: 'Most Viewed' },
+                      { value: 'analytics.likes:desc', label: 'Most Liked' },
+                      { value: 'title:asc', label: 'Title (A-Z)' },
+                      { value: 'title:desc', label: 'Title (Z-A)' }
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => {
+                          handleFilterChange('sort', option.value);
+                          setFiltersOpen(false);
+                        }}
+                        className={`flex w-full p-2 rounded-md text-sm ${
+                          filters.sort === option.value
+                            ? isDarkMode 
+                              ? 'bg-blue-900 text-blue-100' 
+                              : 'bg-blue-100 text-blue-800'
+                            : isDarkMode 
+                              ? 'text-gray-300 hover:bg-gray-800' 
+                              : 'hover:bg-gray-100'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Clear filters */}
+                {getActiveFilterCount() > 0 && (
+                  <div className="pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        clearFilters();
+                        setFiltersOpen(false);
+                      }}
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Clear all filters
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
