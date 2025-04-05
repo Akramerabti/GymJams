@@ -143,7 +143,7 @@ const Shop = () => {
   const FilterPanel = ({ inSheet = false }) => (
     <div className="space-y-6">
       <div className="space-y-4">
-        <div className={`font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-200'}`}>
+        <div className={`font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-black'}`}>
           Categories
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -154,7 +154,7 @@ const Shop = () => {
               className={`w-full justify-start ${
                 isDarkMode && filters.category !== category 
                   ? 'hover:bg-gray-700 text-gray-200 border-gray-600' 
-                  : 'text-gray-100 hover:bg-gray-700'
+                  : 'text-black hover:bg-gray-700'
               }`}
               onClick={() => updateFilter('category', category)}
             >
@@ -165,7 +165,7 @@ const Shop = () => {
       </div>
 
       <div className="space-y-4">
-        <div className={`font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-200'}`}>
+        <div className={`font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-black'}`}>
           Price Range
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -176,7 +176,7 @@ const Shop = () => {
               className={`w-full justify-start ${
                 isDarkMode && filters.priceRange !== range.value 
                   ? 'hover:bg-gray-700 text-gray-200 border-gray-600' 
-                  : 'text-gray-100 hover:bg-gray-700'
+                  : 'text-black hover:bg-gray-700'
               }`}
               onClick={() => updateFilter('priceRange', range.value)}
             >
@@ -187,7 +187,7 @@ const Shop = () => {
       </div>
 
       <div className="space-y-4">
-        <div className={`font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-200'}`}>
+        <div className={`font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-black'}`}>
           Sort By
         </div>
         <Select value={filters.sort} onValueChange={(value) => updateFilter('sort', value)}>

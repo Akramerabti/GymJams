@@ -23,7 +23,6 @@ const Navbar = () => {
 
   // Navigation items based on user role
   const navigationItems = [
-    
     { name: 'Shop', path: '/shop' },
     {
       name:
@@ -77,40 +76,76 @@ const Navbar = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  return (
-    <nav className="bg-white shadow-lg sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="flex justify-between h-16">
-          {/* Logo Section */}
-          <div className="flex items-center">
-            <Link to="/" className="flex-shrink-0 flex items-center space-x-2">
-              <Dumbbell className="h-8 w-8 text-blue-600" />
-              <span className="text-2xl lg:text-xl font-bold text-gray-800">GymJams</span>
-            </Link>
-          </div>
+  // Determine if dark mode is enabled
+  const darkMode = document.documentElement.classList.contains('dark-mode');
 
-          {/* Desktop Navigation Links (Hidden on md screens and below) */}
-          <div className="hidden md:flex items-center space-x-2">
-            {navigationItems.map((item) => (
-              <Link
-                key={item.name}
-                to={item.path}
-                className={`text-gray-600 hover:text-blue-600 px-2 py-2 rounded-md text-sm lg:text-base font-medium transition-colors ${
-                  location.pathname === item.path ? 'text-blue-600 font-semibold' : ''
-                }`}
-              >
-                {item.name}
-              </Link>
-            ))}
-          </div>
+  return (
+    <div
+      className={`shadow-lg sticky top-0 z-50 ${
+        darkMode ? 'bg-gray-800' : 'bg-white'
+      }`}
+    >
+      <div
+    className={`max-w-7xl mx-auto px-4 sm:px-6 ${
+      darkMode ? 'bg-gray-800' : 'bg-white'
+    }`}
+  >
+    <div className="flex justify-between h-16">
+      {/* Logo Section */}
+      <div className="flex items-center">
+        <Link to="/" className="flex-shrink-0 flex items-center space-x-2">
+          <Dumbbell
+            className={`h-6 w-6 ${
+              darkMode ? 'text-white' : 'text-blue-600'
+            }`}
+          />
+          <span
+            className={`text-xl font-extrabold ${
+              darkMode ? 'text-white' : 'text-black'
+            }`}
+            style={{ fontFamily: 'Montserrat, sans-serif' }}
+          >
+            GYMTONIC
+          </span>
+        </Link>
+      </div>
+
+      {/* Desktop Navigation Links (Hidden on md screens and below) */}
+      <div className="hidden md:flex items-center space-x-2">
+        {navigationItems.map((item) => (
+          <Link
+            key={item.name}
+            to={item.path}
+            className={`text-sm lg:text-base font-medium transition-colors ${
+              darkMode ? 'text-white hover:text-gray-300' : 'text-black hover:text-blue-600'
+            } ${
+              location.pathname === item.path
+                ? darkMode
+                  ? 'text-gray-300 font-semibold'
+                  : 'text-blue-600 font-semibold'
+                : ''
+            }`}
+          >
+            {item.name}
+          </Link>
+        ))}
+      </div>
 
           {/* Right Section (Points, Cart, User Menu, Mobile Toggle) */}
           <div className="flex items-center space-x-4">
             {/* Points Balance (Logged-in Users Only) */}
             {user && isTokenValid() && (
               <div className="flex items-center space-x-2">
-                <Coins className="h-5 w-5 text-yellow-500" />
-                <span className="font-medium text-gray-700 text-sm lg:text-base">
+                <Coins
+                  className={`h-5 w-5 ${
+                    darkMode ? 'text-yellow-300' : 'text-yellow-500'
+                  }`}
+                />
+                <span
+                  className={`font-medium text-sm lg:text-base ${
+                    darkMode ? 'text-white' : 'text-black'
+                  }`}
+                >
                   {balance} points
                 </span>
               </div>
@@ -119,9 +154,15 @@ const Navbar = () => {
             {/* Cart Icon with Badge */}
             <Link
               to="/cart"
-              className="relative text-gray-600 hover:text-blue-600 transition-colors"
+              className={`relative ${
+                darkMode ? 'text-white hover:text-gray-300' : 'text-gray-600 hover:text-blue-600'
+              } transition-colors`}
             >
-              <ShoppingCart className="h-6 w-6 lg:h-7 lg:w-7" />
+              <ShoppingCart
+                className={`h-6 w-6 lg:h-7 lg:w-7 ${
+                  darkMode ? 'text-white' : 'text-gray-600'
+                }`}
+              />
               <AnimatePresence>
                 {itemCount > 0 && (
                   <motion.div
@@ -143,9 +184,15 @@ const Navbar = () => {
               <div className="relative" ref={userMenuRef}>
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  className="text-gray-600 hover:text-blue-600 transition-colors"
+                  className={`${
+                    darkMode ? 'text-white hover:text-gray-300' : 'text-gray-600 hover:text-blue-600'
+                  } transition-colors`}
                 >
-                  <User className="h-6 w-6 lg:h-7 lg:w-7" />
+                  <User
+                    className={`h-6 w-6 lg:h-7 lg:w-7 ${
+                      darkMode ? 'text-white' : 'text-gray-600'
+                    }`}
+                  />
                 </button>
                 <AnimatePresence>
                   {isUserMenuOpen && (
@@ -186,7 +233,9 @@ const Navbar = () => {
             ) : (
               <Link
                 to="/login"
-                className="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm lg:text-lg font-medium transition-colors"
+                className={`${
+                  darkMode ? 'text-white hover:text-gray-300' : 'text-gray-600 hover:text-blue-600'
+                } px-3 py-2 rounded-md text-sm lg:text-lg font-medium transition-colors`}
               >
                 Login
               </Link>
@@ -196,7 +245,9 @@ const Navbar = () => {
             <div className="md:hidden">
               <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="text-gray-600 hover:text-blue-600 transition-colors"
+                className={`${
+                  darkMode ? 'text-white hover:text-gray-300' : 'text-gray-600 hover:text-blue-600'
+                } transition-colors`}
               >
                 {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </button>
@@ -219,8 +270,14 @@ const Navbar = () => {
                   <Link
                     key={item.name}
                     to={item.path}
-                    className={`block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-50 transition-colors ${
-                      location.pathname === item.path ? 'text-blue-600 font-semibold' : ''
+                    className={`block px-3 py-2 rounded-md text-base font-medium ${
+                      darkMode ? 'text-white hover:text-gray-300' : 'text-black hover:text-blue-600'
+                    } transition-colors ${
+                      location.pathname === item.path
+                        ? darkMode
+                          ? 'text-gray-300 font-semibold'
+                          : 'text-blue-600 font-semibold'
+                        : ''
                     }`}
                     onClick={() => setIsOpen(false)}
                   >
@@ -232,7 +289,7 @@ const Navbar = () => {
           )}
         </AnimatePresence>
       </div>
-    </nav>
+    </div>
   );
 };
 
