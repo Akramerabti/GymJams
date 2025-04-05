@@ -23,9 +23,16 @@ const corsOptions = {
     if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('stripe.com')) {
       callback(null, true);
     } else {
-      // For Google ad-related domains, silently accept but don't add CORS headers
-      // This effectively makes the request "opaque" which works with Google's services
+      // For AdSense and other ad-related domains, silently accept but don't add CORS headers
+      // This effectively makes the request "opaque" which works with ad services
       const adNetworkDomains = [
+        // AdSense domains
+        'pagead2.googlesyndication.com',
+        'googleads.g.doubleclick.net',
+        'tpc.googlesyndication.com',
+        'www.googletagservices.com',
+        
+        // Keep Ad Manager domains for future use
         'doubleclick.net',
         'googleadservices.com',
         'googlesyndication.com',

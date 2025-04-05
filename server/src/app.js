@@ -88,16 +88,65 @@ app.post('/api/subscription/webhook',
   }
 );
 
-// Security Middleware - Configure for ad networks
 const helmetConfig = {
   crossOriginResourcePolicy: { policy: "cross-origin" },
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "*.doubleclick.net", "*.googlesyndication.com", "*.google.com", "*.googletagservices.com", "*.amazon-adsystem.com", "*.stripe.com"],
-      connectSrc: ["'self'", "*.doubleclick.net", "*.googlesyndication.com", "*.google.com", "*.googletagservices.com", "*.amazon-adsystem.com", "*.stripe.com"],
-      frameSrc: ["'self'", "*.doubleclick.net", "*.googlesyndication.com", "*.google.com", "*.stripe.com"],
-      imgSrc: ["'self'", "data:", "*.doubleclick.net", "*.googlesyndication.com", "*.google.com", "*.googletagservices.com", "*.amazon-adsystem.com"],
+      scriptSrc: [
+        "'self'", 
+        "'unsafe-inline'", 
+        "'unsafe-eval'", 
+        // AdSense domains
+        "*.googlesyndication.com",
+        "*.googleadservices.com",
+        "pagead2.googlesyndication.com",
+        "partner.googleadservices.com",
+        "tpc.googlesyndication.com",
+        "*.google.com", 
+        // Keep Ad Manager domains for future
+        "*.doubleclick.net",
+        "*.googletagservices.com", 
+        "*.amazon-adsystem.com", 
+        "*.stripe.com"
+      ],
+      connectSrc: [
+        "'self'", 
+        // AdSense domains
+        "*.googlesyndication.com",
+        "*.googleadservices.com",
+        "*.g.doubleclick.net",
+        "*.google.com",
+        // Keep Ad Manager domains for future
+        "*.doubleclick.net", 
+        "*.googletagservices.com", 
+        "*.amazon-adsystem.com", 
+        "*.stripe.com"
+      ],
+      frameSrc: [
+        "'self'", 
+        "*.googlesyndication.com",
+        "tpc.googlesyndication.com",
+        "googleads.g.doubleclick.net",
+        "*.doubleclick.net", 
+        "*.google.com", 
+        "*.stripe.com"
+      ],
+      imgSrc: [
+        "'self'", 
+        "data:", 
+        "*.googlesyndication.com",
+        "pagead2.googlesyndication.com",
+        "tpc.googlesyndication.com", 
+        "*.googleusercontent.com",
+        "*.doubleclick.net", 
+        "*.g.doubleclick.net",
+        "*.google.com", 
+        "*.googletagservices.com", 
+        "*.amazon-adsystem.com"
+      ],
+      styleSrc: ["'self'", "'unsafe-inline'", "*.googleapis.com"],
+      fontSrc: ["'self'", "*.gstatic.com", "*.googleapis.com"]
     }
   }
 };

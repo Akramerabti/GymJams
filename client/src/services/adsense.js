@@ -1,15 +1,19 @@
-// services/adService.js
-class AdService {
+// services/adsense.js
+class AdSenseService {
   constructor() {
     this.initialized = false;
     this.initializing = false;
     this.adBlocked = false;
-    this.slots = {};
     this.initPromise = null;
-    this.networkId = '22639388920';
-    this.scriptAdded = false; // Track if script was added
+    this.adUnits = {
+      // Replace with your actual AdSense ad units from your AdSense dashboard
+      top: 'ca-pub-2652838159140308',     // Replace with your AdSense publisher ID
+      sidebar: 'ca-pub-2652838159140308',  // Replace with your AdSense publisher ID
+      inContent: 'ca-pub-2652838159140308' // Replace with your AdSense publisher ID
+    };
+    this.scriptAdded = false;
     
-    // Detect if we're in development or production
+    // Detect if we're in development or production environment
     this.isDevelopment = typeof window !== 'undefined' && 
       (window.location.hostname === 'localhost' || 
        window.location.hostname === '127.0.0.1' ||
@@ -17,7 +21,7 @@ class AdService {
        window.location.port === '3000');
   }
 
-  // Initialize the Ad Manager (returns a promise that resolves when ready)
+  // Initialize AdSense script and configuration
   init() {
     // If already initialized, return resolved promise
     if (this.initialized) {
@@ -42,57 +46,51 @@ class AdService {
 
       // Skip actual ad loading in development mode to avoid CORS issues
       if (this.isDevelopment) {
-        console.log('Development mode: Using fallback ads instead of GPT');
+        console.log('Development mode: Using fallback ads instead of AdSense');
         this.initialized = true;
         resolve(true);
         return;
       }
 
-      // Check if googletag is already defined and ready
-      if (typeof window.googletag !== 'undefined' && window.googletag.apiReady) {
-        console.log('GPT already initialized, using existing instance');
-        this.defineAdSlots();
+      // Check if adsbygoogle is already defined
+      if (window.adsbygoogle && window.adsbygoogle.loaded) {
+        console.log('AdSense already initialized, using existing instance');
         this.initialized = true;
         resolve(true);
         return;
       }
 
-      // Initialize googletag
-      if (typeof window.googletag === 'undefined') {
-        window.googletag = { cmd: [] };
+      // Initialize adsbygoogle array if not defined
+      if (!window.adsbygoogle) {
+        window.adsbygoogle = [];
       }
       
       // Check if the script is already in the document
-      const existingScript = document.querySelector('script[src*="securepubads.g.doubleclick.net"]');
+      const existingScript = document.querySelector('script[src*="pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"]');
       if (existingScript) {
         // Script already exists, just initialize
         this.scriptAdded = true;
-        googletag.cmd.push(() => {
-          this.defineAdSlots();
-          this.initialized = true;
-          resolve(true);
-        });
+        this.initialized = true;
+        resolve(true);
         return;
       }
       
-      // Create the GPT script if not already added
+      // Create the AdSense script if not already added
       if (!this.scriptAdded) {
         const script = document.createElement('script');
-        script.src = 'https://securepubads.g.doubleclick.net/tag/js/gpt.js';
+        script.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js';
         script.async = true;
+        script.crossOrigin = "anonymous";
+        script.setAttribute('data-ad-client', this.adUnits.top); // Your publisher ID
         this.scriptAdded = true;
 
         script.onload = () => {
-          // Initialize googletag
-          googletag.cmd.push(() => {
-            this.defineAdSlots();
-            this.initialized = true;
-            resolve(true);
-          });
+          this.initialized = true;
+          resolve(true);
         };
 
         script.onerror = (error) => {
-          console.warn('Failed to load GPT script:', error);
+          console.warn('Failed to load AdSense script:', error);
           this.adBlocked = true;
           this.initialized = true;
           resolve(false);
@@ -105,7 +103,7 @@ class AdService {
       // Set a timeout in case script hangs
       setTimeout(() => {
         if (!this.initialized) {
-          console.warn('GPT initialization timed out');
+          console.warn('AdSense initialization timed out');
           this.adBlocked = true;
           this.initialized = true;
           resolve(false);
@@ -116,119 +114,62 @@ class AdService {
     return this.initPromise;
   }
 
-  // Define the ad slots
-  defineAdSlots() {
-    // Skip in development mode
-    if (this.isDevelopment) return;
-    
-    try {
-      googletag.cmd.push(() => {
-        // Check if slots are already defined to prevent duplicate definitions
-        if (googletag.pubads && googletag.pubads().getSlots) {
-          const existingSlots = googletag.pubads().getSlots();
-          const slotIds = existingSlots.map(s => s.getSlotElementId());
-          
-          // Skip if our slots are already defined
-          if (slotIds.includes('div-gpt-ad-GymJams_Top') && 
-              slotIds.includes('div-gpt-ad-GymJams_Sidebar') && 
-              slotIds.includes('div-gpt-ad-GymJams_InContent')) {
-            console.log('Ad slots already defined, skipping definition');
-            return;
-          }
-        }
-
-        // Define the top banner ad
-        this.slots.top = googletag.defineSlot(
-          `/${this.networkId}/GymJams_Top`, 
-          [[728, 90], [320, 50], [970, 90]], // Responsive sizes
-          'div-gpt-ad-GymJams_Top'
-        ).addService(googletag.pubads());
-
-        // Define the sidebar ad
-        this.slots.sidebar = googletag.defineSlot(
-          `/${this.networkId}/GymJams_Sidebar`, 
-          [[300, 250], [300, 600]], // Responsive sizes
-          'div-gpt-ad-GymJams_Sidebar'
-        ).addService(googletag.pubads());
-
-        // Define the in-content ad
-        this.slots.inContent = googletag.defineSlot(
-          `/${this.networkId}/GymJams_InContent`, 
-          [[300, 250], [336, 280]], // Common in-content sizes
-          'div-gpt-ad-GymJams_InContent'
-        ).addService(googletag.pubads());
-        
-        // Basic configuration - keep it simple
-        googletag.pubads().enableSingleRequest();
-        googletag.enableServices();
-      });
-    } catch (error) {
-      console.error('Error defining ad slots:', error);
-    }
-  }
-
-  // The rest of your methods remain unchanged
-  displayAd(position) {
-    // Skip actual ad display in development mode
-    if (this.isDevelopment) {
-      return true; // Pretend it worked
-    }
-    
-    if (!this.initialized || this.adBlocked) {
-      return false;
-    }
-
-    const slotMapping = {
-      'top': 'div-gpt-ad-GymJams_Top',
-      'sidebar': 'div-gpt-ad-GymJams_Sidebar',
-      'in-content': 'div-gpt-ad-GymJams_InContent',
-      'footer': 'div-gpt-ad-GymJams_Top' // Reuse top ad for footer
-    };
-
-    const divId = slotMapping[position];
-    if (!divId) {
-      console.warn(`No mapping found for position: ${position}`);
-      return false;
-    }
-
-    // Display the ad, with error handling
-    try {
-      // Wrap in try-catch since this might be executed before GPT is ready
-      googletag.cmd.push(() => {
-        try {
-          // Make sure the element exists before trying to display an ad in it
-          if (document.getElementById(divId)) {
-            googletag.display(divId);
-          }
-        } catch (innerError) {
-          console.warn(`Error displaying ad in ${position}:`, innerError);
-        }
-      });
-      return true;
-    } catch (error) {
-      console.warn(`Error queuing ad display for ${position}:`, error);
-      return false;
-    }
-  }
-
-  // Get the HTML for an ad container
+  // Get the HTML for an AdSense ad
   getAdHtml(position) {
     // In development mode, use fallbacks
     if (this.isDevelopment) {
       return this.getFallbackAdHtml(position);
     }
     
-    const slotMapping = {
-      'top': 'div-gpt-ad-GymJams_Top',
-      'sidebar': 'div-gpt-ad-GymJams_Sidebar',
-      'in-content': 'div-gpt-ad-GymJams_InContent',
-      'footer': 'div-gpt-ad-GymJams_Top' // Reuse top ad for footer
+    // Get the appropriate ad unit size based on position
+    const adSize = this.getAdSize(position);
+    
+    // Generate the AdSense ad code
+    return `
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="${this.adUnits[position] || this.adUnits.top}"
+           data-ad-slot="${this.getAdSlot(position)}"
+           data-ad-format="${adSize.format || 'auto'}"
+           ${adSize.width ? `data-full-width-responsive="true"` : ''}></ins>
+    `;
+  }
+
+  // Helper to get appropriate ad slot based on position
+  getAdSlot(position) {
+    // Replace these with your actual ad slots from AdSense dashboard
+    const adSlots = {
+      'top': '5273146000',       // Replace with your actual slot ID
+      'sidebar': '5273146000',   // Replace with your actual slot ID
+      'inContent': '2613401062', // Replace with your actual slot ID
+      'footer': '5273146000'     // Replace with your actual slot ID
+    };
+    
+    return adSlots[position] || adSlots.sidebar;
+  }
+  
+  // Helper to determine ad size based on position
+  getAdSize(position) {
+    const sizes = {
+      'top': { format: 'horizontal', width: '100%', height: '90px' },
+      'sidebar': { format: 'rectangle', width: '300px', height: '250px' },
+      'inContent': { format: 'rectangle', width: '336px', height: '280px' },
+      'footer': { format: 'horizontal', width: '100%', height: '90px' }
+    };
+    
+    return sizes[position] || sizes.sidebar;
+  }
+  
+  // Get dimensions for a specific ad position
+  getAdDimensions(position) {
+    const dimensions = {
+      'top': { width: '100%', height: '90px', maxWidth: '100%' },
+      'sidebar': { width: '300px', height: '250px' },
+      'inContent': { width: '336px', height: '280px', maxWidth: '100%' },
+      'footer': { width: '100%', height: '90px', maxWidth: '100%' }
     };
 
-    const divId = slotMapping[position];
-    if (!divId) return '';
-
-    return `<div id="${divId}" style="width:100%; height:100%;"></div>`;
+    return dimensions[position] || dimensions.sidebar;
   }
 
   // Get fallback ad HTML if ads are blocked or in development
@@ -248,7 +189,7 @@ class AdService {
         width: '300px',
         height: '250px'
       },
-      'in-content': {
+      'inContent': {
         imageUrl: '/api/placeholder/336/280',
         linkUrl: '/subscription?source=ad_fallback',
         altText: 'Premium Subscription',
@@ -275,16 +216,25 @@ class AdService {
     `;
   }
 
-  // Get dimensions for a specific ad position
-  getAdDimensions(position) {
-    const dimensions = {
-      'top': { width: '728px', height: '90px', maxWidth: '100%' },
-      'sidebar': { width: '300px', height: '250px' },
-      'in-content': { width: '336px', height: '280px', maxWidth: '100%' },
-      'footer': { width: '728px', height: '90px', maxWidth: '100%' }
-    };
+  // Display an AdSense ad
+  displayAd(domElement) {
+    // Skip in development mode
+    if (this.isDevelopment) {
+      return true; // Pretend it worked
+    }
+    
+    if (!this.initialized || this.adBlocked) {
+      return false;
+    }
 
-    return dimensions[position] || dimensions['sidebar'];
+    try {
+      // Use AdSense's push method to display ads
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+      return true;
+    } catch (error) {
+      console.warn('Error displaying AdSense ad:', error);
+      return false;
+    }
   }
 
   // Check if ad blocker is detected
@@ -309,9 +259,13 @@ class AdService {
     }
 
     try {
-      googletag.cmd.push(() => {
-        googletag.pubads().refresh();
+      // For AdSense, we need to recreate the ads
+      // Find all ad containers and recreate them
+      document.querySelectorAll('.adsbygoogle').forEach(adElement => {
+        // Try to push a new ad to this element
+        (window.adsbygoogle = window.adsbygoogle || []).push({});
       });
+      
       return true;
     } catch (error) {
       console.warn('Error refreshing ads:', error);
@@ -321,5 +275,5 @@ class AdService {
 }
 
 // Create and export singleton instance
-const adService = new AdService();
-export default adService;
+const adSenseService = new AdSenseService();
+export default adSenseService;

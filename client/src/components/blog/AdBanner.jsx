@@ -1,18 +1,18 @@
 // components/blog/AdBanner.jsx
 import React, { useEffect, useRef, useState } from 'react';
-import adService from '../../services/adsense.js';
+import adSenseService from '../../services/adsense.js';
 
 const AdBanner = ({ position, className = '' }) => {
   const adRef = useRef(null);
   const [adLoaded, setAdLoaded] = useState(false);
   const [adError, setAdError] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
-  const isDevelopment = adService.isInDevelopmentMode();
+  const isDevelopment = adSenseService.isInDevelopmentMode();
 
   // Get dimensions based on position
-  const dimensions = adService.getAdDimensions(position);
+  const dimensions = adSenseService.getAdDimensions(position);
 
-  // Initialize ad service and display ad
+  // Initialize AdSense service and display ad
   useEffect(() => {
     let mounted = true;
     let retryCount = 0;
@@ -21,7 +21,7 @@ const AdBanner = ({ position, className = '' }) => {
     const setupAd = async () => {
       try {
         // Initialize the ad service first
-        const initialized = await adService.init();
+        const initialized = await adSenseService.init();
         
         if (!mounted) return;
         
@@ -36,8 +36,8 @@ const AdBanner = ({ position, className = '' }) => {
         
         if (!initialized) {
           // Ad service failed to initialize (likely blocked)
-          console.log('Ad service initialization failed, using fallback if available');
-          setAdError(adService.isAdBlockerDetected());
+          console.log('AdSense initialization failed, using fallback if available');
+          setAdError(adSenseService.isAdBlockerDetected());
           setAdLoaded(true); // Still mark as loaded to display fallback
           return;
         }
@@ -58,10 +58,10 @@ const AdBanner = ({ position, className = '' }) => {
           return;
         }
         
-        // Add a short delay to ensure DOM is ready
+        // AdSense requires a short delay to ensure DOM is ready
         setTimeout(() => {
-          // Display the ad
-          const success = adService.displayAd(position);
+          // Display the ad using AdSense's method
+          const success = adSenseService.displayAd(adContainer);
           if (mounted) {
             setAdLoaded(success);
             setAdError(!success);
@@ -108,7 +108,7 @@ const AdBanner = ({ position, className = '' }) => {
       >
         <div 
           style={{ width: '100%', height: '100%' }}
-          dangerouslySetInnerHTML={{ __html: adService.getFallbackAdHtml(position) }}
+          dangerouslySetInnerHTML={{ __html: adSenseService.getFallbackAdHtml(position) }}
         />
         <div 
           className="ad-label"
@@ -145,7 +145,7 @@ const AdBanner = ({ position, className = '' }) => {
       >
         <div
           style={{ width: '100%', height: '100%' }}
-          dangerouslySetInnerHTML={{ __html: adService.getFallbackAdHtml(position) }}
+          dangerouslySetInnerHTML={{ __html: adSenseService.getFallbackAdHtml(position) }}
         />
         <div 
           className="ad-label"
@@ -179,7 +179,7 @@ const AdBanner = ({ position, className = '' }) => {
         justifyContent: 'center',
       }}
     >
-      {/* The ad container div with exact ID required by GAM */}
+      {/* AdSense ad container */}
       <div 
         style={{ 
           width: '100%', 
@@ -187,7 +187,7 @@ const AdBanner = ({ position, className = '' }) => {
           opacity: adLoaded ? 1 : 0,
           transition: 'opacity 0.3s ease-in-out',
         }}
-        dangerouslySetInnerHTML={{ __html: adService.getAdHtml(position) }}
+        dangerouslySetInnerHTML={{ __html: adSenseService.getAdHtml(position) }}
       />
       
       {/* Advertisement label */}
