@@ -1,6 +1,9 @@
+// Extended blog.service.js
 import api from './api';
 
 class BlogService {
+  // Existing methods...
+  
   // Get all blogs with optional filters
   async getBlogs(params = {}) {
     const queryParams = new URLSearchParams();
@@ -176,6 +179,63 @@ class BlogService {
       return response.data;
     } catch (error) {
       console.error('Error fetching ad performance data:', error);
+      throw error;
+    }
+  }
+
+  // ===== NEW: Blog Import Functions =====
+  
+  // Import content from external sources
+  async importContent(importOptions) {
+    try {
+      const response = await api.post('/blog/import', importOptions);
+      return response.data;
+    } catch (error) {
+      console.error('Error importing blog content:', error);
+      throw error;
+    }
+  }
+  
+  // Get import statistics
+  async getImportStats() {
+    try {
+      const response = await api.get('/blog/import/stats');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching import statistics:', error);
+      throw error;
+    }
+  }
+  
+  // Update imported content
+  async updateImportedContent(id, contentData) {
+    try {
+      const response = await api.put(`/blog/import/${id}`, contentData);
+      return response.data;
+    } catch (error) {
+      console.error(`Error updating imported content ${id}:`, error);
+      throw error;
+    }
+  }
+  
+  // Approve imported blogs
+  async approveImportedBlogs(blogIds) {
+    try {
+      const response = await api.post('/blog/import/approve', { ids: blogIds });
+      return response.data;
+    } catch (error) {
+      console.error('Error approving imported blogs:', error);
+      throw error;
+    }
+  }
+  
+  // Reject imported blogs
+  async rejectImportedBlogs(blogIds) {
+    try {
+      const response = await api.post('/blog/import/reject', { ids: blogIds });
+      return response.data;
+    } catch (error) {
+      console.error('Error rejecting imported blogs:', error);
       throw error;
     }
   }

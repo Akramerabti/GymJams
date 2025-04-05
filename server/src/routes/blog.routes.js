@@ -1,4 +1,5 @@
-// server/src/routes/blog.routes.js (updated)
+// server/src/routes/blog.routes.js - Update with new import routes
+
 import express from 'express';
 import {
   createBlog,
@@ -16,10 +17,12 @@ import {
   removeAdPlacement,
   getBlogAnalytics,
   getAdPerformance,
-  // New import functions
+  // Import-related controllers
   importContent,
   getImportStats,
-  updateImportedContent
+  updateImportedContent,
+  approveImportedBlogs,
+  rejectImportedBlogs
 } from '../controllers/blog.controller.js';
 import { authenticate, isAdmin, optionalAuthenticate, isTaskforce } from '../middleware/auth.middleware.js';
 import upload from '../config/multer.js';
@@ -47,10 +50,16 @@ router.post('/:slug/comments', addComment);
 // Author specific routes
 router.get('/author/:authorId', getAuthorBlogs);
 
-// Content import routes (admin/taskforce only)
-router.post('/import', isAdmin, importContent);
-router.get('/import/stats', isAdmin, getImportStats);
-router.put('/import/:id', isAdmin, updateImportedContent);
+
+router.post('/import', isTaskforce, importContent);
+// Get import statistics
+router.get('/import/stats', isTaskforce, getImportStats);
+// Update imported content
+router.put('/import/:id', isTaskforce, updateImportedContent);
+// Approve imported blogs (Bulk operation)
+router.post('/import/approve', isTaskforce, approveImportedBlogs);
+// Reject imported blogs (Bulk operation)
+router.post('/import/reject', isTaskforce, rejectImportedBlogs);
 
 // Ad management (admin only)
 router.post('/:slug/ads', isAdmin, addAdPlacement);

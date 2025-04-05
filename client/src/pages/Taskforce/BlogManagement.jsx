@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { 
   PlusCircle, Edit, Trash2, Eye, AlertTriangle, ChevronLeft, ChevronRight,
   Search, Filter, X, BarChart, ExternalLink, Tag, Calendar, Clock,
-  MoreHorizontal, Loader2
+  MoreHorizontal, Loader2, Download, RefreshCw, MessageSquare, Check, FileText
 } from 'lucide-react';
 import { toast } from 'sonner';
 import blogService from '../../services/blog.service';
@@ -39,7 +39,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card, 
+  CardContent, 
+  CardHeader, 
+  CardTitle,
+  CardFooter,
+  CardDescription
+} from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { useAuth } from '../../stores/authStore';
 
 const BlogManagement = () => {
@@ -63,8 +75,8 @@ const BlogManagement = () => {
   });
   const [filters, setFilters] = useState({
     search: '',
-    status: 'all',  // Changed from empty string to 'all'
-    category: 'all', // Changed from empty string to 'all'
+    status: 'all',
+    category: 'all',
     page: 1,
     limit: 10,
     sort: 'publishDate:desc'
@@ -72,11 +84,33 @@ const BlogManagement = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [blogToDelete, setBlogToDelete] = useState(null);
+  
+  // New state for blog import functionality
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importOptions, setImportOptions] = useState({
+    sources: ['newsapi', 'rss'],
+    categories: ['Fitness', 'Nutrition'],
+    count: 10
+  });
+  const [importedBlogs, setImportedBlogs] = useState([]);
+  const [selectedImportedBlogs, setSelectedImportedBlogs] = useState([]);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importError, setImportError] = useState(null);
+  const [activeTab, setActiveTab] = useState('published');
+  const [editImportedBlogOpen, setEditImportedBlogOpen] = useState(false);
+  const [currentImportedBlog, setCurrentImportedBlog] = useState(null);
+  const [importStats, setImportStats] = useState({
+    total: 0,
+    processed: 0,
+    pending: 0,
+    approved: 0,
+    rejected: 0
+  });
 
   const getUserRole = (user) => {
     return user?.user?.role || user?.role || '';
   };
-
 
   // Check for dark mode
   useEffect(() => {
@@ -96,6 +130,28 @@ const BlogManagement = () => {
     window.addEventListener('themeChange', handleThemeChange);
     return () => window.removeEventListener('themeChange', handleThemeChange);
   }, []);
+  
+  // Fetch import stats
+  useEffect(() => {
+    const fetchImportStats = async () => {
+      if (user?.role !== 'admin' && user?.role !== 'taskforce') return;
+      
+      try {
+        const response = await blogService.getImportStats();
+        setImportStats(response.data || {
+          total: 0,
+          processed: 0,
+          pending: 0,
+          approved: 0,
+          rejected: 0
+        });
+      } catch (error) {
+        console.error('Error fetching import stats:', error);
+      }
+    };
+    
+    fetchImportStats();
+  }, [user]);
 
   // Fetch blogs
   useEffect(() => {
@@ -271,6 +327,244 @@ const BlogManagement = () => {
     }
   };
 
+  // NEW FUNCTIONS FOR BLOG IMPORT
+
+  // Open import dialog
+  const openImportDialog = () => {
+    setImportedBlogs([]);
+    setSelectedImportedBlogs([]);
+    setImportProgress(0);
+    setImportError(null);
+    setImportDialogOpen(true);
+  };
+
+  // Handle import options change
+  const handleImportOptionChange = (key, value) => {
+    setImportOptions(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  // Handle source selection
+  const toggleSource = (source) => {
+    setImportOptions(prev => {
+      const currentSources = prev.sources || [];
+      if (currentSources.includes(source)) {
+        return {
+          ...prev,
+          sources: currentSources.filter(s => s !== source)
+        };
+      } else {
+        return {
+          ...prev,
+          sources: [...currentSources, source]
+        };
+      }
+    });
+  };
+
+  // Handle category selection
+  const toggleCategory = (category) => {
+    setImportOptions(prev => {
+      const currentCategories = prev.categories || [];
+      if (currentCategories.includes(category)) {
+        return {
+          ...prev,
+          categories: currentCategories.filter(c => c !== category)
+        };
+      } else {
+        return {
+          ...prev,
+          categories: [...currentCategories, category]
+        };
+      }
+    });
+  };
+
+  // Fetch blogs from external sources
+  const fetchExternalBlogs = async () => {
+    setImportLoading(true);
+    setImportProgress(10);
+    setImportError(null);
+    setImportedBlogs([]);
+    
+    try {
+      // Call the backend to fetch blogs
+      const response = await blogService.importContent({
+        sources: importOptions.sources,
+        categories: importOptions.categories,
+        count: importOptions.count
+      });
+      
+      setImportProgress(100);
+      
+      // Process the imported blogs
+      if (response.data && response.data.length > 0) {
+        setImportedBlogs(response.data);
+        // Select all blogs by default
+        setSelectedImportedBlogs(response.data.map(blog => blog._id));
+        toast.success(`Successfully fetched ${response.data.length} blog posts`);
+      } else {
+        toast.info('No blog posts found matching your criteria');
+      }
+    } catch (error) {
+      console.error('Error fetching external blogs:', error);
+      setImportError(error.response?.data?.message || 'Failed to fetch blogs');
+      toast.error('Failed to fetch blog posts');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  // Toggle selection of imported blog
+  const toggleBlogSelection = (blogId) => {
+    setSelectedImportedBlogs(prev => {
+      if (prev.includes(blogId)) {
+        return prev.filter(id => id !== blogId);
+      } else {
+        return [...prev, blogId];
+      }
+    });
+  };
+
+  // Select/Deselect all blogs
+  const toggleSelectAll = () => {
+    if (selectedImportedBlogs.length === importedBlogs.length) {
+      setSelectedImportedBlogs([]);
+    } else {
+      setSelectedImportedBlogs(importedBlogs.map(blog => blog._id));
+    }
+  };
+
+  // Open edit dialog for imported blog
+  const openEditImportedBlog = (blog) => {
+    setCurrentImportedBlog({
+      ...blog,
+      // Add default values if not present
+      title: blog.title || '',
+      content: blog.content || '',
+      metaDescription: blog.metaDescription || blog.description || '',
+      category: blog.category || 'Fitness',
+      tags: blog.tags || [],
+      status: 'draft'
+    });
+    setEditImportedBlogOpen(true);
+  };
+
+  // Handle imported blog field changes
+  const handleImportedBlogChange = (field, value) => {
+    setCurrentImportedBlog(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Add/remove tag for imported blog
+  const handleImportedBlogTag = (tag, action) => {
+    if (!tag) return;
+    
+    setCurrentImportedBlog(prev => {
+      const currentTags = prev.tags || [];
+      if (action === 'add') {
+        // Prevent duplicate tags
+        if (!currentTags.includes(tag)) {
+          return {
+            ...prev,
+            tags: [...currentTags, tag]
+          };
+        }
+      } else {
+        return {
+          ...prev,
+          tags: currentTags.filter(t => t !== tag)
+        };
+      }
+      return prev;
+    });
+  };
+
+  // Save edited imported blog
+  const saveImportedBlog = async () => {
+    if (!currentImportedBlog) return;
+    
+    try {
+      const response = await blogService.updateImportedContent(
+        currentImportedBlog._id,
+        currentImportedBlog
+      );
+      
+      // Update in the list
+      setImportedBlogs(prev => 
+        prev.map(blog => 
+          blog._id === currentImportedBlog._id ? response.data : blog
+        )
+      );
+      
+      toast.success('Blog post updated successfully');
+      setEditImportedBlogOpen(false);
+    } catch (error) {
+      console.error('Error updating imported blog:', error);
+      toast.error('Failed to update blog post');
+    }
+  };
+
+  // Approve selected blogs
+  const approveSelectedBlogs = async () => {
+    if (selectedImportedBlogs.length === 0) {
+      toast.info('No blogs selected');
+      return;
+    }
+    
+    try {
+      const response = await blogService.approveImportedBlogs(selectedImportedBlogs);
+      
+      toast.success(`Approved ${response.data.count} blog posts`);
+      
+      // Remove approved blogs from the list
+      setImportedBlogs(prev => 
+        prev.filter(blog => !selectedImportedBlogs.includes(blog._id))
+      );
+      setSelectedImportedBlogs([]);
+      
+      // Refresh import stats
+      const statsResponse = await blogService.getImportStats();
+      setImportStats(statsResponse.data);
+      
+    } catch (error) {
+      console.error('Error approving blogs:', error);
+      toast.error('Failed to approve blog posts');
+    }
+  };
+
+  // Reject selected blogs
+  const rejectSelectedBlogs = async () => {
+    if (selectedImportedBlogs.length === 0) {
+      toast.info('No blogs selected');
+      return;
+    }
+    
+    try {
+      const response = await blogService.rejectImportedBlogs(selectedImportedBlogs);
+      
+      toast.success(`Rejected ${response.data.count} blog posts`);
+      
+      // Remove rejected blogs from the list
+      setImportedBlogs(prev => 
+        prev.filter(blog => !selectedImportedBlogs.includes(blog._id))
+      );
+      setSelectedImportedBlogs([]);
+      
+      // Refresh import stats
+      const statsResponse = await blogService.getImportStats();
+      setImportStats(statsResponse.data);
+      
+    } catch (error) {
+      console.error('Error rejecting blogs:', error);
+      toast.error('Failed to reject blog posts');
+    }
+  };
+
   // Analytics summary cards
   const analyticsSummary = [
     {
@@ -288,7 +582,7 @@ const BlogManagement = () => {
     {
       title: 'Comments',
       value: analytics.totalComments.toLocaleString(),
-      icon: <Clock className="h-5 w-5 text-purple-500" />,
+      icon: <MessageSquare className="h-5 w-5 text-purple-500" />,
       color: 'border-purple-100 dark:border-purple-900'
     },
     {
@@ -299,25 +593,31 @@ const BlogManagement = () => {
     }
   ];
 
-  // Ad revenue analytics (admin only)
-  const adRevenueSummary = [
+  // Import stats cards
+  const importStatsSummary = [
     {
-      title: 'Ad Impressions',
-      value: analytics.adImpressions.toLocaleString(),
-      delta: '+12%',
-      deltaType: 'increase'
+      title: 'Pending Review',
+      value: importStats.pending || 0,
+      icon: <Clock className="h-5 w-5 text-amber-500" />,
+      color: 'border-amber-100 dark:border-amber-900'
     },
     {
-      title: 'Ad Clicks',
-      value: analytics.adClicks.toLocaleString(),
-      delta: '+5.2%',
-      deltaType: 'increase'
+      title: 'Approved',
+      value: importStats.approved || 0,
+      icon: <Check className="h-5 w-5 text-green-500" />,
+      color: 'border-green-100 dark:border-green-900'
     },
     {
-      title: 'Ad Revenue',
-      value: `$${analytics.adRevenue.toFixed(2)}`,
-      delta: '+8.1%',
-      deltaType: 'increase'
+      title: 'Rejected',
+      value: importStats.rejected || 0,
+      icon: <X className="h-5 w-5 text-red-500" />,
+      color: 'border-red-100 dark:border-red-900'
+    },
+    {
+      title: 'Total Imported',
+      value: importStats.total || 0,
+      icon: <FileText className="h-5 w-5 text-blue-500" />,
+      color: 'border-blue-100 dark:border-blue-900'
     }
   ];
 
@@ -343,12 +643,21 @@ const BlogManagement = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Blog Management</h1>
-          <p className="text-gray-600">
+          <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
             Manage your blog posts and analytics
           </p>
         </div>
         
         <div className="flex space-x-3">
+          {/* NEW: Fetch External Blogs Button */}
+          <Button
+            onClick={openImportDialog}
+            className="bg-purple-600 hover:bg-purple-700"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Fetch Blogs
+          </Button>
+          
           <Button
             onClick={() => navigate('/admin/blog/new')}
             className="bg-blue-600 hover:bg-blue-700"
@@ -361,9 +670,10 @@ const BlogManagement = () => {
             <Button
               variant="outline"
               onClick={() => navigate('/admin/blog/analytics')}
+              className={isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-200' : ''}
             >
               <BarChart className="h-4 w-4 mr-2" />
-              Analytics Dashboard
+              Analytics
             </Button>
           )}
         </div>
@@ -374,16 +684,16 @@ const BlogManagement = () => {
         {analyticsSummary.map((item, index) => (
           <Card 
             key={index} 
-            className={`border-l-4 ${item.color} bg-white`}
+            className={`border-l-4 ${item.color} ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}
           >
             <CardContent className="p-4 flex justify-between items-center">
               <div>
-                <p className="text-sm font-medium text-gray-500">
+                <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                   {item.title}
                 </p>
-                <p className="text-2xl font-bold mt-1">{item.value}</p>
+                <p className={`text-2xl font-bold mt-1 ${isDarkMode ? 'text-white' : ''}`}>{item.value}</p>
               </div>
-              <div className="bg-blue-50 p-3 rounded-full">
+              <div className={`p-3 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
                 {item.icon}
               </div>
             </CardContent>
@@ -391,312 +701,340 @@ const BlogManagement = () => {
         ))}
       </div>
       
-      {/* Ad Revenue Summary (Admin Only) */}
-      {user.role === 'admin' && (
-        <div className="p-5 rounded-lg bg-white shadow">
-          <h2 className="text-lg font-semibold mb-4">Ad Revenue Overview</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {adRevenueSummary.map((item, index) => (
+      {/* Import Stats Summary - NEW */}
+      <Card className={isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'}>
+        <CardHeader>
+          <CardTitle className={isDarkMode ? 'text-white' : ''}>Content Import Stats</CardTitle>
+          <CardDescription className={isDarkMode ? 'text-gray-400' : ''}>
+            Overview of imported blog content from external sources
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {importStatsSummary.map((item, index) => (
               <div 
                 key={index} 
-                className="p-4 rounded-md bg-gray-50"
+                className={`p-4 rounded-lg border ${item.color} ${isDarkMode ? 'bg-gray-700' : 'bg-white'}`}
               >
-                <p className="text-sm font-medium text-gray-500">
-                  {item.title}
-                </p>
-                <div className="flex items-baseline mt-1">
-                  <p className="text-2xl font-bold mr-2">{item.value}</p>
-                  <span className={`text-xs ${
-                    item.deltaType === 'increase' 
-                      ? 'text-green-500' 
-                      : 'text-red-500'
-                  }`}>
-                    {item.delta}
-                  </span>
+                <div className="flex justify-between items-center">
+                  <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    {item.title}
+                  </p>
+                  <div className={`p-2 rounded-full ${isDarkMode ? 'bg-gray-600' : 'bg-gray-100'}`}>
+                    {item.icon}
+                  </div>
                 </div>
+                <p className={`text-2xl font-bold mt-2 ${isDarkMode ? 'text-white' : ''}`}>{item.value}</p>
               </div>
             ))}
           </div>
-          <div className="text-right mt-4">
-            <Button 
-              variant="link" 
-              className="text-blue-600"
-              onClick={() => navigate('/admin/blog/revenue')}
-            >
-              View detailed report
-              <ExternalLink className="h-4 w-4 ml-1" />
-            </Button>
-          </div>
-        </div>
-      )}
+        </CardContent>
+        <CardFooter className={`border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={openImportDialog}
+            className={isDarkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : ''}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Manage Imported Content
+          </Button>
+        </CardFooter>
+      </Card>
       
-      {/* Filters */}
-      <div className="p-5 rounded-lg bg-white shadow">
-        <div className="flex flex-col md:flex-row md:items-center gap-4 mb-6">
-          {/* Search box */}
-          <div className="w-full md:w-1/3">
-            <form onSubmit={handleSearch} className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-              <Input
-                type="text"
-                placeholder="Search blog posts..."
-                value={filters.search}
-                onChange={(e) => setFilters({...filters, search: e.target.value})}
-                className="pl-10 w-full"
-              />
-            </form>
-          </div>
-          
-          {/* Status filter */}
-          <div className="w-full md:w-1/4">
-            <Select
-              value={filters.status}
-              onValueChange={(value) => handleFilterChange('status', value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="published">Published</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
-                <SelectItem value="archived">Archived</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          {/* Category filter */}
-          <div className="w-full md:w-1/4">
-            <Select
-              value={filters.category}
-              onValueChange={(value) => handleFilterChange('category', value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="Fitness">Fitness</SelectItem>
-                <SelectItem value="Nutrition">Nutrition</SelectItem>
-                <SelectItem value="Workout Plans">Workout Plans</SelectItem>
-                <SelectItem value="Equipment Reviews">Equipment Reviews</SelectItem>
-                <SelectItem value="Success Stories">Success Stories</SelectItem>
-                <SelectItem value="Health Tips">Health Tips</SelectItem>
-                <SelectItem value="Motivation">Motivation</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          {/* Sort filter */}
-          <div className="w-full md:w-1/4">
-            <Select
-              value={filters.sort}
-              onValueChange={(value) => handleFilterChange('sort', value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Sort By" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="publishDate:desc">Newest First</SelectItem>
-                <SelectItem value="publishDate:asc">Oldest First</SelectItem>
-                <SelectItem value="analytics.views:desc">Most Viewed</SelectItem>
-                <SelectItem value="analytics.likes:desc">Most Liked</SelectItem>
-                <SelectItem value="title:asc">Title (A-Z)</SelectItem>
-                <SelectItem value="title:desc">Title (Z-A)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          {/* Reset filters button */}
-          {(filters.search || filters.status !== 'all' || filters.category !== 'all') && (
-            <Button
-              variant="ghost"
-              onClick={clearFilters}
-              className="px-2.5"
-            >
-              <X size={16} className="mr-1" />
-              Reset
-            </Button>
-          )}
-        </div>
+      {/* Tabs for published/draft/imported blogs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="published">Published</TabsTrigger>
+          <TabsTrigger value="draft">Draft</TabsTrigger>
+          <TabsTrigger value="imported">Imported</TabsTrigger>
+        </TabsList>
         
-        {/* Blog posts table */}
-        <div className="overflow-x-auto border rounded-md">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[30%]">Title</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Published</TableHead>
-                <TableHead className="text-right">Views</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                // Loading state
-                [...Array(5)].map((_, index) => (
-                  <TableRow key={index}>
-                    {[...Array(6)].map((_, cellIndex) => (
-                      <TableCell key={cellIndex}>
-                        <div className="h-5 w-full rounded animate-pulse bg-gray-200" />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : blogs.length === 0 ? (
-                // Empty state
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
-                    <div className="flex flex-col items-center">
-                      <div className="p-3 rounded-full bg-gray-100">
-                        <Filter className="h-6 w-6 text-gray-500" />
-                      </div>
-                      <h3 className="mt-2 text-base font-medium">No blog posts found</h3>
-                      <p className="mt-1 text-sm text-gray-500">
-                        Try adjusting your search or filters
-                      </p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                // Blog posts list
-                blogs.map((blog) => (
-                  <TableRow key={blog._id} className="hover:bg-gray-50">
-                    <TableCell className="font-medium">
-                      {blog.title.length > 60 
-                        ? `${blog.title.substring(0, 60)}...` 
-                        : blog.title}
-                    </TableCell>
-                    <TableCell>{blog.category}</TableCell>
-                    <TableCell>{getStatusBadge(blog.status)}</TableCell>
-                    <TableCell>{formatDate(blog.publishDate)}</TableCell>
-                    <TableCell className="text-right">{blog.analytics.views.toLocaleString()}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button 
-                            variant="ghost" 
-                            className="h-8 w-8 p-0"
-                          >
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => navigate(`/blog/${blog.slug}`)}>
-                            <Eye className="h-4 w-4 mr-2" />
-                            View
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => navigate(`/admin/blog/edit/${blog.slug}`)}>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openDeleteDialog(blog)}>
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                          {user.role === 'admin' && (
-                            <DropdownMenuItem onClick={() => navigate(`/taskforce-dashboard/ads/${blog.slug}`)}>
-                              <BarChart className="h-4 w-4 mr-2" />
-                              Manage Ads
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        
-        {/* Pagination */}
-        {pagination.totalPages > 1 && (
-          <div className="flex justify-between items-center mt-6">
-            <div className="text-gray-600">
-              Showing {blogs.length} of {pagination.totalItems} results
-            </div>
-            <div className="flex space-x-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleFilterChange('page', Math.max(1, filters.page - 1))}
-                disabled={filters.page === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
+        {/* Filters */}
+        <TabsContent value="published" className="p-0">
+          <Card className={`shadow-sm ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'}`}>
+            <CardHeader>
+              <div className="flex flex-col md:flex-row md:items-center gap-4">
+                {/* Search box */}
+                <div className="w-full md:w-1/3">
+                  <form onSubmit={handleSearch} className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                    <Input
+                      type="text"
+                      placeholder="Search blog posts..."
+                      value={filters.search}
+                      onChange={(e) => setFilters({...filters, search: e.target.value})}
+                      className={`pl-10 w-full ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}`}
+                    />
+                  </form>
+                </div>
+                
+                {/* Status filter */}
+                <div className="w-full md:w-1/4">
+                  <Select
+                    value={filters.status}
+                    onValueChange={(value) => handleFilterChange('status', value)}
+                  >
+                    <SelectTrigger className={isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}>
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent className={isDarkMode ? 'bg-gray-800 text-white border-gray-700' : ''}>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="published">Published</SelectItem>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="archived">Archived</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Category filter */}
+                <div className="w-full md:w-1/4">
+                  <Select
+                    value={filters.category}
+                    onValueChange={(value) => handleFilterChange('category', value)}
+                  >
+                    <SelectTrigger className={isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}>
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent className={isDarkMode ? 'bg-gray-800 text-white border-gray-700' : ''}>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      <SelectItem value="Fitness">Fitness</SelectItem>
+                      <SelectItem value="Nutrition">Nutrition</SelectItem>
+                      <SelectItem value="Workout Plans">Workout Plans</SelectItem>
+                      <SelectItem value="Equipment Reviews">Equipment Reviews</SelectItem>
+                      <SelectItem value="Success Stories">Success Stories</SelectItem>
+                      <SelectItem value="Health Tips">Health Tips</SelectItem>
+                      <SelectItem value="Motivation">Motivation</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Sort filter */}
+                <div className="w-full md:w-1/4">
+                  <Select
+                    value={filters.sort}
+                    onValueChange={(value) => handleFilterChange('sort', value)}
+                  >
+                    <SelectTrigger className={isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}>
+                      <SelectValue placeholder="Sort By" />
+                    </SelectTrigger>
+                    <SelectContent className={isDarkMode ? 'bg-gray-800 text-white border-gray-700' : ''}>
+                      <SelectItem value="publishDate:desc">Newest First</SelectItem>
+                      <SelectItem value="publishDate:asc">Oldest First</SelectItem>
+                      <SelectItem value="analytics.views:desc">Most Viewed</SelectItem>
+                      <SelectItem value="analytics.likes:desc">Most Liked</SelectItem>
+                      <SelectItem value="title:asc">Title (A-Z)</SelectItem>
+                      <SelectItem value="title:desc">Title (Z-A)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Reset filters button */}
+                {(filters.search || filters.status !== 'all' || filters.category !== 'all') && (
+                  <Button
+                    variant="ghost"
+                    onClick={clearFilters}
+                    className="px-2.5"
+                  >
+                    <X size={16} className="mr-1" />
+                    Reset
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            
+            <CardContent>
+              {/* Blog posts table */}
+              <div className="overflow-x-auto border rounded-md">
+                <Table>
+                  <TableHeader>
+                    <TableRow className={isDarkMode ? 'bg-gray-700 hover:bg-gray-700' : ''}>
+                      <TableHead className="w-[30%]">Title</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Published</TableHead>
+                      <TableHead className="text-right">Views</TableHead>
+                      <TableHead className="w-[100px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      // Loading state
+                      [...Array(5)].map((_, index) => (
+                        <TableRow key={index} className={isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : ''}>
+                          {[...Array(6)].map((_, cellIndex) => (
+                            <TableCell key={cellIndex}>
+                              <div className={`h-5 w-full rounded animate-pulse ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))
+                    ) : blogs.length === 0 ? (
+                      // Empty state
+                      <TableRow className={isDarkMode ? 'hover:bg-gray-800' : ''}>
+                        <TableCell colSpan={6} className="text-center py-8">
+                          <div className="flex flex-col items-center">
+                            <div className={`p-3 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                              <Filter className={`h-6 w-6 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                            </div>
+                            <h3 className={`mt-2 text-base font-medium ${isDarkMode ? 'text-gray-300' : ''}`}>No blog posts found</h3>
+                            <p className={`mt-1 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              Try adjusting your search or filters
+                            </p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      // Blog posts list
+                      blogs.map((blog) => (
+                        <TableRow key={blog._id} className={isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
+                          <TableCell className={`font-medium ${isDarkMode ? 'text-white' : ''}`}>
+                            {blog.title.length > 60 
+                              ? `${blog.title.substring(0, 60)}...` 
+                              : blog.title}
+                              
+                            {/* Source badge for imported content */}
+                            {blog.source && blog.source.name && (
+                              <Badge className="ml-2 bg-blue-100 text-blue-800 hover:bg-blue-200" variant="secondary">
+                                {blog.source.name}
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className={isDarkMode ? 'text-gray-300' : ''}>{blog.category}</TableCell>
+                          <TableCell>{getStatusBadge(blog.status)}</TableCell>
+                          <TableCell className={isDarkMode ? 'text-gray-300' : ''}>{formatDate(blog.publishDate)}</TableCell>
+                          <TableCell className={`text-right ${isDarkMode ? 'text-gray-300' : ''}`}>{blog.analytics.views.toLocaleString()}</TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <span className="sr-only">Open menu</span>
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className={isDarkMode ? 'bg-gray-800 text-gray-100 border-gray-700' : ''}>
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuSeparator className={isDarkMode ? 'bg-gray-700' : ''}/>
+                                <DropdownMenuItem onClick={() => navigate(`/blog/${blog.slug}`)} className={isDarkMode ? 'focus:bg-gray-700' : ''}>
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  View
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => navigate(`/admin/blog/edit/${blog.slug}`)} className={isDarkMode ? 'focus:bg-gray-700' : ''}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openDeleteDialog(blog)} className={isDarkMode ? 'focus:bg-gray-700 text-red-400' : 'text-red-600'}>
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                                {user.role === 'admin' && (
+                                  <DropdownMenuItem onClick={() => navigate(`/taskforce-dashboard/ads/${blog.slug}`)} className={isDarkMode ? 'focus:bg-gray-700' : ''}>
+                                    <BarChart className="h-4 w-4 mr-2" />
+                                    Manage Ads
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
               
-              {[...Array(pagination.totalPages)].map((_, index) => {
-                const pageNumber = index + 1;
-                const isCurrentPage = pageNumber === filters.page;
-                
-                // Show first page, last page, current page, and adjacent pages
-                if (
-                  pageNumber === 1 ||
-                  pageNumber === pagination.totalPages ||
-                  (pageNumber >= filters.page - 1 && pageNumber <= filters.page + 1)
-                ) {
-                  return (
+              {/* Pagination */}
+              {pagination.totalPages > 1 && (
+                <div className="flex justify-between items-center mt-6">
+                  <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Showing {blogs.length} of {pagination.totalItems} results
+                  </div>
+                  <div className="flex space-x-1">
                     <Button
-                      key={pageNumber}
-                      variant={isCurrentPage ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handleFilterChange('page', pageNumber)}
-                    >
-                      {pageNumber}
-                    </Button>
-                  );
-                }
-                
-                // Show dots for skipped pages, but only once
-                if (
-                  (pageNumber === 2 && filters.page > 3) ||
-                  (pageNumber === pagination.totalPages - 1 && filters.page < pagination.totalPages - 2)
-                ) {
-                  return (
-                    <Button
-                      key={pageNumber}
                       variant="outline"
                       size="sm"
-                      disabled
+                      onClick={() => handleFilterChange('page', Math.max(1, filters.page - 1))}
+                      disabled={filters.page === 1}
+                      className={isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
                     >
-                      ...
+                      <ChevronLeft className="h-4 w-4" />
                     </Button>
-                  );
-                }
-                
-                return null;
-              })}
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleFilterChange('page', Math.min(pagination.totalPages, filters.page + 1))}
-                disabled={filters.page === pagination.totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
+                    
+                    {[...Array(pagination.totalPages)].map((_, index) => {
+                      const pageNumber = index + 1;
+                      const isCurrentPage = pageNumber === filters.page;
+                      
+                      // Show first page, last page, current page, and adjacent pages
+                      if (
+                        pageNumber === 1 ||
+                        pageNumber === pagination.totalPages ||
+                        (pageNumber >= filters.page - 1 && pageNumber <= filters.page + 1)
+                      ) {
+                        return (
+                          <Button
+                            key={pageNumber}
+                            variant={isCurrentPage ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => handleFilterChange('page', pageNumber)}
+                            className={isDarkMode && !isCurrentPage ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
+                          >
+                            {pageNumber}
+                          </Button>
+                        );
+                      }
+                      
+                      // Show dots for skipped pages, but only once
+                      if (
+                        (pageNumber === 2 && filters.page > 3) ||
+                        (pageNumber === pagination.totalPages - 1 && filters.page < pagination.totalPages - 2)
+                      ) {
+                        return (
+                          <Button
+                            key={pageNumber}
+                            variant="outline"
+                            size="sm"
+                            disabled
+                            className={isDarkMode ? 'border-gray-700 text-gray-500' : ''}
+                          >
+                            ...
+                          </Button>
+                        );
+                      }
+                      
+                      return null;
+                    })}
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleFilterChange('page', Math.min(pagination.totalPages, filters.page + 1))}
+                      disabled={filters.page === pagination.totalPages}
+                      className={isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
       
       {/* Delete confirmation dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className={isDarkMode ? 'bg-gray-800 text-white border-gray-700' : ''}>
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
           </DialogHeader>
           
           <div className="py-4">
-            <p>Are you sure you want to delete the blog post:</p>
-            <p className="font-medium mt-2">"{blogToDelete?.title}"</p>
-            <div className="mt-4 flex items-center p-4 bg-amber-50 text-amber-800 rounded-md">
+            <p className={isDarkMode ? 'text-gray-300' : ''}>Are you sure you want to delete the blog post:</p>
+            <p className={`font-medium mt-2 ${isDarkMode ? 'text-white' : ''}`}>"{blogToDelete?.title}"</p>
+            <div className={`mt-4 flex items-center p-4 ${isDarkMode ? 'bg-amber-900 text-amber-200' : 'bg-amber-50 text-amber-800'} rounded-md`}>
               <AlertTriangle className="h-5 w-5 mr-2 flex-shrink-0" />
               <span className="text-sm">This action cannot be undone.</span>
             </div>
@@ -706,6 +1044,7 @@ const BlogManagement = () => {
             <Button
               variant="outline"
               onClick={() => setDeleteDialogOpen(false)}
+              className={isDarkMode ? 'border-gray-700 hover:bg-gray-700' : ''}
             >
               Cancel
             </Button>
@@ -714,6 +1053,560 @@ const BlogManagement = () => {
               onClick={handleDeleteBlog}
             >
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Blog Import Dialog - NEW */}
+      <Dialog 
+        open={importDialogOpen} 
+        onOpenChange={(open) => {
+          if (!importLoading) setImportDialogOpen(open);
+        }}
+        className="max-w-4xl"
+      >
+        <DialogContent className={`max-w-4xl ${isDarkMode ? 'bg-gray-800 text-white border-gray-700' : ''}`}>
+          <DialogHeader>
+            <DialogTitle>Import Blog Content</DialogTitle>
+          </DialogHeader>
+          
+          {!importedBlogs.length ? (
+            // Step 1: Configure import options
+            <div className="py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Sources Selection */}
+                <div>
+                  <h3 className={`text-base font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                    Select Sources
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center">
+                      <Checkbox 
+                        id="source-newsapi" 
+                        checked={importOptions.sources.includes('newsapi')} 
+                        onCheckedChange={() => toggleSource('newsapi')}
+                        className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
+                      />
+                      <label 
+                        htmlFor="source-newsapi" 
+                        className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
+                      >
+                        News API (Current Articles)
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <Checkbox 
+                        id="source-rss" 
+                        checked={importOptions.sources.includes('rss')} 
+                        onCheckedChange={() => toggleSource('rss')}
+                        className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
+                      />
+                      <label 
+                        htmlFor="source-rss" 
+                        className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
+                      >
+                        RSS Feeds (Fitness Blogs)
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <Checkbox 
+                        id="source-spoonacular" 
+                        checked={importOptions.sources.includes('spoonacular')} 
+                        onCheckedChange={() => toggleSource('spoonacular')}
+                        className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
+                      />
+                      <label 
+                        htmlFor="source-spoonacular" 
+                        className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
+                      >
+                        Spoonacular (Nutrition Articles)
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Categories Selection */}
+                <div>
+                  <h3 className={`text-base font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                    Select Categories
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center">
+                      <Checkbox 
+                        id="category-fitness" 
+                        checked={importOptions.categories.includes('Fitness')} 
+                        onCheckedChange={() => toggleCategory('Fitness')}
+                        className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
+                      />
+                      <label 
+                        htmlFor="category-fitness" 
+                        className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
+                      >
+                        Fitness
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <Checkbox 
+                        id="category-nutrition" 
+                        checked={importOptions.categories.includes('Nutrition')} 
+                        onCheckedChange={() => toggleCategory('Nutrition')}
+                        className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
+                      />
+                      <label 
+                        htmlFor="category-nutrition" 
+                        className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
+                      >
+                        Nutrition
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <Checkbox 
+                        id="category-workoutplans" 
+                        checked={importOptions.categories.includes('Workout Plans')} 
+                        onCheckedChange={() => toggleCategory('Workout Plans')}
+                        className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
+                      />
+                      <label 
+                        htmlFor="category-workoutplans" 
+                        className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
+                      >
+                        Workout Plans
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <Checkbox 
+                        id="category-healthtips" 
+                        checked={importOptions.categories.includes('Health Tips')} 
+                        onCheckedChange={() => toggleCategory('Health Tips')}
+                        className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
+                      />
+                      <label 
+                        htmlFor="category-healthtips" 
+                        className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
+                      >
+                        Health Tips
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Max Count Slider */}
+              <div className="mt-6">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className={`text-base font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                    Maximum Articles to Fetch
+                  </h3>
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    {importOptions.count}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="50"
+                  step="5"
+                  value={importOptions.count}
+                  onChange={(e) => handleImportOptionChange('count', parseInt(e.target.value))}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs mt-1">
+                  <span className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>5</span>
+                  <span className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>50</span>
+                </div>
+              </div>
+              
+              {/* Error Message */}
+              {importError && (
+                <div className="mt-4 p-3 rounded-md bg-red-50 text-red-700">
+                  <p className="text-sm">{importError}</p>
+                </div>
+              )}
+              
+              {/* Progress Bar */}
+              {importLoading && (
+                <div className="mt-6">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Fetching Content...
+                    </h3>
+                    <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {importProgress}%
+                    </span>
+                  </div>
+                  <Progress value={importProgress} className="h-2" />
+                </div>
+              )}
+            </div>
+          ) : (
+            // Step 2: Review and select imported blogs
+            <div className="py-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className={`text-base font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                  Review Imported Content ({importedBlogs.length})
+                </h3>
+                <div className="flex items-center space-x-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={toggleSelectAll}
+                    className={isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
+                  >
+                    {selectedImportedBlogs.length === importedBlogs.length ? 'Deselect All' : 'Select All'}
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setImportedBlogs([]);
+                      setSelectedImportedBlogs([]);
+                    }}
+                    className={isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
+                  >
+                    Back to Options
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="border rounded-md overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className={isDarkMode ? 'bg-gray-700 hover:bg-gray-700' : ''}>
+                      <TableHead className="w-[30px]"></TableHead>
+                      <TableHead>Title & Source</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {importedBlogs.map((blog) => (
+                      <TableRow key={blog._id} className={isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
+                        <TableCell className="pr-0">
+                          <Checkbox 
+                            checked={selectedImportedBlogs.includes(blog._id)} 
+                            onCheckedChange={() => toggleBlogSelection(blog._id)}
+                            className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className={`font-medium ${isDarkMode ? 'text-white' : ''}`}>
+                              {blog.title.length > 60 ? `${blog.title.substring(0, 60)}...` : blog.title}
+                            </p>
+                            <div className="flex items-center mt-1">
+                              <Badge variant="outline" className={isDarkMode ? 'border-gray-600 text-gray-300' : ''}>
+                                {blog.source.name}
+                              </Badge>
+                              <span className={`text-xs ml-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {new Date(blog.source.importedAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{blog.category || 'Uncategorized'}</TableCell>
+                        <TableCell className="text-right">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => openEditImportedBlog(blog)}
+                            className={isDarkMode ? 'hover:bg-gray-700 text-gray-300' : ''}
+                          >
+                            <Edit className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => window.open(blog.source.url, '_blank')}
+                            className={isDarkMode ? 'hover:bg-gray-700 text-gray-300' : ''}
+                          >
+                            <ExternalLink className="h-4 w-4 mr-1" />
+                            Source
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            {!importedBlogs.length ? (
+              // Step 1 Footer: Fetch or Cancel
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setImportDialogOpen(false)}
+                  disabled={importLoading}
+                  className={isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  disabled={importLoading || importOptions.sources.length === 0 || importOptions.categories.length === 0}
+                  onClick={fetchExternalBlogs}
+                >
+                  {importLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Fetching...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Fetch Articles
+                    </>
+                  )}
+                </Button>
+              </>
+            ) : (
+              // Step 2 Footer: Approve/Reject or Cancel
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setImportDialogOpen(false)}
+                  className={isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
+                >
+                  Cancel
+                </Button>
+                <div className="flex space-x-2">
+                  <Button
+                    variant="destructive"
+                    onClick={rejectSelectedBlogs}
+                    disabled={selectedImportedBlogs.length === 0}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Reject Selected
+                  </Button>
+                  <Button
+                    onClick={approveSelectedBlogs}
+                    disabled={selectedImportedBlogs.length === 0}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <Check className="h-4 w-4 mr-2" />
+                    Approve Selected
+                  </Button>
+                </div>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Edit Imported Blog Dialog - NEW */}
+      <Dialog open={editImportedBlogOpen} onOpenChange={setEditImportedBlogOpen}>
+        <DialogContent className={`max-w-3xl ${isDarkMode ? 'bg-gray-800 text-white border-gray-700' : ''}`}>
+          <DialogHeader>
+            <DialogTitle>Edit Imported Article</DialogTitle>
+          </DialogHeader>
+          
+          {currentImportedBlog && (
+            <div className="py-4 space-y-4">
+              {/* Title */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Title
+                </label>
+                <Input
+                  value={currentImportedBlog.title}
+                  onChange={(e) => handleImportedBlogChange('title', e.target.value)}
+                  className={isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}
+                />
+              </div>
+              
+              {/* Content */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Content
+                </label>
+                <Textarea
+                  value={currentImportedBlog.content}
+                  onChange={(e) => handleImportedBlogChange('content', e.target.value)}
+                  rows={10}
+                  className={isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}
+                />
+              </div>
+              
+              {/* Meta Description */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Meta Description
+                </label>
+                <Textarea
+                  value={currentImportedBlog.metaDescription}
+                  onChange={(e) => handleImportedBlogChange('metaDescription', e.target.value)}
+                  rows={2}
+                  className={isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}
+                />
+                <p className={`mt-1 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {currentImportedBlog.metaDescription?.length || 0}/160 characters recommended
+                </p>
+              </div>
+              
+              {/* Category and Status */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Category */}
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Category
+                  </label>
+                  <Select
+                    value={currentImportedBlog.category}
+                    onValueChange={(value) => handleImportedBlogChange('category', value)}
+                  >
+                    <SelectTrigger className={isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent className={isDarkMode ? 'bg-gray-800 text-white border-gray-700' : ''}>
+                      <SelectItem value="Fitness">Fitness</SelectItem>
+                      <SelectItem value="Nutrition">Nutrition</SelectItem>
+                      <SelectItem value="Workout Plans">Workout Plans</SelectItem>
+                      <SelectItem value="Equipment Reviews">Equipment Reviews</SelectItem>
+                      <SelectItem value="Success Stories">Success Stories</SelectItem>
+                      <SelectItem value="Health Tips">Health Tips</SelectItem>
+                      <SelectItem value="Motivation">Motivation</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Status */}
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Status
+                  </label>
+                  <Select
+                    value={currentImportedBlog.status}
+                    onValueChange={(value) => handleImportedBlogChange('status', value)}
+                  >
+                    <SelectTrigger className={isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent className={isDarkMode ? 'bg-gray-800 text-white border-gray-700' : ''}>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="published">Published</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              {/* Tags */}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Tags
+                </label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {currentImportedBlog.tags?.map((tag) => (
+                    <Badge 
+                      key={tag} 
+                      variant="secondary"
+                      className={`${
+                        isDarkMode 
+                          ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' 
+                          : 'bg-gray-100 hover:bg-gray-200'
+                      }`}
+                    >
+                      {tag}
+                      <X 
+                        className="h-3 w-3 ml-1 cursor-pointer" 
+                        onClick={() => handleImportedBlogTag(tag, 'remove')} 
+                      />
+                    </Badge>
+                  ))}
+                </div>
+                
+                <div className="flex">
+                  <Input
+                    placeholder="Add tag and press Enter"
+                    value={currentImportedBlog.newTag || ''}
+                    onChange={(e) => handleImportedBlogChange('newTag', e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleImportedBlogTag(currentImportedBlog.newTag, 'add');
+                        handleImportedBlogChange('newTag', '');
+                      }
+                    }}
+                    className={isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={`ml-2 ${isDarkMode ? 'border-gray-600 hover:bg-gray-700' : ''}`}
+                    onClick={() => {
+                      handleImportedBlogTag(currentImportedBlog.newTag, 'add');
+                      handleImportedBlogChange('newTag', '');
+                    }}
+                  >
+                    Add
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Source Info */}
+              <div className={`mt-4 p-4 rounded-lg ${
+                isDarkMode ? 'bg-gray-700 border border-gray-600' : 'bg-gray-50'
+              }`}>
+                <h4 className={`text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Source Information
+                </h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>Source Name:</span>
+                    <span className={`ml-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                      {currentImportedBlog.source?.name || 'Unknown'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>Import Date:</span>
+                    <span className={`ml-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                      {currentImportedBlog.source?.importedAt 
+                        ? new Date(currentImportedBlog.source.importedAt).toLocaleDateString() 
+                        : 'Unknown'
+                      }
+                    </span>
+                  </div>
+                  <div className="col-span-2 mt-1">
+                    <span className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>Original URL:</span>
+                    <a 
+                      href={currentImportedBlog.source?.url} 
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`ml-2 ${
+                        isDarkMode 
+                          ? 'text-blue-400 hover:text-blue-300' 
+                          : 'text-blue-600 hover:text-blue-800'
+                      }`}
+                    >
+                      View Original Source
+                      <ExternalLink className="h-3 w-3 inline ml-1" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditImportedBlogOpen(false)}
+              className={isDarkMode ? 'border-gray-700 hover:bg-gray-700' : ''}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={saveImportedBlog}
+            >
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
