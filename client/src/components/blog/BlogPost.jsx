@@ -1,3 +1,4 @@
+// components/blog/BlogPost.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
@@ -5,15 +6,15 @@ import {
   Heart, MessageSquare, Facebook, Twitter, Linkedin, Copy, CheckCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import api from '../services/api';
-import { Button } from '../components/ui/button';
-import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
-import AdBanner from '../components/blog/AdBanner';
-import RelatedPosts from '../components/blog/RelatedPosts';
-import CommentSection from '../components/blog/CommentSection';
-import AdInjector from '../components/blog/AdInjector';
+import api from '../../services/api';
+import { Button } from '../ui/button';
+import { Avatar, AvatarImage, AvatarFallback } from '../ui/avatar';
+import AdBanner from './AdBanner';
+import RelatedPosts from './RelatedPosts';
+import CommentSection from './CommentSection';
+import AdInjector from './AdInjector';
 import { toast } from 'sonner';
-import { useAuth } from '../stores/authStore';
+import { useAuth } from '../../stores/authStore';
 
 const BlogPost = () => {
   const { slug } = useParams();
@@ -29,6 +30,7 @@ const BlogPost = () => {
   const [readingProgress, setReadingProgress] = useState(0);
   const [showAdPopup, setShowAdPopup] = useState(false);
   const [adViewEvents, setAdViewEvents] = useState({});
+  const [imageLoaded, setImageLoaded] = useState(false);
   const contentRef = useRef(null);
   const adTimerRef = useRef(null);
 
@@ -113,6 +115,21 @@ const BlogPost = () => {
     
     fetchBlog();
   }, [slug]);
+  
+  // Increment view count once the post is loaded
+  useEffect(() => {
+    if (blog && !loading) {
+      const trackView = async () => {
+        try {
+          await api.post(`/blog/${slug}/view`);
+        } catch (error) {
+          console.warn('Failed to track view:', error);
+        }
+      };
+      
+      trackView();
+    }
+  }, [blog, loading, slug]);
 
   // Handle social sharing
   const handleShare = (platform) => {
@@ -183,6 +200,27 @@ const BlogPost = () => {
     // Otherwise just return the content
     return <div dangerouslySetInnerHTML={{ __html: content }} />;
   };
+  
+  // Handle image loading
+  const handleImageLoad = () => {
+    setImageLoaded(true);
+  };
+
+  // Helper to get fallback content when featured image fails to load
+  const getFallbackImageContent = () => {
+    return (
+      <div className={`rounded-lg flex items-center justify-center ${
+        isDarkMode ? 'bg-gray-800' : 'bg-gray-100'
+      }`} style={{ height: '400px' }}>
+        <div className="text-center">
+          <div className="text-4xl mb-4">📝</div>
+          <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+            Image not available
+          </p>
+        </div>
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -213,18 +251,9 @@ const BlogPost = () => {
   return (
     <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
       {/* Top Ad Banner */}
-      <AdBanner
-        position="top"
-        adCode={`
-          <div id="div-gpt-ad-123456789-0" style="min-height: 90px; width: 100%;">
-            <script>
-              googletag.cmd.push(function() {
-                googletag.display('div-gpt-ad-123456789-0');
-              });
-            </script>
-          </div>
-        `}
-      />
+      <div className="container mx-auto px-4 pt-8">
+        <AdBanner position="top" className="max-w-5xl mx-auto" />
+      </div>
       
       {/* Back to blog link */}
       <div className="container mx-auto px-4 py-6">
@@ -328,12 +357,18 @@ const BlogPost = () => {
         <div className="container mx-auto px-4 -mt-6 mb-12">
           <div className="max-w-4xl mx-auto">
             <div className="rounded-lg overflow-hidden shadow-lg">
+              {!imageLoaded && (
+                <div className="w-full h-96 animate-pulse bg-gray-300"></div>
+              )}
               <img 
                 src={blog.featuredImage.url} 
                 alt={blog.featuredImage.alt || blog.title} 
-                className="w-full h-auto object-cover"
+                className={`w-full h-auto object-cover ${imageLoaded ? 'block' : 'hidden'}`}
+                onLoad={handleImageLoad}
+                onError={() => setImageLoaded(true)} // Still set loaded on error to remove loading state
               />
-              {blog.featuredImage.credit && (
+              {imageLoaded && !blog.featuredImage.url && getFallbackImageContent()}
+              {blog.featuredImage.credit && imageLoaded && (
                 <div className={`p-2 text-xs ${
                   isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
                 }`}>
@@ -541,18 +576,7 @@ const BlogPost = () => {
             <div className="sticky top-6">
               {/* Sidebar ad */}
               <div className="mb-8">
-                <AdBanner
-                  position="sidebar"
-                  adCode={`
-                    <div id="div-gpt-ad-123456789-3" style="min-height: 250px; width: 100%;">
-                      <script>
-                        googletag.cmd.push(function() {
-                          googletag.display('div-gpt-ad-123456789-3');
-                        });
-                      </script>
-                    </div>
-                  `}
-                />
+                <AdBanner position="sidebar" />
               </div>
               
               {/* Related posts */}
@@ -598,6 +622,11 @@ const BlogPost = () => {
         </div>
       </div>
       
+      {/* Bottom Ad Banner */}
+      <div className="container mx-auto px-4 pb-8">
+        <AdBanner position="footer" className="max-w-5xl mx-auto" />
+      </div>
+      
       {/* Popup ad (displayed when user reaches 50% of article) */}
       <AnimatePresence>
         {showAdPopup && (
@@ -617,7 +646,7 @@ const BlogPost = () => {
                   className="absolute top-2 right-2 rounded-full bg-black/20 hover:bg-black/30 text-white z-10"
                   onClick={handleClosePopup}
                 >
-                  <X size={14} />
+                  <span>×</span>
                 </Button>
                 
                 <div className="p-4">

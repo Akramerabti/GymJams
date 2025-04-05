@@ -6,6 +6,8 @@ const AdBanner = ({ position, className = '' }) => {
   const adRef = useRef(null);
   const [adLoaded, setAdLoaded] = useState(false);
   const [adError, setAdError] = useState(false);
+  const [adUnfilled, setAdUnfilled] = useState(false);
+  const [visibilityChecked, setVisibilityChecked] = useState(false);
   const isDevelopment = adService.isInDevelopmentMode();
   
   // Define responsive dimensions with fallbacks
@@ -46,6 +48,24 @@ const AdBanner = ({ position, className = '' }) => {
       height: isMobile ? dims.mobileHeight : dims.height
     };
   };
+
+  // Check if the ad is visible after a delay
+  const checkAdVisibility = () => {
+    if (!adRef.current) return;
+    
+    // Look for the adsbygoogle element
+    const adElement = adRef.current.querySelector('.adsbygoogle');
+    if (!adElement) return;
+    
+    // Check if ad is unfilled
+    const adStatus = adElement.getAttribute('data-ad-status');
+    if (adStatus === 'unfilled') {
+      console.log(`Ad in position ${position} is unfilled, showing fallback`);
+      setAdUnfilled(true);
+    }
+    
+    setVisibilityChecked(true);
+  };
   
   // Initialize ad service and display ad
   useEffect(() => {
@@ -74,6 +94,7 @@ const AdBanner = ({ position, className = '' }) => {
           adRef.current.style.maxWidth = '100%';
           adRef.current.style.margin = '0 auto';
           adRef.current.style.overflow = 'hidden';
+          adRef.current.style.position = 'relative'; // Ensure position context
           
           // Delay to ensure DOM is updated
           setTimeout(() => {
@@ -94,6 +115,9 @@ const AdBanner = ({ position, className = '' }) => {
                 // Push to AdSense
                 (window.adsbygoogle = window.adsbygoogle || []).push({});
                 setAdLoaded(true);
+                
+                // Check visibility after a delay to see if ad was filled
+                setTimeout(checkAdVisibility, 2000);
               } else {
                 console.error(`AdSense element not found in ${position} container`);
                 setAdError(true);
@@ -137,45 +161,170 @@ const AdBanner = ({ position, className = '' }) => {
     };
   }, [position, isDevelopment]);
 
+  // Create a premium content promo as a better fallback
+  const renderPremiumPromo = () => {
+    const dims = getDimensions();
+    
+    // Choose appropriate promo based on ad position
+    const promos = {
+      'top': {
+        title: 'Premium Coaching',
+        description: 'Transform your fitness journey with expert guidance',
+        cta: 'Try Now',
+        link: '/coaching'
+      },
+      'sidebar': {
+        title: 'Join Premium',
+        description: 'Get exclusive workout plans and nutrition guides',
+        cta: 'Learn More',
+        link: '/subscription'
+      },
+      'inContent': {
+        title: 'Premium Equipment',
+        description: 'Shop our best-selling fitness gear',
+        cta: 'Shop Now',
+        link: '/shop'
+      },
+      'footer': {
+        title: 'Download Our App',
+        description: 'Track workouts and nutrition on the go',
+        cta: 'Get Started',
+        link: '/app'
+      }
+    };
+    
+    const promo = promos[position] || promos.sidebar;
+    
+    // Determine if this is a wide or tall format
+    const isWideFormat = dims.width > dims.height;
+    
+    // Wide format (banner style)
+    if (isWideFormat) {
+      return (
+        <div 
+          style={{ 
+            width: dims.width,
+            height: dims.height,
+            maxWidth: '100%',
+            overflow: 'hidden',
+            display: 'flex',
+            background: 'linear-gradient(135deg, #3b82f6, #1e40af)',
+            borderRadius: '8px',
+            color: 'white',
+            padding: '12px'
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1 }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 'bold', margin: '0 0 4px 0' }}>{promo.title}</h3>
+            <p style={{ fontSize: '12px', margin: '0 0 8px 0', opacity: 0.9 }}>{promo.description}</p>
+            <a 
+              href={promo.link} 
+              style={{
+                fontSize: '12px',
+                padding: '4px 12px',
+                background: 'white',
+                color: '#1e40af',
+                borderRadius: '4px',
+                textDecoration: 'none',
+                fontWeight: 'bold',
+                display: 'inline-block',
+                textAlign: 'center',
+                marginTop: 'auto',
+                maxWidth: '120px'
+              }}
+            >
+              {promo.cta}
+            </a>
+          </div>
+          <div style={{ width: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', position: 'relative' }}>
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                fontSize: '20px'
+              }}>💪</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    // Tall format (box style)
+    return (
+      <div 
+        style={{ 
+          width: dims.width,
+          height: dims.height,
+          maxWidth: '100%',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'linear-gradient(135deg, #3b82f6, #1e40af)',
+          borderRadius: '8px',
+          color: 'white',
+          padding: '16px',
+          textAlign: 'center'
+        }}
+      >
+        <div style={{ fontSize: '24px', margin: '8px 0' }}>💪</div>
+        <h3 style={{ fontSize: '18px', fontWeight: 'bold', margin: '8px 0' }}>{promo.title}</h3>
+        <p style={{ fontSize: '14px', margin: '8px 0 16px', flex: 1 }}>{promo.description}</p>
+        <a 
+          href={promo.link} 
+          style={{
+            fontSize: '14px',
+            padding: '8px 16px',
+            background: 'white',
+            color: '#1e40af',
+            borderRadius: '4px',
+            textDecoration: 'none',
+            fontWeight: 'bold',
+            display: 'block',
+            textAlign: 'center',
+            marginTop: 'auto'
+          }}
+        >
+          {promo.cta}
+        </a>
+      </div>
+    );
+  };
+
   // Show fallback ad in development
   if (isDevelopment) {
-    const dims = getDimensions();
     return (
       <div 
         className={`ad-container ad-${position} ${className}`}
         style={{ 
-          width: dims.width,
-          height: dims.height,
           maxWidth: '100%',
           margin: '0 auto',
           display: 'block'
         }}
       >
-        <div dangerouslySetInnerHTML={{ __html: adService.getFallbackAdHtml(position) }} />
+        {renderPremiumPromo()}
         <div style={{ fontSize: '10px', color: '#999', textAlign: 'center' }}>
-          Advertisement (Dev)
+          Advertisement (Dev Mode)
         </div>
       </div>
     );
   }
 
   // Show fallback on error
-  if (adError) {
-    const dims = getDimensions();
+  if (adError || adUnfilled) {
     return (
       <div 
         className={`ad-container ad-${position} ${className}`}
         style={{ 
-          width: dims.width,
-          height: dims.height,
           maxWidth: '100%',
           margin: '0 auto',
           display: 'block'
         }}
       >
-        <div dangerouslySetInnerHTML={{ __html: adService.getFallbackAdHtml(position) }} />
+        {renderPremiumPromo()}
         <div style={{ fontSize: '10px', color: '#999', textAlign: 'center' }}>
-          Advertisement (Fallback)
+          Sponsored Content
         </div>
       </div>
     );
@@ -190,10 +339,11 @@ const AdBanner = ({ position, className = '' }) => {
       style={{ 
         display: 'block',
         width: dims.width,
-        height: dims.height,
+        height: 'auto', // Changed to auto height to prevent layout shift
         maxWidth: '100%',
         margin: '0 auto',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        minHeight: '50px' // Ensure at least some space
       }}
     >
       {/* AdSense ad */}
