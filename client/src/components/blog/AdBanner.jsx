@@ -1,113 +1,96 @@
 // components/blog/AdBanner.jsx
 import React, { useEffect, useRef, useState } from 'react';
-import adSenseService from '../../services/adsense.js';
+import adService from '../../services/adsense.js';
 
 const AdBanner = ({ position, className = '' }) => {
   const adRef = useRef(null);
   const [adLoaded, setAdLoaded] = useState(false);
   const [adError, setAdError] = useState(false);
-  const [hasInitialized, setHasInitialized] = useState(false);
-  const isDevelopment = adSenseService.isInDevelopmentMode();
-
+  const isDevelopment = adService.isInDevelopmentMode();
+  
   // Get dimensions based on position
-  const dimensions = adSenseService.getAdDimensions(position);
+  const dimensions = adService.getAdDimensions(position);
 
-  // Initialize AdSense service and display ad
+  // Initialize and display ad
   useEffect(() => {
     let mounted = true;
-    let retryCount = 0;
-    let retryTimer = null;
     
-    const setupAd = async () => {
+    const initAd = async () => {
       try {
         // Initialize the ad service first
-        const initialized = await adSenseService.init();
+        await adService.init();
         
-        if (!mounted) return;
-        
-        // Mark as initialized to avoid duplicate initialization
-        setHasInitialized(true);
-        
-        // In development mode, always show fallbacks and mark as loaded
+        // In development mode, always show fallbacks
         if (isDevelopment) {
           setAdLoaded(true);
           return;
         }
         
-        if (!initialized) {
-          // Ad service failed to initialize (likely blocked)
-          console.log('AdSense initialization failed, using fallback if available');
-          setAdError(adSenseService.isAdBlockerDetected());
-          setAdLoaded(true); // Still mark as loaded to display fallback
+        // Check if the adRef exists and is in the DOM
+        if (!adRef.current) {
+          console.warn('Ad container ref not found');
+          setAdError(true);
           return;
         }
         
-        // Service initialized successfully, now display the ad
-        const adContainer = adRef.current;
-        
-        if (!adContainer) {
-          // Ad container ref not found, retry if we haven't exhausted retries
-          if (retryCount < 3) {
-            retryTimer = setTimeout(() => {
-              retryCount++;
-              setupAd();
-            }, 300);
-          } else {
-            setAdError(true);
-          }
-          return;
-        }
-        
+        // Wait for next render cycle to ensure dimensions are applied
         setTimeout(() => {
-          // Check if container exists and has dimensions before displaying ad
-          if (adContainer && adContainer.offsetWidth > 0 && adContainer.offsetHeight > 0) {
-            console.log(`Ad container is ready with width: ${adContainer.offsetWidth}px`);
-            const success = adSenseService.displayAd(adContainer);
-            if (mounted) {
-              setAdLoaded(success);
-              setAdError(!success);
-            }
-          } else {
-            console.warn(`Ad container has insufficient dimensions:`, adContainer);
-            if (mounted) {
+          if (!mounted) return;
+          
+          const container = adRef.current;
+          
+          // Debug dimensions
+          console.log(`Ad container dimensions for ${position}:`, {
+            width: container.offsetWidth,
+            height: container.offsetHeight,
+            style: container.style.cssText
+          });
+          
+          // Only initialize if the container has dimensions
+          if (container.offsetWidth > 0) {
+            // Find the AdSense ins element in this container
+            const adElement = container.querySelector('.adsbygoogle');
+            
+            if (adElement) {
+              // Push to AdSense for initialization
+              try {
+                (window.adsbygoogle = window.adsbygoogle || []).push({});
+                setAdLoaded(true);
+              } catch (error) {
+                console.error('Error initializing AdSense:', error);
+                setAdError(true);
+              }
+            } else {
+              console.warn('AdSense element not found in container');
               setAdError(true);
             }
+          } else {
+            console.warn('Ad container has zero width, not displaying ad');
+            setAdError(true);
           }
         }, 500);
         
       } catch (error) {
         console.error('Error setting up ad:', error);
-        if (mounted) {
-          setAdError(true);
-        }
+        if (mounted) setAdError(true);
       }
     };
     
-    // Only run setup if not already initialized
-    if (!hasInitialized) {
-      setupAd();
-    }
+    initAd();
     
     return () => {
       mounted = false;
-      if (retryTimer) {
-        clearTimeout(retryTimer);
-      }
     };
-  }, [position, hasInitialized, isDevelopment]);
+  }, [position, isDevelopment]);
 
-  // In development mode, always show fallback content
+  // In development mode, show fallback
   if (isDevelopment) {
     return (
-      
       <div 
-        ref={adRef}
         className={`ad-container ad-${position} ${className}`}
         style={{ 
           width: dimensions.width,
           height: dimensions.height,
-          minWidth: "300px", // Add explicit minimum width
-          minHeight: "50px", // Add explicit minimum height
           maxWidth: dimensions.maxWidth || 'none',
           margin: '0 auto',
           overflow: 'hidden',
@@ -119,7 +102,7 @@ const AdBanner = ({ position, className = '' }) => {
       >
         <div 
           style={{ width: '100%', height: '100%' }}
-          dangerouslySetInnerHTML={{ __html: adSenseService.getFallbackAdHtml(position) }}
+          dangerouslySetInnerHTML={{ __html: adService.getFallbackAdHtml(position) }}
         />
         <div 
           className="ad-label"
@@ -137,7 +120,7 @@ const AdBanner = ({ position, className = '' }) => {
     );
   }
 
-  // If there was an error loading the ad, try to show a fallback
+  // If there was an error, show fallback
   if (adError) {
     return (
       <div 
@@ -156,7 +139,7 @@ const AdBanner = ({ position, className = '' }) => {
       >
         <div
           style={{ width: '100%', height: '100%' }}
-          dangerouslySetInnerHTML={{ __html: adSenseService.getFallbackAdHtml(position) }}
+          dangerouslySetInnerHTML={{ __html: adService.getFallbackAdHtml(position) }}
         />
         <div 
           className="ad-label"
@@ -174,6 +157,7 @@ const AdBanner = ({ position, className = '' }) => {
     );
   }
 
+  // Default ad display
   return (
     <div 
       ref={adRef}
@@ -181,6 +165,8 @@ const AdBanner = ({ position, className = '' }) => {
       style={{ 
         width: dimensions.width,
         height: dimensions.height,
+        minWidth: position === 'sidebar' ? '300px' : '336px',
+        minHeight: position === 'sidebar' ? '250px' : '280px',
         maxWidth: dimensions.maxWidth || 'none',
         margin: '0 auto',
         overflow: 'hidden',
@@ -190,16 +176,22 @@ const AdBanner = ({ position, className = '' }) => {
         justifyContent: 'center',
       }}
     >
-      {/* AdSense ad container */}
-      <div 
+      {/* The AdSense ad container */}
+      <ins 
+        className="adsbygoogle"
         style={{ 
-          width: '100%', 
+          display: 'block',
+          width: '100%',
           height: '100%',
+          minHeight: position === 'sidebar' ? '250px' : '280px',
           opacity: adLoaded ? 1 : 0,
           transition: 'opacity 0.3s ease-in-out',
         }}
-        dangerouslySetInnerHTML={{ __html: adSenseService.getAdHtml(position) }}
-      />
+        data-ad-client="ca-pub-2652838159140308"
+        data-ad-slot={getAdSlot(position)}
+        data-ad-format="auto"
+        data-full-width-responsive="true"
+      ></ins>
       
       {/* Advertisement label */}
       <div 
@@ -217,5 +209,18 @@ const AdBanner = ({ position, className = '' }) => {
     </div>
   );
 };
+
+// Helper function to get ad slot based on position
+function getAdSlot(position) {
+  // Replace these with your actual ad slots from your AdSense account
+  const slots = {
+    'top': '5273146000',       // Replace with your actual slot ID
+    'sidebar': '5273146000',   // Replace with your actual slot ID
+    'inContent': '2613401062', // Replace with your actual slot ID
+    'footer': '5273146000'     // Replace with your actual slot ID
+  };
+  
+  return slots[position] || slots.sidebar;
+}
 
 export default AdBanner;
