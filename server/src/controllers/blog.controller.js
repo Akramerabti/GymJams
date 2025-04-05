@@ -1135,6 +1135,10 @@ const extractTags = (article) => {
 
 // The main processContent function
 const processContent = async (articles, categories) => {
+  if (!Array.isArray(articles)) {
+    console.error('Articles parameter is not an array:', typeof articles);
+    return [];
+  }
   const processedArticles = [];
   
   for (const article of articles) {
@@ -1302,6 +1306,10 @@ export const trackBlogView = async (req, res) => {
   }
 };
 
+// The issue is in the importContent function in server/src/controllers/blog.controller.js
+// Specifically around line 1369 where processedArticles.slice is being called
+// Let's modify the function:
+
 export const importContent = async (req, res) => {
   try {
     const { sources = [], categories = [], count = 10 } = req.body;
@@ -1332,41 +1340,43 @@ export const importContent = async (req, res) => {
     let allArticles = [];
     let errors = [];
     
-    // Try RSS feeds first
-    try {
-      if (selectedSources.includes('rss')) {
-        const rssArticles = await parseRSSFeeds(selectedCategories);
-        allArticles = [...allArticles, ...rssArticles];
-      }
-    } catch (error) {
-      errors.push('RSS feed error: ' + error.message);
-    }
-    
-    // Try NewsAPI or fallback if RSS fails or returns too few results
-    if (allArticles.length < count && selectedSources.includes('newsapi')) {
+    // Try NewsAPI first
+    if (selectedSources.includes('newsapi')) {
       try {
+        console.log('Fetching from News API...');
         const newsArticles = await fetchFromNewsAPI(selectedCategories);
         allArticles = [...allArticles, ...newsArticles];
       } catch (error) {
+        console.error('Error fetching from News API:', error);
         errors.push('NewsAPI error: ' + error.message);
       }
     }
     
-    // If we still don't have enough articles, add default content
+    // If we don't have enough articles, add default content
     if (allArticles.length < count) {
       try {
+        console.log('Fetching default fitness content...');
         const defaultArticles = await fetchDefaultFitnessContent();
         allArticles = [...allArticles, ...defaultArticles];
       } catch (error) {
+        console.error('Error fetching default content:', error);
         errors.push('Default content error: ' + error.message);
       }
     }
     
     // Process and clean articles
-    const processedArticles = processContent(allArticles, selectedCategories);
+    console.log(`Processing ${allArticles.length} articles...`);
+    // Make sure processContent returns an array
+    const processedArticles = await processContent(allArticles, selectedCategories) || [];
+    
+    if (!Array.isArray(processedArticles)) {
+      console.error('processContent did not return an array:', processedArticles);
+      throw new Error('Invalid processed articles format');
+    }
     
     // Limit to requested count
     const limitedArticles = processedArticles.slice(0, count);
+    console.log(`Limited to ${limitedArticles.length} articles`);
 
     const importedBlogs = [];
 
@@ -1374,8 +1384,7 @@ export const importContent = async (req, res) => {
       try {
         const blog = new Blog();
         blog.title = article.title || 'Untitled Article';
-        blog.metaDescription = article.description?.substring(0, 160) || 'No description available';
-        console.log('Article Content:', article.content);
+        blog.metaDescription = article.metaDescription || article.description?.substring(0, 160) || 'No description available';
         blog.content = article.content || '<p>Content unavailable</p>';
         blog.category = article.category || selectedCategories[0];
         blog.tags = article.tags || [];
@@ -1387,7 +1396,6 @@ export const importContent = async (req, res) => {
           type: String(article.source?.type || 'unknown'),
           importedAt: new Date()
         };
-await blog.save();
         
         await blog.save();
         importedBlogs.push(blog);
