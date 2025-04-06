@@ -508,7 +508,136 @@ const CoachingHome = () => {
         viewport={{ once: true }}
         transition={{ duration: 0.5, delay: index * 0.1 }}
       >
-        {/* Coach card content */}
+        {/* Coach Image */}
+        <div className="relative h-64 overflow-hidden">
+          {coach.profileImage ? (
+            <img 
+              src={coach.profileImage} 
+              alt={`Coach ${coach.firstName}`}
+              className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = fallbackAvatarUrl; 
+              }}
+            />
+          ) : (
+            <div className={`w-full h-full flex items-center justify-center ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+              <User className={`w-24 h-24 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+            </div>
+          )}
+          <div className={`absolute bottom-0 left-0 right-0 p-4 ${isDarkMode ? 'bg-gradient-to-t from-black/80 to-transparent' : 'bg-gradient-to-t from-black/70 to-transparent'}`}>
+            <h3 className="text-xl font-bold text-white drop-shadow-sm">
+              {coach.firstName} {coach.lastName}
+            </h3>
+          </div>
+        </div>
+        
+        {/* Coach Details */}
+        <div className="p-6">
+          {/* Coach Specialties */}
+          <div className="mb-4 flex flex-wrap gap-2">
+            {coach.specialties && coach.specialties.length > 0 ? (
+              coach.specialties.slice(0, 3).map((specialty, idx) => (
+                <span key={idx} className={`
+                  text-xs px-2 py-1 rounded-full
+                  ${isDarkMode 
+                    ? 'bg-blue-900/30 text-blue-300' 
+                    : 'bg-blue-100 text-blue-800'}
+                `}>
+                  {specialty}
+                </span>
+              ))
+            ) : (
+              <span className={`
+                text-xs px-2 py-1 rounded-full
+                ${isDarkMode 
+                  ? 'bg-gray-700 text-gray-300' 
+                  : 'bg-gray-100 text-gray-700'}
+              `}>
+                Fitness Coach
+              </span>
+            )}
+            {coach.specialties && coach.specialties.length > 3 && (
+              <span className={`
+                text-xs px-2 py-1 rounded-full
+                ${isDarkMode 
+                  ? 'bg-gray-700 text-gray-300' 
+                  : 'bg-gray-100 text-gray-700'}
+              `}>
+                +{coach.specialties.length - 3} more
+              </span>
+            )}
+          </div>
+          
+          {/* Coach Rating if available */}
+          {coach.rating && (
+            <div className="flex items-center mb-4">
+              <div className="flex">
+                {[...Array(5)].map((_, i) => (
+                  <Star 
+                    key={i} 
+                    className={`w-4 h-4 ${
+                      i < Math.floor(coach.rating) 
+                        ? 'text-yellow-400 fill-yellow-400' 
+                        : 'text-gray-300 dark:text-gray-600'
+                    }`} 
+                  />
+                ))}
+              </div>
+              <span className={`ml-2 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                {coach.rating.toFixed(1)}
+              </span>
+            </div>
+          )}
+          
+          {/* Coach Bio (truncated) */}
+          {coach.bio && (
+            <p className={`text-sm mb-4 line-clamp-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              {coach.bio}
+            </p>
+          )}
+          
+          {/* Social links if available */}
+          {coach.socialLinks && (
+            <div className="flex space-x-2 mb-4">
+              {coach.socialLinks.instagram && (
+                <a 
+                  href={coach.socialLinks.instagram} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className={`p-2 rounded-full ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                >
+                  <Instagram className="w-4 h-4 text-pink-500" />
+                </a>
+              )}
+              {coach.socialLinks.twitter && (
+                <a 
+                  href={coach.socialLinks.twitter} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className={`p-2 rounded-full ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                >
+                  <Twitter className="w-4 h-4 text-blue-400" />
+                </a>
+              )}
+            </div>
+          )}
+          
+          {/* Call-to-action button */}
+          <button
+            onClick={() => handleSelectPlan(subscriptionPlans[1])} // Default to premium plan
+            className={`
+              w-full py-2 px-4 rounded-lg font-medium flex items-center justify-center
+              ${isDarkMode 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                : 'bg-blue-600 hover:bg-blue-700 text-white'}
+              transition-colors duration-300
+            `}
+          >
+            <ExternalLink className="w-4 h-4 mr-2" />
+            See Coaching Plans
+          </button>
+        </div>
       </motion.div>
     ))}
   </div>
