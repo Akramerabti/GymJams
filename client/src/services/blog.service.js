@@ -183,19 +183,19 @@ class BlogService {
     }
   }
 
-  // ===== NEW: Blog Import Functions =====
-  
-  // Import content from external sources
   async importContent(importOptions) {
     try {
       const response = await api.post('/blog/import', importOptions);
-      return response.data;
+      return {
+        data: response.data.data,
+        stats: response.data.stats,
+        message: response.data.message
+      };
     } catch (error) {
       console.error('Error importing blog content:', error);
       throw error;
     }
   }
-  
   // Get import statistics
   async getImportStats() {
     try {

@@ -1,10 +1,37 @@
+// Enhanced cart store with debouncing and throttling for API calls
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import api from '../services/api';
 import { toast } from 'sonner';
 import inventoryService from '../services/inventory.service';
 import { usePoints } from '../hooks/usePoints';
-import { stripe } from '../lib/stripe';
+
+// Helper for debouncing functions
+const debounce = (func, wait) => {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
+
+// Helper for throttling functions
+const throttle = (func, limit) => {
+  let inThrottle;
+  return function executedFunction(...args) {
+    if (!inThrottle) {
+      func(...args);
+      inThrottle = true;
+      setTimeout(() => {
+        inThrottle = false;
+      }, limit);
+    }
+  };
+};
 
 const calculateTotals = (items, pointsDiscount = 0) => {
   // Fixed calculation to properly account for item quantities
@@ -59,6 +86,14 @@ const retryWithBackoff = async (apiCall, options = {}) => {
   throw lastError;
 };
 
+// Keep track of validation requests to avoid duplicates
+let stockValidationInProgress = false;
+let lastValidationTime = 0;
+const VALIDATION_THROTTLE = 2000; // 2 seconds
+
+// Store the last validation result
+let lastValidationResult = null;
+
 const useCartStore = create(
   persist(
     (set, get) => ({
@@ -87,6 +122,9 @@ const useCartStore = create(
         }
         
         toast.success(`${product.name} has been added to your cart.`);
+        
+        // Trigger stock validation after a delay to avoid immediate API call
+        get().debouncedValidateStock();
       },
 
       updatePointsDiscount: (points, discountAmount) => {
@@ -119,7 +157,23 @@ const useCartStore = create(
         if (quantity < 1) return false;
         
         try {
-          // Validate stock before updating quantity
+          // Get current item quantity from state
+          const { items } = get();
+          const currentItem = items.find(item => item.id === productId);
+          
+          // Skip validation if we're reducing quantity
+          if (currentItem && quantity < currentItem.quantity) {
+            const updatedItems = items.map(item =>
+              item.id === productId
+                ? { ...item, quantity }
+                : item
+            );
+            
+            set({ items: updatedItems });
+            return true;
+          }
+          
+          // For quantity increases, check stock
           const stockCheck = await inventoryService.validateStock([{ 
             id: productId, 
             quantity 
@@ -135,7 +189,6 @@ const useCartStore = create(
             return false;
           }
           
-          const { items } = get();
           const updatedItems = items.map(item =>
             item.id === productId
               ? { ...item, quantity }
@@ -167,7 +220,22 @@ const useCartStore = create(
        */
       validateCartStock: async () => {
         const { items } = get();
-        set({ loading: true, error: null, stockWarnings: [] });
+        
+        // If validation already in progress, don't start another
+        if (stockValidationInProgress) {
+          console.log('Stock validation already in progress, using last result');
+          return lastValidationResult;
+        }
+        
+        // If we validated recently, return the last result
+        const now = Date.now();
+        if (now - lastValidationTime < VALIDATION_THROTTLE && lastValidationResult !== null) {
+          console.log('Using cached stock validation result');
+          return lastValidationResult;
+        }
+        
+        stockValidationInProgress = true;
+        set({ loading: true, error: null });
 
         try {
           const response = await retryWithBackoff(() => 
@@ -181,20 +249,37 @@ const useCartStore = create(
               stockWarnings: response.outOfStockItems,
               error: 'Some items in your cart are out of stock or have insufficient quantity'
             });
+            lastValidationResult = false;
             return false;
           }
           
+          lastValidationResult = true;
           return true;
         } catch (error) {
           console.error('Stock validation error:', error);
           set({ 
             error: 'Failed to validate stock. Please try again.' 
           });
+          lastValidationResult = false;
           return false;
         } finally {
           set({ loading: false });
+          stockValidationInProgress = false;
+          lastValidationTime = Date.now();
         }
       },
+      
+      // Debounced version of validateCartStock
+      debouncedValidateStock: debounce(() => {
+        const { validateCartStock } = get();
+        validateCartStock();
+      }, 500),
+      
+      // Create a throttled version of initiateCheckout
+      throttledInitiateCheckout: throttle((checkoutData) => {
+        const { initiateCheckout } = get();
+        return initiateCheckout(checkoutData);
+      }, 1000),
 
       initiateCheckout: async (checkoutData) => {
         const { items, validateCartStock, pointsUsed, pointsDiscount } = get();
@@ -218,8 +303,8 @@ const useCartStore = create(
             shippingMethod: checkoutData.shippingMethod || 'standard',
             userId: checkoutData.userId || null,
             isGuest: !checkoutData.userId,
-            pointsUsed: pointsUsed || 0, // Ensure pointsUsed is passed
-            pointsDiscount: pointsDiscount || 0, // Ensure pointsDiscount is passed
+            pointsUsed: pointsUsed || 0,
+            pointsDiscount: pointsDiscount || 0,
           };
       
           let response;
@@ -260,61 +345,60 @@ const useCartStore = create(
         }
       },
 
-
       processPayment: async (paymentIntentId) => {
-  // Prevent concurrent payment processing
-  if (get().processingPayment) {
-    throw new Error('Payment already in progress');
-  }
+        // Prevent concurrent payment processing
+        if (get().processingPayment) {
+          throw new Error('Payment already in progress');
+        }
 
-  set({ loading: true, error: null, processingPayment: true });
+        set({ loading: true, error: null, processingPayment: true });
 
-  try {
-    const { pointsUsed } = get();
+        try {
+          const { pointsUsed } = get();
 
-    // Use retry pattern with exponential backoff
-    const response = await retryWithBackoff(
-      () => api.post('/orders/payment', { 
-        paymentIntentId,
-        pointsUsed: pointsUsed || 0
-      }),
-      { maxRetries: 5, baseDelay: 300 } // Increase retries and delay for payment processing
-    );
+          // Use retry pattern with exponential backoff
+          const response = await retryWithBackoff(
+            () => api.post('/orders/payment', { 
+              paymentIntentId,
+              pointsUsed: pointsUsed || 0
+            }),
+            { maxRetries: 5, baseDelay: 300 } // Increase retries and delay for payment processing
+          );
 
-    // If points were used, deduct them from the user's balance
-    if (pointsUsed > 0) {
-      try {
-        // Fetch the current points balance
-        const currentBalance = usePoints.getState().balance;
+          // If points were used, deduct them from the user's balance
+          if (pointsUsed > 0) {
+            try {
+              // Fetch the current points balance
+              const currentBalance = usePoints.getState().balance;
 
-        console.log('Current points balance:', currentBalance);
-         
-        const newBalance = currentBalance - pointsUsed;
+              console.log('Current points balance:', currentBalance);
+               
+              const newBalance = currentBalance - pointsUsed;
 
-        // Update points in the backend
-        await usePoints.getState().updatePointsInBackend(newBalance);
+              // Update points in the backend
+              await usePoints.getState().updatePointsInBackend(newBalance);
 
-        // Update local points state
-        usePoints.getState().subtractPoints(pointsUsed);
-      } catch (pointsError) {
-        console.error('Error updating points:', pointsError);
-        // Don't fail the payment if points update fails
-      }
-    }
+              // Update local points state
+              usePoints.getState().subtractPoints(pointsUsed);
+            } catch (pointsError) {
+              console.error('Error updating points:', pointsError);
+              // Don't fail the payment if points update fails
+            }
+          }
 
-    // Success! Clear cart
-    get().clearCart();
+          // Success! Clear cart
+          get().clearCart();
 
-    return response.data;
-  } catch (error) {
-    const message = error.response?.data?.message || error.message || 'Payment processing failed';
-    set({ error: message });
-    toast.error(message);
-    throw error;
-  } finally {
-    set({ loading: false, processingPayment: false });
-  }
-},
+          return response.data;
+        } catch (error) {
+          const message = error.response?.data?.message || error.message || 'Payment processing failed';
+          set({ error: message });
+          toast.error(message);
+          throw error;
+        } finally {
+          set({ loading: false, processingPayment: false });
+        }
+      },
 
       updateGuestEmail: async (email) => {
         const { checkoutData } = get();
@@ -390,24 +474,49 @@ const useCartStore = create(
         return item ? item.quantity : 0;
       },
 
-      // Get shipping methods and calculate costs
-      getShippingMethods: async () => {
-        const { items } = get();
-        const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      // Get shipping methods and calculate costs - with caching
+      getShippingMethods: (() => {
+        let cachedMethods = null;
+        let lastFetchTime = 0;
+        const SHIPPING_CACHE_TTL = 60 * 60 * 1000; // 1 hour
         
-        try {
-          const response = await api.post('/shipping/calculate', {
-            items: items.map(({ id, quantity }) => ({ id, quantity }))
-          });
-          return response.data;
-        } catch (error) {
-          console.error('Error fetching shipping methods:', error);
-          return [
-            { id: 'standard', name: 'Standard Shipping', price: subtotal >= 100 ? 0 : 10 },
-            { id: 'express', name: 'Express Shipping', price: 25 }
-          ];
-        }
-      },
+        return async () => {
+          const { items } = get();
+          const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+          
+          // Use cached data if available and fresh
+          if (cachedMethods && Date.now() - lastFetchTime < SHIPPING_CACHE_TTL) {
+            console.log('Using cached shipping methods');
+            return cachedMethods;
+          }
+          
+          try {
+            const response = await api.post('/shipping/calculate', {
+              items: items.map(({ id, quantity }) => ({ id, quantity }))
+            });
+            
+            // Cache the response
+            cachedMethods = response.data;
+            lastFetchTime = Date.now();
+            
+            return response.data;
+          } catch (error) {
+            console.error('Error fetching shipping methods:', error);
+            
+            // Fallback to default methods
+            const fallbackMethods = [
+              { id: 'standard', name: 'Standard Shipping', price: subtotal >= 100 ? 0 : 10 },
+              { id: 'express', name: 'Express Shipping', price: 25 }
+            ];
+            
+            // Still cache the fallback for a shorter time
+            cachedMethods = fallbackMethods;
+            lastFetchTime = Date.now() - (SHIPPING_CACHE_TTL / 2); // Cache for half the normal time
+            
+            return fallbackMethods;
+          }
+        };
+      })(),
 
       // Utility Functions
       setError: (error) => set({ error }),
@@ -454,7 +563,7 @@ export const useCart = () => {
     hasItem,
     getItemQuantity,
     validateCartStock,
-    initiateCheckout,
+    throttledInitiateCheckout,
     processPayment,
     cancelOrder,
     updatePointsDiscount,
@@ -482,7 +591,8 @@ export const useCart = () => {
     hasItem,
     getItemQuantity,
     validateCartStock,
-    initiateCheckout,
+    // Use throttled version instead
+    initiateCheckout: throttledInitiateCheckout,
     processPayment,
     cancelOrder,
     updatePointsDiscount,

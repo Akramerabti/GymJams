@@ -63,32 +63,50 @@ const BlogPost = () => {
     }
   }, [slug]);
   
-// In your BlogPost.jsx file, update the view tracking code to handle errors gracefully
-
-// Replace the existing useEffect for tracking views with this improved version
-useEffect(() => {
-  if (blog && !loading) {
-    const trackView = async () => {
-      try {
-        // First check if the endpoint exists by making a non-state-changing request
-        await api.get(`/blog/${slug}`);
-        
-        // If that succeeds, try to track the view
-        try {
-          await api.post(`/blog/${slug}/view`);
-        } catch (viewError) {
-          // If view tracking fails, just log it - don't show errors to users
-          console.warn('View tracking not available:', viewError.message);
-        }
-      } catch (error) {
-        console.error('Error with blog post:', error);
-        // Don't show this error to the user as long as the blog content loaded
+  const hasViewedPost = (slug) => {
+    try {
+      const viewedPosts = JSON.parse(sessionStorage.getItem('viewedBlogPosts') || '[]');
+      return viewedPosts.includes(slug);
+    } catch (error) {
+      return false;
+    }
+  };
+  
+  const markPostAsViewed = (slug) => {
+    try {
+      const viewedPosts = JSON.parse(sessionStorage.getItem('viewedBlogPosts') || '[]');
+      if (!viewedPosts.includes(slug)) {
+        viewedPosts.push(slug);
+        sessionStorage.setItem('viewedBlogPosts', JSON.stringify(viewedPosts));
       }
-    };
-    
-    trackView();
-  }
-}, [blog, loading, slug]);
+    } catch (error) {
+      console.warn('Error saving view state to session storage:', error);
+    }
+  };
+  
+  useEffect(() => {
+    // Only track view if blog is loaded and not already viewed in this session
+    if (blog && !loading && !hasViewedPost(slug)) {
+      const trackView = async () => {
+        try {
+          // Only make one API call to track the view
+          await api.post(`/blog/${slug}/view`);
+          // Mark this post as viewed in the current session
+          markPostAsViewed(slug);
+        } catch (error) {
+          // Silently handle errors - don't impact user experience
+          console.warn('View tracking error:', error.message);
+        }
+      };
+      
+      // Add a small delay to prevent immediate API call on page load
+      const timer = setTimeout(() => {
+        trackView();
+      }, 1500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [blog, loading, slug]);
 
   // Handle social sharing
   const handleShare = (platform) => {

@@ -173,6 +173,38 @@ const BlogManagement = () => {
     fetchImportStats();
   }, [user, refreshStats]);
 
+  const ImportStats = ({ stats }) => {
+    if (!stats) return null;
+    
+    return (
+      <div className="mt-4 p-4 rounded-lg bg-blue-50 border border-blue-100">
+        <h4 className="text-sm font-medium mb-2 text-blue-800">Import Statistics</h4>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="flex justify-between">
+            <span className="text-gray-600">Total Fetched:</span>
+            <span className="font-medium">{stats.totalFetched}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Duplicates Skipped:</span>
+            <span className="font-medium">{stats.duplicatesSkipped}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Successfully Processed:</span>
+            <span className="font-medium">{stats.successfullyProcessed}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Actually Imported:</span>
+            <span className="font-medium">{stats.actuallyImported}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Requested Count:</span>
+            <span className="font-medium">{stats.requestedCount}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Fetch blogs
   useEffect(() => {
     const fetchBlogs = async () => {
@@ -488,7 +520,6 @@ const BlogManagement = () => {
     });
   };
 
-  // Fetch blogs from external sources
   const fetchExternalBlogs = async () => {
     setImportLoading(true);
     setImportProgress(10);
@@ -510,16 +541,144 @@ const BlogManagement = () => {
         setImportedBlogs(response.data);
         // Select all blogs by default
         setSelectedImportedBlogs(response.data.map(blog => blog._id));
+        
         toast.success(`Successfully fetched ${response.data.length} blog posts`);
       } else {
-        toast.info('No blog posts found matching your criteria');
+        toast.info('No new blog posts found matching your criteria');
       }
     } catch (error) {
       console.error('Error fetching external blogs:', error);
       setImportError(error.response?.data?.message || 'Failed to fetch blogs');
-      toast.error('Failed to fetch blog posts');
+      toast.error(error.response?.data?.message || 'Failed to fetch blog posts');
     } finally {
       setImportLoading(false);
+    }
+  };
+  
+  // Updated approveSelectedBlogs function
+  const approveSelectedBlogs = async (blogIds = null) => {
+    // If blogIds is provided, use it, otherwise use selectedImportedBlogs or selectedPendingBlogs
+    const idsToApprove = blogIds || 
+      (activeTab === 'pending' ? selectedPendingBlogs : selectedImportedBlogs);
+    
+    if (idsToApprove.length === 0) {
+      toast.info('No blogs selected');
+      return;
+    }
+    
+    try {
+      const response = await blogService.approveImportedBlogs(idsToApprove);
+      
+      toast.success(`${response.data.count} blogs approved`);
+      
+      // Remove approved blogs from the list
+      if (activeTab === 'pending') {
+        setPendingBlogs(prev => 
+          prev.filter(blog => !idsToApprove.includes(blog._id))
+        );
+        setSelectedPendingBlogs([]);
+      } else {
+        setImportedBlogs(prev => 
+          prev.filter(blog => !idsToApprove.includes(blog._id))
+        );
+        setSelectedImportedBlogs([]);
+      }
+      
+      // Close dialogs if open
+      setViewBlogDialogOpen(false);
+      
+      // Close the import dialog if all blogs have been approved
+      if (activeTab !== 'pending' && importedBlogs.length === idsToApprove.length) {
+        setImportDialogOpen(false);
+      }
+      
+      // Update import stats
+      updateImportStats();
+      
+      // Force a refresh of the blogs list if we're on the 'published' tab
+      if (activeTab === 'published') {
+        const currentFilters = { ...filters };
+        setFilters({ ...currentFilters });
+      }
+    } catch (error) {
+      console.error('Error approving blogs:', error);
+      toast.error('Failed to approve blogs');
+    }
+  };
+  
+  // Updated rejectSelectedBlogs function
+  const rejectSelectedBlogs = async (blogIds = null) => {
+    // If blogIds is provided, use it, otherwise use selectedImportedBlogs or selectedPendingBlogs
+    const idsToReject = blogIds || 
+      (activeTab === 'pending' ? selectedPendingBlogs : selectedImportedBlogs);
+    
+    if (idsToReject.length === 0) {
+      toast.info('No blogs selected');
+      return;
+    }
+    
+    try {
+      const response = await blogService.rejectImportedBlogs(idsToReject);
+      
+      toast.success(`${response.data.count} blogs rejected`);
+      
+      // Remove rejected blogs from the list
+      if (activeTab === 'pending') {
+        setPendingBlogs(prev => 
+          prev.filter(blog => !idsToReject.includes(blog._id))
+        );
+        setSelectedPendingBlogs([]);
+      } else {
+        setImportedBlogs(prev => 
+          prev.filter(blog => !idsToReject.includes(blog._id))
+        );
+        setSelectedImportedBlogs([]);
+      }
+      
+      // Close dialogs if open
+      setViewBlogDialogOpen(false);
+      
+      // Close the import dialog if all blogs have been rejected
+      if (activeTab !== 'pending' && importedBlogs.length === idsToReject.length) {
+        setImportDialogOpen(false);
+      }
+      
+      // Update import stats
+      updateImportStats();
+    } catch (error) {
+      console.error('Error rejecting blogs:', error);
+      toast.error('Failed to reject blogs');
+    }
+  };
+  
+  // Function to update import stats
+  const updateImportStats = async () => {
+    try {
+      const response = await blogService.getImportStats();
+      setImportStats(response.data || {
+        total: 0,
+        processed: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0
+      });
+      
+      // Also refresh the main blog stats
+      const totalBlogs = response.data?.total || 0;
+      setAnalytics(prev => ({
+        ...prev,
+        totalBlogs
+      }));
+      
+      // Trigger a re-fetch for the pending blogs tab
+      if (activeTab === 'pending') {
+        const currentFilters = { ...pendingBlogsFilters };
+        setPendingBlogsFilters({ ...currentFilters });
+      }
+      
+      setRefreshStats(prev => !prev);
+    } catch (error) {
+      console.error('Error updating import stats:', error);
     }
   };
 
@@ -647,86 +806,6 @@ const BlogManagement = () => {
   const handleViewBlog = (blog) => {
     setBlogToView(blog);
     setViewBlogDialogOpen(true);
-  };
-
-  // Approve selected blogs
-  const approveSelectedBlogs = async (blogIds = null) => {
-    // If blogIds is provided, use it, otherwise use selectedImportedBlogs or selectedPendingBlogs
-    const idsToApprove = blogIds || 
-      (activeTab === 'pending' ? selectedPendingBlogs : selectedImportedBlogs);
-    
-    if (idsToApprove.length === 0) {
-      toast.info('No blogs selected');
-      return;
-    }
-    
-    try {
-      const response = await blogService.approveImportedBlogs(idsToApprove);
-      
-      toast.success(`${response.data.count} blogs approved`);
-      
-      // Remove approved blogs from the list
-      if (activeTab === 'pending') {
-        setPendingBlogs(prev => 
-          prev.filter(blog => !idsToApprove.includes(blog._id))
-        );
-        setSelectedPendingBlogs([]);
-      } else {
-        setImportedBlogs(prev => 
-          prev.filter(blog => !idsToApprove.includes(blog._id))
-        );
-        setSelectedImportedBlogs([]);
-      }
-      
-      // Close dialogs if open
-      setViewBlogDialogOpen(false);
-      
-      // Refresh stats
-      setRefreshStats(prev => !prev);
-    } catch (error) {
-      console.error('Error approving blogs:', error);
-      toast.error('Failed to approve blogs');
-    }
-  };
-
-  // Reject selected blogs
-  const rejectSelectedBlogs = async (blogIds = null) => {
-    // If blogIds is provided, use it, otherwise use selectedImportedBlogs or selectedPendingBlogs
-    const idsToReject = blogIds || 
-      (activeTab === 'pending' ? selectedPendingBlogs : selectedImportedBlogs);
-    
-    if (idsToReject.length === 0) {
-      toast.info('No blogs selected');
-      return;
-    }
-    
-    try {
-      const response = await blogService.rejectImportedBlogs(idsToReject);
-      
-      toast.success(`${response.data.count} blogs rejected`);
-      
-      // Remove rejected blogs from the list
-      if (activeTab === 'pending') {
-        setPendingBlogs(prev => 
-          prev.filter(blog => !idsToReject.includes(blog._id))
-        );
-        setSelectedPendingBlogs([]);
-      } else {
-        setImportedBlogs(prev => 
-          prev.filter(blog => !idsToReject.includes(blog._id))
-        );
-        setSelectedImportedBlogs([]);
-      }
-      
-      // Close dialogs if open
-      setViewBlogDialogOpen(false);
-      
-      // Refresh stats
-      setRefreshStats(prev => !prev);
-    } catch (error) {
-      console.error('Error rejecting blogs:', error);
-      toast.error('Failed to reject blogs');
-    }
   };
 
   // Analytics summary cards
@@ -1538,348 +1617,363 @@ const BlogManagement = () => {
       </Dialog>
       
       {/* Blog Import Dialog */}
-      <Dialog 
-        open={importDialogOpen} 
-        onOpenChange={(open) => {
-          if (!importLoading) setImportDialogOpen(open);
-        }}
-        className="max-w-4xl"
-      >
-        <DialogContent className={`max-w-4xl ${isDarkMode ? 'bg-gray-800 text-white border-gray-700' : ''}`}>
-          <DialogHeader>
-            <DialogTitle>Import Blog Content</DialogTitle>
-          </DialogHeader>
-          
-          {!importedBlogs.length ? (
-            // Step 1: Configure import options
-            <div className="py-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Sources Selection */}
-                <div>
-                  <h3 className={`text-base font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
-                    Select Sources
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center">
-                      <Checkbox 
-                        id="source-newsapi" 
-                        checked={importOptions.sources.includes('newsapi')} 
-                        onCheckedChange={() => toggleSource('newsapi')}
-                        className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
-                      />
-                      <label 
-                        htmlFor="source-newsapi" 
-                        className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
-                      >
-                        News API (Current Articles)
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <Checkbox 
-                        id="source-rss" 
-                        checked={importOptions.sources.includes('rss')} 
-                        onCheckedChange={() => toggleSource('rss')}
-                        className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
-                      />
-                      <label 
-                        htmlFor="source-rss" 
-                        className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
-                      >
-                        RSS Feeds (Fitness Blogs)
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <Checkbox 
-                        id="source-spoonacular" 
-                        checked={importOptions.sources.includes('spoonacular')} 
-                        onCheckedChange={() => toggleSource('spoonacular')}
-                        className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
-                      />
-                      <label 
-                        htmlFor="source-spoonacular" 
-                        className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
-                      >
-                        Spoonacular (Nutrition Articles)
-                      </label>
-                    </div>
-                  </div>
+<Dialog 
+  open={importDialogOpen} 
+  onOpenChange={(open) => {
+    if (!importLoading) setImportDialogOpen(open);
+  }}
+>
+  <DialogContent 
+    className={`${isDarkMode ? 'bg-gray-800 text-white border-gray-700' : ''}`}
+    style={{
+      maxWidth: 'min(90vw, 800px)',
+      maxHeight: '85vh',
+      width: '100%',
+      marginInline: 'auto',
+      overflow: 'hidden',
+      display: 'flex', 
+      flexDirection: 'column'
+    }}
+  >
+    <DialogHeader>
+      <DialogTitle>Import Blog Content</DialogTitle>
+    </DialogHeader>
+    
+    <div className="overflow-y-auto flex-1 py-4 pr-2" style={{ scrollbarWidth: 'thin' }}>
+      {!importedBlogs.length ? (
+        // Step 1: Configure import options
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Sources Selection */}
+            <div>
+              <h3 className={`text-base font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                Select Sources
+              </h3>
+              <div className="space-y-3">
+                <div className="flex items-center">
+                  <Checkbox 
+                    id="source-newsapi" 
+                    checked={importOptions.sources.includes('newsapi')} 
+                    onCheckedChange={() => toggleSource('newsapi')}
+                    className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
+                  />
+                  <label 
+                    htmlFor="source-newsapi" 
+                    className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
+                  >
+                    News API (Current Articles)
+                  </label>
                 </div>
                 
-                {/* Categories Selection */}
-                <div>
-                  <h3 className={`text-base font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
-                    Select Categories
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center">
-                      <Checkbox 
-                        id="category-fitness" 
-                        checked={importOptions.categories.includes('Fitness')} 
-                        onCheckedChange={() => toggleCategory('Fitness')}
-                        className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
-                      />
-                      <label 
-                        htmlFor="category-fitness" 
-                        className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
-                      >
-                        Fitness
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <Checkbox 
-                        id="category-nutrition" 
-                        checked={importOptions.categories.includes('Nutrition')} 
-                        onCheckedChange={() => toggleCategory('Nutrition')}
-                        className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
-                      />
-                      <label 
-                        htmlFor="category-nutrition" 
-                        className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
-                      >
-                        Nutrition
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <Checkbox 
-                        id="category-workoutplans" 
-                        checked={importOptions.categories.includes('Workout Plans')} 
-                        onCheckedChange={() => toggleCategory('Workout Plans')}
-                        className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
-                      />
-                      <label 
-                        htmlFor="category-workoutplans" 
-                        className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
-                      >
-                        Workout Plans
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <Checkbox 
-                        id="category-healthtips" 
-                        checked={importOptions.categories.includes('Health Tips')} 
-                        onCheckedChange={() => toggleCategory('Health Tips')}
-                        className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
-                      />
-                      <label 
-                        htmlFor="category-healthtips" 
-                        className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
-                      >
-                        Health Tips
-                      </label>
-                    </div>
-                  </div>
+                <div className="flex items-center">
+                  <Checkbox 
+                    id="source-rss" 
+                    checked={importOptions.sources.includes('rss')} 
+                    onCheckedChange={() => toggleSource('rss')}
+                    className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
+                  />
+                  <label 
+                    htmlFor="source-rss" 
+                    className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
+                  >
+                    RSS Feeds (Fitness Blogs)
+                  </label>
+                </div>
+                
+                <div className="flex items-center">
+                  <Checkbox 
+                    id="source-spoonacular" 
+                    checked={importOptions.sources.includes('spoonacular')} 
+                    onCheckedChange={() => toggleSource('spoonacular')}
+                    className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
+                  />
+                  <label 
+                    htmlFor="source-spoonacular" 
+                    className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
+                  >
+                    Spoonacular (Nutrition Articles)
+                  </label>
                 </div>
               </div>
-              
-              {/* Max Count Slider */}
-              <div className="mt-6">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className={`text-base font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
-                    Maximum Articles to Fetch
-                  </h3>
-                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                    {importOptions.count}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="5"
-                  max="50"
-                  step="5"
-                  value={importOptions.count}
-                  onChange={(e) => handleImportOptionChange('count', parseInt(e.target.value))}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs mt-1">
-                  <span className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>5</span>
-                  <span className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>50</span>
-                </div>
-              </div>
-              
-              {/* Error Message */}
-              {importError && (
-                <div className="mt-4 p-3 rounded-md bg-red-50 text-red-700">
-                  <p className="text-sm">{importError}</p>
-                </div>
-              )}
-              
-              {/* Progress Bar */}
-              {importLoading && (
-                <div className="mt-6">
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Fetching Content...
-                    </h3>
-                    <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                      {importProgress}%
-                    </span>
-                  </div>
-                  <Progress value={importProgress} className="h-2" />
-                </div>
-              )}
             </div>
-          ) : (
-            // Step 2: Review and select imported blogs
-            <div className="py-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className={`text-base font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
-                  Review Imported Content ({importedBlogs.length})
-                </h3>
-                <div className="flex items-center space-x-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={toggleSelectAll}
-                    className={isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
+            
+            {/* Categories Selection */}
+            <div>
+              <h3 className={`text-base font-medium mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                Select Categories
+              </h3>
+              <div className="space-y-3">
+                <div className="flex items-center">
+                  <Checkbox 
+                    id="category-fitness" 
+                    checked={importOptions.categories.includes('Fitness')} 
+                    onCheckedChange={() => toggleCategory('Fitness')}
+                    className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
+                  />
+                  <label 
+                    htmlFor="category-fitness" 
+                    className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
                   >
-                    {selectedImportedBlogs.length === importedBlogs.length ? 'Deselect All' : 'Select All'}
-                  </Button>
-                  
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      setImportedBlogs([]);
-                      setSelectedImportedBlogs([]);
-                    }}
-                    className={isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
+                    Fitness
+                  </label>
+                </div>
+                
+                <div className="flex items-center">
+                  <Checkbox 
+                    id="category-nutrition" 
+                    checked={importOptions.categories.includes('Nutrition')} 
+                    onCheckedChange={() => toggleCategory('Nutrition')}
+                    className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
+                  />
+                  <label 
+                    htmlFor="category-nutrition" 
+                    className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
                   >
-                    Back to Options
-                  </Button>
+                    Nutrition
+                  </label>
+                </div>
+                
+                <div className="flex items-center">
+                  <Checkbox 
+                    id="category-workoutplans" 
+                    checked={importOptions.categories.includes('Workout Plans')} 
+                    onCheckedChange={() => toggleCategory('Workout Plans')}
+                    className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
+                  />
+                  <label 
+                    htmlFor="category-workoutplans" 
+                    className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
+                  >
+                    Workout Plans
+                  </label>
+                </div>
+                
+                <div className="flex items-center">
+                  <Checkbox 
+                    id="category-healthtips" 
+                    checked={importOptions.categories.includes('Health Tips')} 
+                    onCheckedChange={() => toggleCategory('Health Tips')}
+                    className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
+                  />
+                  <label 
+                    htmlFor="category-healthtips" 
+                    className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}
+                  >
+                    Health Tips
+                  </label>
                 </div>
               </div>
-              
-              <div className="border rounded-md overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className={isDarkMode ? 'bg-gray-700 hover:bg-gray-700' : ''}>
-                      <TableHead className="w-[30px]"></TableHead>
-                      <TableHead>Title & Source</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {importedBlogs.map((blog) => (
-                      <TableRow key={blog._id} className={isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
-                        <TableCell className="pr-0">
-                          <Checkbox 
-                            checked={selectedImportedBlogs.includes(blog._id)} 
-                            onCheckedChange={() => toggleBlogSelection(blog._id)}
-                            className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className={`font-medium ${isDarkMode ? 'text-white' : ''}`}>
-                              {blog.title.length > 60 ? `${blog.title.substring(0, 60)}...` : blog.title}
-                            </p>
-                            <div className="flex items-center mt-1">
-                              <Badge variant="outline" className={isDarkMode ? 'border-gray-600 text-gray-300' : ''}>
-                                {blog.source.name}
-                              </Badge>
-                              <span className={`text-xs ml-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                {new Date(blog.source.importedAt).toLocaleDateString()}
-                              </span>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{blog.category || 'Uncategorized'}</TableCell>
-                        <TableCell className="text-right">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => openEditImportedBlog(blog)}
-                            className={isDarkMode ? 'hover:bg-gray-700 text-gray-300' : ''}
-                          >
-                            <Edit className="h-4 w-4 mr-1" />
-                            Edit
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => window.open(blog.source.url, '_blank')}
-                            className={isDarkMode ? 'hover:bg-gray-700 text-gray-300' : ''}
-                          >
-                            <ExternalLink className="h-4 w-4 mr-1" />
-                            Source
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+            </div>
+          </div>
+          
+          {/* Max Count Slider */}
+          <div className="mt-6">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className={`text-base font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                Maximum Articles to Fetch
+              </h3>
+              <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                {importOptions.count}
+              </span>
+            </div>
+            <input
+              type="range"
+              min="5"
+              max="50"
+              step="5"
+              value={importOptions.count}
+              onChange={(e) => handleImportOptionChange('count', parseInt(e.target.value))}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs mt-1">
+              <span className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>5</span>
+              <span className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>50</span>
+            </div>
+            <p className={`text-xs mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+              This sets the maximum number of new articles to import. Articles already in the database will be automatically skipped.
+            </p>
+          </div>
+          
+          {/* Error Message */}
+          {importError && (
+            <div className="mt-4 p-3 rounded-md bg-red-50 text-red-700">
+              <p className="text-sm">{importError}</p>
             </div>
           )}
           
-          <DialogFooter>
-            {!importedBlogs.length ? (
-              // Step 1 Footer: Fetch or Cancel
+          {/* Progress Bar */}
+          {importLoading && (
+            <div className="mt-6">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Fetching Content...
+                </h3>
+                <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {importProgress}%
+                </span>
+              </div>
+              <Progress value={importProgress} className="h-2" />
+            </div>
+          )}
+        </div>
+      ) : (
+        // Step 2: Review and select imported blogs
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className={`text-base font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+              Review Imported Content ({importedBlogs.length})
+            </h3>
+            <div className="flex items-center space-x-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={toggleSelectAll}
+                className={isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
+              >
+                {selectedImportedBlogs.length === importedBlogs.length ? 'Deselect All' : 'Select All'}
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  setImportedBlogs([]);
+                  setSelectedImportedBlogs([]);
+                }}
+                className={isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
+              >
+                Back to Options
+              </Button>
+            </div>
+          </div>
+          
+          <div className="border rounded-md overflow-hidden" style={{ maxHeight: '60vh' }}>
+            <Table>
+              <TableHeader className="sticky top-0 z-10">
+                <TableRow className={isDarkMode ? 'bg-gray-700 hover:bg-gray-700' : ''}>
+                  <TableHead className="w-[30px]"></TableHead>
+                  <TableHead>Title & Source</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {importedBlogs.map((blog) => (
+                  <TableRow key={blog._id} className={isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
+                    <TableCell className="pr-0">
+                      <Checkbox 
+                        checked={selectedImportedBlogs.includes(blog._id)} 
+                        onCheckedChange={() => toggleBlogSelection(blog._id)}
+                        className={isDarkMode ? 'border-gray-600 data-[state=checked]:bg-blue-600' : ''}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <p className={`font-medium ${isDarkMode ? 'text-white' : ''}`}>
+                          {blog.title.length > 60 ? `${blog.title.substring(0, 60)}...` : blog.title}
+                        </p>
+                        <div className="flex items-center mt-1">
+                          <Badge variant="outline" className={isDarkMode ? 'border-gray-600 text-gray-300' : ''}>
+                            {blog.source.name}
+                          </Badge>
+                          <span className={`text-xs ml-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {new Date(blog.source.importedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>{blog.category || 'Uncategorized'}</TableCell>
+                    <TableCell className="text-right">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => openEditImportedBlog(blog)}
+                        className={isDarkMode ? 'hover:bg-gray-700 text-gray-300' : ''}
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => window.open(blog.source.url, '_blank')}
+                        className={isDarkMode ? 'hover:bg-gray-700 text-gray-300' : ''}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-1" />
+                        Source
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+    </div>
+    
+    <DialogFooter className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+      {!importedBlogs.length ? (
+        // Step 1 Footer: Fetch or Cancel
+        <>
+          <Button
+            variant="outline"
+            onClick={() => setImportDialogOpen(false)}
+            disabled={importLoading}
+            className={isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
+          >
+            Cancel
+          </Button>
+          <Button
+            disabled={importLoading || importOptions.sources.length === 0 || importOptions.categories.length === 0}
+            onClick={fetchExternalBlogs}
+          >
+            {importLoading ? (
               <>
-                <Button
-                  variant="outline"
-                  onClick={() => setImportDialogOpen(false)}
-                  disabled={importLoading}
-                  className={isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  disabled={importLoading || importOptions.sources.length === 0 || importOptions.categories.length === 0}
-                  onClick={fetchExternalBlogs}
-                >
-                  {importLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Fetching...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-4 w-4 mr-2" />
-                      Fetch Articles
-                    </>
-                  )}
-                </Button>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Fetching...
               </>
             ) : (
-              // Step 2 Footer: Approve/Reject or Cancel
               <>
-                <Button
-                  variant="outline"
-                  onClick={() => setImportDialogOpen(false)}
-                  className={isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
-                >
-                  Cancel
-                </Button>
-                <div className="flex space-x-2">
-                  <Button
-                    variant="destructive"
-                    onClick={() => rejectSelectedBlogs()}
-                    disabled={selectedImportedBlogs.length === 0}
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    Reject Selected
-                  </Button>
-                  <Button
-                    onClick={() => approveSelectedBlogs()}
-                    disabled={selectedImportedBlogs.length === 0}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    <Check className="h-4 w-4 mr-2" />
-                    Approve Selected
-                  </Button>
-                </div>
+                <Download className="h-4 w-4 mr-2" />
+                Fetch Articles
               </>
             )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </Button>
+        </>
+      ) : (
+        // Step 2 Footer: Approve/Reject or Cancel
+        <>
+          <Button
+            variant="outline"
+            onClick={() => setImportDialogOpen(false)}
+            className={isDarkMode ? 'border-gray-700 hover:bg-gray-700 text-gray-300' : ''}
+          >
+            Cancel
+          </Button>
+          <div className="flex space-x-2">
+            <Button
+              variant="destructive"
+              onClick={() => rejectSelectedBlogs()}
+              disabled={selectedImportedBlogs.length === 0}
+            >
+              <X className="h-4 w-4 mr-2" />
+              Reject Selected
+            </Button>
+            <Button
+              onClick={() => approveSelectedBlogs()}
+              disabled={selectedImportedBlogs.length === 0}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Check className="h-4 w-4 mr-2" />
+              Approve Selected
+            </Button>
+          </div>
+        </>
+      )}
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
       
       {/* Edit Imported Blog Dialog */}
       <Dialog open={editImportedBlogOpen} onOpenChange={setEditImportedBlogOpen}>

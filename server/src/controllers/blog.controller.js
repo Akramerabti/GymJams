@@ -777,7 +777,37 @@ const isContentTruncated = (content) => {
 
 export const trackBlogView = async (req, res) => {
   try {
-    const blog = await Blog.findOne({ slug: req.params.slug });
+    // Get client IP address for rate limiting check
+    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    const blogSlug = req.params.slug;
+    
+    // Use an in-memory cache or Redis cache to track recent views
+    // For simplicity, we'll use a Map in this example (in a real app, use Redis)
+    const recentViewsCache = req.app.locals.recentBlogViews || new Map();
+    if (!req.app.locals.recentBlogViews) {
+      req.app.locals.recentBlogViews = recentViewsCache;
+    }
+    
+    // Check if this IP + slug combination has already tracked a view recently
+    const cacheKey = `${clientIP}:${blogSlug}`;
+    if (recentViewsCache.has(cacheKey)) {
+      return res.status(200).json({
+        success: true,
+        message: 'View already counted for this session',
+        data: { counted: false }
+      });
+    }
+    
+    // Track the view with a 5-minute expiration (to prevent rapid refresh spam)
+    recentViewsCache.set(cacheKey, true);
+    setTimeout(() => recentViewsCache.delete(cacheKey), 5 * 60 * 1000); // 5 minutes
+    
+    // Use findOneAndUpdate instead of find + save for atomic operation
+    const blog = await Blog.findOneAndUpdate(
+      { slug: blogSlug },
+      { $inc: { 'analytics.views': 1 } },
+      { new: true, select: 'analytics.views' }
+    );
     
     if (!blog) {
       return res.status(404).json({
@@ -786,19 +816,17 @@ export const trackBlogView = async (req, res) => {
       });
     }
     
-    // Increment view count
-    blog.analytics.views += 1;
-    await blog.save();
-    
     res.status(200).json({
       success: true,
-      data: { views: blog.analytics.views }
+      data: { views: blog.analytics.views, counted: true }
     });
   } catch (error) {
     logger.error('Error tracking blog view:', error);
-    res.status(500).json({
+    // Send a 200 response anyway to prevent client retries
+    res.status(200).json({
       success: false,
-      message: error.message
+      message: 'View tracking failed, but continuing',
+      data: { counted: false }
     });
   }
 };
@@ -1581,7 +1609,6 @@ const processContent = async (articles, categories) => {
   return processedArticles;
 };
 
-// Improved importContent function
 export const importContent = async (req, res) => {
   try {
     const { sources = [], categories = [], count = 10 } = req.body;
@@ -1610,6 +1637,13 @@ export const importContent = async (req, res) => {
     
     console.log(`Importing content from sources: ${selectedSources.join(', ')}`);
     console.log(`Categories: ${selectedCategories.join(', ')}`);
+    console.log(`Requested count: ${count}`);
+    
+    // First, get existing source URLs from the database
+    const existingBlogs = await Blog.find({ 'source.url': { $exists: true, $ne: '' } }, 'source.url');
+    const existingUrls = new Set(existingBlogs.map(blog => blog.source.url));
+    
+    console.log(`Found ${existingUrls.size} existing blog URLs in database`);
     
     // Fetch articles from selected sources in parallel
     const fetchPromises = [];
@@ -1626,9 +1660,14 @@ export const importContent = async (req, res) => {
     const articlesArrays = await Promise.all(fetchPromises);
     let allArticles = articlesArrays.flat();
     
-    // Remove duplicates based on URL
+    // Filter out articles that already exist in the database
+    let newArticles = allArticles.filter(article => {
+      return article.source?.url && !existingUrls.has(article.source.url);
+    });
+    
+    // Remove duplicates within the fetched articles (based on URL)
     const uniqueUrls = new Set();
-    allArticles = allArticles.filter(article => {
+    newArticles = newArticles.filter(article => {
       if (!article.source?.url || uniqueUrls.has(article.source.url)) {
         return false;
       }
@@ -1636,18 +1675,22 @@ export const importContent = async (req, res) => {
       return true;
     });
     
-    console.log(`Found ${allArticles.length} unique articles from all sources`);
+    console.log(`Found ${allArticles.length} total articles, ${newArticles.length} are new unique articles`);
     
-    if (allArticles.length === 0) {
+    if (newArticles.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'No articles found from selected sources. Try different sources or categories.'
+        message: 'No new articles found from selected sources. All articles have already been imported or try different sources/categories.'
       });
     }
     
+    // Process up to 3x the requested count to ensure we have enough
+    // after content processing (some might be rejected due to content length)
+    const articlesToProcess = newArticles.slice(0, count * 3);
+    console.log(`Processing ${articlesToProcess.length} articles to meet target count of ${count}...`);
+    
     // Process and clean articles
-    console.log(`Processing articles...`);
-    const processedArticles = await processContent(allArticles, selectedCategories);
+    const processedArticles = await processContent(articlesToProcess, selectedCategories);
     
     if (processedArticles.length === 0) {
       return res.status(404).json({
@@ -1700,10 +1743,20 @@ export const importContent = async (req, res) => {
       });
     }
     
+    // Include details about duplication in the response
+    const stats = {
+      totalFetched: allArticles.length,
+      duplicatesSkipped: allArticles.length - newArticles.length,
+      successfullyProcessed: processedArticles.length,
+      actuallyImported: importedBlogs.length,
+      requestedCount: count
+    };
+    
     res.status(200).json({
       success: true,
       data: importedBlogs,
-      message: `Successfully imported ${importedBlogs.length} blog posts with quality content`,
+      stats: stats,
+      message: `Successfully imported ${importedBlogs.length} new blog posts with quality content`,
     });
   } catch (error) {
     console.error('Error importing content:', error);
