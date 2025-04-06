@@ -657,407 +657,6 @@ export const getAdPerformance = async (req, res) => {
   }
 };
 
-// ===== NEW: BLOG IMPORT FUNCTIONS =====
-
-// Parse RSS feeds function
-const parseRSSFeeds = async (categories) => {
-  const fitnessFeeds = [
-    'https://www.t-nation.com/feed/', 
-    'https://feeds.feedburner.com/MuscleForLife',
-    'https://fitnessvolt.com/feed/',
-    'https://www.nerdfitness.com/blog/feed/'
-  ];
-  
-  const nutritionFeeds = [
-    'https://www.marksdailyapple.com/feed/',
-    'https://rss.sciencedaily.com/fitness_nutrition.xml',
-    'https://www.precisionnutrition.com/feed'
-  ];
-  
-  // Select feeds based on requested categories
-  let feedsToFetch = [];
-  if (categories.includes('Fitness')) {
-    feedsToFetch = [...feedsToFetch, ...fitnessFeeds];
-  }
-  if (categories.includes('Nutrition')) {
-    feedsToFetch = [...feedsToFetch, ...nutritionFeeds];
-  }
-  
-  if (feedsToFetch.length === 0) {
-    feedsToFetch = [...fitnessFeeds, ...nutritionFeeds];
-  }
-  
-  const parser = new RSS({
-    customFields: {
-      item: [
-        ['content:encoded', 'fullContent'],  // Add this line to get full content
-        ['description', 'description']
-      ]
-    }
-  });
-  
-  for (const feedUrl of feedsToFetch) {
-    try {
-      const feed = await parser.parseURL(feedUrl);
-      
-      // Process each item
-      const items = feed.items.map(item => ({
-        title: item.title,
-        // Use full content instead of excerpt if available
-        description: item.contentSnippet || item.description?.substring(0, 160) || '',
-        // Use the full content field instead of description
-        content: item.fullContent || item.content || item.description || '',
-        url: item.link,
-        publishDate: item.pubDate ? new Date(item.pubDate) : new Date(),
-        source: {
-          name: sourceName,
-          url: item.link,
-          type: 'rss',
-          importedAt: new Date()
-        }
-      }));
-      
-      results.push(...items);
-    } catch (error) {
-      logger.error(`Error parsing RSS feed ${feedUrl}:`, error);
-    }
-  }
-  
-  return results;
-};
-
-const fetchFullContentFromWordPress = async (url) => {
-  try {
-    // Extract the post ID from the URL if possible
-    const urlObj = new URL(url);
-    const pathParts = urlObj.pathname.split('/').filter(Boolean);
-    const postSlug = pathParts[pathParts.length - 1];
-    
-    // Try to get the WordPress API endpoint
-    const apiUrl = `${urlObj.origin}/wp-json/wp/v2/posts?slug=${postSlug}`;
-    
-    const response = await axios.get(apiUrl);
-    
-    if (response.data && response.data.length > 0) {
-      // WordPress API response includes rendered content
-      return response.data[0].content.rendered;
-    }
-    
-    // If API fails, try to scrape the content
-    return await scrapeContentFromURL(url);
-  } catch (error) {
-    logger.error(`Error fetching WordPress content from ${url}:`, error);
-    // Fallback to scraping if API fails
-    return await scrapeContentFromURL(url);
-  }
-};
-
-const scrapeContentFromURL = async (url) => {
-  try {
-    const response = await axios.get(url);
-    const html = response.data;
-    const dom = new JSDOM(html);
-    const document = dom.window.document;
-    
-    // Try various common content selectors
-    const selectors = [
-      'article .entry-content', 
-      '.post-content', 
-      '.article-content',
-      'article',
-      '.content',
-      'main .entry-content',
-      '.post-body',
-      '.post .entry',
-      '#content .post'
-    ];
-    
-    for (const selector of selectors) {
-      const contentElement = document.querySelector(selector);
-      if (contentElement) {
-        // Clean up the content
-        let content = contentElement.innerHTML;
-        
-        // Remove navigation, related posts, etc.
-        content = content.replace(/<div class="navigation">.*?<\/div>/gs, '');
-        content = content.replace(/<div class="related-posts">.*?<\/div>/gs, '');
-        content = content.replace(/<div class="sharedaddy">.*?<\/div>/gs, '');
-        content = content.replace(/\[&#8230;\]/g, ''); // Remove ellipsis
-        
-        return content;
-      }
-    }
-    
-    return null;
-  } catch (error) {
-    logger.error(`Error scraping content from ${url}:`, error);
-    return null;
-  }
-};
-
-// Fetch from News API
-const fetchFromNewsAPI = async (categories) => {
-  const apiKey = process.env.NEWS_API_KEY;
-  if (!apiKey) {
-    console.log('Skipping NewsAPI - no API key provided');
-    return []; // Return empty array instead of logging error
-  }
-  const categoryKeywords = {
-    'Fitness': ['fitness', 'workout', 'exercise', 'gym'],
-    'Nutrition': ['nutrition', 'diet', 'healthy eating', 'food'],
-    'Workout Plans': ['workout plan', 'training program', 'exercise routine'],
-    'Health Tips': ['health tips', 'wellness', 'healthy lifestyle']
-  };
-  
-  // Build search query based on selected categories
-  let keywords = [];
-  categories.forEach(category => {
-    if (categoryKeywords[category]) {
-      keywords = [...keywords, ...categoryKeywords[category]];
-    }
-  });
-  
-  // If no categories specified, use a default set
-  if (keywords.length === 0) {
-    keywords = ['fitness', 'nutrition', 'workout', 'health'];
-  }
-  
-  try {
-    const apiKey = process.env.NEWS_API_KEY;
-    if (!apiKey) {
-      console.log('NEWS_API_KEY not found in environment variables - using default fitness content');
-      return await fetchDefaultFitnessContent();
-    }
-    
-    // Combine keywords for the query
-    const query = keywords.join(' OR ');
-    
-    const response = await axios.get(`https://newsapi.org/v2/everything`, {
-      params: {
-        q: query,
-        pageSize: 20,
-        language: 'en',
-        sortBy: 'publishedAt',
-        apiKey
-      }
-    });
-    
-    if (response.data.status !== 'ok' || !response.data.articles) {
-      console.error('News API error:', response.data);
-      return await fetchDefaultFitnessContent();
-    }
-    
-    // Process articles
-    const articles = response.data.articles.map(article => ({
-      title: article.title,
-      description: article.description || '',
-      content: article.content || '',
-      url: article.url,
-      publishDate: article.publishedAt ? new Date(article.publishedAt) : new Date(),
-      source: {
-        name: article.source.name || 'News API',
-        url: article.url,
-        type: 'newsapi',
-        importedAt: new Date()
-      }
-    }));
-    
-    return articles;
-  } catch (error) {
-    console.error('Error fetching from News API:', error);
-    return await fetchDefaultFitnessContent();
-  }
-};
-
-// Fetch nutrition-related content from Spoonacular
-const fetchFromSpoonacular = async () => {
-  try {
-    const apiKey = process.env.SPOONACULAR_API_KEY;
-    if (!apiKey) {
-      logger.error('SPOONACULAR_API_KEY not found in environment variables');
-      return [];
-    }
-    
-    // Get nutrition articles from Spoonacular
-    const response = await axios.get(`https://api.spoonacular.com/food/articles`, {
-      params: {
-        apiKey,
-        number: 20
-      }
-    });
-    
-    if (!response.data || !response.data.articles) {
-      logger.error('Spoonacular API error:', response.data);
-      return [];
-    }
-    
-    // Process articles - we need to fetch full content for each
-    const articles = [];
-    for (const article of response.data.articles) {
-      try {
-        // Get content from URL
-        const contentResponse = await axios.get(article.url);
-        
-        // Use cheerio to extract content
-        const $ = cheerio.load(contentResponse.data);
-        let content = '';
-        
-        // Different sites have different structures, try common content selectors
-        const contentSelectors = ['article', '.post-content', '.entry-content', '.content', '#content', 'main'];
-        for (const selector of contentSelectors) {
-          const el = $(selector);
-          if (el.length) {
-            content = el.html() || '';
-            break;
-          }
-        }
-        
-        // Clean content
-        content = sanitizeHtml(content);
-        
-        articles.push({
-          title: article.title,
-          description: article.description || article.summary || '',
-          content,
-          url: article.url,
-          publishDate: new Date(),
-          source: {
-            name: 'Spoonacular',
-            url: article.url,
-            type: 'spoonacular',
-            importedAt: new Date()
-          }
-        });
-      } catch (error) {
-        logger.error(`Error fetching content for ${article.url}:`, error);
-        // Continue with next article
-      }
-    }
-    
-    return articles;
-  } catch (error) {
-    logger.error('Error fetching from Spoonacular:', error);
-    return [];
-  }
-};
-
-// Complete updated processContent function for blog.controller.js
-
-// First add these helper functions above processContent
-
-// Function to fetch full content from a URL
-const fetchFullContent = async (url) => {
-  try {
-    const response = await axios.get(url);
-    const html = response.data;
-    const dom = new JSDOM(html);
-    const document = dom.window.document;
-    
-    // Try various common content selectors
-    const selectors = [
-      'article .entry-content', 
-      '.post-content', 
-      '.article-content',
-      'article',
-      '.content',
-      '.entry-content',
-      'main .entry-content',
-      '.post-body',
-      '.post .entry',
-      '#content .post',
-      '.post-container',
-      '.blog-post-content'
-    ];
-    
-    for (const selector of selectors) {
-      const contentElement = document.querySelector(selector);
-      if (contentElement) {
-        // Clean up the content
-        let content = contentElement.innerHTML;
-        
-        // Remove navigation, related posts, sharing widgets, etc.
-        const elementsToRemove = [
-          '.navigation', '.post-navigation', '.nav-links',
-          '.related-posts', '.yarpp-related', '.related-content',
-          '.sharedaddy', '.share-buttons', '.social-share',
-          '.comments', '#comments', '.comment-section',
-          '.adsbygoogle', '.advertisement', '.ad-container',
-          '.sidebar', '.widget-area',
-          '.author-bio', '.about-author',
-          '.post-tags', '.tag-links'
-        ];
-        
-        for (const selector of elementsToRemove) {
-          const elements = contentElement.querySelectorAll(selector);
-          elements.forEach(el => el.parentNode?.removeChild(el));
-        }
-        
-        // Get the cleaned content
-        content = contentElement.innerHTML;
-        
-        // Remove empty paragraphs and divs
-        content = content.replace(/<p>\s*<\/p>/g, '');
-        content = content.replace(/<div>\s*<\/div>/g, '');
-        
-        // Remove ellipsis markers
-        content = content.replace(/\[&#8230;\]/g, '');
-        content = content.replace(/\[…\]/g, '');
-        content = content.replace(/\.\.\.\s*$/g, '');
-        content = content.replace(/&hellip;/g, '');
-        
-        // Clean up any "read more" or "continue reading" links
-        content = content.replace(/<a[^>]*>Read more.*?<\/a>/gi, '');
-        content = content.replace(/<a[^>]*>Continue reading.*?<\/a>/gi, '');
-        
-        return content;
-      }
-    }
-    
-    // If no selectors match, try getting the entire body content
-    const bodyContent = document.querySelector('body');
-    if (bodyContent) {
-      // Use a simpler extraction approach
-      // Try to find the largest text block which is likely the main content
-      const paragraphs = bodyContent.querySelectorAll('p');
-      let largestTextBlock = '';
-      let maxLength = 0;
-      
-      // Group adjacent paragraphs to find the main content
-      let currentBlock = '';
-      for (let i = 0; i < paragraphs.length; i++) {
-        const p = paragraphs[i];
-        const text = p.textContent.trim();
-        
-        if (text.length > 20) { // Minimum paragraph length
-          currentBlock += p.outerHTML;
-          
-          // Check if we're at the end or next paragraph is far away
-          if (i === paragraphs.length - 1 || 
-              !p.nextElementSibling || 
-              p.nextElementSibling.tagName !== 'P') {
-            
-            if (currentBlock.length > maxLength) {
-              maxLength = currentBlock.length;
-              largestTextBlock = currentBlock;
-            }
-            currentBlock = '';
-          }
-        }
-      }
-      
-      if (largestTextBlock.length > 200) { // Minimum content length
-        return largestTextBlock;
-      }
-    }
-    
-    return null;
-  } catch (error) {
-    console.error(`Error fetching content from ${url}:`, error);
-    return null;
-  }
-};
-
-
 // Extract potential category based on content analysis
 const determineCategory = (article) => {
   const title = (article.title || '').toLowerCase();
@@ -1133,108 +732,6 @@ const extractTags = (article) => {
   return matchedTags.slice(0, 5);
 };
 
-// The main processContent function
-const processContent = async (articles, categories) => {
-  if (!Array.isArray(articles)) {
-    console.error('Articles parameter is not an array:', typeof articles);
-    return [];
-  }
-  const processedArticles = [];
-  
-  for (const article of articles) {
-    try {
-      console.log(`Processing article: "${article.title}"`);
-      
-      // Check if content is truncated
-      let finalContent = article.content || '';
-      
-      if (isContentTruncated(finalContent) && article.source?.url) {
-        console.log(`Content appears to be truncated, attempting to fetch full content from: ${article.source.url}`);
-        
-        // Try to fetch full content
-        const fetchedContent = await fetchFullContent(article.source.url);
-        
-        if (fetchedContent && fetchedContent.length > finalContent.length) {
-          console.log(`Successfully fetched full content (${fetchedContent.length} chars vs. original ${finalContent.length} chars)`);
-          finalContent = fetchedContent;
-        } else {
-          console.log(`Could not fetch fuller content, using original (${finalContent.length} chars)`);
-        }
-      }
-      
-      // Convert common HTML entities
-      finalContent = finalContent
-        .replace(/&#8217;/g, "'")
-        .replace(/&#8216;/g, "'")
-        .replace(/&#8220;/g, '"')
-        .replace(/&#8221;/g, '"')
-        .replace(/&#8211;/g, '–')
-        .replace(/&#8212;/g, '—')
-        .replace(/&#8230;/g, '...')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&quot;/g, '"')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>');
-      
-      // Determine category
-      let category = article.category || '';
-      
-      if (!category || !categories.includes(category)) {
-        category = determineCategory(article);
-      }
-      
-      // Extract tags if not provided
-      const tags = article.tags?.length > 0 ? article.tags : extractTags({
-        title: article.title,
-        content: finalContent
-      });
-      
-      // Create meta description if not provided
-      let metaDescription = article.metaDescription || article.description || '';
-      
-      if (!metaDescription) {
-        // Extract first paragraph text for meta description
-        const textContent = finalContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        metaDescription = textContent.substring(0, 160);
-        
-        if (metaDescription.length >= 160) {
-          metaDescription = metaDescription.substring(0, 157) + '...';
-        }
-      }
-      
-      // Calculate reading time
-      const readingTime = calculateReadingTime(finalContent);
-      
-      // Create the processed article
-      processedArticles.push({
-        title: article.title || 'Untitled Article',
-        slug: article.slug || generateSlug(article.title),
-        metaDescription: metaDescription,
-        content: finalContent,
-        category: category,
-        tags: tags,
-        status: 'draft', // Default to draft
-        source: article.source || {
-          name: 'Unknown',
-          url: '',
-          type: 'manual',
-          importedAt: new Date()
-        },
-        readingTime: readingTime,
-        publishDate: article.publishDate || new Date()
-      });
-      
-      console.log(`Processed "${article.title}" - ${finalContent.length} chars, ${readingTime} min read time`);
-      
-    } catch (error) {
-      console.error(`Error processing article "${article.title}":`, error);
-      // Skip this article if processing fails
-    }
-  }
-  
-  return processedArticles;
-};
 
 // Helper function to calculate reading time
 const calculateReadingTime = (content) => {
@@ -1306,119 +803,6 @@ export const trackBlogView = async (req, res) => {
   }
 };
 
-// The issue is in the importContent function in server/src/controllers/blog.controller.js
-// Specifically around line 1369 where processedArticles.slice is being called
-// Let's modify the function:
-
-export const importContent = async (req, res) => {
-  try {
-    const { sources = [], categories = [], count = 10 } = req.body;
-    
-    // Validate sources
-    const validSources = ['newsapi', 'rss', 'spoonacular'];
-    const selectedSources = sources.filter(source => validSources.includes(source));
-    
-    if (selectedSources.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'No valid sources selected'
-      });
-    }
-    
-    // Validate categories
-    const validCategories = ['Fitness', 'Nutrition', 'Workout Plans', 'Health Tips', 'Motivation'];
-    const selectedCategories = categories.filter(category => validCategories.includes(category));
-    
-    if (selectedCategories.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'No valid categories selected'
-      });
-    }
-    
-    // Fetch articles from selected sources
-    let allArticles = [];
-    let errors = [];
-    
-    // Try NewsAPI first
-    if (selectedSources.includes('newsapi')) {
-      try {
-        console.log('Fetching from News API...');
-        const newsArticles = await fetchFromNewsAPI(selectedCategories);
-        allArticles = [...allArticles, ...newsArticles];
-      } catch (error) {
-        console.error('Error fetching from News API:', error);
-        errors.push('NewsAPI error: ' + error.message);
-      }
-    }
-    
-    // If we don't have enough articles, add default content
-    if (allArticles.length < count) {
-      try {
-        console.log('Fetching default fitness content...');
-        const defaultArticles = await fetchDefaultFitnessContent();
-        allArticles = [...allArticles, ...defaultArticles];
-      } catch (error) {
-        console.error('Error fetching default content:', error);
-        errors.push('Default content error: ' + error.message);
-      }
-    }
-    
-    // Process and clean articles
-    console.log(`Processing ${allArticles.length} articles...`);
-    // Make sure processContent returns an array
-    const processedArticles = await processContent(allArticles, selectedCategories) || [];
-    
-    if (!Array.isArray(processedArticles)) {
-      console.error('processContent did not return an array:', processedArticles);
-      throw new Error('Invalid processed articles format');
-    }
-    
-    // Limit to requested count
-    const limitedArticles = processedArticles.slice(0, count);
-    console.log(`Limited to ${limitedArticles.length} articles`);
-
-    const importedBlogs = [];
-
-    for (const article of limitedArticles) {
-      try {
-        const blog = new Blog();
-        blog.title = article.title || 'Untitled Article';
-        blog.metaDescription = article.metaDescription || article.description?.substring(0, 160) || 'No description available';
-        blog.content = article.content || '<p>Content unavailable</p>';
-        blog.category = article.category || selectedCategories[0];
-        blog.tags = article.tags || [];
-        blog.author = req.user._id;
-        blog.status = 'draft';
-        blog.source = {
-          name: String(article.source?.name || 'Unknown'), 
-          url: String(article.source?.url || ''),
-          type: String(article.source?.type || 'unknown'),
-          importedAt: new Date()
-        };
-        
-        await blog.save();
-        importedBlogs.push(blog);
-      } catch (error) {
-        console.error('Error saving blog:', error);
-        // Continue to next article
-      }
-    }
-    
-    res.status(200).json({
-      success: true,
-      data: importedBlogs,
-      message: `Imported ${importedBlogs.length} blog posts`,
-      warnings: errors.length > 0 ? errors : undefined
-    });
-  } catch (error) {
-    console.error('Error importing content:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
 // Get import statistics
 export const getImportStats = async (req, res) => {
   try {
@@ -1645,6 +1029,684 @@ export const rejectImportedBlogs = async (req, res) => {
     });
   } catch (error) {
     logger.error('Error rejecting imported blogs:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Improved blog content fetching functions
+
+// Fetch from News API with better error handling and no fallbacks
+const fetchFromNewsAPI = async (categories) => {
+  try {
+    const apiKey = process.env.NEWS_API_KEY;
+    if (!apiKey) {
+      console.log('NEWS_API_KEY not found in environment variables');
+      return [];
+    }
+    
+    // Build more targeted search query based on categories
+    const categoryKeywords = {
+      'Fitness': ['fitness workout', 'exercise program', 'strength training', 'gym routine'],
+      'Nutrition': ['nutrition diet', 'healthy eating', 'meal planning', 'macronutrients'],
+      'Workout Plans': ['workout program', 'training plan', 'exercise routine', 'fitness schedule'],
+      'Health Tips': ['health wellness', 'wellbeing tips', 'healthy lifestyle', 'fitness advice']
+    };
+    
+    // Build search query based on selected categories
+    let queries = [];
+    categories.forEach(category => {
+      if (categoryKeywords[category]) {
+        queries = [...queries, ...categoryKeywords[category]];
+      }
+    });
+    
+    // If no categories specified, use a default set
+    if (queries.length === 0) {
+      queries = ['fitness workout', 'nutrition diet', 'strength training'];
+    }
+
+    // Make multiple requests for different queries to maximize results
+    const articlesPromises = queries.map(async (query) => {
+      try {
+        const response = await axios.get(`https://newsapi.org/v2/everything`, {
+          params: {
+            q: query,
+            pageSize: 10,
+            language: 'en',
+            sortBy: 'relevancy',
+            apiKey
+          }
+        });
+        
+        if (response.data.status !== 'ok' || !response.data.articles) {
+          console.error('News API error for query:', query, response.data);
+          return [];
+        }
+        
+        return response.data.articles;
+      } catch (error) {
+        console.error(`News API error for query "${query}":`, error);
+        return [];
+      }
+    });
+    
+    const articlesArrays = await Promise.all(articlesPromises);
+    
+    // Flatten and deduplicate articles by URL
+    const dedupedArticles = [];
+    const urlSet = new Set();
+    
+    articlesArrays.flat().forEach(article => {
+      if (!urlSet.has(article.url)) {
+        urlSet.add(article.url);
+        dedupedArticles.push(article);
+      }
+    });
+    
+    // Process articles
+    return dedupedArticles.map(article => ({
+      title: article.title,
+      description: article.description || '',
+      content: article.content || '',
+      url: article.url,
+      publishDate: article.publishedAt ? new Date(article.publishedAt) : new Date(),
+      source: {
+        name: article.source.name || 'News API',
+        url: article.url,
+        type: 'newsapi',
+        importedAt: new Date()
+      }
+    }));
+  } catch (error) {
+    console.error('Error fetching from News API:', error);
+    return [];
+  }
+};
+
+// Improved RSS feed parser with better feed sources
+const parseRSSFeeds = async (categories) => {
+  // More reliable fitness RSS feeds
+  const fitnessFeeds = [
+    'https://www.bodybuilding.com/rss/articles',
+    'https://www.t-nation.com/feed/',
+    'https://www.nerdfitness.com/blog/feed/',
+    'https://www.menshealth.com/rss/all.xml/',
+    'https://www.womenshealthmag.com/rss/all.xml/',
+    'https://www.shape.com/feeds/all.rss.xml'
+  ];
+  
+  const nutritionFeeds = [
+    'https://www.precisionnutrition.com/feed',
+    'https://www.healthline.com/nutrition/feed',
+    'https://rss.sciencedaily.com/fitness_nutrition.xml',
+    'https://www.eatingwell.com/feed/'
+  ];
+  
+  const workoutFeeds = [
+    'https://www.muscleandfitness.com/feed/',
+    'https://breakingmuscle.com/feed/',
+    'https://www.strongerbyscience.com/feed/'
+  ];
+  
+  // Select feeds based on requested categories
+  let feedsToFetch = [];
+  if (categories.includes('Fitness')) {
+    feedsToFetch = [...feedsToFetch, ...fitnessFeeds];
+  }
+  if (categories.includes('Nutrition')) {
+    feedsToFetch = [...feedsToFetch, ...nutritionFeeds];
+  }
+  if (categories.includes('Workout Plans')) {
+    feedsToFetch = [...feedsToFetch, ...workoutFeeds];
+  }
+  
+  // If no specific category selected, use all feeds
+  if (feedsToFetch.length === 0) {
+    feedsToFetch = [...fitnessFeeds, ...nutritionFeeds, ...workoutFeeds];
+  }
+  
+  // Randomly select up to 5 feeds to query for better performance
+  if (feedsToFetch.length > 5) {
+    feedsToFetch = feedsToFetch.sort(() => 0.5 - Math.random()).slice(0, 5);
+  }
+  
+  const parser = new RSS({
+    customFields: {
+      item: [
+        ['content:encoded', 'fullContent'],
+        ['description', 'description']
+      ]
+    }
+  });
+  
+  const results = [];
+  
+  for (const feedUrl of feedsToFetch) {
+    try {
+      console.log(`Fetching RSS feed: ${feedUrl}`);
+      const feed = await parser.parseURL(feedUrl);
+      console.log(`Successfully parsed RSS feed: ${feedUrl}, found ${feed.items.length} items`);
+      
+      // Process each item
+      const items = feed.items.map(item => ({
+        title: item.title,
+        description: item.contentSnippet || item.description?.substring(0, 160) || '',
+        content: item.fullContent || item.content || item.description || '',
+        url: item.link,
+        publishDate: item.pubDate ? new Date(item.pubDate) : new Date(),
+        source: {
+          name: feed.title || 'RSS Feed',
+          url: item.link,
+          type: 'rss',
+          importedAt: new Date()
+        }
+      }));
+      
+      results.push(...items);
+    } catch (error) {
+      console.error(`Error parsing RSS feed ${feedUrl}:`, error);
+    }
+  }
+  
+  return results;
+};
+
+// Improved full content fetching with multiple fallback strategies
+const fetchFullContent = async (url) => {
+  try {
+    console.log(`Fetching full content from: ${url}`);
+    
+    // Set timeout to avoid hanging on slow sites
+    const response = await axios.get(url, {
+      timeout: 10000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
+    
+    const html = response.data;
+    
+    // Try multiple parsing strategies
+    
+    // Strategy 1: WordPress REST API for WordPress sites
+    try {
+      const wpContent = await fetchWordPressContent(url);
+      if (wpContent && wpContent.length > 1000) {
+        console.log(`Successfully fetched WordPress content (${wpContent.length} chars)`);
+        return wpContent;
+      }
+    } catch (wpError) {
+      console.log('WordPress API strategy failed:', wpError.message);
+    }
+    
+    // Strategy 2: JSDOM with common content selectors
+    try {
+      const dom = new JSDOM(html);
+      const document = dom.window.document;
+      
+      // Very comprehensive list of content selectors
+      const selectors = [
+        'article .entry-content', 
+        '.post-content',
+        '.article-content',
+        '.article__content',
+        'article .content',
+        '.post .entry',
+        '.post-body-content',
+        '.main-content article',
+        '.article-body',
+        '.entry-content',
+        '.content-area',
+        '.post__content',
+        'main article',
+        '#content-body',
+        '.blog-post',
+        '.single-post-content',
+        '.story-body',
+        '.story-content',
+        '.page-content'
+      ];
+      
+      for (const selector of selectors) {
+        const contentElement = document.querySelector(selector);
+        if (contentElement) {
+          // Clean up the content
+          const content = cleanupContent(contentElement.innerHTML);
+          
+          if (content.length > 1000) {
+            console.log(`Found content with selector "${selector}" (${content.length} chars)`);
+            return content;
+          }
+        }
+      }
+    } catch (domError) {
+      console.log('JSDOM strategy failed:', domError.message);
+    }
+    
+    // Strategy 3: Cheerio as a fallback
+    try {
+      const $ = cheerio.load(html);
+      const selectors = [
+        'article', '.post', '.entry', '.content', 'main', '#content', '.article'
+      ];
+      
+      for (const selector of selectors) {
+        const element = $(selector);
+        if (element.length) {
+          // Find the element with the most text
+          let bestElement = element;
+          let maxTextLength = element.text().length;
+          
+          element.find('div, section').each((i, el) => {
+            const textLength = $(el).text().length;
+            if (textLength > maxTextLength) {
+              maxTextLength = textLength;
+              bestElement = $(el);
+            }
+          });
+          
+          const content = cleanupContent(bestElement.html());
+          
+          if (content.length > 1000) {
+            console.log(`Found content with cheerio selector "${selector}" (${content.length} chars)`);
+            return content;
+          }
+        }
+      }
+    } catch (cheerioError) {
+      console.log('Cheerio strategy failed:', cheerioError.message);
+    }
+    
+    // Strategy 4: Extract the largest div by content
+    try {
+      const $ = cheerio.load(html);
+      
+      // Get all divs with substantial content
+      const divs = $('div').filter((i, el) => {
+        const text = $(el).text().trim();
+        return text.length > 1000 && text.split(' ').length > 200;
+      });
+      
+      if (divs.length > 0) {
+        // Sort by content length
+        const contentDivs = Array.from(divs).sort((a, b) => {
+          return $(b).text().length - $(a).text().length;
+        });
+        
+        const content = cleanupContent($(contentDivs[0]).html());
+        
+        if (content.length > 1000) {
+          console.log(`Extracted content from largest div (${content.length} chars)`);
+          return content;
+        }
+      }
+    } catch (divError) {
+      console.log('Largest div strategy failed:', divError.message);
+    }
+    
+    // Strategy 5: Extract all paragraphs
+    try {
+      const $ = cheerio.load(html);
+      let paragraphs = [];
+      
+      // Find all paragraphs with reasonable content
+      $('p').each((i, el) => {
+        const text = $(el).text().trim();
+        if (text.length > 50) {
+          paragraphs.push($(el).prop('outerHTML'));
+        }
+      });
+      
+      if (paragraphs.length > 5) {
+        const content = paragraphs.join('');
+        
+        if (content.length > 1000) {
+          console.log(`Extracted content from ${paragraphs.length} paragraphs (${content.length} chars)`);
+          return content;
+        }
+      }
+    } catch (pError) {
+      console.log('Paragraph extraction strategy failed:', pError.message);
+    }
+    
+    console.log('All content extraction strategies failed');
+    return null;
+  } catch (error) {
+    console.error(`Error fetching from ${url}:`, error.message);
+    return null;
+  }
+};
+
+// Helper to fetch WordPress API content
+const fetchWordPressContent = async (url) => {
+  try {
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split('/').filter(Boolean);
+    let postSlug = pathParts[pathParts.length - 1];
+    
+    // Handle trailing slash
+    if (postSlug === '') {
+      postSlug = pathParts[pathParts.length - 2];
+    }
+    
+    // Remove .html if present
+    postSlug = postSlug.replace(/\.html$/, '');
+    
+    // Try WordPress API
+    const apiUrl = `${urlObj.origin}/wp-json/wp/v2/posts?slug=${postSlug}`;
+    const response = await axios.get(apiUrl, { timeout: 5000 });
+    
+    if (response.data && response.data.length > 0) {
+      return response.data[0].content.rendered;
+    }
+    
+    throw new Error('No WordPress content found');
+  } catch (error) {
+    throw error;
+  }
+};
+
+// Helper to clean up content
+const cleanupContent = (content) => {
+  if (!content) return '';
+  
+  let cleaned = content;
+  
+  // Remove common clutter elements
+  const elementsToRemove = [
+    // Navigation
+    /<nav\b[^>]*>.*?<\/nav>/gis,
+    /<div[^>]*\bclass\s*=\s*["'].*?\b(navigation|navbar|menu|nav-links).*?["'][^>]*>.*?<\/div>/gis,
+    
+    // Comments
+    /<div[^>]*\bclass\s*=\s*["'].*?\b(comments|comment-section|disqus).*?["'][^>]*>.*?<\/div>/gis,
+    /<section[^>]*\bclass\s*=\s*["'].*?\bcomments.*?["'][^>]*>.*?<\/section>/gis,
+    
+    // Social sharing
+    /<div[^>]*\bclass\s*=\s*["'].*?\b(share|social|sharing).*?["'][^>]*>.*?<\/div>/gis,
+    
+    // Author bio
+    /<div[^>]*\bclass\s*=\s*["'].*?\b(author-bio|about-author).*?["'][^>]*>.*?<\/div>/gis,
+    
+    // Related posts
+    /<div[^>]*\bclass\s*=\s*["'].*?\b(related|read-more|read-next).*?["'][^>]*>.*?<\/div>/gis,
+    
+    // Ads
+    /<div[^>]*\bclass\s*=\s*["'].*?\b(ads?|advertisement|banner|sponsor).*?["'][^>]*>.*?<\/div>/gis,
+    /<ins\b[^>]*>.*?<\/ins>/gis,
+    
+    // Sidebar
+    /<aside\b[^>]*>.*?<\/aside>/gis,
+    /<div[^>]*\bclass\s*=\s*["'].*?\b(sidebar|widget).*?["'][^>]*>.*?<\/div>/gis
+  ];
+  
+  elementsToRemove.forEach(pattern => {
+    cleaned = cleaned.replace(pattern, '');
+  });
+  
+  // Remove empty HTML elements
+  cleaned = cleaned.replace(/<(div|p|span)[^>]*>\s*<\/\1>/g, '');
+  
+  // Remove "read more", "continue reading" links
+  cleaned = cleaned.replace(/<a[^>]*>(Read More|Continue Reading|More).*?<\/a>/gi, '');
+  
+  // Fix HTML entities
+  cleaned = cleaned
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#8217;/g, "'")
+    .replace(/&#8216;/g, "'")
+    .replace(/&#8220;/g, '"')
+    .replace(/&#8221;/g, '"')
+    .replace(/&#8211;/g, '-')
+    .replace(/&#8212;/g, '—')
+    .replace(/&#8230;|&hellip;/g, '...');
+  
+  return cleaned;
+};
+
+// Enhanced content processing that ensures minimum content length
+const processContent = async (articles, categories) => {
+  if (!Array.isArray(articles)) {
+    console.error('Articles parameter is not an array:', typeof articles);
+    return [];
+  }
+  
+  const processedArticles = [];
+  const MINIMUM_CONTENT_LENGTH = 1000; // Minimum 1000 characters of content
+  
+  for (const article of articles) {
+    try {
+      console.log(`Processing article: "${article.title}"`);
+      
+      // Skip articles without title
+      if (!article.title) {
+        console.log('Skipping article without title');
+        continue;
+      }
+      
+      // Check content length
+      let finalContent = article.content || '';
+      
+      // Always try to fetch full content if URL is available
+      if (article.source?.url) {
+        console.log(`Attempting to fetch full content from: ${article.source.url}`);
+        
+        const fetchedContent = await fetchFullContent(article.source.url);
+        
+        if (fetchedContent && fetchedContent.length > MINIMUM_CONTENT_LENGTH) {
+          console.log(`Successfully fetched full content (${fetchedContent.length} chars)`);
+          finalContent = fetchedContent;
+        } else {
+          console.log(`Could not fetch content with minimum length (got ${fetchedContent?.length || 0} chars)`);
+          
+          // Skip this article if content is too short
+          if (finalContent.length < MINIMUM_CONTENT_LENGTH) {
+            console.log(`Skipping article with insufficient content (${finalContent.length} chars)`);
+            continue;
+          }
+        }
+      } else {
+        // Skip articles without URL and with short content
+        if (finalContent.length < MINIMUM_CONTENT_LENGTH) {
+          console.log(`Skipping article without URL and insufficient content (${finalContent.length} chars)`);
+          continue;
+        }
+      }
+      
+      // Determine category
+      let category = article.category || '';
+      
+      if (!category || !categories.includes(category)) {
+        category = determineCategory({
+          title: article.title,
+          content: finalContent
+        });
+      }
+      
+      // Extract tags
+      const tags = article.tags?.length > 0 ? article.tags : extractTags({
+        title: article.title,
+        content: finalContent
+      });
+      
+      // Create meta description
+      let metaDescription = article.metaDescription || article.description || '';
+      
+      if (!metaDescription) {
+        const textContent = finalContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        metaDescription = textContent.substring(0, 160);
+        
+        if (metaDescription.length >= 160) {
+          metaDescription = metaDescription.substring(0, 157) + '...';
+        }
+      }
+      
+      // Calculate reading time
+      const readingTime = calculateReadingTime(finalContent);
+      
+      // Create the processed article
+      processedArticles.push({
+        title: article.title,
+        slug: article.slug || generateSlug(article.title),
+        metaDescription: metaDescription,
+        content: finalContent,
+        category: category,
+        tags: tags,
+        status: 'draft',
+        source: article.source || {
+          name: 'Unknown',
+          url: '',
+          type: 'manual',
+          importedAt: new Date()
+        },
+        readingTime: readingTime,
+        publishDate: article.publishDate || new Date()
+      });
+      
+      console.log(`Successfully processed "${article.title}" - ${finalContent.length} chars, ${readingTime} min read time`);
+      
+    } catch (error) {
+      console.error(`Error processing article "${article.title}":`, error);
+      // Skip this article if processing fails
+    }
+  }
+  
+  return processedArticles;
+};
+
+// Improved importContent function
+export const importContent = async (req, res) => {
+  try {
+    const { sources = [], categories = [], count = 10 } = req.body;
+    
+    // Validate sources
+    const validSources = ['newsapi', 'rss', 'spoonacular'];
+    const selectedSources = sources.filter(source => validSources.includes(source));
+    
+    if (selectedSources.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid sources selected'
+      });
+    }
+    
+    // Validate categories
+    const validCategories = ['Fitness', 'Nutrition', 'Workout Plans', 'Health Tips', 'Motivation'];
+    const selectedCategories = categories.filter(category => validCategories.includes(category));
+    
+    if (selectedCategories.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid categories selected'
+      });
+    }
+    
+    console.log(`Importing content from sources: ${selectedSources.join(', ')}`);
+    console.log(`Categories: ${selectedCategories.join(', ')}`);
+    
+    // Fetch articles from selected sources in parallel
+    const fetchPromises = [];
+    
+    if (selectedSources.includes('newsapi')) {
+      fetchPromises.push(fetchFromNewsAPI(selectedCategories));
+    }
+    
+    if (selectedSources.includes('rss')) {
+      fetchPromises.push(parseRSSFeeds(selectedCategories));
+    }
+    
+    // Execute all fetch promises in parallel
+    const articlesArrays = await Promise.all(fetchPromises);
+    let allArticles = articlesArrays.flat();
+    
+    // Remove duplicates based on URL
+    const uniqueUrls = new Set();
+    allArticles = allArticles.filter(article => {
+      if (!article.source?.url || uniqueUrls.has(article.source.url)) {
+        return false;
+      }
+      uniqueUrls.add(article.source.url);
+      return true;
+    });
+    
+    console.log(`Found ${allArticles.length} unique articles from all sources`);
+    
+    if (allArticles.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No articles found from selected sources. Try different sources or categories.'
+      });
+    }
+    
+    // Process and clean articles
+    console.log(`Processing articles...`);
+    const processedArticles = await processContent(allArticles, selectedCategories);
+    
+    if (processedArticles.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Failed to process any articles with sufficient content. Try different sources or categories.'
+      });
+    }
+    
+    console.log(`Successfully processed ${processedArticles.length} articles with sufficient content`);
+    
+    // Limit to requested count
+    const limitedArticles = processedArticles.slice(0, count);
+    console.log(`Limited to ${limitedArticles.length} articles per user request`);
+    
+    // Save articles to database
+    const importedBlogs = [];
+    
+    for (const article of limitedArticles) {
+      try {
+        const blog = new Blog({
+          title: article.title,
+          slug: article.slug,
+          metaDescription: article.metaDescription,
+          content: article.content,
+          category: article.category,
+          tags: article.tags,
+          author: req.user._id,
+          status: 'draft',
+          readingTime: article.readingTime,
+          source: {
+            name: article.source.name,
+            url: article.source.url,
+            type: article.source.type,
+            importedAt: new Date()
+          }
+        });
+        
+        await blog.save();
+        importedBlogs.push(blog);
+        console.log(`Saved blog "${article.title}" to database`);
+      } catch (error) {
+        console.error(`Error saving blog "${article.title}":`, error);
+      }
+    }
+    
+    if (importedBlogs.length === 0) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to save any blogs to database'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: importedBlogs,
+      message: `Successfully imported ${importedBlogs.length} blog posts with quality content`,
+    });
+  } catch (error) {
+    console.error('Error importing content:', error);
     res.status(500).json({
       success: false,
       message: error.message
