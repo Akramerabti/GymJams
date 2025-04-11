@@ -3,6 +3,9 @@
 import GymBrosProfile from '../models/GymBrosProfile.js';
 import GymBrosPreference from '../models/GymBrosPreference.js';
 import GymBrosMatch from '../models/GymBrosMatch.js';
+import GymBrosBoost from '../models/GymBrosBoost.js';
+import GymBrosSuperLike from '../models/GymBrosSuperLike.js';
+import GymBrosMembership from '../models/GymBrosMembership.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
 

@@ -1,157 +1,200 @@
 // server/src/controllers/gymBrosBoostController.js
-
 import GymBrosBoost from '../models/GymBrosBoost.js';
 import GymBrosProfile from '../models/GymBrosProfile.js';
+import GymBrosMembership from '../models/GymBrosMembership.js';
+import GymBrosFeatureUsage from '../models/GymBrosFeatureUsage.js';
 import User from '../models/User.js';
-import { getEffectiveUser, generateGuestToken } from '../middleware/guestUser.middleware.js';
+import { getEffectiveUser } from '../middleware/guestUser.middleware.js';
+import { handleError } from '../middleware/error.middleware.js';
 import logger from '../utils/logger.js';
-import mongoose from 'mongoose';
 
-// Create a new boost
+// Helper function to get active boost
+const getActiveBoostForProfile = async (profileId) => {
+  try {
+    return await GymBrosBoost.findOne({
+      profileId,
+      isActive: true,
+      expiresAt: { $gt: new Date() }
+    }).sort({ boostFactor: -1 }); // Get the highest boost factor
+  } catch (error) {
+    logger.error('Error in getActiveBoostForProfile:', error);
+    return null;
+  }
+};
+
+// Activate a boost
 export const activateBoost = async (req, res) => {
   try {
-    const { boostType, boostFactor, duration, paymentMethod, pointsUsed, amount, currency, stripePaymentId } = req.body;
-    
-    // Validate the request
-    if (!boostType || !paymentMethod) {
-      return res.status(400).json({
-        success: false,
-        message: 'Boost type and payment method are required'
-      });
-    }
-
-    // Get effective user (authenticated or guest)
     const effectiveUser = getEffectiveUser(req);
     
-    // Need either userId or profileId
+    // Validate if user is authenticated or guest
     if (!effectiveUser.userId && !effectiveUser.profileId) {
       return res.status(401).json({
         success: false,
         message: 'Authentication required to activate boost'
       });
     }
-
-    // Get user's profile if authenticated
-    let userProfile;
-    if (effectiveUser.userId) {
-      userProfile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
-    } else if (effectiveUser.profileId) {
-      userProfile = await GymBrosProfile.findById(effectiveUser.profileId);
-    }
-
-    if (!userProfile) {
-      return res.status(404).json({
+    
+    // Extract request data
+    const { boostType, boostFactor, duration, paymentMethod, pointsUsed, amount } = req.body;
+    
+    // Basic validation
+    if (!boostType || !boostFactor || !duration || !paymentMethod) {
+      return res.status(400).json({
         success: false,
-        message: 'Profile not found. Please complete your profile first.'
+        message: 'Missing required boost parameters'
       });
     }
-
-    // Calculate the expiration time based on duration (in minutes)
-    const startDate = new Date();
-    const expiryDate = new Date(startDate.getTime() + (duration * 60 * 1000));
-
-    // Create boost record
+    
+    // Find the profile to boost
+    let profileId;
+    if (effectiveUser.isGuest) {
+      profileId = effectiveUser.profileId;
+    } else {
+      const profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+      if (!profile) {
+        return res.status(404).json({
+          success: false,
+          message: 'Profile not found'
+        });
+      }
+      profileId = profile._id;
+    }
+    
+    // Calculate expiration time
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + duration);
+    
+    // Check for existing active boost
+    const activeBoost = await getActiveBoostForProfile(profileId);
+    
+    if (activeBoost) {
+      // If the new boost factor is higher, cancel the old boost and create a new one
+      if (boostFactor > activeBoost.boostFactor) {
+        activeBoost.isActive = false;
+        await activeBoost.save();
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'A higher boost is already active',
+          activeBoost
+        });
+      }
+    }
+    
+    // Create the new boost
     const boost = new GymBrosBoost({
+      profileId,
       userId: effectiveUser.userId || null,
-      profileId: userProfile._id,
       boostType,
-      boostFactor: boostFactor || getDefaultBoostFactor(boostType),
-      startedAt: startDate,
-      expiresAt: expiryDate,
-      active: true,
+      boostFactor,
+      expiresAt,
       paymentMethod,
-      pointsUsed: pointsUsed || 0,
-      amount: amount || 0,
-      currency: currency || 'USD',
-      stripePaymentId: stripePaymentId || null
+      pointsUsed: paymentMethod === 'points' ? pointsUsed : 0,
+      amountPaid: paymentMethod === 'stripe' ? amount : 0
     });
-
-    await boost.save();
-
-    // Update notification setting for front-end to know a boost was activated
-    if (effectiveUser.userId) {
-      // Update user's last activity timestamp
-      await User.findByIdAndUpdate(effectiveUser.userId, {
-        lastBoostActivated: new Date()
+    
+    // If boost is from membership, link it
+    if (paymentMethod === 'membership') {
+      const membership = await GymBrosMembership.findOne({
+        profileId,
+        isActive: true,
+        endDate: { $gt: new Date() }
       });
+      
+      if (membership) {
+        boost.membershipId = membership._id;
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'No active membership found'
+        });
+      }
+      
+      // Track feature usage for membership
+      await trackFeatureUsage(profileId, effectiveUser.userId, 'boost', membership._id);
     }
-
-    // Generate guest token if applicable
-    const responseData = {
+    
+    // Save the boost
+    await boost.save();
+    
+    // If using points, update user's points balance
+    if (paymentMethod === 'points' && effectiveUser.userId) {
+      const user = await User.findById(effectiveUser.userId);
+      if (user) {
+        user.points -= pointsUsed;
+        await user.save();
+      }
+    }
+    
+    // Return the created boost
+    res.status(201).json({
       success: true,
       message: 'Boost activated successfully',
       boost: {
         id: boost._id,
-        boostType: boost.boostType,
-        boostFactor: boost.boostFactor,
-        startedAt: boost.startedAt,
-        expiresAt: boost.expiresAt
+        boostType,
+        boostFactor,
+        expiresAt,
+        remainingTime: boost.remainingTime
       }
-    };
-
-    if (effectiveUser.isGuest) {
-      responseData.guestToken = generateGuestToken(effectiveUser.phone, effectiveUser.profileId);
-    }
-
-    res.status(201).json(responseData);
-  } catch (error) {
-    logger.error('Error activating boost:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to activate boost'
     });
+  } catch (error) {
+    logger.error('Error in activateBoost:', error);
+    handleError(error, req, res);
   }
 };
 
-// Get active boosts for a user
+// Get active boosts for a profile
 export const getActiveBoosts = async (req, res) => {
   try {
-    // Get effective user (authenticated or guest)
     const effectiveUser = getEffectiveUser(req);
     
-    // Need either userId or profileId
+    // Validate if user is authenticated or guest
     if (!effectiveUser.userId && !effectiveUser.profileId) {
       return res.status(401).json({
         success: false,
-        message: 'Authentication required to view boosts'
+        message: 'Authentication required to get boosts'
       });
     }
-
-    const now = new Date();
     
-    // Query for active boosts
-    const query = {
-      active: true,
-      expiresAt: { $gt: now }
-    };
-
-    // Add user identifier to query
-    if (effectiveUser.userId) {
-      query.userId = effectiveUser.userId;
-    } else if (effectiveUser.profileId) {
-      query.profileId = effectiveUser.profileId;
-    }
-
-    // Find active boosts
-    const boosts = await GymBrosBoost.find(query).sort({ expiresAt: 1 });
-
-    // Generate guest token if applicable
-    const responseData = {
-      success: true,
-      boosts
-    };
-
+    // Find the profile
+    let profileId;
     if (effectiveUser.isGuest) {
-      responseData.guestToken = generateGuestToken(effectiveUser.phone, effectiveUser.profileId);
+      profileId = effectiveUser.profileId;
+    } else {
+      const profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+      if (!profile) {
+        return res.status(404).json({
+          success: false,
+          message: 'Profile not found'
+        });
+      }
+      profileId = profile._id;
     }
-
-    res.json(responseData);
-  } catch (error) {
-    logger.error('Error fetching active boosts:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch active boosts'
+    
+    // Find all active boosts
+    const boosts = await GymBrosBoost.find({
+      profileId,
+      isActive: true,
+      expiresAt: { $gt: new Date() }
+    }).sort({ boostFactor: -1 });
+    
+    // Return the boosts
+    res.json({
+      success: true,
+      boosts: boosts.map(boost => ({
+        id: boost._id,
+        boostType: boost.boostType,
+        boostFactor: boost.boostFactor,
+        expiresAt: boost.expiresAt,
+        activatedAt: boost.activatedAt,
+        paymentMethod: boost.paymentMethod
+      }))
     });
+  } catch (error) {
+    logger.error('Error in getActiveBoosts:', error);
+    handleError(error, req, res);
   }
 };
 
@@ -159,18 +202,16 @@ export const getActiveBoosts = async (req, res) => {
 export const cancelBoost = async (req, res) => {
   try {
     const { boostId } = req.params;
-    
-    // Get effective user (authenticated or guest)
     const effectiveUser = getEffectiveUser(req);
     
-    // Need either userId or profileId
+    // Validate if user is authenticated or guest
     if (!effectiveUser.userId && !effectiveUser.profileId) {
       return res.status(401).json({
         success: false,
         message: 'Authentication required to cancel boost'
       });
     }
-
+    
     // Find the boost
     const boost = await GymBrosBoost.findById(boostId);
     
@@ -180,94 +221,156 @@ export const cancelBoost = async (req, res) => {
         message: 'Boost not found'
       });
     }
-
-    // Check if the boost belongs to the user
-    const isOwner = (effectiveUser.userId && boost.userId && boost.userId.toString() === effectiveUser.userId.toString()) ||
-                    (effectiveUser.profileId && boost.profileId && boost.profileId.toString() === effectiveUser.profileId.toString());
     
-    if (!isOwner) {
+    // Verify that the boost belongs to the user
+    let profileId;
+    if (effectiveUser.isGuest) {
+      profileId = effectiveUser.profileId;
+    } else {
+      const profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+      profileId = profile?._id;
+    }
+    
+    if (!profileId || !boost.profileId.equals(profileId)) {
       return res.status(403).json({
         success: false,
-        message: 'You are not authorized to cancel this boost'
+        message: 'Not authorized to cancel this boost'
       });
     }
-
-    // Cancel the boost
-    boost.active = false;
+    
+    // Mark the boost as inactive
+    boost.isActive = false;
     await boost.save();
-
-    // Generate guest token if applicable
-    const responseData = {
+    
+    // Return success response
+    res.json({
       success: true,
       message: 'Boost cancelled successfully'
-    };
-
-    if (effectiveUser.isGuest) {
-      responseData.guestToken = generateGuestToken(effectiveUser.phone, effectiveUser.profileId);
-    }
-
-    res.json(responseData);
-  } catch (error) {
-    logger.error('Error cancelling boost:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to cancel boost'
     });
+  } catch (error) {
+    logger.error('Error in cancelBoost:', error);
+    handleError(error, req, res);
   }
 };
 
-// Helper function to get the default boost factor based on boost type
-const getDefaultBoostFactor = (boostType) => {
-  switch (boostType) {
-    case 'boost-basic':
-      return 3;
-    case 'boost-premium':
-      return 5;
-    case 'boost-ultra':
-      return 10;
-    default:
-      return 1;
+// Track feature usage for membership benefits
+const trackFeatureUsage = async (profileId, userId, featureType, membershipId) => {
+  try {
+    // Get today's date at midnight
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Calculate reset date
+    const resetDate = new Date();
+    if (featureType === 'superlike') {
+      // Reset daily
+      resetDate.setDate(resetDate.getDate() + 1);
+    } else if (featureType === 'boost') {
+      // Reset weekly
+      resetDate.setDate(resetDate.getDate() + 7);
+    }
+    resetDate.setHours(0, 0, 0, 0);
+    
+    // Find existing usage record for today
+    let usage = await GymBrosFeatureUsage.findOne({
+      profileId,
+      featureType,
+      date: {
+        $gte: today
+      }
+    });
+    
+    if (usage) {
+      // Update existing usage
+      usage.count += 1;
+      await usage.save();
+    } else {
+      // Create new usage record
+      usage = new GymBrosFeatureUsage({
+        profileId,
+        userId,
+        featureType,
+        resetDate,
+        membershipId
+      });
+      await usage.save();
+    }
+    
+    return usage;
+  } catch (error) {
+    logger.error('Error tracking feature usage:', error);
+    throw error;
   }
 };
 
-// Helper function to get boost duration in minutes based on boost type
-export const getBoostDuration = (boostType) => {
-  switch (boostType) {
-    case 'boost-basic':
-      return 30; // 30 minutes
-    case 'boost-premium':
-      return 60; // 1 hour
-    case 'boost-ultra':
-      return 180; // 3 hours
-    default:
-      return 30; // Default to 30 minutes
-  }
-};
-
-// Helper function to get boost cost in points based on boost type
-export const getBoostCost = (boostType) => {
-  switch (boostType) {
-    case 'boost-basic':
-      return 50;
-    case 'boost-premium':
-      return 100;
-    case 'boost-ultra':
-      return 200;
-    default:
-      return 50;
-  }
-};
-
-// Helper function to get boost price in USD based on boost type
-export const getBoostPrice = (boostType) => {
-  switch (boostType) {
-    case 'boost-basic':
-      return 0.50;
-    case 'boost-premium':
-      return 1.00;
-    case 'boost-ultra':
-      return 2.00;
-    default:
-      return 0.50;
+// Get boost limit information for a user
+export const getBoostLimits = async (req, res) => {
+  try {
+    const effectiveUser = getEffectiveUser(req);
+    
+    // Validate if user is authenticated or guest
+    if (!effectiveUser.userId && !effectiveUser.profileId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+    
+    // Find the profile
+    let profileId;
+    if (effectiveUser.isGuest) {
+      profileId = effectiveUser.profileId;
+    } else {
+      const profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+      if (!profile) {
+        return res.status(404).json({
+          success: false,
+          message: 'Profile not found'
+        });
+      }
+      profileId = profile._id;
+    }
+    
+    // Get active membership
+    const membership = await GymBrosMembership.findOne({
+      profileId,
+      isActive: true,
+      endDate: { $gt: new Date() }
+    });
+    
+    // Get current usage for this week
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    weekStart.setHours(0, 0, 0, 0);
+    
+    const boostUsage = await GymBrosFeatureUsage.find({
+      profileId,
+      featureType: 'boost',
+      date: { $gte: weekStart }
+    });
+    
+    const usedBoosts = boostUsage.reduce((sum, item) => sum + item.count, 0);
+    
+    // Calculate limits based on membership
+    let boostsLimit = 0;
+    if (membership) {
+      boostsLimit = membership.benefits.boostsPerWeek;
+    }
+    
+    // Return limits
+    res.json({
+      success: true,
+      limits: {
+        boostsPerWeek: boostsLimit,
+        boostsUsed: usedBoosts,
+        boostsRemaining: Math.max(0, boostsLimit - usedBoosts),
+        hasMembership: !!membership,
+        membershipType: membership?.membershipType,
+        nextResetDate: boostUsage[0]?.resetDate
+      }
+    });
+  } catch (error) {
+    logger.error('Error in getBoostLimits:', error);
+    handleError(error, req, res);
   }
 };

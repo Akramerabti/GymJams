@@ -45,8 +45,25 @@ import {
 import { 
   activateBoost, 
   getActiveBoosts, 
-  cancelBoost 
+  cancelBoost,
+  getBoostLimits
 } from '../controllers/gymBrosBoostController.js';
+
+import {
+  sendSuperLike,
+  getReceivedSuperLikes,
+  markSuperLikeViewed,
+  respondToSuperLike,
+  getSuperLikeLimits
+} from '../controllers/gymBrosSuperLikeController.js';
+
+import {
+  purchaseMembership,
+  getActiveMembership,
+  cancelMembership,
+  getMembershipTypes,
+  getMembershipHistory
+} from '../controllers/gymBrosMembershipController.js';
 
 // Apply guest user middleware to all routes
 router.use(handleGuestUser);
@@ -120,5 +137,20 @@ router.get('/matches/find-match/:userId', optionalAuthenticate, findMatch);
 router.post('/boosts', optionalAuthenticate, activateBoost);
 router.get('/boosts', optionalAuthenticate, getActiveBoosts);
 router.delete('/boosts/:boostId', optionalAuthenticate, cancelBoost);
+router.get('/boost-limits', optionalAuthenticate, getBoostLimits);
+
+// Super Like endpoints
+router.post('/super-likes', optionalAuthenticate, sendSuperLike);
+router.get('/super-likes/received', optionalAuthenticate, getReceivedSuperLikes);
+router.put('/super-likes/:superLikeId/view', optionalAuthenticate, markSuperLikeViewed);
+router.post('/super-likes/:superLikeId/respond', optionalAuthenticate, respondToSuperLike);
+router.get('/super-like-limits', optionalAuthenticate, getSuperLikeLimits);
+
+// Membership endpoints
+router.post('/memberships', optionalAuthenticate, purchaseMembership);
+router.get('/memberships/active', optionalAuthenticate, getActiveMembership);
+router.put('/memberships/:membershipId/cancel', optionalAuthenticate, cancelMembership);
+router.get('/membership-types', getMembershipTypes);
+router.get('/membership-history', optionalAuthenticate, getMembershipHistory);
 
 export default router;

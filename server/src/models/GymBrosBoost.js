@@ -1,15 +1,18 @@
+// server/src/models/GymBrosBoost.js
 import mongoose from 'mongoose';
 
 const gymBrosBoostSchema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    sparse: true // Allow this to be optional
-  },
   profileId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'GymBrosProfile',
-    sparse: true // Allow this to be optional for users with no profile
+    required: true,
+    index: true
+  },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    sparse: true,
+    index: true
   },
   boostType: {
     type: String,
@@ -20,97 +23,54 @@ const gymBrosBoostSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 1,
-    max: 20 // Reasonable upper limit
+    max: 20
   },
-  startedAt: {
+  activatedAt: {
     type: Date,
     default: Date.now
   },
   expiresAt: {
     type: Date,
     required: true,
-    index: true // Index this for efficient queries on active boosts
+    index: true // Index for efficient querying of active boosts
   },
-  active: {
-    type: Boolean,
-    default: true
-  },
-  // Payment information
   paymentMethod: {
     type: String,
-    enum: ['points', 'stripe', 'gift', 'reward'],
+    enum: ['points', 'stripe', 'membership'],
     required: true
   },
   pointsUsed: {
     type: Number,
     default: 0
   },
-  amount: {
+  amountPaid: {
     type: Number,
     default: 0
   },
-  currency: {
-    type: String,
-    default: 'USD'
-  },
-  stripePaymentId: {
-    type: String,
+  membershipId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'GymBrosMembership',
     sparse: true
+  },
+  isActive: {
+    type: Boolean,
+    default: true
   }
-}, { 
-  timestamps: true 
+}, { timestamps: true });
+
+// Add compound index for efficient querying
+gymBrosBoostSchema.index({ profileId: 1, isActive: 1 });
+
+// Add method to check if boost is active
+gymBrosBoostSchema.methods.isActiveNow = function() {
+  return this.isActive && this.expiresAt > new Date();
+};
+
+// Add virtual property for remaining time
+gymBrosBoostSchema.virtual('remainingTime').get(function() {
+  const now = new Date();
+  return Math.max(0, this.expiresAt - now);
 });
 
-// Index for finding active boosts
-gymBrosBoostSchema.index({ userId: 1, active: 1 });
-gymBrosBoostSchema.index({ profileId: 1, active: 1 });
-
-// Methods to check if a boost is active
-gymBrosBoostSchema.methods.isActive = function() {
-  return this.active && this.expiresAt > new Date();
-};
-
-// Static method to find active boosts for a user
-gymBrosBoostSchema.statics.findActiveBoostsForUser = async function(userId) {
-  const now = new Date();
-  return this.find({
-    userId,
-    active: true,
-    expiresAt: { $gt: now }
-  }).sort({ expiresAt: 1 });
-};
-
-// Static method to find active boosts for a profile
-gymBrosBoostSchema.statics.findActiveBoostsForProfile = async function(profileId) {
-  const now = new Date();
-  return this.find({
-    profileId,
-    active: true,
-    expiresAt: { $gt: now }
-  }).sort({ expiresAt: 1 });
-};
-
-// Get highest active boost factor for a user/profile
-gymBrosBoostSchema.statics.getHighestActiveBoostFactor = async function(identifier) {
-  const now = new Date();
-  
-  // Check if identifier is userId or profileId
-  const query = mongoose.Types.ObjectId.isValid(identifier)
-    ? {
-        $or: [
-          { userId: identifier },
-          { profileId: identifier }
-        ],
-        active: true,
-        expiresAt: { $gt: now }
-      }
-    : { active: false }; // Use a query that returns no results if identifier is invalid
-  
-  const boosts = await this.find(query).sort({ boostFactor: -1 }).limit(1);
-  
-  return boosts.length > 0 ? boosts[0].boostFactor : 1; // Default to 1x if no active boosts
-};
-
 const GymBrosBoost = mongoose.model('GymBrosBoost', gymBrosBoostSchema);
-
 export default GymBrosBoost;
