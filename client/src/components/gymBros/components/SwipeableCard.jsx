@@ -440,7 +440,7 @@ console.log('SwipeableCard rendered', profile);
               {currentImageIndex === 0 && (
                 <>
                   <div className="flex items-center mb-1">
-                    <h2 className="text-2xl font-bold mr-2">{profile.name || 'Unknown'}</h2>
+                    <h2 className="text-2xl font-bold mr-2">{profile.name.split(' ')[0]|| 'Unknown'}</h2>
                     <h3 className="text-xl">{profile.age || '?'}</h3>
                     {profile.verified && (
                       <div className="ml-2 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center text-xs">✓</div>

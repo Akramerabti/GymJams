@@ -152,7 +152,7 @@ const EnhancedProfileCard = ({ profile, onLike, onDislike, onOpen, isActive, onN
         {/* Basic Info Overlay */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/70 to-transparent p-4 text-white">
           <h3 className="text-2xl font-bold flex items-center">
-            {profile.name}, {profile.age}
+            {profile.name.split(' ')[0]}, {profile.age}
             {profile.verified && <span className="ml-2 text-blue-400">✓</span>}
           </h3>
           
