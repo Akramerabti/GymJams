@@ -970,12 +970,13 @@ const GymBrosShop = () => {
               
               return (
                 <motion.div
-                  key={product.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className={`bg-white rounded-lg shadow-md overflow-hidden relative aspect-square ${disabled ? 'opacity-70' : ''}`}
-                >
+              key={product.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="bg-white rounded-lg shadow-md overflow-hidden relative flex flex-col"
+              style={{ minHeight: "220px" }} // Set minimum height instead of aspect ratio
+            >
                   {product.popular && (
                     <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold py-1 px-3 rounded-bl-lg z-10">
                       POPULAR
@@ -1199,3 +1200,4 @@ const GymBrosShop = () => {
 };
 
 export default GymBrosShop;
+

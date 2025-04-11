@@ -1233,7 +1233,149 @@ async isBoostTypeActive(boostType) {
   }
 },
 
-};
+// Get active membership
+async getActiveMembership() {
+  try {
+    const config = this.configWithGuestToken();
+    const response = await api.get('/gym-bros/memberships/active', config);
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching active membership:', error);
+    throw error;
+  }
+},
 
+// Get active boosts
+async getActiveBoosts() {
+  try {
+    const config = this.configWithGuestToken();
+    const response = await api.get('/gym-bros/boosts', config);
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return response.data.boosts || [];
+  } catch (error) {
+    console.error('Error fetching active boosts:', error);
+    return []; // Return empty array on error
+  }
+},
+
+// Get super like limits
+async getSuperLikeLimits() {
+  try {
+    const config = this.configWithGuestToken();
+    const response = await api.get('/gym-bros/super-like-limits', config);
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching super like limits:', error);
+    throw error;
+  }
+},
+
+// Activate a boost
+async activateBoost(boostData) {
+  try {
+    const config = this.configWithGuestToken();
+    const response = await api.post('/gym-bros/boosts', boostData, config);
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error activating boost:', error);
+    throw error;
+  }
+},
+
+// Purchase membership
+async purchaseMembership(membershipData) {
+  try {
+    const config = this.configWithGuestToken();
+    const response = await api.post('/gym-bros/memberships', membershipData, config);
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error purchasing membership:', error);
+    throw error;
+  }
+},
+
+// Cancel membership
+async cancelMembership(membershipId) {
+  try {
+    const config = this.configWithGuestToken();
+    const response = await api.put(`/gym-bros/memberships/${membershipId}/cancel`, {}, config);
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error cancelling membership:', error);
+    throw error;
+  }
+},
+
+// Get membership history
+async getMembershipHistory() {
+  try {
+    const config = this.configWithGuestToken();
+    const response = await api.get('/gym-bros/membership-history', config);
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return response.data.memberships || [];
+  } catch (error) {
+    console.error('Error fetching membership history:', error);
+    return []; // Return empty array on error
+  }
+},
+
+// Get boost limits
+async getBoostLimits() {
+  try {
+    const config = this.configWithGuestToken();
+    const response = await api.get('/gym-bros/boost-limits', config);
+    
+    // Update guest token if returned
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching boost limits:', error);
+    throw error;
+  }
+}
+};
 
 export default gymbrosService;
