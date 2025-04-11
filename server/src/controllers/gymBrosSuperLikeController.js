@@ -61,63 +61,58 @@ export const sendSuperLike = async (req, res) => {
       });
     }
     
-    // Check if the user has an active membership
     const membership = await GymBrosMembership.findOne({
-      profileId: senderProfileId,
-      isActive: true,
-      endDate: { $gt: new Date() }
-    });
-    
-    let paymentMethod = 'points';
-    let pointsUsed = 0;
-    let isWithinLimits = false;
-    
-    if (membership) {
-      // Check if user has used all their super likes today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const superLikeUsage = await GymBrosFeatureUsage.findOne({
         profileId: senderProfileId,
-        featureType: 'superlike',
-        date: { $gte: today }
+        isActive: true,
+        endDate: { $gt: new Date() }
       });
       
-      // Check if within membership limits
-      if (!superLikeUsage || superLikeUsage.count < membership.benefits.superLikesPerDay) {
-        paymentMethod = 'membership';
-        isWithinLimits = true;
-        
-        // Track feature usage
-        await trackFeatureUsage(senderProfileId, effectiveUser.userId, 'superlike', membership._id);
-      }
-    }
-    
-    // If not covered by membership, use points
-    if (!isWithinLimits) {
-      // Determine points cost
-      pointsUsed = superLikeType === 'superlike-basic' ? 20 : 50;
+      let paymentMethod = 'points';
+      let pointsUsed = 0;
+      let canSendSuperLike = false;
       
-      // Check if user has enough points
-      if (effectiveUser.userId) {
-        const user = await User.findById(effectiveUser.userId);
-        if (!user || user.points < pointsUsed) {
+      if (membership) {
+        // Check if user has unlimited super likes from membership
+        if (membership.benefits.unlimitedSuperLikes) {
+          paymentMethod = 'membership';
+          canSendSuperLike = true;
+        }
+      }
+      
+      // If not covered by membership, use points
+      if (!canSendSuperLike) {
+        // Determine points cost
+        pointsUsed = superLikeType === 'superlike-basic' ? 20 : 50;
+        
+        // Check if user has enough points
+        if (effectiveUser.userId) {
+          const user = await User.findById(effectiveUser.userId);
+          if (!user || user.points < pointsUsed) {
+            return res.status(400).json({
+              success: false,
+              message: 'Not enough points to send super like'
+            });
+          }
+          
+          // Deduct points
+          user.points -= pointsUsed;
+          await user.save();
+          canSendSuperLike = true;
+        } else {
           return res.status(400).json({
             success: false,
-            message: 'Not enough points to send super like'
+            message: 'Guest users need an active membership to send super likes'
           });
         }
-        
-        // Deduct points
-        user.points -= pointsUsed;
-        await user.save();
-      } else {
+      }
+      
+      // Only proceed if the user can send a super like
+      if (!canSendSuperLike) {
         return res.status(400).json({
           success: false,
-          message: 'Guest users need an active membership to send super likes'
+          message: 'Unable to send super like'
         });
       }
-    }
     
     // Create the super like
     const superLike = new GymBrosSuperLike({
@@ -405,24 +400,31 @@ export const getSuperLikeLimits = async (req, res) => {
     
     const usedSuperLikes = superLikeUsage.reduce((sum, item) => sum + item.count, 0);
     
-    // Calculate limits based on membership
     let superLikesLimit = 0;
-    if (membership) {
-      superLikesLimit = membership.benefits.superLikesPerDay;
-    }
-    
-    // Return limits
-    res.json({
-      success: true,
-      limits: {
-        superLikesPerDay: superLikesLimit,
-        superLikesUsed: usedSuperLikes,
-        superLikesRemaining: Math.max(0, superLikesLimit - usedSuperLikes),
-        hasMembership: !!membership,
-        membershipType: membership?.membershipType,
-        nextResetDate: new Date(today.getTime() + 24 * 60 * 60 * 1000)
-      }
-    });
+let hasUnlimitedSuperLikes = false;
+
+if (membership) {
+  // Check for unlimited superlikes
+  hasUnlimitedSuperLikes = membership.benefits.unlimitedSuperLikes === true;
+  // Only set a numerical limit if not unlimited
+  if (!hasUnlimitedSuperLikes) {
+    superLikesLimit = 0; // Default to 0 if not unlimited
+  }
+}
+
+// Return limits
+res.json({
+  success: true,
+  limits: {
+    hasUnlimitedSuperLikes,
+    superLikesPerDay: superLikesLimit,
+    superLikesUsed: usedSuperLikes,
+    superLikesRemaining: hasUnlimitedSuperLikes ? 999 : Math.max(0, superLikesLimit - usedSuperLikes),
+    hasMembership: !!membership,
+    membershipType: membership?.membershipType,
+    nextResetDate: new Date(today.getTime() + 24 * 60 * 60 * 1000)
+  }
+});
   } catch (error) {
     logger.error('Error in getSuperLikeLimits:', error);
     handleError(error, req, res);

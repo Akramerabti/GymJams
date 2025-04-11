@@ -47,11 +47,8 @@ const gymBrosMembershipSchema = new mongoose.Schema({
   },
   benefits: {
     unlimitedLikes: { type: Boolean, default: true },
-    superLikesPerDay: { type: Number, default: 3 },
-    boostsPerWeek: { type: Number, default: 1 },
-    hideAds: { type: Boolean, default: true },
-    premiumFilters: { type: Boolean, default: true },
-    readReceipts: { type: Boolean, default: true }
+    unlimitedSuperLikes: { type: Boolean, default: true }, // Changed from superLikesPerDay
+    profileBoost: { type: Number, default: 10 },           // Changed from boostsPerWeek
   },
   recurringId: {
     type: String,

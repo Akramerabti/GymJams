@@ -331,42 +331,27 @@ export const getBoostLimits = async (req, res) => {
       profileId = profile._id;
     }
     
-    // Get active membership
     const membership = await GymBrosMembership.findOne({
       profileId,
       isActive: true,
       endDate: { $gt: new Date() }
     });
     
-    // Get current usage for this week
-    const weekStart = new Date();
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-    weekStart.setHours(0, 0, 0, 0);
+    let profileBoostFactor = 1; // Default (no boost)
+    let isMembershipBoost = false;
     
-    const boostUsage = await GymBrosFeatureUsage.find({
-      profileId,
-      featureType: 'boost',
-      date: { $gte: weekStart }
-    });
-    
-    const usedBoosts = boostUsage.reduce((sum, item) => sum + item.count, 0);
-    
-    // Calculate limits based on membership
-    let boostsLimit = 0;
-    if (membership) {
-      boostsLimit = membership.benefits.boostsPerWeek;
+    if (membership && membership.benefits.profileBoost) {
+      profileBoostFactor = membership.benefits.profileBoost;
+      isMembershipBoost = true;
     }
     
-    // Return limits
     res.json({
       success: true,
-      limits: {
-        boostsPerWeek: boostsLimit,
-        boostsUsed: usedBoosts,
-        boostsRemaining: Math.max(0, boostsLimit - usedBoosts),
+      boost: {
+        profileBoostFactor,
+        isMembershipBoost,
         hasMembership: !!membership,
-        membershipType: membership?.membershipType,
-        nextResetDate: boostUsage[0]?.resetDate
+        membershipType: membership?.membershipType
       }
     });
   } catch (error) {

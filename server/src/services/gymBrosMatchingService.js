@@ -9,6 +9,58 @@ import GymBrosMembership from '../models/GymBrosMembership.js';
 import logger from '../utils/logger.js';
 import mongoose from 'mongoose';
 
+// Get profile boost factor from membership or active boosts
+export const getProfileBoostFactor = async (profileId) => {
+  try {
+    // First check for active membership with profile boost
+    const membership = await GymBrosMembership.findOne({
+      profileId,
+      isActive: true,
+      endDate: { $gt: new Date() }
+    });
+    
+    // Membership boost has priority and is always 10x
+    if (membership && membership.benefits.profileBoost) {
+      logger.info(`Profile ${profileId} has membership boost: ${membership.benefits.profileBoost}x`);
+      return membership.benefits.profileBoost;
+    }
+    
+    // If no membership boost, check for manual boosts
+    const activeBoost = await GymBrosBoost.findOne({
+      profileId,
+      isActive: true,
+      expiresAt: { $gt: new Date() }
+    }).sort({ boostFactor: -1 }); // Get the highest boost factor
+    
+    if (activeBoost) {
+      logger.info(`Profile ${profileId} has manual boost: ${activeBoost.boostFactor}x`);
+      return activeBoost.boostFactor;
+    }
+    
+    // No boost found
+    return 1;
+  } catch (error) {
+    logger.error('Error getting profile boost factor:', error);
+    return 1; // Default to no boost on error
+  }
+};
+
+// Check if profile has received a super like
+export const hasReceivedSuperLike = async (profileId, fromProfileId) => {
+  try {
+    const recentSuperLike = await GymBrosSuperLike.findOne({
+      senderId: fromProfileId,
+      recipientId: profileId,
+      createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+    });
+    
+    return !!recentSuperLike;
+  } catch (error) {
+    logger.error('Error checking for super likes:', error);
+    return false;
+  }
+};
+
 export const getRecommendedProfiles = async (userProfile, filters = {}) => {
   try {
     if (!userProfile || !userProfile.location) {
@@ -20,7 +72,6 @@ export const getRecommendedProfiles = async (userProfile, filters = {}) => {
     const userIdentifiers = getUserIdentifiers(userProfile);
     logger.info(`Getting recommendations for user: ${userIdentifiers.join(', ')}`);
     
-    console.log('User profile filters:', filters);
     // Get user's preferences
     const prefQuery = userProfile.userId 
       ? { userId: userProfile.userId }
@@ -49,6 +100,10 @@ export const getRecommendedProfiles = async (userProfile, filters = {}) => {
     const potentialMatches = await findPotentialMatches(userIdentifiers);
     logger.info(`Found ${potentialMatches.length} users who already liked this user`);
     
+    // Get users who have super-liked this user - for prioritization
+    const superLikedBy = await findSuperLikes(userProfile._id);
+    logger.info(`Found ${superLikedBy.length} users who super-liked this user`);
+    
     // Apply max distance filter (if provided)
     const maxDistance = filters.maxDistance || 50;
     
@@ -66,7 +121,6 @@ export const getRecommendedProfiles = async (userProfile, filters = {}) => {
         { 'location.lng': { $exists: true } },
       ]
     };
-    
     
     // Apply workout type filter only if it's defined and has elements
     if (filters.workoutTypes && Array.isArray(filters.workoutTypes) && filters.workoutTypes.length > 0) {
@@ -88,7 +142,6 @@ export const getRecommendedProfiles = async (userProfile, filters = {}) => {
     }
     
     // Apply gender filter only if it's defined and not 'All'
-    // FIXED: Added type check and convert to lowercase only if it's a string
     if (filters.genderPreference && 
         typeof filters.genderPreference === 'string' &&
         filters.genderPreference.toLowerCase() !== 'all') {
@@ -107,8 +160,6 @@ export const getRecommendedProfiles = async (userProfile, filters = {}) => {
         query.age = { ...(query.age || {}), $lte: parseInt(max, 10) };
       }
     }
-    
-    console.log('Query for candidate profiles:', JSON.stringify(query));
     
     // Find potential candidates
     const candidateProfiles = await GymBrosProfile.find(query).limit(100);
@@ -140,24 +191,50 @@ export const getRecommendedProfiles = async (userProfile, filters = {}) => {
       const candidateId = candidate.userId || candidate._id;
       const hasPotentialMatch = potentialMatches.includes(candidateId.toString());
       
+      // Check if this user has super-liked the current user
+      const hasSuperLiked = superLikedBy.includes(candidateId.toString());
+      
       // Calculate full match score - pass potential match status to influence score
       const score = calculateMatchScore(userProfile, candidate, hasPotentialMatch);
+      
+      // Get boost factor for this profile (from membership or manual boost)
+      const boostFactor = await getProfileBoostFactor(candidate._id);
       
       scoredCandidates.push({
         profile: candidate,
         score,
         distance,
-        potentialMatch: hasPotentialMatch
+        potentialMatch: hasPotentialMatch,
+        superLike: hasSuperLiked,
+        boostFactor
       });
     }
     
-    // Sort by potential matches first, then by match score
-    const sortedCandidates = scoredCandidates.sort((a, b) => {
-      // Prioritize mutual likes first
+    // Apply boosts to scores
+    const boostedCandidates = scoredCandidates.map(candidate => {
+      // Apply boost factor to the score if the profile has a boost
+      if (candidate.boostFactor > 1) {
+        // Boost the score, but cap at 100
+        candidate.score = Math.min(100, candidate.score * (1 + (candidate.boostFactor * 0.1)));
+      }
+      return candidate;
+    });
+    
+    // Sort prioritizing super likes first, then mutual likes, then boosted profiles, then by match score
+    const sortedCandidates = boostedCandidates.sort((a, b) => {
+      // Super likes get highest priority
+      if (a.superLike && !b.superLike) return -1;
+      if (!a.superLike && b.superLike) return 1;
+      
+      // Then mutual likes (potential matches)
       if (a.potentialMatch && !b.potentialMatch) return -1;
       if (!a.potentialMatch && b.potentialMatch) return 1;
       
-      // Then sort by match score
+      // Then consider boost factor (higher boost gets priority)
+      if (a.boostFactor > b.boostFactor) return -1;
+      if (a.boostFactor < b.boostFactor) return 1;
+      
+      // Finally sort by match score
       return b.score - a.score;
     });
     
@@ -171,7 +248,9 @@ export const getRecommendedProfiles = async (userProfile, filters = {}) => {
           ...profile.location,
           distance: Math.round(candidate.distance * 10) / 10 // Round to 1 decimal
         },
-        potentialMatch: candidate.potentialMatch // Include flag for UI indication
+        potentialMatch: candidate.potentialMatch,
+        superLike: candidate.superLike,
+        boosted: candidate.boostFactor > 1
       };
     });
   } catch (error) {
@@ -232,17 +311,6 @@ export const calculateMatchScore = (userProfile, candidateProfile, hasPotentialM
       finalScore = Math.min(100, finalScore * 1.2);
       logger.info(`Added 20% boost to match score for profile that already liked this user`);
     }
-    
-    // Log component scores for debugging
-    const candidateName = candidateProfile.name || 'Unknown';
-    logger.info(`Match component scores for ${candidateName}:`, {
-      workoutTypeScore: workoutTypeScore.toFixed(2),
-      experienceScore: experienceScore.toFixed(2),
-      scheduleScore: scheduleScore.toFixed(2),
-      locationScore: locationScore.toFixed(2),
-      potentialMatch: hasPotentialMatch,
-      finalScore: finalScore.toFixed(2)
-    });
     
     return finalScore;
   } catch (error) {
@@ -407,6 +475,23 @@ const getUserIdentifiers = (user) => {
   return identifiers;
 };
 
+// Find profiles who have super-liked the current user
+export const findSuperLikes = async (profileId) => {
+  try {
+    // Find all super likes received in the last 7 days
+    const superLikes = await GymBrosSuperLike.find({
+      recipientId: profileId,
+      createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+    });
+    
+    // Extract sender IDs
+    return superLikes.map(like => like.senderId.toString());
+  } catch (error) {
+    logger.error(`Error finding super likes for ${profileId}:`, error);
+    return [];
+  }
+};
+
 // Updated processFeedback function with improved interaction handling
 export const processFeedback = async (userId, targetId, feedbackType, viewDuration = 0, isGuest = false) => {
   try {
@@ -446,7 +531,6 @@ export const processFeedback = async (userId, targetId, feedbackType, viewDurati
     }
     
     // Build query for finding preferences
-    // CRITICAL: For guest users, NEVER use userId; use profileId and explicitly set the guest flag
     let prefQuery;
     
     if (isGuest) {
@@ -818,6 +902,23 @@ export const findPotentialMatches = async (userIdentifiers) => {
   }
 };
 
+// Function to check if user can send unlimited superlikes based on membership
+export const canSendUnlimitedSuperLikes = async (profileId) => {
+  try {
+    // Find active membership
+    const membership = await GymBrosMembership.findOne({
+      profileId,
+      isActive: true,
+      endDate: { $gt: new Date() }
+    });
+    
+    // Check if user has unlimited super likes benefit
+    return !!(membership && membership.benefits.unlimitedSuperLikes);
+  } catch (error) {
+    logger.error(`Error checking unlimited super likes for ${profileId}:`, error);
+    return false;
+  }
+};
 
 // Export all functions for use in controllers
 export default {
@@ -826,5 +927,9 @@ export default {
   calculateDistance,
   processFeedback,
   checkForMatch,
-  findPotentialMatches
+  findPotentialMatches,
+  getProfileBoostFactor,
+  findSuperLikes,
+  hasReceivedSuperLike,
+  canSendUnlimitedSuperLikes
 };

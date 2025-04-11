@@ -63,39 +63,30 @@ export const purchaseMembership = async (req, res) => {
     let durationDays = 0;
     let amountPaid = 0;
     const benefits = {
-      unlimitedLikes: true,
-      superLikesPerDay: 0,
-      boostsPerWeek: 0,
-      hideAds: true,
-      premiumFilters: true,
-      readReceipts: true
-    };
+        unlimitedLikes: true,
+        unlimitedSuperLikes: true,
+        profileBoost: 10 // 10x boost for all membership types
+      };
     
-    switch (membershipType) {
-      case 'membership-week':
-        durationDays = 7;
-        amountPaid = 4.99;
-        benefits.superLikesPerDay = 3;
-        benefits.boostsPerWeek = 1;
-        break;
-      case 'membership-month':
-        durationDays = 30;
-        amountPaid = 14.99;
-        benefits.superLikesPerDay = 5;
-        benefits.boostsPerWeek = 1;
-        break;
-      case 'membership-platinum':
-        durationDays = 30;
-        amountPaid = 24.99;
-        benefits.superLikesPerDay = 10;
-        benefits.boostsPerWeek = 2;
-        break;
-      default:
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid membership type'
-        });
-    }
+      switch (membershipType) {
+        case 'membership-week':
+          durationDays = 7;
+          amountPaid = 4.99;
+          break;
+        case 'membership-month':
+          durationDays = 30;
+          amountPaid = 14.99;
+          break;
+        case 'membership-platinum':
+          durationDays = 30;
+          amountPaid = 24.99;
+          break;
+        default:
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid membership type'
+          });
+      }
     
     // Calculate end date
     const endDate = new Date();
@@ -319,57 +310,48 @@ export const getMembershipTypes = async (req, res) => {
   try {
     // Define membership types and benefits
     const membershipTypes = [
-      {
-        id: 'membership-week',
-        name: 'Weekly Gold',
-        description: 'Premium features for 7 days',
-        duration: '7 days',
-        price: 4.99,
-        pointsPrice: 500,
-        benefits: {
-          unlimitedLikes: true,
-          superLikesPerDay: 3,
-          boostsPerWeek: 1,
-          hideAds: true,
-          premiumFilters: true,
-          readReceipts: true
+        {
+          id: 'membership-week',
+          name: 'Weekly Gold',
+          description: 'Premium features for 7 days',
+          duration: '7 days',
+          price: 4.99,
+          pointsPrice: 500,
+          benefits: {
+            unlimitedLikes: true,
+            unlimitedSuperLikes: true,
+            profileBoost: 10 // 10x profile visibility
+          }
+        },
+        {
+          id: 'membership-month',
+          name: 'Monthly Gold',
+          description: '30 days (Best Value)',
+          duration: '30 days',
+          price: 14.99,
+          pointsPrice: 1500,
+          popular: true,
+          benefits: {
+            unlimitedLikes: true,
+            unlimitedSuperLikes: true,
+            profileBoost: 10 // 10x profile visibility
+          }
+        },
+        {
+          id: 'membership-platinum',
+          name: 'Platinum',
+          description: 'Extended premium membership',
+          duration: '30 days',
+          price: 24.99,
+          pointsPrice: 2500,
+          benefits: {
+            unlimitedLikes: true,
+            unlimitedSuperLikes: true,
+            profileBoost: 10 // 10x profile visibility
+          }
         }
-      },
-      {
-        id: 'membership-month',
-        name: 'Monthly Gold',
-        description: '30 days (Best Value)',
-        duration: '30 days',
-        price: 14.99,
-        pointsPrice: 1500,
-        popular: true,
-        benefits: {
-          unlimitedLikes: true,
-          superLikesPerDay: 5,
-          boostsPerWeek: 1,
-          hideAds: true,
-          premiumFilters: true,
-          readReceipts: true
-        }
-      },
-      {
-        id: 'membership-platinum',
-        name: 'Platinum',
-        description: 'Gold + weekly boosts',
-        duration: '30 days',
-        price: 24.99,
-        pointsPrice: 2500,
-        benefits: {
-          unlimitedLikes: true,
-          superLikesPerDay: 10,
-          boostsPerWeek: 2,
-          hideAds: true,
-          premiumFilters: true,
-          readReceipts: true
-        }
-      }
-    ];
-    
+      ];
+      
     // Return membership types
     res.json({
       success: true,

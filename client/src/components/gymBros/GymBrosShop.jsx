@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ShoppingBag, Zap, Star, Medal, Crown, Link, LogIn, Dumbbell, 
-  Info, X, CreditCard, Sparkles, ArrowRight, Tag, Clock
+  Info, X, CreditCard, Sparkles, ArrowRight, Tag, Clock, Shield,
+  AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePoints } from '../../hooks/usePoints';
@@ -17,7 +18,13 @@ const GymBrosShop = () => {
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [promptShown, setPromptShown] = useState(false);
+  
+  // Active items tracking
+  const [activeMembership, setActiveMembership] = useState(null);
   const [activeBoosts, setActiveBoosts] = useState([]);
+  const [superLikeLimits, setSuperLikeLimits] = useState(null);
+  
+  // Purchase flow
   const [showBoostConfirmation, setShowBoostConfirmation] = useState(false);
   const [selectedBoost, setSelectedBoost] = useState(null);
   const [isConfirmationWithPoints, setIsConfirmationWithPoints] = useState(false);
@@ -31,20 +38,35 @@ const GymBrosShop = () => {
     }
   }, [isAuthenticated, promptShown]);
 
-  // Fetch active boosts on component mount
+  // Fetch active memberships, boosts, and superlikes on component mount
   useEffect(() => {
     if (isAuthenticated) {
-      fetchActiveBoosts();
+      fetchActiveItems();
     }
   }, [isAuthenticated]);
-
-  // Fetch active boosts
-  const fetchActiveBoosts = async () => {
+  
+  // Function to fetch all active items (membership, boosts, superlikes)
+  const fetchActiveItems = async () => {
     try {
+      // Fetch active membership
+      const membershipResponse = await gymbrosService.getActiveMembership();
+      if (membershipResponse.hasMembership) {
+        setActiveMembership(membershipResponse.membership);
+      } else {
+        setActiveMembership(null);
+      }
+      
+      // Fetch active boosts
       const boosts = await gymbrosService.getActiveBoosts();
       setActiveBoosts(boosts);
+      
+      // Fetch superlike limits
+      const superLikesData = await gymbrosService.getSuperLikeLimits();
+      setSuperLikeLimits(superLikesData.limits);
+      
     } catch (error) {
-      console.error('Failed to fetch active boosts:', error);
+      console.error('Failed to fetch active items:', error);
+      toast.error('Could not load your active items');
     }
   };
 
@@ -64,11 +86,61 @@ const GymBrosShop = () => {
       return;
     }
     
+    // Check if we have sufficient points
     if (balance < item.cost) {
       toast.error('Not enough points!', {
         description: `You need ${item.cost} points for this item. You have ${balance} points.`
       });
       return;
+    }
+    
+    // Check for existing membership or if trying to buy a redundant item
+    if (item.category === 'membership' && activeMembership) {
+      toast.error('You already have an active membership', {
+        description: `Your ${activeMembership.membershipType} membership is active until ${new Date(activeMembership.endDate).toLocaleDateString()}.`
+      });
+      return;
+    }
+    
+    // If user has a membership, they already have unlimited superlikes and boosts
+    if ((item.category === 'superlikes' || item.category === 'boosts') && activeMembership) {
+      toast.error('Feature already included in your membership', {
+        description: `Your ${activeMembership.membershipType} membership already includes ${item.category === 'superlikes' ? 'unlimited superlikes' : 'profile boost'}.`
+      });
+      return;
+    }
+    
+    // For boosts, check if another boost is already active
+    if (item.category === 'boosts' && activeBoosts && activeBoosts.length > 0) {
+      const matchingBoost = activeBoosts.find(boost => boost.boostType === item.id);
+      
+      if (matchingBoost) {
+        toast.error('Boost already active', {
+          description: `You already have this boost active for the next ${formatRemainingTime(matchingBoost.expiresAt)}.`
+        });
+        return;
+      }
+      
+      // If user is trying to buy a lesser boost when a stronger one is active
+      const boostFactors = {
+        'boost-basic': 3,
+        'boost-premium': 5,
+        'boost-ultra': 10
+      };
+      
+      const newBoostFactor = boostFactors[item.id] || 0;
+      
+      const higherBoost = activeBoosts.find(boost => {
+        const factor = boostFactors[boost.boostType] || 0;
+        return factor >= newBoostFactor;
+      });
+      
+      if (higherBoost) {
+        toast.error('Higher boost already active', {
+          description: `You already have a ${higherBoost.boostFactor}x boost active. You can't add a lower boost.`
+        });
+        return;
+      }
     }
 
     if (item.category === 'boosts') {
@@ -97,7 +169,7 @@ const GymBrosShop = () => {
         });
         
         // Update the points in the backend
-        await updatePointsInBackend(balance - item.cost);
+        await updatePointsInBackend(-item.cost);
         
         // Show success message
         toast.success(`${item.name} activated!`, {
@@ -105,21 +177,37 @@ const GymBrosShop = () => {
         });
         
         // Update active boosts
-        fetchActiveBoosts();
-      } else {
-        // Handle other types of purchases
-        await updatePointsInBackend(balance - item.cost);
-        
-        toast.success(`${item.name} purchased!`, {
-          description: `${item.cost} points deducted from your balance.`
+        fetchActiveItems();
+      } else if (item.category === 'membership') {
+        // Purchase membership with points
+        const response = await gymbrosService.purchaseMembership({
+          membershipType: item.id,
+          paymentMethod: 'points',
+          pointsUsed: item.cost,
+          usePoints: true
         });
         
-        // Handle specific item effects
-        if (item.category === 'superlikes') {
-          toast.info(`Super Likes available in your Discover tab.`);
-        } else if (item.category === 'membership') {
-          toast.info(`Membership benefits activated for ${item.duration}.`);
-        }
+        // Update the points in the backend
+        await updatePointsInBackend(-item.cost);
+        
+        toast.success(`${item.name} activated!`, {
+          description: `Your membership is now active for ${item.duration}. Enjoy unlimited superlikes and ${item.benefits.profileBoost}x profile visibility!`
+        });
+        
+        // Refresh active items to show the new membership
+        fetchActiveItems();
+      } else if (item.category === 'superlikes') {
+        // For superlike purchases, we need to track separately
+        // This is a placeholder since with our new approach, superlikes are handled per-use
+        await updatePointsInBackend(-item.cost);
+        
+        toast.success(`${item.name} purchased!`, {
+          description: `You have purchased ${item.quantity} super ${item.quantity > 1 ? 'likes' : 'like'}.`
+        });
+        
+        // Update superlike limits
+        const superLikesData = await gymbrosService.getSuperLikeLimits();
+        setSuperLikeLimits(superLikesData.limits);
       }
       
       // Close confirmation if it was open
@@ -146,6 +234,55 @@ const GymBrosShop = () => {
         description: 'Sign in to complete your purchase'
       });
       return;
+    }
+    
+    // Check for existing membership or if trying to buy a redundant item
+    if (item.category === 'membership' && activeMembership) {
+      toast.error('You already have an active membership', {
+        description: `Your ${activeMembership.membershipType} membership is active until ${new Date(activeMembership.endDate).toLocaleDateString()}.`
+      });
+      return;
+    }
+    
+    // If user has a membership, they already have unlimited superlikes and boosts
+    if ((item.category === 'superlikes' || item.category === 'boosts') && activeMembership) {
+      toast.error('Feature already included in your membership', {
+        description: `Your ${activeMembership.membershipType} membership already includes ${item.category === 'superlikes' ? 'unlimited superlikes' : 'profile boost'}.`
+      });
+      return;
+    }
+    
+    // For boosts, check if another boost is already active
+    if (item.category === 'boosts' && activeBoosts && activeBoosts.length > 0) {
+      const matchingBoost = activeBoosts.find(boost => boost.boostType === item.id);
+      
+      if (matchingBoost) {
+        toast.error('Boost already active', {
+          description: `You already have this boost active for the next ${formatRemainingTime(matchingBoost.expiresAt)}.`
+        });
+        return;
+      }
+      
+      // If user is trying to buy a lesser boost when a stronger one is active
+      const boostFactors = {
+        'boost-basic': 3,
+        'boost-premium': 5,
+        'boost-ultra': 10
+      };
+      
+      const newBoostFactor = boostFactors[item.id] || 0;
+      
+      const higherBoost = activeBoosts.find(boost => {
+        const factor = boostFactors[boost.boostType] || 0;
+        return factor >= newBoostFactor;
+      });
+      
+      if (higherBoost) {
+        toast.error('Higher boost already active', {
+          description: `You already have a ${higherBoost.boostFactor}x boost active. You can't add a lower boost.`
+        });
+        return;
+      }
     }
     
     if (item.category === 'boosts') {
@@ -185,19 +322,32 @@ const GymBrosShop = () => {
             });
             
             // Update active boosts
-            fetchActiveBoosts();
-          } else {
-            // Handle other types of purchases
-            toast.success(`${item.name} purchased successfully!`, {
-              description: `Your purchase has been activated.`
+            fetchActiveItems();
+          } else if (item.category === 'membership') {
+            // Purchase membership with Stripe
+            // In a real implementation, this would handle the Stripe payment flow
+            const response = await gymbrosService.purchaseMembership({
+              membershipType: item.id,
+              paymentMethod: 'stripe',
+              paymentIntentId: 'simulated-payment-intent', // This would be a real Stripe payment intent ID
+              amount: parseFloat(item.price.replace('$', ''))
             });
             
-            // Handle specific item effects
-            if (item.category === 'superlikes') {
-              toast.info(`Super Likes available in your Discover tab.`);
-            } else if (item.category === 'membership') {
-              toast.info(`Membership benefits activated for ${item.duration}.`);
-            }
+            toast.success(`${item.name} activated!`, {
+              description: `Your membership is now active for ${item.duration}. Enjoy unlimited superlikes and ${item.benefits.profileBoost}x profile visibility!`
+            });
+            
+            // Refresh active items to show the new membership
+            fetchActiveItems();
+          } else if (item.category === 'superlikes') {
+            // Handle superlike purchase with money
+            toast.success(`${item.name} purchased!`, {
+              description: `You have purchased ${item.quantity} super ${item.quantity > 1 ? 'likes' : 'like'}.`
+            });
+            
+            // Update superlike limits
+            const superLikesData = await gymbrosService.getSuperLikeLimits();
+            setSuperLikeLimits(superLikesData.limits);
           }
           
           // Close confirmation if it was open
@@ -265,7 +415,7 @@ const GymBrosShop = () => {
     { id: 'membership', name: 'Membership', icon: <Crown className="h-5 w-5" />, color: 'bg-amber-500', description: 'Premium benefits' }
   ];
   
-  // Products data with points prices
+  // Products data with simplified benefits across all membership types
   const products = {
     boosts: [
       { 
@@ -361,7 +511,12 @@ const GymBrosShop = () => {
         icon: <Crown className="h-8 w-8 text-amber-500" />,
         popular: false,
         color: 'bg-amber-500',
-        textColor: 'text-amber-500'
+        textColor: 'text-amber-500',
+        benefits: {
+          unlimitedLikes: true,
+          unlimitedSuperLikes: true,
+          profileBoost: 10
+        }
       },
       { 
         id: 'membership-month', 
@@ -374,12 +529,17 @@ const GymBrosShop = () => {
         icon: <Crown className="h-8 w-8 text-amber-500" />,
         popular: true,
         color: 'bg-amber-500',
-        textColor: 'text-amber-500'
+        textColor: 'text-amber-500',
+        benefits: {
+          unlimitedLikes: true,
+          unlimitedSuperLikes: true,
+          profileBoost: 10
+        }
       },
       { 
         id: 'membership-platinum', 
         name: 'Platinum', 
-        description: 'Gold + weekly boosts',
+        description: 'Gold + longer duration',
         cost: 2500,
         price: '$24.99',
         duration: '30 days',
@@ -387,7 +547,12 @@ const GymBrosShop = () => {
         icon: <Crown className="h-8 w-8 text-purple-600" />,
         popular: false,
         color: 'bg-amber-600',
-        textColor: 'text-amber-600'
+        textColor: 'text-amber-600',
+        benefits: {
+          unlimitedLikes: true,
+          unlimitedSuperLikes: true,
+          profileBoost: 10
+        }
       }
     ]
   };
@@ -557,7 +722,12 @@ const GymBrosShop = () => {
             >
               {processingPayment ? (
                 <>
-                  <Loader2 className="animate-spin mr-2 h-5 w-5" />
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  >
+                    <Loader className="mr-2 h-5 w-5" />
+                  </motion.div>
                   Processing...
                 </>
               ) : (
@@ -570,61 +740,176 @@ const GymBrosShop = () => {
     );
   };
 
-  // Render active boosts section
-  const renderActiveBoosts = () => {
-    if (activeBoosts.length === 0) return null;
+  // Render "My Active Items" section
+  const renderActiveItems = () => {
+    // Check if user has any active items
+    const hasActiveItems = activeMembership || (activeBoosts && activeBoosts.length > 0) || 
+                          (superLikeLimits && superLikeLimits.hasUnlimitedSuperLikes);
+    
+    if (!hasActiveItems) return null;
     
     return (
-      <div className="mb-6 bg-gradient-to-r from-violet-100 to-fuchsia-100 p-4 rounded-lg">
+      <div className="mb-6">
         <h3 className="text-lg font-bold mb-3 flex items-center">
-          <Zap className="text-purple-600 mr-2 h-5 w-5" />
-          Your Active Boosts
+          <Shield className="text-green-600 mr-2 h-5 w-5" />
+          My Active Items
         </h3>
         
         <div className="space-y-3">
-          {activeBoosts.map(boost => (
-            <div key={boost.id} className="bg-white rounded-lg p-3 shadow-sm flex justify-between items-center">
-              <div className="flex items-center">
-                <div className={`p-2 rounded-lg ${getBoostColor(boost.boostType)} bg-opacity-10 mr-3`}>
-                  <Zap className={`h-5 w-5 ${getBoostTextColor(boost.boostType)}`} />
+          {/* Active Membership */}
+          {activeMembership && (
+            <div className="bg-gradient-to-r from-amber-100 to-yellow-100 rounded-lg p-4 shadow-sm">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center">
+                  <div className="p-2 rounded-full bg-amber-500 bg-opacity-20 mr-3">
+                    <Crown className="h-6 w-6 text-amber-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-amber-800">{activeMembership.membershipType.replace('membership-', '').charAt(0).toUpperCase() + activeMembership.membershipType.replace('membership-', '').slice(1)} Membership</h4>
+                    <div className="text-sm text-amber-700 mt-1 flex flex-wrap gap-2">
+                      <span className="inline-flex items-center bg-white bg-opacity-50 rounded-full px-2 py-1">
+                        <Star className="h-3 w-3 mr-1" /> Unlimited Super Likes
+                      </span>
+                      <span className="inline-flex items-center bg-white bg-opacity-50 rounded-full px-2 py-1">
+                        <Zap className="h-3 w-3 mr-1" /> 10x Profile Boost
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-medium">{getBoostName(boost.boostType)}</h4>
-                  <p className="text-sm text-gray-600">{boost.boostFactor}x visibility</p>
+                <div className="text-right">
+                  <div className="text-sm text-amber-700 flex items-center justify-end">
+                    <Clock className="h-3 w-3 mr-1" />
+                    Expires {new Date(activeMembership.endDate).toLocaleDateString()}
+                  </div>
+                  <div className="text-xs text-amber-600 mt-1">
+                    {Math.ceil((new Date(activeMembership.endDate) - new Date()) / (1000 * 60 * 60 * 24))} days remaining
+                  </div>
                 </div>
-              </div>
-              
-              <div className="flex items-center">
-                <Clock className="h-4 w-4 text-gray-400 mr-1" />
-                <span className="text-sm text-gray-600">{formatRemainingTime(boost.expiresAt)}</span>
               </div>
             </div>
-          ))}
+          )}
+          
+          {/* Active Boosts - Only shown if no membership is active */}
+          {!activeMembership && activeBoosts && activeBoosts.length > 0 && (
+            activeBoosts.map(boost => (
+              <div key={boost.id} className="bg-gradient-to-r from-purple-100 to-fuchsia-100 rounded-lg p-3 shadow-sm">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center">
+                    <div className="p-2 rounded-full bg-purple-500 bg-opacity-20 mr-3">
+                      <Zap className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-purple-800">
+                        {boost.boostType === 'boost-basic' ? 'Basic' : 
+                         boost.boostType === 'boost-premium' ? 'Premium' : 'Ultra'} Boost
+                      </h4>
+                      <p className="text-sm text-purple-700">{boost.boostFactor}x Profile Visibility</p>
+                    </div>
+                  </div>
+                  <div className="text-sm text-purple-700 flex items-center">
+                    <Clock className="h-4 w-4 mr-1" />
+                    {formatRemainingTime(boost.expiresAt)}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+          
+          {/* Unlimited Super Likes indicator (if from membership) */}
+          {!activeMembership && superLikeLimits && superLikeLimits.hasUnlimitedSuperLikes && (
+            <div className="bg-gradient-to-r from-blue-100 to-indigo-100 rounded-lg p-3 shadow-sm">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center">
+                  <div className="p-2 rounded-full bg-blue-500 bg-opacity-20 mr-3">
+                    <Star className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-blue-800">Unlimited Super Likes</h4>
+                    <p className="text-sm text-blue-700">Stand out in the discover feed</p>
+                  </div>
+                </div>
+                <div className="text-sm text-blue-700 flex items-center">
+                  <Sparkles className="h-4 w-4 mr-1" />
+                  Unlimited
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
   };
 
-  // Helper functions for boosts
-  const getBoostName = (boostType) => {
-    if (boostType === 'boost-basic') return 'Basic Boost';
-    if (boostType === 'boost-premium') return 'Premium Boost';
-    if (boostType === 'boost-ultra') return 'Ultra Boost';
-    return 'Boost';
+  // Check if an item should be disabled
+  const isItemDisabled = (item) => {
+    // If user has an active membership, disable buying new membership, boosts, or superlikes
+    if (activeMembership) {
+      return true;
+    }
+    
+    // If user has an active boost and this is a boost item, check if it's already active or redundant
+    if (item.category === 'boosts' && activeBoosts && activeBoosts.length > 0) {
+      const matchingBoost = activeBoosts.find(boost => boost.boostType === item.id);
+      if (matchingBoost) return true;
+      
+      // If user is trying to buy a lesser boost when a stronger one is active
+      const boostFactors = {
+        'boost-basic': 3,
+        'boost-premium': 5,
+        'boost-ultra': 10
+      };
+      
+      const newBoostFactor = boostFactors[item.id] || 0;
+      
+      const higherBoost = activeBoosts.find(boost => {
+        const factor = boostFactors[boost.boostType] || 0;
+        return factor >= newBoostFactor;
+      });
+      
+      if (higherBoost) return true;
+    }
+    
+    return false;
   };
 
-  const getBoostColor = (boostType) => {
-    if (boostType === 'boost-basic') return 'bg-purple-500';
-    if (boostType === 'boost-premium') return 'bg-purple-600';
-    if (boostType === 'boost-ultra') return 'bg-purple-700';
-    return 'bg-purple-500';
-  };
-
-  const getBoostTextColor = (boostType) => {
-    if (boostType === 'boost-basic') return 'text-purple-500';
-    if (boostType === 'boost-premium') return 'text-purple-600';
-    if (boostType === 'boost-ultra') return 'text-purple-700';
-    return 'text-purple-500';
+  // Get tooltip message for disabled items
+  const getDisabledTooltip = (item) => {
+    if (activeMembership) {
+      if (item.category === 'membership') {
+        return `You already have an active ${activeMembership.membershipType.replace('membership-', '')} membership`;
+      } else if (item.category === 'boosts') {
+        return `Your ${activeMembership.membershipType.replace('membership-', '')} membership already includes 10x profile boost`;
+      } else if (item.category === 'superlikes') {
+        return `Your ${activeMembership.membershipType.replace('membership-', '')} membership already includes unlimited super likes`;
+      }
+    }
+    
+    if (item.category === 'boosts' && activeBoosts && activeBoosts.length > 0) {
+      const matchingBoost = activeBoosts.find(boost => boost.boostType === item.id);
+      if (matchingBoost) {
+        return `You already have this boost active for ${formatRemainingTime(matchingBoost.expiresAt)}`;
+      }
+      
+      // If user is trying to buy a lesser boost when a stronger one is active
+      const boostFactors = {
+        'boost-basic': 3,
+        'boost-premium': 5,
+        'boost-ultra': 10
+      };
+      
+      const newBoostFactor = boostFactors[item.id] || 0;
+      
+      const higherBoost = activeBoosts.find(boost => {
+        const factor = boostFactors[boost.boostType] || 0;
+        return factor >= newBoostFactor;
+      });
+      
+      if (higherBoost) {
+        return `You already have a ${higherBoost.boostFactor}x boost active`;
+      }
+    }
+    
+    return 'This item is not currently available';
   };
 
   // Render the category boxes when no category is selected
@@ -679,78 +964,97 @@ const GymBrosShop = () => {
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {selectedProducts.map((product) => (
-              <motion.div
-                key={product.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className="bg-white rounded-lg shadow-md overflow-hidden relative aspect-square"
-              >
-                {product.popular && (
-                  <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold py-1 px-3 rounded-bl-lg z-10">
-                    POPULAR
-                  </div>
-                )}
-                <div className="p-3 flex flex-col h-full">
-                  {/* Product Header */}
-                  <div className="mb-2">
-                    <div className={`${product.color} bg-opacity-10 p-2 rounded-lg inline-block mb-2`}>
-                      {product.icon}
+            {selectedProducts.map((product) => {
+              const disabled = isItemDisabled(product);
+              const disabledTooltip = getDisabledTooltip(product);
+              
+              return (
+                <motion.div
+                  key={product.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className={`bg-white rounded-lg shadow-md overflow-hidden relative aspect-square ${disabled ? 'opacity-70' : ''}`}
+                >
+                  {product.popular && (
+                    <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold py-1 px-3 rounded-bl-lg z-10">
+                      POPULAR
                     </div>
-                    <h3 className="font-bold text-base">{product.name}</h3>
-                    <p className="text-xs text-gray-600 line-clamp-2">{product.description}</p>
-                  </div>
+                  )}
                   
-                  {/* Product Details */}
-                  <div className="flex items-center justify-between mt-auto">
-                    <div className="flex flex-col">
-                      {product.duration && (
-                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full inline-block mb-1">
-                          {product.duration}
-                        </span>
-                      )}
-                      {product.quantity && (
-                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full inline-block">
-                          {product.quantity > 1 ? `${product.quantity} pack` : 'Single'}
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="flex flex-col items-end">
-                      <div className="flex items-center">
-                        <Sparkles className="h-3 w-3 text-blue-500 mr-1" />
-                        <span className="font-bold text-blue-600 text-sm">{product.cost}</span>
+                  {disabled && (
+                    <div className="absolute inset-0 bg-gray-100 bg-opacity-60 flex items-center justify-center z-10">
+                      <div className="bg-white p-2 rounded-lg shadow-sm max-w-[90%]">
+                        <div className="flex items-start">
+                          <AlertTriangle className="text-amber-500 h-4 w-4 mt-0.5 mr-1 flex-shrink-0" />
+                          <p className="text-xs text-gray-700">{disabledTooltip}</p>
+                        </div>
                       </div>
-                      <span className="text-xs text-gray-500">{product.price}</span>
+                    </div>
+                  )}
+                  
+                  <div className="p-3 flex flex-col h-full">
+                    {/* Product Header */}
+                    <div className="mb-2">
+                      <div className={`${product.color} bg-opacity-10 p-2 rounded-lg inline-block mb-2`}>
+                        {product.icon}
+                      </div>
+                      <h3 className="font-bold text-base">{product.name}</h3>
+                      <p className="text-xs text-gray-600 line-clamp-2">{product.description}</p>
+                    </div>
+                    
+                    {/* Product Details */}
+                    <div className="flex items-center justify-between mt-auto">
+                      <div className="flex flex-col">
+                        {product.duration && (
+                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full inline-block mb-1">
+                            {product.duration}
+                          </span>
+                        )}
+                        {product.quantity && (
+                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full inline-block">
+                            {product.quantity > 1 ? `${product.quantity} pack` : 'Single'}
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="flex flex-col items-end">
+                        <div className="flex items-center">
+                          <Sparkles className="h-3 w-3 text-blue-500 mr-1" />
+                          <span className="font-bold text-blue-600 text-sm">{product.cost}</span>
+                        </div>
+                        <span className="text-xs text-gray-500">{product.price}</span>
+                      </div>
+                    </div>
+                    
+                    {/* Purchase Buttons */}
+                    <div className="grid grid-cols-2 gap-2 mt-3">
+                      <motion.button
+                        whileHover={{ scale: disabled ? 1 : 1.03 }}
+                        whileTap={{ scale: disabled ? 1 : 0.97 }}
+                        onClick={() => !disabled && handlePurchaseWithPoints(product)}
+                        className={`${disabled ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'} px-2 py-1.5 rounded text-xs font-medium flex items-center justify-center`}
+                        disabled={disabled}
+                      >
+                        <Tag className="h-3 w-3 mr-1" />
+                        Points
+                      </motion.button>
+                      
+                      <motion.button
+                        whileHover={{ scale: disabled ? 1 : 1.03 }}
+                        whileTap={{ scale: disabled ? 1 : 0.97 }}
+                        onClick={() => !disabled && handlePurchaseWithMoney(product)}
+                        className={`${disabled ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} px-2 py-1.5 rounded text-xs font-medium flex items-center justify-center`}
+                        disabled={disabled}
+                      >
+                        <CreditCard className="h-3 w-3 mr-1" />
+                        Buy
+                      </motion.button>
                     </div>
                   </div>
-                  
-                  {/* Purchase Buttons */}
-                  <div className="grid grid-cols-2 gap-2 mt-3">
-                    <motion.button
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => handlePurchaseWithPoints(product)}
-                      className="bg-blue-100 text-blue-700 px-2 py-1.5 rounded text-xs font-medium flex items-center justify-center"
-                    >
-                      <Tag className="h-3 w-3 mr-1" />
-                      Points
-                    </motion.button>
-                    
-                    <motion.button
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => handlePurchaseWithMoney(product)}
-                      className="bg-gray-100 text-gray-700 px-2 py-1.5 rounded text-xs font-medium flex items-center justify-center"
-                    >
-                      <CreditCard className="h-3 w-3 mr-1" />
-                      Buy
-                    </motion.button>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </div>
         </motion.div>
       </AnimatePresence>
@@ -776,52 +1080,68 @@ const GymBrosShop = () => {
         </h3>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {featuredItems.map((product) => (
-            <motion.div
-              key={product.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.1 }}
-              className="bg-white rounded-lg shadow-md overflow-hidden relative"
-            >
-              {product.popular && (
-                <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold py-1 px-2 rounded-bl-lg z-10">
-                  POPULAR
-                </div>
-              )}
-              <div className="p-4">
-                <div className="flex items-center mb-2">
-                  <div className={`${product.color} bg-opacity-10 p-2 rounded-lg mr-3`}>
-                    {product.icon}
+          {featuredItems.map((product) => {
+            const disabled = isItemDisabled(product);
+            const disabledTooltip = getDisabledTooltip(product);
+            
+            return (
+              <motion.div
+                key={product.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.1 }}
+                className={`bg-white rounded-lg shadow-md overflow-hidden relative ${disabled ? 'opacity-70' : ''}`}
+              >
+                {product.popular && (
+                  <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold py-1 px-2 rounded-bl-lg z-10">
+                    POPULAR
                   </div>
-                  <div>
-                    <h3 className="font-bold">{product.name}</h3>
-                    <p className="text-xs text-gray-600">{product.description}</p>
-                  </div>
-                </div>
+                )}
                 
-                <div className="flex justify-between items-center mt-3">
-                  <div className="flex items-center">
-                    <Sparkles className="h-3 w-3 text-blue-500 mr-1" />
-                    <span className="font-bold text-blue-600">{product.cost}</span>
-                    <span className="text-xs text-gray-500 ml-1">or {product.price}</span>
+                {disabled && (
+                  <div className="absolute inset-0 bg-gray-100 bg-opacity-60 flex items-center justify-center z-10">
+                    <div className="bg-white p-2 rounded-lg shadow-sm max-w-[90%]">
+                      <div className="flex items-start">
+                        <AlertTriangle className="text-amber-500 h-4 w-4 mt-0.5 mr-1 flex-shrink-0" />
+                        <p className="text-xs text-gray-700">{disabledTooltip}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="p-4">
+                  <div className="flex items-center mb-2">
+                    <div className={`${product.color} bg-opacity-10 p-2 rounded-lg mr-3`}>
+                      {product.icon}
+                    </div>
+                    <div>
+                      <h3 className="font-bold">{product.name}</h3>
+                      <p className="text-xs text-gray-600">{product.description}</p>
+                    </div>
                   </div>
                   
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      setSelectedCategory(product.category);
-                    }}
-                    className="text-xs text-blue-600 font-medium flex items-center"
-                  >
-                    View
-                    <ArrowRight className="h-3 w-3 ml-1" />
-                  </motion.button>
+                  <div className="flex justify-between items-center mt-3">
+                    <div className="flex items-center">
+                      <Sparkles className="h-3 w-3 text-blue-500 mr-1" />
+                      <span className="font-bold text-blue-600">{product.cost}</span>
+                      <span className="text-xs text-gray-500 ml-1">or {product.price}</span>
+                    </div>
+                    
+                    <motion.button
+                      whileHover={{ scale: disabled ? 1 : 1.05 }}
+                      whileTap={{ scale: disabled ? 1 : 0.95 }}
+                      onClick={() => !disabled && setSelectedCategory(product.category)}
+                      className={`text-xs ${disabled ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 font-medium'} flex items-center`}
+                      disabled={disabled}
+                    >
+                      View
+                      <ArrowRight className="h-3 w-3 ml-1" />
+                    </motion.button>
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            );
+          })}
         </div>
       </div>
     );
@@ -857,8 +1177,8 @@ const GymBrosShop = () => {
         )}
       </div>
 
-      {/* Active Boosts Section */}
-      {renderActiveBoosts()}
+      {/* Active Items Section */}
+      {renderActiveItems()}
 
       {/* Main Content Area - Different based on if a category is selected */}
       {selectedCategory ? renderProducts() : (
