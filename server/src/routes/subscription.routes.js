@@ -57,24 +57,42 @@ router.post('/:subscriptionId/goals/:goalId/approve', optionalAuthenticate, isCo
 router.post('/:subscriptionId/goals/:goalId/reject', optionalAuthenticate, isCoach, rejectGoalCompletion);
 router.get('/:subscriptionId/sessions', optionalAuthenticate, getClientSessions);
 
-router.post('/webhook', express.raw({ type: 'application/json' }),  async (req, res) => {
-    const sig = req.headers['stripe-signature'];
-    try {
-      const event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-      await handleWebhook(event);
-      res.json({ received: true });
-    } catch (err) {
-      console.error('Webhook Verification Error:', {
-        message: err.message,
-        stack: err.stack
-      });
-      res.status(400).send(`Webhook Error: ${err.message}`);
+router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  
+  try {
+    // Add logging to troubleshoot
+    console.log('Received webhook request to /api/webhook');
+    console.log('Webhook Signature:', sig ? 'Present' : 'Missing');
+    
+    if (!sig) {
+      console.error('No Stripe signature found in webhook request');
+      return res.status(400).send('No Stripe signature found');
     }
+    
+    if (!process.env.STRIPE_WEBHOOK_SECRET) {
+      console.error('STRIPE_WEBHOOK_SECRET environment variable is not set');
+      return res.status(500).send('Webhook secret not configured');
+    }
+    
+    // Verify and construct the event
+    const event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
+    
+    console.log(`Webhook event verified: ${event.type}`);
+    
+    // Process the event
+    await handleWebhook(event);
+    
+    // Respond to Stripe
+    res.status(200).json({ received: true });
+  } catch (err) {
+    console.error('Webhook Error:', err);
+    res.status(400).send(`Webhook Error: ${err.message}`);
   }
-);
+});
 
 export default router;

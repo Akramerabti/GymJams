@@ -913,14 +913,14 @@ const CoachingHome = () => {
               </div>
 
               <p className={`mb-6 text-center ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                By logging in, you can earn <strong>Gymjammer points</strong>, which can get you discounts and make future purchases cheaper.
+                By logging in, you can earn <strong>GymjTonic points</strong>, which can get you discounts and make future purchases cheaper.
               </p>
 
               <a
                 href="/about-gymjammer-points"
                 className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 underline transition-colors mb-6 block text-center"
               >
-                Learn more about Gymjammer points
+                Learn more about Gymtonic points
               </a>
 
               <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">

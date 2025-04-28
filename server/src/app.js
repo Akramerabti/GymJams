@@ -68,26 +68,6 @@ app.use(passport.initialize());
 // Use passport session
 app.use(passport.session());
 
-// Special handling for Stripe webhook
-app.post('/api/subscription/webhook', 
-  express.raw({ type: 'application/json' }),
-  async (req, res) => {
-    const sig = req.headers['stripe-signature'];
-    try {
-      const event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-      await handleWebhook(event);
-      res.json({ received: true });
-    } catch (err) {
-      console.error('Webhook Verification Error:', err);
-      res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-  }
-);
-
 const helmetConfig = {
   crossOriginResourcePolicy: { policy: "cross-origin" },
   contentSecurityPolicy: {

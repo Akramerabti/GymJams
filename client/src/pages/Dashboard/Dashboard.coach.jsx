@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, Calendar, MessageSquare, Clock, Settings, ArrowRight, 
   TrendingUp, User, ChevronDown, Bell, Filter, Dumbbell, 
-  BarChart2, CheckCircle, X, PlusCircle, Download, Upload, AlertCircle
+  BarChart2, CheckCircle, X, PlusCircle, Download, Upload, AlertCircle,
+  FileEdit
 } from 'lucide-react';
 import subscriptionService from '../../services/subscription.service';
 import { useAuth } from '../../stores/authStore';
@@ -21,6 +20,7 @@ import CoachChatComponent from './components/CoachChatComponent';
 import ClientStatsWidget from './CoachOrganization/ClientStatsWidget';
 import clientService from '../../services/client.service';
 import PendingGoalsSection from '../../components/subscription/PendingGoalsSection.jsx';
+import PlanUpdateRequests from './CoachOrganization/PlanUpdateRequests'; // Import the new component
 
 
 const DashboardCoach = () => {
@@ -30,6 +30,7 @@ const DashboardCoach = () => {
     pendingRequests: 0,
     upcomingSessions: 0,
     messageThreads: 0,
+    planUpdateRequests: 0 // Add new stat for plan update requests
   });
   const [clients, setClients] = useState([]);
   const [activeTab, setActiveTab] = useState('clients');
@@ -270,13 +271,22 @@ const DashboardCoach = () => {
       setUpcomingSessions(Array.isArray(sessionsData) ? sessionsData : []);
       setPendingGoalApprovals(Array.isArray(pendingGoalApprovalsData) ? pendingGoalApprovalsData : []);
 
-      console.log('Pending goal approvals:', pendingGoalApprovalsData);
-      console.log('Pending  upcomingSessions:', upcomingSessions);
+      // Count premium and elite clients for plan update requests
+      const premiumAndEliteClients = (Array.isArray(clientsData) ? clientsData : [])
+        .filter(client => 
+          client.subscription === 'premium' || 
+          client.subscription === 'elite' || 
+          client.subscriptionType === 'Premium' || 
+          client.subscriptionType === 'Elite'
+        );
+      
+      // For demo purposes, assume 30% of premium/elite clients have plan update requests
+      const planUpdateRequestCount = Math.ceil(premiumAndEliteClients.length * 0.3);
   
       // Update pending goal count
       const pendingGoalCount = (Array.isArray(pendingGoalApprovalsData) ? pendingGoalApprovalsData : [])
         .reduce((count, client) => {
-          const pendingGoals = (client.goals || []).filter(
+          const pendingGoals = (client.pendingGoals || []).filter(
             goal => goal.status === 'pending_approval' || goal.clientRequestedCompletion
           );
           return count + pendingGoals.length;
@@ -290,7 +300,8 @@ const DashboardCoach = () => {
         pendingRequests: pendingRequestsData.length,
         upcomingSessions: sessionsData.length,
         messageThreads: clientsData.filter(c => c.unreadMessages && c.unreadMessages > 0).length,
-        pendingGoals: pendingGoalCount
+        pendingGoals: pendingGoalCount,
+        planUpdateRequests: planUpdateRequestCount // Add this new stat
       });
   
     } catch (error) {
@@ -640,7 +651,7 @@ const DashboardCoach = () => {
 
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 sm:gap-4"> {/* Changed to 5 columns */}
           <StatCard
             title="Active Clients"
             value={stats.activeClients}
@@ -658,6 +669,12 @@ const DashboardCoach = () => {
             value={stats.upcomingSessions} 
             icon={Calendar}
             onClick={() => handleStatCardClick('schedule')}
+          />
+          <StatCard 
+            title="Plan Requests"
+            value={stats.planUpdateRequests} 
+            icon={FileEdit}
+            onClick={() => handleStatCardClick('plan-requests')}
           />
           <StatCard 
             title="Pending"
@@ -684,6 +701,10 @@ const DashboardCoach = () => {
                   <TabsTrigger value="schedule" className="data-[state=active]:bg-white">
                     <Calendar className="w-4 h-4 mr-2" />
                     Schedule
+                  </TabsTrigger>
+                  <TabsTrigger value="plan-requests" className="data-[state=active]:bg-white">
+                    <FileEdit className="w-4 h-4 mr-2" />
+                    Plan Requests
                   </TabsTrigger>
                   <TabsTrigger value="requests" className="data-[state=active]:bg-white">
                     <Clock className="w-4 h-4 mr-2" />
@@ -774,6 +795,14 @@ const DashboardCoach = () => {
                   <TabsContent value="schedule" className="mt-0">
                     <Schedule 
                       clients={clients} 
+                      onRefreshData={fetchDashboardData}
+                    />
+                  </TabsContent>
+                  
+                  {/* New Plan Requests Tab */}
+                  <TabsContent value="plan-requests" className="mt-0">
+                    <PlanUpdateRequests 
+                      clients={clients}
                       onRefreshData={fetchDashboardData}
                     />
                   </TabsContent>

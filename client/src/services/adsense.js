@@ -350,26 +350,34 @@ class AdSenseService {
     }
   }
 
-  // Display an AdSense ad
   displayAd(domElement, position = 'sidebar', containerId = null) {
+    // Debug information
+    console.log('Displaying ad in:', domElement);
+    console.log('Position:', position);
+    console.log('Container ID:', containerId);
+    
     // Skip in development mode
     if (this.isDevelopment) {
+      console.log('Development mode detected, showing mock ad');
       return true; // Pretend it worked
     }
-    
+  
     if (!this.initialized || this.adBlocked) {
+      console.log('Cannot display ad: AdSense not initialized or blocked');
       return false;
     }
-
+  
     try {
       const adId = containerId || `ad-${position}-${Date.now()}`;
+      console.log('Pushing ad to adsbygoogle with ID:', adId);
       
       // Use AdSense's push method to display ads
       (window.adsbygoogle = window.adsbygoogle || []).push({});
       
       // Set a timeout to check if the ad was filled
       setTimeout(() => {
-        this.checkAdVisibility(domElement, position, adId);
+        const result = this.checkAdVisibility(domElement, position, adId);
+        console.log('Ad visibility check result:', result);
       }, 2000);
       
       return true;

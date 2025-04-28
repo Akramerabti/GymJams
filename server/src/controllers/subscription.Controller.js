@@ -852,6 +852,103 @@ export const handleWebhook = async (event) => {
         }
         break;
       }
+       // Add this case to handle subscription renewals
+       case 'customer.subscription.updated': {
+        const updatedSubscription = event.data.object;
+        console.log('Subscription updated event:', updatedSubscription);
+        
+        // Find the subscription in our database
+        const dbSubscription = await Subscription.findOne({
+          stripeSubscriptionId: updatedSubscription.id,
+        });
+        
+        if (!dbSubscription) {
+          console.error('Subscription not found in database:', updatedSubscription.id);
+          return;
+        }
+        
+        // Update our subscription with the new billing period
+        dbSubscription.currentPeriodStart = new Date(updatedSubscription.current_period_start * 1000);
+        dbSubscription.currentPeriodEnd = new Date(updatedSubscription.current_period_end * 1000);
+        dbSubscription.status = updatedSubscription.status;
+        
+        // If the subscription was previously marked for cancellation but then renewed
+        if (updatedSubscription.cancel_at_period_end === false && dbSubscription.cancelAtPeriodEnd === true) {
+          dbSubscription.cancelAtPeriodEnd = false;
+        }
+        
+        await dbSubscription.save();
+        console.log(`Updated subscription ${dbSubscription._id} with new billing period`);
+        break;
+      }
+      
+      // Add this case to handle payment success events (which would trigger a renewal)
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object;
+        
+        // Only process subscription invoices
+        if (invoice.subscription) {
+          console.log(`Payment succeeded for subscription: ${invoice.subscription}`);
+          
+          // Find the subscription in our database
+          const dbSubscription = await Subscription.findOne({
+            stripeSubscriptionId: invoice.subscription,
+          });
+          
+          if (!dbSubscription) {
+            console.error('Subscription not found in database:', invoice.subscription);
+            return;
+          }
+          
+          // Check if this is a renewal (not the initial payment)
+          if (invoice.billing_reason === 'subscription_cycle') {
+            console.log('This is a subscription renewal payment');
+            
+            // Update the subscription with the new billing period (should be in the event)
+            // This might be redundant if the subscription.updated event is processed,
+            // but it's a good fallback
+            const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
+            
+            dbSubscription.currentPeriodStart = new Date(subscription.current_period_start * 1000);
+            dbSubscription.currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+            dbSubscription.status = 'active';
+            
+            await dbSubscription.save();
+            console.log(`Updated subscription ${dbSubscription._id} after successful payment`);
+          }
+        }
+        break;
+      }
+      
+      // Add this case to handle payment failures
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object;
+        
+        // Only process subscription invoices
+        if (invoice.subscription) {
+          console.log(`Payment failed for subscription: ${invoice.subscription}`);
+          
+          // Find the subscription in our database
+          const dbSubscription = await Subscription.findOne({
+            stripeSubscriptionId: invoice.subscription,
+          });
+          
+          if (!dbSubscription) {
+            console.error('Subscription not found in database:', invoice.subscription);
+            return;
+          }
+          
+          // Update the subscription status
+          dbSubscription.status = 'past_due';
+          
+          await dbSubscription.save();
+          console.log(`Updated subscription ${dbSubscription._id} status to past_due`);
+          
+          // Here you might want to add code to notify the user about the payment failure
+        }
+        break;
+      }
+
       default:
         console.log(`Unhandled event type: ${event.type}`);
     }
@@ -861,10 +958,7 @@ export const handleWebhook = async (event) => {
   }
 };
 
-/**
- * Send a message within a subscription
- * @route POST /subscription/:subscriptionId/send-message
- */
+
 export const messaging = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
