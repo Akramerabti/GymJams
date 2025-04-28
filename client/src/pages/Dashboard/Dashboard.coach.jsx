@@ -21,7 +21,7 @@ import ClientStatsWidget from './CoachOrganization/ClientStatsWidget';
 import clientService from '../../services/client.service';
 import PendingGoalsSection from '../../components/subscription/PendingGoalsSection.jsx';
 import PlanUpdateRequests from './CoachOrganization/PlanUpdateRequests'; // Import the new component
-
+import SubscriptionInfoDialog from './CoachOrganization/SupscriptionInfoDialog.jsx';
 
 const DashboardCoach = () => {
   const { user } = useAuth();
@@ -228,7 +228,8 @@ const DashboardCoach = () => {
   const filteredClients = () => {
     if (!clients || !Array.isArray(clients)) return [];
     
-    return clients.filter(client => {
+    // First filter based on status and search term
+    const filtered = clients.filter(client => {
       // Apply status filter
       if (filterStatus !== 'all' && client.status !== filterStatus) {
         return false;
@@ -245,7 +246,43 @@ const DashboardCoach = () => {
       
       return true;
     });
+    
+    // Then sort by priority:
+    // 1. Active status first (active > paused > inactive)
+    // 2. Within active status, sort by subscription tier (elite > premium > basic)
+    // 3. Within each tier, sort by most recently active
+    return filtered.sort((a, b) => {
+      // Helper function to get status priority (active > paused > inactive)
+      const getStatusPriority = (status) => {
+        if (status === 'active') return 0;
+        if (status === 'paused') return 1;
+        return 2; // inactive or any other status
+      };
+      
+      // Helper function to get subscription tier priority (elite > premium > basic)
+      const getTierPriority = (tier) => {
+        if (tier === 'elite') return 0;
+        if (tier === 'premium') return 1;
+        return 2; // basic or any other tier
+      };
+      
+      // First, sort by activity status
+      const statusDiff = getStatusPriority(a.status) - getStatusPriority(b.status);
+      if (statusDiff !== 0) return statusDiff;
+      
+      // For clients with the same status, sort by subscription tier
+      const tierDiff = getTierPriority(a.subscription) - getTierPriority(b.subscription);
+      if (tierDiff !== 0) return tierDiff;
+      
+      // For clients with the same status and tier, sort by last active time (most recent first)
+      // Handle potential missing lastActiveRaw by defaulting to a very old date
+      const aDate = a.lastActiveRaw ? new Date(a.lastActiveRaw) : new Date(0);
+      const bDate = b.lastActiveRaw ? new Date(b.lastActiveRaw) : new Date(0);
+      
+      return bDate - aDate; // Descending order (most recent first)
+    });
   };
+
 
   const fetchDashboardData = async () => {
     try {
@@ -687,7 +724,7 @@ const DashboardCoach = () => {
         {/* Main Tabs Section */}
         <Card className="shadow-lg" ref={tabContentRef}>
           <Tabs defaultValue="clients" value={activeTab} onValueChange={setActiveTab}>
-            <CardHeader className="border-b pb-3">
+          <CardHeader className="border-b pb-3">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <TabsList className="bg-gray-100">
                   <TabsTrigger value="clients" className="data-[state=active]:bg-white">
@@ -701,10 +738,6 @@ const DashboardCoach = () => {
                   <TabsTrigger value="schedule" className="data-[state=active]:bg-white">
                     <Calendar className="w-4 h-4 mr-2" />
                     Schedule
-                  </TabsTrigger>
-                  <TabsTrigger value="plan-requests" className="data-[state=active]:bg-white">
-                    <FileEdit className="w-4 h-4 mr-2" />
-                    Plan Requests
                   </TabsTrigger>
                   <TabsTrigger value="requests" className="data-[state=active]:bg-white">
                     <Clock className="w-4 h-4 mr-2" />
@@ -768,11 +801,52 @@ const DashboardCoach = () => {
                 <>
                   <TabsContent value="clients" className="mt-0">
                     {filteredClients().length > 0 ? (
-                      <ClientList 
-                        clients={filteredClients()} 
-                        onClientClick={handleClientClick} 
-                        onChatClick={handleChatClick}
-                      />
+                      <div className="space-y-4">
+                        {/* Active clients section */}
+                        {filteredClients().filter(c => c.status === 'active').length > 0 && (
+                          <div>
+                            <h3 className="text-sm font-medium text-gray-500 mb-3 flex items-center">
+                              <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                              Active Clients
+                            </h3>
+                            <ClientList 
+                              clients={filteredClients().filter(c => c.status === 'active')} 
+                              onClientClick={handleClientClick} 
+                              onChatClick={handleChatClick}
+                            />
+                          </div>
+                        )}
+
+                        {/* Paused clients section */}
+                        {filteredClients().filter(c => c.status === 'paused').length > 0 && (
+                          <div>
+                            <h3 className="text-sm font-medium text-gray-500 mb-3 mt-6 flex items-center">
+                              <div className="w-2 h-2 bg-amber-500 rounded-full mr-2"></div>
+                              Paused Clients
+                            </h3>
+                            <ClientList 
+                              clients={filteredClients().filter(c => c.status === 'paused')} 
+                              onClientClick={handleClientClick} 
+                              onChatClick={handleChatClick}
+                            />
+                          </div>
+                        )}
+
+                        {/* Inactive clients section */}
+                        {filteredClients().filter(c => c.status !== 'active' && c.status !== 'paused').length > 0 && (
+                          <div>
+                            <h3 className="text-sm font-medium text-gray-500 mb-3 mt-6 flex items-center">
+                              <div className="w-2 h-2 bg-gray-400 rounded-full mr-2"></div>
+                              Inactive Clients
+                            </h3>
+                            <ClientList 
+                              clients={filteredClients().filter(c => c.status !== 'active' && c.status !== 'paused')} 
+                              onClientClick={handleClientClick} 
+                              onChatClick={handleChatClick}
+                            />
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <div className="text-center py-16">
                         <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -791,7 +865,7 @@ const DashboardCoach = () => {
                       </div>
                     )}
                   </TabsContent>
-                  
+
                   <TabsContent value="schedule" className="mt-0">
                     <Schedule 
                       clients={clients} 

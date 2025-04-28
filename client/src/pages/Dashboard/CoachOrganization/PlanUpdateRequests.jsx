@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
+import { TextArea } from '@/components/ui/textArea';
 import { toast } from 'sonner';
 
 const PlanUpdateRequests = ({ clients, onRefreshData }) => {
@@ -303,7 +303,7 @@ const PlanUpdateRequests = ({ clients, onRefreshData }) => {
               </div>
               
               <div className="space-y-4">
-                <Textarea
+                <TextArea
                   placeholder="Write your response here..."
                   value={responseMessage}
                   onChange={(e) => setResponseMessage(e.target.value)}
