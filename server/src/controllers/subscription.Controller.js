@@ -1819,3 +1819,142 @@ export const getClientSessions = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch sessions' });
   }
 };
+
+
+// Final fixed mapping based on actual enum values
+export const requestSession = async (req, res) => {
+  try {
+    const { subscriptionId } = req.params;
+    const { date, time, sessionType, type, notes, duration = '60 minutes' } = req.body;
+    
+    console.log('Session request received:', {
+      subscriptionId,
+      body: req.body,
+      params: req.params,
+      query: req.query
+    });
+    
+    // Use either sessionType or type field (whichever is provided)
+    const providedSessionType = sessionType || type;
+    
+    // Validate required inputs
+    if (!date || !time || !providedSessionType) {
+      return res.status(400).json({ 
+        error: 'Missing required session information',
+        required: ['date', 'time', 'sessionType/type'],
+        received: req.body
+      });
+    }
+    
+    // Find the subscription
+    const subscription = await Subscription.findById(subscriptionId);
+    
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+    
+    // Verify subscription is active
+    if (subscription.status !== 'active') {
+      return res.status(403).json({ error: 'Subscription is not active' });
+    }
+    
+    // Check if user has appropriate plan to request sessions
+    if (subscription.subscription !== 'premium' && subscription.subscription !== 'elite') {
+      return res.status(403).json({ 
+        error: 'Session requests are only available for Premium and Elite subscriptions',
+        requiredPlan: 'premium'
+      });
+    }
+    
+    // Get the valid sessionType enum values from the model
+    const validSessionTypes = Session.schema.path('sessionType').enumValues;
+    console.log('Valid session types:', validSessionTypes);
+    
+    // Map user-friendly session types to valid enum values based on actual model
+    const sessionTypeMapping = {
+      'General Check-in': 'Other',
+      'Form Review': 'Workout Review',
+      'Progress Review': 'Progress Check',
+      'Nutrition Consultation': 'Nutrition Consultation',
+      'Goal Setting': 'Goal Setting',
+      'Training Session': 'Training Session'
+    };
+    
+    // Convert provided session type to valid enum value, fallback to 'Other'
+    const enumSessionType = sessionTypeMapping[providedSessionType] || 'Other';
+    
+    // Make sure the enum value is valid
+    if (!validSessionTypes.includes(enumSessionType)) {
+      return res.status(400).json({
+        error: `Invalid session type. Must be one of: ${validSessionTypes.join(', ')}`,
+        providedType: providedSessionType,
+        mappedType: enumSessionType
+      });
+    }
+    
+    // Get the coach ID
+    const coachId = subscription.assignedCoach;
+    
+    if (!coachId) {
+      return res.status(400).json({ error: 'No coach assigned to this subscription' });
+    }
+    
+    // Create a new session document
+    const sessionDoc = {
+      subscription: subscriptionId,
+      coachId: coachId,
+      date,
+      time,
+      sessionType: enumSessionType, // Use the mapped valid enum value
+      notes: notes || '',
+      duration: duration || '60 minutes',
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      clientRequested: true
+    };
+    
+    console.log('Creating new session with data:', sessionDoc);
+    
+    // Create a new session
+    const session = new Session(sessionDoc);
+    const savedSession = await session.save();
+    
+    console.log('Session created successfully:', savedSession);
+    
+    // Notify coach via socket if they're online
+    const io = getIoInstance();
+    if (io) {
+      const coachSocketId = activeUsers.get(coachId.toString());
+      if (coachSocketId) {
+        io.to(coachSocketId).emit('sessionRequested', {
+          sessionId: savedSession._id,
+          clientId: subscriptionId,
+          date,
+          time,
+          type: providedSessionType,
+          sourceName: session.user ? `${session.user.firstName} ${session.user.lastName}` : 'Client'
+        });
+        console.log('Coach notification sent via socket');
+      } else {
+        console.log('Coach not online for real-time notification');
+      }
+    }
+    
+    // Return the new session with user-friendly session type
+    const responseSession = savedSession.toObject();
+    responseSession.userFriendlyType = providedSessionType; // Add the original user-friendly type
+    
+    res.status(201).json({
+      message: 'Session requested successfully',
+      session: responseSession
+    });
+    
+  } catch (error) {
+    console.error('Error requesting session:', error);
+    res.status(500).json({ 
+      error: 'Failed to request session', 
+      details: error.message,
+      stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
+    });
+  }
+};

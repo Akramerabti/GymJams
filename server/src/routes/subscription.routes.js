@@ -23,7 +23,8 @@ import {
   saveQuestionnaireDerivedGoals,
   getSubscriptionGoals,
   getPendingGoalApprovals,
-  getClientSessions
+  getClientSessions,
+  requestSession,
 } from '../controllers/subscription.Controller.js';
 import stripe from '../config/stripe.js';
 import upload from '../config/multer.js';
@@ -56,6 +57,7 @@ router.post('/:subscriptionId/goals/:goalId/request-completion', optionalAuthent
 router.post('/:subscriptionId/goals/:goalId/approve', optionalAuthenticate, isCoach, approveGoalCompletion);
 router.post('/:subscriptionId/goals/:goalId/reject', optionalAuthenticate, isCoach, rejectGoalCompletion);
 router.get('/:subscriptionId/sessions', optionalAuthenticate, getClientSessions);
+router.post('/:subscriptionId/request-session', optionalAuthenticate, requestSession);
 
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   const sig = req.headers['stripe-signature'];

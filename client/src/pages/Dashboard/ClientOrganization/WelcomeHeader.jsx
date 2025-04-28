@@ -169,43 +169,6 @@ const WelcomeHeader = ({
             </motion.div>
           )}
           
-          {/* Make a Request Button - Only for Premium and Elite */}
-          {assignedCoach && canRequestPlanUpdate && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="w-full sm:w-auto"
-            >
-              <Button
-                onClick={handleRequestPlanUpdate}
-                className="w-full sm:w-auto bg-white/20 hover:bg-white/30 text-white"
-                disabled={currentTier.planUpdateFrequency === 'weekly' && hasUsedWeeklyRequest()}
-              >
-                <FileEdit className="w-5 h-5 mr-2" />
-                Request Plan Update
-                {currentTier.planUpdateFrequency === 'weekly' && hasUsedWeeklyRequest() && (
-                  <span className="ml-1 text-xs">(Weekly limit reached)</span>
-                )}
-              </Button>
-            </motion.div>
-          )}
-          
-          {/* Session Request Button - Tier-based UI indication */}
-          {assignedCoach && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="w-full sm:w-auto"
-            >
-              <Button
-                onClick={onSessionRequest}
-                className="w-full sm:w-auto bg-white/20 hover:bg-white/30 text-white"
-              >
-                <Calendar className="w-5 h-5 mr-2" />
-                {subscription?.subscription === 'basic' ? 'View Sessions' : 'Request Session'}
-              </Button>
-            </motion.div>
-          )}
           
           {/* Upgrade Button */}
           {currentTier.upgrade && (
@@ -226,49 +189,6 @@ const WelcomeHeader = ({
         </div>
       </div>
       
-      {/* Plan Update Request Modal */}
-      <Dialog open={showPlanRequestModal} onOpenChange={setShowPlanRequestModal}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Request Plan Update</DialogTitle>
-          </DialogHeader>
-          
-          <div className="py-4">
-            <p className="text-gray-600 dark:text-gray-300 mb-4">
-              Let your coach know what changes you'd like to see in your current plan:
-            </p>
-            <TextArea
-              placeholder="Describe the updates you'd like to your workout or nutrition plan..."
-              rows={6}
-              value={requestMessage}
-              onChange={(e) => setRequestMessage(e.target.value)}
-              className="mb-2"
-            />
-            {currentTier.planUpdateFrequency === 'weekly' && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Note: With Premium tier, you can request one plan update per week.
-              </p>
-            )}
-          </div>
-          
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setShowPlanRequestModal(false)}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleSubmitRequest}
-              disabled={isSubmitting}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {isSubmitting ? 'Sending...' : 'Send Request'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </motion.div>
   );
 };

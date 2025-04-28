@@ -85,6 +85,15 @@ const SessionsView = ({ subscription }) => {
     }
   };
 
+  const SESSION_TYPE_MAPPING = {
+    'General Check-in': 'general',
+    'Form Review': 'form',
+    'Progress Review': 'progress',
+    'Nutrition Consultation': 'nutrition',
+    'Goal Setting': 'goal'
+  };
+  
+
   // Handle add to calendar
   const handleAddToCalendar = (session) => {
     try {
@@ -166,50 +175,70 @@ const SessionsView = ({ subscription }) => {
     try {
       setIsSubmitting(true);
       
-      // Validate form
-      const sessionDate = new Date(requestForm.date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // Validate form data
+      const sessionDateStr = requestForm.date;
+      const todayStr = getTodayString();
       
-      if (sessionDate < today) {
+      if (sessionDateStr < todayStr) {
         toast.error('Session date cannot be in the past');
         setIsSubmitting(false);
         return;
       }
       
-      // For now, we'll simulate an API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Get the user-friendly session type and its enum equivalent
+      const userFriendlyType = requestForm.sessionType;
+      const enumSessionType = SESSION_TYPE_MAPPING[userFriendlyType] || 'general';
       
-      // TODO: Replace with actual API call to request a session
-      // await clientService.requestSession(subscription._id, {
-      //   date: requestForm.date,
-      //   time: requestForm.time,
-      //   sessionType: requestForm.sessionType,
-      //   notes: requestForm.notes
-      // });
+      // Prepare the request data with both formats
+      const sessionData = {
+        date: requestForm.date,
+        time: requestForm.time,
+        sessionType: userFriendlyType,  // Send the user-friendly version
+        enumSessionType: enumSessionType, // Send the enum version for the server
+        notes: requestForm.notes,
+        duration: '60 minutes'
+      };
       
+      console.log('Sending session request with data:', sessionData);
+      
+      // Send the actual API request
+      const response = await clientService.requestSession(subscription._id, sessionData);
+      
+      // Handle successful response
       toast.success('Session request sent to your coach!');
       setShowRequestModal(false);
       
-      // Simulate the new session being added
-      setSessions(prev => [
-        ...prev,
-        {
-          id: `temp-${Date.now()}`,
-          date: requestForm.date,
-          time: requestForm.time,
-          sessionType: requestForm.sessionType,
-          type: requestForm.sessionType,
-          notes: requestForm.notes,
-          duration: '60 minutes',
-          status: 'pending',
-          isPending: true
-        }
-      ]);
+      // Add the new session to the local state - use the returned session if available
+      const newSession = response?.session || {
+        id: `temp-${Date.now()}`,
+        date: sessionData.date,
+        time: sessionData.time,
+        type: userFriendlyType, // Use the user-friendly version for display
+        sessionType: enumSessionType, // Keep the enum value too
+        notes: sessionData.notes,
+        duration: sessionData.duration,
+        status: 'pending',
+        isPending: true
+      };
+      
+      setSessions(prev => [...prev, newSession]);
+      
+      // Refresh the sessions list from server after a short delay
+      setTimeout(() => {
+        fetchSessions();
+      }, 1000);
       
     } catch (error) {
       console.error('Failed to request session:', error);
-      toast.error('Failed to send session request. Please try again.');
+      
+      // Provide meaningful error messages based on the error
+      if (error.response?.status === 403) {
+        toast.error('You don\'t have permission to request sessions with your current plan');
+      } else if (error.response?.status === 429) {
+        toast.error('You\'ve reached your session request limit');
+      } else {
+        toast.error('Failed to send session request: ' + (error.response?.data?.error || error.message));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -526,23 +555,24 @@ const SessionsView = ({ subscription }) => {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="session-type">Session Type</Label>
-              <Select 
-                value={requestForm.sessionType} 
-                onValueChange={(value) => handleFormChange('sessionType', value)}
-              >
-                <SelectTrigger id="session-type">
-                  <SelectValue placeholder="Select session type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="General Check-in">General Check-in</SelectItem>
-                  <SelectItem value="Form Review">Form Review</SelectItem>
-                  <SelectItem value="Progress Review">Progress Review</SelectItem>
-                  <SelectItem value="Nutrition Consultation">Nutrition Consultation</SelectItem>
-                  <SelectItem value="Goal Setting">Goal Setting</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+  <Label htmlFor="session-type">Session Type</Label>
+  <Select 
+    value={requestForm.sessionType} 
+    onValueChange={(value) => handleFormChange('sessionType', value)}
+  >
+    <SelectTrigger id="session-type">
+      <SelectValue placeholder="Select session type" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="General Check-in">General Check-in</SelectItem>
+      <SelectItem value="Form Review">Form Review</SelectItem>
+      <SelectItem value="Progress Review">Progress Review</SelectItem>
+      <SelectItem value="Nutrition Consultation">Nutrition Consultation</SelectItem>
+      <SelectItem value="Goal Setting">Goal Setting</SelectItem>
+      <SelectItem value="Training Session">Training Session</SelectItem>
+    </SelectContent>
+  </Select>
+</div>
             
             <div className="space-y-2">
               <Label htmlFor="session-notes">Additional Notes</Label>

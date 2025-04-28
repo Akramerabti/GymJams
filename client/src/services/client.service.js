@@ -34,6 +34,48 @@ const clientService = {
     }
   },
 
+  // Updated method for clientService.js
+async requestSession(subscriptionId, sessionData) {
+  try {
+    if (!subscriptionId || !sessionData) {
+      throw new Error('Missing required parameters');
+    }
+    
+    // Log the request for debugging
+    console.log(`Requesting session for subscription ${subscriptionId}:`, sessionData);
+    
+    // Make sure all required fields are present and properly named
+    const payload = {
+      ...sessionData,
+      // Ensure the field name matches what the server expects
+      sessionType: sessionData.sessionType || sessionData.type,
+      // Make sure type is included as a fallback
+      type: sessionData.type || sessionData.sessionType
+    };
+    
+    // Add the guest token if it exists in the URL
+    const params = {};
+    const urlParams = new URLSearchParams(window.location.search);
+    const guestToken = urlParams.get('guestToken');
+    if (guestToken) {
+      params.guestToken = guestToken;
+    }
+    
+    // Call the API endpoint with query parameters
+    const response = await api.post(
+      `/subscription/${subscriptionId}/request-session`, 
+      payload,
+      { params }
+    );
+    
+    console.log('Session request successful:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to request session:', error);
+    throw error;
+  }
+},
+
   // Update client stats
   async updateClientStats(clientId, statsData) {
     try {

@@ -55,7 +55,21 @@ const sessionSchema = new mongoose.Schema(
     meetingPlatform: {
       type: String,
       enum: ['Zoom', 'Google Meet', 'Microsoft Teams', 'Skype', 'Other', '']
-    }
+    },
+    
+  status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected', 'completed', 'cancelled'],
+    default: 'pending'
+  },
+  clientRequested: {
+    type: Boolean,
+    default: false
+  },
+  approvedAt: Date,
+  approvedBy: mongoose.Schema.Types.ObjectId,
+  rejectedAt: Date,
+  rejectionReason: String,
   },
   {
     timestamps: true
