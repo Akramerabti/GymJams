@@ -346,3 +346,88 @@ export const uploadFile = async (req, res) => {
     res.status(500).json({ message: 'File upload failed' });
   }
 };
+
+export const rateCoach = async (req, res) => {
+  try {
+    const { coachId } = req.params;
+    const { rating } = req.body;
+    const userId = req.user.id;
+    
+    // Validate rating input
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Invalid rating. Must be between 1 and 5.' });
+    }
+    
+    // Find the coach
+    const coach = await User.findById(coachId);
+    
+    if (!coach || coach.role !== 'coach') {
+      return res.status(404).json({ error: 'Coach not found' });
+    }
+    
+    // Check if user has already rated this coach
+    const hasRated = coach.ratedBy && coach.ratedBy.some(item => item.userId.toString() === userId);
+    
+    if (hasRated) {
+      return res.status(400).json({ error: 'You have already rated this coach' });
+    }
+    
+    // Calculate new average rating
+    const currentRating = coach.rating || 0;
+    const ratingCount = coach.ratingCount || 0;
+    
+    // Calculate new average
+    const totalRatingPoints = currentRating * ratingCount;
+    const newTotalPoints = totalRatingPoints + rating;
+    const newRatingCount = ratingCount + 1;
+    const newAverageRating = parseFloat((newTotalPoints / newRatingCount).toFixed(1)); // One decimal place
+    
+    // Update coach rating data
+    coach.rating = newAverageRating;
+    coach.ratingCount = newRatingCount;
+    
+    // Add user to the list of users who have rated this coach
+    if (!coach.ratedBy) {
+      coach.ratedBy = [];
+    }
+    
+    coach.ratedBy.push({
+      userId: userId,
+      rating: rating
+    });
+    
+    logger.info(`Coach ${coachId} received new rating: ${rating}/5 from user ${userId}. New average: ${coach.rating}/5 (${newRatingCount} ratings)`);
+    
+    await coach.save();
+    
+    res.status(200).json({ 
+      message: 'Rating submitted successfully',
+      newRating: coach.rating
+    });
+  } catch (error) {
+    logger.error('Error submitting coach rating:', error);
+    res.status(500).json({ error: 'Failed to submit rating' });
+  }
+};
+
+export const checkUserRating = async (req, res) => {
+  try {
+    const { coachId } = req.params;
+    const userId = req.user.id;
+    
+    // Find the coach
+    const coach = await User.findById(coachId);
+    
+    if (!coach || coach.role !== 'coach') {
+      return res.status(404).json({ error: 'Coach not found' });
+    }
+    
+    // Check if user has already rated this coach
+    const hasRated = coach.ratedBy && coach.ratedBy.some(item => item.userId.toString() === userId);
+    
+    res.json({ hasRated });
+  } catch (error) {
+    logger.error('Error checking user rating:', error);
+    res.status(500).json({ error: 'Failed to check user rating' });
+  }
+};

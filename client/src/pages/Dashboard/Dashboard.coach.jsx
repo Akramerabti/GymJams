@@ -22,6 +22,7 @@ import clientService from '../../services/client.service';
 import PendingGoalsSection from '../../components/subscription/PendingGoalsSection.jsx';
 import PlanUpdateRequests from './CoachOrganization/PlanUpdateRequests'; // Import the new component
 import SubscriptionInfoDialog from './CoachOrganization/SupscriptionInfoDialog.jsx';
+import { constructFromSymbol } from 'date-fns/constants';
 
 const DashboardCoach = () => {
   const { user } = useAuth();
@@ -227,6 +228,7 @@ const DashboardCoach = () => {
   
   const filteredClients = () => {
     if (!clients || !Array.isArray(clients)) return [];
+    console.log('Filtering clients:', clients, filterStatus, searchTerm);
     
     // First filter based on status and search term
     const filtered = clients.filter(client => {

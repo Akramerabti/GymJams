@@ -86,6 +86,17 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  ratingCount: {
+    type: Number,
+    default: 0
+  },
+  ratedBy: [{
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    rating: Number
+  }],
   socialLinks: {
     instagram: String,
     twitter: String,

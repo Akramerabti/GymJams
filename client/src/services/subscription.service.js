@@ -681,7 +681,36 @@ async approveGoalCompletion(subscriptionId, goalId, pointsAwarded) {
   },
 
 
+  async rateCoach(coachId, rating) {
+    try {
+      const response = await api.post(`/user/${coachId}/rate`, { rating });
+      return response.data;
+    } catch (error) {
+      console.error('Error rating coach:', error);
+      throw error;
+    }
+  },
 
+  // Get coach details
+  async getCoachDetails(coachId) {
+    try {
+      const response = await api.get(`/user/${coachId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching coach details:', error);
+      throw error;
+    }
+  },
+
+  async checkIfUserRatedCoach(coachId) {
+    try {
+      const response = await api.get(`/user/${coachId}/user-rating`);
+      return response.data.hasRated;
+    } catch (error) {
+      console.error('Error checking if user has rated coach:', error);
+      return false; // Default to false if there's an error
+    }
+  },
 
 
 

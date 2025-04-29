@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, ArrowRight, User, Award, Crown, Zap, FileEdit, Calendar } from 'lucide-react';
+import { MessageSquare, ArrowRight, User, Award, Crown, Zap, FileEdit, Calendar, Star } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { TextArea } from '@/components/ui/textArea';
 import { toast } from 'sonner';
+import subscriptionService from '../../../services/subscription.service';
 
 // Subscription tier configuration
 const SUBSCRIPTION_TIERS = {
@@ -47,17 +48,37 @@ const WelcomeHeader = ({
   const [showPlanRequestModal, setShowPlanRequestModal] = useState(false);
   const [requestMessage, setRequestMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [hasRatedCoach, setHasRatedCoach] = useState(false);
   
-  // Get user first name
-  const getUserFirstName = () => {
-    return user?.user?.firstName || user?.firstName || '';
-  };
+  // Check if user has already rated this coach
+  useEffect(() => {
+    const checkUserRating = async () => {
+      if (assignedCoach && assignedCoach._id) {
+        try {
+          const hasRated = await subscriptionService.checkIfUserRatedCoach(assignedCoach._id);
+          setHasRatedCoach(hasRated);
+        } catch (error) {
+          console.error('Error checking if user has rated coach:', error);
+        }
+      }
+    };
+    
+    checkUserRating();
+  }, [assignedCoach]);
   
   // Get current subscription tier
   const currentTier = SUBSCRIPTION_TIERS[subscription?.subscription || 'basic'];
   
   // Check if user can request plan update
   const canRequestPlanUpdate = currentTier.canRequestPlanUpdate;
+  
+  // Get user first name
+  const getUserFirstName = () => {
+    return user?.user?.firstName || user?.firstName || '';
+  };
   
   // Check if user has used their weekly request (for premium)
   const hasUsedWeeklyRequest = () => {
@@ -110,6 +131,44 @@ const WelcomeHeader = ({
     } catch (error) {
       toast.error('Failed to send request. Please try again.');
       console.error('Error sending plan update request:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const handleSubmitRating = async () => {
+    if (rating === 0) {
+      toast.error('Please select a rating');
+      return;
+    }
+    
+    if (hasRatedCoach) {
+      toast.error('You have already rated this coach');
+      setShowRatingModal(false);
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Call API to submit the coach rating
+      if (assignedCoach && assignedCoach._id) {
+        const response = await subscriptionService.rateCoach(assignedCoach._id, rating);
+        toast.success(`Thank you for rating your coach! Current rating: ${response.newRating}/5`);
+        setShowRatingModal(false);
+        setRating(0); // Reset rating after submission
+        setHasRatedCoach(true); // Update local state to reflect that user has rated
+      } else {
+        throw new Error('Coach information is missing');
+      }
+    } catch (error) {
+      if (error.response && error.response.status === 400 && error.response.data.error === 'You have already rated this coach') {
+        toast.error('You have already rated this coach');
+        setHasRatedCoach(true);
+      } else {
+        toast.error('Failed to submit rating. Please try again.');
+        console.error('Error submitting coach rating:', error);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -169,13 +228,33 @@ const WelcomeHeader = ({
             </motion.div>
           )}
           
+          {/* Rate Coach Button */}
+          {assignedCoach && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="w-full sm:w-auto mt-2 sm:mt-0"
+            >
+              <Button
+                onClick={() => setShowRatingModal(true)}
+                className={`w-full sm:w-auto ${hasRatedCoach 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-white/20 hover:bg-white/30'} text-white`}
+                disabled={hasRatedCoach}
+                title={hasRatedCoach ? 'You have already rated this coach' : 'Rate your coach'}
+              >
+                <Star className="w-5 h-5 mr-2" />
+                {hasRatedCoach ? 'Already Rated' : 'Rate Coach'}
+              </Button>
+            </motion.div>
+          )}
           
           {/* Upgrade Button */}
           {currentTier.upgrade && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto mt-2 sm:mt-0"
             >
               <Button
                 onClick={onUpgradeClick}
@@ -189,6 +268,92 @@ const WelcomeHeader = ({
         </div>
       </div>
       
+      {/* Rating Modal */}
+      <Dialog open={showRatingModal} onOpenChange={setShowRatingModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Rate Your Coach</DialogTitle>
+          </DialogHeader>
+          
+          <div className="py-6">
+            {hasRatedCoach ? (
+              <div className="flex flex-col items-center space-y-4">
+                <div className="flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
+                    <User className="w-8 h-8 text-blue-600" />
+                  </div>
+                </div>
+                
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold">
+                    {assignedCoach?.firstName} {assignedCoach?.lastName}
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    You have already rated this coach
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center space-y-6">
+                <div className="flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
+                    <User className="w-8 h-8 text-blue-600" />
+                  </div>
+                </div>
+                
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold">
+                    {assignedCoach?.firstName} {assignedCoach?.lastName}
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    Your feedback helps improve coaching quality
+                  </p>
+                </div>
+                
+                <div className="flex items-center space-x-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      className="focus:outline-none"
+                      onClick={() => setRating(star)}
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(0)}
+                    >
+                      <Star
+                        className={`w-8 h-8 ${
+                          (hoverRating || rating) >= star
+                            ? 'text-yellow-400 fill-yellow-400'
+                            : 'text-gray-300'
+                        } transition-colors duration-100`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowRatingModal(false)}
+              disabled={isSubmitting}
+            >
+              Close
+            </Button>
+            {!hasRatedCoach && (
+              <Button 
+                onClick={handleSubmitRating}
+                disabled={isSubmitting || rating === 0}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {isSubmitting ? 'Submitting...' : 'Submit Rating'}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 };

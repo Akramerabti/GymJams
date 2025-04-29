@@ -23,6 +23,234 @@ import UpcomingSessions from './ClientOrganization/UpcomingSessions';
 import SessionsView from '../../components/subscription/SessionsView';
 import Chat from './components/Chat';
 
+const createCacheManager = () => {
+  // Cache configuration
+  const CACHE_DURATION = {
+    SUBSCRIPTION: 5 * 60 * 1000, // 5 minutes
+    QUESTIONNAIRE: 60 * 60 * 1000, // 1 hour
+    COACHES: 30 * 60 * 1000, // 30 minutes
+    GOALS: 3 * 60 * 1000, // 3 minutes
+    WORKOUTS: 3 * 60 * 1000, // 3 minutes
+    DEFAULT: 5 * 60 * 1000 // 5 minutes
+  };
+
+  // Cache storage structure
+  const getCache = (key) => {
+    try {
+      const cachedData = localStorage.getItem(`dashboard_cache_${key}`);
+      if (!cachedData) return null;
+      
+      const { data, timestamp, duration } = JSON.parse(cachedData);
+      
+      // Check if cache is still valid
+      const now = Date.now();
+      if (now - timestamp > duration) {
+        localStorage.removeItem(`dashboard_cache_${key}`);
+        return null;
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Cache retrieval error:', error);
+      return null;
+    }
+  };
+
+  // Set cache with expiration
+  const setCache = (key, data, customDuration) => {
+    try {
+      const cacheItem = {
+        data,
+        timestamp: Date.now(),
+        duration: customDuration || CACHE_DURATION.DEFAULT
+      };
+      
+      localStorage.setItem(`dashboard_cache_${key}`, JSON.stringify(cacheItem));
+    } catch (error) {
+      console.error('Cache storage error:', error);
+      // If localStorage is full, clear older caches
+      try {
+        clearOldCaches();
+      } catch (e) {
+        console.error('Failed to clear old caches:', e);
+      }
+    }
+  };
+
+  // Clear caches that are older than their duration
+  const clearOldCaches = () => {
+    try {
+      const now = Date.now();
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('dashboard_cache_')) {
+          try {
+            const cachedData = JSON.parse(localStorage.getItem(key));
+            if (now - cachedData.timestamp > cachedData.duration) {
+              localStorage.removeItem(key);
+            }
+          } catch (e) {
+            // If the item is corrupted, just remove it
+            localStorage.removeItem(key);
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Error clearing old caches:', error);
+    }
+  };
+
+  // Clear specific cache
+  const clearCache = (key) => {
+    try {
+      localStorage.removeItem(`dashboard_cache_${key}`);
+    } catch (error) {
+      console.error('Cache clearing error:', error);
+    }
+  };
+
+  // Clear all dashboard caches
+  const clearAllCaches = () => {
+    try {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('dashboard_cache_')) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (error) {
+      console.error('Error clearing all caches:', error);
+    }
+  };
+
+  return {
+    getCache,
+    setCache,
+    clearCache,
+    clearAllCaches,
+    CACHE_DURATION
+  };
+};
+
+// Create API wrapper with caching, rate limiting and retry logic
+const createApiWrapper = (cacheManager) => {
+  // Tracking for in-flight requests to prevent duplicates
+  const pendingRequests = new Map();
+  
+  // Rate limiting tracking
+  const requestTimestamps = [];
+  const MAX_REQUESTS_PER_MINUTE = 60;
+
+  // Check if we're being rate limited
+  const checkRateLimit = () => {
+    const now = Date.now();
+    // Remove timestamps older than 1 minute
+    while (requestTimestamps.length > 0 && requestTimestamps[0] < now - 60000) {
+      requestTimestamps.shift();
+    }
+    
+    return requestTimestamps.length >= MAX_REQUESTS_PER_MINUTE;
+  };
+
+  // Add request to rate limit tracker
+  const trackRequest = () => {
+    requestTimestamps.push(Date.now());
+  };
+
+  // Fetch with caching, deduplication and retries
+  const fetchWithCache = async (key, fetchFn, options = {}) => {
+    const {
+      cacheDuration,
+      forceRefresh = false,
+      retries = 3,
+      retryDelay = 1000,
+      deduplicate = true,
+      onSuccess = null,
+      onError = null
+    } = options;
+
+    // If this exact request is in flight and deduplication is enabled, wait for it
+    const requestKey = `${key}_${JSON.stringify(options)}`;
+    if (deduplicate && pendingRequests.has(requestKey)) {
+      try {
+        return await pendingRequests.get(requestKey);
+      } catch (error) {
+        // If the pending request fails, continue with a new request
+        console.warn('Pending request failed, trying again:', error);
+      }
+    }
+
+    // Check for cached data if not forcing refresh
+    if (!forceRefresh) {
+      const cachedData = cacheManager.getCache(key);
+      if (cachedData) {
+        return cachedData;
+      }
+    }
+
+    // Check rate limiting
+    if (checkRateLimit()) {
+      console.warn('Rate limit reached, adding delay...');
+      // Add increasing delay based on how many requests are pending
+      await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
+    }
+
+    // Create a promise for this request
+    const requestPromise = (async () => {
+      let attempt = 0;
+      
+      while (attempt < retries) {
+        try {
+          trackRequest();
+          const data = await fetchFn();
+          
+          // Cache the successful response
+          cacheManager.setCache(key, data, cacheDuration);
+          
+          if (onSuccess) onSuccess(data);
+          return data;
+        } catch (error) {
+          attempt++;
+          
+          // Handle rate limiting errors specifically
+          if (error.response?.status === 429) {
+            const retryAfter = parseInt(error.response.headers['retry-after']) || 10;
+            console.warn(`Rate limited. Waiting ${retryAfter}s before retry ${attempt}/${retries}`);
+            await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+          } else if (attempt < retries) {
+            // For other errors, use exponential backoff
+            const delay = retryDelay * Math.pow(2, attempt - 1) + Math.random() * 1000;
+            console.warn(`Request failed, retrying in ${Math.round(delay)}ms (${attempt}/${retries}):`, error);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          } else {
+            // Final error after all retries
+            if (onError) onError(error);
+            throw error;
+          }
+        }
+      }
+      
+      throw new Error(`Failed after ${retries} attempts`);
+    })();
+    
+    // Store the pending request
+    if (deduplicate) {
+      pendingRequests.set(requestKey, requestPromise);
+      
+      // Clean up after the request is complete
+      requestPromise
+        .catch(() => {})
+        .finally(() => {
+          pendingRequests.delete(requestKey);
+        });
+    }
+    
+    return requestPromise;
+  };
+
+  return {
+    fetchWithCache
+  };
+};
+
 const SUBSCRIPTION_TIERS = {
   basic: {
     name: 'Basic',
@@ -91,6 +319,12 @@ const ClientDashboard = () => {
   });
   const [showAllSessions, setShowAllSessions] = useState(false);
   const { addPoints, updatePointsInBackend } = usePoints();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(0);
+
+  // Initialize cache manager and API wrapper
+  const cacheManager = useRef(createCacheManager()).current;
+  const apiWrapper = useRef(createApiWrapper(cacheManager)).current;
 
   const overviewRef = useRef(null);
   const workoutsRef = useRef(null);
@@ -98,81 +332,117 @@ const ClientDashboard = () => {
   const profileRef = useRef(null);
   const goalsRef = useRef(null);
 
+  // Generate fallback goals with caching
   const generateFallbackGoals = async (subscriptionData) => {
-    const generatedGoals = [];
-    
-    // Generate default goals based on questionnaire
-    if (questionnaire?.data?.goals) {
-      const userGoals = Array.isArray(questionnaire.data.goals)
-        ? questionnaire.data.goals
-        : [];
-  
-      if (userGoals.includes('strength')) {
-        generatedGoals.push({
-          id: `goal-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          title: 'Strength Improvement',
-          type: 'strength',
-          target: 'Increase bench press by 10%',
-          progress: Math.min(100, Math.max(0, (subscriptionData.stats?.strengthProgress || 0) * 100)),
-          difficulty: 'medium',
-          dueDate: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000),
-          due: formatDate(new Date(Date.now() + 28 * 24 * 60 * 60 * 1000)),
-          status: 'active',
-          createdAt: new Date().toISOString(),
-          icon: getGoalIcon('strength'),
-        });
+    try {
+      // Check cache for generated goals
+      const cacheKey = `generatedGoals_${subscriptionData._id}`;
+      const cachedGoals = cacheManager.getCache(cacheKey);
+      
+      if (cachedGoals) {
+        setGoals(cachedGoals);
+        return cachedGoals;
       }
       
-      // Add consistency goal
-      generatedGoals.push({
-        id: `goal-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        title: 'Workout Consistency',
-        type: 'consistency',
-        target: `${subscriptionData.stats?.weeklyTarget || 3} workouts per week`,
-        progress: Math.min(100, Math.max(0, ((subscriptionData.stats?.workoutsCompleted || 0) / ((subscriptionData.stats?.weeklyTarget || 3) * 4)) * 100)),
-        difficulty: 'easy',
-        dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-        due: formatDate(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)),
-        status: 'active',
-        createdAt: new Date().toISOString(),
-        icon: getGoalIcon('consistency'),
-      });
-    }
-  
-    // Set goals in the state
-    setGoals(generatedGoals);
+      const generatedGoals = [];
+      
+      // Generate default goals based on questionnaire
+      if (questionnaire?.data?.goals) {
+        const userGoals = Array.isArray(questionnaire.data.goals)
+          ? questionnaire.data.goals
+          : [];
     
-    // Save generated goals to the server
-    try {
-      await subscriptionService.saveQuestionnaireDerivedGoals(subscriptionData._id, generatedGoals);
-      console.log('Goals saved to backend successfully');
+        if (userGoals.includes('strength')) {
+          generatedGoals.push({
+            id: `goal-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            title: 'Strength Improvement',
+            type: 'strength',
+            target: 'Increase bench press by 10%',
+            progress: Math.min(100, Math.max(0, (subscriptionData.stats?.strengthProgress || 0) * 100)),
+            difficulty: 'medium',
+            dueDate: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000),
+            due: formatDate(new Date(Date.now() + 28 * 24 * 60 * 60 * 1000)),
+            status: 'active',
+            createdAt: new Date().toISOString(),
+            icon: getGoalIcon('strength'),
+          });
+        }
+        
+        // Add consistency goal
+        generatedGoals.push({
+          id: `goal-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          title: 'Workout Consistency',
+          type: 'consistency',
+          target: `${subscriptionData.stats?.weeklyTarget || 3} workouts per week`,
+          progress: Math.min(100, Math.max(0, ((subscriptionData.stats?.workoutsCompleted || 0) / ((subscriptionData.stats?.weeklyTarget || 3) * 4)) * 100)),
+          difficulty: 'easy',
+          dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+          due: formatDate(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)),
+          status: 'active',
+          createdAt: new Date().toISOString(),
+          icon: getGoalIcon('consistency'),
+        });
+      }
+    
+      // Set goals in the state
+      setGoals(generatedGoals);
+      
+      // Cache the generated goals
+      cacheManager.setCache(cacheKey, generatedGoals, cacheManager.CACHE_DURATION.GOALS);
+      
+      // Save generated goals to the server in the background
+      try {
+        await subscriptionService.saveQuestionnaireDerivedGoals(subscriptionData._id, generatedGoals);
+        console.log('Goals saved to backend successfully');
+      } catch (error) {
+        console.error('Failed to save goals to backend:', error);
+      }
+      
+      return generatedGoals;
     } catch (error) {
-      console.error('Failed to save goals to backend:', error);
+      console.error('Error generating fallback goals:', error);
+      return [];
     }
   };
 
-
+  // Fetch goals with caching
   const fetchGoals = async (subscriptionData) => {
     try {
-      // First try to get goals from the server
-      const response = await subscriptionService.getClientGoals(subscriptionData._id);
+      // Generate cache key for this subscription's goals
+      const cacheKey = `goals_${subscriptionData._id}`;
       
-      if (response && Array.isArray(response) && response.length > 0) {
+      // Use wrapper to fetch with caching
+      const goals = await apiWrapper.fetchWithCache(
+        cacheKey,
+        async () => {
+          const response = await subscriptionService.getClientGoals(subscriptionData._id);
+          return Array.isArray(response) && response.length > 0 ? response : null;
+        },
+        {
+          cacheDuration: cacheManager.CACHE_DURATION.GOALS,
+          onError: (error) => {
+            console.error('Failed to fetch goals, falling back to generated goals:', error);
+          }
+        }
+      );
+      
+      if (goals) {
         // Use goals from server
-        setGoals(response);
-        console.log('Goals fetched from server:', response);
+        setGoals(goals);
+        console.log('Goals fetched from server:', goals);
         return;
       }
       
       // If no goals from server, generate them locally
-      generateFallbackGoals(subscriptionData);
+      await generateFallbackGoals(subscriptionData);
     } catch (error) {
       console.error('Failed to fetch goals:', error);
       // Fall back to local generation
-      generateFallbackGoals(subscriptionData);
+      await generateFallbackGoals(subscriptionData);
     }
   };
 
+  // Handle goal completion request with proper error handling
   const handleRequestGoalCompletion = async (goalId) => {
     try {
       // Find the goal to be completed
@@ -197,8 +467,23 @@ const ClientDashboard = () => {
       
       setGoals(updatedGoals);
       
-      // Send request to the backend
-      const updatedGoal = await subscriptionService.requestGoalCompletion(subscription._id, goalId);
+      // Clear the goals cache since we're updating
+      cacheManager.clearCache(`goals_${subscription._id}`);
+      
+      // Send request to the backend with retry
+      const retryRequest = async (attempts = 3, delay = 1000) => {
+        try {
+          return await subscriptionService.requestGoalCompletion(subscription._id, goalId);
+        } catch (error) {
+          if (attempts <= 1) throw error;
+          
+          // Exponential backoff
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return retryRequest(attempts - 1, delay * 2);
+        }
+      };
+      
+      const updatedGoal = await retryRequest();
       
       // Update with server response to ensure consistency
       if (updatedGoal) {
@@ -209,19 +494,21 @@ const ClientDashboard = () => {
         description: 'Your coach will review and approve this goal.'
       });
       
-      // Refresh goals from server to ensure sync
-      setTimeout(() => fetchGoals(subscription), 1000);
+      // Refresh goals from server to ensure sync, but with a delay to avoid immediate request
+      setTimeout(() => {
+        fetchGoals(subscription);
+      }, 2000);
       
     } catch (error) {
       console.error('Failed to request goal completion:', error);
       toast.error('Failed to send completion request');
       
-      // Revert optimistic update
+      // Revert optimistic update by refetching
       fetchGoals(subscription);
     }
   };
 
-  // Mark workout as complete
+  // Mark workout as complete with error handling
   const handleCompleteWorkout = async (workout) => {
     try {
       // Update local state
@@ -231,8 +518,20 @@ const ClientDashboard = () => {
 
       setWorkouts(updatedWorkouts);
 
-      // Update workout data on server
-      await subscriptionService.updateClientWorkouts(subscription._id, updatedWorkouts);
+      // Update workout data on server with retry logic
+      const updateWithRetry = async (attempts = 3, delay = 1000) => {
+        try {
+          await subscriptionService.updateClientWorkouts(subscription._id, updatedWorkouts);
+        } catch (error) {
+          if (attempts <= 1) throw error;
+          
+          console.warn(`Retry ${4-attempts}/3 for updating workouts...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return updateWithRetry(attempts - 1, delay * 2);
+        }
+      };
+      
+      await updateWithRetry();
 
       // Update stats
       const updatedStats = {
@@ -246,35 +545,35 @@ const ClientDashboard = () => {
         stats: updatedStats,
       }));
 
+      // Clear relevant caches
+      cacheManager.clearCache(`subscription_${subscription._id}`);
+      cacheManager.clearCache(`workouts_${subscription._id}`);
+
+      // Update stats on server
       await subscriptionService.updateClientStats(subscription._id, updatedStats);
 
       toast.success('Workout completed! Great job!');
     } catch (error) {
       console.error('Failed to mark workout as complete:', error);
       toast.error('Failed to update workout status');
+      
+      // Revert local state by re-fetching
+      const refreshData = async () => {
+        try {
+          const subData = await subscriptionService.getCurrentSubscription();
+          if (subData?.workouts) {
+            setWorkouts(subData.workouts);
+          }
+        } catch (refreshError) {
+          console.error('Failed to refresh workout data:', refreshError);
+        }
+      };
+      
+      refreshData();
     }
   };
 
-  // Update a goal
-  const handleUpdateGoal = async (updatedGoal) => {
-    try {
-      // Update goals in local state
-      const updatedGoals = goals.map(goal =>
-        goal.id === updatedGoal.id ? updatedGoal : goal
-      );
-
-      setGoals(updatedGoals);
-
-      // If this were a real app, you would update the goal on the server
-      // For now, we'll just simulate it with a toast
-      toast.success('Goal progress updated successfully!');
-    } catch (error) {
-      console.error('Failed to update goal:', error);
-      toast.error('Failed to update goal progress');
-    }
-  };
-
-  // Update stats
+  // Update stats with caching and error handling
   const handleUpdateStats = async (updatedStats) => {
     try {
       // Update subscription with new stats
@@ -287,17 +586,117 @@ const ClientDashboard = () => {
       };
 
       setSubscription(newSubscription);
+      
+      // Clear the subscription cache
+      cacheManager.clearCache(`subscription_${subscription._id}`);
 
-      // Update stats on server
-      await subscriptionService.updateClientStats(subscription._id, updatedStats);
+      // Update stats on server with retry logic
+      const updateWithRetry = async (attempts = 3, delay = 1000) => {
+        try {
+          await subscriptionService.updateClientStats(subscription._id, updatedStats);
+        } catch (error) {
+          if (attempts <= 1) throw error;
+          
+          console.warn(`Retry ${4-attempts}/3 for updating stats...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return updateWithRetry(attempts - 1, delay * 2);
+        }
+      };
+      
+      await updateWithRetry();
 
       toast.success('Stats updated successfully!');
     } catch (error) {
       console.error('Failed to update stats:', error);
       toast.error('Failed to update stats');
+      
+      // Revert changes in the UI
+      // Get from cache or re-fetch to restore previous state
+      const cachedSubscription = cacheManager.getCache(`subscription_${subscription._id}`);
+      if (cachedSubscription) {
+        setSubscription(cachedSubscription);
+      } else {
+        try {
+          const refreshedSubscription = await subscriptionService.getCurrentSubscription();
+          setSubscription(refreshedSubscription);
+        } catch (refreshError) {
+          console.error('Failed to refresh subscription data:', refreshError);
+        }
+      }
     }
   };
 
+  const handleEditQuestionnaire = () => {
+    navigate('/questionnaire', {
+      state: {
+        isEditing: true,
+        currentAnswers: questionnaire?.data,
+        subscription: subscription,
+      },
+    });
+  };
+
+  const handleManageSubscription = () => {
+    navigate('/subscription-management');
+  };
+
+  const handleUpgradeClick = () => {
+    navigate('/dashboard/upgrade', {
+      state: { subscription },
+    });
+  };
+
+  // Update a goal
+  const handleUpdateGoal = async (updatedGoal) => {
+    try {
+      // Update goals in local state with optimistic approach
+      const updatedGoals = goals.map(goal =>
+        goal.id === updatedGoal.id ? updatedGoal : goal
+      );
+
+      setGoals(updatedGoals);
+      
+      // Clear the goals cache
+      cacheManager.clearCache(`goals_${subscription._id}`);
+
+      // Update goal on the server with retry logic
+      const updateWithRetry = async (attempts = 3, delay = 1000) => {
+        try {
+          // If this were a real app, you would update the goal on the server
+          // For now, we mock this with a delay to simulate a network request
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // In the real implementation, you'd use something like:
+          // await subscriptionService.updateGoal(subscription._id, updatedGoal);
+          
+          return true;
+        } catch (error) {
+          if (attempts <= 1) throw error;
+          
+          console.warn(`Retry ${4-attempts}/3 for updating goal...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return updateWithRetry(attempts - 1, delay * 2);
+        }
+      };
+      
+      await updateWithRetry();
+
+      toast.success('Goal progress updated successfully!');
+    } catch (error) {
+      console.error('Failed to update goal:', error);
+      toast.error('Failed to update goal progress');
+      
+      // Revert changes by refetching goals
+      fetchGoals(subscription);
+    }
+  };
+
+  const handleTabChange = (value) => {
+    setActiveTab(value);
+    scrollToSection(value);
+  };
+
+  // Add metric entry with error handling
   const handleAddMetricEntry = async (entryData) => {
     try {
       const { metricType, value, date, notes } = entryData;
@@ -324,232 +723,341 @@ const ClientDashboard = () => {
       };
 
       setProgress(updatedProgress);
+      
+      // Clear the progress cache
+      cacheManager.clearCache(`progress_${subscription._id}`);
 
-      // Update progress on server
-      await subscriptionService.updateClientProgress(subscription._id, updatedProgress);
+      // Update progress on server with retry logic
+      const updateWithRetry = async (attempts = 3, delay = 1000) => {
+        try {
+          await subscriptionService.updateClientProgress(subscription._id, updatedProgress);
+        } catch (error) {
+          if (attempts <= 1) throw error;
+          
+          console.warn(`Retry ${4-attempts}/3 for updating progress...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return updateWithRetry(attempts - 1, delay * 2);
+        }
+      };
+      
+      await updateWithRetry();
 
       toast.success('Metric entry added successfully!');
     } catch (error) {
       console.error('Failed to add metric entry:', error);
       toast.error('Failed to add metric entry');
-    }
-  };
-
-  const handleEditQuestionnaire = () => {
-    navigate('/questionnaire', {
-      state: {
-        isEditing: true,
-        currentAnswers: questionnaire?.data,
-        subscription: subscription,
-      },
-    });
-  };
-
-  const handleManageSubscription = () => {
-    navigate('/subscription-management');
-  };
-
-  const handleUpgradeClick = () => {
-    navigate('/dashboard/upgrade', {
-      state: { subscription },
-    });
-  };
-
-  const scrollToSection = (section) => {
-    const refs = {
-      overview: overviewRef,
-      workouts: workoutsRef,
-      progress: progressRef,
-      profile: profileRef,
-    };
-
-    if (refs[section]?.current) {
-      refs[section].current.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  // Handle tab change
-  const handleTabChange = (value) => {
-    setActiveTab(value);
-    scrollToSection(value);
-  };
-
-  useEffect(() => {
-    const verifyQuestionnaireAndSubscription = async () => {
+      
+      // Revert local state by re-fetching the data
       try {
-        setLoading(true);
-        const accessToken = localStorage.getItem('accessToken');
-
-        // Load subscription and questionnaire data
-        const [subData, questionnaireData] = await Promise.all([
-          subscriptionService.getCurrentSubscription(accessToken),
-          subscriptionService.checkQuestionnaireStatus(user?.id || accessToken),
-        ]);
-
-        // Redirect to questionnaire if not completed
-        if (!questionnaireData?.completed) {
-          navigate('/questionnaire', {
-            state: { subscription: subData, accessToken: accessToken || null },
-          });
-          return;
-        }
-
-        // Redirect to coaching page if no subscription
-        if (!subData) {
-          toast.error('No active subscription found');
-          navigate('/coaching');
-          return;
-        }
-
-        // Store a copy of the stats for historical comparison
-        // In a real app, you would fetch historical data from the server
-        setHistoricalStats({
-          workoutsCompleted: Math.max(0, (subData.stats?.workoutsCompleted || 0) - 2),
-          currentStreak: Math.max(0, (subData.stats?.currentStreak || 0) - 1),
-          monthlyProgress: Math.max(0, (subData.stats?.monthlyProgress || 0) - 5),
-          goalsAchieved: Math.max(0, (subData.stats?.goalsAchieved || 0)),
-        });
-
-        setSubscription(subData);
-        setQuestionnaire(questionnaireData);
-
-        // Get coach details if assigned
-        if (subData.assignedCoach) {
-          try {
-            const coaches = await subscriptionService.getCoaches();
-            const coach = coaches.find(c => c._id === subData.assignedCoach);
-            if (coach) {
-              setAssignedCoach(coach);
-            }
-          } catch (error) {
-            console.error('Failed to fetch coach details:', error);
-          }
-        }
-
-        // Set workouts data
-        if (subData.workouts && Array.isArray(subData.workouts)) {
-          setWorkouts(subData.workouts);
-
-          // Find next upcoming workout
-          const now = new Date();
-          const upcoming = subData.workouts
-            .filter(w => !w.completed && new Date(w.date) >= now)
-            .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
-
-          setUpcomingWorkout(upcoming);
-        }
-
-        // Set progress data
-        if (subData.progress) {
-          setProgress(subData.progress);
-
-          // Set health metrics with fallbacks for undefined/null values
+        const refreshedSubscription = await subscriptionService.getCurrentSubscription();
+        if (refreshedSubscription?.progress) {
+          setProgress(refreshedSubscription.progress);
+          
+          // Rebuild health metrics from the progress data
           setHealthMetrics({
-            weight: Array.isArray(subData.progress.weightProgress) ? subData.progress.weightProgress : [],
-            bodyFat: Array.isArray(subData.progress.bodyFatProgress) ? subData.progress.bodyFatProgress : [],
-            strength: Array.isArray(subData.progress.strengthProgress) ? subData.progress.strengthProgress : [],
-            cardio: Array.isArray(subData.progress.cardioProgress) ? subData.progress.cardioProgress : [],
+            weight: Array.isArray(refreshedSubscription.progress.weightProgress) ? refreshedSubscription.progress.weightProgress : [],
+            bodyFat: Array.isArray(refreshedSubscription.progress.bodyFatProgress) ? refreshedSubscription.progress.bodyFatProgress : [],
+            strength: Array.isArray(refreshedSubscription.progress.strengthProgress) ? refreshedSubscription.progress.strengthProgress : [],
+            cardio: Array.isArray(refreshedSubscription.progress.cardioProgress) ? refreshedSubscription.progress.cardioProgress : [],
           });
         }
+      } catch (refreshError) {
+        console.error('Failed to refresh progress data:', refreshError);
+      }
+    }
+  };
 
-        await fetchGoals(subData);
+  // Create an optimized data fetching function with caching and error handling
+  const fetchDashboardData = async (forceRefresh = false) => {
+    // If already refreshing, don't trigger another refresh
+    if (isRefreshing && !forceRefresh) return;
+    
+    // Check if we've refreshed recently (within the last 10 seconds) unless forced
+    const now = Date.now();
+    if (!forceRefresh && now - lastRefresh < 10000) {
+      console.log('Skipping refresh - too recent');
+      return;
+    }
+    
+    setIsRefreshing(true);
+    setLastRefresh(now);
+    
+    try {
+      if (!forceRefresh) setLoading(true);
+      
+      const accessToken = localStorage.getItem('accessToken');
 
-      } catch (error) {
-        console.error('Failed to load dashboard data:', error);
-
-        if (error.response?.status === 401) {
-          toast.error('Session expired. Please log in again.');
-          navigate('/login');
-        } else {
-          toast.error('Failed to load dashboard data');
+      // Load subscription with caching
+      const subData = await apiWrapper.fetchWithCache(
+        `subscription_${user?.id || accessToken}`,
+        async () => await subscriptionService.getCurrentSubscription(accessToken),
+        { 
+          cacheDuration: cacheManager.CACHE_DURATION.SUBSCRIPTION,
+          forceRefresh
         }
-      } finally {
+      );
+
+      // If no subscription, redirect to coaching page
+      if (!subData) {
+        toast.error('No active subscription found');
+        navigate('/coaching');
+        return;
+      }
+
+      // Load questionnaire data with caching
+      const questionnaireData = await apiWrapper.fetchWithCache(
+        `questionnaire_${user?.id || accessToken}`,
+        async () => await subscriptionService.checkQuestionnaireStatus(user?.id || accessToken),
+        { 
+          cacheDuration: cacheManager.CACHE_DURATION.QUESTIONNAIRE,
+          forceRefresh
+        }
+      );
+
+      // Redirect to questionnaire if not completed
+      if (!questionnaireData?.completed) {
+        navigate('/questionnaire', {
+          state: { subscription: subData, accessToken: accessToken || null },
+        });
+        return;
+      }
+
+      // Store a copy of the stats for historical comparison
+      setHistoricalStats({
+        workoutsCompleted: Math.max(0, (subData.stats?.workoutsCompleted || 0) - 2),
+        currentStreak: Math.max(0, (subData.stats?.currentStreak || 0) - 1),
+        monthlyProgress: Math.max(0, (subData.stats?.monthlyProgress || 0) - 5),
+        goalsAchieved: Math.max(0, (subData.stats?.goalsAchieved || 0)),
+      });
+
+      setSubscription(subData);
+      setQuestionnaire(questionnaireData);
+
+      // Get coach details if assigned, with caching
+      if (subData.assignedCoach) {
+        try {
+          const coaches = await apiWrapper.fetchWithCache(
+            'coaches_list',
+            async () => await subscriptionService.getCoaches(),
+            { 
+              cacheDuration: cacheManager.CACHE_DURATION.COACHES,
+              forceRefresh: forceRefresh || !assignedCoach
+            }
+          );
+          
+          const coach = coaches.find(c => c._id === subData.assignedCoach);
+          if (coach) {
+            setAssignedCoach(coach);
+          }
+        } catch (error) {
+          console.error('Failed to fetch coach details:', error);
+        }
+      }
+
+      // Set workouts data
+      if (subData.workouts && Array.isArray(subData.workouts)) {
+        setWorkouts(subData.workouts);
+
+        // Find next upcoming workout
+        const now = new Date();
+        const upcoming = subData.workouts
+          .filter(w => !w.completed && new Date(w.date) >= now)
+          .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+
+        setUpcomingWorkout(upcoming);
+      }
+
+      // Set progress data
+      if (subData.progress) {
+        setProgress(subData.progress);
+
+        // Set health metrics with fallbacks for undefined/null values
+        setHealthMetrics({
+          weight: Array.isArray(subData.progress.weightProgress) ? subData.progress.weightProgress : [],
+          bodyFat: Array.isArray(subData.progress.bodyFatProgress) ? subData.progress.bodyFatProgress : [],
+          strength: Array.isArray(subData.progress.strengthProgress) ? subData.progress.strengthProgress : [],
+          cardio: Array.isArray(subData.progress.cardioProgress) ? subData.progress.cardioProgress : [],
+        });
+      }
+
+      // Fetch goals with its own caching mechanism
+      await fetchGoals(subData);
+
+    } catch (error) {
+      console.error('Failed to load dashboard data:', error);
+
+      if (error.response?.status === 401) {
+        toast.error('Session expired. Please log in again.');
+        navigate('/login');
+      } else {
+        toast.error('Failed to load dashboard data');
+      }
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  // Handle initial data loading
+  useEffect(() => {
+    // Check if we have cached data to show immediately
+    const loadCachedData = () => {
+      const accessToken = localStorage.getItem('accessToken');
+      const cacheKey = `subscription_${user?.id || accessToken}`;
+      const cachedSubscription = cacheManager.getCache(cacheKey);
+      
+      if (cachedSubscription) {
+        console.log('Loading from cache while fetching fresh data');
+        setSubscription(cachedSubscription);
+        
+        // Load other cached data
+        const cachedQuestionnaire = cacheManager.getCache(`questionnaire_${user?.id || accessToken}`);
+        if (cachedQuestionnaire) setQuestionnaire(cachedQuestionnaire);
+        
+        // If we have cached data, we can show it while fetching fresh data
         setLoading(false);
       }
     };
-
-    verifyQuestionnaireAndSubscription();
-
-    // Return cleanup function or nothing, not an object
-    return () => {
-      // Any cleanup logic here if needed
-    };
-  }, [user, navigate]);
-
-
-  useEffect(() => {
-
-  const socketInstance = socket?.socket || socket;
-  
-  if (socketInstance && subscription) {
-  
-    const handleGoalApproved = (data) => {
-      const { goalId, title, pointsAwarded, status } = data;
- 
-      setGoals(prevGoals => 
-        prevGoals.map(goal => 
-          goal.id === goalId 
-            ? { 
-                ...goal, 
-                status: 'completed',
-                completed: true,
-                completedDate: new Date().toISOString(),
-                pointsAwarded,
-                progress: 100
-              } 
-            : goal
-        )
-      );
-      
-
-      setSubscription(prevSub => ({
-        ...prevSub,
-        stats: {
-          ...prevSub.stats,
-          goalsAchieved: (prevSub.stats?.goalsAchieved || 0) + 1
+    
+    // Try to load cached data first
+    loadCachedData();
+    
+    // Then fetch fresh data
+    fetchDashboardData(true);
+    
+    // Set up a more reasonable refresh interval - every 3 minutes instead of constantly
+    const refreshInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        console.log('Background refresh triggered');
+        fetchDashboardData(false);
+      }
+    }, 3 * 60 * 1000); // Every 3 minutes
+    
+    // Handle tab visibility changes - refresh when tab becomes visible after being hidden
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Check when the last refresh was
+        const now = Date.now();
+        // Only refresh if it's been more than 2 minutes since the last refresh
+        if (now - lastRefresh > 2 * 60 * 1000) {
+          console.log('Visibility change triggered refresh');
+          fetchDashboardData(false);
         }
-      }));
-      
-      if (addPoints) {
-        addPoints(pointsAwarded);
-        updatePointsInBackend(user?.points + pointsAwarded || pointsAwarded);
       }
     };
     
-    const handleGoalRejected = (data) => {
-      const { goalId, title, reason, status } = data;
-      
-      setGoals(prevGoals => 
-        prevGoals.map(goal => 
-          goal.id === goalId 
-            ? { 
-                ...goal, 
-                status: 'active',
-                clientRequestedCompletion: false,
-                clientCompletionRequestDate: null,
-                rejectionReason: reason,
-                rejectedAt: new Date().toISOString()
-              } 
-            : goal
-        )
-      );
-    };
-
-    if (typeof socketInstance.on === 'function') {
-      socketInstance.on('goalApproved', handleGoalApproved);
-      socketInstance.on('goalRejected', handleGoalRejected);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     
-      return () => {
-        if (typeof socketInstance.off === 'function') {
-          socketInstance.off('goalApproved', handleGoalApproved);
-          socketInstance.off('goalRejected', handleGoalRejected);
+    // Clean up interval and event listener
+    return () => {
+      clearInterval(refreshInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user]);
+
+  // Handle socket events with improved error handling
+  useEffect(() => {
+    const socketInstance = socket?.socket || socket;
+    
+    if (socketInstance && subscription) {
+    
+      const handleGoalApproved = (data) => {
+        const { goalId, title, pointsAwarded, status } = data;
+        
+        // Update goals with optimistic approach but verify data
+        if (goalId) {
+          setGoals(prevGoals => 
+            prevGoals.map(goal => 
+              goal.id === goalId 
+                ? { 
+                    ...goal, 
+                    status: 'completed',
+                    completed: true,
+                    completedDate: new Date().toISOString(),
+                    pointsAwarded,
+                    progress: 100
+                  } 
+                : goal
+            )
+          );
+          
+          // Clear goals cache since data changed
+          cacheManager.clearCache(`goals_${subscription._id}`);
+          
+          // Update subscription stats
+          setSubscription(prevSub => {
+            const updatedSub = {
+              ...prevSub,
+              stats: {
+                ...prevSub.stats,
+                goalsAchieved: (prevSub.stats?.goalsAchieved || 0) + 1
+              }
+            };
+            
+            // Update the cache with the new data
+            cacheManager.setCache(`subscription_${user?.id}`, updatedSub, cacheManager.CACHE_DURATION.SUBSCRIPTION);
+            
+            return updatedSub;
+          });
+          
+          // Award points
+          if (addPoints && pointsAwarded) {
+            addPoints(pointsAwarded);
+            
+            // Use a debounced approach for updating points on the backend
+            const updatePoints = () => {
+              try {
+                updatePointsInBackend(user?.points + pointsAwarded || pointsAwarded);
+              } catch (error) {
+                console.error('Failed to update points:', error);
+              }
+            };
+            
+            // Delay slightly to avoid rate limiting
+            setTimeout(updatePoints, 500);
+          }
         }
       };
-    } else {
-      console.warn('Socket is not properly initialized or missing .on method');
+      
+      const handleGoalRejected = (data) => {
+        const { goalId, title, reason, status } = data;
+        
+        if (goalId) {
+          setGoals(prevGoals => 
+            prevGoals.map(goal => 
+              goal.id === goalId 
+                ? { 
+                    ...goal, 
+                    status: 'active',
+                    clientRequestedCompletion: false,
+                    clientCompletionRequestDate: null,
+                    rejectionReason: reason,
+                    rejectedAt: new Date().toISOString()
+                  } 
+                : goal
+            )
+          );
+          
+          // Clear goals cache since data changed
+          cacheManager.clearCache(`goals_${subscription._id}`);
+        }
+      };
+
+      if (typeof socketInstance.on === 'function') {
+        socketInstance.on('goalApproved', handleGoalApproved);
+        socketInstance.on('goalRejected', handleGoalRejected);
+      
+        return () => {
+          if (typeof socketInstance.off === 'function') {
+            socketInstance.off('goalApproved', handleGoalApproved);
+            socketInstance.off('goalRejected', handleGoalRejected);
+          }
+        };
+      } else {
+        console.warn('Socket is not properly initialized or missing .on method');
+      }
     }
-  }
-}, [socket, subscription, addPoints, updatePointsInBackend, user]);
+  }, [socket, subscription, addPoints, updatePointsInBackend, user]);
 
   const currentTier = SUBSCRIPTION_TIERS[subscription?.subscription || 'basic'];
 

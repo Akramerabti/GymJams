@@ -11,7 +11,9 @@ import {
   checkDailyGames, 
   completeGame,
   dailyCount,
-  uploadFile
+  uploadFile,
+  rateCoach,
+  checkUserRating,
 } from '../controllers/user.controller.js';
 import { authenticateJWT } from '../config/passport.js';
 import {
@@ -32,6 +34,9 @@ router.get('/profile', getProfile);
 router.get('/points', getPoints);
 router.put('/profile', validateProfileUpdate, updateProfile);
 router.post('/upload', upload.array('files'), uploadFile);
+router.post('/:coachId/user-rating', authenticate, checkUserRating);
+router.post('/:coachId/rate', authenticate, rateCoach);
+
 
 
 router.get('/dashboard/user', getUserDashboardData);

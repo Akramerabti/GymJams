@@ -19,7 +19,7 @@ import { subscriptionEnhancements,generateFitnessSummary,determineFitnessLevel,c
     const subscriptions = await Subscription.find({ 
       assignedCoach: req.user.id,
       status: 'active'
-    }).populate('user', 'firstName lastName email profileImage');
+    }).populate('user', 'firstName lastName email profileImage lastLogin'); // Added lastLogin to the populated fields
 
     if (!subscriptions || subscriptions.length === 0) {
       return res.status(200).json([]);
@@ -96,17 +96,30 @@ import { subscriptionEnhancements,generateFitnessSummary,determineFitnessLevel,c
         !m.read && m.sender.toString() !== req.user.id
       ).length || 0;
 
-      // Get the last active time (last login or last message, whichever is more recent)
+      // Get the last active time - use user's lastLogin if available
       const lastMessageTime = subscription.lastMessageTime || null;
-      const lastLogin = subscription.lastLogin || subscription.lastUpdated || subscription.updatedAt || null;
       
+      // Important change: Prioritize the lastLogin from the User model if available
+      const userLastLogin = subscription.user?.lastLogin || null;
+      const subscriptionLastLogin = subscription.lastLogin || subscription.lastUpdated || subscription.updatedAt || null;
+      
+      // Use user model's lastLogin with highest priority if it exists
       let lastActive;
-      if (lastMessageTime && lastLogin) {
-        lastActive = new Date(lastMessageTime) > new Date(lastLogin) ? lastMessageTime : lastLogin;
+      if (userLastLogin) {
+        // If both user lastLogin and message time exist, use the most recent
+        if (lastMessageTime && new Date(lastMessageTime) > new Date(userLastLogin)) {
+          lastActive = lastMessageTime;
+        } else {
+          lastActive = userLastLogin;
+        }
+      } else if (lastMessageTime) {
+        // If only message time exists
+        lastActive = lastMessageTime;
       } else {
-        lastActive = lastMessageTime || lastLogin || subscription.startDate;
+        // Fall back to subscription times if neither exists
+        lastActive = subscriptionLastLogin || subscription.startDate;
       }
-
+      
       // Format last active time in a user-friendly way
       const lastActiveDate = new Date(lastActive);
       const timeDiff = now - lastActiveDate;

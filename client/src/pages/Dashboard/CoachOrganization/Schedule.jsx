@@ -44,6 +44,10 @@ const Schedule = ({ clients = [], onRefreshData, darkMode }) => {
     groupSessionsByDate();
   }, [sessions]);
 
+  const pendingRequests = sessions.filter(session => 
+    session.status === 'pending' || session.clientRequested === true
+  );
+
   // Fetch sessions from backend
   const fetchSessions = async () => {
     try {
@@ -264,6 +268,54 @@ const Schedule = ({ clients = [], onRefreshData, darkMode }) => {
     }
   };
 
+  const handleApproveSession = async (session) => {
+    try {
+      // Update session status to approved
+      const updatedSession = {
+        ...session,
+        status: 'approved',
+        clientRequested: true // Keep this flag to track that it was client-requested
+      };
+      
+      await clientService.updateSession(session.id, updatedSession);
+      
+      // Update local state
+      setSessions(prevSessions => 
+        prevSessions.map(s => 
+          s.id === session.id ? { ...s, status: 'approved', isPending: false } : s
+        )
+      );
+      
+      toast.success('Session approved successfully');
+    } catch (error) {
+      console.error('Failed to approve session:', error);
+      toast.error('Failed to approve session');
+    }
+  };
+  
+  const handleDeclineSession = async (session) => {
+    try {
+      // Update session status to declined
+      const updatedSession = {
+        ...session,
+        status: 'declined',
+        clientRequested: true // Keep this flag
+      };
+      
+      await clientService.updateSession(session.id, updatedSession);
+      
+      // Remove from local state
+      setSessions(prevSessions => 
+        prevSessions.filter(s => s.id !== session.id)
+      );
+      
+      toast.success('Session declined');
+    } catch (error) {
+      console.error('Failed to decline session:', error);
+      toast.error('Failed to decline session');
+    }
+  };
+
   // Handle selecting a client from the dropdown
   const handleClientSelect = (clientId) => {
     const selectedClient = clients.find(client => client.id === clientId);
@@ -302,6 +354,8 @@ const Schedule = ({ clients = [], onRefreshData, darkMode }) => {
 
   return (
     <div className={`space-y-4 ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
+
+      
       {/* Add Session Button */}
       <div className="flex justify-end mb-4">
         <Button

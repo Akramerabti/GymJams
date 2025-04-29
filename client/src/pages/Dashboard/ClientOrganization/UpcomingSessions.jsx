@@ -64,15 +64,22 @@ const SessionsView = ({ subscription }) => {
       // Call API to fetch sessions for this subscription
       const response = await clientService.getClientSessions(subscription._id);
       
-      if (response && Array.isArray(response.data)) {
+      if (response && response.data && Array.isArray(response.data.data)) {
         // Sort sessions by date and time
-        const sortedSessions = response.data.sort((a, b) => {
+        const sortedSessions = response.data.data.sort((a, b) => {
           const dateA = new Date(`${a.date}T${a.time}`);
           const dateB = new Date(`${b.date}T${b.time}`);
           return dateA - dateB;
         });
         
-        setSessions(sortedSessions);
+        // Process sessions to ensure pending status is properly set
+        const processedSessions = sortedSessions.map(session => ({
+          ...session,
+          // Set isPending based on status or clientRequested flag
+          isPending: session.status === 'pending' || session.clientRequested === true
+        }));
+        
+        setSessions(processedSessions);
       } else {
         setSessions([]);
       }
@@ -359,67 +366,69 @@ const SessionsView = ({ subscription }) => {
         </div>
       )}
     
-      {isLoading ? (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
-        </div>
-      ) : error ? (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center">
-            <AlertTriangle className="h-5 w-5 text-red-600 mr-2" />
-            <p className="text-red-700">{error}</p>
-          </div>
-        </div>
-      ) : sessions.length === 0 ? (
-        <div className="text-center py-16 bg-gray-50 rounded-xl">
-          <Calendar className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-          <h3 className="text-xl font-medium text-gray-700 mb-2">No sessions scheduled</h3>
-          <p className="text-gray-500 mb-6">
-            {canRequestSessions 
-              ? 'Request a session with your coach to get started!' 
-              : 'Your coach will schedule sessions for you.'}
-          </p>
-          {canRequestSessions && (
-            <Button 
-              onClick={handleRequestSession}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <PlusCircle className="w-4 h-4 mr-2" />
-              Request Your First Session
-            </Button>
-          )}
-        </div>
-      ) : (
+    {isLoading ? (
+  <div className="flex justify-center items-center py-12">
+    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+  </div>
+) : error ? (
+  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+    <div className="flex items-center">
+      <AlertTriangle className="h-5 w-5 text-red-600 mr-2" />
+      <p className="text-red-700">{error}</p>
+    </div>
+  </div>
+) : sessions.length === 0 ? (
+  <div className="text-center py-16 bg-gray-50 rounded-xl">
+    <Calendar className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+    <h3 className="text-xl font-medium text-gray-700 mb-2">No sessions scheduled</h3>
+    <p className="text-gray-500 mb-6">
+      {canRequestSessions 
+        ? 'Request a session with your coach to get started!' 
+        : 'Your coach will schedule sessions for you.'}
+    </p>
+    {canRequestSessions && (
+      <Button 
+        onClick={handleRequestSession}
+        className="bg-blue-600 hover:bg-blue-700"
+      >
+        <PlusCircle className="w-4 h-4 mr-2" />
+        Request Your First Session
+      </Button>
+    )}
+  </div>
+) : (
         <div className="space-y-6">
           {/* Upcoming Sessions */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold border-b pb-2">Upcoming Sessions</h3>
             {sessions
-              .filter(session => {
-                // Filter for future sessions
-                const sessionDate = new Date(`${session.date}T${session.time}`);
-                return sessionDate >= new Date();
-              })
-              .map((session, index) => (
-                <motion.div
-                  key={session.id || index}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className={`p-4 border rounded-lg transition-shadow hover:shadow-md ${
-                    session.isPending ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'
-                  }`}
-                >
-                  <div className="flex flex-col sm:flex-row justify-between">
-                    <div>
-                      <div className="flex items-center">
-                        <h4 className="font-medium text-lg">{session.type || session.sessionType || 'Coaching Session'}</h4>
-                        {session.isPending && (
-                          <Badge className="ml-2 bg-amber-100 text-amber-800 border-amber-200">
-                            Awaiting Confirmation
-                          </Badge>
-                        )}
-                      </div>
+  .filter(session => {
+    // Filter for future sessions
+    const sessionDate = new Date(`${session.date}T${session.time}`);
+    return sessionDate >= new Date();
+  })
+  .map((session, index) => (
+    <motion.div
+      key={session.id || index}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.05 }}
+      className={`p-4 border rounded-lg transition-shadow hover:shadow-md ${
+        session.isPending || session.status === 'pending' 
+          ? 'bg-amber-50 border-amber-200' 
+          : 'bg-white border-gray-200'
+      }`}
+    >
+      <div className="flex flex-col sm:flex-row justify-between">
+        <div>
+          <div className="flex items-center">
+            <h4 className="font-medium text-lg">{session.type || session.sessionType || 'Coaching Session'}</h4>
+            {(session.isPending || session.status === 'pending') && (
+              <Badge className="ml-2 bg-amber-100 text-amber-800 border-amber-200">
+                Awaiting Confirmation
+              </Badge>
+            )}
+          </div>
                       <div className="mt-2 space-y-1 text-gray-600">
                         <div className="flex items-center">
                           <Calendar className="w-4 h-4 mr-2 text-gray-400" />
@@ -513,12 +522,29 @@ const SessionsView = ({ subscription }) => {
                 </motion.div>
               ))}
               
-            {sessions.filter(session => {
-              const sessionDate = new Date(`${session.date}T${session.time}`);
-              return sessionDate < new Date();
-            }).length === 0 && (
-              <p className="text-gray-500 text-center py-4">No past sessions</p>
-            )}
+              {sessions.filter(s => 
+    !s.isPending && s.status !== 'pending' && new Date(`${s.date}T${s.time}`) >= new Date()
+  ).length === 0 && 
+  sessions.filter(s => 
+    (s.isPending || s.status === 'pending') && new Date(`${s.date}T${s.time}`) >= new Date()
+  ).length > 0 ? (
+    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+      <div className="flex items-start">
+        <div className="flex-shrink-0">
+          <Info className="h-5 w-5 text-amber-600" />
+        </div>
+        <div className="ml-3">
+          <h3 className="text-sm font-medium text-amber-800">No confirmed sessions yet</h3>
+          <div className="mt-2 text-sm text-amber-700">
+            <p>
+              You have {sessions.filter(s => s.isPending || s.status === 'pending').length} pending 
+              session request(s) awaiting your coach's approval.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null}
           </div>
         </div>
       )}

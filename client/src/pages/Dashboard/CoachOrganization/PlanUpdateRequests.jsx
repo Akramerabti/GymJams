@@ -27,34 +27,6 @@ const PlanUpdateRequests = ({ clients, onRefreshData }) => {
       return;
     }
 
-    // For this demo, we'll simulate plan update requests
-    // In a real implementation, you would fetch this from your API
-    const simulatePlanRequests = () => {
-      const requests = clients
-        .filter((client, index) => {
-          // For demo purposes, randomly assign plan requests to some clients
-          return index % 3 === 0; // Assign to every third client
-        })
-        .map(client => ({
-          id: `req-${client.id}`,
-          clientId: client.id,
-          clientName: `${client.firstName} ${client.lastName || ''}`.trim(),
-          subscriptionType: client.subscriptionType,
-          requestDate: new Date(Date.now() - Math.floor(Math.random() * 3 * 24 * 60 * 60 * 1000)).toISOString(),
-          content: [
-            "I'd like to update my workout schedule to focus more on upper body strength.",
-            "Can we adjust my nutrition plan to include more protein?",
-            "I need a less intense workout routine for the next two weeks due to travel."
-          ][Math.floor(Math.random() * 3)],
-          status: 'pending'
-        }));
-
-      setPlanRequests(requests);
-      setIsLoading(false);
-    };
-
-    // Simulate API delay
-    setTimeout(simulatePlanRequests, 1000);
   }, [clients]);
 
   const toggleExpand = (requestId) => {

@@ -6,6 +6,7 @@ const clientService = {
   async getCoachClients() {
     try {
       const response = await api.get('/client/coach-clients');
+      console.log('Fetched coach clients:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error fetching coach clients:', error);
@@ -261,7 +262,17 @@ async requestSession(subscriptionId, sessionData) {
       }
       
       const response = await api.get(`/subscription/${subscriptionId}/sessions`);
-      return response;
+      
+      // Process the response to ensure pending sessions are marked correctly
+      if (response.data && response.data.data) {
+        // Map through sessions to make sure isPending is set properly
+        response.data.data = response.data.data.map(session => ({
+          ...session,
+          isPending: session.status === 'pending' || session.clientRequested === true
+        }));
+      }
+      
+      return response.data;
     } catch (error) {
       console.error('Failed to fetch client sessions:', error);
       throw error;

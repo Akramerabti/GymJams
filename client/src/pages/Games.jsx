@@ -14,8 +14,8 @@ import { toast } from 'sonner';
 const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const GAME_IMAGES = {
-  memory: `${baseUrl}/uploads/memory-game.webp`,
-  blackjack: `${baseUrl}/uploads/black-jack.webp`,
+  memory: `${baseUrl}/uploads/memory-game.png`,
+  blackjack: `${baseUrl}/uploads/black-jack.png`,
   coinflip: `${baseUrl}/uploads/coinflip.webp`,
   diceroll: `${baseUrl}/uploads/dice-roll.webp`,
   slots: `${baseUrl}/uploads/slot-machine.webp`,

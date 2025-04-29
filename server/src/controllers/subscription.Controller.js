@@ -1805,6 +1805,11 @@ export const getClientSessions = async (req, res) => {
         // Add coach name to each session
         sessions.forEach(session => {
           session.coachName = `${coach.firstName} ${coach.lastName || ''}`.trim();
+          
+          // Make sure isPending is set for client-requested sessions
+          if (session.status === 'pending' || session.clientRequested === true) {
+            session.isPending = true;
+          }
         });
       }
     }
