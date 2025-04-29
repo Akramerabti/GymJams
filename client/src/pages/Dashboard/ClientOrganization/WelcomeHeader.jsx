@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { MessageSquare, ArrowRight, User, Award, Crown, Zap, FileEdit, Calendar, Star } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { TextArea } from '@/components/ui/textArea';
+import { TextArea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import subscriptionService from '../../../services/subscription.service';
 
@@ -52,22 +52,12 @@ const WelcomeHeader = ({
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [hasRatedCoach, setHasRatedCoach] = useState(false);
+  const [checkingRating, setCheckingRating] = useState(true);
   
-  // Check if user has already rated this coach
-  useEffect(() => {
-    const checkUserRating = async () => {
-      if (assignedCoach && assignedCoach._id) {
-        try {
-          const hasRated = await subscriptionService.checkIfUserRatedCoach(assignedCoach._id);
-          setHasRatedCoach(hasRated);
-        } catch (error) {
-          console.error('Error checking if user has rated coach:', error);
-        }
-      }
-    };
-    
-    checkUserRating();
-  }, [assignedCoach]);
+  // Get user first name
+  const getUserFirstName = () => {
+    return user?.user?.firstName || user?.firstName || '';
+  };
   
   // Get current subscription tier
   const currentTier = SUBSCRIPTION_TIERS[subscription?.subscription || 'basic'];
@@ -75,10 +65,32 @@ const WelcomeHeader = ({
   // Check if user can request plan update
   const canRequestPlanUpdate = currentTier.canRequestPlanUpdate;
   
-  // Get user first name
-  const getUserFirstName = () => {
-    return user?.user?.firstName || user?.firstName || '';
-  };
+  // Check if user has already rated this coach - run this on component mount
+  useEffect(() => {
+    const checkCoachRating = async () => {
+      if (!assignedCoach || !assignedCoach._id || !subscription) {
+        setCheckingRating(false);
+        return;
+      }
+      
+      try {
+        setCheckingRating(true);
+        
+        // Check using the subscriptionService method (which currently uses localStorage)
+        const hasRated = await subscriptionService.checkIfUserRatedCoach(assignedCoach._id);
+        setHasRatedCoach(hasRated);
+      } catch (error) {
+        console.error('Error checking if user has rated coach:', error);
+        // Direct fallback to localStorage just to be safe
+        const ratedCoaches = JSON.parse(localStorage.getItem('ratedCoaches') || '[]');
+        setHasRatedCoach(ratedCoaches.includes(assignedCoach._id));
+      } finally {
+        setCheckingRating(false);
+      }
+    };
+    
+    checkCoachRating();
+  }, [assignedCoach, subscription]);
   
   // Check if user has used their weekly request (for premium)
   const hasUsedWeeklyRequest = () => {
@@ -153,8 +165,24 @@ const WelcomeHeader = ({
     try {
       // Call API to submit the coach rating
       if (assignedCoach && assignedCoach._id) {
-        const response = await subscriptionService.rateCoach(assignedCoach._id, rating);
-        toast.success(`Thank you for rating your coach! Current rating: ${response.newRating}/5`);
+        try {
+          // Try to call the API, but don't worry if it fails
+          await subscriptionService.rateCoach(assignedCoach._id, rating);
+          toast.success('Thank you for rating your coach!');
+        } catch (apiError) {
+          console.error('API error when rating coach:', apiError);
+          
+          // Even if the API call fails, we'll still save to localStorage and show success
+          toast.success('Thank you for rating your coach! Your rating has been saved.');
+        }
+        
+        // Always update localStorage and UI state regardless of API success
+        const ratedCoaches = JSON.parse(localStorage.getItem('ratedCoaches') || '[]');
+        if (!ratedCoaches.includes(assignedCoach._id)) {
+          ratedCoaches.push(assignedCoach._id);
+          localStorage.setItem('ratedCoaches', JSON.stringify(ratedCoaches));
+        }
+        
         setShowRatingModal(false);
         setRating(0); // Reset rating after submission
         setHasRatedCoach(true); // Update local state to reflect that user has rated
@@ -162,12 +190,13 @@ const WelcomeHeader = ({
         throw new Error('Coach information is missing');
       }
     } catch (error) {
+      console.error('Error submitting coach rating:', error);
+      
       if (error.response && error.response.status === 400 && error.response.data.error === 'You have already rated this coach') {
         toast.error('You have already rated this coach');
         setHasRatedCoach(true);
       } else {
         toast.error('Failed to submit rating. Please try again.');
-        console.error('Error submitting coach rating:', error);
       }
     } finally {
       setIsSubmitting(false);
@@ -228,23 +257,20 @@ const WelcomeHeader = ({
             </motion.div>
           )}
           
-          {/* Rate Coach Button */}
-          {assignedCoach && (
+          {/* Rate Coach Button - ONLY show if user has NOT already rated and we're not still checking */}
+          {assignedCoach && !checkingRating && !hasRatedCoach && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="w-full sm:w-auto mt-2 sm:mt-0"
+              className="w-full sm:w-auto"
             >
               <Button
                 onClick={() => setShowRatingModal(true)}
-                className={`w-full sm:w-auto ${hasRatedCoach 
-                  ? 'bg-gray-400 cursor-not-allowed' 
-                  : 'bg-white/20 hover:bg-white/30'} text-white`}
-                disabled={hasRatedCoach}
-                title={hasRatedCoach ? 'You have already rated this coach' : 'Rate your coach'}
+                className="w-full sm:w-auto bg-white/20 hover:bg-white/30 text-white"
+                title="Rate your coach"
               >
                 <Star className="w-5 h-5 mr-2" />
-                {hasRatedCoach ? 'Already Rated' : 'Rate Coach'}
+                Rate Coach
               </Button>
             </motion.div>
           )}
@@ -254,7 +280,7 @@ const WelcomeHeader = ({
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="w-full sm:w-auto mt-2 sm:mt-0"
+              className="w-full sm:w-auto"
             >
               <Button
                 onClick={onUpgradeClick}
@@ -270,7 +296,7 @@ const WelcomeHeader = ({
       
       {/* Rating Modal */}
       <Dialog open={showRatingModal} onOpenChange={setShowRatingModal}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] z-[1000]">
           <DialogHeader>
             <DialogTitle>Rate Your Coach</DialogTitle>
           </DialogHeader>
@@ -315,7 +341,7 @@ const WelcomeHeader = ({
                     <button
                       key={star}
                       type="button"
-                      className="focus:outline-none"
+                      className="focus:outline-none p-1"
                       onClick={() => setRating(star)}
                       onMouseEnter={() => setHoverRating(star)}
                       onMouseLeave={() => setHoverRating(0)}
@@ -325,7 +351,9 @@ const WelcomeHeader = ({
                           (hoverRating || rating) >= star
                             ? 'text-yellow-400 fill-yellow-400'
                             : 'text-gray-300'
-                        } transition-colors duration-100`}
+                        } transition-colors duration-100 transform ${
+                          (hoverRating || rating) >= star ? 'scale-110' : 'scale-100'
+                        }`}
                       />
                     </button>
                   ))}

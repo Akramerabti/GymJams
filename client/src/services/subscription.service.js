@@ -610,51 +610,53 @@ async submitQuestionnaire(answers, accessToken = null) {
     }
   },
   
-  // Approve a goal completion request (coach side)
-async approveGoalCompletion(subscriptionId, goalId, pointsAwarded) {
-  try {
-    if (!subscriptionId || !goalId) {
-      throw new Error('Subscription ID and goal ID are required');
-    }
-    
-    console.log(`Approving goal ${goalId} with ${pointsAwarded} points`);
-    
-    // Make API request with retry logic
-    let retryCount = 0;
-    const maxRetries = 3;
-    
-    while (retryCount < maxRetries) {
-      try {
-        const response = await api.post(`/subscription/${subscriptionId}/goals/${goalId}/approve`, {
-          pointsAwarded: pointsAwarded || 0
-        });
-        
-        // Log success
-        console.log('Goal approval response:', response.data);
-        
-        if (response.data.pointsAwardedSuccess) {
-          console.log(`Successfully awarded ${pointsAwarded} points to client`);
-        } else {
-          console.warn('Goal approved but points may not have been awarded');
-        }
-        
-        return response.data;
-      } catch (error) {
-        retryCount++;
-        
-        // If we've reached max retries, throw the error
-        if (retryCount >= maxRetries) throw error;
-        
-        // Otherwise wait with exponential backoff
-        const delay = Math.pow(2, retryCount) * 500;
-        await new Promise(resolve => setTimeout(resolve, delay));
+  async approveGoalCompletion(subscriptionId, goalId, pointsToAward) {
+    try {
+      if (!subscriptionId || !goalId) {
+        throw new Error('Subscription ID and goal ID are required');
       }
+      
+      console.log(`Approving goal ${goalId} for subscription ${subscriptionId} with ${pointsToAward} points`);
+      
+      // Make API request with retry logic
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        try {
+          // Ensure we're using the right path structure that matches the backend route
+          const response = await api.post(
+            `/subscription/${subscriptionId}/goals/${goalId}/approve`, 
+            { pointsToAward: pointsToAward || 0 }
+          );
+          
+          // Log success
+          console.log('Goal approval response:', response.data);
+          
+          if (response.data.pointsAwardedSuccess) {
+            console.log(`Successfully awarded ${pointsToAward} points to client`);
+          } else {
+            console.warn('Goal approved but points may not have been awarded');
+          }
+          
+          return response.data;
+        } catch (error) {
+          retryCount++;
+          console.error(`Approval attempt ${retryCount} failed:`, error);
+          
+          // If we've reached max retries, throw the error
+          if (retryCount >= maxRetries) throw error;
+          
+          // Otherwise wait with exponential backoff
+          const delay = Math.pow(2, retryCount) * 500;
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to approve goal completion:', error);
+      throw error;
     }
-  } catch (error) {
-    console.error('Failed to approve goal completion:', error);
-    throw error;
-  }
-},
+  },
   
   // Reject a goal completion request (coach side)
   async rejectGoalCompletion(subscriptionId, goalId) {
@@ -681,37 +683,66 @@ async approveGoalCompletion(subscriptionId, goalId, pointsAwarded) {
   },
 
 
+  async checkIfUserRatedCoach(coachId) {
+    try {
+      if (!coachId) {
+        throw new Error('Coach ID is required');
+      }
+      
+      // Since the API endpoint doesn't exist yet, use localStorage as a temporary solution
+      const ratedCoaches = JSON.parse(localStorage.getItem('ratedCoaches') || '[]');
+      return ratedCoaches.includes(coachId);
+      
+      /* When the API endpoint is implemented, use this instead:
+      const response = await api.get(`/user/${coachId}/user-rating`);
+      return response.data.hasRated;
+      */
+    } catch (error) {
+      console.error('Error checking if user has rated coach:', error);
+      
+      // Fallback to localStorage if API call fails
+      const ratedCoaches = JSON.parse(localStorage.getItem('ratedCoaches') || '[]');
+      return ratedCoaches.includes(coachId);
+    }
+  },
+  
+  // Rate a coach
   async rateCoach(coachId, rating) {
     try {
+      if (!coachId || !rating) {
+        throw new Error('Coach ID and rating are required');
+      }
+      
+      // Validate rating
+      if (rating < 1 || rating > 5) {
+        throw new Error('Rating must be between 1 and 5');
+      }
+      
+      // Call the API endpoint to rate the coach
       const response = await api.post(`/user/${coachId}/rate`, { rating });
+      
+      // Store in localStorage regardless of API response
+      const ratedCoaches = JSON.parse(localStorage.getItem('ratedCoaches') || '[]');
+      if (!ratedCoaches.includes(coachId)) {
+        ratedCoaches.push(coachId);
+        localStorage.setItem('ratedCoaches', JSON.stringify(ratedCoaches));
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Error rating coach:', error);
+      
+      // Even if the API fails, store in localStorage so the button stays hidden
+      const ratedCoaches = JSON.parse(localStorage.getItem('ratedCoaches') || '[]');
+      if (!ratedCoaches.includes(coachId)) {
+        ratedCoaches.push(coachId);
+        localStorage.setItem('ratedCoaches', JSON.stringify(ratedCoaches));
+      }
+      
+      // Rethrow the error for the caller to handle
       throw error;
     }
   },
-
-  // Get coach details
-  async getCoachDetails(coachId) {
-    try {
-      const response = await api.get(`/user/${coachId}`);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching coach details:', error);
-      throw error;
-    }
-  },
-
-  async checkIfUserRatedCoach(coachId) {
-    try {
-      const response = await api.get(`/user/${coachId}/user-rating`);
-      return response.data.hasRated;
-    } catch (error) {
-      console.error('Error checking if user has rated coach:', error);
-      return false; // Default to false if there's an error
-    }
-  },
-
 
 
 

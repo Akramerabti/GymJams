@@ -48,13 +48,18 @@ router.post('/:subscriptionId/goals', optionalAuthenticate, addGoal);
 router.put('/:subscriptionId/goals/:goalId', optionalAuthenticate, updateGoal);
 router.delete('/:subscriptionId/goals/:goalId', optionalAuthenticate, deleteGoal);
 router.post('/:subscriptionId/goals/:goalId/request-completion', optionalAuthenticate, requestGoalCompletion);
-router.post('/:subscriptionId/goals/:goalId/approve', optionalAuthenticate, approveGoalCompletion);
+router.post('/:subscriptionId/goals/:goalId/approve', (req, res, next) => {
+  console.log('Goal approval route hit:', {
+    subscriptionId: req.params.subscriptionId,
+    goalId: req.params.goalId
+  });
+  next();
+}, optionalAuthenticate, approveGoalCompletion);
 router.post('/:subscriptionId/goals/:goalId/reject', optionalAuthenticate, rejectGoalCompletion);
 router.post('/:subscriptionId/questionnaire-goals', optionalAuthenticate, saveQuestionnaireDerivedGoals);
 router.get('/:subscriptionId/goals', optionalAuthenticate, getSubscriptionGoals);
 router.get('/pending-goal-approvals', authenticate, isCoach, getPendingGoalApprovals);
 router.post('/:subscriptionId/goals/:goalId/request-completion', optionalAuthenticate, requestGoalCompletion);
-router.post('/:subscriptionId/goals/:goalId/approve', optionalAuthenticate, isCoach, approveGoalCompletion);
 router.post('/:subscriptionId/goals/:goalId/reject', optionalAuthenticate, isCoach, rejectGoalCompletion);
 router.get('/:subscriptionId/sessions', optionalAuthenticate, getClientSessions);
 router.post('/:subscriptionId/request-session', optionalAuthenticate, requestSession);

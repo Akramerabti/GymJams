@@ -65,19 +65,73 @@ const DashboardCoach = () => {
   };
   
 
+  const getGoalId = (goal) => {
+    if (!goal) return null;
+    
+    // Try different possible ID fields in order of preference
+    if (goal.id) return goal.id;
+    if (goal._id) {
+      // Handle if _id is an ObjectId (toString if it's an object)
+      return typeof goal._id === 'object' ? goal._id.toString() : goal._id;
+    }
+    
+    return null;
+  };
+  
+  // Helper function to check if goal IDs match (handles different formats)
+  const doGoalIdsMatch = (goal, goalId) => {
+    if (!goal || !goalId) return false;
+    
+    // Check for "id" field match
+    if (goal.id === goalId) return true;
+    
+    // Check for "_id" field match
+    if (goal._id) {
+      const goalObjectId = typeof goal._id === 'object' ? goal._id.toString() : goal._id;
+      return goalObjectId === goalId;
+    }
+    
+    return false;
+  };
+  
   const handleCompleteClientGoal = async (clientId, goalId, pointsToAward, isApproval = false) => {
     try {
       setIsLoading(true);
       
-      // Find the client and their goal
+      console.log('Goal approval data:', {
+        clientId,
+        goalId,
+        pointsToAward,
+        isApproval
+      });
+      
+      // Find the client
       const client = clients.find(c => c.id === clientId);
-      if (!client || !client.goals) {
-        toast.error('Client or goal not found');
+      if (!client) {
+        console.error('Client not found:', { clientId, availableClientsIds: clients.map(c => c.id) });
+        toast.error('Client not found');
         return;
       }
       
-      const goal = client.goals.find(g => g.id === goalId);
+      // Check if client has goals
+      if (!client.goals || !Array.isArray(client.goals)) {
+        console.error('Client has no goals array:', client);
+        toast.error('Client has no goals');
+        return;
+      }
+      
+      // Find the goal - check both id and _id fields
+      const goal = client.goals.find(g => doGoalIdsMatch(g, goalId));
+      
       if (!goal) {
+        console.error('Goal not found:', { 
+          goalId, 
+          availableGoalIds: client.goals.map(g => ({
+            id: g.id,
+            _id: g._id,
+            title: g.title
+          }))
+        });
         toast.error('Goal not found');
         return;
       }
@@ -95,7 +149,7 @@ const DashboardCoach = () => {
                 ? { 
                     ...c, 
                     goals: c.goals.map(g => 
-                      g.id === goalId 
+                      doGoalIdsMatch(g, goalId)
                         ? { 
                             ...g, 
                             status: 'completed',
@@ -123,7 +177,7 @@ const DashboardCoach = () => {
         // This is a direct completion (coach marks a goal as complete)
         // Update the goal status locally
         const updatedGoals = client.goals.map(g => 
-          g.id === goalId 
+          doGoalIdsMatch(g, goalId)
             ? { 
                 ...g, 
                 status: 'completed',
@@ -187,10 +241,15 @@ const DashboardCoach = () => {
       setIsLoading(false);
     }
   };
-
+  
   const handleRejectGoalCompletion = async (clientId, goalId) => {
     try {
       setIsLoading(true);
+      
+      console.log('Goal rejection data:', {
+        clientId,
+        goalId
+      });
       
       // Call the reject endpoint
       await subscriptionService.rejectGoalCompletion(clientId, goalId);
@@ -201,8 +260,8 @@ const DashboardCoach = () => {
           c.id === clientId
             ? { 
                 ...c, 
-                goals: c.goals.map(g => 
-                  g.id === goalId 
+                goals: c.goals?.map(g => 
+                  doGoalIdsMatch(g, goalId)
                     ? { 
                         ...g, 
                         status: 'active',
@@ -210,7 +269,7 @@ const DashboardCoach = () => {
                         clientCompletionRequestDate: null
                       } 
                     : g
-                )
+                ) || []
               }
             : c
         )
@@ -228,7 +287,6 @@ const DashboardCoach = () => {
   
   const filteredClients = () => {
     if (!clients || !Array.isArray(clients)) return [];
-    console.log('Filtering clients:', clients, filterStatus, searchTerm);
     
     // First filter based on status and search term
     const filtered = clients.filter(client => {
@@ -454,174 +512,6 @@ const DashboardCoach = () => {
 
   const handleAddClient = () => {
     toast.info('This feature will be implemented in a future update');
-  };
-
-  const handleApproveGoal = async (clientId, goalId, pointsToAward) => {
-    try {
-      setIsLoading(true);
-      
-      // Find the client and goal for UI updates
-      const client = clients.find(c => c.id === clientId);
-      if (!client) {
-        toast.error('Client not found');
-        return;
-      }
-      
-      const goal = client.goals?.find(g => g.id === goalId);
-      if (!goal) {
-        toast.error('Goal not found');
-        return;
-      }
-      
-      // Call the API to approve the goal - this will change status to completed
-      const result = await subscriptionService.approveGoalCompletion(clientId, goalId, pointsToAward);
-      
-      if (result) {
-        // Successfully approved in backend, update local state
-        
-        // Update the goal status in the client's goals array
-        const updatedClients = clients.map(c => {
-          if (c.id === clientId) {
-            // Update the goals array
-            const updatedGoals = (c.goals || []).map(g => {
-              if (g.id === goalId) {
-                return {
-                  ...g,
-                  status: 'completed', // Make sure status is explicitly set to completed
-                  completed: true,
-                  completedDate: new Date().toISOString(),
-                  coachApproved: true,
-                  coachApprovalDate: new Date().toISOString(),
-                  pointsAwarded
-                };
-              }
-              return g;
-            });
-            
-            // Update the stats
-            const updatedStats = {
-              ...c.stats,
-              goalsAchieved: (c.stats?.goalsAchieved || 0) + 1
-            };
-            
-            return {
-              ...c,
-              goals: updatedGoals,
-              stats: updatedStats
-            };
-          }
-          return c;
-        });
-        
-        // Update clients state
-        setClients(updatedClients);
-        
-        // Also update pendingGoalApprovals to remove this goal
-        const updatedPendingGoals = pendingGoalApprovals.map(c => {
-          if (c.id === clientId) {
-            // Filter out the approved goal
-            const filteredGoals = (c.goals || []).filter(g => g.id !== goalId);
-            return {
-              ...c,
-              goals: filteredGoals
-            };
-          }
-          return c;
-        }).filter(c => (c.goals || []).length > 0); // Remove clients with no pending goals
-        
-        setPendingGoalApprovals(updatedPendingGoals);
-        
-        // Update the pending goal count
-        setPendingGoalCount(prev => Math.max(0, prev - 1));
-        
-        toast.success(`Goal approved! ${pointsToAward} points awarded to client.`);
-      }
-    } catch (error) {
-      console.error('Error approving goal:', error);
-      toast.error('Failed to approve goal');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleRejectGoal = async (clientId, goalId, reason = '') => {
-    try {
-      setIsLoading(true);
-      
-      // Find the client and goal for UI updates
-      const client = clients.find(c => c.id === clientId);
-      if (!client) {
-        toast.error('Client not found');
-        return;
-      }
-      
-      const goal = client.goals?.find(g => g.id === goalId);
-      if (!goal) {
-        toast.error('Goal not found');
-        return;
-      }
-      
-      // Call the API to reject the goal - this will reset status to active
-      const result = await subscriptionService.rejectGoalCompletion(clientId, goalId, reason);
-      
-      if (result) {
-        // Successfully rejected in backend, update local state
-        
-        // Update the goal status in the client's goals array
-        const updatedClients = clients.map(c => {
-          if (c.id === clientId) {
-            // Update the goals array
-            const updatedGoals = (c.goals || []).map(g => {
-              if (g.id === goalId) {
-                return {
-                  ...g,
-                  status: 'active', // Reset status to active
-                  clientRequestedCompletion: false,
-                  clientCompletionRequestDate: null,
-                  rejectionReason: reason,
-                  rejectedAt: new Date().toISOString()
-                };
-              }
-              return g;
-            });
-            
-            return {
-              ...c,
-              goals: updatedGoals
-            };
-          }
-          return c;
-        });
-        
-        // Update clients state
-        setClients(updatedClients);
-        
-        // Also update pendingGoalApprovals to remove this goal
-        const updatedPendingGoals = pendingGoalApprovals.map(c => {
-          if (c.id === clientId) {
-            // Filter out the rejected goal
-            const filteredGoals = (c.goals || []).filter(g => g.id !== goalId);
-            return {
-              ...c,
-              goals: filteredGoals
-            };
-          }
-          return c;
-        }).filter(c => (c.goals || []).length > 0); // Remove clients with no pending goals
-        
-        setPendingGoalApprovals(updatedPendingGoals);
-        
-        // Update the pending goal count
-        setPendingGoalCount(prev => Math.max(0, prev - 1));
-        
-        toast.success('Goal rejected. Client has been notified.');
-      }
-    } catch (error) {
-      console.error('Error rejecting goal:', error);
-      toast.error('Failed to reject goal');
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   return (

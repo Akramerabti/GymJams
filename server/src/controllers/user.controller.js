@@ -380,8 +380,8 @@ export const rateCoach = async (req, res) => {
     const totalRatingPoints = currentRating * ratingCount;
     const newTotalPoints = totalRatingPoints + rating;
     const newRatingCount = ratingCount + 1;
-    const newAverageRating = parseFloat((newTotalPoints / newRatingCount).toFixed(1)); // One decimal place
-    
+    const newAverageRating = parseFloat((newTotalPoints / newRatingCount).toFixed(1)); // One decimal plac
+
     // Update coach rating data
     coach.rating = newAverageRating;
     coach.ratingCount = newRatingCount;
@@ -400,7 +400,7 @@ export const rateCoach = async (req, res) => {
     
     await coach.save();
     
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Rating submitted successfully',
       newRating: coach.rating
     });
@@ -409,6 +409,7 @@ export const rateCoach = async (req, res) => {
     res.status(500).json({ error: 'Failed to submit rating' });
   }
 };
+
 
 export const checkUserRating = async (req, res) => {
   try {
