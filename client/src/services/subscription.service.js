@@ -624,10 +624,17 @@ async submitQuestionnaire(answers, accessToken = null) {
       
       while (retryCount < maxRetries) {
         try {
-          // Ensure we're using the right path structure that matches the backend route
+          const guestToken = localStorage.getItem('guestToken');
+          const accessToken = localStorage.getItem('accessToken');
+          
           const response = await api.post(
             `/subscription/${subscriptionId}/goals/${goalId}/approve`, 
-            { pointsToAward: pointsToAward || 0 }
+            { pointsAwarded: pointsToAward || 0 },
+            {
+              headers: {
+                'Authorization': `Bearer ${accessToken || guestToken}`
+              }
+            }
           );
           
           // Log success

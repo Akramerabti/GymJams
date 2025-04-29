@@ -1528,6 +1528,8 @@ export const approveGoalCompletion = async (req, res) => {
     // Find the goal
     const goalIndex = subscription.goals.findIndex(g => g.id === goalId);
     
+    console.log('Goal index:', goalIndex);
+
     if (goalIndex === -1) {
       return res.status(404).json({ error: 'Goal not found' });
     }

@@ -147,71 +147,72 @@ const AddNewGoal = ({
     }));
   };
 
-  const handleSubmit = (e) => {
-    if (e) {
-      e.preventDefault(); // Prevent default form submission behavior
-      e.stopPropagation(); // Stop event from bubbling up
-    }
-
-    console.log('Form submitted');
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  
     setIsSubmitting(true);
-
+    setError('');
+  
     // Validate required fields
     if (!formData.title || !formData.type || !formData.target || !formData.dueDate) {
-      console.log('Validation failed: Missing required fields');
       setError('Please fill in all required fields');
       setIsSubmitting(false);
       return;
     }
-
-    // Validate due date is not in the past
+  
     const dueDate = new Date(formData.dueDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (dueDate < today) {
-      console.log('Validation failed: Due date is in the past');
       setError('Due date cannot be in the past');
       setIsSubmitting(false);
       return;
     }
-
-    // Prepare the goal object
+  
     const newGoal = {
-        ...formData,
-        id: formData.id || `goal-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        dueDate: new Date(formData.dueDate),
-        due: formatDate(new Date(formData.dueDate)), // Add formatted date for display
-        createdAt: goal?.createdAt || new Date().toISOString(),
-        progress: parseInt(formData.progress) || 0,
-        status: formData.status || 'active', // Ensure status is set
-        clientRequestedCompletion: formData.clientRequestedCompletion || false,
-        coachApproved: formData.coachApproved || false,
-        pointsAwarded: formData.pointsAwarded || 0,
-      };
-
-    // Call the onSave function with the new goal
-    console.log('Saving goal:', newGoal);
-    onSave(newGoal);
-    setError('');
-    setIsSubmitting(false);
+      ...formData,
+      id: formData.id || `goal-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      dueDate: new Date(formData.dueDate),
+      due: formatDate(new Date(formData.dueDate)),
+      createdAt: goal?.createdAt || new Date().toISOString(),
+      progress: parseInt(formData.progress) || 0,
+      status: formData.status || 'active',
+      clientRequestedCompletion: formData.clientRequestedCompletion || false,
+      coachApproved: formData.coachApproved || false,
+      pointsAwarded: formData.pointsAwarded || 0,
+    };
+  
+    try {
+      await onSave(newGoal);  // Await async save
+      setError('');
+      onClose();             // Close dialog only after successful save
+    } catch (err) {
+      console.error('Failed to save goal:', err);
+      setError('Failed to save goal. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+  
 
   // Specifically handle clicking the cancel button
   const handleCancel = (e) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    console.log('Cancel button clicked');
+    e.preventDefault();
+    e.stopPropagation();
     onClose();
   };
 
   // Safely handle dialog open change
   const handleOpenChange = (open) => {
     console.log('Dialog open state changed to:', open);
+    // Only close if dialog is being closed AND not submitting
     if (!open && !isSubmitting) {
-      console.log('Dialog closed');
+      console.log('Dialog closed via outside click or Escape');
       onClose();
+    } else if (!open && isSubmitting) {
+      // Prevent closing while submitting
+      console.log('Preventing dialog close while submitting');
     }
   };
 
@@ -241,10 +242,14 @@ const AddNewGoal = ({
         ref={dialogContentRef} 
         className="sm:max-w-[550px] z-[1000]"
         onClick={handleContentClick}
+         aria-describedby="goal-dialog-description"
       >
-        <DialogHeader>
-          <DialogTitle>{goal ? 'Edit Goal' : 'Add New Goal'}</DialogTitle>
-        </DialogHeader>
+         <DialogHeader>
+    <DialogTitle>{goal ? 'Edit Goal' : 'Add New Goal'}</DialogTitle>
+    <p id="goal-dialog-description" className="sr-only">
+      {goal ? 'Edit an existing goal' : 'Create a new goal for your client'}
+    </p>
+  </DialogHeader>
 
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">

@@ -6,9 +6,10 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import Textarea from '@/components/ui/TextArea';
+import TextArea from '@/components/ui/TextArea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import Progress from '@/components/ui/progress';
 import { 
   Select,
   SelectContent,
@@ -21,6 +22,29 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/alert';
 import AddNewGoal from '../../../components/subscription/AddNewGoal';
+
+const formatDate = (dateString) => {
+  try {
+    const date = new Date(dateString);
+    
+    // Calculate time difference in days
+    const now = new Date();
+    const diffTime = Math.abs(now - date);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) {
+      return 'Today';
+    } else if (diffDays === 1) {
+      return 'Yesterday';
+    } else if (diffDays < 7) {
+      return `${diffDays} days ago`;
+    } else {
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    }
+  } catch (error) {
+    return 'Unknown date';
+  }
+};
 
 // Goal difficulty configuration
 const GOAL_DIFFICULTY = {
@@ -188,80 +212,80 @@ const ConfirmationDialog = ({ isOpen, onClose, onConfirm, title, message }) => {
 };
 
 const PendingApprovalsSection = ({ pendingGoals, onApprove, onReject }) => {
-    if (!pendingGoals || pendingGoals.length === 0) return null;
-    
-    return (
-      <div className="mt-6 space-y-4">
-        <div className="flex items-center space-x-2">
-          <Clock className="w-5 h-5 text-amber-500" />
-          <h3 className="text-lg font-semibold">Pending Goal Approvals</h3>
-        </div>
-        
-        <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
-          <Alert variant="warning" className="mb-3">
-            <AlertTriangle className="h-4 w-4" />
-            <p>The following goals are awaiting your approval. Please review the client's progress before approving.</p>
-          </Alert>
-          
-          <div className="space-y-4">
-            {pendingGoals.map(goal => (
-              <div key={goal.id} className="bg-white p-4 rounded-lg border shadow-sm">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-start space-x-3">
-                    <div className="mt-1">
-                      {getGoalIcon(goal.type)}
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-lg">{goal.title}</h4>
-                      <p className="text-sm text-gray-600 mb-1">{goal.target}</p>
-                      <p className="text-xs text-gray-500">
-                        Requested: {formatDate(goal.clientCompletionRequestDate || new Date())}
-                      </p>
-                      <div className="space-y-1 mt-2">
-                        <div className="flex justify-between text-xs text-gray-600">
-                          <span>Client reports:</span>
-                          <span>{goal.progress}% complete</span>
-                        </div>
-                        <Progress value={goal.progress} className="h-1.5" />
+  if (!pendingGoals || pendingGoals.length === 0) return null;
+
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="flex items-center space-x-2">
+        <Clock className="w-5 h-5 text-amber-500" />
+        <h3 className="text-lg font-semibold">Pending Goal Approvals</h3>
+      </div>
+
+      <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+        <Alert variant="warning" className="mb-3">
+          <AlertTriangle className="h-4 w-4" />
+          <p>The following goals are awaiting your approval. Please review the client's progress before approving.</p>
+        </Alert>
+
+        <div className="space-y-4">
+          {pendingGoals.map(goal => (
+            <div key={goal.id || goal._id || `${goal.title}-${goal.clientCompletionRequestDate}`} className="bg-white p-4 rounded-lg border shadow-sm">
+              <div className="flex justify-between items-start">
+                <div className="flex items-start space-x-3">
+                  <div className="mt-1">
+                    {getGoalIcon(goal.type)}
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-lg">{goal.title}</h4>
+                    <p className="text-sm text-gray-600 mb-1">{goal.target}</p>
+                    <p className="text-xs text-gray-500">
+                      Requested: {formatDate(goal.clientCompletionRequestDate || new Date())}
+                    </p>
+                    <div className="space-y-1 mt-2">
+                      <div className="flex justify-between text-xs text-gray-600">
+                        <span>Client reports:</span>
+                        <span>{goal.progress}% complete</span>
                       </div>
+                      <Progress value={goal.progress} className="h-1.5" />
                     </div>
-                  </div>
-                </div>
-                
-                <div className="mt-3 flex items-center justify-between border-t pt-3">
-                  <div className="text-sm">
-                    <span className="font-medium text-amber-700">
-                      Approve to award {GOAL_DIFFICULTY[goal.difficulty || 'medium'].points} points
-                    </span>
-                  </div>
-                  
-                  <div className="flex space-x-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
-                      onClick={() => onReject(goal.id)}
-                    >
-                      <X className="w-4 h-4 mr-1" />
-                      Reject
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      className="bg-green-600 hover:bg-green-700"
-                      onClick={() => onApprove(goal.id)}
-                    >
-                      <CheckCircle className="w-4 h-4 mr-1" />
-                      Approve
-                    </Button>
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
+
+              <div className="mt-3 flex items-center justify-between border-t pt-3">
+                <div className="text-sm">
+                  <span className="font-medium text-amber-700">
+                    Approve to award {GOAL_DIFFICULTY[goal.difficulty || 'medium'].points} points
+                  </span>
+                </div>
+
+                <div className="flex space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                    onClick={() => onReject(goal.id)}
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    Reject
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={() => onApprove(goal.id)}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-1" />
+                    Approve
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
 // Main goals component for coach
 const GoalManager = ({ 
@@ -302,7 +326,7 @@ const GoalManager = ({
     return goalDate >= startOfWeek && goalDate <= endOfWeek;
   });
   
-  const weeklyLimitReached = currentWeekGoals.length >= 2;
+  const weeklyLimitReached = currentWeekGoals.length >= 3;
   
   // Handle add goal
   const handleAddGoal = () => {
@@ -347,14 +371,19 @@ const GoalManager = ({
   };
   
   const handleSaveGoal = (goal) => {
-    if (selectedGoal) {
-      onUpdateGoal(goal); // Update existing goal
-    } else {
-      onAddGoal(goal); // Add new goal
+    try {
+      if (selectedGoal) {
+        onUpdateGoal(goal);
+      } else {
+        onAddGoal(goal);
+      }
+      setIsAddGoalOpen(false);
+      setIsEditGoalOpen(false);
+      setSelectedGoal(null);
+    } catch (error) {
+      console.error('Error saving goal:', error);
+      // Optionally show an error message to the user
     }
-    setIsAddGoalOpen(false); // Close the dialog after saving
-    setIsEditGoalOpen(false); // Close the dialog after saving
-    setSelectedGoal(null); // Reset selected goal
   };
 
   const handleApproveGoal = async (goalId) => {
@@ -405,7 +434,7 @@ const GoalManager = ({
           {weeklyLimitReached && (
             <p className="text-amber-600 text-sm mr-2">
               <AlertTriangle className="w-4 h-4 inline mr-1" />
-              Weekly limit of 2 goals reached
+              Weekly limit of 3 goals reached
             </p>
           )}
           
@@ -476,10 +505,11 @@ const GoalManager = ({
       )}
       
       {/* Add Goal Dialog */}
+      <Button onClick={() => setIsAddGoalOpen(true)}>Add Goal</Button>
       <AddNewGoal
         isOpen={isAddGoalOpen}
         onClose={() => setIsAddGoalOpen(false)}
-        onSave={handleSaveGoal}
+        onSave={handleAddGoal}
       />
       
       {/* Edit Goal Dialog */}
