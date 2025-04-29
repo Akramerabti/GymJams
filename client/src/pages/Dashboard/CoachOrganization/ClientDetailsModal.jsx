@@ -521,8 +521,15 @@ const ClientDetailsModal = ({ client, onClose, onSave, onExportData}) => {
                   onUpdateGoal={handleUpdateGoal}
                   onDeleteGoal={handleDeleteGoal}
                   onCompleteGoal={handleCompleteGoal}
+                  subscription={{ 
+                    _id: client.id,
+                    id: client.id, // Providing both for compatibility
+                    // Include other potentially useful properties from client
+                    subscription: client.subscription,
+                    status: client.status
+                  }}
                 />
-              </TabsContent>
+              </TabsContent>          
 
               <TabsContent value="stats" className="mt-0">
                 {isEditing ? (

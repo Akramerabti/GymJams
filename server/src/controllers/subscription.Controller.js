@@ -1510,7 +1510,6 @@ export const requestGoalCompletion = async (req, res) => {
   }
 };
 
-// Approve a goal completion request (coach side)
 export const approveGoalCompletion = async (req, res) => {
   try {
     const { subscriptionId, goalId } = req.params;
@@ -1525,13 +1524,36 @@ export const approveGoalCompletion = async (req, res) => {
       return res.status(404).json({ error: 'Subscription not found' });
     }
     
-    // Find the goal
-    const goalIndex = subscription.goals.findIndex(g => g.id === goalId);
+    // Find the goal - handle both id and _id fields
+    // First attempt to find by matching either id or _id as string
+    let goalIndex = subscription.goals.findIndex(g => 
+      (g.id && g.id.toString() === goalId) || 
+      (g._id && g._id.toString() === goalId)
+    );
     
+    // If not found, try comparing ObjectId values directly
+    if (goalIndex === -1) {
+      goalIndex = subscription.goals.findIndex(g => {
+        if (g._id) {
+          // Convert ObjectId to string for comparison if needed
+          const goalObjectId = typeof g._id === 'object' ? g._id.toString() : g._id;
+          return goalObjectId === goalId;
+        }
+        return false;
+      });
+    }
+    
+    // Log for debugging
     console.log('Goal index:', goalIndex);
+    console.log('Goal search results:', subscription.goals.map((g, i) => ({
+      index: i,
+      id: g.id,
+      _id: g._id ? (typeof g._id === 'object' ? g._id.toString() : g._id) : null,
+      title: g.title
+    })));
 
     if (goalIndex === -1) {
-      return res.status(404).json({ error: 'Goal not found' });
+      return res.status(404).json({ error: 'Goal not found', searchedId: goalId });
     }
     
     // Get the goal title for notifications
@@ -1584,7 +1606,7 @@ export const approveGoalCompletion = async (req, res) => {
     // Notify client via socket if they're online
     if (subscription.user) {
       notifyGoalApproval(subscription.user.toString(), {
-        goalId,
+        goalId: goalId, // Use the goalId from the request
         title: goalTitle,
         pointsAwarded: pointsAwarded || 0,
         status: 'completed'

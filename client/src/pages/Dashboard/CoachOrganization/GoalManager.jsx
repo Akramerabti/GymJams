@@ -276,7 +276,7 @@ const IntegratedGoalsSection = ({
   onViewAll,
   subscription 
 }) => {
-  console.log('Initial goals:', subscription);
+
   const [goals, setGoals] = useState(initialGoals || []);
   const [activeTab, setActiveTab] = useState('view');
   const [selectedGoal, setSelectedGoal] = useState(null);
