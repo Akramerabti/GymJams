@@ -22,7 +22,10 @@ const [hasLoaded, setHasLoaded] = useState(false);
 const [dragStartTime, setDragStartTime] = useState(0);
 const [lastDragTime, setLastDragTime] = useState(0);
 const [dragVelocity, setDragVelocity] = useState(0);
+const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+// Fallback image URL
+const BACKGROUND_IMAGE = `${baseUrl}/uploads/Blackjack.jpg`;
 // Section data
 const sections = [
   {
@@ -31,8 +34,8 @@ const sections = [
     description: 'Premium equipment, expert coaching, and community support to help you reach your fitness goals. Start your transformation today.',
     buttonText: 'Get Started',
     route: '/',
-    videoSrc: "/api/placeholder/1920/1080", // Replace with actual video URLs
-    color: 'from-blue-800/80 to-blue-900/80'
+    videoSrc: `${baseUrl}/uploads/GymTonic.mp4`, // Replace with actual video URLs
+    color: 'from--800/80 to-blue-900/80'
   },
   {
     id: 'shop',
@@ -40,7 +43,7 @@ const sections = [
     description: 'Discover professional-grade fitness equipment for home and commercial gyms. Quality gear that lasts, designed for optimal performance.',
     buttonText: 'Shop Now',
     route: '/shop',
-    videoSrc: "/api/placeholder/1920/1080", // Replace with actual video URLs
+    videoSrc: `${baseUrl}/uploads/GymTonic.mp4`, // Replace with actual video URLs
     color: 'from-indigo-600/80 to-indigo-900/80'
   },
   {
@@ -49,7 +52,7 @@ const sections = [
     description: 'Monitor your progress, set new records, and celebrate achievements. Our intelligent tracking helps you visualize your journey and stay motivated.',
     buttonText: 'Track Gains',
     route: '/gymbros',
-    videoSrc: "/api/placeholder/1920/1080", // Replace with actual video URLs
+    videoSrc: `${baseUrl}/uploads/GymTonic.mp4`, // Replace with actual video URLs
     color: 'from-purple-600/80 to-purple-900/80'
   },
   {
@@ -58,7 +61,7 @@ const sections = [
     description: 'Play exclusive games, earn points, and unlock special rewards. Make your workout fun and engaging with gamified fitness experiences.',
     buttonText: 'Play Games',
     route: '/games',
-    videoSrc: "/api/placeholder/1920/1080", // Replace with actual video URLs
+    videoSrc: `${baseUrl}/uploads/GymTonic.mp4`, // Replace with actual video URLs
     color: 'from-green-600/80 to-green-900/80'
   },
   {
@@ -67,7 +70,7 @@ const sections = [
     description: 'Transform your fitness journey with guidance from certified trainers. Personalized plans, real-time feedback, and continuous support.',
     buttonText: 'Find a Coach',
     route: '/coaching',
-    videoSrc: "/api/placeholder/1920/1080", // Replace with actual video URLs
+    videoSrc: `${baseUrl}/uploads/GymTonic.mp4`, // Replace with actual video URLs
     color: 'from-red-600/80 to-red-900/80'
   }
 ];
@@ -549,36 +552,26 @@ return (
           >
             {/* Video or Image background */}
             <div className="absolute inset-0 overflow-hidden">
-              {/* Use image placeholder on mobile for better performance */}
-              {isMobile ? (
-                <div 
-                  className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${
-                    currentSection === index ? 'opacity-100' : 'opacity-0'
-                  }`}
-                  style={{
-                    backgroundImage: `url(${section.videoSrc})`,
-                    transform: 'translateZ(0)', // Force GPU acceleration
-                  }}
-                />
-              ) : (
-                <video
-                  ref={el => videoRefs.current[index] = el}
-                  src={section.videoSrc}
-                  className={`absolute inset-0 object-cover w-full h-full video-transition ${
-                    currentSection === index 
-                      ? 'opacity-100 scale-100' 
-                      : 'opacity-0 scale-110'
-                  }`}
-                  playsInline
-                  muted
-                  loop
-                  autoPlay={index === 0}
-                  preload="metadata" // Only preload metadata initially
-                  style={{
-                    transform: 'translateZ(0)', // Force GPU acceleration
-                  }}
-                />
-              )}
+  <video
+    ref={el => videoRefs.current[index] = el}
+    src={section.videoSrc}
+    type="video/mp4"
+    className={`absolute inset-0 object-cover w-full h-full video-transition ${
+      currentSection === index 
+        ? 'opacity-100 scale-50' 
+        : 'opacity-0 scale-50'
+    }`}
+    playsInline
+    muted
+    loop
+    autoPlay={index === 0}
+    preload="auto"
+    style={{
+      transform: 'translateZ(0)',
+      objectFit: 'cover',
+    }}
+  />
+              
               {/* Color overlay gradient */}
               <div 
                 className={`absolute inset-0 bg-gradient-to-br ${section.color} transition-opacity duration-1000 ${
