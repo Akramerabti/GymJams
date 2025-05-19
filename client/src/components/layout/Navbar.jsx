@@ -94,11 +94,13 @@ const Navbar = () => {
       {/* Logo Section */}
       <div className="flex items-center">
         <Link to="/" className="flex-shrink-0 flex items-center space-x-2">
-          <Dumbbell
-            className={`h-6 w-6 ${
-              darkMode ? 'text-white' : 'text-blue-600'
-            }`}
+        <div style={{ maxWidth: '80px', width: '100%' }}>
+          <img
+            src="/Picture2.png"
+            alt="Gymtonic Logo"
+            style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
           />
+        </div>
           <span
             className={`text-xl font-extrabold ${
               darkMode ? 'text-white' : 'text-black'
