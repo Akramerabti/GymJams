@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { MessageSquare, ArrowRight, User, Award, Crown, Zap, FileEdit, Calendar, Star } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { TextArea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import subscriptionService from '../../../services/subscription.service';
 
