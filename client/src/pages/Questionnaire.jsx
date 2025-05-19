@@ -18,7 +18,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { TextArea } from '@/components/ui/textarea';
+import { TextArea } from '@/components/ui/TextArea';
 import { 
   Tooltip,
   TooltipContent,
