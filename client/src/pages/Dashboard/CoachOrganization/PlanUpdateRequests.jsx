@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { TextArea } from '@/components/ui/textArea';
+import { TextArea } from '@/components/ui/TextArea';
 import { toast } from 'sonner';
 
 const PlanUpdateRequests = ({ clients, onRefreshData }) => {
