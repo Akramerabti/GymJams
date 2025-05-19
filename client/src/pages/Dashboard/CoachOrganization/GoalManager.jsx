@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { TextArea } from '@/components/ui/textarea';
+import { TextArea } from '@/components/ui/TextArea';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import subscriptionService from '../../../services/subscription.service';
