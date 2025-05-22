@@ -31,7 +31,7 @@ export const createStripeAccount = async (req, res) => {
     }
 
     const businessProfile = {
-      url: 'https://gymjams.ca/',
+      url: 'https://gymtonic.ca/',
       mcc: '5734',
       description: 'Gym-related clothes, equipment, and services',
     };
@@ -115,8 +115,43 @@ export const initiateVerification = async (req, res) => {
 
     res.json({ url: accountLink.url });
   } catch (error) {
-    console.error('Error creating account link:', error);
-    res.status(500).json({ error: 'Failed to create account link' });
+    console.error('=== ERROR in createStripeAccount ===');
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error type:', error.type);
+    console.error('Full error object:', error);
+    
+    // Log stack trace
+    if (error.stack) {
+      console.error('Stack trace:', error.stack);
+    }
+
+    // Handle specific Stripe errors
+    if (error.type) {
+      console.error('Stripe error details:', {
+        type: error.type,
+        code: error.code,
+        decline_code: error.decline_code,
+        param: error.param,
+        detail: error.detail
+      });
+    }
+
+    // Handle mongoose/database errors
+    if (error.name === 'MongoError' || error.name === 'ValidationError') {
+      console.error('Database error details:', {
+        name: error.name,
+        code: error.code,
+        keyPattern: error.keyPattern,
+        keyValue: error.keyValue
+      });
+    }
+
+    res.status(500).json({ 
+      error: 'Failed to create Stripe account',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
