@@ -54,7 +54,7 @@ const SubscriptionInfoDialog = ({ isOpen, onClose, subscriptionType }) => {
       features: [
         'Fully customized training programs',
         'Daily workout adjustments as needed',
-        'Same-day response to messages',
+        'Same-day response to messages (24hr response time)',
         'Weekly video consultations',
         'Comprehensive nutrition planning',
         'Recovery monitoring and guidance',

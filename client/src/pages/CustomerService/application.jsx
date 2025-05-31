@@ -1,4 +1,5 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Upload, Paperclip, Send, Info, CheckCircle } from 'lucide-react';
 import { 
   Card, 
@@ -18,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import applicationService from "../../services/application.service";
 import { TextArea } from "@/components/ui/TextArea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -147,7 +149,7 @@ const ApplicationForm = ({
                     </PopoverTrigger>
                     <PopoverContent className="w-80">
                       {applicationForm.applicationType === 'coach' && (
-                        <div className="space-y-2">
+                        <div className="space-y-2 ">
                           <h4 className="font-semibold">Fitness Coach</h4>
                           <p className="text-sm">As a coach, you'll provide personalized fitness guidance to our users. You should have relevant certifications and experience in the fitness industry.</p>
                         </div>

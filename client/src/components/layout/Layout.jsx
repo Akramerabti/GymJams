@@ -13,11 +13,13 @@ const Layout = ({ children }) => {
     const savedTheme = localStorage.getItem('siteTheme');
     if (savedTheme) {
       setDarkMode(savedTheme === 'dark');
+      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
       document.documentElement.classList.toggle('dark-mode', savedTheme === 'dark');
     } else {
       // Check system preference
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       setDarkMode(prefersDark);
+      document.documentElement.classList.toggle('dark', prefersDark);
       document.documentElement.classList.toggle('dark-mode', prefersDark);
     }
   }, []);
@@ -35,7 +37,11 @@ const Layout = ({ children }) => {
       const newDarkMode = typeof value === 'boolean' ? value : !darkMode;
       setDarkMode(newDarkMode);
       localStorage.setItem('siteTheme', newDarkMode ? 'dark' : 'light');
+      document.documentElement.classList.toggle('dark', newDarkMode);
       document.documentElement.classList.toggle('dark-mode', newDarkMode);
+      
+      // Add this for debugging
+      console.log('Dark mode toggled:', newDarkMode);
     };
   }, [darkMode]);
 
