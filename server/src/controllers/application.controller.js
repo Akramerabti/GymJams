@@ -9,6 +9,8 @@ export const submitApplication = async (req, res) => {
   try {
     const { name, email, phone, applicationType, message, portfolioUrl } = req.body;
     
+    logger.info(`Processing application for ${name} (${email}), type: ${applicationType}`);
+    
     // Create a new application
     const newApplication = new Application({
       name,
@@ -22,19 +24,37 @@ export const submitApplication = async (req, res) => {
     // If there's a resume file uploaded, add its path
     if (req.file) {
       newApplication.resume = req.file.path;
+      logger.info(`Resume uploaded: ${req.file.originalname} (${req.file.size} bytes)`);
     }
     
     await newApplication.save();
+    logger.info(`Application saved with ID: ${newApplication._id}`);
+    
+    // Email status tracking
+    let emailStatus = {
+      attempted: false,
+      success: false,
+      error: null,
+      messageId: null
+    };
     
     // Send confirmation email to the applicant
     try {
-      await sendEmail({
+      logger.info(`Attempting to send confirmation email to ${email}`);
+      emailStatus.attempted = true;
+      
+      const emailResult = await sendEmail({
         email,
         subject: 'Application Received - GymJams',
         message: `Dear ${name},\n\nThank you for submitting your application. We have received it and will review it shortly. You will be notified of any updates.\n\nBest regards,\nGymJams Team`
       });
+      
+      emailStatus.success = true;
+      emailStatus.messageId = emailResult.messageId;
+      logger.info(`Email sent successfully to ${email}, message ID: ${emailResult.messageId}`);
     } catch (emailError) {
-      logger.error('Failed to send confirmation email:', emailError);
+      emailStatus.error = emailError.message;
+      logger.error(`Failed to send confirmation email to ${email}:`, emailError);
       // Continue even if email fails
     }
     
@@ -47,7 +67,8 @@ export const submitApplication = async (req, res) => {
         email: newApplication.email,
         type: newApplication.applicationType,
         status: newApplication.status
-      }
+      },
+      emailStatus  // Include email status in the response
     });
   } catch (error) {
     logger.error('Application submission error:', error);
@@ -155,6 +176,43 @@ export const updateApplicationStatus = async (req, res) => {
     
     await application.save();
     
+    // If application is approved, update user role based on application type
+    if (status === 'approved' && application.email) {
+      try {
+        const user = await User.findOne({ email: application.email });
+        
+        if (user) {
+          // Determine role based on application type
+          let newRole = null;
+          
+          switch (application.applicationType) {
+            case 'coach':
+              newRole = 'coach';
+              break;
+            case 'taskforce':
+              newRole = 'taskforce';
+              break;
+            case 'affiliate':
+              newRole = 'affiliate';
+              break;
+            // For 'general' we don't change role
+          }
+          
+          if (newRole) {
+            // Update user role
+            user.role = newRole;
+            await user.save();
+            logger.info(`Updated user ${user._id} (${user.email}) role to ${newRole} based on approved application`);
+          }
+        } else {
+          logger.warn(`Approved application for ${application.email} but no matching user found to update role`);
+        }
+      } catch (userError) {
+        logger.error('Error updating user role:', userError);
+        // Continue even if role update fails
+      }
+    }
+    
     // Send notification email to the applicant
     try {
       let emailMessage = '';
@@ -163,18 +221,11 @@ export const updateApplicationStatus = async (req, res) => {
         emailMessage = `Dear ${application.name},\n\nWe are pleased to inform you that your application has been approved!\n\n`;
         
         if (application.applicationType === 'coach') {
-          emailMessage += 'You can now set up your coaching profile and start receiving clients.\n\n';
+          emailMessage += 'You have been granted Coach status. You can now set up your coaching profile and start receiving clients.\n\n';
         } else if (application.applicationType === 'taskforce') {
           emailMessage += 'You have been granted access to the TaskForce dashboard. Please log in to your account to access it.\n\n';
-          
-          // If approved for taskforce, update user role
-          if (application.email) {
-            const user = await User.findOne({ email: application.email });
-            if (user) {
-              user.role = 'taskforce';
-              await user.save();
-            }
-          }
+        } else if (application.applicationType === 'affiliate') {
+          emailMessage += 'You have been approved as an Affiliate Partner. You can now access the affiliate tools in your account dashboard.\n\n';
         }
       } else if (status === 'rejected') {
         emailMessage = `Dear ${application.name},\n\nThank you for your interest in joining our platform. After careful review, we regret to inform you that we are unable to approve your application at this time.\n\n`;

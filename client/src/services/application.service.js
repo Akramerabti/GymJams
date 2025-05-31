@@ -5,14 +5,33 @@ const applicationService = {
   // Submit a new application
   async submitApplication(formData) {
     try {
+      console.log('[ApplicationService] Submitting application form data:', {
+        name: formData.get('name'),
+        email: formData.get('email'),
+        applicationType: formData.get('applicationType'),
+        hasResume: !!formData.get('resume'),
+        fileSize: formData.get('resume') ? `${Math.round(formData.get('resume').size / 1024)} KB` : 'No file'
+      });
+      
       const response = await api.post('/applications/submit', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
+      
+      console.log('[ApplicationService] Server response:', response.data);
+      
+      // Debug the email status specifically
+      if (response.data.emailStatus) {
+        console.log('[ApplicationService] Email status:', response.data.emailStatus);
+      } else {
+        console.warn('[ApplicationService] No email status returned from server');
+      }
+      
       return response.data;
     } catch (error) {
-      console.error('Application submission error:', error);
+      console.error('[ApplicationService] Application submission error:', error);
+      console.error('[ApplicationService] Error response:', error.response?.data);
       throw error;
     }
   },

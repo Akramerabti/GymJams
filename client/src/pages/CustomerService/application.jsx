@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, Paperclip, Send, Info, CheckCircle } from 'lucide-react';
 import { 
@@ -27,6 +27,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import  useAuthStore from '../../stores/authStore';
 
 const ApplicationForm = ({ 
   successMessage,
@@ -39,7 +40,15 @@ const ApplicationForm = ({
   handleFileChange,
   handleApplicationSubmit,
   fileInputRef,
+  user,
+  isUserDataLocked = true // Changed default to true - always lock user data
 }) => {
+  // Debug log when this component is rendered
+  useEffect(() => {
+    console.log('[ApplicationForm] Rendering with user:', user ? 
+      `${user.email} (${user.id})` : 'No user passed from parent');
+  }, [user]);
+
   return (
     <div className="space-y-8">
       <div className="mb-8 text-center">
@@ -63,6 +72,7 @@ const ApplicationForm = ({
           <CardTitle>Application Form</CardTitle>
           <CardDescription>
             Please fill out the form below to apply. Fields marked with * are required.
+            <span className="block mt-1 text-blue-600">Your account information has been filled in and cannot be changed. This ensures your application is linked to your verified account.</span>
           </CardDescription>
         </CardHeader>
         
@@ -71,14 +81,17 @@ const ApplicationForm = ({
             <div className="space-y-2">
               <Label htmlFor="name">
                 Full Name <span className="text-red-500">*</span>
+                {applicationForm.name && <span className="ml-2 text-xs text-blue-500">(From your account)</span>}
               </Label>
               <Input
                 id="name"
                 name="name"
                 value={applicationForm.name}
                 onChange={handleApplicationChange}
-                className={errors.name ? 'border-red-500' : ''}
+                className={`${errors.name ? 'border-red-500' : ''} ${applicationForm.name ? 'bg-gray-50 cursor-not-allowed border-gray-300' : ''}`}
                 placeholder="Enter your full name"
+                readOnly={!!applicationForm.name}
+                disabled={!!applicationForm.name}
               />
               {errors.name && (
                 <p className="text-red-500 text-sm">{errors.name}</p>
@@ -88,6 +101,7 @@ const ApplicationForm = ({
             <div className="space-y-2">
               <Label htmlFor="email">
                 Email <span className="text-red-500">*</span>
+                {applicationForm.email && <span className="ml-2 text-xs text-blue-500">(From your account)</span>}
               </Label>
               <Input
                 id="email"
@@ -95,8 +109,10 @@ const ApplicationForm = ({
                 type="email"
                 value={applicationForm.email}
                 onChange={handleApplicationChange}
-                className={errors.email ? 'border-red-500' : ''}
+                className={`${errors.email ? 'border-red-500' : ''} ${applicationForm.email ? 'bg-gray-50 cursor-not-allowed border-gray-300' : ''}`}
                 placeholder="Enter your email address"
+                readOnly={!!applicationForm.email}
+                disabled={!!applicationForm.email}
               />
               {errors.email && (
                 <p className="text-red-500 text-sm">{errors.email}</p>
@@ -112,7 +128,10 @@ const ApplicationForm = ({
                 name="phone"
                 value={applicationForm.phone}
                 onChange={handleApplicationChange}
+                className={isUserDataLocked && applicationForm.phone ? 'bg-gray-50' : ''}
                 placeholder="Enter your phone number (optional)"
+                readOnly={isUserDataLocked && applicationForm.phone}
+                disabled={isUserDataLocked && applicationForm.phone}
               />
             </div>
             
@@ -274,6 +293,7 @@ const ApplicationForm = ({
 const ApplicationFormPage = () => {
     const navigate = useNavigate();
     const fileInputRef = useRef(null);
+    const { user: authUser } = useAuthStore();
     const [formData, setFormData] = useState({
       name: '',
       email: '',
@@ -393,6 +413,7 @@ const ApplicationFormPage = () => {
     }
     
     setIsSubmitting(true);
+    console.log('[Application] Starting submission process...');
     
     try {
       // Create FormData object for file upload
@@ -405,10 +426,28 @@ const ApplicationFormPage = () => {
       if (formData.portfolioUrl) formDataToSend.append('portfolioUrl', formData.portfolioUrl);
       if (resumeFile) formDataToSend.append('resume', resumeFile);
       
+      console.log('[Application] Submitting application with data:', {
+        name: formData.name,
+        email: formData.email,
+        type: formData.applicationType,
+        hasResume: !!resumeFile
+      });
+      
       const response = await applicationService.submitApplication(formDataToSend);
+      console.log('[Application] Submission successful, response:', response);
       
       // Show success message
       setSuccessMessage('Your application has been successfully submitted! We will review it and get back to you soon.');
+      
+      // Display email debug info if available
+      if (response.emailStatus) {
+        const emailStatus = `Email Status: ${response.emailStatus.success ? 'Sent' : 'Failed'} 
+          ${response.emailStatus.messageId ? `(ID: ${response.emailStatus.messageId})` : ''}`;
+        console.log('[Application] ' + emailStatus);
+        setSuccessMessage(prev => prev + '\n\n' + emailStatus);
+      } else {
+        console.warn('[Application] No email status information in response');
+      }
       
       // Clear form after successful submission
       setFormData({
@@ -429,12 +468,65 @@ const ApplicationFormPage = () => {
         navigate('/');
       }, 5000);
     } catch (error) {
-      console.error('Error submitting application:', error);
-      toast.error(error.response?.data?.message || 'Failed to submit application. Please try again later.');
+      console.error('[Application] Error submitting application:', error);
+      console.error('[Application] Error details:', error.response?.data);
+      // ... existing code ...
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // More detailed auth logging
+  useEffect(() => {
+    if (!authUser) {
+      console.log('[ApplicationPage] User not authenticated, will show login screen');
+      console.log('[ApplicationPage] Auth store state:', useAuthStore.getState());
+    } else {
+      console.log('[ApplicationPage] User authenticated:', { 
+        userId: authUser.id,
+        email: authUser.email,
+        role: authUser.role
+      });
+    }
+  }, [authUser]);
+
+  // Auto-fill form with user data when available
+  useEffect(() => {
+    if (authUser) {
+      setFormData(prev => ({
+        ...prev,
+        name: authUser.firstName && authUser.lastName 
+          ? `${authUser.firstName} ${authUser.lastName}` 
+          : (authUser.name || authUser.fullName || authUser.userName || ''),
+        email: authUser.email || '',
+        phone: authUser.phone || authUser.phoneNumber || ''
+      }));
+    }
+  }, [authUser]);
+
+  if (!authUser) {
+    console.log('[ApplicationPage] Rendering login prompt (user is not authenticated)');
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen py-6 px-4 bg-gray-50">
+        <div className="max-w-md w-full space-y-4">
+          <h2 className="text-2xl font-bold text-center">
+            Please Log In to Continue
+          </h2>
+          <p className="text-center text-gray-600">
+            You must be logged in to access the application form. Please log in using the button below.
+          </p>
+          <div className="flex flex-col gap-2">
+            <Button
+              onClick={() => navigate('/login')}
+              className="w-full"
+            >
+              Go to Login
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -460,6 +552,7 @@ const ApplicationFormPage = () => {
             <CardTitle>Application Form</CardTitle>
             <CardDescription>
               Please fill out the form below to apply. Fields marked with * are required.
+              {authUser && <span className="block mt-1 text-blue-600">Your account information has been filled in and cannot be changed. This ensures your application is linked to your verified account.</span>}
             </CardDescription>
           </CardHeader>
           
@@ -468,14 +561,17 @@ const ApplicationFormPage = () => {
               <div className="space-y-2">
                 <Label htmlFor="name">
                   Full Name <span className="text-red-500">*</span>
+                  {formData.name && <span className="ml-2 text-xs text-blue-500">(From your account)</span>}
                 </Label>
                 <Input
                   id="name"
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  className={errors.name ? 'border-red-500' : ''}
+                  className={`${errors.name ? 'border-red-500' : ''} ${formData.name ? 'bg-gray-50 cursor-not-allowed border-gray-300' : ''}`}
                   placeholder="Enter your full name"
+                  readOnly={!!formData.name}
+                  disabled={!!formData.name}
                 />
                 {errors.name && (
                   <p className="text-red-500 text-sm">{errors.name}</p>
@@ -485,6 +581,7 @@ const ApplicationFormPage = () => {
               <div className="space-y-2">
                 <Label htmlFor="email">
                   Email <span className="text-red-500">*</span>
+                  {formData.email && <span className="ml-2 text-xs text-blue-500">(From your account)</span>}
                 </Label>
                 <Input
                   id="email"
@@ -492,8 +589,10 @@ const ApplicationFormPage = () => {
                   type="email"
                   value={formData.email}
                   onChange={handleChange}
-                  className={errors.email ? 'border-red-500' : ''}
+                  className={`${errors.email ? 'border-red-500' : ''} ${formData.email ? 'bg-gray-50 cursor-not-allowed border-gray-300' : ''}`}
                   placeholder="Enter your email address"
+                  readOnly={!!formData.email}
+                  disabled={!!formData.email}
                 />
                 {errors.email && (
                   <p className="text-red-500 text-sm">{errors.email}</p>
@@ -509,7 +608,10 @@ const ApplicationFormPage = () => {
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
+                  className={authUser && formData.phone ? 'bg-gray-50' : ''}
                   placeholder="Enter your phone number (optional)"
+                  readOnly={!!authUser && !!formData.phone}
+                  disabled={!!authUser && !!formData.phone}
                 />
               </div>
               

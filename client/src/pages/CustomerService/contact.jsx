@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import useAuthStore from '../../stores/authStore';
 import { 
   Mail, Phone, MessageSquare, Send, Info, CheckCircle, Search, Home, ArrowRight
 } from 'lucide-react';
@@ -30,6 +32,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 const Contact = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+  const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('contact');
   const [searchTerm, setSearchTerm] = useState('');
   const [faqSearchTerm, setFaqSearchTerm] = useState('');
@@ -44,7 +47,6 @@ const Contact = () => {
   const [faqScrollPosition, setFaqScrollPosition] = useState(0);
   const faqScrollRef = useRef(null);
 
-  // Contact form state
   const [contactForm, setContactForm] = useState({
     name: '',
     email: '',
@@ -54,7 +56,6 @@ const Contact = () => {
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Application form state
   const [applicationForm, setApplicationForm] = useState({
     name: '',
     email: '',
@@ -100,21 +101,34 @@ const Contact = () => {
     }
   }, [activeTab, faqScrollPosition]);
 
+  useEffect(() => {
+    if (user) {
+      console.log('User data loaded:', user);
+      setApplicationForm(prev => ({
+        ...prev,
+        name: user.firstName && user.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : (user.name || user.fullName || user.userName || ''),
+        email: user.email || '',
+        phone: user.phone || user.phoneNumber || ''
+      }));
+    }
+  }, [user]);
 
   const handleContactSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     
     try {
-      // Determine if this is a support request or job application based on subject
+   
       const isJobApplication = contactForm.subject === 'career' || contactForm.subject === 'job' || contactForm.subject === 'application';
       
       if (isJobApplication) {
-        // For job applications, use the application service
+       
         const applicationData = {
           name: contactForm.name,
           email: contactForm.email,
-          applicationType: 'general', // Use 'general' type for job applications
+          applicationType: 'general',
           message: contactForm.message
         };
         
