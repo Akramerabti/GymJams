@@ -1,0 +1,14 @@
+node_modules/
+.env
+.env.local
+.DS_Store
+dist/
+build/
+coverage/
+.vscode/
+*.log
+.vercel
+
+# Uploads folder - exclude to avoid conflicts with production
+uploads/
+server/uploads/

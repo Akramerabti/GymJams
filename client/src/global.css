@@ -1,0 +1,584 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 84% 4.9%;
+}
+
+/* Prevent flash of unstyled content during theme initialization */
+html {
+  --bg-primary: #ffffff;
+  --text-primary: #000000;
+  --bg-navbar: #ffffff;
+  --text-navbar: #000000;
+  
+  /* Smooth transition for theme changes */
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+html.dark,
+html.dark-mode {
+  --bg-primary: #1f2937;
+  --text-primary: #ffffff;
+  --bg-navbar: #1f2937;
+  --text-navbar: #ffffff;
+}
+
+/* Ensure navbar maintains correct colors during theme transitions */
+.navbar,
+nav {
+  background-color: var(--bg-navbar) !important;
+  color: var(--text-navbar) !important;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Theme-aware body styling */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Dark mode variables */
+.dark-mode {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --primary: 217.2 91.2% 59.8%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 224.3 76.3% 48%;
+}
+
+/* Dark theme styles */
+.dark-theme {
+  color-scheme: dark;
+}
+
+.dark-theme .card,
+.dark-theme .input,
+.dark-theme .button:not(.primary),
+.dark-theme .select {
+  background-color: hsl(222.2, 15%, 20%);
+  color: white;
+  border-color: hsl(222.2, 15%, 30%);
+}
+
+.dark-theme .bg-white {
+  background-color: hsl(222.2, 15%, 20%);
+}
+
+.dark-theme .text-gray-900 {
+  color: hsl(210, 40%, 98%);
+}
+
+.dark-theme .text-gray-800 {
+  color: hsl(210, 40%, 96%);
+}
+
+.dark-theme .text-gray-700 {
+  color: hsl(210, 40%, 90%);
+}
+
+.dark-theme .text-gray-600 {
+  color: hsl(210, 40%, 80%);
+}
+
+.dark-theme .text-gray-500 {
+  color: hsl(210, 40%, 70%);
+}
+
+.dark-theme .border-gray-300,
+.dark-theme .border-gray-200,
+.dark-theme .border-gray-100 {
+  border-color: hsl(222.2, 15%, 30%);
+}
+
+.dark-theme .bg-gray-100,
+.dark-theme .bg-gray-50 {
+  background-color: hsl(222.2, 15%, 18%);
+}
+
+.dark-theme .shadow-lg,
+.dark-theme .shadow-md,
+.dark-theme .shadow-sm {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
+}
+
+/* Exclude navbar from dark mode styles */
+.dark-theme nav:first-child {
+  background-color: white;
+  color: hsl(222.2, 84%, 4.9%);
+}
+
+/* Keep the navbar text and icons in normal mode */
+.dark-theme nav:first-child .text-gray-600,
+.dark-theme nav:first-child .text-gray-700 {
+  color: hsl(222.2, 15%, 45%);
+}
+
+.dark-theme nav:first-child .bg-gray-100 {
+  background-color: hsl(210, 40%, 96.1%);
+}
+
+.dark-theme nav:first-child .hover\:bg-gray-100:hover {
+  background-color: hsl(210, 40%, 90%);
+}
+
+html, body {
+    overflow-x: hidden; /* Hide horizontal scrollbar */
+    width: 100%; /* Ensure full width */
+    margin: 0; /* Remove default margin */
+    padding: 0; /* Remove default padding */
+    scroll-behavior: smooth;
+  }
+  
+  /* Ensure no child elements overflow horizontally */
+  * {
+    box-sizing: border-box; /* Prevent padding and border from causing overflow */
+  }
+  
+  /* Optional: Hide scrollbar for WebKit browsers (Chrome, Safari) */
+  ::-webkit-scrollbar {
+    display: none; /* Hide scrollbar */
+  }
+
+  /* Dynamic Background */
+@keyframes gradientShift {
+  0% { background-position: 0% 25%; }
+  25% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  75% { background-position: 50% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.register-page {
+  min-height: 100vh;
+  background: linear-gradient(270deg, #0026ff, #0059ff, #0050b8, #ff5733, #d94b1f, #ff5733,#0050b8, #0059ff, #0026ff);
+  background-size: 300% 300%;
+  animation: gradientShift 50s ease infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+
+/* Glassmorphism Card */
+.register-card {
+  background: rgba(10, 15, 26, 0.7); /* Dark blue with transparency */
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  padding: 2rem;
+  width: 100%;
+  max-width: 400px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.register-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* Input Fields */
+.input-field {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  transition: all 0.3s ease;
+  color: #ffffff;
+}
+
+.input-field::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.input-field:focus {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 165, 0, 0.6); /* Orange accent */
+  box-shadow: 0 0 10px rgba(255, 165, 0, 0.3);
+}
+
+/* Button Animation */
+.submit-button {
+  background: linear-gradient(45deg, #ff7e5f, #feb47b); /* Orange gradient */
+  border: none;
+  border-radius: 10px;
+  color: #0a0f1a; /* Dark blue text */
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.submit-button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 300%;
+  height: 300%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 70%);
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 0.5s ease;
+}
+
+.submit-button:hover::after {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.submit-button:disabled {
+  background: linear-gradient(45deg, #555, #777);
+  cursor: not-allowed;
+}
+
+/* Loading Animation */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #ff7e5f; /* Orange accent */
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Text and Links */
+.text-gray-300 {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.text-blue-400 {
+  color: #ff7e5f; /* Orange accent */
+}
+
+.text-blue-400:hover {
+  color: #feb47b; /* Lighter orange */
+}
+
+.highlight-match {
+  animation: pulse-highlight 2s;
+}
+
+@keyframes pulse-highlight {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(59, 130, 246, 0.15); }
+}
+
+/* Icons */
+.icon {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.icon:hover {
+  color: #ff7e5f; /* Orange accent */
+}
+
+.content-padding-top {
+  padding-top: calc(4rem + 3rem); /* navbar + gymbros header */
+}
+
+.gymbros-header.hidden {
+  transform: translateY(-100%);
+}
+
+/* Hide footer when specified - Enhanced for mobile compatibility */
+body.hide-footer footer,
+body.hide-footer > footer,
+body.hide-footer [role="contentinfo"],
+.hide-footer footer,
+.hide-footer > footer,
+.hide-footer [role="contentinfo"] {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Additional mobile-specific footer hiding */
+@media (max-width: 768px) {
+  body.hide-footer footer,
+  body.hide-footer > footer,
+  body.hide-footer [role="contentinfo"],
+  .hide-footer footer,
+  .hide-footer > footer,
+  .hide-footer [role="contentinfo"] {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    transform: translateY(100%) !important;
+  }
+}
+
+/* Even more aggressive mobile footer hiding for stubborn browsers */
+@media screen and (max-width: 768px), 
+       screen and (max-device-width: 768px),
+       only screen and (max-device-width: 768px) {
+  body.hide-footer footer,
+  body.hide-footer > footer,
+  body.hide-footer [role="contentinfo"],
+  .hide-footer footer,
+  .hide-footer > footer,
+  .hide-footer [role="contentinfo"],
+  html.hide-footer footer,
+  html.hide-footer > footer,
+  html.hide-footer [role="contentinfo"] {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    position: absolute !important;
+    left: -9999px !important;
+    top: -9999px !important;
+    clip: rect(0, 0, 0, 0) !important;
+    -webkit-clip-path: inset(100%) !important;
+    clip-path: inset(100%) !important;
+    transform: translateY(100%) !important;
+    z-index: -9999 !important;
+  }
+}
+
+/* Additional styles for the GymBros UI */
+.gym-bros-container {
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.gym-bros-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.profile-card {
+  width: 100%;
+  max-width: 400px;
+  height: 70vh;
+  max-height: 700px;
+  overflow: hidden;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+}
+
+.profile-card-image {
+  height: 70%;
+  width: 100%;
+  object-fit: cover;
+}
+
+.profile-card-info {
+  padding: 16px;
+  background: white;
+}
+
+.tab-bar {
+  padding: 12px 16px;
+  background: white;
+  border-top: 1px solid #eaeaea;
+  display: flex;
+  justify-content: space-around;
+}
+
+.tab-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.tab-button.active {
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.action-button {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transition: all 0.2s ease;
+}
+
+.action-button:hover {
+  transform: scale(1.05);
+}
+
+.action-button.like {
+  background: white;
+  color: #10b981;
+  border: 1px solid #e5e7eb;
+}
+
+.action-button.dislike {
+  background: white;
+  color: #ef4444;
+  border: 1px solid #e5e7eb;
+}
+
+/* Image carousel dots */
+.carousel-dots {
+  display: flex;
+  justify-content: center;
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+}
+
+.carousel-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  margin: 0 4px;
+  transition: all 0.2s ease;
+}
+
+.carousel-dot.active {
+  width: 24px;
+  border-radius: 4px;
+  background: white;
+}
+
+/* GymBros Setup full-screen styling */
+.gymbros-setup-fullscreen {
+  min-height: 100vh;
+  min-height: 100dvh; /* Dynamic viewport height for mobile */
+}
+
+/* Ensure navbar doesn't interfere with full-screen components */
+.gymbros-setup-fullscreen {
+  position: relative;
+  z-index: 1;
+}
+
+/* Enhanced GymBros Setup full-screen styling */
+.gymbros-setup-fullscreen {
+  height: 100vh !important;
+  max-height: 100vh !important;
+  overflow: hidden !important;
+}
+
+/* Prevent any scrolling when setup is active */
+body.hide-footer,
+html.hide-footer {
+  overflow: hidden !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+}
+
+/* Mobile viewport fixes for GymBros setup */
+@media (max-width: 768px) {
+  .gymbros-setup-fullscreen {
+    height: 100vh !important;
+    height: 100dvh !important; /* Dynamic viewport height for mobile */
+    max-height: 100vh !important;
+    max-height: 100dvh !important;
+  }
+  
+  body.hide-footer,
+  html.hide-footer {
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: 100vh !important;
+    max-height: 100dvh !important;
+  }
+}
+
+/* Ensure proper box-sizing for GymBros setup components */
+.gymbros-setup-fullscreen * {
+  box-sizing: border-box !important;
+}
+
+/* Navigation button positioning for GymBros setup */
+.gymbros-setup-fullscreen .navigation-container {
+  padding-bottom: 20px !important;
+  margin-bottom: 16px !important;
+  min-height: 60px !important;
+  position: relative;
+  z-index: 100;
+}
+
+/* Ensure navigation stays above viewport bottom */
+@media (max-height: 700px) {
+  .gymbros-setup-fullscreen .navigation-container {
+    padding-bottom: 24px !important;
+    margin-bottom: 20px !important;
+  }
+}
+
+/* Extra safe spacing for very small screens */
+@media (max-height: 600px) {
+  .gymbros-setup-fullscreen .navigation-container {
+    padding-bottom: 28px !important;
+    margin-bottom: 24px !important;
+    min-height: 70px !important;
+  }
+}
+
+/* Mobile specific navigation spacing */
+@media (max-width: 768px) {
+  .gymbros-setup-fullscreen .navigation-container {
+    padding-bottom: 32px !important;
+    margin-bottom: 24px !important;
+  }
+}
+
+/* Additional viewport optimization for small screens */
+@media (max-height: 600px) {
+  .gymbros-setup-fullscreen {
+    font-size: 0.9rem;
+  }
+}
