@@ -51,7 +51,30 @@ const Games = () => {
       minBet: 100,
       maxBet: 10000,
       bgColor: 'bg-gradient-to-br from-green-600 to-teal-600',
+    }, 
+    {
+      id: 'roulette',
+      name: 'Roulette',
+      description: 'Bet on numbers or colors',
+      icon: Joystick,
+      image: GAME_IMAGES.roulette,
+      component: Roulette,
+      minBet: 25,
+      maxBet: 2500,
+      bgColor: 'bg-gradient-to-br from-indigo-600 to-purple-600',
     },
+    {
+      id: 'slots',
+      name: 'Slot Machine',
+      description: 'Match symbols to win big',
+      icon: SquareStack,
+      image: GAME_IMAGES.slots,
+      component: SlotMachine,
+      minBet: 50,
+      maxBet: 5000,
+      bgColor: 'bg-gradient-to-br from-pink-600 to-red-600',
+    },
+    
     {
       id: 'coinflip',
       name: 'Coin Flip',
@@ -74,28 +97,7 @@ const Games = () => {
       maxBet: 2000,
       bgColor: 'bg-gradient-to-br from-blue-600 to-cyan-600',
     },
-    {
-      id: 'slots',
-      name: 'Slot Machine',
-      description: 'Match symbols to win big',
-      icon: SquareStack,
-      image: GAME_IMAGES.slots,
-      component: SlotMachine,
-      minBet: 50,
-      maxBet: 5000,
-      bgColor: 'bg-gradient-to-br from-pink-600 to-red-600',
-    },
-    {
-      id: 'roulette',
-      name: 'Roulette',
-      description: 'Bet on numbers or colors',
-      icon: Joystick,
-      image: GAME_IMAGES.roulette,
-      component: Roulette,
-      minBet: 25,
-      maxBet: 2500,
-      bgColor: 'bg-gradient-to-br from-indigo-600 to-purple-600',
-    },
+   
   ];
 
   const dailyRef = useRef(null);

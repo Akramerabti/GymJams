@@ -4,8 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { usePoints } from '../../hooks/usePoints'; // Import the usePoints hook
 import { 
   Brain, Timer, Award, Book, 
-  Dumbbell, Apple, Star,
-  ChevronRight, ChevronLeft, Clock, CheckCircle
+  Dumbbell, Apple, Star, Sparkles,
+  ChevronRight, ChevronLeft, Clock, CheckCircle,
+  Trophy, Target, Zap, Flame, Heart
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../../services/api';
@@ -19,29 +20,79 @@ const KNOWLEDGE_CATEGORIES = {
 };
 
 const containerVariants = {
-  hidden: { opacity: 0, y: 50 },
+  hidden: { opacity: 0, y: 50, scale: 0.9 },
   visible: { 
     opacity: 1, 
     y: 0,
+    scale: 1,
     transition: { 
-      duration: 0.6,
+      duration: 0.8,
       when: "beforeChildren",
-      staggerChildren: 0.1
+      staggerChildren: 0.15,
+      type: "spring",
+      stiffness: 100,
+      damping: 15
     }
   },
   exit: {
     opacity: 0,
     y: -50,
-    transition: { duration: 0.4 }
+    scale: 0.9,
+    transition: { duration: 0.5 }
   }
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, x: -20 },
+  hidden: { opacity: 0, x: -30, y: 20 },
   visible: { 
     opacity: 1, 
     x: 0,
-    transition: { duration: 0.4 }
+    y: 0,
+    transition: { 
+      duration: 0.6,
+      type: "spring",
+      stiffness: 120,
+      damping: 12
+    }
+  }
+};
+
+const floatingVariants = {
+  initial: { y: 0, rotate: 0 },
+  animate: {
+    y: [-10, 10, -10],
+    rotate: [-5, 5, -5],
+    transition: {
+      duration: 4,
+      repeat: Infinity,
+      ease: "easeInOut"
+    }
+  }
+};
+
+const pulseVariants = {
+  initial: { scale: 1 },
+  animate: {
+    scale: [1, 1.05, 1],
+    transition: {
+      duration: 2,
+      repeat: Infinity,
+      ease: "easeInOut"
+    }
+  }
+};
+
+const sparkleVariants = {
+  initial: { opacity: 0, scale: 0, rotate: 0 },
+  animate: {
+    opacity: [0, 1, 0],
+    scale: [0, 1, 0],
+    rotate: [0, 180, 360],
+    transition: {
+      duration: 2,
+      repeat: Infinity,
+      delay: Math.random() * 2
+    }
   }
 };
 
@@ -57,6 +108,80 @@ const MemoryGame = () => {
   const [showQuiz, setShowQuiz] = useState(false);
   const [gamesPlayed, setGamesPlayed] = useState(0);
   const { balance, addPoints, updatePointsInBackend } = usePoints(); // Destructure addPoints and updatePointsInBackend from usePoints
+
+  // Floating Background Elements Component
+  const FloatingElements = () => (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {/* Large floating icons */}
+      {[...Array(8)].map((_, i) => {
+        const icons = [Dumbbell, Apple, Trophy, Target, Zap, Flame, Heart, Star];
+        const Icon = icons[i];
+        return (
+          <motion.div
+            key={i}
+            variants={floatingVariants}
+            initial="initial"
+            animate="animate"
+            className="absolute opacity-10"
+            style={{
+              left: `${15 + (i * 12)}%`,
+              top: `${10 + (i * 8)}%`,
+              animationDelay: `${i * 0.5}s`
+            }}
+          >
+            <Icon className="w-16 h-16 text-white" />
+          </motion.div>
+        );
+      })}
+      
+      {/* Small sparkles */}
+      {[...Array(20)].map((_, i) => (
+        <motion.div
+          key={`sparkle-${i}`}
+          variants={sparkleVariants}
+          initial="initial"
+          animate="animate"
+          className="absolute"
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            animationDelay: `${Math.random() * 3}s`
+          }}
+        >
+          <Sparkles className="w-4 h-4 text-yellow-300" />
+        </motion.div>
+      ))}
+      
+      {/* Gradient orbs */}
+      {[...Array(5)].map((_, i) => (
+        <motion.div
+          key={`orb-${i}`}
+          animate={{
+            x: [0, 100, 0],
+            y: [0, -50, 0],
+            scale: [1, 1.2, 1],
+            opacity: [0.3, 0.6, 0.3]
+          }}
+          transition={{
+            duration: 8 + i * 2,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: i * 1.5
+          }}
+          className="absolute rounded-full blur-xl"
+          style={{
+            left: `${Math.random() * 80}%`,
+            top: `${Math.random() * 80}%`,
+            width: `${60 + i * 20}px`,
+            height: `${60 + i * 20}px`,
+            background: `linear-gradient(45deg, 
+              ${['#8B5CF6', '#EC4899', '#06B6D4', '#10B981', '#F59E0B'][i]} 0%, 
+              transparent 70%)`
+          }}
+        />
+      ))}
+    </div>
+  );
 
   useEffect(() => {
     fetchDailyContent();
@@ -742,45 +867,102 @@ const MemoryGame = () => {
     } catch (error) {
       console.error('Error checking daily status:', error);
     }
-  };
-
-  const createParticleEffect = () => {
+  };  const createParticleEffect = () => {
     const particleContainer = document.createElement('div');
     particleContainer.style.position = 'fixed';
     particleContainer.style.inset = '0';
     particleContainer.style.pointerEvents = 'none';
+    particleContainer.style.zIndex = '9999';
     document.body.appendChild(particleContainer);
 
-    for (let i = 0; i < 30; i++) {
+    // Create fewer particles to reduce glitchiness
+    const particleTypes = [
+      { color: '#FFD700', size: '6px', shape: 'circle' },
+      { color: '#4ECDC4', size: '8px', shape: 'circle' },
+      { color: '#45B7D1', size: '4px', shape: 'circle' },
+    ];
+
+    // Create bursting particles (reduced from 50 to 20)
+    for (let i = 0; i < 20; i++) {
       const particle = document.createElement('div');
-      particle.className = 'absolute w-2 h-2 bg-yellow-400 rounded-full';
+      const type = particleTypes[Math.floor(Math.random() * particleTypes.length)];
+      
+      particle.style.position = 'absolute';
+      particle.style.width = type.size;
+      particle.style.height = type.size;
+      particle.style.backgroundColor = type.color;
+      particle.style.borderRadius = '50%';
+      particle.style.boxShadow = `0 0 6px ${type.color}`;
       particle.style.left = '50%';
       particle.style.top = '50%';
       particleContainer.appendChild(particle);
 
-      const angle = (i / 30) * Math.PI * 2;
-      const velocity = 10;
+      const angle = (i / 20) * Math.PI * 2;
+      const velocity = 10 + Math.random() * 5; // Reduced velocity
       const x = Math.cos(angle) * velocity;
       const y = Math.sin(angle) * velocity;
 
       particle.animate(
         [
-          { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+          { 
+            transform: 'translate(-50%, -50%) scale(1)', 
+            opacity: 1,
+            filter: 'blur(0px)'
+          },
           {
-            transform: `translate(${x * 50}px, ${y * 50}px) scale(0)`,
+            transform: `translate(${x * 40}px, ${y * 40}px) scale(0.5)`, // Simplified animation
             opacity: 0,
+            filter: 'blur(1px)'
           },
         ],
         {
-          duration: 1000,
-          easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+          duration: 1000, // Shorter duration
+          easing: 'ease-out',
         }
       );
     }
 
+    // Create floating text effects (removed "Outstanding!")
+    const successTexts = ['Brilliant!', 'Excellent!', 'Amazing!', 'Perfect!'];
+    const randomText = successTexts[Math.floor(Math.random() * successTexts.length)];
+    
+    const textElement = document.createElement('div');
+    textElement.textContent = randomText;
+    textElement.style.position = 'absolute';
+    textElement.style.left = '50%';
+    textElement.style.top = '50%';
+    textElement.style.transform = 'translate(-50%, -50%)';
+    textElement.style.fontSize = '1.5rem'; // Smaller text
+    textElement.style.fontWeight = 'bold';
+    textElement.style.color = '#FFD700';
+    textElement.style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)';
+    textElement.style.pointerEvents = 'none';
+    particleContainer.appendChild(textElement);
+
+    textElement.animate(
+      [
+        { 
+          opacity: 0, 
+          transform: 'translate(-50%, -50%) scale(0.8)', 
+        },
+        { 
+          opacity: 1, 
+          transform: 'translate(-50%, -60%) scale(1.1)', 
+        },
+        { 
+          opacity: 0, 
+          transform: 'translate(-50%, -70%) scale(0.9)', 
+        }
+      ],
+      {
+        duration: 1500, // Shorter duration
+        easing: 'ease-out',
+      }
+    );
+
     setTimeout(() => {
       particleContainer.remove();
-    }, 1000);
+    }, 1800); // Shorter cleanup time
   };
 
   const handleAnswerSelect = async (answerIndex) => {
@@ -905,26 +1087,92 @@ const MemoryGame = () => {
 
   const gradientBg = "bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500";
   const cardBg = "bg-white bg-opacity-95 backdrop-blur-lg";
-  
-  if (isLoading) {
+    if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[600px] bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
+      <div className="flex items-center justify-center min-h-[600px] bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 relative overflow-hidden rounded-2xl">
+        <FloatingElements />
+        
+        {/* Main loading animation */}
+        <motion.div className="relative z-10">
+          <motion.div
+            animate={{ 
+              rotate: 360,
+              scale: [1, 1.3, 1],
+            }}
+            transition={{ 
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="w-20 h-20 border-4 border-purple-400 border-t-transparent rounded-full shadow-2xl mb-6"
+          />
+          
+          {/* Pulsing brain icon */}
+          <motion.div
+            animate={{
+              scale: [1, 1.2, 1],
+              opacity: [0.7, 1, 0.7]
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: 0.5
+            }}
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            <Brain className="w-8 h-8 text-purple-300" />
+          </motion.div>
+        </motion.div>
+
+        {/* Loading text */}
         <motion.div
-          animate={{ 
-            rotate: 360,
-            scale: [1, 1.2, 1],
-          }}
-          transition={{ 
-            duration: 2,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="w-16 h-16 border-4 border-purple-400 border-t-transparent rounded-full shadow-lg"
-        />
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="absolute bottom-20 text-center"
+        >
+          <motion.p 
+            animate={{
+              opacity: [0.5, 1, 0.5]
+            }}
+            transition={{
+              duration: 1.5,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="text-white text-xl font-medium"
+          >
+            Loading your fitness knowledge...
+          </motion.p>
+        </motion.div>
+
+        {/* Orbiting dots */}
+        {[...Array(6)].map((_, i) => (
+          <motion.div
+            key={i}
+            animate={{
+              rotate: 360,
+            }}
+            transition={{
+              duration: 3,
+              repeat: Infinity,
+              ease: "linear",
+              delay: i * 0.1
+            }}
+            className="absolute"
+            style={{
+              width: `${120 + i * 20}px`,
+              height: `${120 + i * 20}px`,
+              border: '2px solid transparent',
+              borderTop: `2px solid rgba(168, 85, 247, ${0.8 - i * 0.1})`,
+              borderRadius: '50%',
+            }}
+          />
+        ))}
       </div>
     );
   }
-
   if (hasCompletedDaily) {
     return (
       <motion.div
@@ -932,51 +1180,206 @@ const MemoryGame = () => {
         initial="hidden"
         animate="visible"
         exit="exit"
-        className={`text-center py-16 ${gradientBg} min-h-[600px] rounded-2xl text-white`}
+        className={`text-center py-16 ${gradientBg} min-h-[600px] rounded-2xl text-white relative overflow-hidden`}
       >
+        <FloatingElements />
+        
+        {/* Success animation with multiple elements */}
         <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", stiffness: 200, damping: 15 }}
+          initial={{ scale: 0, rotate: -180 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ 
+            type: "spring", 
+            stiffness: 200, 
+            damping: 15,
+            delay: 0.2
+          }}
+          className="relative z-10"
         >
-          <Award className="w-24 h-24 mx-auto text-yellow-300 mb-6 drop-shadow-lg" />
+          <motion.div
+            variants={pulseVariants}
+            initial="initial"
+            animate="animate"
+            className="relative"
+          >
+            <Award className="w-28 h-28 mx-auto text-yellow-300 mb-6 drop-shadow-2xl" />
+            
+            {/* Rotating glow effect */}
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+              className="absolute inset-0 w-32 h-32 mx-auto"
+            >
+              <div className="w-full h-full rounded-full bg-gradient-to-r from-yellow-300 via-transparent to-yellow-300 opacity-30 blur-md" />
+            </motion.div>
+            
+            {/* Sparkle effects around the award */}
+            {[...Array(8)].map((_, i) => (
+              <motion.div
+                key={i}
+                animate={{
+                  scale: [0, 1, 0],
+                  opacity: [0, 1, 0],
+                  rotate: [0, 180, 360]
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  delay: i * 0.25,
+                  ease: "easeInOut"
+                }}
+                className="absolute"
+                style={{
+                  left: `${50 + 25 * Math.cos(i * Math.PI / 4)}%`,
+                  top: `${50 + 25 * Math.sin(i * Math.PI / 4)}%`,
+                  transform: 'translate(-50%, -50%)'
+                }}
+              >
+                <Star className="w-4 h-4 text-yellow-200" />
+              </motion.div>
+            ))}
+          </motion.div>
         </motion.div>
         
         <motion.h2 
           variants={itemVariants}
-          className="text-4xl font-bold mb-6 bg-clip-text text-yellow-300 bg-size-200 relative inline-block px-2"
-          style={{
-            backgroundClip: 'text',
-            WebkitBackgroundClip: 'text',
-            backgroundSize: '200% 100%',
-            backgroundPosition: '0 0'
-          }}
+          className="text-5xl font-bold mb-6 relative z-10"
         >
-          Daily Learning Complete!
+          <motion.span
+            animate={{
+              backgroundPosition: ['0% 50%', '100% 50%', '0% 50%']
+            }}
+            transition={{
+              duration: 3,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="bg-gradient-to-r from-yellow-300 via-yellow-100 to-yellow-300 bg-clip-text text-transparent"
+            style={{
+              backgroundSize: '200% 100%'
+            }}
+          >
+            Daily Learning Complete!
+          </motion.span>
         </motion.h2>
         
-        <motion.p 
+        <motion.div
           variants={itemVariants}
-          className="text-xl text-purple-200 mb-8"
+          className="relative z-10"
         >
-          You're on a {learningStreak} day learning streak! 🔥
-        </motion.p>
+          <motion.p 
+            animate={{
+              scale: [1, 1.05, 1]
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="text-2xl text-purple-200 mb-8 flex items-center justify-center gap-3"
+          >
+            You're on a 
+            <motion.span
+              animate={{
+                color: ['#FCD34D', '#F97316', '#EF4444', '#F97316', '#FCD34D']
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="font-bold text-3xl"
+            >
+              {learningStreak}
+            </motion.span>
+            day learning streak! 
+            <motion.span
+              animate={{
+                scale: [1, 1.3, 1],
+                rotate: [0, 15, -15, 0]
+              }}
+              transition={{
+                duration: 1,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+            >
+              🔥
+            </motion.span>
+          </motion.p>
+        </motion.div>
         
         <motion.div 
           variants={itemVariants}
-          className="bg-white bg-opacity-10 p-6 rounded-2xl inline-block backdrop-blur-lg"
+          whileHover={{ 
+            scale: 1.05,
+            boxShadow: "0 20px 40px rgba(0,0,0,0.3)"
+          }}
+          className="bg-white bg-opacity-15 p-8 rounded-3xl inline-block backdrop-blur-lg border border-white border-opacity-20 relative z-10"
         >
-          <Clock className="w-10 h-10 mx-auto text-purple-300 mb-3" />
-          <p className="text-lg text-purple-200">
-            New knowledge available in {timeUntilReset()}
+          <motion.div
+            animate={{
+              rotate: [0, 360]
+            }}
+            transition={{
+              duration: 20,
+              repeat: Infinity,
+              ease: "linear"
+            }}
+          >
+            <Clock className="w-12 h-12 mx-auto text-purple-300 mb-4" />
+          </motion.div>
+          <p className="text-xl text-purple-200">
+            New knowledge available in 
+            <motion.span
+              animate={{
+                color: ['#DDD6FE', '#C4B5FD', '#A78BFA', '#C4B5FD', '#DDD6FE']
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="font-bold"
+            >
+              {timeUntilReset()}
+            </motion.span>
           </p>
         </motion.div>
+
+        {/* Floating achievement badges */}
+        <div className="absolute inset-0 pointer-events-none">
+          {[Trophy, Target, Flame].map((Icon, i) => (
+            <motion.div
+              key={i}
+              animate={{
+                y: [0, -20, 0],
+                rotate: [0, 10, -10, 0],
+                opacity: [0.3, 0.7, 0.3]
+              }}
+              transition={{
+                duration: 4 + i,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: i * 1.5
+              }}
+              className="absolute"
+              style={{
+                left: `${20 + i * 30}%`,
+                top: `${20 + i * 10}%`
+              }}
+            >
+              <Icon className="w-8 h-8 text-yellow-300 opacity-40" />
+            </motion.div>
+          ))}
+        </div>
       </motion.div>
     );
   }
-
   return (
-    <div className={`max-w-4xl mx-auto p-4 ${gradientBg} rounded-2xl min-h-[600px]`}>
+    <div className={`max-w-4xl mx-auto p-4 ${gradientBg} rounded-2xl min-h-[600px] relative overflow-hidden`}>
+      <FloatingElements />
+      
       <AnimatePresence mode="wait">
         {!showQuiz ? (
           <motion.div
@@ -985,47 +1388,102 @@ const MemoryGame = () => {
             initial="hidden"
             animate="visible"
             exit="exit"
-            className={`${cardBg} rounded-2xl shadow-2xl p-8 mb-8`}
+            className={`${cardBg} rounded-2xl shadow-2xl p-8 mb-8 relative z-10 border border-white border-opacity-20`}
           >
             <motion.div 
               variants={itemVariants}
               className="flex items-center justify-between mb-8"
             >
               <div className="flex items-center space-x-3">
-                <Book className="w-8 h-8 text-indigo-600" />
-                <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
+                <motion.div
+                  animate={{
+                    rotate: [0, 10, -10, 0],
+                    scale: [1, 1.1, 1]
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                >
+                  <Book className="w-10 h-10 text-indigo-600" />
+                </motion.div>
+                <motion.h2 
+                  animate={{
+                    backgroundPosition: ['0% 50%', '100% 50%', '0% 50%']
+                  }}
+                  transition={{
+                    duration: 4,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                  className="text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent"
+                  style={{ backgroundSize: '200% 100%' }}
+                >
                   {selectedQuestion.mainTopic.title}
-                </h2>
+                </motion.h2>
               </div>
-              <span className="px-6 py-2 bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-800 rounded-full text-sm font-medium shadow-sm">
+              <motion.span 
+                whileHover={{ scale: 1.05 }}
+                className="px-6 py-3 bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-800 rounded-full text-sm font-medium shadow-lg border border-indigo-200"
+              >
                 {selectedQuestion.mainTopic.category}
-              </span>
+              </motion.span>
             </motion.div>
 
             <motion.div 
               variants={itemVariants}
               className="prose max-w-none mb-8"
             >
-              <p className="text-lg text-gray-700 leading-relaxed">
+              <motion.p 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 1, delay: 0.3 }}
+                className="text-lg text-gray-700 leading-relaxed"
+              >
                 {selectedQuestion.mainTopic.content}
-              </p>
+              </motion.p>
             </motion.div>
 
             <motion.div 
               variants={itemVariants}
-              className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-8 mb-8"
+              whileHover={{ scale: 1.02 }}
+              className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-8 mb-8 shadow-inner border border-indigo-100"
             >
-              <h3 className="font-bold text-xl mb-6 text-indigo-900">Key Points to Remember</h3>
+              <h3 className="font-bold text-xl mb-6 text-indigo-900 flex items-center gap-3">
+                <motion.div
+                  animate={{ rotate: [0, 360] }}
+                  transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                >
+                  <Target className="w-6 h-6" />
+                </motion.div>
+                Key Points to Remember
+              </h3>
               <ul className="space-y-4">
                 {selectedQuestion.mainTopic.keyPoints.map((point, index) => (
                   <motion.li
                     key={index}
-                    initial={{ opacity: 0, x: -20 }}
+                    initial={{ opacity: 0, x: -30 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="flex items-center space-x-4 bg-white bg-opacity-50 p-4 rounded-lg"
-                  >
-                    <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0" />
+                    transition={{ delay: index * 0.15 + 0.5 }}
+                    whileHover={{ 
+                      scale: 1.02,
+                      boxShadow: "0 8px 25px -8px rgba(0,0,0,0.1)"
+                    }}
+                    className="flex items-center space-x-4 bg-white bg-opacity-70 p-5 rounded-lg shadow-sm border border-white"
+                  >                    <motion.div
+                      animate={{
+                        scale: [1, 1.2, 1]
+                      }}
+                      transition={{
+                        duration: 2,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                        delay: index * 0.3
+                      }}
+                    >
+                      <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0" />
+                    </motion.div>
                     <span className="text-gray-800">{point}</span>
                   </motion.li>
                 ))}
@@ -1034,22 +1492,69 @@ const MemoryGame = () => {
 
             <motion.div 
               variants={itemVariants}
-              className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-8"
+              whileHover={{ scale: 1.02 }}
+              className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-8 shadow-inner border border-purple-100"
             >
-              <h3 className="font-bold text-xl mb-6 text-purple-900">Visual Cues</h3>
+              <h3 className="font-bold text-xl mb-6 text-purple-900 flex items-center gap-3">
+                <motion.div
+                  animate={{
+                    scale: [1, 1.3, 1],
+                    opacity: [0.7, 1, 0.7]
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                >
+                  <Zap className="w-6 h-6" />
+                </motion.div>
+                Visual Cues
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {selectedQuestion.mainTopic.visualCues.map((cue, index) => (
                   <motion.div
                     key={index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.2 + 0.7 }}
                     whileHover={{ 
                       scale: 1.05,
-                      boxShadow: "0 10px 30px -10px rgba(0,0,0,0.1)"
+                      boxShadow: "0 15px 35px -10px rgba(0,0,0,0.1)",
+                      y: -5
                     }}
-                    className="bg-white p-6 rounded-xl shadow-sm"
+                    className="bg-white p-6 rounded-xl shadow-sm border border-white relative overflow-hidden"
                   >
-                    <div className="flex items-center space-x-4">
-                      <Clock className="w-6 h-6 text-purple-500" />
-                      <span className="text-gray-700">{cue}</span>
+                    {/* Animated background effect */}
+                    <motion.div
+                      animate={{
+                        scale: [1, 1.5, 1],
+                        opacity: [0.1, 0.2, 0.1],
+                        rotate: [0, 180, 360]
+                      }}
+                      transition={{
+                        duration: 6,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                        delay: index * 0.5
+                      }}
+                      className="absolute inset-0 bg-gradient-to-br from-purple-200 to-pink-200 rounded-xl"
+                    />
+                    <div className="flex items-center space-x-4 relative z-10">
+                      <motion.div
+                        animate={{
+                          rotate: [0, 15, -15, 0]
+                        }}
+                        transition={{
+                          duration: 4,
+                          repeat: Infinity,
+                          ease: "easeInOut",
+                          delay: index * 0.2
+                        }}
+                      >
+                        <Clock className="w-6 h-6 text-purple-500" />
+                      </motion.div>
+                      <span className="text-gray-700 font-medium">{cue}</span>
                     </div>
                   </motion.div>
                 ))}
@@ -1057,53 +1562,125 @@ const MemoryGame = () => {
             </motion.div>
 
             <motion.button
-              whileHover={{ scale: 1.02 }}
+              whileHover={{ 
+                scale: 1.02,
+                boxShadow: "0 20px 40px -10px rgba(99, 102, 241, 0.4)"
+              }}
               whileTap={{ scale: 0.98 }}
+              className="mt-8 w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-5 rounded-xl font-bold text-lg shadow-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 relative overflow-hidden"
               onClick={() => setShowQuiz(true)}
-              className="mt-8 w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300"
             >
-              Test Your Knowledge
+              {/* Animated background shimmer */}
+              <motion.div
+                animate={{
+                  x: ['-100%', '100%']
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white via-transparent opacity-20"
+                style={{ skewX: '-20deg' }}
+              />
+              <span className="relative z-10 flex items-center justify-center gap-3">
+                Test Your Knowledge
+                <motion.div
+                  animate={{ x: [0, 5, 0] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </motion.div>
+              </span>
             </motion.button>
           </motion.div>
-        ) : (
-          <motion.div
+        ) : (          <motion.div
             key="quiz"
             variants={containerVariants}
             initial="hidden"
             animate="visible"
             exit="exit"
-            className={`${cardBg} rounded-2xl shadow-2xl p-8`}
+            className={`${cardBg} rounded-2xl shadow-2xl p-8 relative z-10 border border-white border-opacity-20`}
           >
             <motion.div variants={itemVariants} className="mb-8">
               <div className="flex items-center justify-between mb-8">
-                <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
-                  Question 1 of 1
-                </h3>
-                <motion.div 
-                  className="flex items-center space-x-3 bg-gradient-to-r from-indigo-100 to-purple-100 px-6 py-2 rounded-full"
-                  whileHover={{ scale: 1.05 }}
+                <motion.h3 
+                  animate={{
+                    backgroundPosition: ['0% 50%', '100% 50%', '0% 50%']
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                  className="text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent"
+                  style={{ backgroundSize: '200% 100%' }}
                 >
-                  <Brain className="w-6 h-6 text-indigo-600" />
-                  <span className="font-medium text-indigo-900">{score} correct</span>
+                  Question 1 of 1
+                </motion.h3>
+                <motion.div 
+                  variants={pulseVariants}
+                  initial="initial"
+                  animate="animate"
+                  whileHover={{ scale: 1.1 }}
+                  className="flex items-center space-x-3 bg-gradient-to-r from-indigo-100 to-purple-100 px-6 py-3 rounded-full shadow-lg border border-indigo-200 relative overflow-hidden"
+                >
+                  {/* Animated background */}
+                  <motion.div
+                    animate={{
+                      rotate: [0, 360]
+                    }}
+                    transition={{
+                      duration: 4,
+                      repeat: Infinity,
+                      ease: "linear"
+                    }}
+                    className="absolute inset-0 bg-gradient-to-r from-indigo-200 via-transparent to-purple-200 opacity-30"
+                  />
+                  <motion.div
+                    animate={{
+                      scale: [1, 1.2, 1],
+                      rotate: [0, 15, -15, 0]
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
+                  >
+                    <Brain className="w-6 h-6 text-indigo-600 relative z-10" />
+                  </motion.div>
+                  <span className="font-medium text-indigo-900 relative z-10">{score} correct</span>
                 </motion.div>
               </div>
 
-              <p className="text-xl mb-8 text-gray-800">
+              <motion.p 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="text-xl mb-8 text-gray-800 font-medium leading-relaxed"
+              >
                 {selectedQuestion.question}
-              </p>
+              </motion.p>
 
               <div className="space-y-4">
                 {selectedQuestion.answers.map((answer, index) => (
                   <motion.button
                     key={index}
                     variants={itemVariants}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    initial={{ opacity: 0, x: -50 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 + 0.5 }}
+                    whileHover={{ 
+                      scale: selectedAnswer === null ? 1.02 : 1,
+                      boxShadow: selectedAnswer === null ? "0 10px 30px -10px rgba(0,0,0,0.1)" : "none"
+                    }}
+                    whileTap={{ scale: selectedAnswer === null ? 0.98 : 1 }}
                     disabled={selectedAnswer !== null}
                     onClick={() => handleAnswerSelect(index)}
-                    className={`w-full p-6 rounded-xl text-left transition-all duration-300 ${
+                    className={`w-full p-6 rounded-xl text-left transition-all duration-500 relative overflow-hidden ${
                       selectedAnswer === null
-                        ? 'hover:bg-indigo-50 bg-gray-50'
+                        ? 'hover:bg-indigo-50 bg-gray-50 cursor-pointer'
                         : index === selectedQuestion.correctAnswer
                         ? 'bg-gradient-to-r from-green-100 to-emerald-100 border-2 border-green-500'
                         : selectedAnswer === index
@@ -1111,24 +1688,111 @@ const MemoryGame = () => {
                         : 'bg-gray-50'
                     }`}
                   >
-                    <div className="flex items-center space-x-4">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-lg font-medium ${
-                        selectedAnswer === null
-                          ? 'bg-indigo-100 text-indigo-600'
-                          : index === selectedQuestion.correctAnswer
-                          ? 'bg-green-200 text-green-700'
-                          : selectedAnswer === index
-                          ? 'bg-red-200 text-red-700'
-                          : 'bg-gray-200 text-gray-700'
-                      }`}>
-                        {String.fromCharCode(65 + index)}
-                      </div>
+                    {/* Animated background shimmer for correct answers */}
+                    {selectedAnswer !== null && index === selectedQuestion.correctAnswer && (
+                      <motion.div
+                        initial={{ x: '-100%' }}
+                        animate={{ x: '100%' }}
+                        transition={{
+                          duration: 1.5,
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        }}
+                        className="absolute inset-0 bg-gradient-to-r from-transparent via-green-300 via-transparent opacity-30"
+                      />
+                    )}
+                    
+                    <div className="flex items-center space-x-4 relative z-10">
+                      <motion.div 
+                        animate={selectedAnswer !== null && index === selectedQuestion.correctAnswer ? {
+                          scale: [1, 1.3, 1],
+                          rotate: [0, 360, 720]
+                        } : {}}
+                        transition={{
+                          duration: 1,
+                          ease: "easeInOut"
+                        }}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold shadow-md ${
+                          selectedAnswer === null
+                            ? 'bg-indigo-100 text-indigo-600'
+                            : index === selectedQuestion.correctAnswer
+                            ? 'bg-green-200 text-green-700'
+                            : selectedAnswer === index
+                            ? 'bg-red-200 text-red-700'
+                            : 'bg-gray-200 text-gray-700'
+                        }`}
+                      >
+                        {selectedAnswer !== null && index === selectedQuestion.correctAnswer ? (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ delay: 0.2 }}
+                          >
+                            <CheckCircle className="w-6 h-6" />
+                          </motion.div>
+                        ) : (
+                          String.fromCharCode(65 + index)
+                        )}
+                      </motion.div>
                       <span className="text-lg">{answer}</span>
+                      
+                      {/* Success particle effect for correct answer */}
+                      {selectedAnswer !== null && index === selectedQuestion.correctAnswer && (
+                        <div className="absolute right-4">
+                          {[...Array(5)].map((_, i) => (
+                            <motion.div
+                              key={i}
+                              initial={{ scale: 0, opacity: 0 }}
+                              animate={{ 
+                                scale: [0, 1, 0],
+                                opacity: [0, 1, 0],
+                                x: [0, 20 * Math.cos(i * 72 * Math.PI / 180)],
+                                y: [0, 20 * Math.sin(i * 72 * Math.PI / 180)]
+                              }}
+                              transition={{
+                                duration: 1,
+                                delay: i * 0.1 + 0.3,
+                                ease: "easeOut"
+                              }}
+                              className="absolute"
+                            >
+                              <Star className="w-4 h-4 text-yellow-400" />
+                            </motion.div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </motion.button>
                 ))}
               </div>
             </motion.div>
+            
+            {/* Floating quiz icons */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              {[Brain, Target, Zap].map((Icon, i) => (
+                <motion.div
+                  key={i}
+                  animate={{
+                    y: [0, -15, 0],
+                    rotate: [0, 5, -5, 0],
+                    opacity: [0.2, 0.4, 0.2]
+                  }}
+                  transition={{
+                    duration: 3 + i,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: i * 0.7
+                  }}
+                  className="absolute"
+                  style={{
+                    right: `${10 + i * 15}%`,
+                    top: `${15 + i * 20}%`
+                  }}
+                >
+                  <Icon className="w-6 h-6 text-purple-300" />
+                </motion.div>
+              ))}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

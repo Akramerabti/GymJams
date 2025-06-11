@@ -352,9 +352,9 @@ const SlotMachine = ({ minBet = 50, maxBet = 5000 }) => {
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.3 }}
         >
-          <h1 className={`font-bold bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-600 bg-clip-text text-transparent
+          <h1 className={`font-bold bg-gradient-to-r from-yellow-900 via-amber-500 to-yellow-900 bg-clip-text text-transparent
             ${isMobile ? 'text-2xl' : isTablet ? 'text-3xl' : 'text-4xl'}`}>
-            🎰 PREMIUM SLOTS 🎰
+            🎰 SLOT MACHINE 🎰
           </h1>
           
           {/* Enhanced stats panel */}
