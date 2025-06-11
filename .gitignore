@@ -8,7 +8,3 @@ coverage/
 .vscode/
 *.log
 .vercel
-
-# Uploads folder - exclude to avoid conflicts with production
-uploads/
-server/uploads/

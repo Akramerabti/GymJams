@@ -7,11 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
 const CARD_BACK = "linear-gradient(135deg, #1e3c72 0%, #1e3c72 1%, #2a5298 100%)";
-// Define the base URL
-const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-// Fallback image URL
-const BACKGROUND_IMAGE = `${baseUrl}/uploads/Blackjack.jpg`;
+// Fallback image URL - now using public folder
+const BACKGROUND_IMAGE = "/Blackjack.jpg";
 
 const PlayingCard = ({ card, index, isDealer, isHidden, delay = 0, initialPosition }) => {
   const getColor = (suit) => {

@@ -11,15 +11,13 @@ import Blackjack from './Games/BlackJack';
 import MemoryGame from './Games/MemoryGame';
 import { toast } from 'sonner';
 
-const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
 const GAME_IMAGES = {
-  memory: `${baseUrl}/uploads/memory-game.png`,
-  blackjack: `${baseUrl}/uploads/black-jack.png`,
-  coinflip: `${baseUrl}/uploads/coinflip.webp`,
-  diceroll: `${baseUrl}/uploads/dice-roll.webp`,
-  slots: `${baseUrl}/uploads/slot-machine.webp`,
-  roulette: `${baseUrl}/uploads/roulette.webp`,
+  memory: "/memory-game.png",
+  blackjack: "/black-jack.png",
+  coinflip: "/coinflip.webp",
+  diceroll: "/dice-roll.webp",
+  slots: "/slot-machine.webp",
+  roulette: "/roulette.webp",
 };
 
 const Games = () => {
