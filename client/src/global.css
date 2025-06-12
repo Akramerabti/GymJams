@@ -511,9 +511,9 @@ body.hide-footer [role="contentinfo"],
   overflow: hidden !important;
 }
 
-/* Prevent any scrolling when setup is active */
-body.hide-footer,
-html.hide-footer {
+/* Only apply overflow hidden to specific GymBros setup components, not general hide-footer */
+body.gymbros-setup-fullscreen,
+html.gymbros-setup-fullscreen {
   overflow: hidden !important;
   height: 100vh !important;
   max-height: 100vh !important;
@@ -528,8 +528,8 @@ html.hide-footer {
     max-height: 100dvh !important;
   }
   
-  body.hide-footer,
-  html.hide-footer {
+  body.gymbros-setup-fullscreen,
+  html.gymbros-setup-fullscreen {
     height: 100vh !important;
     height: 100dvh !important;
     max-height: 100vh !important;

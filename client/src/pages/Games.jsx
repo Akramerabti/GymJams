@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { usePoints } from '../hooks/usePoints';
 import { useAuth } from '../stores/authStore';
 import { motion } from 'framer-motion';
@@ -24,6 +24,15 @@ const Games = () => {
   const { user } = useAuth();
   const { balance } = usePoints();
   const [selectedGame, setSelectedGame] = useState(null);
+
+  // Hide footer on this page
+  useEffect(() => {
+    document.body.classList.add('hide-footer');
+    
+    return () => {
+      document.body.classList.remove('hide-footer');
+    };
+  }, []);
 
   const dailyGames = [
     {
