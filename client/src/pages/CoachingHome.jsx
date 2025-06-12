@@ -85,8 +85,20 @@ const CoachingHome = () => {
     };    const fetchCoaches = async () => {
       try {
         const response = await subscriptionService.getCoaches();
-        setCoaches(response || []);
-        console.log('Coaches:', response);
+        const originalCoaches = response || [];        // Shuffle function to randomize array order
+        const shuffleArray = (array) => {
+          const shuffled = [...array];
+          for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+          }
+          return shuffled;
+        };
+        
+        // Shuffle the coaches array to randomize the order
+        const shuffledCoaches = shuffleArray(originalCoaches);
+        setCoaches(shuffledCoaches);
+        console.log('Original Coaches:', originalCoaches);
       } catch (error) {
         console.error('Error fetching coaches:', error);
         setCoaches([]);
@@ -113,8 +125,7 @@ const CoachingHome = () => {
       title: 'Progress Tracking',
       description: 'Track your improvements with detailed analytics and feedback',
     },
-  ];
-  const subscriptionPlans = [
+  ];  const subscriptionPlans = [
     {
       id: 'basic',
       name: 'Basic',
@@ -127,11 +138,7 @@ const CoachingHome = () => {
         '100 points monthly',
       ],
       color: isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200',
-      borderColor: 'border-blue-200',      video: {
-        title: 'Basic Plan Overview',
-        thumbnail: '/GymTonic.mp4',
-        description: 'See how our basic plan works for beginners'
-      }
+      borderColor: 'border-blue-200'
     },
     {
       id: 'premium',
@@ -147,11 +154,7 @@ const CoachingHome = () => {
       ],
       color: isDarkMode ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200',
       borderColor: 'border-blue-400',
-      popular: true,      video: {
-        title: 'Premium Features Walkthrough',
-        thumbnail: '/GymTonic.mp4',
-        description: 'Advanced training and nutrition guidance'
-      }
+      popular: true
     },
     {
       id: 'elite',
@@ -166,11 +169,7 @@ const CoachingHome = () => {
         '500 points monthly',
       ],
       color: isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200',
-      borderColor: 'border-blue-200',      video: {
-        title: 'Elite Personalization Process',
-        thumbnail: '/GymTonic.mp4',
-        description: 'Complete custom plan creation process'
-      }
+      borderColor: 'border-blue-200'
     },
   ];
   const handleSelectPlan = (plan) => {
@@ -262,8 +261,7 @@ const CoachingHome = () => {
               transition={{ duration: 0.8, delay: 0.4 }}
             >
               Get personalized coaching and achieve your fitness goals faster
-            </motion.p>
-            <motion.button
+            </motion.p>            <motion.button
               onClick={() => document.getElementById('plans').scrollIntoView({ behavior: 'smooth' })}
               className="bg-white dark:bg-gray-100 text-blue-500 dark:text-blue-300 px-8 py-3 rounded-full font-semibold hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors inline-flex items-center shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
               initial={{ y: -50, opacity: 0 }}
@@ -275,6 +273,49 @@ const CoachingHome = () => {
               View Plans
               <ArrowRight className="ml-2 w-5 h-5" />
             </motion.button>
+
+            {/* Video Preview Section */}
+            <motion.div 
+              className="mt-12"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.8 }}
+            >
+              <div className="flex items-center justify-center mb-4">
+                <h3 className="text-lg font-semibold text-white mr-3">See How It Works</h3>
+                <Play className="w-5 h-5 text-blue-200" />
+              </div>
+              <motion.div
+                className="max-w-md mx-auto relative group cursor-pointer rounded-xl overflow-hidden bg-black/20 backdrop-blur-sm border border-white/10 hover:border-white/20 transition-all duration-300 shadow-xl hover:shadow-2xl"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleVideoClick({
+                  title: 'GymTonic Overview',
+                  thumbnail: '/GymTonic.mp4',
+                  description: 'See how our coaching platform works and transforms your fitness journey'
+                })}
+              >
+                <div className="aspect-video relative">
+                  <video 
+                    className="w-full h-full object-cover"
+                    muted
+                    preload="metadata"
+                  >
+                    <source src="/GymTonic.mp4" type="video/mp4" />
+                  </video>
+                  {/* Play Button Overlay */}
+                  <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-300 flex items-center justify-center">
+                    <div className="bg-white/95 rounded-full p-6 shadow-xl group-hover:scale-110 transition-transform duration-300">
+                      <Play className="w-10 h-10 text-gray-800 ml-1" />
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 text-center">
+                  <p className="text-white font-semibold mb-1">GymTonic Overview</p>
+                  <p className="text-blue-100 text-sm">See how our coaching platform works</p>
+                </div>
+              </motion.div>
+            </motion.div>
           </div>
         </div>
       </motion.section>
@@ -507,12 +548,14 @@ const CoachingHome = () => {
               transition={{ duration: 0.5, delay: 0.1 }}
             >
               Our certified professionals are ready to guide you on your fitness journey with personalized training and expert advice.
-            </motion.p>          </div>
-          
-          {coaches.length > 0 ? (
-            <>
-              <div className="grid grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-8 md:gap-x-8 md:gap-y-12">
-                {coaches.slice(0, 6).map((coach, index) => (
+            </motion.p>          </div>          {coaches.length > 0 ? (
+            <>              <div className={`grid gap-x-4 gap-y-8 md:gap-x-8 md:gap-y-12 ${
+                coaches.length === 1 
+                  ? 'grid-cols-1 max-w-sm mx-auto justify-items-center'
+                  : coaches.length === 2
+                  ? 'grid-cols-2 max-w-2xl mx-auto justify-items-center'
+                  : 'grid-cols-3 md:grid-cols-2 lg:grid-cols-3'
+              }`}>{coaches.slice(0, 6).map((coach, index) => (
                   <motion.div
                     key={coach._id}
                     className={`
@@ -521,6 +564,7 @@ const CoachingHome = () => {
                         ? 'bg-gray-800 border border-gray-700 hover:border-blue-600' 
                         : 'bg-white border border-gray-100 hover:border-blue-300'} 
                       group hover:shadow-2xl hover:-translate-y-2
+                      ${coaches.length <= 2 ? 'w-full max-w-sm' : 'w-full'}
                     `}
                     initial={{ opacity: 0, y: 30 }}
                     whileInView={{ opacity: 1, y: 0 }}
@@ -845,8 +889,7 @@ const CoachingHome = () => {
                     <span className={`font-medium ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
                       {plan.pointsPerMonth} points monthly
                     </span>
-                  </div>
-                    <div className={`
+                  </div>                  <div className={`
                     p-4 rounded-xl mb-6
                     ${isDarkMode ? 'bg-gray-800/50' : 'bg-gray-50'}
                   `}>
@@ -865,50 +908,6 @@ const CoachingHome = () => {
                         </li>
                       ))}
                     </ul>
-                  </div>                  {/* Video Preview Section */}
-                  <div className="mb-6">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className={`text-sm font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                        See How It Works
-                      </h4>
-                      <Play className={`w-4 h-4 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                    </div>
-                    {plan.video && (
-                      <motion.div
-                        className={`
-                          relative group cursor-pointer rounded-xl overflow-hidden
-                          ${isDarkMode ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'}
-                          transition-all duration-300 shadow-md hover:shadow-lg
-                        `}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => handleVideoClick(plan.video)}
-                      >
-                        <div className="aspect-video relative">
-                          <video 
-                            className="w-full h-full object-cover"
-                            muted
-                            preload="metadata"
-                          >
-                            <source src={plan.video.thumbnail} type="video/mp4" />
-                          </video>
-                          {/* Play Button Overlay */}
-                          <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-300 flex items-center justify-center">
-                            <div className="bg-white/95 dark:bg-gray-800/95 rounded-full p-4 shadow-xl group-hover:scale-110 transition-transform duration-300">
-                              <Play className="w-8 h-8 text-gray-800 dark:text-gray-200 ml-1" />
-                            </div>
-                          </div>
-                        </div>
-                        <div className="p-4">
-                          <p className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-                            {plan.video.title}
-                          </p>
-                          <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {plan.video.description}
-                          </p>
-                        </div>
-                      </motion.div>
-                    )}
                   </div>
                   
                   <motion.button
