@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   ArrowRight, Award, Calendar, MessageCircle, ChevronDown, 
   CheckCircle, Lock, Sparkles, Star, Instagram, Twitter, Youtube,
-  X, ExternalLink, Coins,Shield,User
+  X, ExternalLink, Coins, Shield, User, Play
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../stores/authStore';
@@ -21,10 +21,11 @@ const CoachingHome = () => {
   const { user } = useAuth();
   const [showAccessForm, setShowAccessForm] = useState(false);
   const [accessToken, setAccessToken] = useState('');
-  const [accessError, setAccessError] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [accessError, setAccessError] = useState('');  const [isLoading, setIsLoading] = useState(true);
   const [coaches, setCoaches] = useState([]);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState(null);
 
   // Define the base URL
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -113,7 +114,6 @@ const CoachingHome = () => {
       description: 'Track your improvements with detailed analytics and feedback',
     },
   ];
-
   const subscriptionPlans = [
     {
       id: 'basic',
@@ -127,7 +127,11 @@ const CoachingHome = () => {
         '100 points monthly',
       ],
       color: isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200',
-      borderColor: 'border-blue-200',
+      borderColor: 'border-blue-200',      video: {
+        title: 'Basic Plan Overview',
+        thumbnail: '/GymTonic.mp4',
+        description: 'See how our basic plan works for beginners'
+      }
     },
     {
       id: 'premium',
@@ -143,7 +147,11 @@ const CoachingHome = () => {
       ],
       color: isDarkMode ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200',
       borderColor: 'border-blue-400',
-      popular: true,
+      popular: true,      video: {
+        title: 'Premium Features Walkthrough',
+        thumbnail: '/GymTonic.mp4',
+        description: 'Advanced training and nutrition guidance'
+      }
     },
     {
       id: 'elite',
@@ -158,10 +166,13 @@ const CoachingHome = () => {
         '500 points monthly',
       ],
       color: isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200',
-      borderColor: 'border-blue-200',
+      borderColor: 'border-blue-200',      video: {
+        title: 'Elite Personalization Process',
+        thumbnail: '/GymTonic.mp4',
+        description: 'Complete custom plan creation process'
+      }
     },
   ];
-
   const handleSelectPlan = (plan) => {
     if (!user) {
       setSelectedPlan(plan);
@@ -174,6 +185,16 @@ const CoachingHome = () => {
         },
       });
     }
+  };
+
+  const handleVideoClick = (video) => {
+    setSelectedVideo(video);
+    setVideoModalOpen(true);
+  };
+
+  const closeVideoModal = () => {
+    setVideoModalOpen(false);
+    setSelectedVideo(null);
   };
 
   const handleContinueWithoutLogin = () => {
@@ -594,8 +615,7 @@ const CoachingHome = () => {
                           {coach.bio}
                         </p>
                       )}
-                      
-                      {/* Social links if available */}
+                        {/* Social links if available */}
                       {coach.socialLinks && (
                         <div className="flex space-x-1 md:space-x-2 mb-2 md:mb-4">
                           {coach.socialLinks.instagram && (
@@ -616,6 +636,16 @@ const CoachingHome = () => {
                               className={`p-2 rounded-full ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
                             >
                               <Twitter className="w-4 h-4 text-blue-400" />
+                            </a>
+                          )}
+                          {coach.socialLinks.youtube && (
+                            <a 
+                              href={coach.socialLinks.youtube} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className={`p-2 rounded-full ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                            >
+                              <Youtube className="w-4 h-4 text-red-500" />
                             </a>
                           )}
                         </div>
@@ -816,8 +846,7 @@ const CoachingHome = () => {
                       {plan.pointsPerMonth} points monthly
                     </span>
                   </div>
-                  
-                  <div className={`
+                    <div className={`
                     p-4 rounded-xl mb-6
                     ${isDarkMode ? 'bg-gray-800/50' : 'bg-gray-50'}
                   `}>
@@ -836,6 +865,50 @@ const CoachingHome = () => {
                         </li>
                       ))}
                     </ul>
+                  </div>                  {/* Video Preview Section */}
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className={`text-sm font-semibold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        See How It Works
+                      </h4>
+                      <Play className={`w-4 h-4 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                    </div>
+                    {plan.video && (
+                      <motion.div
+                        className={`
+                          relative group cursor-pointer rounded-xl overflow-hidden
+                          ${isDarkMode ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'}
+                          transition-all duration-300 shadow-md hover:shadow-lg
+                        `}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleVideoClick(plan.video)}
+                      >
+                        <div className="aspect-video relative">
+                          <video 
+                            className="w-full h-full object-cover"
+                            muted
+                            preload="metadata"
+                          >
+                            <source src={plan.video.thumbnail} type="video/mp4" />
+                          </video>
+                          {/* Play Button Overlay */}
+                          <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-300 flex items-center justify-center">
+                            <div className="bg-white/95 dark:bg-gray-800/95 rounded-full p-4 shadow-xl group-hover:scale-110 transition-transform duration-300">
+                              <Play className="w-8 h-8 text-gray-800 dark:text-gray-200 ml-1" />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="p-4">
+                          <p className={`text-sm font-semibold mb-1 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                            {plan.video.title}
+                          </p>
+                          <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {plan.video.description}
+                          </p>
+                        </div>
+                      </motion.div>
+                    )}
                   </div>
                   
                   <motion.button
@@ -949,6 +1022,69 @@ const CoachingHome = () => {
                 >
                   Continue Anyway
                 </Button>
+              </div>            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Video Modal */}
+      <AnimatePresence>
+        {videoModalOpen && selectedVideo && (
+          <motion.div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm bg-black/70"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={closeVideoModal}
+          >
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ 
+                type: "spring", 
+                duration: 0.4,
+                bounce: 0.2
+              }}
+              className={`
+                bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden relative
+                border border-gray-200 dark:border-gray-700
+              `}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={closeVideoModal}
+                className={`
+                  absolute top-4 right-4 z-50 p-2 rounded-full
+                  ${isDarkMode 
+                    ? 'bg-gray-700 text-gray-400 hover:text-white hover:bg-gray-600' 
+                    : 'bg-gray-100 text-gray-500 hover:text-gray-800 hover:bg-gray-200'}
+                  transition-colors duration-200
+                `}
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="aspect-video w-full">
+                <video 
+                  className="w-full h-full"
+                  controls
+                  autoPlay
+                  muted
+                >
+                  <source src={selectedVideo.thumbnail} type="video/mp4" />
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+
+              <div className="p-6">
+                <h3 className={`text-xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {selectedVideo.title}
+                </h3>
+                <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                  {selectedVideo.description}
+                </p>
               </div>
             </motion.div>
           </motion.div>

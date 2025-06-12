@@ -100,7 +100,7 @@ const userSchema = new mongoose.Schema({
   socialLinks: {
     instagram: String,
     twitter: String,
-    facebook: String
+    youtube: String
   },
   isEmailVerified: {
     type: Boolean,

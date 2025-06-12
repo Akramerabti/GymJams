@@ -346,9 +346,9 @@ export const useAuth = () => {
     token: store.token,
     loading: store.loading,
     error: store.error,
-    isTokenValid: store.isTokenValid, // Add isTokenValid to useAuth
+    isTokenValid: store.isTokenValid, 
     login: store.login,
-    loginWithToken: store.loginWithToken, // Add loginWithToken to useAuth
+    loginWithToken: store.loginWithToken, 
     logout: store.logout,
     checkAuth: store.checkAuth,
     validatePhone: store.validatePhone,

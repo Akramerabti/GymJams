@@ -432,19 +432,34 @@ const Profile = () => {
 
                   {/* Coach-Specific Fields */}
                   {isCoach && (
-                    <>
-                      {/* Bio */}
+                    <>                      {/* Bio */}
                       <div>
                         <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : ''}`}>Bio</label>
-                        <Input
-                          value={profileData.bio}
-                          onChange={(e) => setProfileData(prev => ({
-                            ...prev,
-                            bio: e.target.value
-                          }))}
-                          disabled={!editing}
-                          className={isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}
-                        />
+                        <div className="relative">
+                          <Input
+                            value={profileData.bio}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (value.length <= 100) {
+                                setProfileData(prev => ({
+                                  ...prev,
+                                  bio: value
+                                }));
+                              }
+                            }}
+                            disabled={!editing}
+                            maxLength={100}
+                            className={isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}
+                            placeholder="Tell us about yourself..."
+                          />
+                          <div className={`text-xs mt-1 text-right ${
+                            profileData.bio.length > 90 
+                              ? 'text-red-500' 
+                              : isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            {profileData.bio.length}/100 characters
+                          </div>
+                        </div>
                       </div>
 
                       {/* Rating */}
