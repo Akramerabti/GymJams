@@ -62,6 +62,16 @@ const SlotMachine = ({ minBet = 50, maxBet = 5000 }) => {
   const celebrationRef = useRef(null);
   const { balance, subtractPoints, addPoints, updatePointsInBackend } = usePoints();
 
+  // Prevent scrolling on this game
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
   // Enhanced animations
   const machineControls = useAnimation();
   const jackpotControls = useAnimation();

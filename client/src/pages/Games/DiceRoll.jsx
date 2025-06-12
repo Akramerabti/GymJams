@@ -20,6 +20,16 @@ const EnhancedDiceGame = ({ minBet = 10, maxBet = 1000 }) => {
   const isRollingRef = useRef(isRolling);
   const balanceRef = useRef(balance);
 
+  // Prevent scrolling on this game
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
   useEffect(() => {
     autoPlayActiveRef.current = autoPlayActive;
     isRollingRef.current = isRolling;

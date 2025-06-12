@@ -165,6 +165,16 @@ const CoinFlip = ({ minBet = 100, maxBet = 10000 }) => {
   const [inputError, setInputError] = useState(null);
   const { balance, subtractPoints, addPoints, updatePointsInBackend } = usePoints();
 
+  // Prevent scrolling on this game
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
   const handleReBet = () => {
     // Keep the same bet amount and result, but reset other game state
     setUserChoice(null); // Reset user choice

@@ -107,7 +107,17 @@ const MemoryGame = () => {
   const [learningStreak, setLearningStreak] = useState(0);
   const [showQuiz, setShowQuiz] = useState(false);
   const [gamesPlayed, setGamesPlayed] = useState(0);
-  const { balance, addPoints, updatePointsInBackend } = usePoints(); // Destructure addPoints and updatePointsInBackend from usePoints
+  const { balance, addPoints, updatePointsInBackend } = usePoints();
+
+  // Prevent scrolling on this game
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);// Destructure addPoints and updatePointsInBackend from usePoints
 
   // Floating Background Elements Component
   const FloatingElements = () => (

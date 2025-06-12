@@ -20,6 +20,16 @@ const Roulette = ({ minBet = 25, maxBet = 2500 }) => {
   const [result, setResult] = useState(null);
   const [rotation, setRotation] = useState(0);
   const [betType, setBetType] = useState('number');
+
+  // Prevent scrolling on this game
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
   
   // Roulette configuration
   const colors = {
