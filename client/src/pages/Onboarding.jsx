@@ -12,17 +12,19 @@ const OnboardingStep = ({ title, description, icon: Icon }) => (
   </div>
 );
 
-const Onboarding = ({ onClose }) => {
+const Onboarding = ({ onClose, showPointsMessage = true }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const steps = [
     {
-      title: "Welcome to GymJams!",
+      title: "Welcome to GymTonic!",
       description: "Your all-in-one fitness platform. Let's get you started with the basics.",
       icon: Dumbbell
     },
     {
       title: "Points System",
-      description: "You've earned 100 points! Earn more points through workouts and purchases. These will let you earn rewards, discounts and much more...",
+      description: showPointsMessage 
+        ? "You've earned 100 points! Earn more points through workouts and purchases. These will let you earn rewards, discounts and much more..."
+        : "Earn points through workouts and purchases. These will let you earn rewards, discounts and much more...",
       icon: Coins
     },
     {

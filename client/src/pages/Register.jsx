@@ -15,8 +15,8 @@ const Register = () => {
   const { register } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [countryCode, setCountryCode] = useState('1'); // Default to US/Canada code
-  const [countryFlag, setCountryFlag] = useState('🇺🇸'); // Default to US flag
+  const [countryCode, setCountryCode] = useState('1'); 
+  const [countryFlag, setCountryFlag] = useState('🇺🇸'); 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [phoneInputValue, setPhoneInputValue] = useState('');
   const [isPhoneValid, setIsPhoneValid] = useState(false);

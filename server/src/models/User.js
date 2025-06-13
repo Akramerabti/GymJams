@@ -27,31 +27,54 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true
-  },
-  lastName: {
+  },  lastName: {
     type: String,
-    required: true,
+    required: function() {
+      // lastName is optional for OAuth users until they complete their profile
+      return !this.oauth || !this.oauth.isIncomplete;
+    },
     trim: true
-  },
-  phone: {
+  },  phone: {
     type: String,
-    required: [true, 'Phone number is required'],
+    required: function() {
+      // Phone is optional for OAuth users until they complete their profile
+      return !this.oauth || !this.oauth.isIncomplete;
+    },
     unique: true,
     trim: true,
     sparse: true,
     validate: {
       validator: async function(phone) {
+        if (!phone || phone === '') return true; // Allow empty phone for OAuth users
         if (!this.isModified('phone')) return true;
+        
+        // Validate phone format (should start with + and have 10-15 digits)
+        const phoneRegex = /^\+\d{10,15}$/;
+        if (!phoneRegex.test(phone)) {
+          throw new Error('Phone number must be in international format (e.g., +15149127545)');
+        }
+        
         const user = await this.constructor.findOne({ phone });
         return !user;
       },
       message: 'This phone number is already registered'
     }
-  },
-  oauth: {
+  },oauth: {
     googleId: String,
     facebookId: String,
-    lastProvider: String
+    lastProvider: String,
+    isIncomplete: {
+      type: Boolean,
+      default: false
+    },
+    needsPhoneNumber: {
+      type: Boolean,
+      default: false
+    },
+    needsLastName: {
+      type: Boolean,
+      default: false
+    }
   },
   stripeCustomerId: {
     type: String,

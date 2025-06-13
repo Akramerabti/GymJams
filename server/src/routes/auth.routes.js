@@ -30,15 +30,26 @@ router.post('/complete-oauth-profile', authenticate, completeOAuthProfile);
 router.get('/google', 
     passport.authenticate('google', { scope: ['profile', 'email'] })
   );
-  
-  router.get('/google/callback', 
-    passport.authenticate('google', { session: false, failureRedirect: '/login?error=google-auth-failed' }),
+    router.get('/google/callback', 
+    passport.authenticate('google', { session: false, failureRedirect: `${process.env.CLIENT_URL}/login?error=google-auth-failed` }),
     (req, res) => {
-      // Generate JWT token
-      const token = generateToken({ id: req.user._id });
-      
-      // Redirect to frontend with token
-      res.redirect(`${process.env.CLIENT_URL}/oauth-callback?token=${token}`);
+      try {
+        // Generate JWT token
+        const token = generateToken({ id: req.user._id });
+        
+        // Check if user profile is incomplete
+        const needsCompletion = req.user.oauth?.isIncomplete || false;
+        
+        // Redirect to frontend with token and completion status
+        const redirectUrl = needsCompletion 
+          ? `${process.env.CLIENT_URL}/oauth-callback?token=${token}&incomplete=true`
+          : `${process.env.CLIENT_URL}/oauth-callback?token=${token}`;
+          
+        res.redirect(redirectUrl);
+      } catch (error) {
+        console.error('OAuth callback error:', error);
+        res.redirect(`${process.env.CLIENT_URL}/login?error=oauth-processing-failed`);
+      }
     }
   );
   

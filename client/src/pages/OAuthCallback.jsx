@@ -2,31 +2,33 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Loader2, Phone } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useAuth } from '../stores/authStore';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import api from '../services/api';
+import CompleteOAuthProfile from '../components/auth/CompleteOAuthProfile';
 
 const OAuthCallback = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { loginWithToken, user, token } = useAuth();
+  const { loginWithToken, token } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [needsPhone, setNeedsPhone] = useState(false);
-  const [phone, setPhone] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [phoneError, setPhoneError] = useState('');
+  const [needsCompletion, setNeedsCompletion] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [missingFields, setMissingFields] = useState({
+    phone: false,
+    lastName: false
+  });
   
-  // Extract token from URL
+  // Extract token and params from URL
   const urlParams = new URLSearchParams(location.search);
   const authToken = urlParams.get('token');
+  const isIncomplete = urlParams.get('incomplete') === 'true';
   
   // Extract error if any
   const errorParam = urlParams.get('error');
-  
+
   useEffect(() => {
     // Handle authentication with the token from OAuth provider
     const authenticateWithToken = async () => {
@@ -40,14 +42,25 @@ const OAuthCallback = () => {
         // Attempt to login with the token
         const data = await loginWithToken(authToken);
         
-        // Check if phone number needs to be added
-        if (data?.user && (!data.user.phone || data.user.phone === '')) {
-          setNeedsPhone(true);
-          setLoading(false);
-          return;
+        // Check if profile completion is needed
+        if (isIncomplete || (data?.user && data.user.oauth?.isIncomplete)) {
+          const user = data.user;
+          const needsPhone = !user.phone || user.phone === '' || user.oauth?.needsPhoneNumber;
+          const needsLastName = !user.lastName || user.lastName === '' || user.oauth?.needsLastName;
+          
+          if (needsPhone || needsLastName) {
+            setCurrentUser(user);
+            setMissingFields({
+              phone: needsPhone,
+              lastName: needsLastName
+            });
+            setNeedsCompletion(true);
+            setLoading(false);
+            return;
+          }
         }
         
-        // Successful login
+        // Successful login with complete profile
         toast.success('Successfully logged in!');
         navigate('/');
       } catch (error) {
@@ -59,60 +72,27 @@ const OAuthCallback = () => {
     
     // Handle error parameter
     if (errorParam) {
-      setError(decodeURIComponent(errorParam));
+      let errorMessage = 'Authentication failed';
+      if (errorParam === 'google-auth-failed') {
+        errorMessage = 'Google authentication failed. Please try again.';
+      } else if (errorParam === 'oauth-processing-failed') {
+        errorMessage = 'There was an error processing your authentication. Please try again.';
+      } else {
+        errorMessage = decodeURIComponent(errorParam);
+      }
+      setError(errorMessage);
       setLoading(false);
       return;
     }
     
     authenticateWithToken();
-  }, [authToken, loginWithToken, navigate, errorParam]);
-  
-  // Basic phone number validation
-  const validatePhone = (phoneNumber) => {
-    // Allow various phone formats but ensure it has at least 10 digits
-    const digitsOnly = phoneNumber.replace(/\D/g, '');
-    if (digitsOnly.length < 10) {
-      return 'Please enter a valid phone number (at least 10 digits)';
-    }
-    return '';
-  };
-  
-  // Handle phone number submission
-  const handlePhoneSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Validate phone
-    const validationError = validatePhone(phone);
-    if (validationError) {
-      setPhoneError(validationError);
-      return;
-    }
-    
-    setSubmitting(true);
-    
-    try {
-      const response = await api.post('/auth/complete-oauth-profile', {
-        phone: phone
-      }, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.data && response.data.user) {
-        toast.success('Profile completed successfully!');
-        navigate('/');
-      } else {
-        throw new Error('Failed to update profile');
-      }
-    } catch (error) {
-      console.error('Phone submission error:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to update profile';
-      toast.error(errorMessage);
-      setPhoneError(errorMessage);
-    } finally {
-      setSubmitting(false);
-    }
+  }, [authToken, loginWithToken, navigate, errorParam, isIncomplete]);
+
+  // Handle profile completion
+  const handleProfileComplete = (updatedUser) => {
+    setCurrentUser(updatedUser);
+    toast.success('Profile completed successfully!');
+    navigate('/');
   };
   
   // If still loading
@@ -150,80 +130,25 @@ const OAuthCallback = () => {
     );
   }
   
-  // If needs phone number
-  if (needsPhone) {
+  // If profile completion is needed
+  if (needsCompletion) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Card className="w-full max-w-md p-6 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl font-semibold text-center">
-              One Last Step
-            </CardTitle>
-          </CardHeader>
-          
-          <CardContent className="py-6">
-            <div className="flex justify-center mb-6">
-              <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
-                <Phone className="w-8 h-8 text-blue-600" />
-              </div>
-            </div>
-            
-            <p className="text-gray-600 text-center mb-6">
-              To complete your profile, please provide your phone number. This helps us ensure account security and provide you with better service.
-            </p>
-            
-            <form onSubmit={handlePhoneSubmit}>
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number
-                </label>
-                <Input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => {
-                    setPhone(e.target.value);
-                    setPhoneError('');
-                  }}
-                  placeholder="(555) 123-4567"
-                  className={`w-full ${phoneError ? 'border-red-500' : ''}`}
-                  required
-                />
-                {phoneError && (
-                  <p className="mt-1 text-sm text-red-500">{phoneError}</p>
-                )}
-              </div>
-              
-              <Button 
-                type="submit" 
-                className="w-full"
-                disabled={submitting}
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  'Complete Registration'
-                )}
-              </Button>
-            </form>
-          </CardContent>
-          
-          <CardFooter className="justify-center">
-            <p className="text-xs text-gray-500">
-              Your information is securely stored and will not be shared with third parties.
-            </p>
-          </CardFooter>
-        </Card>
-      </div>
+      <CompleteOAuthProfile 
+        user={currentUser}
+        token={token}
+        missingFields={missingFields}
+        onComplete={handleProfileComplete}
+      />
     );
   }
-  
+
   // Fallback (shouldn't reach here normally)
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <p>Redirecting to home page...</p>
+      <div className="text-center">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-4" />
+        <p>Redirecting to home page...</p>
+      </div>
     </div>
   );
 };

@@ -56,24 +56,34 @@ passport.use(
               googleId: profile.id
             };
             user.isEmailVerified = true; // Trust Google's email verification
-            await user.save();
-          } else {
+            await user.save();          } else {
             // Create a new user
-            const nameArray = profile.displayName.split(' ');
-            const firstName = nameArray[0] || '';
-            const lastName = nameArray.slice(1).join(' ') || '';
+            const nameArray = profile.displayName ? profile.displayName.split(' ') : [];
+            const firstName = nameArray[0] || profile.name?.givenName || '';
+            const lastName = nameArray.slice(1).join(' ') || profile.name?.familyName || '';
+            
+            // Check what fields are missing - always require both for OAuth users
+            const needsLastName = !lastName || lastName.trim() === '';
+            const needsPhoneNumber = true; // Always need phone for new OAuth users
+            const isIncomplete = needsLastName || needsPhoneNumber;
             
             user = await User.create({
               email: profile.emails[0].value,
               firstName: firstName,
-              lastName: lastName,
+              lastName: lastName || '', // Allow empty lastName initially
               isEmailVerified: true,
               profileImage: profile.photos[0]?.value || '',
-              phone: '', // Required field that will need to be filled later
+              phone: '', // Empty phone initially
               password: Math.random().toString(36).slice(-16), // Random password
               oauth: {
-                googleId: profile.id
-              }
+                googleId: profile.id,
+                lastProvider: 'google',
+                isIncomplete: isIncomplete,
+                needsPhoneNumber: needsPhoneNumber,
+                needsLastName: needsLastName
+              },
+              points: 0, // Start with 0 points, will get bonus when profile is completed
+              hasReceivedFirstLoginBonus: false // Will be set to true when profile is completed
             });
           }
         }

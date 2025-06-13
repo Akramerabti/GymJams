@@ -845,39 +845,119 @@ export const registerWithPhone = async (req, res) => {
 
 export const completeOAuthProfile = async (req, res) => {
   try {
-    const { phone } = req.body;
+    const { phone, lastName } = req.body;
     const userId = req.user.id;
 
-    // Basic validation
-    if (!phone || phone.trim() === '') {
-      return res.status(400).json({ message: 'Phone number is required' });
+    console.log('Complete OAuth Profile - Request:', { phone, lastName, userId });
+
+    // Get current user to check what fields are needed
+    const currentUser = await User.findById(userId);
+    if (!currentUser) {
+      return res.status(404).json({ message: 'User not found' });
     }
 
-    // Format the phone number (extract digits only)
-    const formattedPhone = phone.replace(/\D/g, '');
-    
-    // Ensure it has at least 10 digits
-    if (formattedPhone.length < 10) {
-      return res.status(400).json({ message: 'Please enter a valid phone number (at least 10 digits)' });
-    }
-
-    // Check if phone is already in use by another account
-    const existingUserWithPhone = await User.findOne({ 
-      phone: formattedPhone, 
-      _id: { $ne: userId } 
+    console.log('Current user state:', {
+      id: currentUser._id,
+      phone: currentUser.phone,
+      lastName: currentUser.lastName,
+      oauth: currentUser.oauth,
+      points: currentUser.points,
+      hasReceivedFirstLoginBonus: currentUser.hasReceivedFirstLoginBonus
     });
 
-    if (existingUserWithPhone) {
-      return res.status(400).json({ message: 'This phone number is already in use' });
+    const updateFields = {};
+    const oauthUpdateFields = {};
+
+    // Validate and update phone if provided
+    if (phone) {
+      if (phone.trim() === '') {
+        return res.status(400).json({ message: 'Phone number cannot be empty' });
+      }
+
+      // Format the phone number - ensure it starts with + and has country code
+      let formattedPhone = phone.trim();
+      
+      // If it doesn't start with +, add +1 (US default)
+      if (!formattedPhone.startsWith('+')) {
+        // Remove any non-digit characters
+        const cleanPhone = formattedPhone.replace(/\D/g, '');
+        
+        // If it's a 10-digit US number, add +1
+        if (cleanPhone.length === 10) {
+          formattedPhone = `+1${cleanPhone}`;
+        } else if (cleanPhone.length === 11 && cleanPhone.startsWith('1')) {
+          formattedPhone = `+${cleanPhone}`;
+        } else {
+          // For other cases, assume US and add +1
+          formattedPhone = `+1${cleanPhone}`;
+        }
+      }
+      
+      // Validate final format
+      const phoneRegex = /^\+\d{10,15}$/;
+      if (!phoneRegex.test(formattedPhone)) {
+        return res.status(400).json({ 
+          message: 'Please enter a valid phone number. Format: +15149127545' 
+        });
+      }
+
+      // Check if phone is already in use by another account
+      const existingUserWithPhone = await User.findOne({ 
+        phone: formattedPhone, 
+        _id: { $ne: userId } 
+      });
+
+      if (existingUserWithPhone) {
+        return res.status(400).json({ message: 'This phone number is already in use' });
+      }
+
+      updateFields.phone = formattedPhone;
+      oauthUpdateFields['oauth.needsPhoneNumber'] = false;
+      console.log('Phone will be updated to:', formattedPhone);
     }
 
-    // Update user profile with the phone number and mark profile as complete
+    // Validate and update lastName if provided
+    if (lastName !== undefined) {
+      if (lastName.trim() === '') {
+        return res.status(400).json({ message: 'Last name cannot be empty' });
+      }
+      updateFields.lastName = lastName.trim();
+      oauthUpdateFields['oauth.needsLastName'] = false;
+      console.log('Last name will be updated to:', lastName.trim());
+    }
+
+    // Check if profile will be complete after this update
+    const stillNeedsPhone = currentUser.oauth?.needsPhoneNumber && !phone;
+    const stillNeedsLastName = currentUser.oauth?.needsLastName && lastName === undefined;
+    const isStillIncomplete = stillNeedsPhone || stillNeedsLastName;
+
+    oauthUpdateFields['oauth.isIncomplete'] = isStillIncomplete;
+
+    console.log('Profile completion status:', {
+      stillNeedsPhone,
+      stillNeedsLastName,
+      isStillIncomplete,
+      currentHasReceivedBonus: currentUser.hasReceivedFirstLoginBonus
+    });
+
+    // If profile is now complete and user hasn't received first login bonus, give it
+    let bonusAwarded = false;
+    if (!isStillIncomplete && !currentUser.hasReceivedFirstLoginBonus) {
+      updateFields.points = (currentUser.points || 0) + 100;
+      updateFields.hasReceivedFirstLoginBonus = true;
+      bonusAwarded = true;
+      console.log('Awarding 100 point bonus! New points total:', updateFields.points);
+    }
+
+    // Combine all update fields
+    const allUpdateFields = { ...updateFields, ...oauthUpdateFields };
+
+    console.log('All update fields:', allUpdateFields);
+
+    // Update user profile
     const user = await User.findByIdAndUpdate(
       userId,
-      { 
-        phone: formattedPhone,
-        'oauth.needsPhoneNumber': false // Mark profile as complete
-      },
+      allUpdateFields,
       { new: true }
     ).select('-password');
 
@@ -885,10 +965,25 @@ export const completeOAuthProfile = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Return updated user
+    console.log('Updated user:', {
+      id: user._id,
+      phone: user.phone,
+      lastName: user.lastName,
+      points: user.points,
+      hasReceivedFirstLoginBonus: user.hasReceivedFirstLoginBonus,
+      oauth: user.oauth
+    });
+
+    // Return updated user with success message
+    const responseMessage = bonusAwarded
+      ? 'Profile completed successfully! You received 100 bonus points!'
+      : 'Profile updated successfully';
+
     res.json({
-      message: 'Profile completed successfully',
-      user
+      message: responseMessage,
+      user,
+      isComplete: !isStillIncomplete,
+      bonusAwarded
     });
   } catch (error) {
     console.error('Complete OAuth Profile error:', error);
