@@ -847,7 +847,7 @@ export const completeOAuthProfile = async (req, res) => {
   try {
     const { phone, lastName, tempToken } = req.body;
     
-    console.log('Complete OAuth Profile - Request:', { phone, lastName, tempToken: !!tempToken });
+    console.log('Complete OAuth Profile - Request:', { phone, lastName, tempToken: !!tempToken, hasUser: !!req.user });
 
     // Handle temporary token case (new user creation from OAuth profile)
     if (tempToken) {
@@ -975,6 +975,10 @@ export const completeOAuthProfile = async (req, res) => {
     }
 
     // Handle existing user profile completion
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
     const userId = req.user.id;
     const currentUser = await User.findById(userId);
     if (!currentUser) {
@@ -1073,14 +1077,13 @@ export const completeOAuthProfile = async (req, res) => {
     // Return updated user with success message
     const responseMessage = bonusAwarded
       ? 'Profile completed successfully! You received 100 bonus points!'
-      : 'Profile updated successfully';
-
-    res.json({
+      : 'Profile updated successfully';    res.json({
       message: responseMessage,
       user,
       isComplete: !isStillIncomplete,
       bonusAwarded
     });
+
   } catch (error) {
     console.error('Complete OAuth Profile error:', error);
     res.status(500).json({ message: 'Error completing profile' });

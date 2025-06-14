@@ -26,7 +26,7 @@ router.delete('/delete-account', authenticate, deleteAccount);
 router.get('/coach/:coachId', optionalAuthenticate, getCoachById);
 router.post('/phone-login', loginWithPhone);
 router.post('/phone-register', registerWithPhone);
-router.post('/complete-oauth-profile', authenticate, completeOAuthProfile);
+router.post('/complete-oauth-profile', optionalAuthenticate, completeOAuthProfile);
 
 router.get('/google', 
     passport.authenticate('google', { scope: ['profile', 'email'] })
