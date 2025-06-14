@@ -81,16 +81,19 @@ const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignatu
       return null;
     }
     
+    // If it's already a full Supabase URL, return it as is
+    if (filePath.startsWith('http')) {
+      return filePath;
+    }
+    
     // Convert backslashes to forward slashes and normalize path
     const normalizedPath = filePath.replace(/\\/g, '/');
     
     // Remove leading slash if present
     const cleanPath = normalizedPath.replace(/^\/+/, '');
-      // Get the API base URL (e.g., http://localhost:5000/api)
-    const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
     
-    // Construct the full URL for file access
-    // Files are now served from Supabase storage
+    // For legacy files that aren't Supabase URLs, construct API URL
+    const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
     const fullUrl = `${apiBaseUrl}/${cleanPath}`;
     
     return fullUrl;

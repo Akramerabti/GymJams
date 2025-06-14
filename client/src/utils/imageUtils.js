@@ -1,4 +1,4 @@
-// imageUtils.js - Utility functions for handling images in the GymBros application
+// imageUtils.js - Utility functions for handling images and files in the application
 
 export const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -24,6 +24,26 @@ export const formatImageUrl = (imageUrl, fallbackUrl = null) => {
   
   // For relative paths (legacy)
   return `${baseUrl}/${imageUrl}`;
+};
+
+// Also works for any file URL, not just images
+export const formatFileUrl = (fileUrl, fallbackUrl = null) => {
+  if (!fileUrl) return fallbackUrl;
+  
+  // If it's already a blob URL or a full URL (including Supabase), return as is
+  if (fileUrl.startsWith('blob:') || fileUrl.startsWith('http')) {
+    return fileUrl;
+  }
+  
+  // For legacy local files that start with a slash
+  if (fileUrl.startsWith('/')) {
+    // Avoid double slashes - check if baseUrl already ends with slash
+    const separator = baseUrl.endsWith('/') ? '' : '';
+    return `${baseUrl}${separator}${fileUrl}`;
+  }
+  
+  // For relative paths (legacy)
+  return `${baseUrl}/${fileUrl}`;
 };
 
 

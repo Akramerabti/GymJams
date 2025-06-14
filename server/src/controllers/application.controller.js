@@ -517,17 +517,36 @@ export const receiveSignedDocument = async (req, res) => {
       });
     }
     
-    // Update application with signed document info
-    application.signedDocumentPath = req.file.path;
-    application.signedDocumentReceivedAt = new Date();
-    
-    await application.save();
-    
-    res.status(200).json({
-      success: true,
-      message: 'Signed document received and recorded',
-      data: application
-    });
+    try {
+      // Upload signed document to Supabase
+      const uploadResult = await supabaseStorageService.uploadFile(
+        req.file.buffer,
+        req.file.originalname,
+        'signed-documents' // folder name
+      );
+      
+      // Update application with signed document info
+      application.signedDocumentPath = uploadResult.url; // Use Supabase URL
+      application.signedDocumentReceivedAt = new Date();
+      application.status = 'received'; // Update status to indicate document received
+      
+      await application.save();
+      
+      console.log(`[APPLICATION] Signed document uploaded to Supabase: ${uploadResult.url}`);
+      
+      res.status(200).json({
+        success: true,
+        message: 'Signed document received and recorded',
+        data: application
+      });
+    } catch (uploadError) {
+      console.error('[APPLICATION] Error uploading signed document to Supabase:', uploadError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to upload signed document',
+        error: uploadError.message
+      });
+    }
   } catch (error) {
     logger.error('Error receiving signed document:', error);
     res.status(500).json({
