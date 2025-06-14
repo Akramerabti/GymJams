@@ -6,12 +6,29 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import subscriptionService from '../../../services/subscription.service';
-
   // Define the base URL
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
   // Fallback image URL - use public asset instead of uploads
   const fallbackAvatarUrl = `/fallback-avatar.jpg`;
+
+  // Helper function to format image URLs for Supabase compatibility
+  const formatImageUrl = (imageUrl) => {
+    if (!imageUrl) return fallbackAvatarUrl;
+    
+    // If it's already a full URL (Supabase), use it directly
+    if (imageUrl.startsWith('http')) {
+      return imageUrl;
+    }
+    
+    // For legacy local paths, add the base URL
+    if (imageUrl.startsWith('/')) {
+      return `${baseUrl}${imageUrl}`;
+    }
+    
+    // For relative paths
+    return `${baseUrl}/${imageUrl}`;
+  };
 
 const CoachProfileModal = ({ coach, onClose }) => {
   // Function to render a detail row
@@ -110,15 +127,15 @@ const CoachProfileModal = ({ coach, onClose }) => {
           <X className="w-6 h-6" />
         </Button>
 
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6">
+        {/* Header */}        <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6">
           <div className="flex items-center space-x-4">
             {coach.profileImage ? (
               <img
-                src={coach.profileImage}
-                alt={fallbackAvatarUrl}
+                src={formatImageUrl(coach.profileImage)}
+                alt={`Coach ${coach.firstName} ${coach.lastName}`}
                 className="w-24 h-24 rounded-full object-cover border-4 border-white"
                 onError={(e) => {
+                  console.error('Image load error for coach:', coach.profileImage);
                   e.target.onerror = null;
                   e.target.src = fallbackAvatarUrl; 
                 }}
@@ -173,12 +190,7 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [selectedCoachForProfile, setSelectedCoachForProfile] = useState(null);
   const [retryCount, setRetryCount] = useState(0); // Track retry attempts
-
-  const navigate = useNavigate();    // Define the base URL
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    
-    // Fallback image URL - use public asset
-    const fallbackAvatarUrl = `/fallback-avatar.jpg`;
+  const navigate = useNavigate();
 
   const isBasicPlan = subscription?.subscription === 'basic';
 
@@ -359,13 +371,13 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
                   animate={{ rotate: 360, scale: 1 }}
                   transition={{ type: "spring", bounce: 0.5, delay: 1.2 }}
                   className="relative"
-                >
-                  {selectedCoach.profileImage ? (
+                >                  {selectedCoach.profileImage ? (
                     <img
-                      src={selectedCoach.profileImage}
-                      alt={fallbackAvatarUrl }
+                      src={formatImageUrl(selectedCoach.profileImage)}
+                      alt={`Coach ${selectedCoach.firstName} ${selectedCoach.lastName}`}
                       className="w-32 h-32 rounded-full object-cover ring-4 ring-blue-500"
                       onError={(e) => {
+                        console.error('Image load error for selected coach:', selectedCoach.profileImage);
                         e.target.onerror = null;
                         e.target.src = fallbackAvatarUrl; 
                       }}
@@ -669,14 +681,14 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
               <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6">
                 <h2 className="text-2xl font-bold text-white">Confirm Your Coach</h2>
               </div>
-              <div className="p-6">
-                <div className="flex items-center space-x-4 mb-4">
+              <div className="p-6">                <div className="flex items-center space-x-4 mb-4">
                   {tempSelectedCoach?.profileImage ? (
                     <img
-                      src={tempSelectedCoach.profileImage}
-                      alt={fallbackAvatarUrl}
+                      src={formatImageUrl(tempSelectedCoach.profileImage)}
+                      alt={`Coach ${tempSelectedCoach.firstName} ${tempSelectedCoach.lastName}`}
                       className="w-20 h-20 rounded-full object-cover border-4 border-blue-100"
                       onError={(e) => {
+                        console.error('Image load error for temp selected coach:', tempSelectedCoach.profileImage);
                         e.target.onerror = null;
                         e.target.src = fallbackAvatarUrl; 
                       }}

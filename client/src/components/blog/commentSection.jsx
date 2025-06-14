@@ -1,4 +1,3 @@
-
 // CommentSection.jsx
 import React, { useState } from 'react';
 import { Button } from '../ui/button';
@@ -14,6 +13,25 @@ const CommentSection = ({ comments, postId, postSlug, user, isDarkMode }) => {
   const [replyingTo, setReplyingTo] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [localComments, setLocalComments] = useState(comments || []);
+  
+  // Helper function to format image URLs for Supabase compatibility
+  const formatImageUrl = (imageUrl) => {
+    if (!imageUrl) return null;
+    
+    // If it's already a full URL (Supabase), use it directly
+    if (imageUrl.startsWith('http')) {
+      return imageUrl;
+    }
+    
+    // For legacy local paths, add the base URL
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    if (imageUrl.startsWith('/')) {
+      return `${baseUrl}${imageUrl}`;
+    }
+    
+    // For relative paths
+    return `${baseUrl}/${imageUrl}`;
+  };
   
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'short', day: 'numeric' };
@@ -107,10 +125,9 @@ const CommentSection = ({ comments, postId, postSlug, user, isDarkMode }) => {
       {/* Comment form */}
       {user ? (
         <form onSubmit={handleSubmitComment} className="mb-8">
-          <div className="flex gap-4">
-            <Avatar className="h-10 w-10">
+          <div className="flex gap-4">            <Avatar className="h-10 w-10">
               {user.profileImage ? (
-                <AvatarImage src={user.profileImage} alt={user.firstName} />
+                <AvatarImage src={formatImageUrl(user.profileImage)} alt={user.firstName} />
               ) : (
                 <AvatarFallback>
                   {user.firstName ? user.firstName.charAt(0) : 'U'}
@@ -161,9 +178,8 @@ const CommentSection = ({ comments, postId, postSlug, user, isDarkMode }) => {
               className={`${isDarkMode ? 'border-gray-700' : 'border-gray-100'} border-b pb-6 last:border-0`}
             >
               <div className="flex gap-4">
-                <Avatar className="h-10 w-10">
-                  {comment.user.profileImage ? (
-                    <AvatarImage src={comment.user.profileImage} alt={comment.user.firstName} />
+                <Avatar className="h-10 w-10">                  {comment.user.profileImage ? (
+                    <AvatarImage src={formatImageUrl(comment.user.profileImage)} alt={comment.user.firstName} />
                   ) : (
                     <AvatarFallback>
                       {comment.user.firstName.charAt(0)}{comment.user.lastName.charAt(0)}
@@ -220,9 +236,8 @@ const CommentSection = ({ comments, postId, postSlug, user, isDarkMode }) => {
                   {replyingTo === comment._id && (
                     <div className="mt-4 flex gap-3">
                       {user && (
-                        <Avatar className="h-8 w-8">
-                          {user.profileImage ? (
-                            <AvatarImage src={user.profileImage} alt={user.firstName} />
+                        <Avatar className="h-8 w-8">                          {user.profileImage ? (
+                            <AvatarImage src={formatImageUrl(user.profileImage)} alt={user.firstName} />
                           ) : (
                             <AvatarFallback>
                               {user.firstName ? user.firstName.charAt(0) : 'U'}
@@ -272,9 +287,8 @@ const CommentSection = ({ comments, postId, postSlug, user, isDarkMode }) => {
                       {comment.replies.map((reply) => (
                         <div key={reply._id} className="mb-4 last:mb-0">
                           <div className="flex gap-3">
-                            <Avatar className="h-8 w-8">
-                              {reply.user.profileImage ? (
-                                <AvatarImage src={reply.user.profileImage} alt={reply.user.firstName} />
+                            <Avatar className="h-8 w-8">                              {reply.user.profileImage ? (
+                                <AvatarImage src={formatImageUrl(reply.user.profileImage)} alt={reply.user.firstName} />
                               ) : (
                                 <AvatarFallback>
                                   {reply.user.firstName.charAt(0)}{reply.user.lastName.charAt(0)}

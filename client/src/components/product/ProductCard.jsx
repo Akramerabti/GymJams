@@ -8,10 +8,22 @@ const ProductCard = ({ product }) => {
   const { addToCart } = useCart();
   const { id, name, price, images, description } = product;
 
-  // Construct the full image URL using VITE_API_URL
-  const imageUrl = images && images.length > 0 
-    ? `${import.meta.env.VITE_API_URL}/${images[0]}` 
-    : ''; // Fallback to an empty string if no images are available
+  // Format image URL to handle both Supabase URLs and legacy local paths
+  const formatImageUrl = (imagePath) => {
+    if (!imagePath) return '/placeholder-image.jpg';
+    
+    // If it's already a full URL (including Supabase URLs), return as is
+    if (imagePath.startsWith('http')) {
+      return imagePath;
+    }
+    
+    // For legacy local files, construct the full URL
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    return `${baseUrl}${imagePath.startsWith('/') ? imagePath : `/${imagePath}`}`;
+  };
+
+  // Get the first available image
+  const imageUrl = images && images.length > 0 ? formatImageUrl(images[0]) : '/placeholder-image.jpg';
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden transition-transform hover:scale-[1.02]">

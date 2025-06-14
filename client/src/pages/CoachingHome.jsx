@@ -26,11 +26,28 @@ const CoachingHome = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
-
   // Define the base URL
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
   const fallbackAvatarUrl = `/fallback-avatar.jpg`;
+
+  // Helper function to format image URLs for Supabase compatibility
+  const formatImageUrl = (imageUrl) => {
+    if (!imageUrl) return fallbackAvatarUrl;
+    
+    // If it's already a full URL (Supabase), use it directly
+    if (imageUrl.startsWith('http')) {
+      return imageUrl;
+    }
+    
+    // For legacy local paths, add the base URL
+    if (imageUrl.startsWith('/')) {
+      return `${baseUrl}${imageUrl}`;
+    }
+    
+    // For relative paths
+    return `${baseUrl}/${imageUrl}`;
+  };
 
   useEffect(() => {
     // Check for dark mode
@@ -570,15 +587,15 @@ const CoachingHome = () => {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.5, delay: index * 0.1 }}
-                  >
-                    {/* Coach Image */}
+                  >                    {/* Coach Image */}
                     <div className="relative h-32 md:h-64 overflow-hidden">
                       {coach.profileImage ? (
                         <img 
-                          src={coach.profileImage} 
+                          src={formatImageUrl(coach.profileImage)} 
                           alt={`Coach ${coach.firstName}`}
                           className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110"
                           onError={(e) => {
+                            console.error('Image load error for coach:', coach.profileImage);
                             e.target.onerror = null;
                             e.target.src = fallbackAvatarUrl; 
                           }}

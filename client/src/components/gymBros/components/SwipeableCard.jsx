@@ -105,7 +105,6 @@ console.log('SwipeableCard rendered', profile);
         navigator.vibrate(20);
       }
     };
-  
     // Enhanced error handling for image URLs
     const formatImageUrl = (url) => {
       // Default fallback image
@@ -121,7 +120,8 @@ console.log('SwipeableCard rendered', profile);
         } else if (url.startsWith('http')) {
           return url;
         } else {
-          const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+          // For legacy local files, construct the full URL
+          const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
           return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
         }
       } catch (error) {

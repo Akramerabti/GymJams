@@ -576,8 +576,12 @@ export const getCoach = async (req, res) => {
 
     if (!coaches.length) {
       return res.status(404).json({ message: 'No coaches found' });
-    }    // Profile images are already full URLs from Supabase, no need to modify
+    }
+
+    // Profile images are already full URLs from Supabase, no need to modify
     // (Legacy code that was adding base URL to relative paths has been removed)
+    
+    res.json(coaches);
   } catch (error) {
     logger.error('Error fetching coaches:', error);
     res.status(500).json({ message: 'Error fetching coaches' });

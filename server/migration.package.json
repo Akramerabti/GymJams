@@ -1,8 +1,0 @@
-{
-  "name": "cleanup-empty-phones",
-  "description": "Database migration to clean up empty phone values",
-  "main": "src/utils/cleanupEmptyPhones.js",
-  "scripts": {
-    "cleanup:phones": "node --loader ./src/utils/loaderHook.js src/utils/cleanupEmptyPhones.js"
-  }
-}

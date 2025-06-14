@@ -28,7 +28,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const constructImageUrl = (path) => {
   if (!path) return null;
-  return path.startsWith('http') ? path : `${import.meta.env.VITE_API_URL}${path}`;
+  
+  // If it's already a full URL (including Supabase URLs), return as is
+  if (path.startsWith('http')) {
+    return path;
+  }
+  
+  // For legacy local files, construct the full URL
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
 };
 
 const ProductPage = ({ isPreview = false }) => {
