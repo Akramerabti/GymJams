@@ -27,13 +27,14 @@ const countryCodes = [
   { code: '61', name: 'Australia', flag: '🇦🇺', country: 'AU' },
 ];
 
-const CompleteOAuthProfile = ({ user, token, missingFields, onComplete }) => {
+const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUpdate }) => {
   const navigate = useNavigate();
   const [countryCode, setCountryCode] = useState('1'); // Default to US
   const [countryFlag, setCountryFlag] = useState('🇺🇸'); // Default to US flag
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [phoneInputValue, setPhoneInputValue] = useState('');
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [currentUser, setCurrentUser] = useState(user); // Local state for user
   const dropdownRef = useRef(null);
   
   const [formData, setFormData] = useState({
@@ -158,27 +159,24 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete }) => {
       const updateData = {};
       if (missingFields.phone) updateData.phone = formData.phone;
       if (missingFields.lastName) updateData.lastName = formData.lastName;
-      
-      // Handle temporary token case (new user creation)
-      if (user.tempToken) {
-        updateData.tempToken = user.tempToken;
+        // Handle temporary token case (new user creation)
+      if (currentUser.tempToken) {
+        updateData.tempToken = currentUser.tempToken;
         console.log('Sending profile completion with temp token');
       }
       
       console.log('Sending update data:', updateData);
-      
-      const response = await api.post('/auth/complete-oauth-profile', updateData, {
-        headers: user.tempToken ? {} : {
+        const response = await api.post('/auth/complete-oauth-profile', updateData, {
+        headers: currentUser.tempToken ? {} : {
           'Authorization': `Bearer ${token}`
         }
       });
       
       console.log('Profile completion response:', response.data);
-      
-      // Check if profile is now complete
+        // Check if profile is now complete
       if (response.data.isComplete) {
         // For new users with temp token, we need to handle the new auth token
-        if (user.tempToken && response.data.token) {
+        if (currentUser.tempToken && response.data.token) {
           // Store the new token (this should be handled by auth store)
           localStorage.setItem('token', response.data.token);
         }
@@ -196,18 +194,40 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete }) => {
         setShowOnboarding(true);
       } else {
         toast.error('Profile completion failed. Please try again.');
-      }
-    } catch (error) {
+      }    } catch (error) {
       console.error('Profile completion error:', error);
       const errorMessage = error.response?.data?.message || 'Failed to complete profile. Please try again.';
+        // Handle new temporary token for retry
+      if (error.response?.data?.tempToken) {
+        // Update the user object with the new temporary token
+        const updatedUser = {
+          ...currentUser,
+          tempToken: error.response.data.tempToken
+        };
+        setCurrentUser(updatedUser);
+        
+        // Notify parent component if callback is provided
+        if (onUserUpdate) {
+          onUserUpdate(updatedUser);
+        }
+        
+        console.log('Received new temporary token for retry');
+      }
       
       // Handle specific field errors
-      if (errorMessage.includes('phone number is already in use')) {
-        setFormErrors({ phone: 'This phone number is already registered with another account' });
+      if (errorMessage.includes('phone number is already')) {
+        setFormErrors({ phone: 'This phone number is already registered with another account. Please use a different number.' });
+      } else if (errorMessage.includes('email is already registered')) {
+        toast.error('This email is already registered. Please contact support if you believe this is an error.');
       } else if (error.response?.data?.field) {
         setFormErrors({
           [error.response.data.field]: errorMessage
         });
+      } else if (error.response?.data?.requiresReauth) {
+        // Token is completely invalid, need to restart OAuth flow
+        toast.error('Your session has expired. Please sign in again.');
+        navigate('/login');
+        return;
       } else {
         toast.error(errorMessage);
       }
@@ -383,7 +403,7 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete }) => {
                 </div>
                 
                 <p className="mt-1 text-xs text-gray-500">
-                  Example: +{countryCode === '1' ? '15149127545' : `${countryCode}XXXXXXXXX`}
+                  Example: +{countryCode === '1' ? '12042867839' : `${countryCode}XXXXXXXXX`}
                 </p>
                 {formErrors.phone && (
                   <p className="mt-1 text-sm text-red-500">{formErrors.phone}</p>

@@ -151,6 +151,10 @@ const OAuthCallback = () => {
       </div>
     );
   }
+    // Handle user object updates (for temporary token renewal)
+  const handleUserUpdate = (updatedUser) => {
+    setCurrentUser(updatedUser);
+  };
   
   // If profile completion is needed
   if (needsCompletion) {
@@ -160,6 +164,7 @@ const OAuthCallback = () => {
         token={token}
         missingFields={missingFields}
         onComplete={handleProfileComplete}
+        onUserUpdate={handleUserUpdate}
       />
     );
   }

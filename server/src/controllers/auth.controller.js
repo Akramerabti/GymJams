@@ -851,127 +851,160 @@ export const completeOAuthProfile = async (req, res) => {
 
     // Handle temporary token case (new user creation from OAuth profile)
     if (tempToken) {
+      let decoded;
+      let oauthProfile;
+      
       try {
-        const decoded = jwt.verify(tempToken, process.env.JWT_SECRET);
+        decoded = jwt.verify(tempToken, process.env.JWT_SECRET);
         
         if (!decoded.isTemporary || !decoded.requiresCompletion || !decoded.oauthProfile) {
           return res.status(400).json({ message: 'Invalid temporary token' });
         }
 
-        const oauthProfile = decoded.oauthProfile;
+        oauthProfile = decoded.oauthProfile;
         console.log('Creating new user from OAuth profile:', oauthProfile);
+      } catch (tokenError) {
+        console.error('Temporary token verification error:', tokenError);
+        return res.status(400).json({ 
+          message: 'Invalid or expired temporary token. Please restart the OAuth process.',
+          requiresReauth: true
+        });
+      }
 
-        // Validate required fields are provided
-        if (!phone || !lastName) {
+      // Validate required fields are provided
+      if (!phone || !lastName) {
+        // Generate a new temporary token with the same OAuth profile to allow retry
+        const newTempToken = jwt.sign({
+          oauthProfile: oauthProfile,
+          isTemporary: true,
+          requiresCompletion: true
+        }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+        return res.status(400).json({ 
+          message: 'Phone number and last name are required to complete registration',
+          tempToken: newTempToken // Provide new token for retry
+        });
+      }
+
+      // Format the phone number
+      let formattedPhone = phone.trim();
+      if (!formattedPhone.startsWith('+')) {
+        const cleanPhone = formattedPhone.replace(/\D/g, '');
+        if (cleanPhone.length === 10) {
+          formattedPhone = `+1${cleanPhone}`;
+        } else if (cleanPhone.length === 11 && cleanPhone.startsWith('1')) {
+          formattedPhone = `+${cleanPhone}`;
+        } else {
+          formattedPhone = `+1${cleanPhone}`;
+        }
+      }
+
+      // Validate phone format
+      const phoneRegex = /^\+\d{10,15}$/;
+      if (!phoneRegex.test(formattedPhone)) {
+        // Generate a new temporary token to allow retry
+        const newTempToken = jwt.sign({
+          oauthProfile: oauthProfile,
+          isTemporary: true,
+          requiresCompletion: true
+        }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+        return res.status(400).json({ 
+          message: 'Please enter a valid phone number. Format: +15149127545',
+          tempToken: newTempToken // Provide new token for retry
+        });
+      }
+
+      // Check if phone or email is already in use
+      const existingUser = await User.findOne({
+        $or: [
+          { email: oauthProfile.email.toLowerCase() },
+          { phone: formattedPhone }
+        ]
+      });
+
+      if (existingUser) {
+        // Generate a new temporary token to allow retry with different phone
+        const newTempToken = jwt.sign({
+          oauthProfile: oauthProfile,
+          isTemporary: true,
+          requiresCompletion: true
+        }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+        if (existingUser.email === oauthProfile.email.toLowerCase()) {
           return res.status(400).json({ 
-            message: 'Phone number and last name are required to complete registration'
+            message: 'This email is already registered',
+            tempToken: newTempToken
           });
         }
-
-        // Format the phone number
-        let formattedPhone = phone.trim();
-        if (!formattedPhone.startsWith('+')) {
-          const cleanPhone = formattedPhone.replace(/\D/g, '');
-          if (cleanPhone.length === 10) {
-            formattedPhone = `+1${cleanPhone}`;
-          } else if (cleanPhone.length === 11 && cleanPhone.startsWith('1')) {
-            formattedPhone = `+${cleanPhone}`;
-          } else {
-            formattedPhone = `+1${cleanPhone}`;
-          }
-        }
-
-        // Validate phone format
-        const phoneRegex = /^\+\d{10,15}$/;
-        if (!phoneRegex.test(formattedPhone)) {
+        if (existingUser.phone === formattedPhone) {
           return res.status(400).json({ 
-            message: 'Please enter a valid phone number. Format: +15149127545' 
+            message: 'This phone number is already registered. Please use a different phone number.',
+            tempToken: newTempToken,
+            field: 'phone'
           });
         }
-
-        // Check if phone or email is already in use
-        const existingUser = await User.findOne({
-          $or: [
-            { email: oauthProfile.email.toLowerCase() },
-            { phone: formattedPhone }
-          ]
-        });
-
-        if (existingUser) {
-          if (existingUser.email === oauthProfile.email.toLowerCase()) {
-            return res.status(400).json({ message: 'This email is already registered' });
-          }
-          if (existingUser.phone === formattedPhone) {
-            return res.status(400).json({ message: 'This phone number is already registered' });
-          }
+      }      // Create Stripe customer
+      const stripeCustomer = await createCustomer({
+        email: oauthProfile.email,
+        name: `${oauthProfile.firstName} ${lastName.trim()}`,
+        metadata: { 
+          userId: oauthProfile.email,
+          provider: oauthProfile.provider
         }
+      });
 
-        // Create Stripe customer
-        const stripeCustomer = await createCustomer({
-          email: oauthProfile.email,
-          name: `${oauthProfile.firstName} ${lastName.trim()}`,
-          metadata: { 
-            userId: oauthProfile.email,
-            provider: oauthProfile.provider
-          }
-        });
+      // Create the new user with complete profile
+      const newUser = await User.create({
+        email: oauthProfile.email.toLowerCase(),
+        firstName: oauthProfile.firstName,
+        lastName: lastName.trim(),
+        phone: formattedPhone,
+        profileImage: oauthProfile.profileImage || '',
+        stripeCustomerId: stripeCustomer.id,
+        isEmailVerified: true, // Trust OAuth provider email verification
+        oauth: {
+          googleId: oauthProfile.googleId,
+          lastProvider: oauthProfile.provider,
+          isIncomplete: false,
+          needsPhoneNumber: false,
+          needsLastName: false
+        },
+        points: 100, // First time registration bonus
+        hasReceivedFirstLoginBonus: true
+      });
 
-        // Create the new user with complete profile
-        const newUser = await User.create({
-          email: oauthProfile.email.toLowerCase(),
-          firstName: oauthProfile.firstName,
-          lastName: lastName.trim(),
-          phone: formattedPhone,
-          profileImage: oauthProfile.profileImage || '',
-          stripeCustomerId: stripeCustomer.id,
-          isEmailVerified: true, // Trust OAuth provider email verification
-          oauth: {
-            googleId: oauthProfile.googleId,
-            lastProvider: oauthProfile.provider,
-            isIncomplete: false,
-            needsPhoneNumber: false,
-            needsLastName: false
-          },
-          points: 100, // First time registration bonus
-          hasReceivedFirstLoginBonus: true
-        });
+      console.log('Created new user:', {
+        id: newUser._id,
+        email: newUser.email,
+        phone: newUser.phone,
+        points: newUser.points
+      });
 
-        console.log('Created new user:', {
+      // Generate authentication token
+      const token = jwt.sign(
+        { id: newUser._id },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      return res.status(201).json({
+        message: 'Profile completed successfully! You received 100 bonus points!',
+        user: {
           id: newUser._id,
           email: newUser.email,
+          firstName: newUser.firstName,
+          lastName: newUser.lastName,
           phone: newUser.phone,
-          points: newUser.points
-        });
-
-        // Generate authentication token
-        const token = jwt.sign(
-          { id: newUser._id },
-          process.env.JWT_SECRET,
-          { expiresIn: '24h' }
-        );
-
-        return res.status(201).json({
-          message: 'Profile completed successfully! You received 100 bonus points!',
-          user: {
-            id: newUser._id,
-            email: newUser.email,
-            firstName: newUser.firstName,
-            lastName: newUser.lastName,
-            phone: newUser.phone,
-            points: newUser.points,
-            isEmailVerified: newUser.isEmailVerified,
-            hasReceivedFirstLoginBonus: newUser.hasReceivedFirstLoginBonus,
-            role: newUser.role
-          },
-          token,
-          isComplete: true,
-          bonusAwarded: true
-        });
-
-      } catch (tokenError) {
-        console.error('Temporary token error:', tokenError);
-        return res.status(400).json({ message: 'Invalid or expired temporary token' });
-      }
+          points: newUser.points,
+          isEmailVerified: newUser.isEmailVerified,
+          hasReceivedFirstLoginBonus: newUser.hasReceivedFirstLoginBonus,
+          role: newUser.role
+        },
+        token,
+        isComplete: true,
+        bonusAwarded: true
+      });
     }
 
     // Handle existing user profile completion
