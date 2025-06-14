@@ -196,13 +196,25 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
         toast.error('Profile completion failed. Please try again.');
       }    } catch (error) {
       console.error('Profile completion error:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to complete profile. Please try again.';
-        // Handle new temporary token for retry
-      if (error.response?.data?.tempToken) {
+      console.error('Error response data:', error.response?.data);
+      
+      const errorData = error.response?.data;
+      const errorMessage = errorData?.message || 'Failed to complete profile. Please try again.';
+      
+      // Log detailed error information for debugging
+      if (errorData?.error) {
+        console.error('Server error details:', errorData.error);
+      }
+      if (errorData?.debug) {
+        console.error('Debug information:', errorData.debug);
+      }
+      
+      // Handle new temporary token for retry
+      if (errorData?.tempToken) {
         // Update the user object with the new temporary token
         const updatedUser = {
           ...currentUser,
-          tempToken: error.response.data.tempToken
+          tempToken: errorData.tempToken
         };
         setCurrentUser(updatedUser);
         
@@ -214,22 +226,45 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
         console.log('Received new temporary token for retry');
       }
       
-      // Handle specific field errors
-      if (errorMessage.includes('phone number is already')) {
+      // Handle specific error types
+      if (errorData?.error?.type === 'duplicate') {
+        const field = errorData.error.field;
+        setFormErrors({
+          [field]: `This ${field} is already registered with another account. Please use a different ${field}.`
+        });
+      } else if (errorData?.error?.type === 'validation') {
+        // Handle validation errors
+        const validationErrors = {};
+        if (errorData.error.fields) {
+          errorData.error.fields.forEach(field => {
+            validationErrors[field] = `Invalid ${field} format`;
+          });
+        }
+        setFormErrors(validationErrors);
+      } else if (errorData?.error?.type === 'token' || errorData?.error?.type === 'token_expired') {
+        // Token is invalid, need to restart OAuth flow
+        toast.error('Your session has expired. Please sign in again.');
+        navigate('/login');
+        return;
+      } else if (errorMessage.includes('phone number is already')) {
         setFormErrors({ phone: 'This phone number is already registered with another account. Please use a different number.' });
       } else if (errorMessage.includes('email is already registered')) {
         toast.error('This email is already registered. Please contact support if you believe this is an error.');
-      } else if (error.response?.data?.field) {
+      } else if (errorData?.field) {
         setFormErrors({
-          [error.response.data.field]: errorMessage
+          [errorData.field]: errorMessage
         });
-      } else if (error.response?.data?.requiresReauth) {
+      } else if (errorData?.requiresReauth) {
         // Token is completely invalid, need to restart OAuth flow
         toast.error('Your session has expired. Please sign in again.');
         navigate('/login');
         return;
       } else {
-        toast.error(errorMessage);
+        // Show detailed error message for debugging
+        const detailMessage = errorData?.debug 
+          ? `${errorMessage} (${errorData.debug.name}: ${errorData.debug.originalMessage})`
+          : errorMessage;
+        toast.error(detailMessage);
       }
     } finally {
       setSubmitting(false);

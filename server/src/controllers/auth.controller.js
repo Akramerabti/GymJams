@@ -1116,10 +1116,73 @@ export const completeOAuthProfile = async (req, res) => {
       isComplete: !isStillIncomplete,
       bonusAwarded
     });
-
   } catch (error) {
     console.error('Complete OAuth Profile error:', error);
-    res.status(500).json({ message: 'Error completing profile' });
+    
+    // Provide detailed error information for debugging
+    let errorMessage = 'Error completing profile';
+    let errorDetails = {};
+    
+    // Check for specific error types
+    if (error.name === 'ValidationError') {
+      // Mongoose validation error
+      errorMessage = 'Validation failed';
+      errorDetails = {
+        type: 'validation',
+        fields: Object.keys(error.errors),
+        details: error.errors
+      };
+    } else if (error.code === 11000) {
+      // MongoDB duplicate key error
+      const field = Object.keys(error.keyPattern)[0];
+      errorMessage = `This ${field} is already registered`;
+      errorDetails = {
+        type: 'duplicate',
+        field: field,
+        value: error.keyValue[field]
+      };
+    } else if (error.name === 'JsonWebTokenError') {
+      // JWT token error
+      errorMessage = 'Invalid authentication token';
+      errorDetails = {
+        type: 'token',
+        details: error.message
+      };
+    } else if (error.name === 'TokenExpiredError') {
+      // JWT token expired
+      errorMessage = 'Authentication token has expired';
+      errorDetails = {
+        type: 'token_expired',
+        expiredAt: error.expiredAt
+      };
+    } else if (error.message) {
+      // Use the original error message if available
+      errorMessage = error.message;
+      errorDetails = {
+        type: 'general',
+        originalError: error.name || 'Unknown'
+      };
+    }
+    
+    // Log full error for server debugging
+    console.error('Full error details:', {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+      keyPattern: error.keyPattern,
+      keyValue: error.keyValue
+    });
+    
+    res.status(500).json({ 
+      message: errorMessage,
+      error: errorDetails,
+      debug: process.env.NODE_ENV === 'development' ? {
+        name: error.name,
+        code: error.code,
+        originalMessage: error.message
+      } : undefined
+    });
   }
 };
 
