@@ -1202,3 +1202,29 @@ export const checkOAuthAccount = async (req, res) => {
   }
 };
 
+// Cleanup broken profile image URLs
+export const cleanupProfileImage = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    // Clear the broken profile image URL from database
+    await User.findByIdAndUpdate(userId, {
+      $unset: { profileImage: 1 }
+    });
+
+    logger.info(`Cleaned up broken profile image for user ${userId}`);
+    
+    res.json({ 
+      message: 'Profile image URL cleaned up successfully',
+      profileImage: null 
+    });
+  } catch (error) {
+    logger.error('Cleanup profile image error:', error);
+    res.status(500).json({ message: 'Error cleaning up profile image' });
+  }
+};
+

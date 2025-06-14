@@ -55,7 +55,6 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
       setPreviewUrl(URL.createObjectURL(selectedFile));
     }
   };
-
   const handleUpload = async () => {
     if (!file) {
       toast.error('Please select a file first!');
@@ -65,6 +64,7 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
     setLoading(true);
 
     try {
+      console.log('🔄 Starting profile image upload...');
       const formData = new FormData();
       formData.append('profileImage', file);
 
@@ -74,12 +74,15 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
         },
       });
 
+      console.log('✅ Upload response:', response.data);
+
       if (response.data.profileImage) {
         // Construct the full URL if it's a relative path
         const fullImageUrl = response.data.profileImage.startsWith('http')
           ? response.data.profileImage
           : `${baseUrl}${response.data.profileImage}`;
 
+        console.log('🎯 New profile image URL:', fullImageUrl);
         setImageUrl(fullImageUrl);
         onUploadSuccess(fullImageUrl);
       }
@@ -88,7 +91,8 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
       setPreviewUrl('');
       toast.success('Profile image uploaded successfully!');
     } catch (error) {
-      console.error('Upload failed:', error);
+      console.error('❌ Upload failed:', error);
+      console.error('❌ Upload error details:', error.response?.data);
       toast.error('Failed to upload image. Please try again.');
     } finally {
       setLoading(false);
@@ -114,9 +118,15 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
               }}
               onError={(e) => {
                 console.error('❌ Image load error:', e.target.src);
-                console.error('❌ Error details:', e);
+                console.error('❌ This likely means the file doesn\'t exist in Supabase storage');
                 e.target.onerror = null; // Prevent infinite loop
                 e.target.src = fallbackAvatarUrl; // Use fallback image URL
+                
+                // If this is a Supabase URL that failed, clear it from state
+                if (e.target.src.includes('supabase.co')) {
+                  console.log('🧹 Clearing broken Supabase URL from state');
+                  setImageUrl('');
+                }
               }}
             />
           )}

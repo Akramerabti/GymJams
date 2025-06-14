@@ -1,7 +1,7 @@
 import express from 'express';
 import { verifyEmail, register, login, getCoach,deleteAccount , getCoachById, getProfile, 
     updateProfile, validateToken, resendVerificationEmail, validatePhone, forgotPassword,
-     resetPassword, logout, loginWithPhone, registerWithPhone, loginWithTokenFORPHONE, completeOAuthProfile} from '../controllers/auth.controller.js';
+     resetPassword, logout, loginWithPhone, registerWithPhone, loginWithTokenFORPHONE, completeOAuthProfile, cleanupProfileImage} from '../controllers/auth.controller.js';
 import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
 import { requirePhone, requireCompleteProfile } from '../middleware/requirePhone.middleware.js';
 import { validateRegistration, validateLogin, validatePasswordReset } from '../middleware/validate.middleware.js';
@@ -68,8 +68,7 @@ router.get('/google',
       }
     }
   );
-  
- //Not protected
+
 
 // Protected routes
 router.get('/profile', authenticate, requirePhone, getProfile);
