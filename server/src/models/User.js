@@ -16,10 +16,12 @@ const userSchema = new mongoose.Schema({
       },
       message: 'This email is already registered'
     }
-  },
-  password: {
+  },  password: {
     type: String,
-    required: true,
+    required: function() {
+      // Password is only required for non-OAuth users
+      return !this.oauth || !this.oauth.googleId && !this.oauth.facebookId;
+    },
     minlength: 8,
     select: false // Don't include password by default
   },
