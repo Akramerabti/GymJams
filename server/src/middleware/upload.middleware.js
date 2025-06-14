@@ -1,33 +1,9 @@
 import multer from 'multer';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { fileURLToPath } from 'url';
-import fs from 'fs';
 
-// Get __dirname equivalent in ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Create absolute path to uploads directory
-const uploadsDir = path.join(__dirname, '../../uploads');
-
-// Ensure uploads directory exists
-if (!fs.existsSync(uploadsDir)) {
-  console.log(`[UPLOAD MIDDLEWARE] Creating uploads directory: ${uploadsDir}`);
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-console.log(`[UPLOAD MIDDLEWARE] Using uploads directory: ${uploadsDir}`);
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
-  }
-});
+// Use memory storage instead of disk storage for Supabase
+const storage = multer.memoryStorage();
 
 // Update file filter to accept document types for applications
 const fileFilter = (req, file, cb) => {

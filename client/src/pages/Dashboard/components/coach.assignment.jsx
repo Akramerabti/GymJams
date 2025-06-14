@@ -10,8 +10,8 @@ import subscriptionService from '../../../services/subscription.service';
   // Define the base URL
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-  // Fallback image URL
-  const fallbackAvatarUrl = `${baseUrl}/uploads/fallback-avatar.jpg`;
+  // Fallback image URL - use public asset instead of uploads
+  const fallbackAvatarUrl = `/fallback-avatar.jpg`;
 
 const CoachProfileModal = ({ coach, onClose }) => {
   // Function to render a detail row
@@ -174,13 +174,11 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
   const [selectedCoachForProfile, setSelectedCoachForProfile] = useState(null);
   const [retryCount, setRetryCount] = useState(0); // Track retry attempts
 
-  const navigate = useNavigate();
-
-    // Define the base URL
+  const navigate = useNavigate();    // Define the base URL
     const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-    // Fallback image URL
-    const fallbackAvatarUrl = `${baseUrl}/uploads/fallback-avatar.jpg`;
+    
+    // Fallback image URL - use public asset
+    const fallbackAvatarUrl = `/fallback-avatar.jpg`;
 
   const isBasicPlan = subscription?.subscription === 'basic';
 

@@ -9,6 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
 import FormData from 'form-data';
+import supabaseStorageService from '../services/supabaseStorage.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,14 +48,6 @@ const saveAttachmentsFromMailgun = async (messageUrl, attachments, applicationId
     return savedFiles;
   }
   
-  // Ensure uploads directory exists
-  const uploadsDir = path.join(__dirname, '../../uploads');
-  try {
-    await fs.mkdir(uploadsDir, { recursive: true });
-  } catch (error) {
-    logger.error(`Failed to create uploads directory:`, error);
-  }
-  
   for (let i = 0; i < attachments.length; i++) {
     const attachment = attachments[i];
     try {
@@ -63,24 +56,15 @@ const saveAttachmentsFromMailgun = async (messageUrl, attachments, applicationId
       const random = Math.floor(Math.random() * 1000000);
       const fileExtension = path.extname(attachment.filename || '.pdf');
       const safeFilename = `signed_${applicationId}_${timestamp}_${random}${fileExtension}`;
-      const filePath = path.join(uploadsDir, safeFilename);
+      
+      let fileBuffer;
       
       // Handle multipart form data with buffer (from req.files)
       if (attachment.buffer && messageUrl === 'multipart-form-data') {
-        await fs.writeFile(filePath, attachment.buffer);
-        
-        savedFiles.push({
-          originalName: attachment.filename,
-          savedPath: `uploads/${safeFilename}`,
-          contentType: attachment['content-type'] || 'application/octet-stream',
-          size: attachment.buffer.length
-        });
-        
-        continue;
+        fileBuffer = attachment.buffer;
       }
-      
-      // Skip download for test data or placeholder attachments
-      if (messageUrl === 'test-message-url' || messageUrl === 'accepted-event-no-storage' || !messageUrl || !process.env.MAILGUN_API_KEY) {
+      // Handle test data or placeholder attachments
+      else if (messageUrl === 'test-message-url' || messageUrl === 'accepted-event-no-storage' || !messageUrl || !process.env.MAILGUN_API_KEY) {
         // Create a placeholder file for testing or when real attachment isn't available
         let placeholderContent;
         if (messageUrl === 'accepted-event-no-storage') {
@@ -97,76 +81,67 @@ may need to be contacted to resend the attachment.`;
           placeholderContent = `Test attachment: ${attachment.filename}\nCreated at: ${new Date().toISOString()}\nApplication ID: ${applicationId}`;
         }
         
-        await fs.writeFile(filePath, placeholderContent);
-        
-        savedFiles.push({
-          originalName: attachment.filename,
-          savedPath: `uploads/${safeFilename}`,
-          contentType: attachment['content-type'] || 'application/octet-stream',
-          size: placeholderContent.length
-        });
-        
-        continue;
+        fileBuffer = Buffer.from(placeholderContent);
       }
-      
-      // Download attachment from Mailgun storage for real webhooks
-      // For stored messages, we need to use the attachment key/filename, not index
-      const attachmentKey = encodeURIComponent(attachment.filename);
-      const attachmentUrl = `${messageUrl}/attachments/${attachmentKey}`;
-      
-      // Create authorization header for Mailgun API
-      const auth = Buffer.from(`api:${process.env.MAILGUN_API_KEY}`).toString('base64');
-      
-      const response = await fetch(attachmentUrl, {
-        headers: {
-          'Authorization': `Basic ${auth}`
-        }
-      });
-      
-      if (!response.ok) {
-        // If direct attachment download fails, try alternative methods
-        // Sometimes Mailgun stores attachments differently, let's try index-based
-        const indexBasedUrl = `${messageUrl}/attachments/${i}`;
+      // Download from Mailgun storage for real webhooks
+      else {
+        // For stored messages, we need to use the attachment key/filename, not index
+        const attachmentKey = encodeURIComponent(attachment.filename);
+        const attachmentUrl = `${messageUrl}/attachments/${attachmentKey}`;
         
-        const indexResponse = await fetch(indexBasedUrl, {
+        // Create authorization header for Mailgun API
+        const auth = Buffer.from(`api:${process.env.MAILGUN_API_KEY}`).toString('base64');
+        
+        const response = await fetch(attachmentUrl, {
           headers: {
             'Authorization': `Basic ${auth}`
           }
         });
         
-        if (!indexResponse.ok) {
-          continue;
+        if (!response.ok) {
+          // If direct attachment download fails, try alternative methods
+          // Sometimes Mailgun stores attachments differently, let's try index-based
+          const indexBasedUrl = `${messageUrl}/attachments/${i}`;
+          
+          const indexResponse = await fetch(indexBasedUrl, {
+            headers: {
+              'Authorization': `Basic ${auth}`
+            }
+          });
+          
+          if (!indexResponse.ok) {
+            continue;
+          }
+          
+          fileBuffer = await indexResponse.buffer();
+        } else {
+          fileBuffer = await response.buffer();
         }
-        
-        const fileBuffer = await indexResponse.buffer();
-        
-        // Save to uploads folder
-        await fs.writeFile(filePath, fileBuffer);
-        
-        savedFiles.push({
-          originalName: attachment.filename,
-          savedPath: `uploads/${safeFilename}`,
-          contentType: attachment['content-type'] || 'application/octet-stream',
-          size: fileBuffer.length
-        });
-        
-        continue;
       }
       
-      const fileBuffer = await response.buffer();
-      
-      // Save to uploads folder
-      await fs.writeFile(filePath, fileBuffer);
-      
-      savedFiles.push({
-        originalName: attachment.filename,
-        savedPath: `uploads/${safeFilename}`,
-        contentType: attachment['content-type'] || 'application/octet-stream',
-        size: fileBuffer.length
-      });
+      if (fileBuffer) {
+        try {
+          // Upload to Supabase storage
+          const uploadResult = await supabaseStorageService.uploadFile(
+            fileBuffer,
+            safeFilename,
+            'signed-documents' // folder name
+          );
+          
+          savedFiles.push({
+            originalName: attachment.filename,
+            savedPath: uploadResult.url, // Use Supabase URL instead of local path
+            contentType: attachment['content-type'] || 'application/octet-stream',
+            size: fileBuffer.length
+          });
+        } catch (uploadError) {
+          logger.error(`Failed to upload attachment ${attachment.filename} to Supabase:`, uploadError);
+          // Continue with other attachments even if one fails
+        }
+      }
       
     } catch (error) {
-      logger.error(`Failed to download/save attachment ${attachment.filename}:`, error);
+      logger.error(`Failed to process attachment ${attachment.filename}:`, error);
     }
   }
   

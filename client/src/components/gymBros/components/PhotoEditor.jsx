@@ -218,13 +218,13 @@ const ImageCropperModal = ({ image, onCropComplete, onCropCancel }) => {
       setFormattedImageUrl(image);
       return;
     }
-    
-    // Case 2: If it's a server path starting with /uploads/, add the API base URL
+      // Case 2: If it's a server path starting with /uploads/, add the API base URL
+    // Note: This is legacy support - new uploads use Supabase URLs directly
     if (typeof image === 'string' && image.startsWith('/uploads/')) {
       // Construct the full URL to the API server where the actual file is
       const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       formattedUrl = `${apiBaseUrl}${image}`;
-      console.log('Formatted server path to API URL:', formattedUrl);
+      console.log('Formatted legacy server path to API URL:', formattedUrl);
       setFormattedImageUrl(formattedUrl);
       return;
     }
@@ -337,9 +337,9 @@ const handleSave = async () => {
       img.crossOrigin = "anonymous";
       console.log('Setting crossOrigin for cropping');
     }
-    
-    // WORKAROUND: For server-side images, try to pre-fetch the image with fetch API
+      // WORKAROUND: For server-side images, try to pre-fetch the image with fetch API
     // This can help with CORS issues in some cases
+    // Note: Legacy support for /uploads/ paths - new uploads use Supabase URLs
     if (imageSource.includes('/uploads/') && !imageSource.startsWith('blob:')) {
       try {
         console.log('Attempting to pre-fetch image with fetch API...');

@@ -80,7 +80,6 @@ GymBrosProfileSchema.pre('save', function (next) {
   if (!this.images) {
     this.images = [];
   }
-
   const normalizeImagePath = (imagePath) => {
     if (!imagePath) return null;
 
@@ -90,13 +89,12 @@ GymBrosProfileSchema.pre('save', function (next) {
       return null;
     }
 
-    if (typeof imagePath === 'string' && imagePath.includes('/gym-bros/')) {
-      console.warn('Fixing gym-bros path:', imagePath);
-      const filename = imagePath.split('/').pop();
-      return `/uploads/${filename}`;
+    // IMPORTANT: Don't modify Supabase URLs - they start with http/https
+    if (typeof imagePath === 'string' && imagePath.startsWith('http')) {
+      return imagePath;
     }
 
-    // Fix paths with duplicate "/uploads/" prefixes
+    // Fix paths with duplicate "/uploads/" prefixes (legacy only)
     if (typeof imagePath === 'string' && imagePath.match(/\/uploads.*\/uploads/)) {
       const filename = imagePath.split('/').pop();
       return `/uploads/${filename}`;
@@ -104,14 +102,14 @@ GymBrosProfileSchema.pre('save', function (next) {
 
     if (typeof imagePath === 'string' && imagePath.includes('\\')) {
       const normalized = imagePath.replace(/\\/g, '/');
-      if (!normalized.startsWith('/uploads/')) {
+      if (!normalized.startsWith('/uploads/') && !normalized.startsWith('http')) {
         const filename = normalized.split('/').pop();
         return `/uploads/${filename}`;
       }
       return normalized;
     }
 
-    // Ensure the path starts with "/uploads/"
+    // Only normalize legacy local paths (not Supabase URLs)
     if (typeof imagePath === 'string' && !imagePath.startsWith('/uploads/') && !imagePath.startsWith('http')) {
       return `/uploads/${imagePath.split('/').pop()}`;
     }

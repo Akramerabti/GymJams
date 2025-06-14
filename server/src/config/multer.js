@@ -1,17 +1,8 @@
 import multer from 'multer';
 import path from 'path';
 
-// Set up storage engine for Multer
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/'); // Save files in the 'uploads' folder
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname); // Get file extension
-    cb(null, uniqueSuffix + ext); // Unique filename
-  },
-});
+// Use memory storage instead of disk storage for Supabase
+const storage = multer.memoryStorage();
 
 // File filter to allow only images
 const fileFilter = (req, file, cb) => {

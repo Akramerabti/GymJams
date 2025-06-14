@@ -94,14 +94,15 @@ const helmetConfig = {
         "*.googletagservices.com", 
         "*.amazon-adsystem.com", 
         "*.stripe.com"
-      ],
-      connectSrc: [
+      ],      connectSrc: [
         "'self'", 
         // AdSense domains
         "*.googlesyndication.com",
         "*.googleadservices.com",
         "*.g.doubleclick.net",
         "*.google.com",
+        // Supabase domains for storage
+        "*.supabase.co",
         // Keep Ad Manager domains for future
         "*.doubleclick.net", 
         "*.googletagservices.com", 
@@ -128,7 +129,9 @@ const helmetConfig = {
         "*.g.doubleclick.net",
         "*.google.com", 
         "*.googletagservices.com", 
-        "*.amazon-adsystem.com"
+        "*.amazon-adsystem.com",
+        // Supabase domains for images
+        "*.supabase.co"
       ],
       styleSrc: ["'self'", "'unsafe-inline'", "*.googleapis.com"],
       fontSrc: ["'self'", "*.gstatic.com", "*.googleapis.com"]

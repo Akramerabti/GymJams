@@ -30,7 +30,7 @@ const CoachingHome = () => {
   // Define the base URL
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-  const fallbackAvatarUrl = `${baseUrl}/uploads/fallback-avatar.jpg`;
+  const fallbackAvatarUrl = `/fallback-avatar.jpg`;
 
   useEffect(() => {
     // Check for dark mode

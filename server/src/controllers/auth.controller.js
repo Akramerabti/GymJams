@@ -9,10 +9,10 @@ import stripe from '../config/stripe.js';
 import Subscription from '../models/Subscription.js';
 import PhoneVerification from '../models/PhoneVerification.js';
 import mongoose from 'mongoose';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { subscribe } from 'diagnostics_channel';
+import supabaseStorageService from '../services/supabaseStorage.service.js';
 
 const __filename = fileURLToPath(import.meta.url); // Get the file path
 const __dirname = path.dirname(__filename); // Get the directory name
@@ -280,15 +280,8 @@ export const getProfile = async (req, res) => {
     const user = await User.findById(req.user.id).select('-password');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
-    }
-
-    // Construct full URL for profile image
-    if (user.profileImage) {
-      const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000/api';
-      // Remove /api if it's already in the image path
-      const imagePath = user.profileImage.replace('/api', '');
-      user.profileImage = `${baseUrl}${imagePath}`;
-    }
+    }    // Profile image is already a full URL from Supabase, no need to modify
+    // (Legacy code that was adding base URL to relative paths has been removed)
 
     res.json(user);
   } catch (error) {
@@ -312,31 +305,40 @@ export const updateProfile = async (req, res) => {
     // Update basic fields for all users
     user.firstName = firstName || user.firstName;
     user.lastName = lastName || user.lastName;
-    user.phone = phone || user.phone;
-
-    // Update profile image if a file was uploaded
+    user.phone = phone || user.phone;    // Update profile image if a file was uploaded
     if (req.file) {
-      // If the user already has a profile image, delete the old file
-      if (user.profileImage) {
-        const oldImageName = user.profileImage.replace('/uploads/', '');
-        const oldImagePath = path.resolve(__dirname, '../..', 'uploads', oldImageName);
-
-        // Check if the file exists before attempting to delete it
-        if (fs.existsSync(oldImagePath)) {
-          fs.unlink(oldImagePath, (err) => {
-            if (err) {
-              console.error('Failed to delete old image:', err);
-            } else {
-              console.log('Old image deleted successfully:', oldImagePath);
+      try {
+        // Delete old image from Supabase if it exists
+        if (user.profileImage) {
+          const oldFilePath = supabaseStorageService.extractFilePathFromUrl(user.profileImage);
+          if (oldFilePath) {
+            try {
+              await supabaseStorageService.deleteFile(oldFilePath);
+              console.log('Old image deleted successfully from Supabase:', oldFilePath);
+            } catch (deleteError) {
+              console.error('Failed to delete old image from Supabase:', deleteError);
+              // Continue with upload even if delete fails
             }
-          });
-        } else {
-          console.warn('Old image does not exist:', oldImagePath);
+          }
         }
-      }
 
-      // Save the new file path
-      user.profileImage = `/uploads/${req.file.filename}`;
+        // Upload new image to Supabase
+        const uploadResult = await supabaseStorageService.uploadFile(
+          req.file.buffer,
+          req.file.originalname,
+          'profile-images' // folder name
+        );
+
+        // Save the Supabase URL
+        user.profileImage = uploadResult.url;
+        console.log('New image uploaded to Supabase:', uploadResult.url);
+      } catch (uploadError) {
+        console.error('Error uploading profile image to Supabase:', uploadError);
+        return res.status(500).json({ 
+          message: 'Failed to upload profile image',
+          error: uploadError.message 
+        });
+      }
     }
 
     // Update coach-specific fields if the user is a coach
@@ -574,22 +576,8 @@ export const getCoach = async (req, res) => {
 
     if (!coaches.length) {
       return res.status(404).json({ message: 'No coaches found' });
-    }
-
-    // Construct full URL for profile images
-    const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000/api';
-    const updatedCoaches = coaches.map(coach => {
-      if (coach.profileImage) {
-        const imagePath = coach.profileImage.startsWith('/api') 
-          ? coach.profileImage.replace('/api', '') 
-          : coach.profileImage;
-        coach.profileImage = `${baseUrl}${imagePath}`;
-        console.log('Updated image path:', coach.profileImage);
-      }
-      return coach;
-    });
-
-    res.json(updatedCoaches);
+    }    // Profile images are already full URLs from Supabase, no need to modify
+    // (Legacy code that was adding base URL to relative paths has been removed)
   } catch (error) {
     logger.error('Error fetching coaches:', error);
     res.status(500).json({ message: 'Error fetching coaches' });
@@ -611,16 +599,8 @@ export const getCoachById = async (req, res) => {
 
     if (!coach) {
       return res.status(404).json({ message: 'Coach not found' });
-    }
-
-    // Construct full URL for profile image
-    if (coach.profileImage) {
-      const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000/api';
-      const imagePath = coach.profileImage.startsWith('/api') 
-        ? coach.profileImage.replace('/api', '') 
-        : coach.profileImage;
-      coach.profileImage = `${baseUrl}${imagePath}`;
-    }
+    }    // Profile image is already a full URL from Supabase, no need to modify
+    // (Legacy code that was adding base URL to relative paths has been removed)
 
     res.json(coach);
   } catch (error) {

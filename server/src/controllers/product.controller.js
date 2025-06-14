@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Product from '../models/Product.js';
 import mongoose from 'mongoose';
+import supabaseStorageService from '../services/supabaseStorage.service.js';
 
 // Get all products
 export const getProducts = async (req, res) => {
@@ -46,28 +47,44 @@ export const addProduct = async (req, res) => {
       return res.status(400).json({ message: 'A product must have between 2 and 8 images.' });
     }
 
-    // Extract file paths from uploaded files
-    const images = req.files.map((file) => `/${file.path.replace(/\\/g, '/')}`);
-    
-    console.log('images:', images);
+    try {
+      // Upload files to Supabase
+      const uploadResults = await supabaseStorageService.uploadMultipleFiles(
+        req.files.map(file => ({
+          buffer: file.buffer,
+          originalname: file.originalname
+        })),
+        'products' // folder name
+      );
+      
+      // Extract URLs from upload results
+      const images = uploadResults.map(result => result.url);
+      
+      console.log('Product images uploaded to Supabase:', images);      // Create a new product
+      const newProduct = new Product({
+        name,
+        description,
+        price,
+        category,
+        stockQuantity,
+        imageUrls: images,
+        specs: JSON.parse(specs),
+        discount: JSON.parse(discount),
+      });
 
-    // Create a new product
-    const newProduct = new Product({
-      name,
-      description,
-      price,
-      category,
-      stockQuantity,
-      imageUrls: images,
-      specs: JSON.parse(specs),
-      discount: JSON.parse(discount),
-    });
+      // Save the product to the database
+      await newProduct.save();
 
-    // Save the product to the database
-    await newProduct.save();
-
-    // Respond with the created product
-    res.status(201).json(newProduct);
+      // Respond with the created product
+      res.status(201).json(newProduct);
+      
+    } catch (uploadError) {
+      console.error('Error uploading product images to Supabase:', uploadError);
+      return res.status(500).json({ 
+        message: 'Failed to upload product images',
+        error: uploadError.message 
+      });
+    }
   } catch (error) {
     console.error('Error adding product:', error);
     res.status(500).json({ message: error.message });

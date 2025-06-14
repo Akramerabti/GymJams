@@ -6,12 +6,12 @@ import User from '../models/User.js';
 import { getEffectiveUser, generateGuestToken } from '../middleware/guestUser.middleware.js';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { handleError } from '../middleware/error.middleware.js';
 import twilio from 'twilio';
 import logger from '../utils/logger.js';
+import supabaseStorageService from '../services/supabaseStorage.service.js';
 import { 
   getRecommendedProfiles,
   processFeedback,
@@ -407,11 +407,6 @@ export const uploadProfileImages = async (req, res) => {
     
     // Check if adding these files would exceed the 6 image limit
     if (profile.images && profile.images.length + req.files.length > 6) {
-      // Delete the uploaded files to clean up
-      req.files.forEach(file => {
-        fs.unlinkSync(file.path);
-      });
-      
       return res.status(400).json({ 
         success: false,
         error: 'Maximum 6 images allowed',
@@ -419,47 +414,59 @@ export const uploadProfileImages = async (req, res) => {
       });
     }
     
-    console.log('Uploading images for profile:', req.files);
+    console.log('Uploading images to Supabase for profile:', profile._id);
     
-    // Format image paths consistently - this is the key fix!
-    const imageUrls = req.files.map(file => {
-      // Make sure the path uses forward slashes and starts with /uploads/
-      const filename = path.basename(file.path);
-      return `/uploads/${filename}`;
-    });
-    
-    console.log('Formatted image URLs to save:', imageUrls);
-    
-    // Update the profile with new images - IMPORTANT: Don't modify here
-    // Let the pre-save hook handle any necessary normalization
-    
-    // For guest user, generate a new token with the updated profile ID
-    let responseData = {
-      success: true,
-      imageUrls,
-      message: `${req.files.length} image(s) uploaded successfully`
-    };
-    
-    if (effectiveUser.isGuest) {
-      const guestToken = generateGuestToken(effectiveUser.phone, profile._id);
-      responseData.guestToken = guestToken;
-    }
-    
-    res.status(201).json(responseData);
-  } catch (error) {
-    console.error('Error uploading profile images:', error);
-    
-    // Clean up any uploaded files on error
-    if (req.files && req.files.length > 0) {
-      req.files.forEach(file => {
-        try {
-          fs.unlinkSync(file.path);
-        } catch (unlinkError) {
-          console.error('Error deleting file after upload failure:', unlinkError);
-        }
+    try {
+      // Upload files to Supabase
+      const uploadResults = await supabaseStorageService.uploadMultipleFiles(
+        req.files.map(file => ({
+          buffer: file.buffer,
+          originalname: file.originalname
+        })),
+        'gym-bros' // folder name
+      );
+      
+      // Extract URLs from upload results
+      const imageUrls = uploadResults.map(result => result.url);
+      
+      console.log('Successfully uploaded to Supabase, URLs:', imageUrls);
+      
+      // Add new images to profile
+      if (!profile.images) {
+        profile.images = [];
+      }
+      profile.images.push(...imageUrls);
+      
+      // Update profile image if it's the first image
+      if (!profile.profileImage && imageUrls.length > 0) {
+        profile.profileImage = imageUrls[0];
+      }
+      
+      await profile.save();
+      
+      // For guest user, generate a new token with the updated profile ID
+      let responseData = {
+        success: true,
+        imageUrls,
+        message: `${req.files.length} image(s) uploaded successfully`
+      };
+      
+      if (effectiveUser.isGuest) {
+        const guestToken = generateGuestToken(effectiveUser.phone, profile._id);
+        responseData.guestToken = guestToken;
+      }
+      
+      res.status(201).json(responseData);
+    } catch (uploadError) {
+      console.error('Error uploading to Supabase:', uploadError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to upload images to storage',
+        message: uploadError.message
       });
     }
-    
+  } catch (error) {
+    console.error('Error uploading profile images:', error);
     handleError(error, req, res);
   }
 };
@@ -500,9 +507,9 @@ export const deleteProfileImage = async (req, res) => {
       });
     }
     
-    // Find the image in the profile's images array
-    const imagePath = profile.images.find(img => img.includes(imageId));
-    if (!imagePath) {
+    // Find the image URL that contains the imageId
+    const imageUrl = profile.images.find(img => img.includes(imageId));
+    if (!imageUrl) {
       return res.status(404).json({
         success: false,
         error: 'Image not found'
@@ -517,16 +524,26 @@ export const deleteProfileImage = async (req, res) => {
       });
     }
     
+    try {
+      // Extract file path from Supabase URL and delete from storage
+      const filePath = supabaseStorageService.extractFilePathFromUrl(imageUrl);
+      if (filePath) {
+        await supabaseStorageService.deleteFile(filePath);
+      }
+    } catch (storageError) {
+      console.error('Error deleting from Supabase storage:', storageError);
+      // Continue with database cleanup even if storage deletion fails
+    }
+    
     // Remove image from profile
     profile.images = profile.images.filter(img => !img.includes(imageId));
-    await profile.save();
     
-    // Delete the file from the server
-    const filename = path.basename(imagePath);
-    const filePath = path.join('uploads', 'gym-bros', filename);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    // If this was the profile image, set the first remaining image as profile image
+    if (profile.profileImage && profile.profileImage.includes(imageId)) {
+      profile.profileImage = profile.images.length > 0 ? profile.images[0] : null;
     }
+    
+    await profile.save();
     
     // Prepare response with optional guest token
     let responseData = {

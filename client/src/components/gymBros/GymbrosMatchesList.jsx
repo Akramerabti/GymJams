@@ -12,6 +12,7 @@ import useAuthStore from '../../stores/authStore';
 import GymBrosMatchChat from './components/GymBrosMatchChat';
 import ActiveStatus from './components/ActiveStatus';
 import EmptyStateMessage from './components/EmptyStateMessage';
+import { getPlaceholderUrl } from '../../utils/imageUtils';
 
 // Premium feature unlock cost
 const PREMIUM_FEATURES = {
@@ -303,20 +304,18 @@ const fetchMatchesAndLikes = async () => {
     // Vibrate if supported
     if (navigator.vibrate) {
       navigator.vibrate([100, 50, 100]);
-    }
-  };
+    }  };
   
   // Format image URL helper
   const formatImageUrl = (url) => {
-    if (!url) return "/api/placeholder/400/400";
+    if (!url) return getPlaceholderUrl(400, 400);
     
-    if (url.startsWith('blob:')) {
-      return url;
-    } else if (url.startsWith('http')) {
+    if (url.startsWith('blob:') || url.startsWith('http')) {
       return url;
     } else {
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
+      const separator = baseUrl.endsWith('/') ? '' : '';
+      return `${baseUrl}${separator}${url.startsWith('/') ? url : `/${url}`}`;
     }
   };
   

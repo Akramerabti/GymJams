@@ -2,20 +2,27 @@
 
 export const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-export const formatImageUrl = (imageUrl, fallbackUrl = "/api/placeholder/400/600") => {
-  if (!imageUrl) return fallbackUrl;
+// Create placeholder URLs that avoid double /api/ prefix
+export const getPlaceholderUrl = (width = 400, height = 600) => {
+  return `${baseUrl}/placeholder/${width}/${height}`;
+};
+
+export const formatImageUrl = (imageUrl, fallbackUrl = null) => {
+  if (!imageUrl) return fallbackUrl || getPlaceholderUrl(400, 600);
   
-  // If it's already a blob URL or a full URL, return as is
+  // If it's already a blob URL or a full URL (including Supabase), return as is
   if (imageUrl.startsWith('blob:') || imageUrl.startsWith('http')) {
     return imageUrl;
   }
   
-  // If it starts with a slash, append to the base URL
+  // For legacy local files that start with a slash
   if (imageUrl.startsWith('/')) {
-    return `${baseUrl}${imageUrl}`;
+    // Avoid double slashes - check if baseUrl already ends with slash
+    const separator = baseUrl.endsWith('/') ? '' : '';
+    return `${baseUrl}${separator}${imageUrl}`;
   }
   
-  // Otherwise, assume it's a relative path and add the full path
+  // For relative paths (legacy)
   return `${baseUrl}/${imageUrl}`;
 };
 
@@ -36,16 +43,16 @@ export const isServerUrl = (url) => {
   
   return !url.startsWith('blob:') && (
     url.startsWith('http') || 
-    url.startsWith('/api/') || 
-    url.startsWith('/uploads/')
+    url.startsWith('/api/') ||
+    url.startsWith('/uploads/') // Keep support for legacy paths
   );
 };
 
-export const createImageErrorHandler = (fallbackUrl = "/api/placeholder/400/600") => {
+export const createImageErrorHandler = (fallbackWidth = 400, fallbackHeight = 600) => {
   return (e) => {
     console.error('Image load error:', e.target.src);
     e.target.onerror = null; // Prevent infinite error loop
-    e.target.src = fallbackUrl;
+    e.target.src = getPlaceholderUrl(fallbackWidth, fallbackHeight);
   };
 };
 

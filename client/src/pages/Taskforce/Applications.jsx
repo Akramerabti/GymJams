@@ -86,12 +86,11 @@ const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignatu
     
     // Remove leading slash if present
     const cleanPath = normalizedPath.replace(/^\/+/, '');
-    
-    // Get the API base URL (e.g., http://localhost:5000/api)
+      // Get the API base URL (e.g., http://localhost:5000/api)
     const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
     
     // Construct the full URL for file access
-    // The server serves files at /api/uploads/, so we need to append the file path
+    // Files are now served from Supabase storage
     const fullUrl = `${apiBaseUrl}/${cleanPath}`;
     
     return fullUrl;

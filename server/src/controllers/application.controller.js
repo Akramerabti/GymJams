@@ -6,6 +6,7 @@ import { sendEmail } from '../utils/email.js';
 import path from 'path';
 import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
+import supabaseStorageService from '../services/supabaseStorage.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -27,8 +28,7 @@ export const submitApplication = async (req, res) => {
       });
 
     }
-    
-    const newApplication = new Application({
+      const newApplication = new Application({
       name,
       email,
       phone,
@@ -36,11 +36,27 @@ export const submitApplication = async (req, res) => {
       message,
       portfolioUrl
     });
-      if (req.file) {
-      // Store relative path for database (uploads/filename.ext)
-      const relativePath = path.relative(path.join(__dirname, '../..'), req.file.path);
-      newApplication.resume = relativePath.replace(/\\/g, '/'); // Normalize path separators
-      console.log(`[APPLICATION] File uploaded: ${req.file.path} -> stored as: ${newApplication.resume}`);
+    
+    if (req.file) {
+      try {
+        // Upload resume to Supabase
+        const uploadResult = await supabaseStorageService.uploadFile(
+          req.file.buffer,
+          req.file.originalname,
+          'resumes' // folder name
+        );
+        
+        // Store Supabase URL in database
+        newApplication.resume = uploadResult.url;
+        console.log(`[APPLICATION] Resume uploaded to Supabase: ${uploadResult.url}`);
+      } catch (uploadError) {
+        console.error('[APPLICATION] Error uploading resume to Supabase:', uploadError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload resume',
+          error: uploadError.message
+        });
+      }
     }
     
     await newApplication.save();

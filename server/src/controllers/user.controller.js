@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
 import logger from '../utils/logger.js';
 import Subscription from '../models/Subscription.js';
+import supabaseStorageService from '../services/supabaseStorage.service.js';
 
 
 export const getProfile = async (req, res) => {
@@ -335,9 +336,23 @@ export const dailyCount = async (req, res) => {
 export const uploadFile = async (req, res) => {
   console.log('Uploaded files:', req.files);
   try {
-    const files = req.files.map((file) => ({
-      path: file.path, // File path on the server
-      type: file.mimetype.startsWith('image') ? 'image' : 'video', // Determine file type
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No files uploaded' });
+    }
+
+    // Upload files to Supabase
+    const uploadResults = await supabaseStorageService.uploadMultipleFiles(
+      req.files.map(file => ({
+        buffer: file.buffer,
+        originalname: file.originalname
+      })),
+      'user-uploads' // folder name
+    );
+
+    // Map results to expected format
+    const files = uploadResults.map((result) => ({
+      path: result.url, // Use Supabase URL instead of local path
+      type: result.url.includes('image') || /\.(jpg|jpeg|png|gif|webp)$/i.test(result.url) ? 'image' : 'video',
     }));
 
     res.status(200).json({ files });

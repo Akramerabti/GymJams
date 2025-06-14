@@ -3,6 +3,7 @@ import { Button } from '../ui/button';
 import { Image, Camera } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../../services/api';
+import { getPlaceholderUrl } from '../../utils/imageUtils';
 
 const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
   const [file, setFile] = useState(null);
@@ -12,9 +13,8 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
 
   // Define the base URL
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-  // Fallback image URL
-  const fallbackAvatarUrl = `${baseUrl}/uploads/fallback-avatar.jpg`;
+  // Fallback image URL - use centralized placeholder function
+  const fallbackAvatarUrl = getPlaceholderUrl(400, 400);
 
   useEffect(() => {
     const fetchProfile = async () => {

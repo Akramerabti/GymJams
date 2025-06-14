@@ -3,6 +3,7 @@ import Cropper from 'react-easy-crop';
 import { Upload, X, Crop, Loader } from 'lucide-react';
 import gymbrosService from '../../services/gymbros.service';
 import { toast } from 'sonner';
+import { getPlaceholderUrl } from '../../utils/imageUtils';
 import { 
   DndContext, 
   closestCenter, 
@@ -51,17 +52,16 @@ const SortableImageItem = ({ url, index, onRemove, onEdit, isPlaceholder, select
 
   // Base URL for images
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
   // Format image URL
   const formatImageUrl = (imageUrl) => {
     if (!imageUrl) return null;
 
-    if (imageUrl.startsWith('blob:')) {
-      return imageUrl;
-    } else if (imageUrl.startsWith('http')) {
+    if (imageUrl.startsWith('blob:') || imageUrl.startsWith('http')) {
       return imageUrl;
     } else {
-      return `${baseUrl}${imageUrl}`;
+      // For legacy local files - avoid double slashes
+      const separator = baseUrl.endsWith('/') ? '' : '';
+      return `${baseUrl}${separator}${imageUrl.startsWith('/') ? imageUrl : '/' + imageUrl}`;
     }
   };
 
@@ -90,14 +90,13 @@ const SortableImageItem = ({ url, index, onRemove, onEdit, isPlaceholder, select
       ref={setNodeRef}
       style={style}
       className="relative aspect-[7/10] border-2 border-solid border-gray-200 rounded-lg overflow-hidden"
-    >
-      <img
+    >      <img
         src={formatImageUrl(url)}
         alt={`Upload ${index}`}
         className="w-full h-full object-cover"
         onError={(e) => {
           e.target.onerror = null;
-          e.target.src = "/api/placeholder/400/400";
+          e.target.src = getPlaceholderUrl(400, 400);
         }}
       />
       
@@ -154,16 +153,15 @@ const SortableImageItem = ({ url, index, onRemove, onEdit, isPlaceholder, select
 // Drag preview component
 const DragPreview = ({ url }) => {
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-  
-  const formatImageUrl = (imageUrl) => {
+    const formatImageUrl = (imageUrl) => {
     if (!imageUrl) return null;
     
-    if (imageUrl.startsWith('blob:')) {
-      return imageUrl;
-    } else if (imageUrl.startsWith('http')) {
+    if (imageUrl.startsWith('blob:') || imageUrl.startsWith('http')) {
       return imageUrl;
     } else {
-      return `${baseUrl}${imageUrl}`;
+      // For legacy local files - avoid double slashes
+      const separator = baseUrl.endsWith('/') ? '' : '';
+      return `${baseUrl}${separator}${imageUrl.startsWith('/') ? imageUrl : '/' + imageUrl}`;
     }
   };
 
@@ -178,10 +176,9 @@ const DragPreview = ({ url }) => {
       <img 
         src={formatImageUrl(url)}
         alt="Dragged image"
-        className="w-full h-full object-cover"
-        onError={(e) => {
+        className="w-full h-full object-cover"        onError={(e) => {
           e.target.onerror = null;
-          e.target.src = "/api/placeholder/400/400";
+          e.target.src = getPlaceholderUrl(400, 400);
         }}
       />
       <div className="absolute inset-0 bg-blue-500 bg-opacity-10"></div>
