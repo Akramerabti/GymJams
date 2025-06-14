@@ -45,7 +45,11 @@ const userSchema = new mongoose.Schema({
     sparse: true,
     validate: {
       validator: async function(phone) {
-        if (!phone || phone === '') return true; // Allow empty phone for OAuth users
+        // Convert empty strings to null/undefined for sparse index compatibility
+        if (!phone || phone === '') {
+          this.phone = undefined;
+          return true; // Allow empty phone for OAuth users
+        }
         if (!this.isModified('phone')) return true;
         
         // Validate phone format (should start with + and have 10-15 digits)
@@ -268,6 +272,15 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 
 userSchema.virtual('fullName').get(function() {
   return `${this.firstName} ${this.lastName}`;
+});
+
+// Pre-save hook to clean up empty phone values
+userSchema.pre('save', function(next) {
+  // Convert empty phone strings to undefined to work properly with sparse unique index
+  if (this.phone === '' || this.phone === null) {
+    this.phone = undefined;
+  }
+  next();
 });
 
 userSchema.post('save', function(error, doc, next) {

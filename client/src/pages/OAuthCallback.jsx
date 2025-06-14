@@ -20,10 +20,10 @@ const OAuthCallback = () => {
     phone: false,
     lastName: false
   });
-  
-  // Extract token and params from URL
+    // Extract token and params from URL
   const urlParams = new URLSearchParams(location.search);
   const authToken = urlParams.get('token');
+  const tempToken = urlParams.get('tempToken');
   const isIncomplete = urlParams.get('incomplete') === 'true';
   
   // Extract error if any
@@ -32,6 +32,28 @@ const OAuthCallback = () => {
   useEffect(() => {
     // Handle authentication with the token from OAuth provider
     const authenticateWithToken = async () => {
+      // Handle temporary token case (new user needs to complete profile)
+      if (tempToken && isIncomplete) {
+        try {
+          // For temporary tokens, we need to determine what fields are missing
+          // The CompleteOAuthProfile component will handle the tempToken
+          setCurrentUser({ tempToken }); // Pass the temp token through
+          setMissingFields({
+            phone: true,  // Always need phone for new OAuth users
+            lastName: true // Always need lastName for new OAuth users
+          });
+          setNeedsCompletion(true);
+          setLoading(false);
+          return;
+        } catch (error) {
+          console.error('Temporary token handling error:', error);
+          setError('Failed to process authentication data');
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Handle regular authentication token
       if (!authToken) {
         setError('No authentication token found');
         setLoading(false);
@@ -42,7 +64,7 @@ const OAuthCallback = () => {
         // Attempt to login with the token
         const data = await loginWithToken(authToken);
         
-        // Check if profile completion is needed
+        // Check if profile completion is needed for existing users
         if (isIncomplete || (data?.user && data.user.oauth?.isIncomplete)) {
           const user = data.user;
           const needsPhone = !user.phone || user.phone === '' || user.oauth?.needsPhoneNumber;
@@ -86,7 +108,7 @@ const OAuthCallback = () => {
     }
     
     authenticateWithToken();
-  }, [authToken, loginWithToken, navigate, errorParam, isIncomplete]);
+  }, [authToken, tempToken, loginWithToken, navigate, errorParam, isIncomplete]);
 
   // Handle profile completion
   const handleProfileComplete = (updatedUser) => {

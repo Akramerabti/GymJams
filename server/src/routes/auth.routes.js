@@ -3,6 +3,7 @@ import { verifyEmail, register, login, getCoach,deleteAccount , getCoachById, ge
     updateProfile, validateToken, resendVerificationEmail, validatePhone, forgotPassword,
      resetPassword, logout, loginWithPhone, registerWithPhone, loginWithTokenFORPHONE, completeOAuthProfile} from '../controllers/auth.controller.js';
 import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
+import { requirePhone, requireCompleteProfile } from '../middleware/requirePhone.middleware.js';
 import { validateRegistration, validateLogin, validatePasswordReset } from '../middleware/validate.middleware.js';
 import passport from '../config/passport.js';
 import { generateToken } from '../utils/jwt.js';
@@ -29,23 +30,38 @@ router.post('/complete-oauth-profile', authenticate, completeOAuthProfile);
 
 router.get('/google', 
     passport.authenticate('google', { scope: ['profile', 'email'] })
-  );
-    router.get('/google/callback', 
+  );    router.get('/google/callback', 
     passport.authenticate('google', { session: false, failureRedirect: `${process.env.CLIENT_URL}/login?error=google-auth-failed` }),
     (req, res) => {
       try {
-        // Generate JWT token
-        const token = generateToken({ id: req.user._id });
-        
-        // Check if user profile is incomplete
-        const needsCompletion = req.user.oauth?.isIncomplete || false;
-        
-        // Redirect to frontend with token and completion status
-        const redirectUrl = needsCompletion 
-          ? `${process.env.CLIENT_URL}/oauth-callback?token=${token}&incomplete=true`
-          : `${process.env.CLIENT_URL}/oauth-callback?token=${token}`;
+        // Handle different OAuth response types
+        if (req.user.requiresCompletion) {
+          // User needs to complete profile - create a temporary token with OAuth data
+          let tempToken;
           
-        res.redirect(redirectUrl);
+          if (req.user.existingUser) {
+            // Existing user with incomplete profile
+            tempToken = generateToken({ 
+              id: req.user.existingUser._id,
+              isTemporary: true,
+              requiresCompletion: true 
+            });
+          } else {
+            // New user - store OAuth profile in temporary token
+            tempToken = generateToken({ 
+              oauthProfile: req.user.oauthProfile,
+              isTemporary: true,
+              requiresCompletion: true 
+            });
+          }
+          
+          // Redirect to profile completion page
+          return res.redirect(`${process.env.CLIENT_URL}/oauth-callback?tempToken=${tempToken}&incomplete=true`);
+        } else {
+          // Complete user - generate normal token
+          const token = generateToken({ id: req.user._id });
+          return res.redirect(`${process.env.CLIENT_URL}/oauth-callback?token=${token}`);
+        }
       } catch (error) {
         console.error('OAuth callback error:', error);
         res.redirect(`${process.env.CLIENT_URL}/login?error=oauth-processing-failed`);
@@ -56,8 +72,8 @@ router.get('/google',
  //Not protected
 
 // Protected routes
-router.get('/profile', authenticate, getProfile);
-router.put('/profile', authenticate, upload.single('profileImage'), updateProfile);
+router.get('/profile', authenticate, requirePhone, getProfile);
+router.put('/profile', authenticate, requirePhone, upload.single('profileImage'), updateProfile);
 
 router.post('/logout', authenticate, logout); // Add the logout route
 

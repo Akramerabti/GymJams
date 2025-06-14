@@ -21,12 +21,14 @@ import {
   validatePasswordReset,
 } from '../middleware/validate.middleware.js';
 import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
+import { requirePhone, requireCompleteProfile } from '../middleware/requirePhone.middleware.js';
 import upload from '../config/multer.js';
 
 const router = express.Router();
 
 // All user routes BELOW are protected
 router.use(authenticateJWT);
+router.use(requirePhone); // Ensure users have phone numbers for all protected routes
 
 router.post('/update-points', optionalAuthenticate, updatePoints);
 router.post('/change-password',  validatePasswordReset, changePassword);

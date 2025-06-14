@@ -1,5 +1,6 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
+import { requireCompleteProfile } from '../middleware/requirePhone.middleware.js';
 import {
   getCoachClients,
   getClientById,
@@ -20,8 +21,9 @@ import {
 
 const router = express.Router();
 
-// All routes are protected by authentication
+// All routes are protected by authentication and require complete profiles
 router.use(authenticate);
+router.use(requireCompleteProfile);
 
 // Coach client management routes
 router.get('/coach-clients', getCoachClients);

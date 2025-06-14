@@ -1,5 +1,6 @@
 import express from 'express';
 import { authenticate, optionalAuthenticate, isCoach } from '../middleware/auth.middleware.js';
+import { requirePhone, requireCompleteProfile } from '../middleware/requirePhone.middleware.js';
 import {
   getCurrentSubscription,
   createSetupIntent,
@@ -31,18 +32,18 @@ import upload from '../config/multer.js';
 
 const router = express.Router();
 
-router.get('/current', optionalAuthenticate, getCurrentSubscription);
-router.delete('/:subscriptionId', authenticate, cancelSubscription);
-router.post('/:subscriptionId/finish-month', authenticate, finishCurrentMonth);
-router.post('/create-intent', createSetupIntent);
-router.post('/handle-success', optionalAuthenticate, handleSubscriptionSuccess);
-router.post('/access', optionalAuthenticate, accessSubscription);
-router.get('/questionnaire-status', optionalAuthenticate, getQuestionnaireStatus);
-router.post('/submit-questionnaire', optionalAuthenticate, submitQuestionnaire);
-router.post('/assign-coach', optionalAuthenticate, assignCoach);
-router.post('/:subscriptionId/send-message', upload.array('files', 10), messaging);
-router.get('/:subscriptionId/messages', getMessages);
-router.put('/:subscriptionId/mark-read', optionalAuthenticate, markMessagesAsRead);
+router.get('/current', optionalAuthenticate, requireCompleteProfile, getCurrentSubscription);
+router.delete('/:subscriptionId', authenticate, requireCompleteProfile, cancelSubscription);
+router.post('/:subscriptionId/finish-month', authenticate, requireCompleteProfile, finishCurrentMonth);
+router.post('/create-intent', requireCompleteProfile, createSetupIntent);
+router.post('/handle-success', optionalAuthenticate, requireCompleteProfile, handleSubscriptionSuccess);
+router.post('/access', optionalAuthenticate, requireCompleteProfile, accessSubscription);
+router.get('/questionnaire-status', optionalAuthenticate, requireCompleteProfile, getQuestionnaireStatus);
+router.post('/submit-questionnaire', optionalAuthenticate, requireCompleteProfile, submitQuestionnaire);
+router.post('/assign-coach', optionalAuthenticate, requireCompleteProfile, assignCoach);
+router.post('/:subscriptionId/send-message', requireCompleteProfile, upload.array('files', 10), messaging);
+router.get('/:subscriptionId/messages', requireCompleteProfile, getMessages);
+router.put('/:subscriptionId/mark-read', optionalAuthenticate, requireCompleteProfile, markMessagesAsRead);
 
 router.post('/:subscriptionId/goals', optionalAuthenticate, addGoal);
 router.put('/:subscriptionId/goals/:goalId', optionalAuthenticate, updateGoal);

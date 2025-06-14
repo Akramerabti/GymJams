@@ -845,24 +845,147 @@ export const registerWithPhone = async (req, res) => {
 
 export const completeOAuthProfile = async (req, res) => {
   try {
-    const { phone, lastName } = req.body;
+    const { phone, lastName, tempToken } = req.body;
+    
+    console.log('Complete OAuth Profile - Request:', { phone, lastName, tempToken: !!tempToken });
+
+    // Handle temporary token case (new user creation from OAuth profile)
+    if (tempToken) {
+      try {
+        const decoded = jwt.verify(tempToken, process.env.JWT_SECRET);
+        
+        if (!decoded.isTemporary || !decoded.requiresCompletion || !decoded.oauthProfile) {
+          return res.status(400).json({ message: 'Invalid temporary token' });
+        }
+
+        const oauthProfile = decoded.oauthProfile;
+        console.log('Creating new user from OAuth profile:', oauthProfile);
+
+        // Validate required fields are provided
+        if (!phone || !lastName) {
+          return res.status(400).json({ 
+            message: 'Phone number and last name are required to complete registration'
+          });
+        }
+
+        // Format the phone number
+        let formattedPhone = phone.trim();
+        if (!formattedPhone.startsWith('+')) {
+          const cleanPhone = formattedPhone.replace(/\D/g, '');
+          if (cleanPhone.length === 10) {
+            formattedPhone = `+1${cleanPhone}`;
+          } else if (cleanPhone.length === 11 && cleanPhone.startsWith('1')) {
+            formattedPhone = `+${cleanPhone}`;
+          } else {
+            formattedPhone = `+1${cleanPhone}`;
+          }
+        }
+
+        // Validate phone format
+        const phoneRegex = /^\+\d{10,15}$/;
+        if (!phoneRegex.test(formattedPhone)) {
+          return res.status(400).json({ 
+            message: 'Please enter a valid phone number. Format: +15149127545' 
+          });
+        }
+
+        // Check if phone or email is already in use
+        const existingUser = await User.findOne({
+          $or: [
+            { email: oauthProfile.email.toLowerCase() },
+            { phone: formattedPhone }
+          ]
+        });
+
+        if (existingUser) {
+          if (existingUser.email === oauthProfile.email.toLowerCase()) {
+            return res.status(400).json({ message: 'This email is already registered' });
+          }
+          if (existingUser.phone === formattedPhone) {
+            return res.status(400).json({ message: 'This phone number is already registered' });
+          }
+        }
+
+        // Create Stripe customer
+        const stripeCustomer = await createCustomer({
+          email: oauthProfile.email,
+          name: `${oauthProfile.firstName} ${lastName.trim()}`,
+          metadata: { 
+            userId: oauthProfile.email,
+            provider: oauthProfile.provider
+          }
+        });
+
+        // Create the new user with complete profile
+        const newUser = await User.create({
+          email: oauthProfile.email.toLowerCase(),
+          firstName: oauthProfile.firstName,
+          lastName: lastName.trim(),
+          phone: formattedPhone,
+          profileImage: oauthProfile.profileImage || '',
+          stripeCustomerId: stripeCustomer.id,
+          isEmailVerified: true, // Trust OAuth provider email verification
+          oauth: {
+            googleId: oauthProfile.googleId,
+            lastProvider: oauthProfile.provider,
+            isIncomplete: false,
+            needsPhoneNumber: false,
+            needsLastName: false
+          },
+          points: 100, // First time registration bonus
+          hasReceivedFirstLoginBonus: true
+        });
+
+        console.log('Created new user:', {
+          id: newUser._id,
+          email: newUser.email,
+          phone: newUser.phone,
+          points: newUser.points
+        });
+
+        // Generate authentication token
+        const token = jwt.sign(
+          { id: newUser._id },
+          process.env.JWT_SECRET,
+          { expiresIn: '24h' }
+        );
+
+        return res.status(201).json({
+          message: 'Profile completed successfully! You received 100 bonus points!',
+          user: {
+            id: newUser._id,
+            email: newUser.email,
+            firstName: newUser.firstName,
+            lastName: newUser.lastName,
+            phone: newUser.phone,
+            points: newUser.points,
+            isEmailVerified: newUser.isEmailVerified,
+            hasReceivedFirstLoginBonus: newUser.hasReceivedFirstLoginBonus,
+            role: newUser.role
+          },
+          token,
+          isComplete: true,
+          bonusAwarded: true
+        });
+
+      } catch (tokenError) {
+        console.error('Temporary token error:', tokenError);
+        return res.status(400).json({ message: 'Invalid or expired temporary token' });
+      }
+    }
+
+    // Handle existing user profile completion
     const userId = req.user.id;
-
-    console.log('Complete OAuth Profile - Request:', { phone, lastName, userId });
-
-    // Get current user to check what fields are needed
     const currentUser = await User.findById(userId);
     if (!currentUser) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    console.log('Current user state:', {
+    console.log('Updating existing user profile:', {
       id: currentUser._id,
       phone: currentUser.phone,
       lastName: currentUser.lastName,
-      oauth: currentUser.oauth,
-      points: currentUser.points,
-      hasReceivedFirstLoginBonus: currentUser.hasReceivedFirstLoginBonus
+      oauth: currentUser.oauth
     });
 
     const updateFields = {};
@@ -874,21 +997,15 @@ export const completeOAuthProfile = async (req, res) => {
         return res.status(400).json({ message: 'Phone number cannot be empty' });
       }
 
-      // Format the phone number - ensure it starts with + and has country code
+      // Format the phone number
       let formattedPhone = phone.trim();
-      
-      // If it doesn't start with +, add +1 (US default)
       if (!formattedPhone.startsWith('+')) {
-        // Remove any non-digit characters
         const cleanPhone = formattedPhone.replace(/\D/g, '');
-        
-        // If it's a 10-digit US number, add +1
         if (cleanPhone.length === 10) {
           formattedPhone = `+1${cleanPhone}`;
         } else if (cleanPhone.length === 11 && cleanPhone.startsWith('1')) {
           formattedPhone = `+${cleanPhone}`;
         } else {
-          // For other cases, assume US and add +1
           formattedPhone = `+1${cleanPhone}`;
         }
       }
@@ -913,7 +1030,6 @@ export const completeOAuthProfile = async (req, res) => {
 
       updateFields.phone = formattedPhone;
       oauthUpdateFields['oauth.needsPhoneNumber'] = false;
-      console.log('Phone will be updated to:', formattedPhone);
     }
 
     // Validate and update lastName if provided
@@ -923,7 +1039,6 @@ export const completeOAuthProfile = async (req, res) => {
       }
       updateFields.lastName = lastName.trim();
       oauthUpdateFields['oauth.needsLastName'] = false;
-      console.log('Last name will be updated to:', lastName.trim());
     }
 
     // Check if profile will be complete after this update
@@ -933,26 +1048,16 @@ export const completeOAuthProfile = async (req, res) => {
 
     oauthUpdateFields['oauth.isIncomplete'] = isStillIncomplete;
 
-    console.log('Profile completion status:', {
-      stillNeedsPhone,
-      stillNeedsLastName,
-      isStillIncomplete,
-      currentHasReceivedBonus: currentUser.hasReceivedFirstLoginBonus
-    });
-
     // If profile is now complete and user hasn't received first login bonus, give it
     let bonusAwarded = false;
     if (!isStillIncomplete && !currentUser.hasReceivedFirstLoginBonus) {
       updateFields.points = (currentUser.points || 0) + 100;
       updateFields.hasReceivedFirstLoginBonus = true;
       bonusAwarded = true;
-      console.log('Awarding 100 point bonus! New points total:', updateFields.points);
     }
 
     // Combine all update fields
     const allUpdateFields = { ...updateFields, ...oauthUpdateFields };
-
-    console.log('All update fields:', allUpdateFields);
 
     // Update user profile
     const user = await User.findByIdAndUpdate(
@@ -964,15 +1069,6 @@ export const completeOAuthProfile = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-
-    console.log('Updated user:', {
-      id: user._id,
-      phone: user.phone,
-      lastName: user.lastName,
-      points: user.points,
-      hasReceivedFirstLoginBonus: user.hasReceivedFirstLoginBonus,
-      oauth: user.oauth
-    });
 
     // Return updated user with success message
     const responseMessage = bonusAwarded

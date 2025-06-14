@@ -129,8 +129,7 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete }) => {
       }));
     }
   };
-  
-  // Handle form submission
+    // Handle form submission
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     
@@ -160,10 +159,16 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete }) => {
       if (missingFields.phone) updateData.phone = formData.phone;
       if (missingFields.lastName) updateData.lastName = formData.lastName;
       
+      // Handle temporary token case (new user creation)
+      if (user.tempToken) {
+        updateData.tempToken = user.tempToken;
+        console.log('Sending profile completion with temp token');
+      }
+      
       console.log('Sending update data:', updateData);
       
       const response = await api.post('/auth/complete-oauth-profile', updateData, {
-        headers: {
+        headers: user.tempToken ? {} : {
           'Authorization': `Bearer ${token}`
         }
       });
@@ -172,6 +177,12 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete }) => {
       
       // Check if profile is now complete
       if (response.data.isComplete) {
+        // For new users with temp token, we need to handle the new auth token
+        if (user.tempToken && response.data.token) {
+          // Store the new token (this should be handled by auth store)
+          localStorage.setItem('token', response.data.token);
+        }
+        
         // Show success message
         if (response.data.bonusAwarded) {
           toast.success('Profile completed successfully! You received 100 bonus points!', {

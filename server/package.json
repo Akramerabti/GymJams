@@ -3,13 +3,13 @@
   "version": "1.0.0",
   "description": "GymShop E-commerce Backend",
   "main": "src/app.js",
-  "type": "module",
-  "scripts": {
+  "type": "module",  "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
     "test": "jest",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "migration:cleanup-phones": "node src/utils/cleanupEmptyPhones.js"
   },
   "keywords": [],
   "author": "",
