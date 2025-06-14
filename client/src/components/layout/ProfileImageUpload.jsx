@@ -3,25 +3,29 @@ import { Button } from '../ui/button';
 import { Image, Camera } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../../services/api';
-import { getPlaceholderUrl } from '../../utils/imageUtils';
+import { getPlaceholderUrl, getFallbackAvatarUrl } from '../../utils/imageUtils';
 
 const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [imageUrl, setImageUrl] = useState('');
-
+  const [loading, setLoading] = useState(false);  const [imageUrl, setImageUrl] = useState('');
   // Define the base URL
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-  // Fallback image URL - use centralized placeholder function
-  const fallbackAvatarUrl = getPlaceholderUrl(400, 400);
+  // Get fallback image URL from centralized function
+  const fallbackAvatarUrl = getFallbackAvatarUrl();
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         const response = await api.get('/auth/profile');
+        console.log('Full profile response:', response.data);
         if (response.data.profileImage) {
+          console.log('Profile image URL received:', response.data.profileImage);
+          console.log('Profile image URL length:', response.data.profileImage.length);
+          console.log('Profile image URL type:', typeof response.data.profileImage);
           setImageUrl(response.data.profileImage);
+        } else {
+          console.log('No profile image in response');
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
@@ -93,30 +97,28 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
 
   return (
     <div className="flex flex-col items-center">
-      <div className="relative">
-        <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-lg">
+      <div className="relative">        <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-lg">
           {previewUrl ? (
             <img
               src={previewUrl}
-              alt={fallbackAvatarUrl}
+              alt="Profile preview"
               className="w-full h-full object-cover"
-            />
-          ) : imageUrl ? (
+            />          ) : (
             <img
-              src={imageUrl}
-              alt={fallbackAvatarUrl}
+              src={imageUrl || fallbackAvatarUrl}
+              alt="Profile"
               className="w-full h-full object-cover"
               crossOrigin="anonymous"
+              onLoad={(e) => {
+                console.log('✅ Image loaded successfully:', e.target.src);
+              }}
               onError={(e) => {
-                console.error('Image load error:', imageUrl);
+                console.error('❌ Image load error:', e.target.src);
+                console.error('❌ Error details:', e);
                 e.target.onerror = null; // Prevent infinite loop
                 e.target.src = fallbackAvatarUrl; // Use fallback image URL
               }}
             />
-          ) : (
-            <div className="w-full h-full bg-blue-50 flex items-center justify-center">
-              <Image className="w-8 h-8 text-blue-300" />
-            </div>
           )}
         </div>
 

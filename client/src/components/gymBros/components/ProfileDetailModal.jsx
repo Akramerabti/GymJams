@@ -38,10 +38,9 @@ const ProfileDetailModal = ({
   const compatibilityScores = useMemo(() => {
     return calculateCompatibility(userProfile, profile);
   }, [userProfile, profile]);
-  
-  // Format image URL
+    // Format image URL
   const formatImageUrl = (imageUrl) => {
-    if (!imageUrl) return "/api/placeholder/400/600";
+    if (!imageUrl) return "/fallback.svg";
     
     if (imageUrl.startsWith('blob:')) {
       return imageUrl;
@@ -285,10 +284,9 @@ const ProfileDetailModal = ({
               <img 
                 src={formatImageUrl(image)} 
                 alt={`${profile.name} ${index + 1}`}
-                className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                onError={(e) => {
+                className="w-full h-full object-cover transition-transform group-hover:scale-105"                onError={(e) => {
                   e.target.onerror = null;
-                  e.target.src = "/api/placeholder/400/400";
+                  e.target.src = "/fallback.svg";
                 }}
               />
               {/* Primary photo indicator */}

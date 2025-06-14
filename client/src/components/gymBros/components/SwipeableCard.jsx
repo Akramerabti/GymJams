@@ -104,11 +104,9 @@ console.log('SwipeableCard rendered', profile);
       if (navigator.vibrate) {
         navigator.vibrate(20);
       }
-    };
-    // Enhanced error handling for image URLs
-    const formatImageUrl = (url) => {
-      // Default fallback image
-      const fallbackImage = "/api/placeholder/400/600";
+    };    // Enhanced error handling for image URLs
+    const formatImageUrl = (url) => {      // Default fallback image from public directory
+      const fallbackImage = getFallbackAvatarUrl();
       
       if (!url) {
         return fallbackImage;
@@ -142,13 +140,11 @@ console.log('SwipeableCard rendered', profile);
         // Fallback to profileImage if no images array or it's empty
         if (profile.profileImage) {
           return formatImageUrl(profile.profileImage);
-        }
-        
-        // Last resort fallback
-        return "/api/placeholder/400/600";
+        }        // Last resort fallback
+        return getFallbackAvatarUrl();
       } catch (error) {
         console.error('Error getting current image:', error);
-        return "/api/placeholder/400/600";
+        return getFallbackAvatarUrl();
       }
     };
     
@@ -363,10 +359,9 @@ console.log('SwipeableCard rendered', profile);
             <img 
               src={currentImage}
               alt={profile.name} 
-              className="w-full h-full object-cover"
-              onError={(e) => {
+              className="w-full h-full object-cover"              onError={(e) => {
                 e.target.onerror = null;
-                e.target.src = "/api/placeholder/400/600";
+                e.target.src = getFallbackAvatarUrl();
               }}
             />
             

@@ -7,8 +7,12 @@ export const getPlaceholderUrl = (width = 400, height = 600) => {
   return `${baseUrl}/placeholder/${width}/${height}`;
 };
 
+export const getFallbackAvatarUrl = () => {
+  return '/fallback.svg';
+};
+
 export const formatImageUrl = (imageUrl, fallbackUrl = null) => {
-  if (!imageUrl) return fallbackUrl || getPlaceholderUrl(400, 600);
+  if (!imageUrl) return fallbackUrl || getFallbackAvatarUrl();
   
   // If it's already a blob URL or a full URL (including Supabase), return as is
   if (imageUrl.startsWith('blob:') || imageUrl.startsWith('http')) {

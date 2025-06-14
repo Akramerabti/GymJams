@@ -3,7 +3,7 @@ import Cropper from 'react-easy-crop';
 import { Upload, X, Crop, Loader } from 'lucide-react';
 import gymbrosService from '../../services/gymbros.service';
 import { toast } from 'sonner';
-import { getPlaceholderUrl } from '../../utils/imageUtils';
+import { getPlaceholderUrl, getFallbackAvatarUrl } from '../../utils/imageUtils';
 import { 
   DndContext, 
   closestCenter, 
@@ -96,7 +96,7 @@ const SortableImageItem = ({ url, index, onRemove, onEdit, isPlaceholder, select
         className="w-full h-full object-cover"
         onError={(e) => {
           e.target.onerror = null;
-          e.target.src = getPlaceholderUrl(400, 400);
+          e.target.src = getFallbackAvatarUrl();
         }}
       />
       
@@ -178,7 +178,7 @@ const DragPreview = ({ url }) => {
         alt="Dragged image"
         className="w-full h-full object-cover"        onError={(e) => {
           e.target.onerror = null;
-          e.target.src = getPlaceholderUrl(400, 400);
+          e.target.src = getFallbackAvatarUrl();
         }}
       />
       <div className="absolute inset-0 bg-blue-500 bg-opacity-10"></div>

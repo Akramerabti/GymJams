@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Cropper from 'react-easy-crop';
 import { Upload, X, Crop, Loader, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { getFallbackAvatarUrl } from '../../../utils/imageUtils';
 import { 
   DndContext, 
   closestCenter, 
@@ -85,8 +86,7 @@ const style = {
       className={`relative aspect-[7/10] border-2 ${photo ? 'border-solid border-gray-200' : 'border-dashed border-gray-300'} rounded-lg overflow-hidden ${isDragging ? 'opacity-50' : 'opacity-100'}`}
     >
       {photo ? (
-        <>
-          <img 
+        <>          <img 
             src={getDisplayUrl(photo)}
             alt={`Photo ${index + 1}`}
             className="w-full h-full object-cover"
@@ -94,7 +94,7 @@ const style = {
             onError={(e) => {
               console.error(`Image load error for ${photo}`);
               e.target.onerror = null;
-              e.target.src = "/api/placeholder/400/600";
+              e.target.src = getFallbackAvatarUrl();
             }}
           />
           <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-20 transition-opacity duration-200 flex items-center justify-center">
@@ -177,15 +177,14 @@ const DragPreview = ({ url }) => {
         animation: 'pulse-grow 1.5s infinite',
         transform: 'rotate(-3deg)',
       }}
-    >
-      <img 
+    >      <img 
         src={getDisplayUrl(url)}
         alt="Dragged item"
         className="w-full h-full object-cover"
         crossOrigin="anonymous"
         onError={(e) => {
           e.target.onerror = null;
-          e.target.src = "/api/placeholder/400/600";
+          e.target.src = getFallbackAvatarUrl();
         }}
       />
       <div className="absolute inset-0 bg-blue-500 bg-opacity-10"></div>

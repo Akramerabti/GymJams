@@ -13,6 +13,7 @@ import api from '../services/api';
 import { motion, useAnimation, AnimatePresence } from 'framer-motion';
 import { useInView } from 'react-intersection-observer';
 import subscriptionService from '../services/subscription.service';
+import { getFallbackAvatarUrl } from '../utils/imageUtils';
 
 const CoachingHome = () => {
   const navigate = useNavigate();
@@ -25,15 +26,12 @@ const CoachingHome = () => {
   const [coaches, setCoaches] = useState([]);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
-  const [selectedVideo, setSelectedVideo] = useState(null);
-  // Define the base URL
+  const [selectedVideo, setSelectedVideo] = useState(null);  // Define the base URL
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-  const fallbackAvatarUrl = `/fallback-avatar.jpg`;
 
   // Helper function to format image URLs for Supabase compatibility
   const formatImageUrl = (imageUrl) => {
-    if (!imageUrl) return fallbackAvatarUrl;
+    if (!imageUrl) return getFallbackAvatarUrl();
     
     // If it's already a full URL (Supabase), use it directly
     if (imageUrl.startsWith('http')) {
@@ -593,11 +591,10 @@ const CoachingHome = () => {
                         <img 
                           src={formatImageUrl(coach.profileImage)} 
                           alt={`Coach ${coach.firstName}`}
-                          className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110"
-                          onError={(e) => {
+                          className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110"                          onError={(e) => {
                             console.error('Image load error for coach:', coach.profileImage);
                             e.target.onerror = null;
-                            e.target.src = fallbackAvatarUrl; 
+                            e.target.src = getFallbackAvatarUrl(); 
                           }}
                         />
                       ) : (
