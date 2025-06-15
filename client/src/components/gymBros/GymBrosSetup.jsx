@@ -802,16 +802,16 @@ const GymBrosSetup = ({ onProfileCreated }) => {
               }`} />
             )}
           </>
-        )}{/* Main content container - optimized for viewport */}
+        )}        {/* Main content container - optimized for viewport */}
         <div className="h-full flex flex-col p-2 sm:p-3 pb-6">
           <div className="w-full max-w-md mx-auto flex flex-col h-full">
-              {/* Progress bar - minimal height */}
-            <div className="w-full h-1.5 bg-white/20 rounded-full mb-2 flex-shrink-0">
+              {/* Progress bar - minimal height with more top spacing */}
+            <div className="w-full h-1.5 bg-white/20 rounded-full mb-2 flex-shrink-0 mt-8">
               <div
                 className="h-full bg-white/80 rounded-full transition-all duration-500 ease-out"
                 style={{ width: `${progress}%` }}
               />
-            </div>            {/* Swipe indicator */}
+            </div>{/* Swipe indicator */}
             {isDragging && (
               <div className="w-full flex justify-center mb-2">
                 <div className="bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 border border-white/30">
@@ -826,9 +826,9 @@ const GymBrosSetup = ({ onProfileCreated }) => {
                   </p>
                 </div>
               </div>
-            )}{/* Main content area - flexibly sized to fit available space */}
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden"
-                 style={{ maxHeight: 'calc(100vh - 160px)' }}>
+            )}            {/* Main content area - flexibly sized to fit available space */}
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden mt-6"
+                 style={{ maxHeight: 'calc(100vh - 200px)' }}>
               <AnimatePresence mode="wait" custom={direction}>                <motion.div
                   key={currentStep}
                   custom={direction}
@@ -870,28 +870,25 @@ const GymBrosSetup = ({ onProfileCreated }) => {
                   style={{ 
                     x: isDragging && !dragConstraints.current ? dragOffset : 0,
                     cursor: isDragging ? 'grabbing' : 'grab'
-                  }}
-                >{/* Step title and subtitle - Only show for non-welcome steps */}
+                  }}                >{/* Step title and subtitle - Only show for non-welcome steps */}
                   {!isWelcomeStep && (
-                    <div className="mb-2 flex-shrink-0">
-                      <div className="flex items-center mb-1">
+                    <div className="mb-6 flex-shrink-0 mt-4">
+                      <div className="flex items-center mb-2">
                         {steps[currentStep].icon}
                         <h2 className="text-base sm:text-lg font-bold ml-2 text-white drop-shadow-lg">{steps[currentStep].title}</h2>
                       </div>
-                      <p className="text-xs text-blue-100/80">{steps[currentStep].subtitle}</p>
+                      <p className="text-sm text-blue-100/80">{steps[currentStep].subtitle}</p>
                     </div>
-                  )}
-
-                  {/* Step component - flexible height with scroll if needed */}
+                  )}                  {/* Step component - flexible height with scroll if needed */}
                   <div className="flex-1 min-h-0 overflow-y-auto">
-                    <div className="w-full h-full flex items-center justify-center py-2">
+                    <div className="w-full h-full flex items-center justify-center py-4">
                       {steps[currentStep].component}
                     </div>
                   </div>
                 </motion.div>
               </AnimatePresence>
             </div>            {/* Navigation buttons - always visible at bottom with safe margin */}
-            <div className="navigation-container flex justify-between items-center mt-4 pt-3 mb-4 relative z-10 flex-shrink-0 border-t border-white/10">
+            <div className="navigation-container flex justify-between items-center mt-8 pt-4 mb-6 relative z-10 flex-shrink-0 border-t border-white/10">
               <button
                 onClick={goToPrevStepSwipe}
                 disabled={currentStep === 0}

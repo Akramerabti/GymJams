@@ -544,35 +544,39 @@ html.gymbros-setup-fullscreen {
 
 /* Navigation button positioning for GymBros setup */
 .gymbros-setup-fullscreen .navigation-container {
-  padding-bottom: 20px !important;
-  margin-bottom: 16px !important;
+  padding-bottom: 32px !important;
+  margin-bottom: 24px !important;
   min-height: 60px !important;
   position: relative;
   z-index: 100;
+  margin-top: 16px !important;
 }
 
 /* Ensure navigation stays above viewport bottom */
 @media (max-height: 700px) {
   .gymbros-setup-fullscreen .navigation-container {
-    padding-bottom: 24px !important;
-    margin-bottom: 20px !important;
+    padding-bottom: 32px !important;
+    margin-bottom: 24px !important;
+    margin-top: 20px !important;
   }
 }
 
 /* Extra safe spacing for very small screens */
 @media (max-height: 600px) {
   .gymbros-setup-fullscreen .navigation-container {
-    padding-bottom: 28px !important;
-    margin-bottom: 24px !important;
+    padding-bottom: 36px !important;
+    margin-bottom: 28px !important;
     min-height: 70px !important;
+    margin-top: 24px !important;
   }
 }
 
 /* Mobile specific navigation spacing */
 @media (max-width: 768px) {
   .gymbros-setup-fullscreen .navigation-container {
-    padding-bottom: 32px !important;
-    margin-bottom: 24px !important;
+    padding-bottom: 40px !important;
+    margin-bottom: 32px !important;
+    margin-top: 20px !important;
   }
 }
 
