@@ -141,30 +141,7 @@ const GymBros = () => {
       console.log('[GymBros] Viewing profile:', profiles[currentIndex].name, 'at index:', currentIndex);
     }
   }, [currentIndex, profiles]);
-
-  // Handle scroll for header visibility
-  useEffect(() => {
-    const controlHeader = () => {
-      // Get main navbar height (assuming it's a fixed size)
-      const navbarHeight = 64;
-      
-      if (window.scrollY > navbarHeight + 10 && window.scrollY > lastScrollY) {
-        // Scrolling down past navbar
-        setHeaderVisible(false);
-      } else {
-        // Scrolling up or at top
-        setHeaderVisible(true);
-      }
-      
-      setLastScrollY(window.scrollY);
-    };
-    
-    window.addEventListener('scroll', controlHeader);
-    
-    return () => {
-      window.removeEventListener('scroll', controlHeader);
-    };
-  }, [lastScrollY]);
+  // Header visibility is now always true for mobile - removed scroll hiding behavior
 
 
 useEffect(() => {
