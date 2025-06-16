@@ -95,8 +95,6 @@ const GymBros = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [matches, setMatches] = useState([]);
   const [viewStartTime, setViewStartTime] = useState(null);  const [activeTab, setActiveTab] = useState('discover'); // discover, matches, shop, profile
-  const [headerVisible, setHeaderVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [filters, setFilters] = useState({
     workoutTypes: [],
@@ -704,7 +702,6 @@ useEffect(() => {
       </p>
     </div>
   );
-
   const renderHeader = () => {
     // Common header title with logo
     const headerTitle = (
@@ -714,7 +711,8 @@ useEffect(() => {
     );
 
     const headerContent = (() => {
-      switch(activeTab) {        case 'discover':
+      switch(activeTab) {
+        case 'discover':
           return (
             <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
               {headerTitle}
@@ -741,9 +739,8 @@ useEffect(() => {
                 </button>
               </div>
             </div>
-            
           );
-          case 'matches':
+        case 'matches':
           return (
             <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
               {headerTitle}
@@ -755,7 +752,7 @@ useEffect(() => {
               </button>
             </div>
           );
-            case 'shop':
+        case 'shop':
           return (
             <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
               {headerTitle}
@@ -769,7 +766,7 @@ useEffect(() => {
               </button>
             </div>
           );
-            case 'profile':
+        case 'profile':
           return (
             <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
               {headerTitle}
@@ -781,7 +778,7 @@ useEffect(() => {
               </button>
             </div>
           );
-            default:
+        default:
           return (
             <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
               {headerTitle}
@@ -791,7 +788,7 @@ useEffect(() => {
     })();
 
     return (
-      <div className={`transition-transform duration-300 ${headerVisible ? 'translate-y-0' : '-translate-y-full'}`}>
+      <div className="w-full">
         {headerContent}
       </div>
     );
@@ -876,12 +873,12 @@ useEffect(() => {
     <>
       <FooterHider />
       <div className="fixed inset-0 top-16 flex flex-col max-w-2xl mx-auto bg-white overflow-hidden">
-        {/* Dynamic Header Bar - Fixed at top of component */}
-        <div className="flex-shrink-0 z-10">
+        {/* Fixed Header Bar - Always visible at top */}
+        <div className="flex-shrink-0 z-30 sticky top-0">
           {renderHeader()}
         </div>
         
-        {/* Main Content Area - Takes remaining height */}
+        {/* Main Content Area - Takes remaining height with proper spacing for header */}
         <div className={`flex-1 relative bg-gray-50 overflow-hidden ${
           activeTab === 'discover' ? 'no-scroll' : ''
         }`}>
