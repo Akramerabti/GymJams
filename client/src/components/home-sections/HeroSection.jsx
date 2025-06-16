@@ -185,7 +185,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         {/* Mobile Layout: Two Sections Stacked */}
         <div className="h-full flex flex-col pointer-events-auto">
             {/* Desktop Heading - Hidden on Mobile */}
-          <div className="hidden lg:block text-center pb-4">
+          <div className="hidden lg:block text-center">
             <p className={`text-xl lg:text-2xl max-w-3xl mx-auto leading-relaxed transition-colors duration-500 ${
               darkMode ? 'text-gray-300' : 'text-gray-700'
             }`}>
@@ -277,7 +277,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               </div>
             </div>
           </div>          {/* Section 2: Featured Products and GymBros - Better proportions and spacing */}
-          <div className="flex-1 flex flex-col items-center justify-start px-3 sm:px-4 lg:px-8 pt-10 sm:pt-14 lg:pt-8 pb-12 sm:pb-16">
+          <div className="flex-1 flex flex-col items-center justify-start px-3 sm:px-4 lg:px-8 pt-14 sm:pt-14 lg:pt-8 pb-16 sm:pb-16">
             <div className="w-full max-w-4xl mx-auto h-full flex flex-col justify-start">              {/* GymBros header - label and match count */}
               <div className="w-full text-left mb-2 sm:mb-3">
                 <div className="flex items-center justify-start gap-2">
@@ -290,7 +290,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                     </span>
                   )}
                 </div>              </div>{/* All screen sizes: Stacked vertically */}
-              <div className="grid grid-cols-1  w-full sm:max-w-none flex-1">{/* GymBros Section - Card Design */}
+              <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:gap-6 w-full sm:max-w-none flex-1">{/* GymBros Section - Card Design */}
                 <div className="flex flex-col min-h-[80px] max-h-[120px] sm:min-h-[80px] sm:max-h-[120px] lg:min-h-[80px] lg:max-h-[120px]">
                   {gymBrosLoading ? (
                     <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-white to-gray-50'} p-4 pt-12 flex items-center justify-center shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
@@ -411,9 +411,9 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                       </button>
                     </div>                  )}
                 </div>                {/* Featured Products Section */}
-                <div className="space-y-2 sm:space-y-3 sm:col-span-1 flex flex-col h-full -mt-4 sm:-mt-6">
+                <div className="space-y-2 sm:space-y-3 sm:col-span-1 flex flex-col h-full">
                   {/* Featured Products with Shop Arrow */}
-                  <div className="flex items-center justify-start gap-2 mb-2 sm:mb-3">
+                  <div className="flex items-center justify-start gap-2 sm:gap-2 lg:gap-2 mb-2 sm:mb-3">
                     <h3 className={`text-base sm:text-lg lg:text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                       Featured Products
                     </h3>
