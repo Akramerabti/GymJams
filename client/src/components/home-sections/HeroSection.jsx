@@ -192,7 +192,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               Your Complete Fitness Ecosystem - Shop, Train, Game, Compete
             </p>
           </div>          {/* Section 1: Video Background with Navigation Buttons */}
-          <div className="h-1/4 sm:h-1/3 lg:h-1/3 relative">
+          <div className={`h-1/4 sm:h-1/3 lg:h-1/3 relative ${darkMode ? 'bg-gradient-to-b from-white/5 via-gray-900 to-gray-900' : 'bg-gradient-to-b from-black/5 via-white to-white'}`}>
             {/* Video Background - Smaller on PC */}
             <div className="w-full h-full lg:w-3/4 lg:mx-auto lg:rounded-lg lg:overflow-hidden relative">
               <video
@@ -277,7 +277,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               </div>
             </div>
           </div>          {/* Section 2: Featured Products and GymBros - Better proportions and spacing */}
-          <div className="flex-1 flex flex-col items-center justify-start px-3 sm:px-4 lg:px-8 pt-14 sm:pt-14 lg:pt-8 pb-16 sm:pb-16">
+          <div className={`flex-1 flex flex-col items-center justify-start px-3 sm:px-4 lg:px-8 pt-14 sm:pt-14 lg:pt-8 pb-16 sm:pb-16 ${darkMode ? 'bg-gradient-to-b from-gray-900 via-gray-900 to-white/5' : 'bg-gradient-to-b from-white via-white to-black/5'}`}>
             <div className="w-full max-w-4xl mx-auto h-full flex flex-col justify-start">              {/* GymBros header - label and match count */}
               <div className="w-full text-left mb-2 sm:mb-3">
                 <div className="flex items-center justify-start gap-2">
@@ -289,17 +289,17 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                       {gymBrosData.recentMatches.length}
                     </span>
                   )}
-                </div>              </div>{/* All screen sizes: Stacked vertically */}
-              <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:gap-6 w-full sm:max-w-none flex-1">{/* GymBros Section - Card Design */}
+                </div>              </div>              {/* All screen sizes: Stacked vertically */}
+              <div className="grid grid-cols-1 gap-4 sm:gap-6 md:gap-8 lg:gap-10 w-full sm:max-w-none flex-1">{/* GymBros Section - Card Design */}
                 <div className="flex flex-col min-h-[80px] max-h-[120px] sm:min-h-[80px] sm:max-h-[120px] lg:min-h-[80px] lg:max-h-[120px]">
                   {gymBrosLoading ? (
-                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-white to-gray-50'} p-4 pt-12 flex items-center justify-center shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-white/5' : 'bg-gradient-to-br from-gray-50 via-gray-100 to-black/5'} p-4 pt-12 flex items-center justify-center shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                       <div className={`animate-spin rounded-full h-6 w-6 border-b-2 ${
                         darkMode ? 'border-blue-400' : 'border-blue-600'
                       }`}></div>
                     </div>
                   ) : gymBrosData?.hasProfile ? (
-                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-white to-gray-50'} p-3 sm:p-4 mt-1 flex flex-col shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-white/5' : 'bg-gradient-to-br from-gray-50 via-gray-100 to-black/5'} p-3 sm:p-4 mt-1 flex flex-col shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                       {gymBrosData.recentMatches && gymBrosData.recentMatches.length > 0 ? (                        
                         <div className="flex-1 flex flex-col h-full">
                             {/* Card Carousel */}                          <div className="relative overflow-visible z-50 flex-1 h-full">                              <div 
