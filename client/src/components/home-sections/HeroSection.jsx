@@ -12,6 +12,29 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   const [productsLoading, setProductsLoading] = useState(true);
   const [gymBrosData, setGymBrosData] = useState(null);
   const [gymBrosLoading, setGymBrosLoading] = useState(true);
+  
+  // Add carousel functionality for GymBros
+  const [gymBrosCarouselRef, setGymBrosCarouselRef] = useState(null);
+  // Carousel navigation for GymBros
+  const scrollGymBrosLeft = () => {
+    if (gymBrosCarouselRef) {
+      const scrollAmount = 200; // Scroll by 200px (roughly 3-4 cards)
+      gymBrosCarouselRef.scrollBy({
+        left: -scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  const scrollGymBrosRight = () => {
+    if (gymBrosCarouselRef) {
+      const scrollAmount = 200; // Scroll by 200px (roughly 3-4 cards)
+      gymBrosCarouselRef.scrollBy({
+        left: scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   // Fetch real products from API
   useEffect(() => {
@@ -54,14 +77,19 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         
         setFeaturedProducts(products);
         console.log('Successfully loaded products from API:', products.length);
-      } catch (error) {
-        console.log('Using fallback products data:', error.message);
-        // Fallback to placeholder products
+      } catch (error) {        console.log('Using fallback products data:', error.message);
+        // Fallback to placeholder products - Multiple products for testing carousel
         setFeaturedProducts([
           { id: 1, name: "Premium Protein", image: "/Picture2.png", price: "$49.99" },
           { id: 2, name: "Resistance Bands", image: "/Picture2.png", price: "$29.99" },
           { id: 3, name: "Yoga Mat Pro", image: "/Picture2.png", price: "$39.99" },
-          { id: 4, name: "Dumbbells Set", image: "/Picture2.png", price: "$199.99" }
+          { id: 4, name: "Dumbbells Set", image: "/Picture2.png", price: "$199.99" },
+          { id: 5, name: "Pre-Workout", image: "/Picture2.png", price: "$34.99" },
+          { id: 6, name: "Gym Gloves", image: "/Picture2.png", price: "$24.99" },
+          { id: 7, name: "Water Bottle", image: "/Picture2.png", price: "$19.99" },
+          { id: 8, name: "Gym Towel", image: "/Picture2.png", price: "$14.99" },
+          { id: 9, name: "Protein Shaker", image: "/Picture2.png", price: "$12.99" },
+          { id: 10, name: "Creatine", image: "/Picture2.png", price: "$27.99" }
         ]);
       } finally {
         setProductsLoading(false);
@@ -124,7 +152,6 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
       return () => clearInterval(interval);
     }
   }, [featuredProducts.length]);
-
   // Navigate to specific sections
   const navigateToSection = (sectionIndex) => {
     console.log('Navigating to section:', sectionIndex);
@@ -165,7 +192,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               Your Complete Fitness Ecosystem - Shop, Train, Game, Compete
             </p>
           </div>          {/* Section 1: Video Background with Navigation Buttons */}
-          <div className="h-1/3 sm:h-1/3 lg:h-1/3 relative">
+          <div className="h-1/4 sm:h-1/3 lg:h-1/3 relative">
             {/* Video Background - Smaller on PC */}
             <div className="w-full h-full lg:w-3/4 lg:mx-auto lg:rounded-lg lg:overflow-hidden relative">
               <video
@@ -185,12 +212,12 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               }`}></div>                {/* GET STARTED Label and Navigation Circle Buttons - Mobile: Top position, PC: Center */}
               <div className="absolute inset-0 flex flex-col items-center lg:justify-center justify-center pt-0  space-y-3">
                 {/* GET STARTED Label - Always white */}
-                <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-wider text-white drop-shadow-lg">
+                <h2 className="text-2xl mt-10 sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-wider text-white drop-shadow-lg">
                   GET STARTED
                 </h2>
                 
                 {/* Navigation Circle Buttons - Smaller on PC */}
-                <div className="flex justify-center items-center gap-2 sm:gap-3 md:gap-4 lg:gap-4 flex-wrap max-w-xs sm:max-w-sm lg:max-w-md mx-auto">
+                <div className="flex justify-center items-center gap-5 sm:gap-3 md:gap-4 lg:gap-4 flex-wrap max-w-xs sm:max-w-sm lg:max-w-md mx-auto">
                   <button
                     onClick={() => navigateToSection(1)}
                     className={`relative w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-300 flex flex-col items-center justify-center group ${
@@ -216,7 +243,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                     <Users className="w-3 h-3 sm:w-4 sm:h-4 md:w-6 md:h-6 lg:w-5 lg:h-5" />
                     <span className={`absolute -bottom-5 sm:-bottom-6 md:-bottom-8 lg:-bottom-6 text-xs font-medium transition-colors duration-500 ${
                       darkMode ? 'text-white' : 'text-gray-900'
-                    } drop-shadow-lg`}>Gym Bros</span>
+                    } drop-shadow-lg`}>Gains</span>
                   </button>
                   
                   <button
@@ -250,31 +277,159 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               </div>
             </div>
           </div>          {/* Section 2: Featured Products and GymBros - Better proportions and spacing */}
-          <div className="flex-1 flex flex-col items-center justify-start px-3 sm:px-4 lg:px-8 pt-10 sm:pt-14 lg:pt-8 pb-8 sm:pb-3">
-            <div className="w-full max-w-4xl mx-auto h-full flex flex-col justify-start">
-              {/* Featured Products with Shop Arrow */}
+          <div className="flex-1 flex flex-col items-center justify-start px-3 sm:px-4 lg:px-8 pt-10 sm:pt-14 lg:pt-8 pb-12 sm:pb-16">
+            <div className="w-full max-w-4xl mx-auto h-full flex flex-col justify-start">              {/* GymBros header - label and match count */}
               <div className="w-full text-left mb-2 sm:mb-3">
                 <div className="flex items-center justify-start gap-2">
                   <h3 className={`text-base sm:text-lg lg:text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    Featured Products
+                    GymBros
                   </h3>
-                  <button
-                    onClick={() => window.location.href = '/shop'}
-                    className={`p-1 rounded-full hover:scale-110 transition-all duration-300 ${
-                      darkMode 
-                        ? 'text-blue-400 hover:text-blue-300' 
-                        : 'text-blue-600 hover:text-blue-500'
-                    }`}
-                    title="Go to Shop"
-                  >
-                    <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </button>
-                </div>
-              </div>{/* Mobile: Stacked vertically, Desktop: Side by side - NO CENTERING ON MOBILE */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-14 sm:gap-12 w-full sm:max-w-none flex-1">
-                
-                {/* Product Carousel */}
-                <div className="space-y-2 sm:space-y-3 sm:col-span-1 flex flex-col h-full">
+                  {gymBrosData?.hasProfile && gymBrosData?.recentMatches?.length > 0 && (
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${darkMode ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-800'}`}>
+                      {gymBrosData.recentMatches.length}
+                    </span>
+                  )}
+                </div>              </div>{/* All screen sizes: Stacked vertically */}
+              <div className="grid grid-cols-1  w-full sm:max-w-none flex-1">{/* GymBros Section - Card Design */}
+                <div className="flex flex-col min-h-[80px] max-h-[120px] sm:min-h-[80px] sm:max-h-[120px] lg:min-h-[80px] lg:max-h-[120px]">
+                  {gymBrosLoading ? (
+                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-white to-gray-50'} p-4 pt-12 flex items-center justify-center shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                      <div className={`animate-spin rounded-full h-6 w-6 border-b-2 ${
+                        darkMode ? 'border-blue-400' : 'border-blue-600'
+                      }`}></div>
+                    </div>
+                  ) : gymBrosData?.hasProfile ? (
+                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-white to-gray-50'} p-3 sm:p-4 mt-1 flex flex-col shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                      {gymBrosData.recentMatches && gymBrosData.recentMatches.length > 0 ? (                        
+                        <div className="flex-1 flex flex-col h-full">
+                            {/* Card Carousel */}                          <div className="relative overflow-visible z-50 flex-1 h-full">                              <div 
+                              ref={setGymBrosCarouselRef}
+                              className="overflow-x-auto overflow-y-visible flex flex-row gap-2 snap-x snap-mandatory scrollbar-hide relative z-50 h-full items-stretch touch-pan-x transition-all duration-300" 
+                              style={{ 
+                                scrollbarWidth: 'none', 
+                                msOverflowStyle: 'none',
+                                WebkitOverflowScrolling: 'touch',
+                                scrollBehavior: 'smooth',
+                                scrollSnapType: 'x mandatory'
+                              }}>                              {gymBrosData.recentMatches.map((match, index) => (                                <div 
+                                  key={match._id || index} 
+                                  className="flex-shrink-0 snap-start cursor-pointer group relative z-50 h-full"
+                                  onClick={() => window.location.href = '/gymbros'}
+                                  style={{ 
+                                    width: "56px", 
+                                    minWidth: "56px" 
+                                  }}
+                                ><div 
+                                    className="relative w-full h-full overflow-visible rounded-lg transition-all duration-300 group-hover:shadow-lg group-hover:shadow-blue-500/30 group-hover:brightness-125 group-hover:z-[9999]" 
+                                    style={{ 
+                                      width: "56px",
+                                      height: "80px",
+                                      aspectRatio: "7/10"
+                                    }}
+                                  >
+                                    <img 
+                                      src={formatImageUrl(match.profileImage, getFallbackAvatarUrl())} 
+                                      alt={match.name || 'Match'}
+                                      className="w-full h-full object-cover transition-transform duration-300 rounded-lg"
+                                      crossOrigin="anonymous"
+                                      onError={(e) => {
+                                        console.error('❌ Image load error for match:', match.name, e.target.src);
+                                        e.target.onerror = null;
+                                        e.target.src = getFallbackAvatarUrl();
+                                        
+                                        if (e.target.src.includes('supabase.co')) {
+                                          console.log('🧹 Broken Supabase URL for match:', match.name);
+                                        }
+                                      }}
+                                    />
+                                    
+                                    {/* Online status indicator */}
+                                    <div className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
+                                      darkMode ? 'bg-green-500' : 'bg-green-500'
+                                    } shadow-lg pulse border border-white`}></div>
+                                    
+                                    {/* Name overlay at bottom */}
+                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1 transition-all duration-300 group-hover:p-2 rounded-b-lg">
+                                      <p className={`text-xs font-semibold text-white truncate transform transition-all duration-300 origin-bottom-left group-hover:scale-110 group-hover:text-blue-200`}>
+                                        {(match.name || 'Unknown').split(' ')[0]}
+                                      </p>
+                                    </div>                                  </div>
+                                </div>
+                              ))}
+                            </div>                            {/* Carousel Navigation Controls - Only show if more than 2 matches */}
+                            {gymBrosData.recentMatches.length > 2 && (
+                              <div className="flex justify-center gap-2 mt-1">
+                                <button 
+                                  className={`p-1.5 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-white hover:bg-gray-100 text-gray-900'} shadow-md transition-all duration-300 hover:scale-110 hover:shadow-lg active:scale-95`} 
+                                  onClick={scrollGymBrosLeft}
+                                  aria-label="Scroll left"
+                                >
+                                  <ChevronLeft className="w-3 h-3 transition-transform duration-200" />
+                                </button>
+                                <button 
+                                  className={`p-1.5 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-white hover:bg-gray-100 text-gray-900'} shadow-md transition-all duration-300 hover:scale-110 hover:shadow-lg active:scale-95`} 
+                                  onClick={scrollGymBrosRight}
+                                  aria-label="Scroll right"
+                                >
+                                  <ChevronRight className="w-3 h-3 transition-transform duration-200" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full py-2 sm:py-3">
+                          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${darkMode ? 'bg-blue-900' : 'bg-blue-100'} flex items-center justify-center mb-2`}>
+                            <Heart className={`w-5 h-5 sm:w-6 sm:h-6 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                          </div>
+                          <p className={`text-xs sm:text-sm font-medium text-center mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            No matches yet
+                          </p>
+                          <button 
+                            onClick={() => window.location.href = '/gymbros'}
+                            className={`text-sm py-2 px-4 rounded-full font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/50 ${darkMode ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white' : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'}`}>
+                            Start Swiping
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-white to-gray-50'} p-3 sm:p-4 text-center flex flex-col items-center justify-center shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                      <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full ${darkMode ? 'bg-blue-900' : 'bg-blue-100'} flex items-center justify-center mb-2 sm:mb-3`}>
+                        <Users className={`w-6 h-6 sm:w-7 sm:h-7 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                      </div>
+                      <h4 className={`font-bold text-xs sm:text-sm mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        Connect with GymBros
+                      </h4>
+                      <p className={`text-xs mb-2 sm:mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Find your perfect workout partner!
+                      </p>
+                      <button 
+                        onClick={() => window.location.href = '/gymbros'}
+                        className={`text-sm py-2 px-4 rounded-full font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/50 ${darkMode ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white' : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'}`}>
+                        Get Started
+                      </button>
+                    </div>                  )}
+                </div>                {/* Featured Products Section */}
+                <div className="space-y-2 sm:space-y-3 sm:col-span-1 flex flex-col h-full -mt-4 sm:-mt-6">
+                  {/* Featured Products with Shop Arrow */}
+                  <div className="flex items-center justify-start gap-2 mb-2 sm:mb-3">
+                    <h3 className={`text-base sm:text-lg lg:text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      Featured Products
+                    </h3>
+                    <button
+                      onClick={() => window.location.href = '/shop'}
+                      className={`p-1 rounded-full hover:scale-110 transition-all duration-300 ${
+                        darkMode 
+                          ? 'text-blue-400 hover:text-blue-300' 
+                          : 'text-blue-600 hover:text-blue-500'
+                      }`}
+                      title="Go to Shop"
+                    >
+                      <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </button>
+                  </div>
+                  
                   {productsLoading ? (
                     <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-4 sm:p-6 flex items-center justify-center shadow-lg`}>
                       <div className={`animate-spin rounded-full h-6 w-6 border-b-2 ${
@@ -351,110 +506,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                       <XCircle className={`w-12 h-12 mb-3 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
                       <p className={`text-sm sm:text-base ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                         Sorry, no products available right now.
-                      </p>
-                    </div>
-                  )}
-                </div>                {/* GymBros Section - Enhanced UI */}
-                <div className="flex flex-col" style={{ minHeight: '140px', maxHeight: '180px' }}>
-                  {/* GymBros header - label and message button on the left */}
-                  <div className="flex items-center justify-start gap-2 mb-2 sm:mb-3">
-                    <h3 className={`text-base sm:text-lg lg:text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                      GymBros
-                    </h3>
-                    {gymBrosData?.hasProfile && gymBrosData?.recentMatches?.length > 0 && (
-                      <button
-                        onClick={() => window.location.href = '/gymbros'}
-                        className={`p-1.5 rounded-full hover:scale-110 transition-all duration-300 ${
-                          darkMode 
-                            ? 'text-blue-400 hover:text-blue-300' 
-                            : 'text-blue-600 hover:text-blue-500'
-                        }`}
-                        title="Go to Messages"
-                      >
-                        <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                      </button>
-                    )}
-                  </div>
-                  
-                  {gymBrosLoading ? (
-                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-white to-gray-50'} p-4 pt-12 flex items-center justify-center shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                      <div className={`animate-spin rounded-full h-6 w-6 border-b-2 ${
-                        darkMode ? 'border-blue-400' : 'border-blue-600'
-                      }`}></div>
-                    </div>                  ) : gymBrosData?.hasProfile ? (
-                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-white to-gray-50'} p-3 sm:p-4 flex flex-col shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                      {gymBrosData.recentMatches && gymBrosData.recentMatches.length > 0 ? (
-                        <div className="flex-1 flex flex-col">
-                          <div className="flex items-center justify-between mb-2 sm:mb-3">
-                            <p className={`text-xs sm:text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                              Recent matches
-                            </p>
-                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${darkMode ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-800'}`}>
-                              {gymBrosData.recentMatches.length}
-                            </span>
-                          </div>
-                          <div className="flex gap-3 overflow-x-auto pb-2 flex-1 items-center scrollbar-hide">                            {gymBrosData.recentMatches.map((match, index) => (
-                              <div 
-                                key={match._id || index} 
-                                className="flex-shrink-0 text-center cursor-pointer group"
-                                onClick={() => window.location.href = '/gymbros'}
-                              >                                <div className="relative mb-2">
-                                  <img 
-                                    src={formatImageUrl(match.profileImage, getFallbackAvatarUrl())} 
-                                    alt={match.name || 'Match'}
-                                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover mx-auto border-3 border-transparent group-hover:border-blue-500 group-hover:shadow-lg group-hover:shadow-blue-500/50 transition-all duration-300"
-                                    crossOrigin="anonymous"
-                                    onError={(e) => {
-                                      console.error('❌ Image load error for match:', match.name, e.target.src);
-                                      e.target.onerror = null; // Prevent infinite loop
-                                      e.target.src = getFallbackAvatarUrl();
-                                      
-                                      // If this is a Supabase URL that failed, log it
-                                      if (e.target.src.includes('supabase.co')) {
-                                        console.log('🧹 Broken Supabase URL for match:', match.name);
-                                      }
-                                    }}
-                                  />
-                                  <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 ${
-                                    darkMode ? 'border-gray-800 bg-green-500' : 'border-white bg-green-500'
-                                  } shadow-lg pulse`}></div>
-                                </div>
-                                <p className={`text-xs font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} truncate max-w-[60px] group-hover:text-blue-500 transition-colors duration-300`}>
-                                  {match.name || 'Unknown'}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>                      ) : (
-                        <div className="flex flex-col items-center justify-center h-full py-2 sm:py-3">
-                          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${darkMode ? 'bg-blue-900' : 'bg-blue-100'} flex items-center justify-center mb-2`}>
-                            <Heart className={`w-5 h-5 sm:w-6 sm:h-6 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                          </div>
-                          <p className={`text-xs sm:text-sm font-medium text-center mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                            No matches yet
-                          </p><button 
-                            onClick={() => window.location.href = '/gymbros'}
-                            className={`text-sm py-2 px-4 rounded-full font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/50 ${darkMode ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white' : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'}`}>
-                            Start Swiping
-                          </button>
-                        </div>
-                      )}
-                    </div>                  ) : (
-                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-white to-gray-50'} p-3 sm:p-4 text-center flex flex-col items-center justify-center shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                      <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full ${darkMode ? 'bg-blue-900' : 'bg-blue-100'} flex items-center justify-center mb-2 sm:mb-3`}>
-                        <Users className={`w-6 h-6 sm:w-7 sm:h-7 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                      </div>
-                      <h4 className={`font-bold text-xs sm:text-sm mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                        Connect with GymBros
-                      </h4>
-                      <p className={`text-xs mb-2 sm:mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        Find your perfect workout partner!
-                      </p><button 
-                        onClick={() => window.location.href = '/gymbros'}
-                        className={`text-sm py-2 px-4 rounded-full font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/50 ${darkMode ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white' : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'}`}>
-                        Get Started
-                      </button>
-                    </div>
+                      </p>                    </div>
                   )}
                 </div>
               </div>
