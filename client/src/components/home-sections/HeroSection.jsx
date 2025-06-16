@@ -392,24 +392,22 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                           </button>
                         </div>
                       )}
-                    </div>
-                  ) : (
-                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-white to-gray-50'} p-3 sm:p-4 text-center flex flex-col items-center justify-center shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                      <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full ${darkMode ? 'bg-blue-900' : 'bg-blue-100'} flex items-center justify-center mb-2 sm:mb-3`}>
-                        <Users className={`w-6 h-6 sm:w-7 sm:h-7 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                    </div>                  ) : (
+                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-white/5' : 'bg-gradient-to-br from-gray-50 via-gray-100 to-black/5'} p-3 sm:p-4 mt-1 flex flex-col shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                      <div className="flex flex-col items-center justify-center h-full py-1 sm:py-2">
+                        <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full ${darkMode ? 'bg-blue-900' : 'bg-blue-100'} flex items-center justify-center mb-1`}>
+                          <Users className={`w-4 h-4 sm:w-4 sm:h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                        </div>
+                        <p className={`text-xs font-medium text-center mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Connect with GymBros
+                        </p>
+                        <button 
+                          onClick={() => window.location.href = '/gymbros'}
+                          className={`text-xs py-1 px-3 rounded-full font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/50 ${darkMode ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white' : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'}`}>
+                          Get Started
+                        </button>
                       </div>
-                      <h4 className={`font-bold text-xs sm:text-sm mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                        Connect with GymBros
-                      </h4>
-                      <p className={`text-xs mb-2 sm:mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        Find your perfect workout partner!
-                      </p>
-                      <button 
-                        onClick={() => window.location.href = '/gymbros'}
-                        className={`text-sm py-2 px-4 rounded-full font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/50 ${darkMode ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white' : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'}`}>
-                        Get Started
-                      </button>
-                    </div>                  )}
+                    </div>)}
                 </div>                {/* Featured Products Section */}
                 <div className="space-y-2 sm:space-y-3 sm:col-span-1 flex flex-col h-full">
                   {/* Featured Products with Shop Arrow */}
