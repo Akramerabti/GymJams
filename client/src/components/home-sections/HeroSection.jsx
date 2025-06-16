@@ -166,14 +166,25 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
 
   const prevProduct = () => {
     setCurrentProductIndex((prev) => (prev - 1 + featuredProducts.length) % featuredProducts.length);
-  };
-
-  return (
-    <div className={`absolute inset-0 transition-colors duration-500 ${
-      darkMode 
-        ? 'bg-gray-900' 
-        : 'bg-white'
-    }`}>
+  };  return (
+    <div className="absolute inset-0">
+      
+      {/* Background Video for entire section - Bottom layer */}
+      <video
+        autoPlay
+        muted
+        loop
+        className="absolute inset-0 w-full h-full object-cover"
+      >
+        <source src="/GymTonic.mp4" type="video/mp4" />
+      </video>
+      
+      {/* Gradient overlay - On top of video */}
+      <div className={`absolute inset-0 transition-colors duration-500 ${
+        darkMode 
+          ? 'bg-gray-900/80' 
+          : 'bg-white/80'
+      }`}></div>
 
       <div 
         className={`w-full h-full transition-all duration-700 ${
@@ -192,9 +203,8 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               Your Complete Fitness Ecosystem - Shop, Train, Game, Compete
             </p>
           </div>          {/* Section 1: Video Background with Navigation Buttons */}
-          <div className={`h-1/4 sm:h-1/3 lg:h-1/3 relative ${darkMode ? 'bg-gradient-to-b from-white/5 via-gray-900 to-gray-900' : 'bg-gradient-to-b from-black/5 via-white to-white'}`}>
-            {/* Video Background - Smaller on PC */}
-            <div className="w-full h-full lg:w-3/4 lg:mx-auto lg:rounded-lg lg:overflow-hidden relative">
+          <div className={`h-1/4 sm:h-1/3 lg:h-1/3 relative ${darkMode ? 'bg-gradient-to-b from-white/5 via-gray-900 to-gray-900' : 'bg-gradient-to-b from-black/5 via-white to-white'}`}>            {/* Video Background - Full width */}
+            <div className="w-full h-full relative overflow-hidden">
               <video
                 autoPlay
                 muted
