@@ -5,6 +5,7 @@ import {
   Plus, MapPin, Award, Dumbbell, Clock, RefreshCw
 } from 'lucide-react';
 import ActiveStatus from './ActiveStatus';
+import { getFallbackAvatarUrl } from '../../../utils/imageUtils';
 
 const SwipeableCard = ({ 
     profile, 
@@ -16,23 +17,19 @@ const SwipeableCard = ({
     isActive = true,
     isPremium = false,
     isBehindActive = false,
-    forceDirection = null  // Add this prop to handle button clicks
+    forceDirection = null 
   }) => {
 
-console.log('SwipeableCard rendered', profile);
-    // Motion values for swipe gestures
     const x = useMotionValue(0);
     const y = useMotionValue(0);
     const rotate = useTransform(x, [-300, 0, 300], [-15, 0, 15]);
     const controls = useAnimation();
-    
-    // Validate profile data early to prevent rendering issues
+
     if (!profile || !profile.name || !(profile._id || profile.id)) {
       console.error('SwipeableCard received invalid profile:', profile);
       return null;
     }
 
-    // State for image carousel
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [startDragPoint, setStartDragPoint] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
@@ -40,7 +37,6 @@ console.log('SwipeableCard rendered', profile);
     const [dragDistance, setDragDistance] = useState({ x: 0, y: 0 });
     const [showSuper, setShowSuper] = useState(false);
     
-    // Track if we're moving horizontally or vertically
     const isDraggingHorizontal = useRef(false);
     const isDraggingVertical = useRef(false);
     

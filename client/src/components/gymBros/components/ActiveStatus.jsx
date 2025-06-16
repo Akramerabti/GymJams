@@ -7,9 +7,6 @@ const ActiveStatus = ({
 }) => {
   if (!lastActive) return null;
 
-  console.log(lastActive);
-  
-  // Calculate status based on how recently active
   const getActiveStatus = () => {
     const lastActiveDate = typeof lastActive === 'string' 
       ? new Date(lastActive) 
@@ -36,9 +33,7 @@ const ActiveStatus = ({
     return `Active ${Math.floor(hoursDiff)} hours ago`;
   };
   
-  // Only show status for recent activity (≤ 5 hours)
   const status = getActiveStatus();
-  console.log(status);
   const isRecent = status === 'Active now' || status === 'Recently active';
   
   if (!isRecent) return null;

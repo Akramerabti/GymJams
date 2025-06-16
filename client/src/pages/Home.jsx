@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
+import SectionWrapper from '../components/home-sections/SectionWrapper';
+import { useTheme } from '../contexts/ThemeContext';
 
 const Home = () => {
+  const { darkMode } = useTheme(); // Add theme context
   // Refs
   const containerRef = useRef(null);
   const videoRefs = useRef([]);
@@ -19,17 +22,16 @@ const Home = () => {
   const [dragOffset, setDragOffset] = useState(0);
   const [isScrolling, setIsScrolling] = useState(false);
   const [scrollOffset, setScrollOffset] = useState(0);
-
   // Section data
   const sections = [
     {
       id: 'hero',
-      title: 'Elevate Your Fitness Journey',
-      description: 'Premium equipment, expert coaching, and community support to help you reach your fitness goals. Start your transformation today.',
-      buttonText: 'Get Started',
-      route: '/',
+      title: 'Transform Your Fitness Journey',
+      description: 'Join thousands of fitness enthusiasts who\'ve revolutionized their health with our AI-powered platform, expert coaching, and gamified workouts.',
+      buttonText: 'Start Free Trial',
+      route: '/register',
       videoSrc: "/GymTonic.mp4",
-      color: 'from-blue-800/80 to-blue-900/80'
+      color: 'from-blue-900/70 to-black/50'
     },
     {
       id: 'shop',
@@ -425,12 +427,21 @@ const Home = () => {
     const scrollTransform = isScrolling ? (scrollOffset / window.innerHeight) * 100 : 0;
     return baseTransform + dragTransform + scrollTransform;
   };
-
   const navigate = useNavigate();
   
   const handleNavigate = (route) => {
-    navigate(route);
-  };  return (
+    // Handle special routes
+    if (route === '/demo') {
+      // For demo, we could scroll to a specific section or open a modal
+      // For now, let's navigate to the coaching section as a demo
+      navigate('/coaching');
+    } else if (route === '/register') {
+      // Navigate to registration/signup
+      navigate('/register');
+    } else {
+      navigate(route);
+    }
+  };return (
     <>
       {/* CSS to completely hide scrollbars on all browsers */}      <style jsx>{`
         .no-scrollbar {
@@ -500,73 +511,20 @@ const Home = () => {
             transform: `translateY(${getSectionTransform()}vh)`,            transition: (isDragging || isScrolling)
               ? 'none' 
               : 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)' // Much faster transition
-          }}
-        >          {sections.map((section, index) => (
-            <div
+          }}        >          {sections.map((section, index) => (
+            <SectionWrapper
               key={section.id}
-              className="relative w-screen flex-shrink-0"
-              style={{ height: '100vh' }}
-            >
-              {/* Video background */}
-              <div className="absolute inset-0 overflow-hidden">
-                <video
-                  ref={el => videoRefs.current[index] = el}
-                  src={section.videoSrc}
-                  className={`absolute inset-0 w-full h-full object-cover transition-all duration-1000 ${
-                    currentSection === index 
-                      ? 'opacity-100 scale-100' 
-                      : 'opacity-30 scale-105'
-                  }`}
-                  muted
-                  loop
-                  playsInline
-                  autoPlay={index === 0}
-                  preload="metadata"
-                />
-                
-                {/* Color overlay */}
-                <div 
-                  className={`absolute inset-0 bg-gradient-to-br ${section.color} transition-opacity duration-1000 ${
-                    currentSection === index ? 'opacity-70' : 'opacity-90'
-                  }`}
-                />
-              </div>
-              
-              {/* Content */}
-              <div className="absolute inset-0 flex items-center justify-center p-8 pointer-events-none">
-                <div 
-                  className={`max-w-4xl mx-auto text-center transition-all duration-800 ${
-                    currentSection === index 
-                      ? 'opacity-100 translate-y-0 scale-100' 
-                      : 'opacity-0 translate-y-12 scale-95'
-                  }`}
-                >
-                  <div className="bg-black/30 backdrop-blur-md rounded-2xl p-8 border border-white/20 shadow-2xl pointer-events-auto">
-                    <h2 className="text-4xl md:text-6xl font-bold text-white mb-6">
-                      {section.title}
-                    </h2>
-                    
-                    <p className="text-xl md:text-2xl text-white/90 mb-8 max-w-3xl mx-auto leading-relaxed">
-                      {section.description}
-                    </p>
-                    
-                    <button
-                      onClick={() => handleNavigate(section.route)}
-                      className="group relative overflow-hidden px-10 py-4 bg-white text-gray-900 font-bold text-lg rounded-full flex items-center gap-3 mx-auto hover:bg-opacity-95 transition-all duration-300 transform hover:scale-105"
-                    >
-                      <span className="relative z-10">{section.buttonText}</span>
-                      <ArrowRight className="w-6 h-6 relative z-10 group-hover:translate-x-2 transition-transform duration-300" />
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-300/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+              section={section}
+              index={index}
+              currentSection={currentSection}
+              videoRef={el => videoRefs.current[index] = el}
+              onNavigate={handleNavigate}
+              goToSection={goToSection}
+            />
           ))}
         </div>
       </div>
-      
-      {/* Section indicators */}
+        {/* Section indicators */}
       <div className="fixed right-6 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-4">
         {sections.map((_, index) => (
           <button
@@ -574,8 +532,12 @@ const Home = () => {
             onClick={() => goToSection(index)}
             className={`w-4 h-4 rounded-full transition-all duration-300 border-2 ${
               currentSection === index
-                ? 'bg-white border-white scale-125'
-                : 'bg-transparent border-white/50 hover:border-white hover:bg-white/20'
+                ? darkMode 
+                  ? 'bg-white border-white scale-125'
+                  : 'bg-gray-900 border-gray-900 scale-125'
+                : darkMode
+                  ? 'bg-transparent border-white/50 hover:border-white hover:bg-white/20'
+                  : 'bg-transparent border-gray-900/50 hover:border-gray-900 hover:bg-gray-900/20'
             }`}
             aria-label={`Go to section ${index + 1}`}
           />

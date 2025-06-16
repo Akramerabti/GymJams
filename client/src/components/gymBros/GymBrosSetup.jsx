@@ -827,8 +827,8 @@ const GymBrosSetup = ({ onProfileCreated }) => {
                 </div>
               </div>
             )}            {/* Main content area - flexibly sized to fit available space */}
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden mt-6"
-                 style={{ maxHeight: 'calc(100vh - 200px)' }}>
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden mt-10"
+                 style={{ maxHeight: 'calc(100vh - 240px)' }}>
               <AnimatePresence mode="wait" custom={direction}>                <motion.div
                   key={currentStep}
                   custom={direction}
