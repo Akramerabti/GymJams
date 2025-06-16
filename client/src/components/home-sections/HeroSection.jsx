@@ -3,6 +3,7 @@ import { ShoppingBag, Users, Gamepad2, Trophy, ChevronLeft, ChevronRight, Heart,
 import { useTheme } from '../../contexts/ThemeContext';
 import productService from '../../services/product.service';
 import gymBrosService from '../../services/gymbros.service';
+import { formatImageUrl, getFallbackAvatarUrl } from '../../utils/imageUtils';
 
 const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   const { darkMode, toggleDarkMode } = useTheme();
@@ -183,13 +184,10 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                 darkMode 
                   ? 'bg-black bg-opacity-50' 
                   : 'bg-white bg-opacity-30'
-              }`}></div>
-                {/* GET STARTED Label and Navigation Circle Buttons - Mobile: Top position, PC: Center */}
+              }`}></div>                {/* GET STARTED Label and Navigation Circle Buttons - Mobile: Top position, PC: Center */}
               <div className="absolute inset-0 flex flex-col items-center lg:justify-center justify-center pt-0  space-y-3">
-                {/* GET STARTED Label */}
-                <h2 className={`text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-wider transition-colors duration-500 ${
-                  darkMode ? 'text-white' : 'text-gray-900'
-                } drop-shadow-lg`}>
+                {/* GET STARTED Label - Always white */}
+                <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-wider text-white drop-shadow-lg">
                   GET STARTED
                 </h2>
                 
@@ -253,15 +251,13 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Section 2: Featured Products and GymBros - Increased height, removed top margin */}
-          <div className="h-3/4 sm:h-2/3 flex flex-col items-center justify-start px-2 sm:px-4 lg:px-8 pt-16 lg:pt-20">
-            <div className="w-full max-w-4xl mx-auto">
-              {/* Featured Products with Shop Arrow - Moved here, always visible, aligned left */}
-              <div className="w-full text-left mb-3 sm:mb-4">
+          </div>          {/* Section 2: Featured Products and GymBros - Better proportions and spacing */}
+          <div className="flex-1 flex flex-col items-center justify-start px-3 sm:px-4 lg:px-8 pt-6 lg:pt-12 pb-6">
+            <div className="w-full max-w-4xl mx-auto h-full flex flex-col">
+              {/* Featured Products with Shop Arrow */}
+              <div className="w-full text-left mb-4">
                 <div className="flex items-center justify-start gap-2">
-                  <h3 className={`text-sm sm:text-base lg:text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  <h3 className={`text-base sm:text-lg lg:text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                     Featured Products
                   </h3>
                   <button
@@ -276,40 +272,38 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                     <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                 </div>
-              </div>
-
-              {/* Mobile: Smaller width and left-aligned labels, PC: Full width centered */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 sm:gap-6 lg:gap-6 max-w-sm sm:max-w-none mx-auto sm:mx-0">
+              </div>              {/* Mobile: Stacked vertically, Desktop: Side by side - NO CENTERING ON MOBILE */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4 sm:gap-6 lg:gap-6 w-full sm:max-w-none flex-1">
                 
-                {/* Product Carousel - Now takes full width on mobile when GymBros is below */}
-                <div className="space-y-2 sm:space-y-3 sm:col-span-1">
+                {/* Product Carousel */}
+                <div className="space-y-2 sm:space-y-3 sm:col-span-1 flex flex-col h-full">
                   {productsLoading ? (
-                    <div className={`rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-3 sm:p-6 flex items-center justify-center`}>
-                      <div className={`animate-spin rounded-full h-4 w-4 sm:h-6 sm:w-6 border-b-2 ${
+                    <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-4 sm:p-6 flex items-center justify-center shadow-lg`}>
+                      <div className={`animate-spin rounded-full h-6 w-6 border-b-2 ${
                         darkMode ? 'border-blue-400' : 'border-blue-600'
                       }`}></div>
                     </div>
                   ) : featuredProducts.length > 0 ? (
-                    <div className="relative">
-                      <div className={`relative overflow-hidden rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-2 sm:p-3`}>
+                    <div className="relative flex-1 flex flex-col">
+                      <div className={`flex-1 relative overflow-hidden rounded-xl ${darkMode ? 'bg-gray-800/80' : 'bg-white'} p-4 sm:p-6 min-h-[180px] shadow-lg border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                         <div 
-                          className="flex transition-transform duration-300 ease-in-out"
+                          className="flex transition-transform duration-300 ease-in-out h-full"
                           style={{ transform: `translateX(-${currentProductIndex * 100}%)` }}
                         >
                           {featuredProducts.map((product) => (
-                            <div key={product.id} className="w-full flex-shrink-0 text-center">
+                            <div key={product.id} className="w-full flex-shrink-0 text-center flex flex-col items-center justify-center h-full">
                               <img 
                                 src={product.image} 
                                 alt={product.name}
-                                className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-1 sm:mb-2 rounded-lg object-cover"
+                                className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 mx-auto mb-3 rounded-lg object-cover shadow-md"
                                 onError={(e) => {
                                   e.target.src = '/Picture2.png';
                                 }}
                               />
-                              <h4 className={`font-medium text-xs sm:text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                              <h4 className={`font-semibold text-sm sm:text-base lg:text-lg mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                                 {product.name}
                               </h4>
-                              <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              <p className={`text-sm sm:text-base font-medium ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
                                 {product.price}
                               </p>
                             </div>
@@ -322,32 +316,32 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                         <>
                           <button
                             onClick={prevProduct}
-                            className={`absolute left-0.5 sm:left-1 top-1/2 -translate-y-1/2 p-1 sm:p-1.5 rounded-full ${
-                              darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-white hover:bg-gray-100 text-gray-900'
-                            } shadow-lg transition-colors duration-200`}
+                            className={`absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full ${
+                              darkMode ? 'bg-gray-700/90 hover:bg-gray-600 text-white' : 'bg-white/90 hover:bg-gray-100 text-gray-900'
+                            } shadow-lg transition-all duration-200 hover:scale-110`}
                           >
-                            <ChevronLeft className="w-2 h-2 sm:w-3 sm:h-3" />
+                            <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4" />
                           </button>
                           
                           <button
                             onClick={nextProduct}
-                            className={`absolute right-0.5 sm:right-1 top-1/2 -translate-y-1/2 p-1 sm:p-1.5 rounded-full ${
-                              darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-white hover:bg-gray-100 text-gray-900'
-                            } shadow-lg transition-colors duration-200`}
+                            className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full ${
+                              darkMode ? 'bg-gray-700/90 hover:bg-gray-600 text-white' : 'bg-white/90 hover:bg-gray-100 text-gray-900'
+                            } shadow-lg transition-all duration-200 hover:scale-110`}
                           >
-                            <ChevronRight className="w-2 h-2 sm:w-3 sm:h-3" />
+                            <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" />
                           </button>
                           
                           {/* Dots Indicator */}
-                          <div className="flex justify-center mt-2 sm:mt-3 gap-1 sm:gap-1.5">
+                          <div className="flex justify-center mt-3 gap-2">
                             {featuredProducts.map((_, index) => (
                               <button
                                 key={index}
                                 onClick={() => setCurrentProductIndex(index)}
-                                className={`w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full transition-colors duration-200 ${
+                                className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full transition-all duration-200 ${
                                   index === currentProductIndex
-                                    ? 'bg-blue-500'
-                                    : darkMode ? 'bg-gray-600' : 'bg-gray-300'
+                                    ? 'bg-blue-500 scale-125'
+                                    : darkMode ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-300 hover:bg-gray-400'
                                 }`}
                               />
                             ))}
@@ -356,23 +350,24 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                       )}
                     </div>
                   ) : (
-                    <div className={`rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-2 sm:p-3 text-center flex flex-col items-center justify-center min-h-[150px] sm:min-h-[180px]`}>
-                      <XCircle className={`w-8 h-8 sm:w-10 sm:h-10 mb-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                      <p className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-4 sm:p-6 text-center flex flex-col items-center justify-center shadow-lg`}>
+                      <XCircle className={`w-12 h-12 mb-3 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                      <p className={`text-sm sm:text-base ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                         Sorry, no products available right now.
                       </p>
                     </div>
                   )}
-                </div>                {/* GymBros Section - Now takes full width on mobile when below Products, aligned left */}
-                <div className="space-y-2 sm:space-y-3 sm:col-span-1 min-h-[150px] sm:min-h-[180px] flex flex-col">
-                  <div className="flex items-center justify-between">
-                    <h3 className={`text-sm sm:text-base lg:text-lg font-semibold text-left ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                </div>                {/* GymBros Section - Enhanced UI */}
+                <div className="flex flex-col" style={{ minHeight: '140px', maxHeight: '180px' }}>
+                  {/* GymBros header - label and message button on the left */}
+                  <div className="flex items-center justify-start gap-2 mb-3">
+                    <h3 className={`text-base sm:text-lg lg:text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                       GymBros
                     </h3>
                     {gymBrosData?.hasProfile && gymBrosData?.recentMatches?.length > 0 && (
                       <button
                         onClick={() => window.location.href = '/gymbros'}
-                        className={`p-1 rounded-full hover:scale-110 transition-all duration-300 ${
+                        className={`p-1.5 rounded-full hover:scale-110 transition-all duration-300 ${
                           darkMode 
                             ? 'text-blue-400 hover:text-blue-300' 
                             : 'text-blue-600 hover:text-blue-500'
@@ -385,39 +380,50 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   </div>
                   
                   {gymBrosLoading ? (
-                    <div className={`flex-grow rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-3 sm:p-6 flex items-center justify-center`}>
-                      <div className={`animate-spin rounded-full h-4 w-4 sm:h-6 sm:w-6 border-b-2 ${
+                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-white to-gray-50'} p-4 flex items-center justify-center shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                      <div className={`animate-spin rounded-full h-6 w-6 border-b-2 ${
                         darkMode ? 'border-blue-400' : 'border-blue-600'
                       }`}></div>
                     </div>
                   ) : gymBrosData?.hasProfile ? (
-                    <div className={`flex-grow rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-2 sm:p-3`}>
+                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-white to-gray-50'} p-4 flex flex-col shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                       {gymBrosData.recentMatches && gymBrosData.recentMatches.length > 0 ? (
-                        <div className="space-y-2">
-                          <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            Recent matches:
-                          </p>
-                          <div className="flex gap-2 overflow-x-auto pb-1">
-                            {gymBrosData.recentMatches.map((match, index) => (
+                        <div className="flex-1 flex flex-col">
+                          <div className="flex items-center justify-between mb-3">
+                            <p className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Recent matches
+                            </p>
+                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${darkMode ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-800'}`}>
+                              {gymBrosData.recentMatches.length}
+                            </span>
+                          </div>
+                          <div className="flex gap-3 overflow-x-auto pb-2 flex-1 items-center scrollbar-hide">                            {gymBrosData.recentMatches.map((match, index) => (
                               <div 
                                 key={match._id || index} 
-                                className={`flex-shrink-0 w-16 sm:w-20 text-center cursor-pointer hover:opacity-80 transition-opacity`}
+                                className="flex-shrink-0 text-center cursor-pointer group"
                                 onClick={() => window.location.href = '/gymbros'}
-                              >
-                                <div className="relative">
+                              >                                <div className="relative mb-2">
                                   <img 
-                                    src={match.profileImage || match.images?.[0] || '/fallback-avatar.jpg'} 
+                                    src={formatImageUrl(match.profileImage, getFallbackAvatarUrl())} 
                                     alt={match.name || 'Match'}
-                                    className="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover mx-auto mb-1 border-2 border-transparent hover:border-blue-500 transition-colors"
+                                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover mx-auto border-3 border-transparent group-hover:border-blue-500 group-hover:shadow-lg group-hover:shadow-blue-500/50 transition-all duration-300"
+                                    crossOrigin="anonymous"
                                     onError={(e) => {
-                                      e.target.src = '/fallback-avatar.jpg';
+                                      console.error('❌ Image load error for match:', match.name, e.target.src);
+                                      e.target.onerror = null; // Prevent infinite loop
+                                      e.target.src = getFallbackAvatarUrl();
+                                      
+                                      // If this is a Supabase URL that failed, log it
+                                      if (e.target.src.includes('supabase.co')) {
+                                        console.log('🧹 Broken Supabase URL for match:', match.name);
+                                      }
                                     }}
                                   />
-                                  <div className={`absolute -bottom-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 rounded-full border-2 ${
+                                  <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 ${
                                     darkMode ? 'border-gray-800 bg-green-500' : 'border-white bg-green-500'
-                                  }`}></div>
+                                  } shadow-lg pulse`}></div>
                                 </div>
-                                <p className={`text-xs ${darkMode ? 'text-white' : 'text-gray-900'} truncate`}>
+                                <p className={`text-xs font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} truncate max-w-[60px] group-hover:text-blue-500 transition-colors duration-300`}>
                                   {match.name || 'Unknown'}
                                 </p>
                               </div>
@@ -425,35 +431,35 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                           </div>
                         </div>
                       ) : (
-                        <div className="flex flex-col items-center justify-center h-full py-4">
-                          <Heart className={`w-6 h-6 sm:w-8 sm:h-8 mb-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                          <p className={`text-xs text-center ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            No matches yet. Keep swiping!
-                          </p>
-                          <button 
+                        <div className="flex flex-col items-center justify-center h-full py-3">
+                          <div className={`w-12 h-12 rounded-full ${darkMode ? 'bg-blue-900' : 'bg-blue-100'} flex items-center justify-center mb-3`}>
+                            <Heart className={`w-6 h-6 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                          </div>
+                          <p className={`text-sm font-medium text-center mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            No matches yet
+                          </p>                          <button 
                             onClick={() => window.location.href = '/gymbros'}
-                            className={`mt-2 text-xs py-1 px-2 rounded ${darkMode ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}>
+                            className={`text-sm py-2 px-4 rounded-full font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/50 ${darkMode ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white' : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'}`}>
                             Start Swiping
                           </button>
                         </div>
                       )}
                     </div>
                   ) : (
-                    <div className={`flex-grow rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-2 sm:p-3 text-center space-y-1 sm:space-y-2 flex flex-col items-center justify-center`}>
-                      <Users className={`w-6 h-6 sm:w-8 sm:h-8 mx-auto ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                      <div>
-                        <h4 className={`font-medium text-xs sm:text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                          Connect with GymBros
-                        </h4>
-                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                          Find workout partners!
-                        </p>
-                        <button 
-                          onClick={() => window.location.href = '/gymbros'}
-                          className={`mt-2 text-xs py-1 px-2 rounded ${darkMode ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}>
-                          Go to GymBros
-                        </button>
+                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-white to-gray-50'} p-4 text-center flex flex-col items-center justify-center shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                      <div className={`w-14 h-14 rounded-full ${darkMode ? 'bg-blue-900' : 'bg-blue-100'} flex items-center justify-center mb-3`}>
+                        <Users className={`w-7 h-7 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
                       </div>
+                      <h4 className={`font-bold text-sm mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        Connect with GymBros
+                      </h4>
+                      <p className={`text-xs mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Find your perfect workout partner!
+                      </p>                      <button 
+                        onClick={() => window.location.href = '/gymbros'}
+                        className={`text-sm py-2 px-4 rounded-full font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/50 ${darkMode ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white' : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'}`}>
+                        Get Started
+                      </button>
                     </div>
                   )}
                 </div>
