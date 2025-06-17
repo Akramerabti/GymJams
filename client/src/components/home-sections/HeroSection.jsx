@@ -169,12 +169,12 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   };  return (
     <div className="absolute inset-0">
       
-      {/* Background Video for entire section - Bottom layer */}
+      {/* Background Video for entire section - Bottom layer with reduced opacity */}
       <video
         autoPlay
         muted
         loop
-        className="absolute inset-0 w-full h-full object-cover"
+        className="absolute inset-0 w-full h-full object-cover opacity-10"
       >
         <source src="/GymTonic.mp4" type="video/mp4" />
       </video>
@@ -182,8 +182,8 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
       {/* Gradient overlay - On top of video */}
       <div className={`absolute inset-0 transition-colors duration-500 ${
         darkMode 
-          ? 'bg-gray-900/80' 
-          : 'bg-white/80'
+          ? 'bg-gray-300/60' 
+          : 'bg-white/60'
       }`}></div>
 
       <div 
@@ -202,7 +202,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
             }`}>
               Your Complete Fitness Ecosystem - Shop, Train, Game, Compete
             </p>
-          </div>          {/* Section 1: Video Background with Navigation Buttons */}
+          </div>          {/* Section 1: Video Background with GET STARTED text only */}
           <div className={`h-1/4 sm:h-1/3 lg:h-1/3 relative ${darkMode ? 'bg-gradient-to-b from-white/5 via-gray-900 to-gray-900' : 'bg-gradient-to-b from-black/5 via-white to-white'}`}>            {/* Video Background - Full width */}
             <div className="w-full h-full relative overflow-hidden">
               <video
@@ -219,75 +219,112 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                 darkMode 
                   ? 'bg-black bg-opacity-50' 
                   : 'bg-white bg-opacity-30'
-              }`}></div>                {/* GET STARTED Label and Navigation Circle Buttons - Mobile: Top position, PC: Center */}
-              <div className="absolute inset-0 flex flex-col items-center lg:justify-center justify-center pt-0  space-y-3">
-                {/* GET STARTED Label - Always white */}
-                <h2 className="text-2xl mt-10 sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-wider text-white drop-shadow-lg">
-                  GET STARTED
-                </h2>
-                
-                {/* Navigation Circle Buttons - Smaller on PC */}
-                <div className="flex justify-center items-center gap-5 sm:gap-3 md:gap-4 lg:gap-4 flex-wrap max-w-xs sm:max-w-sm lg:max-w-md mx-auto">
-                  <button
-                    onClick={() => navigateToSection(1)}
-                    className={`relative w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-300 flex flex-col items-center justify-center group ${
-                      darkMode 
-                        ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-600' 
-                        : 'bg-white hover:bg-gray-100 text-gray-900 border border-gray-300'
-                    } shadow-lg`}
-                  >
-                    <ShoppingBag className="w-3 h-3 sm:w-4 sm:h-4 md:w-6 md:h-6 lg:w-5 lg:h-5" />
-                    <span className={`absolute -bottom-5 sm:-bottom-6 md:-bottom-8 lg:-bottom-6 text-xs font-medium transition-colors duration-500 ${
-                      darkMode ? 'text-white' : 'text-gray-900'
-                    } drop-shadow-lg`}>Shop</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => navigateToSection(2)}
-                    className={`relative w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-300 flex flex-col items-center justify-center group ${
-                      darkMode 
-                        ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-600' 
-                        : 'bg-white hover:bg-gray-100 text-gray-900 border border-gray-300'
-                    } shadow-lg`}
-                  >
-                    <Users className="w-3 h-3 sm:w-4 sm:h-4 md:w-6 md:h-6 lg:w-5 lg:h-5" />
-                    <span className={`absolute -bottom-5 sm:-bottom-6 md:-bottom-8 lg:-bottom-6 text-xs font-medium transition-colors duration-500 ${
-                      darkMode ? 'text-white' : 'text-gray-900'
-                    } drop-shadow-lg`}>Gains</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => navigateToSection(3)}
-                    className={`relative w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-300 flex flex-col items-center justify-center group ${
-                      darkMode 
-                        ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-600' 
-                        : 'bg-white hover:bg-gray-100 text-gray-900 border border-gray-300'
-                    } shadow-lg`}
-                  >
-                    <Gamepad2 className="w-3 h-3 sm:w-4 sm:h-4 md:w-6 md:h-6 lg:w-5 lg:h-5" />
-                    <span className={`absolute -bottom-5 sm:-bottom-6 md:-bottom-8 lg:-bottom-6 text-xs font-medium transition-colors duration-500 ${
-                      darkMode ? 'text-white' : 'text-gray-900'
-                    } drop-shadow-lg`}>Games</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => navigateToSection(4)}
-                    className={`relative w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-300 flex flex-col items-center justify-center group ${
-                      darkMode 
-                        ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-600' 
-                        : 'bg-white hover:bg-gray-100 text-gray-900 border border-gray-300'
-                    } shadow-lg`}
-                  >
-                    <Trophy className="w-3 h-3 sm:w-4 sm:h-4 md:w-6 md:h-6 lg:w-5 lg:h-5" />
-                    <span className={`absolute -bottom-5 sm:-bottom-6 md:-bottom-8 lg:-bottom-6 text-xs font-medium transition-colors duration-500 ${
-                      darkMode ? 'text-white' : 'text-gray-900'
-                    } drop-shadow-lg`}>Coaching</span>
-                  </button>
+              }`}></div>
+
+              {/* GET STARTED Label with floating animation */}
+              <div className="absolute inset-0 flex flex-col items-center lg:justify-center justify-center pt-0 space-y-3">                {/* GET STARTED Label with one-time floating animation - Always white */}
+                <div className="text-center">
+                  <h2 className={`text-2xl mt-10 sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-wider text-white drop-shadow-lg transition-all duration-1000 ${
+                    isActive 
+                      ? 'animate-floatOnce' 
+                      : 'opacity-0 translate-y-8'
+                  }`}>
+                    GET STARTED
+                  </h2>
+                  {/* Subheading */}
+                  <p className={`text-sm sm:text-base lg:text-lg text-white/90 drop-shadow-md mt-2 font-medium transition-all duration-1000 delay-700 ${
+                    isActive 
+                      ? 'opacity-100 translate-y-0' 
+                      : 'opacity-0 translate-y-4'
+                  }`}>
+                    The Best Fitness Has to Offer at a Reach
+                  </p>
                 </div>
               </div>
             </div>
-          </div>          {/* Section 2: Featured Products and GymBros - Better proportions and spacing */}
-          <div className={`flex-1 flex flex-col items-center justify-start px-3 sm:px-4 lg:px-8 pt-14 sm:pt-14 lg:pt-8 pb-32 sm:pb-16 ${darkMode ? 'bg-gradient-to-b from-gray-900 via-gray-900 to-white/5' : 'bg-gradient-to-b from-white via-white to-black/5'}`}>
+          </div>
+
+          {/* Navigation Circle Buttons - Below video, above GymBros */}
+          <div className={`py-6 px-4 ${darkMode ? 'bg-gradient-to-b from-gray-900 to-gray-900' : 'bg-gradient-to-b from-white to-white'}`}>
+            <div className="flex justify-center items-center gap-5 sm:gap-6 md:gap-8 lg:gap-6 flex-wrap max-w-lg mx-auto">
+              <button
+                onClick={() => navigateToSection(1)}
+                className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
+                  isActive 
+                    ? 'animate-slideUpFromVideo opacity-100 translate-y-0' 
+                    : 'opacity-0 translate-y-16'
+                } ${
+                  darkMode 
+                    ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 hover:border-gray-500' 
+                    : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400'
+                }`}
+                style={{ animationDelay: '0.2s' }}
+              >
+                <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
+                <span className={`absolute -bottom-6 sm:-bottom-7 md:-bottom-8 lg:-bottom-7 text-xs font-medium transition-all duration-500 ${
+                  darkMode ? 'text-white' : 'text-gray-900'
+                } group-hover:scale-110`}>Shop</span>
+              </button>
+              
+              <button
+                onClick={() => navigateToSection(2)}
+                className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
+                  isActive 
+                    ? 'animate-slideUpFromVideo opacity-100 translate-y-0' 
+                    : 'opacity-0 translate-y-16'
+                } ${
+                  darkMode 
+                    ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 hover:border-gray-500' 
+                    : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400'
+                }`}
+                style={{ animationDelay: '0.4s' }}
+              >
+                <Users className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
+                <span className={`absolute -bottom-6 sm:-bottom-7 md:-bottom-8 lg:-bottom-7 text-xs font-medium transition-all duration-500 ${
+                  darkMode ? 'text-white' : 'text-gray-900'
+                } group-hover:scale-110`}>Gains</span>
+              </button>
+              
+              <button
+                onClick={() => navigateToSection(3)}
+                className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
+                  isActive 
+                    ? 'animate-slideUpFromVideo opacity-100 translate-y-0' 
+                    : 'opacity-0 translate-y-16'
+                } ${
+                  darkMode 
+                    ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 hover:border-gray-500' 
+                    : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400'
+                }`}
+                style={{ animationDelay: '0.6s' }}
+              >
+                <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
+                <span className={`absolute -bottom-6 sm:-bottom-7 md:-bottom-8 lg:-bottom-7 text-xs font-medium transition-all duration-500 ${
+                  darkMode ? 'text-white' : 'text-gray-900'
+                } group-hover:scale-110`}>Games</span>
+              </button>
+              
+              <button
+                onClick={() => navigateToSection(4)}
+                className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
+                  isActive 
+                    ? 'animate-slideUpFromVideo opacity-100 translate-y-0' 
+                    : 'opacity-0 translate-y-16'
+                } ${
+                  darkMode 
+                    ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 hover:border-gray-500' 
+                    : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400'
+                }`}
+                style={{ animationDelay: '0.8s' }}
+              >
+                <Trophy className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
+                <span className={`absolute -bottom-6 sm:-bottom-7 md:-bottom-8 lg:-bottom-7 text-xs font-medium transition-all duration-500 ${
+                  darkMode ? 'text-white' : 'text-gray-900'
+                } group-hover:scale-110`}>Coaching</span>
+              </button>
+            </div>
+          </div>          {/* Section 2: Featured Products and GymBros - Reduced padding since buttons take space */}
+          <div className={`flex-1 flex flex-col items-center justify-start px-3 sm:px-4 lg:px-8 pt-6 sm:pt-8 lg:pt-6 pb-32 sm:pb-16 ${darkMode ? 'bg-gradient-to-b from-gray-900 via-gray-900 to-white/5' : 'bg-gradient-to-b from-white via-white to-black/5'}`}>
             <div className="w-full max-w-4xl mx-auto h-full flex flex-col justify-start">              {/* GymBros header - label and match count */}
               <div className="w-full text-left mb-2 sm:mb-3">
                 <div className="flex items-center justify-start gap-2">
