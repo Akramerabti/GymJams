@@ -182,7 +182,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
       {/* Gradient overlay - On top of video */}
       <div className={`absolute inset-0 transition-colors duration-500 ${
         darkMode 
-          ? 'bg-gray-300/60' 
+          ? 'bg-gray-600/60' 
           : 'bg-white/60'
       }`}></div>
 
@@ -203,7 +203,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               Your Complete Fitness Ecosystem - Shop, Train, Game, Compete
             </p>
           </div>          {/* Section 1: Video Background with GET STARTED text only */}
-          <div className={`h-1/4 sm:h-1/3 lg:h-1/3 relative ${darkMode ? 'bg-gradient-to-b from-white/5 via-gray-900 to-gray-900' : 'bg-gradient-to-b from-black/5 via-white to-white'}`}>            {/* Video Background - Full width */}
+          <div className={`h-1/4 sm:h-1/3 lg:h-1/3 relative z-20 ${darkMode ? 'bg-gradient-to-b from-white/5 via-gray-900 to-gray-900' : 'bg-gradient-to-b from-black/5 via-white to-white'}`}>{/* Video Background - Full width */}
             <div className="w-full h-full relative overflow-hidden">
               <video
                 autoPlay
@@ -242,80 +242,83 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Navigation Circle Buttons - Below video, above GymBros */}
-          <div className={`py-6 px-4 ${darkMode ? 'bg-gradient-to-b from-gray-900 to-gray-900' : 'bg-gradient-to-b from-white to-white'}`}>
-            <div className="flex justify-center items-center gap-5 sm:gap-6 md:gap-8 lg:gap-6 flex-wrap max-w-lg mx-auto">
-              <button
+          </div>          {/* Navigation Circle Buttons - Below video, above GymBros */}
+          <div className={`py-6 px-4 relative z-5 ${darkMode ? 'bg-gradient-to-b from-gray-900 to-gray-900' : 'bg-gradient-to-b from-white to-white'}`}>
+            <div className="flex justify-center items-center gap-5 sm:gap-6 md:gap-8 lg:gap-6 flex-wrap max-w-lg mx-auto">              <button
                 onClick={() => navigateToSection(1)}
                 className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
                   isActive 
-                    ? 'animate-slideUpFromVideo opacity-100 translate-y-0' 
-                    : 'opacity-0 translate-y-16'
+                    ? 'animate-slideDownFromVideo' 
+                    : 'opacity-0 invisible pointer-events-none'
                 } ${
                   darkMode 
                     ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 hover:border-gray-500' 
                     : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400'
                 }`}
-                style={{ animationDelay: '0.2s' }}
+                style={{ 
+                  animationDelay: isActive ? '0.2s' : '0s',
+                  animationFillMode: 'both'
+                }}
               >
                 <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
                 <span className={`absolute -bottom-6 sm:-bottom-7 md:-bottom-8 lg:-bottom-7 text-xs font-medium transition-all duration-500 ${
                   darkMode ? 'text-white' : 'text-gray-900'
                 } group-hover:scale-110`}>Shop</span>
-              </button>
-              
-              <button
+              </button>              <button
                 onClick={() => navigateToSection(2)}
                 className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
                   isActive 
-                    ? 'animate-slideUpFromVideo opacity-100 translate-y-0' 
-                    : 'opacity-0 translate-y-16'
+                    ? 'animate-slideDownFromVideo' 
+                    : 'opacity-0 invisible pointer-events-none'
                 } ${
                   darkMode 
                     ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 hover:border-gray-500' 
                     : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400'
                 }`}
-                style={{ animationDelay: '0.4s' }}
+                style={{ 
+                  animationDelay: isActive ? '0.4s' : '0s',
+                  animationFillMode: 'both'
+                }}
               >
                 <Users className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
                 <span className={`absolute -bottom-6 sm:-bottom-7 md:-bottom-8 lg:-bottom-7 text-xs font-medium transition-all duration-500 ${
                   darkMode ? 'text-white' : 'text-gray-900'
                 } group-hover:scale-110`}>Gains</span>
-              </button>
-              
-              <button
+              </button>              <button
                 onClick={() => navigateToSection(3)}
                 className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
                   isActive 
-                    ? 'animate-slideUpFromVideo opacity-100 translate-y-0' 
-                    : 'opacity-0 translate-y-16'
+                    ? 'animate-slideDownFromVideo' 
+                    : 'opacity-0 invisible pointer-events-none'
                 } ${
                   darkMode 
                     ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 hover:border-gray-500' 
                     : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400'
                 }`}
-                style={{ animationDelay: '0.6s' }}
+                style={{ 
+                  animationDelay: isActive ? '0.6s' : '0s',
+                  animationFillMode: 'both'
+                }}
               >
                 <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
                 <span className={`absolute -bottom-6 sm:-bottom-7 md:-bottom-8 lg:-bottom-7 text-xs font-medium transition-all duration-500 ${
                   darkMode ? 'text-white' : 'text-gray-900'
                 } group-hover:scale-110`}>Games</span>
-              </button>
-              
-              <button
+              </button>              <button
                 onClick={() => navigateToSection(4)}
                 className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
                   isActive 
-                    ? 'animate-slideUpFromVideo opacity-100 translate-y-0' 
-                    : 'opacity-0 translate-y-16'
+                    ? 'animate-slideDownFromVideo' 
+                    : 'opacity-0 invisible pointer-events-none'
                 } ${
                   darkMode 
                     ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 hover:border-gray-500' 
                     : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400'
                 }`}
-                style={{ animationDelay: '0.8s' }}
+                style={{ 
+                  animationDelay: isActive ? '0.8s' : '0s',
+                  animationFillMode: 'both'
+                }}
               >
                 <Trophy className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
                 <span className={`absolute -bottom-6 sm:-bottom-7 md:-bottom-8 lg:-bottom-7 text-xs font-medium transition-all duration-500 ${

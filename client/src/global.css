@@ -602,14 +602,16 @@ html.gymbros-setup-fullscreen {
   }
 }
 
-@keyframes slideUpFromVideo {
+@keyframes slideDownFromVideo {
   0% {
-    transform: translateY(80px);
+    transform: translateY(-150px);
     opacity: 0;
+    visibility: hidden;
   }
   100% {
     transform: translateY(0);
     opacity: 1;
+    visibility: visible;
   }
 }
 
@@ -617,8 +619,8 @@ html.gymbros-setup-fullscreen {
   animation: floatOnce 2s ease-out forwards;
 }
 
-.animate-slideUpFromVideo {
-  animation: slideUpFromVideo 0.8s ease-out forwards;
+.animate-slideDownFromVideo {
+  animation: slideDownFromVideo 0.8s ease-out forwards;
 }
 
 /* Additional viewport optimization for small screens */
