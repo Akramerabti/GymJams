@@ -295,13 +295,11 @@ const ShopSection = ({ onNavigate, isActive }) => {
                 </p>
               </div>
             </div>
-          </div>
-
-          {/* Two Components Section - 2/3 height - Mobile: Stack vertically */}
-          <div className="h-2/3 flex flex-col md:flex-row relative z-10">
+          </div>          {/* Two Components Section - 2/3 height - Mobile: Stack vertically */}
+          <div className="h-2/3 flex flex-col md:flex-row relative z-10 pointer-events-none">
             
             {/* Left Component - Clothes */}
-            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6">
+            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6 pointer-events-auto">
               <div className={`h-full rounded-2xl group relative overflow-hidden transition-all duration-800 ${
                 darkMode 
                   ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-blue-900/20' 
@@ -366,10 +364,8 @@ const ShopSection = ({ onNavigate, isActive }) => {
                   </div>
                 </div>
               </div>
-            </div>
-
-            {/* Right Component - Accessories */}
-            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6">
+            </div>            {/* Right Component - Accessories */}
+            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6 pointer-events-auto">
               <div className={`h-full rounded-2xl group relative overflow-hidden transition-all duration-800 ${
                 darkMode 
                   ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-green-900/20' 

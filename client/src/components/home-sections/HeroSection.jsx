@@ -453,7 +453,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                     <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-gray-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} p-3 sm:p-4 mt-1 flex flex-col shadow-2xl border-2 ${darkMode ? 'border-blue-500/30 hover:border-purple-500/50' : 'border-blue-300/50 hover:border-purple-400/70'} relative overflow-hidden hover:shadow-3xl transition-all duration-500 hover:scale-[1.02] group`}>
                       {/* Info Button - positioned in top right */}
                       <Dialog>                        <DialogTrigger asChild>
-                          <button className={`absolute top-2 right-2 z-20 p-2 rounded-full transition-all duration-300 hover:scale-110 ${
+                          <button className={`absolute top-2 right-6 sm:right-2 z-20 p-2 rounded-full transition-all duration-300 hover:scale-110 ${
                             darkMode 
                               ? 'bg-gradient-to-br from-blue-600/70 to-purple-600/70 hover:from-blue-500/80 hover:to-purple-500/80 text-white shadow-lg hover:shadow-blue-500/30' 
                               : 'bg-gradient-to-br from-blue-500/70 to-purple-500/70 hover:from-blue-600/80 hover:to-purple-600/80 text-white shadow-lg hover:shadow-purple-500/30'
