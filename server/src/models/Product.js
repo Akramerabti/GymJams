@@ -14,11 +14,10 @@ const productSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 0
-  },
-  category: {
+  },  category: {
     type: String,
     required: true,
-    enum: ['Weights', 'Machines', 'Accessories', 'CardioEquipment']
+    enum: ['Clothes', 'Machines', 'Accessories', 'CardioEquipment']
   },
   stockQuantity: {
     type: Number,

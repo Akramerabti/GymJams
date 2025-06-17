@@ -61,12 +61,11 @@ export const validateProduct = validate([
   body('description')
     .trim()
     .notEmpty()
-    .withMessage('Description is required'),
-  body('price')
+    .withMessage('Description is required'),  body('price')
     .isFloat({ min: 0 })
     .withMessage('Price must be a positive number'),
   body('category')
-    .isIn(['Weights', 'Machines', 'Accessories', 'CardioEquipment'])
+    .isIn(['Clothes', 'Machines', 'Accessories', 'CardioEquipment'])
     .withMessage('Invalid category'),
   body('stockQuantity')
     .isInt({ min: 0 })

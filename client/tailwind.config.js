@@ -10,7 +10,8 @@ module.exports = {
         gym: ['Montserrat', 'sans-serif'],
       },      animation: {
         'floatOnce': 'floatOnce 2s ease-out forwards',
-        'slideDownFromVideo': 'slideDownFromVideo 0.8s ease-out forwards',
+        'slideDownFromVideo': 'slideDownFromVideo 0.5s ease-out forwards',
+        'floatUpSection': 'floatUpSection 0.8s ease-out forwards',
       },
       keyframes: {
         floatOnce: {
@@ -19,9 +20,14 @@ module.exports = {
           '50%': { transform: 'translateY(-12px)' },
           '75%': { transform: 'translateY(-6px)' },
           '100%': { transform: 'translateY(0px)', opacity: '1' },
-        },        slideDownFromVideo: {
+        },
+        slideDownFromVideo: {
           '0%': { transform: 'translateY(-150px)', opacity: '0', visibility: 'hidden' },
           '100%': { transform: 'translateY(0)', opacity: '1', visibility: 'visible' },
+        },
+        floatUpSection: {
+          '0%': { transform: 'translateY(30px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
         },
       },
   },

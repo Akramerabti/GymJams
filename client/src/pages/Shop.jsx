@@ -37,7 +37,7 @@ const Shop = () => {
   const navigate = useNavigate();
   const [isDarkMode, setIsDarkMode] = useState(false);
 
-  const categories = ['Weights', 'Machines', 'Accessories', 'Cardio Equipment'];
+  const categories = ['Clothes', 'Machines', 'Accessories', 'Cardio Equipment'];
   const priceRanges = [
     { label: 'Under $100', value: '0-100' },
     { label: '$100 - $500', value: '100-500' },

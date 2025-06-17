@@ -76,11 +76,10 @@ const Products = ({ onRefreshDashboard }) => {
     withDiscount: 0
   });
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'grid'
-  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
-  const { user } = useAuth();
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);  const { user } = useAuth();
   const isMobile = window.innerWidth < 768;
 
-  const categories = ['Weights', 'Machines', 'Accessories', 'CardioEquipment'];
+  const categories = ['Clothes', 'Machines', 'Accessories', 'CardioEquipment'];
 
   const getUserRole = (user) => {
     return user?.user?.role || user?.role || '';

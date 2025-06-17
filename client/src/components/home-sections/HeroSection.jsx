@@ -178,11 +178,10 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
       >
         <source src="/GymTonic.mp4" type="video/mp4" />
       </video>
-      
-      {/* Gradient overlay - On top of video */}
+        {/* Gradient overlay - On top of video */}
       <div className={`absolute inset-0 transition-colors duration-500 ${
         darkMode 
-          ? 'bg-gray-600/60' 
+          ? 'bg-gray-900/60' 
           : 'bg-white/60'
       }`}></div>
 
@@ -243,7 +242,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               </div>
             </div>
           </div>          {/* Navigation Circle Buttons - Below video, above GymBros */}
-          <div className={`py-6 px-4 relative z-5 ${darkMode ? 'bg-gradient-to-b from-gray-900 to-gray-900' : 'bg-gradient-to-b from-white to-white'}`}>
+          <div className={`py-6 px-4 relative z-5 ${darkMode ? 'bg-gray-900' : 'bg-white'}`}>
             <div className="flex justify-center items-center gap-5 sm:gap-6 md:gap-8 lg:gap-6 flex-wrap max-w-lg mx-auto">              <button
                 onClick={() => navigateToSection(1)}
                 className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
@@ -252,8 +251,8 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                     : 'opacity-0 invisible pointer-events-none'
                 } ${
                   darkMode 
-                    ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 hover:border-gray-500' 
-                    : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400'
+                    ? 'bg-gray-800 hover:bg-gray-700 text-white border border-white/30' 
+                    : 'bg-white hover:bg-gray-50 text-gray-900 border border-black/30'
                 }`}
                 style={{ 
                   animationDelay: isActive ? '0.2s' : '0s',
@@ -272,8 +271,8 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                     : 'opacity-0 invisible pointer-events-none'
                 } ${
                   darkMode 
-                    ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 hover:border-gray-500' 
-                    : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400'
+                    ? 'bg-gray-800 hover:bg-gray-700 text-white border border-white/30' 
+                    : 'bg-white hover:bg-gray-50 text-gray-900 border border-black/30'
                 }`}
                 style={{ 
                   animationDelay: isActive ? '0.4s' : '0s',
@@ -292,8 +291,8 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                     : 'opacity-0 invisible pointer-events-none'
                 } ${
                   darkMode 
-                    ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 hover:border-gray-500' 
-                    : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400'
+                    ? 'bg-gray-800 hover:bg-gray-700 text-white border border-white/30' 
+                    : 'bg-white hover:bg-gray-50 text-gray-900 border border-black/30'
                 }`}
                 style={{ 
                   animationDelay: isActive ? '0.6s' : '0s',
@@ -312,8 +311,8 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                     : 'opacity-0 invisible pointer-events-none'
                 } ${
                   darkMode 
-                    ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 hover:border-gray-500' 
-                    : 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 hover:border-gray-400'
+                    ? 'bg-gray-800 hover:bg-gray-700 text-white border border-white/30' 
+                    : 'bg-white hover:bg-gray-50 text-gray-900 border border-black/30'
                 }`}
                 style={{ 
                   animationDelay: isActive ? '0.8s' : '0s',
@@ -340,18 +339,24 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                     </span>
                   )}
                 </div>              </div>              {/* All screen sizes: Stacked vertically */}
-              <div className="grid grid-cols-1 sm:gap-12 md:gap-12 lg:gap-14 w-full sm:max-w-none flex-1">{/* GymBros Section - Card Design */}
-                <div className="flex flex-col min-h-[80px] max-h-[120px] sm:min-h-[80px] sm:max-h-[120px] lg:min-h-[80px] lg:max-h-[120px]">
-                  {gymBrosLoading ? (
-                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-white/5' : 'bg-gradient-to-br from-gray-50 via-gray-100 to-black/5'} p-4 pt-12 flex items-center justify-center shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                      <div className={`animate-spin rounded-full h-6 w-6 border-b-2 ${
+              <div className="grid grid-cols-1 sm:gap-12 md:gap-12 lg:gap-14 w-full sm:max-w-none flex-1">                {/* GymBros Section - Card Design */}
+                <div className={`flex flex-col min-h-[80px] max-h-[120px] sm:min-h-[80px] sm:max-h-[120px] lg:min-h-[80px] lg:max-h-[120px] transition-all duration-800 ${
+                  isActive 
+                    ? 'animate-floatUpSection' 
+                    : 'opacity-0 translate-y-8'
+                }`}
+                style={{ 
+                  animationDelay: isActive ? '0.3s' : '0s',
+                  animationFillMode: 'both'
+                }}>                  {gymBrosLoading ? (
+                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-white/5' : 'bg-gradient-to-br from-gray-50 via-gray-100 to-black/5'} p-4 pt-12 flex items-center justify-center shadow-xl border-2 ${darkMode ? 'border-white/30' : 'border-black/30'} relative overflow-hidden`}>
+                      <div className={`animate-spin rounded-full h-6 w-6 border-b-2 relative z-10 ${
                         darkMode ? 'border-blue-400' : 'border-blue-600'
                       }`}></div>
                     </div>
                   ) : gymBrosData?.hasProfile ? (
-                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-white/5' : 'bg-gradient-to-br from-gray-50 via-gray-100 to-black/5'} p-3 sm:p-4 mt-1 flex flex-col shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                      {gymBrosData.recentMatches && gymBrosData.recentMatches.length > 0 ? (                        
-                        <div className="flex-1 flex flex-col h-full">
+                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-white/5' : 'bg-gradient-to-br from-gray-50 via-gray-100 to-black/5'} p-3 sm:p-4 mt-1 flex flex-col shadow-xl border-2 ${darkMode ? 'border-white/30' : 'border-black/30'} relative overflow-hidden hover:border-opacity-50 transition-all duration-300`}>{gymBrosData.recentMatches && gymBrosData.recentMatches.length > 0 ? (                        
+                        <div className="flex-1 flex flex-col h-full relative z-10">
                             {/* Card Carousel */}                          <div className="relative overflow-visible z-50 flex-1 h-full">                              <div 
                               ref={setGymBrosCarouselRef}
                               className="overflow-x-auto overflow-y-visible flex flex-row gap-2 snap-x snap-mandatory scrollbar-hide relative z-50 h-full items-stretch touch-pan-x transition-all duration-300" 
@@ -370,7 +375,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                                     minWidth: "56px" 
                                   }}
                                 ><div 
-                                    className="relative w-full h-full overflow-visible rounded-lg transition-all duration-300 group-hover:shadow-lg group-hover:shadow-blue-500/30 group-hover:brightness-125 group-hover:z-[9999]" 
+                                    className="relative w-full h-full overflow-visible rounded-lg transition-all duration-300 group-hover:shadow-lg group-hover:shadow-blue-500/30 group-hover:brightness-125 group-hover:z-[9999] group-hover:scale-105" 
                                     style={{ 
                                       width: "56px",
                                       height: "80px",
@@ -426,10 +431,9 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                               </div>
                             )}
                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-full py-2 sm:py-3">
-                          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${darkMode ? 'bg-blue-900' : 'bg-blue-100'} flex items-center justify-center mb-2`}>
+                        </div>                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full py-2 sm:py-3 relative z-10">
+                          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${darkMode ? 'bg-blue-900' : 'bg-blue-100'} flex items-center justify-center mb-2 shadow-lg`}>
                             <Heart className={`w-5 h-5 sm:w-6 sm:h-6 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
                           </div>
                           <p className={`text-xs sm:text-sm font-medium text-center mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -437,15 +441,18 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                           </p>
                           <button 
                             onClick={() => window.location.href = '/gymbros'}
-                            className={`text-sm py-2 px-4 rounded-full font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/50 ${darkMode ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white' : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'}`}>
+                            className={`text-sm py-2 px-4 rounded-full font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/50 hover:scale-105 ${darkMode ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white' : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'}`}>
                             Start Swiping
                           </button>
                         </div>
                       )}
                     </div>                  ) : (
-                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-white/5' : 'bg-gradient-to-br from-gray-50 via-gray-100 to-black/5'} p-3 sm:p-4 mt-1 flex flex-col shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                      <div className="flex flex-col items-center justify-center h-full py-1 sm:py-2">
-                        <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full ${darkMode ? 'bg-blue-900' : 'bg-blue-100'} flex items-center justify-center mb-1`}>
+                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-white/5' : 'bg-gradient-to-br from-gray-50 via-gray-100 to-black/5'} p-3 sm:p-4 mt-1 flex flex-col shadow-xl border-2 ${darkMode ? 'border-white/30' : 'border-black/30'} relative overflow-hidden hover:border-opacity-50 transition-all duration-300`}>
+                      {/* Subtle inner glow */}
+                      <div className={`absolute inset-0 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-blue-500/5 to-purple-500/5' : 'bg-gradient-to-br from-blue-500/10 to-purple-500/10'}`}></div>
+                      {/* Corner accent */}
+                      <div className={`absolute top-0 right-0 w-8 h-8 ${darkMode ? 'bg-gradient-to-bl from-blue-400/20 to-transparent' : 'bg-gradient-to-bl from-blue-600/20 to-transparent'} rounded-bl-lg`}></div>
+                      <div className="flex flex-col items-center justify-center h-full py-1 sm:py-2 relative z-10">                        <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full ${darkMode ? 'bg-blue-900' : 'bg-blue-100'} flex items-center justify-center mb-1 shadow-lg`}>
                           <Users className={`w-4 h-4 sm:w-4 sm:h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
                         </div>
                         <p className={`text-xs font-medium text-center mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -453,13 +460,21 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                         </p>
                         <button 
                           onClick={() => window.location.href = '/gymbros'}
-                          className={`text-xs py-1 px-3 rounded-full font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/50 ${darkMode ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white' : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'}`}>
+                          className={`text-xs py-1 px-3 rounded-full font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/50 hover:scale-105 ${darkMode ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white' : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white'}`}>
                           Get Started
                         </button>
                       </div>
                     </div>)}
                 </div>                {/* Featured Products Section */}
-                <div className="space-y-2 sm:space-y-3 sm:col-span-1 flex flex-col h-full">
+                <div className={`space-y-2 sm:space-y-3 sm:col-span-1 flex flex-col h-full transition-all duration-800 ${
+                  isActive 
+                    ? 'animate-floatUpSection' 
+                    : 'opacity-0 translate-y-8'
+                }`}
+                style={{ 
+                  animationDelay: isActive ? '0.5s' : '0s',
+                  animationFillMode: 'both'
+                }}>
                   {/* Featured Products with Shop Arrow */}
                   <div className="flex items-center justify-start gap-2 sm:gap-2 lg:gap-2 mb-2 sm:mb-3">
                     <h3 className={`text-base sm:text-lg lg:text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -477,18 +492,22 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                       <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
                   </div>
-                  
-                  {productsLoading ? (
-                    <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-4 sm:p-6 flex items-center justify-center shadow-lg`}>
-                      <div className={`animate-spin rounded-full h-6 w-6 border-b-2 ${
+                    {productsLoading ? (
+                    <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-4 sm:p-6 flex items-center justify-center shadow-lg border-2 ${darkMode ? 'border-white/30' : 'border-black/30'} relative overflow-hidden`}>
+                      {/* Subtle inner glow */}
+                      <div className={`absolute inset-0 rounded-xl ${darkMode ? 'bg-gradient-to-br from-green-500/5 to-blue-500/5' : 'bg-gradient-to-br from-green-500/10 to-blue-500/10'}`}></div>
+                      <div className={`animate-spin rounded-full h-6 w-6 border-b-2 relative z-10 ${
                         darkMode ? 'border-blue-400' : 'border-blue-600'
                       }`}></div>
                     </div>
                   ) : featuredProducts.length > 0 ? (
                     <div className="relative flex-1 flex flex-col">
-                      <div className={`flex-1 relative overflow-hidden rounded-xl ${darkMode ? 'bg-gray-800/80' : 'bg-white'} p-4 sm:p-6 min-h-[200px] shadow-lg border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                        <div 
-                          className="flex transition-transform duration-300 ease-in-out h-full"
+                      <div className={`flex-1 relative overflow-hidden rounded-xl ${darkMode ? 'bg-gray-800/80' : 'bg-white'} p-4 sm:p-6 min-h-[200px] shadow-lg border-2 ${darkMode ? 'border-white/30' : 'border-black/30'} hover:border-opacity-50 transition-all duration-300 group`}>
+                        {/* Subtle inner glow */}
+                        <div className={`absolute inset-0 rounded-xl ${darkMode ? 'bg-gradient-to-br from-green-500/5 to-blue-500/5' : 'bg-gradient-to-br from-green-500/10 to-blue-500/10'}`}></div>
+                        {/* Corner accent */}
+                        <div className={`absolute top-0 left-0 w-8 h-8 ${darkMode ? 'bg-gradient-to-br from-green-400/20 to-transparent' : 'bg-gradient-to-br from-green-600/20 to-transparent'} rounded-br-lg`}></div>                        <div 
+                          className="flex transition-transform duration-300 ease-in-out h-full relative z-10"
                           style={{ transform: `translateX(-${currentProductIndex * 100}%)` }}
                         >
                           {featuredProducts.map((product) => (
@@ -496,7 +515,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                               <img 
                                 src={product.image} 
                                 alt={product.name}
-                                className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 mx-auto mb-3 rounded-lg object-cover shadow-md"
+                                className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 mx-auto mb-3 rounded-lg object-cover shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105"
                                 onError={(e) => {
                                   e.target.src = '/Picture2.png';
                                 }}
@@ -548,11 +567,12 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                             ))}
                           </div>
                         </>
-                      )}
-                    </div>                  ) : (
-                    <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-4 sm:p-6 text-center flex flex-col items-center justify-center shadow-lg min-h-[190px]`}>
-                      <XCircle className={`w-12 h-12 mb-3 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                      <p className={`text-sm sm:text-base ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      )}                    </div>                  ) : (
+                    <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-4 sm:p-6 text-center flex flex-col items-center justify-center shadow-lg min-h-[190px] border-2 ${darkMode ? 'border-white/30' : 'border-black/30'} relative overflow-hidden`}>
+                      {/* Subtle inner glow */}
+                      <div className={`absolute inset-0 rounded-xl `}></div>
+                      <XCircle className={`w-12 h-12 mb-3 relative z-10 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                      <p className={`text-sm sm:text-base relative z-10 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                         Sorry, no products available right now.
                       </p>                    </div>
                   )}

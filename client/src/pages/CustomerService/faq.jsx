@@ -52,10 +52,9 @@ export const FAQSection = ({
         answer: 'Currently, GymTonic operates exclusively online. However, we offer virtual consultations for equipment and coaching services.'
       }
     ],
-    products: [
-      {
+    products: [      {
         question: 'What types of products do you sell?',
-        answer: 'We offer a wide range of fitness equipment including weights, machines, accessories, and cardio equipment. All our products are carefully selected for quality and performance.'
+        answer: 'We offer a wide range of fitness equipment including clothes, machines, accessories, and cardio equipment. All our products are carefully selected for quality and performance.'
       },
       {
         question: 'How do I know which product is right for me?',
