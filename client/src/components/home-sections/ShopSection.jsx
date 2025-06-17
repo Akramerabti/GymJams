@@ -118,12 +118,10 @@ const ShopSection = ({ onNavigate, isActive }) => {
           }`}></div>
         </div>
       ) : products.length > 0 ? (
-        <>
-          {/* Product Display */}
+        <>          {/* Product Display */}
           <div 
-            className="flex transition-transform duration-500 ease-in-out h-full cursor-pointer"
+            className="flex transition-transform duration-500 ease-in-out h-full"
             style={{ transform: `translateX(-${currentIndex * 100}%)` }}
-            onClick={() => onProductClick(products[currentIndex]._id)}
           >
             {products.map((product, index) => {
               let imageUrl = '/Picture2.png';
@@ -139,7 +137,7 @@ const ShopSection = ({ onNavigate, isActive }) => {
 
               return (
                 <div key={product._id} className="w-full flex-shrink-0 flex flex-col items-center justify-center h-full px-4">
-                  <div className="text-center">
+                  <div className="text-center pointer-events-auto cursor-pointer" onClick={() => onProductClick(product._id)}>
                     <img 
                       src={imageUrl}
                       alt={product.name}
@@ -169,16 +167,14 @@ const ShopSection = ({ onNavigate, isActive }) => {
                 </div>
               );
             })}
-          </div>
-
-          {/* Navigation Controls */}
+          </div>          {/* Navigation Controls */}
           {products.length > 1 && (
             <>
               <button
                 onClick={(e) => { e.stopPropagation(); onPrev(); }}
                 className={`absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full ${
                   darkMode ? 'bg-gray-700/90 hover:bg-gray-600 text-white' : 'bg-white/90 hover:bg-gray-100 text-gray-900'
-                } shadow-lg transition-all duration-200 hover:scale-110 opacity-0 group-hover:opacity-100`}
+                } shadow-lg transition-all duration-200 hover:scale-110 opacity-0 group-hover:opacity-100 pointer-events-auto`}
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -187,13 +183,12 @@ const ShopSection = ({ onNavigate, isActive }) => {
                 onClick={(e) => { e.stopPropagation(); onNext(); }}
                 className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full ${
                   darkMode ? 'bg-gray-700/90 hover:bg-gray-600 text-white' : 'bg-white/90 hover:bg-gray-100 text-gray-900'
-                } shadow-lg transition-all duration-200 hover:scale-110 opacity-0 group-hover:opacity-100`}
+                } shadow-lg transition-all duration-200 hover:scale-110 opacity-0 group-hover:opacity-100 pointer-events-auto`}
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
-              
-              {/* Dots Indicator */}
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                {/* Dots Indicator */}
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 pointer-events-auto">
                 {products.map((_, index) => (
                   <button
                     key={index}
@@ -236,9 +231,8 @@ const ShopSection = ({ onNavigate, isActive }) => {
             ? 'opacity-100 translate-y-0' 
             : 'opacity-0 translate-y-8'
         }`}
-      >
-        {/* Layout: Video top 1/3, Two components bottom 2/3 */}
-        <div className="h-full flex flex-col pointer-events-auto">
+      >        {/* Layout: Video top 1/3, Two components bottom 2/3 */}
+        <div className="h-full flex flex-col pointer-events-none">
           
           {/* Video Section - 1/3 height */}
           <div className={`h-1/3 relative z-20 ${
@@ -332,10 +326,9 @@ const ShopSection = ({ onNavigate, isActive }) => {
                     }`}>
                       <Shirt className="w-3 h-3" />
                       Gym Clothes
-                    </div>
-                    <button
+                    </div>                    <button
                       onClick={() => onNavigate('/shop?category=clothes')}
-                      className={`p-2 rounded-full transition-all duration-300 hover:scale-110 ${
+                      className={`p-2 rounded-full transition-all duration-300 hover:scale-110 pointer-events-auto ${
                         darkMode 
                           ? 'bg-blue-600 hover:bg-blue-500 text-white' 
                           : 'bg-blue-500 hover:bg-blue-600 text-white'
@@ -401,10 +394,9 @@ const ShopSection = ({ onNavigate, isActive }) => {
                     }`}>
                       <Watch className="w-3 h-3" />
                       Accessories
-                    </div>
-                    <button
+                    </div>                    <button
                       onClick={() => onNavigate('/shop?category=accessories')}
-                      className={`p-2 rounded-full transition-all duration-300 hover:scale-110 ${
+                      className={`p-2 rounded-full transition-all duration-300 hover:scale-110 pointer-events-auto ${
                         darkMode 
                           ? 'bg-green-600 hover:bg-green-500 text-white' 
                           : 'bg-green-500 hover:bg-green-600 text-white'
