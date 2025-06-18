@@ -1,5 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowRight, Heart, Users, MessageCircle, Dumbbell, MapPin, Calendar, Zap, UserPlus, Target, Play, Pause, Volume2, VolumeX, Maximize, Minimize, X } from 'lucide-react';
+import { ArrowRight, Heart, Users, MessageCircle, Dumbbell, MapPin, Calendar, Zap, UserPlus, Target, Play, Pause, Volume2, VolumeX, Maximize, Mini    // Show controls when video is paused
+    videoClone.addEventListener('pause', showControls);
+    videoClone.addEventListener('play', showControls);
+    
+    // Always show controls initially on mobile
+    showControls();
 
 const GymBrosSection = ({ onNavigate, isActive }) => {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
@@ -114,11 +119,11 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
       position: absolute;
       top: 20px;
       right: 20px;
-      background: rgba(0,0,0,0.7);
+      background: rgba(0,0,0,0.8);
       color: white;
-      border: none;
-      width: 44px;
-      height: 44px;
+      border: 2px solid rgba(255,255,255,0.3);
+      width: 48px;
+      height: 48px;
       border-radius: 50%;
       cursor: pointer;
       z-index: 10000;
@@ -127,7 +132,8 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
       justify-content: center;
       touch-action: manipulation;
       opacity: 1;
-      transition: opacity 0.3s ease;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
     `;
       // Create video controls bar
     const controlsBar = document.createElement('div');
@@ -149,8 +155,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
     // Controls visibility state
     let controlsVisible = true;
     let hideControlsTimeout;
-    
-    // Function to show controls
+      // Function to show controls
     const showControls = () => {
       controlsVisible = true;
       controlsBar.style.opacity = '1';
@@ -161,24 +166,23 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
         clearTimeout(hideControlsTimeout);
       }
       
-      // Auto-hide after 3 seconds (only if video is playing)
+      // Auto-hide after 5 seconds (increased from 3 for mobile)
       if (!videoClone.paused) {
         hideControlsTimeout = setTimeout(() => {
           if (controlsVisible && !videoClone.paused) {
             controlsVisible = false;
             controlsBar.style.opacity = '0';
-            closeButton.style.opacity = '0.3';
+            closeButton.style.opacity = '0.5'; // Keep close button slightly visible
           }
-        }, 3000);
+        }, 5000); // Increased timeout for mobile
       }
     };
-    
-    // Function to toggle controls
+      // Function to toggle controls
     const toggleControls = () => {
       if (controlsVisible) {
         controlsVisible = false;
         controlsBar.style.opacity = '0';
-        closeButton.style.opacity = '0.3';
+        closeButton.style.opacity = '0.5'; // Keep close button slightly visible
         if (hideControlsTimeout) {
           clearTimeout(hideControlsTimeout);
         }
@@ -187,11 +191,24 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
       }
     };
     
-    // Add tap to toggle controls
+    // Add both touch and click events for better mobile support
     videoClone.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
       toggleControls();
+    });
+    
+    videoClone.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleControls();
+    });
+    
+    // Add overlay touch event to show controls
+    overlay.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showControls();
     });
     
     // Show controls when video is paused
@@ -213,55 +230,55 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
       display: flex;
       align-items: center;
       gap: 12px;
-    `;
-      // Sound toggle button
+    `;      // Sound toggle button
     const soundButton = document.createElement('button');
     soundButton.style.cssText = `
-      background: rgba(0,0,0,0.6);
+      background: rgba(0,0,0,0.8);
       color: white;
-      border: none;
-      width: 44px;
-      height: 44px;
+      border: 2px solid rgba(255,255,255,0.2);
+      width: 48px;
+      height: 48px;
       border-radius: 50%;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       touch-action: manipulation;
-      transition: background 0.2s;
-    `;
-      // Play/Pause button
+      transition: all 0.2s;
+      backdrop-filter: blur(10px);
+    `;      // Play/Pause button
     const playPauseButton = document.createElement('button');
     playPauseButton.style.cssText = `
-      background: rgba(0,0,0,0.6);
+      background: rgba(0,0,0,0.8);
       color: white;
-      border: none;
-      width: 44px;
-      height: 44px;
+      border: 2px solid rgba(255,255,255,0.2);
+      width: 48px;
+      height: 48px;
       border-radius: 50%;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       touch-action: manipulation;
-      transition: background 0.2s;
-    `;
-      // Minimize button (same as close)
+      transition: all 0.2s;
+      backdrop-filter: blur(10px);
+    `;      // Minimize button (same as close)
     const minimizeButton = document.createElement('button');
     minimizeButton.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>`;
     minimizeButton.style.cssText = `
-      background: rgba(0,0,0,0.6);
+      background: rgba(0,0,0,0.8);
       color: white;
-      border: none;
-      width: 44px;
-      height: 44px;
+      border: 2px solid rgba(255,255,255,0.2);
+      width: 48px;
+      height: 48px;
       border-radius: 50%;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       touch-action: manipulation;
-      transition: background 0.2s;
+      transition: all 0.2s;
+      backdrop-filter: blur(10px);
     `;
     
     // Update functions
