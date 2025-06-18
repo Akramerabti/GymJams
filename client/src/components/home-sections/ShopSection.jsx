@@ -240,33 +240,28 @@ const ShopSection = ({ onNavigate, isActive }) => {
       </div>
     );
   };
+
   return (
     <div className={`absolute inset-0 transition-colors duration-500 ${
       darkMode 
         ? 'bg-gradient-to-b from-gray-900 via-gray-900/95 to-gray-900/90' 
         : 'bg-gradient-to-b from-white via-white/95 to-white/90'
-    }`} style={{ height: '100vh', overflow: 'hidden' }}>
+    }`}>
       <div 
         className={`w-full h-full transition-all duration-700 ${
           isActive 
             ? 'opacity-100 translate-y-0' 
             : 'opacity-0 translate-y-8'
         }`}
-        style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}
       >
-        {/* Layout: Flexible video section and components that fit available space */}
-        <div className="flex-1 flex flex-col" style={{ height: '100vh', overflow: 'hidden' }}>
-            {/* Video Section - Keep original large screen height, fix mobile only */}
-          <div 
-            className={`relative z-20 flex-shrink-0 h-1/4 lg:h-1/3 ${
-              isActive 
-                ? 'animate-floatOnce' 
-                : 'opacity-0 translate-y-8'
-            }`}
-            style={{ 
-              minHeight: '120px' // Only add minimum for mobile protection
-            }}
-          >
+        {/* Layout: Video top 1/3, Two components bottom 2/3 */}
+        <div className="h-full flex flex-col pointer-events-none">
+            {/* Video Section - 1/4 height on mobile, 1/3 height on larger screens */}
+          <div className={`h-1/4 lg:h-1/3 relative z-20 ${
+            isActive 
+              ? 'animate-floatOnce' 
+              : 'opacity-0 translate-y-8'
+          }`}>
             <div className="w-full h-full relative overflow-hidden">
               <video
                 autoPlay
@@ -277,10 +272,10 @@ const ShopSection = ({ onNavigate, isActive }) => {
                 <source src="/GymTonic.mp4" type="video/mp4" />
               </video>
                 {/* Overlay */}
-              <div className="absolute inset-0 bg-black bg-opacity-60"></div>              {/* Video Content - Centered for all screen sizes */}
-              <div className="absolute inset-0 flex flex-col items-center pt-10 justify-center text-center px-4"
-                   style={{ minHeight: '120px' }}>
-                <div className={`inline-flex items-center gap-2 px-2 py-1  rounded-full text-xs sm:text-sm font-semibold mb-2 transition-all duration-1000 delay-300 ${
+              <div className="absolute inset-0 bg-black bg-opacity-60"></div>
+                {/* Video Content */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center pt-14 lg:justify-end lg:pb-14 text-center px-4">
+                <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold mb-3 transition-all duration-1000 delay-300 ${
                   isActive 
                     ? 'opacity-100 translate-y-0' 
                     : 'opacity-0 translate-y-4'
@@ -289,11 +284,11 @@ const ShopSection = ({ onNavigate, isActive }) => {
                     ? 'bg-blue-500/20 text-blue-200' 
                     : 'bg-blue-500/20 text-blue-800'
                 }`}>
-                  <ShoppingBag className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <ShoppingBag className="w-4 h-4" />
                   Premium Equipment Store
                 </div>
                 
-                <h2 className={`text-lg sm:text-xl md:text-2xl lg:text-4xl xl:text-5xl font-bold mb-2 transition-all duration-1000 delay-500 ${
+                <h2 className={`text-2xl md:text-4xl lg:text-5xl font-bold mb-3 transition-all duration-1000 delay-500 ${
                   isActive 
                     ? 'opacity-100 translate-y-0' 
                     : 'opacity-0 translate-y-4'
@@ -305,7 +300,7 @@ const ShopSection = ({ onNavigate, isActive }) => {
                   Premium Equipment Shop
                 </h2>
                 
-                <p className={`text-xs sm:text-sm md:text-base lg:text-lg max-w-2xl mx-auto leading-relaxed transition-all duration-1000 delay-700 ${
+                <p className={`text-sm md:text-lg max-w-2xl mx-auto leading-relaxed transition-all duration-1000 delay-700 ${
                   isActive 
                     ? 'opacity-100 translate-y-0' 
                     : 'opacity-0 translate-y-4'
@@ -316,10 +311,10 @@ const ShopSection = ({ onNavigate, isActive }) => {
                 </p>
               </div>
             </div>
-          </div>          {/* Two Components Section - Restore original height ratios for large screens */}
-          <div className="flex-1 lg:h-2/3 flex flex-col md:flex-row relative z-10" style={{ minHeight: '300px' }}>{/* Left Component - Clothes */}
-            <div className="w-full md:w-1/2 flex-1 md:h-full p-2 sm:p-3 md:p-4 lg:p-6" style={{ minHeight: '150px' }}>
-              <div className={`h-full rounded-xl md:rounded-2xl group relative overflow-hidden transition-all duration-800 ${
+          </div>          {/* Two Components Section - 3/4 height on mobile, 2/3 height on larger screens */}
+          <div className="h-3/4 lg:h-2/3 flex flex-col md:flex-row relative z-10 pointer-events-none">{/* Left Component - Clothes */}
+            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6">
+              <div className={`h-full rounded-2xl group relative overflow-hidden transition-all duration-800 ${
                 darkMode 
                   ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-blue-900/20' 
                   : 'bg-gradient-to-br from-gray-50 via-gray-100 to-blue-50'
@@ -332,36 +327,34 @@ const ShopSection = ({ onNavigate, isActive }) => {
               }`}
               style={{ 
                 animationDelay: isActive ? '0.3s' : '0s',
-                animationFillMode: 'both',
-                minHeight: '140px'
+                animationFillMode: 'both'
               }}>
                 
                 {/* Header */}
-                <div className="absolute top-2 sm:top-3 md:top-4 left-2 sm:left-3 md:left-4 right-2 sm:right-3 md:right-4 z-10">
+                <div className="absolute top-4 left-4 right-4 z-10">
                   <div className="flex items-center justify-between">
-                    <div className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 rounded-full text-xs font-semibold ${
+                    <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${
                       darkMode ? 'bg-blue-900/80 text-blue-200' : 'bg-blue-100 text-blue-800'
                     }`}>
                       <Shirt className="w-3 h-3" />
-                      <span className="hidden sm:inline">Gym Clothes</span>
-                      <span className="sm:hidden">Clothes</span>
+                      Gym Clothes
                     </div>
 
                     <button
                       onClick={() => onNavigate('/shop?category=clothes')}
-                      className={`p-1.5 sm:p-2 rounded-full transition-all duration-300 hover:scale-110 ${
+                      className={`p-2 rounded-full transition-all duration-300 hover:scale-110 ${
                         darkMode 
                           ? 'bg-blue-600 hover:bg-blue-500 text-white' 
                           : 'bg-blue-500 hover:bg-blue-600 text-white'
                       }`}
                     >
-                      <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
                 {/* Product Carousel */}
-                <div className="h-full pt-12 sm:pt-14 md:pt-16 pb-2 sm:pb-3 md:pb-4">
+                <div className="h-full pt-16 pb-4">
                   <ProductCarousel
                     products={clothesProducts}
                     currentIndex={clothesIndex}
@@ -371,27 +364,25 @@ const ShopSection = ({ onNavigate, isActive }) => {
                     type="clothes"
                     onProductClick={handleProductClick}
                   />
-                </div>                {/* Features Footer */}
-                <div className="absolute bottom-2 sm:bottom-3 md:bottom-4 left-2 sm:left-3 md:left-4 right-2 sm:right-3 md:right-4">
-                  <div className="flex justify-center gap-2 sm:gap-4 text-xs">
+                </div>
+
+                {/* Features Footer */}
+                <div className="absolute bottom-4 left-4 right-4">
+                  <div className="flex justify-center gap-4 text-xs">
                     <div className="flex items-center gap-1">
                       <Zap className={`w-3 h-3 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                      <span className={`${darkMode ? 'text-gray-300' : 'text-gray-600'} hidden sm:inline`}>Premium Quality</span>
-                      <span className={`${darkMode ? 'text-gray-300' : 'text-gray-600'} sm:hidden`}>Premium</span>
+                      <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Premium Quality</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Star className={`w-3 h-3 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                      <span className={`${darkMode ? 'text-gray-300' : 'text-gray-600'} hidden sm:inline`}>Top Rated</span>
-                      <span className={`${darkMode ? 'text-gray-300' : 'text-gray-600'} sm:hidden`}>Rated</span>
+                      <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Top Rated</span>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-
-            {/* Right Component - Accessories */}
-            <div className="w-full md:w-1/2 flex-1 md:h-full p-2 sm:p-3 md:p-4 lg:p-6" style={{ minHeight: '150px' }}>
-              <div className={`h-full rounded-xl md:rounded-2xl group relative overflow-hidden transition-all duration-800 ${
+            </div>            {/* Right Component - Accessories */}
+            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6 mb-8 md:mb-0">
+              <div className={`h-full rounded-2xl group relative overflow-hidden transition-all duration-800 ${
                 darkMode 
                   ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-green-900/20' 
                   : 'bg-gradient-to-br from-gray-50 via-gray-100 to-green-50'
@@ -404,35 +395,34 @@ const ShopSection = ({ onNavigate, isActive }) => {
               }`}
               style={{ 
                 animationDelay: isActive ? '0.6s' : '0s',
-                animationFillMode: 'both',
-                minHeight: '140px'
+                animationFillMode: 'both'
               }}>
                 
                 {/* Header */}
-                <div className="absolute top-2 sm:top-3 md:top-4 left-2 sm:left-3 md:left-4 right-2 sm:right-3 md:right-4 z-10">
+                <div className="absolute top-4 left-4 right-4 z-10">
                   <div className="flex items-center justify-between">
-                    <div className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 rounded-full text-xs font-semibold ${
+                    <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${
                       darkMode ? 'bg-green-900/80 text-green-200' : 'bg-green-100 text-green-800'
                     }`}>
                       <Watch className="w-3 h-3" />
-                      <span>Accessories</span>
+                      Accessories
                     </div>
 
                     <button
                       onClick={() => onNavigate('/shop?category=accessories')}
-                      className={`p-1.5 sm:p-2 rounded-full transition-all duration-300 hover:scale-110 ${
+                      className={`p-2 rounded-full transition-all duration-300 hover:scale-110 ${
                         darkMode 
                           ? 'bg-green-600 hover:bg-green-500 text-white' 
                           : 'bg-green-500 hover:bg-green-600 text-white'
                       }`}
                     >
-                      <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
                 {/* Product Carousel */}
-                <div className="h-full pt-12 sm:pt-14 md:pt-16 pb-2 sm:pb-3 md:pb-4">
+                <div className="h-full pt-16 pb-4">
                   <ProductCarousel
                     products={accessoriesProducts}
                     currentIndex={accessoriesIndex}
@@ -445,17 +435,15 @@ const ShopSection = ({ onNavigate, isActive }) => {
                 </div>
 
                 {/* Features Footer */}
-                <div className="absolute bottom-2 sm:bottom-3 md:bottom-4 left-2 sm:left-3 md:left-4 right-2 sm:right-3 md:right-4">
-                  <div className="flex justify-center gap-2 sm:gap-4 text-xs">
+                <div className="absolute bottom-4 left-4 right-4">
+                  <div className="flex justify-center gap-4 text-xs">
                     <div className="flex items-center gap-1">
                       <Zap className={`w-3 h-3 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
-                      <span className={`${darkMode ? 'text-gray-300' : 'text-gray-600'} hidden sm:inline`}>Durable</span>
-                      <span className={`${darkMode ? 'text-gray-300' : 'text-gray-600'} sm:hidden`}>Strong</span>
+                      <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Durable</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Star className={`w-3 h-3 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
-                      <span className={`${darkMode ? 'text-gray-300' : 'text-gray-600'} hidden sm:inline`}>Pro Equipment</span>
-                      <span className={`${darkMode ? 'text-gray-300' : 'text-gray-600'} sm:hidden`}>Pro</span>
+                      <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Pro Equipment</span>
                     </div>
                   </div>
                 </div>
