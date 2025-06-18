@@ -112,10 +112,12 @@ const ShopSection = ({ onNavigate, isActive }) => {
   const ProductCarousel = ({ products, currentIndex, onNext, onPrev, loading, type, onProductClick }) => {
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState(0);
-    const [dragOffset, setDragOffset] = useState(0);
-
-    const handleTouchStart = (e) => {
-      e.stopPropagation(); // Prevent interfering with main page navigation
+    const [dragOffset, setDragOffset] = useState(0);    const handleTouchStart = (e) => {
+      // Only prevent main page navigation if we're actually starting a carousel drag
+      const isCarouselElement = e.target.closest('.carousel-drag-area');
+      if (isCarouselElement) {
+        e.stopPropagation(); // Prevent interfering with main page navigation
+      }
       setIsDragging(true);
       setDragStart(e.touches[0].clientX);
       setDragOffset(0);
@@ -123,7 +125,13 @@ const ShopSection = ({ onNavigate, isActive }) => {
 
     const handleTouchMove = (e) => {
       if (!isDragging) return;
-      e.stopPropagation(); // Prevent interfering with main page navigation
+      
+      // Only prevent main page navigation if we're actively dragging the carousel
+      const isCarouselElement = e.target.closest('.carousel-drag-area');
+      if (isCarouselElement && Math.abs(e.touches[0].clientX - dragStart) > 10) {
+        e.stopPropagation(); // Prevent interfering with main page navigation
+      }
+      
       const currentX = e.touches[0].clientX;
       const diff = dragStart - currentX;
       setDragOffset(diff);
@@ -131,7 +139,13 @@ const ShopSection = ({ onNavigate, isActive }) => {
 
     const handleTouchEnd = (e) => {
       if (!isDragging) return;
-      e.stopPropagation(); // Prevent interfering with main page navigation
+      
+      // Only prevent main page navigation if this was a carousel drag
+      const isCarouselElement = e.target.closest('.carousel-drag-area');
+      if (isCarouselElement) {
+        e.stopPropagation(); // Prevent interfering with main page navigation
+      }
+      
       setIsDragging(false);
       
       const threshold = 50; // Minimum drag distance to trigger navigation
@@ -147,10 +161,12 @@ const ShopSection = ({ onNavigate, isActive }) => {
       }
       
       setDragOffset(0);
-    };
-
-    const handleMouseDown = (e) => {
-      e.stopPropagation();
+    };    const handleMouseDown = (e) => {
+      // Only prevent main page navigation if we're actually starting a carousel drag
+      const isCarouselElement = e.target.closest('.carousel-drag-area');
+      if (isCarouselElement) {
+        e.stopPropagation();
+      }
       setIsDragging(true);
       setDragStart(e.clientX);
       setDragOffset(0);
@@ -158,7 +174,13 @@ const ShopSection = ({ onNavigate, isActive }) => {
 
     const handleMouseMove = (e) => {
       if (!isDragging) return;
-      e.stopPropagation();
+      
+      // Only prevent main page navigation if we're actively dragging the carousel
+      const isCarouselElement = e.target.closest('.carousel-drag-area');
+      if (isCarouselElement && Math.abs(e.clientX - dragStart) > 10) {
+        e.stopPropagation();
+      }
+      
       const currentX = e.clientX;
       const diff = dragStart - currentX;
       setDragOffset(diff);
@@ -166,7 +188,13 @@ const ShopSection = ({ onNavigate, isActive }) => {
 
     const handleMouseUp = (e) => {
       if (!isDragging) return;
-      e.stopPropagation();
+      
+      // Only prevent main page navigation if this was a carousel drag
+      const isCarouselElement = e.target.closest('.carousel-drag-area');
+      if (isCarouselElement) {
+        e.stopPropagation();
+      }
+      
       setIsDragging(false);
       
       const threshold = 50;
@@ -207,13 +235,13 @@ const ShopSection = ({ onNavigate, isActive }) => {
             }`}></div>
           </div>
         ) : products.length > 0 ? (
-          <>
-            {/* Product Display */}
+          <>            {/* Product Display */}
             <div 
-              className="flex h-full cursor-grab active:cursor-grabbing select-none touch-pan-x"
+              className="flex h-full cursor-grab active:cursor-grabbing select-none carousel-drag-area"
               style={{ 
                 transform: `translateX(-${currentIndex * 100}%) translateX(-${dragOffset * 0.5}px)`,
-                transition: isDragging ? 'none' : 'transform 0.5s ease-in-out'
+                transition: isDragging ? 'none' : 'transform 0.5s ease-in-out',
+                touchAction: 'pan-x'
               }}
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
@@ -230,29 +258,43 @@ const ShopSection = ({ onNavigate, isActive }) => {
                     const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
                     imageUrl = `${baseUrl}${imagePath.startsWith('/') ? imagePath : `/${imagePath}`}`;
                   }
-                }
-
-                return (
+                }                return (
                   <div key={product._id} className="w-full flex-shrink-0 flex flex-col items-center justify-center h-full px-4">
-                    <div className="text-center pointer-events-auto cursor-pointer" onClick={() => onProductClick(product._id)}>
+                    <div className="text-center">
                       <img 
                         src={imageUrl}
                         alt={product.name}
-                        className="w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 mx-auto mb-4 rounded-lg object-cover shadow-md hover:shadow-lg transition-shadow duration-300"
+                        className="w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 mx-auto mb-4 rounded-lg object-cover shadow-md hover:shadow-lg transition-shadow duration-300 pointer-events-auto cursor-pointer"
                         onError={(e) => {
                           e.target.src = '/Picture2.png';
                         }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onProductClick(product._id);
+                        }}
                       />
-                      <h4 className={`font-bold text-sm sm:text-base lg:text-lg mb-2 ${
-                        darkMode ? 'text-white' : 'text-gray-900'
-                      }`}>
+                      <h4 
+                        className={`font-bold text-sm sm:text-base lg:text-lg mb-2 pointer-events-auto cursor-pointer ${
+                          darkMode ? 'text-white' : 'text-gray-900'
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onProductClick(product._id);
+                        }}
+                      >
                         {product.name}
                       </h4>
-                      <p className={`text-lg sm:text-xl font-semibold mb-3 ${
-                        type === 'clothes' 
-                          ? (darkMode ? 'text-blue-400' : 'text-blue-600')
-                          : (darkMode ? 'text-green-400' : 'text-green-600')
-                      }`}>
+                      <p 
+                        className={`text-lg sm:text-xl font-semibold mb-3 pointer-events-auto cursor-pointer ${
+                          type === 'clothes' 
+                            ? (darkMode ? 'text-blue-400' : 'text-blue-600')
+                            : (darkMode ? 'text-green-400' : 'text-green-600')
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onProductClick(product._id);
+                        }}
+                      >
                         ${product.price?.toFixed(2) || '0.00'}
                       </p>
                       <div className="flex items-center justify-center gap-1 mb-4">
@@ -401,10 +443,9 @@ const ShopSection = ({ onNavigate, isActive }) => {
 
           {/* Two Components Section - 2/3 height - Mobile: Stack vertically */}
           <div className="h-2/3 flex flex-col md:flex-row relative z-10 pointer-events-none">
-            
-            {/* Left Component - Clothes */}
-            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6 pointer-events-auto">
-              <div className={`h-full rounded-2xl group relative overflow-hidden transition-all duration-800 ${
+              {/* Left Component - Clothes */}
+            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6 pointer-events-none">
+              <div className={`h-full rounded-2xl group relative overflow-hidden transition-all duration-800 pointer-events-auto ${
                 darkMode 
                   ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-blue-900/20' 
                   : 'bg-gradient-to-br from-gray-50 via-gray-100 to-blue-50'
@@ -417,7 +458,8 @@ const ShopSection = ({ onNavigate, isActive }) => {
               }`}
               style={{ 
                 animationDelay: isActive ? '0.3s' : '0s',
-                animationFillMode: 'both'
+                animationFillMode: 'both',
+                touchAction: 'manipulation'
               }}>
                 
                 {/* Header */}
@@ -470,11 +512,9 @@ const ShopSection = ({ onNavigate, isActive }) => {
                   </div>
                 </div>
               </div>
-            </div>
-
-            {/* Right Component - Accessories */}
-            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6 pointer-events-auto">
-              <div className={`h-full rounded-2xl group relative overflow-hidden transition-all duration-800 ${
+            </div>            {/* Right Component - Accessories */}
+            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6 pointer-events-none">
+              <div className={`h-full rounded-2xl group relative overflow-hidden transition-all duration-800 pointer-events-auto ${
                 darkMode 
                   ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-green-900/20' 
                   : 'bg-gradient-to-br from-gray-50 via-gray-100 to-green-50'
@@ -487,7 +527,8 @@ const ShopSection = ({ onNavigate, isActive }) => {
               }`}
               style={{ 
                 animationDelay: isActive ? '0.6s' : '0s',
-                animationFillMode: 'both'
+                animationFillMode: 'both',
+                touchAction: 'manipulation'
               }}>
                 
                 {/* Header */}

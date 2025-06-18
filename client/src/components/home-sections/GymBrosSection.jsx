@@ -1,9 +1,128 @@
-import React from 'react';
-import { ArrowRight, Heart, Users, MessageCircle, Dumbbell, MapPin, Calendar, Zap, UserPlus, Target } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ArrowRight, Heart, Users, MessageCircle, Dumbbell, MapPin, Calendar, Zap, UserPlus, Target, Play, Pause, Volume2, VolumeX, Maximize } from 'lucide-react';
 
 const GymBrosSection = ({ onNavigate, isActive }) => {
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [isDragDisabled, setIsDragDisabled] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const videoRef = useRef(null);
+  const mobileVideoRef = useRef(null);
+
+  // Format time display (mm:ss)
+  const formatTime = (time) => {
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  // Handle video metadata loaded
+  const handleLoadedMetadata = (video) => {
+    if (video && video.duration) {
+      setVideoDuration(video.duration);
+    }
+  };
+  // Handle time update
+  const handleTimeUpdate = (video) => {
+    if (video) {
+      setCurrentTime(video.currentTime);
+      
+      // Sync time between videos (prevent infinite loop)
+      const otherVideo = video === videoRef.current ? mobileVideoRef.current : videoRef.current;
+      if (otherVideo && Math.abs(otherVideo.currentTime - video.currentTime) > 0.5) {
+        otherVideo.currentTime = video.currentTime;
+      }
+    }
+  };
+
+  // Toggle sound
+  const handleToggleSound = (e) => {
+    e.stopPropagation();
+    const newMutedState = !isMuted;
+    setIsMuted(newMutedState);
+    
+    if (videoRef.current) {
+      videoRef.current.muted = newMutedState;
+    }
+    if (mobileVideoRef.current) {
+      mobileVideoRef.current.muted = newMutedState;
+    }
+  };
+
+  // Handle fullscreen
+  const handleFullscreen = (e, isMobile = false) => {
+    e.stopPropagation();
+    const targetVideo = isMobile ? mobileVideoRef.current : videoRef.current;
+    
+    if (targetVideo) {
+      if (targetVideo.requestFullscreen) {
+        targetVideo.requestFullscreen();
+      } else if (targetVideo.webkitRequestFullscreen) {
+        targetVideo.webkitRequestFullscreen();
+      } else if (targetVideo.msRequestFullscreen) {
+        targetVideo.msRequestFullscreen();
+      }
+    }
+  };
+  // Sync video playback between desktop and mobile
+  useEffect(() => {
+    const syncVideos = () => {
+      if (videoRef.current && mobileVideoRef.current) {
+        // Sync muted state
+        videoRef.current.muted = isMuted;
+        mobileVideoRef.current.muted = isMuted;
+        
+        if (isVideoPlaying) {
+          // Play both videos
+          videoRef.current.play().catch(console.error);
+          mobileVideoRef.current.play().catch(console.error);
+        } else {
+          // Pause both videos
+          videoRef.current.pause();
+          mobileVideoRef.current.pause();
+        }
+      }
+    };
+
+    syncVideos();
+  }, [isVideoPlaying, isMuted]);
+  // Reset video state when component becomes inactive
+  useEffect(() => {
+    if (!isActive && isVideoPlaying) {
+      setIsVideoPlaying(false);
+      setIsDragDisabled(false);
+      setCurrentTime(0);
+    }
+  }, [isActive, isVideoPlaying]);
+
+  const handlePlayVideo = (isMobile = false) => {
+    const targetVideo = isMobile ? mobileVideoRef.current : videoRef.current;
+    if (targetVideo) {
+      if (isVideoPlaying) {
+        setIsVideoPlaying(false);
+        setIsDragDisabled(false);
+      } else {
+        setIsVideoPlaying(true);
+        setIsDragDisabled(true);
+      }
+    }
+  };
+
+  const handleVideoClick = (e, isMobile = false) => {
+    e.stopPropagation();
+    e.preventDefault();
+    handlePlayVideo(isMobile);
+  };
+
   return (
-    <div className="absolute inset-0 w-full h-full overflow-hidden">
+    <div 
+      className="absolute inset-0 w-full h-full overflow-hidden" 
+      style={{ 
+        pointerEvents: isDragDisabled ? 'auto' : 'none',
+        touchAction: isDragDisabled ? 'auto' : 'none'
+      }}
+    >
       {/* Background Video */}
       <video
         autoPlay
@@ -13,16 +132,27 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
       >
         <source src="/GymTonic.mp4" type="video/mp4" />
       </video>
+        {/* Overlay */}
+      <div className={`absolute inset-0 bg-gradient-to-br from-black/70 via-black/60 to-black/70 transition-all duration-300 ${
+        isDragDisabled ? 'bg-black/80' : ''
+      }`}></div>
       
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-black/60 to-black/70"></div>
-      
-      <div 
+      {/* Drag Disabled Indicator */}
+      {isDragDisabled && (
+        <div className="absolute top-4 left-4 z-50 bg-black/60 backdrop-blur-sm rounded-full px-3 py-2 border border-white/20">
+          <p className="text-white text-xs font-medium flex items-center gap-2">
+            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+            Drag disabled - Video playing
+          </p>
+        </div>
+      )}
+        <div 
         className={`relative z-10 h-full w-full transition-all duration-800 ${
           isActive 
             ? 'opacity-100 translate-y-0' 
             : 'opacity-0 translate-y-8'
         }`}
+        style={{ pointerEvents: 'auto' }}
       >
         {/* Large Screen Layout */}
         <div className="hidden lg:flex h-full">
@@ -60,14 +190,79 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                 : 'opacity-0 translate-y-8 scale-95'
             }`} style={{ transitionDelay: isActive ? '400ms' : '0ms' }}>
               <div className="relative aspect-video rounded-xl overflow-hidden bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-white/20 shadow-2xl backdrop-blur-sm">
-                {/* Video placeholder */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="w-14 h-14 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mb-3 mx-auto">
-                      <Users className="w-7 h-7 text-white" />
+                {/* Video Element */}
+                <video
+                  ref={videoRef}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  muted={isMuted}
+                  onClick={(e) => handleVideoClick(e, false)}
+                  onLoadedMetadata={(e) => handleLoadedMetadata(e.target)}
+                  onTimeUpdate={(e) => handleTimeUpdate(e.target)}
+                  style={{ pointerEvents: 'auto' }}
+                >
+                  <source src="/GymTonic.mp4" type="video/mp4" />
+                </video>
+                
+                {/* Play Button Overlay */}
+                {!isVideoPlaying && (
+                  <div 
+                    className="absolute inset-0 flex items-center justify-center bg-black/40 cursor-pointer transition-all duration-300 hover:bg-black/30"
+                    onClick={(e) => handleVideoClick(e, false)}
+                    style={{ pointerEvents: 'auto' }}
+                  >
+                    <div className="w-16 h-16 bg-white/90 rounded-full flex items-center justify-center shadow-2xl transform transition-all duration-300 hover:scale-110 hover:bg-white">
+                      <Play className="w-8 h-8 text-gray-900 ml-1" fill="currentColor" />
                     </div>
-                    <p className="text-white/80 text-base font-semibold">GymBros Matching Demo</p>
-                    <p className="text-white/50 text-sm mt-1">See how it works</p>
+                  </div>
+                )}
+                
+                {/* Video Controls Overlay (when playing) */}
+                {isVideoPlaying && (
+                  <div 
+                    className="absolute inset-0 flex items-center justify-center bg-transparent cursor-pointer opacity-0 hover:opacity-100 transition-opacity duration-300"
+                    onClick={(e) => handleVideoClick(e, false)}
+                    style={{ pointerEvents: 'auto' }}
+                  >
+                    <div className="w-14 h-14 bg-black/60 rounded-full flex items-center justify-center shadow-2xl transform transition-all duration-300 hover:scale-110 hover:bg-black/70">
+                      <Pause className="w-7 h-7 text-white" fill="currentColor" />
+                    </div>
+                  </div>
+                )}
+                
+                {/* Video Controls Bar */}
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+                  <div className="flex items-center justify-between text-white">
+                    {/* Duration */}
+                    <div className="text-sm font-medium">
+                      {formatTime(currentTime)} / {formatTime(videoDuration)}
+                    </div>
+                    
+                    {/* Controls */}
+                    <div className="flex items-center gap-2">
+                      {/* Sound Toggle */}
+                      <button
+                        onClick={handleToggleSound}
+                        className="p-2 rounded-full bg-black/40 hover:bg-black/60 transition-all duration-200 hover:scale-110"
+                        style={{ pointerEvents: 'auto' }}
+                        title={isMuted ? 'Unmute' : 'Mute'}
+                      >
+                        {isMuted ? (
+                          <VolumeX className="w-4 h-4 text-white" />
+                        ) : (
+                          <Volume2 className="w-4 h-4 text-white" />
+                        )}
+                      </button>
+                      
+                      {/* Fullscreen */}
+                      <button
+                        onClick={(e) => handleFullscreen(e, false)}
+                        className="p-2 rounded-full bg-black/40 hover:bg-black/60 transition-all duration-200 hover:scale-110"
+                        style={{ pointerEvents: 'auto' }}
+                        title="Fullscreen"
+                      >
+                        <Maximize className="w-4 h-4 text-white" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -197,17 +392,19 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                       </div>
                     </div>
                   </div>
-                </div>
-
-                {/* CTA Button */}
+                </div>                {/* CTA Button */}
                 <div className={`transition-all duration-1000 ${
                   isActive 
                     ? 'opacity-100 translate-y-0 scale-100' 
                     : 'opacity-0 translate-y-8 scale-95'
                 }`} style={{ transitionDelay: isActive ? '1600ms' : '0ms' }}>
                   <button
-                    onClick={() => onNavigate('/gymbros')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onNavigate('/gymbros');
+                    }}
                     className="group w-full flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white text-lg font-bold rounded-full hover:shadow-2xl hover:shadow-purple-500/25 transition-all duration-300 transform hover:scale-105"
+                    style={{ pointerEvents: 'auto' }}
                   >
                     <Users className="w-6 h-6" />
                     <span>Find Your GymBro</span>
@@ -256,18 +453,84 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                 : 'opacity-0 translate-y-8 scale-95'
             }`} style={{ transitionDelay: isActive ? '400ms' : '0ms' }}>
               <div className="relative aspect-video rounded-lg overflow-hidden bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-white/20 shadow-lg backdrop-blur-sm">
-                {/* Video placeholder */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mb-1 mx-auto">
-                      <Users className="w-2.5 h-2.5 sm:w-3 sm:h-3 md:w-3.5 md:h-3.5 text-white" />
+                {/* Video Element */}
+                <video
+                  ref={mobileVideoRef}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  muted={isMuted}
+                  onClick={(e) => handleVideoClick(e, true)}
+                  onLoadedMetadata={(e) => handleLoadedMetadata(e.target)}
+                  onTimeUpdate={(e) => handleTimeUpdate(e.target)}
+                  style={{ pointerEvents: 'auto' }}
+                >
+                  <source src="/GymTonic.mp4" type="video/mp4" />
+                </video>
+                
+                {/* Play Button Overlay */}
+                {!isVideoPlaying && (
+                  <div 
+                    className="absolute inset-0 flex items-center justify-center bg-black/40 cursor-pointer transition-all duration-300 hover:bg-black/30"
+                    onClick={(e) => handleVideoClick(e, true)}
+                    style={{ pointerEvents: 'auto' }}
+                  >
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/90 rounded-full flex items-center justify-center shadow-lg transform transition-all duration-300 hover:scale-110 hover:bg-white">
+                      <Play className="w-4 h-4 sm:w-5 sm:h-5 text-gray-900 ml-0.5" fill="currentColor" />
                     </div>
-                    <p className="text-white/80 text-xs font-semibold">GymBros Demo</p>
+                  </div>
+                )}
+                
+                {/* Video Controls Overlay (when playing) */}
+                {isVideoPlaying && (
+                  <div 
+                    className="absolute inset-0 flex items-center justify-center bg-transparent cursor-pointer opacity-0 hover:opacity-100 transition-opacity duration-300"
+                    onClick={(e) => handleVideoClick(e, true)}
+                    style={{ pointerEvents: 'auto' }}
+                  >
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 bg-black/60 rounded-full flex items-center justify-center shadow-lg transform transition-all duration-300 hover:scale-110 hover:bg-black/70">
+                      <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" fill="currentColor" />
+                    </div>
+                  </div>
+                )}
+                
+                {/* Mobile Video Controls Bar */}
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1.5">
+                  <div className="flex items-center justify-between text-white">
+                    {/* Duration */}
+                    <div className="text-xs font-medium">
+                      {formatTime(currentTime)} / {formatTime(videoDuration)}
+                    </div>
+                    
+                    {/* Controls */}
+                    <div className="flex items-center gap-1">
+                      {/* Sound Toggle */}
+                      <button
+                        onClick={handleToggleSound}
+                        className="p-1 rounded-full bg-black/40 hover:bg-black/60 transition-all duration-200"
+                        style={{ pointerEvents: 'auto' }}
+                        title={isMuted ? 'Unmute' : 'Mute'}
+                      >
+                        {isMuted ? (
+                          <VolumeX className="w-3 h-3 text-white" />
+                        ) : (
+                          <Volume2 className="w-3 h-3 text-white" />
+                        )}
+                      </button>
+                      
+                      {/* Fullscreen */}
+                      <button
+                        onClick={(e) => handleFullscreen(e, true)}
+                        className="p-1 rounded-full bg-black/40 hover:bg-black/60 transition-all duration-200"
+                        style={{ pointerEvents: 'auto' }}
+                        title="Fullscreen"
+                      >
+                        <Maximize className="w-3 h-3 text-white" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>          {/* Content Section - More height and better scrolling */}
+          </div>{/* Content Section - More height and better scrolling */}
           <div className="flex-1 min-h-0 overflow-hidden px-4 py-2 pb-6">
             <div className="h-full max-w-6xl mx-auto overflow-y-auto">
               <div className="flex flex-col gap-6">
@@ -396,8 +659,12 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                     : 'opacity-0 translate-y-8 scale-95'
                 }`} style={{ transitionDelay: isActive ? '1600ms' : '0ms' }}>
                   <button
-                    onClick={() => onNavigate('/gymbros')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onNavigate('/gymbros');
+                    }}
                     className="group w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white text-sm font-bold rounded-full hover:shadow-lg hover:shadow-purple-500/25 transition-all duration-300 transform hover:scale-105"
+                    style={{ pointerEvents: 'auto' }}
                   >
                     <Users className="w-5 h-5" />
                     <span>Find Your GymBro</span>
