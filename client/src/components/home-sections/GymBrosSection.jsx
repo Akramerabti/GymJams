@@ -1,10 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowRight, Heart, Users, MessageCircle, Dumbbell, MapPin, Calendar, Zap, UserPlus, Target, Play, Pause, Volume2, VolumeX, Maximize, Mini    // Show controls when video is paused
-    videoClone.addEventListener('pause', showControls);
-    videoClone.addEventListener('play', showControls);
-    
-    // Always show controls initially on mobile
-    showControls();
+import { ArrowRight, Heart, Users, MessageCircle, Dumbbell, MapPin, Calendar, Zap, UserPlus, Target, Play, Pause, Volume2, VolumeX, Maximize, Minimize, X } from 'lucide-react';
 
 const GymBrosSection = ({ onNavigate, isActive }) => {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
