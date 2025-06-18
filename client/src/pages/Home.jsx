@@ -121,12 +121,11 @@ const Home = () => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
-    
-    checkMobile();
+      checkMobile();
     window.addEventListener('resize', checkMobile);
     
-    // Set loaded after a brief delay
-    setTimeout(() => setHasLoaded(true), 200);
+    // Set loaded after components are ready - increased delay for smooth UX
+    setTimeout(() => setHasLoaded(true), 800);
     
     return () => {
       window.removeEventListener('resize', checkMobile);

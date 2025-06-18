@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowRight, Heart, Users, MessageCircle, Dumbbell, MapPin, Calendar, Zap, UserPlus, Target, Play, Pause, Volume2, VolumeX, Maximize, Minimize, X } from 'lucide-react';
 
 const GymBrosSection = ({ onNavigate, isActive }) => {
@@ -1004,9 +1005,211 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          </div>        </div>
       </div>
+
+      {/* Fullscreen Video Overlay */}
+      {isVideoPlaying && createPortal(
+        <div className="fixed inset-0 z-50 bg-black flex flex-col">
+          {/* Mobile Fullscreen Layout - controls directly below video like desktop */}
+          <div className="lg:hidden flex flex-col h-full">
+            {/* Dark space above video */}
+            <div className="flex-shrink-0 bg-black" style={{ height: '10vh' }}></div>
+            
+            {/* Video container */}
+            <div className="relative flex-shrink-0 w-full bg-black" style={{ height: '60vh' }}>
+              <video
+                ref={mobileVideoRef}
+                className="absolute inset-0 w-full h-full object-contain"
+                muted={isMuted}
+                autoPlay
+                controls={false}
+                playsInline
+                onLoadedMetadata={(e) => handleLoadedMetadata(e.target)}
+                onTimeUpdate={(e) => handleTimeUpdate(e.target)}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <source src="/GymTonic.mp4" type="video/mp4" />
+              </video>
+            </div>
+
+            {/* Controls section directly below video */}
+            <div className="flex-shrink-0 bg-black px-4 py-4">
+              {/* Progress Bar */}
+              <div className="mb-4">
+                <div className="w-full bg-white/20 rounded-full h-1 cursor-pointer">
+                  <div 
+                    className="bg-gradient-to-r from-blue-500 to-purple-500 h-1 rounded-full transition-all duration-150"
+                    style={{ width: `${videoDuration > 0 ? (currentTime / videoDuration) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Control Buttons Row */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  {/* Play/Pause Button */}
+                  <button
+                    onClick={() => {
+                      const video = mobileVideoRef.current;
+                      if (video) {
+                        video.paused ? video.play() : video.pause();
+                      }
+                    }}
+                    className="flex items-center justify-center w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full transition-all duration-200 backdrop-blur-sm"
+                  >
+                    {mobileVideoRef.current && !mobileVideoRef.current.paused ? (
+                      <Pause className="w-6 h-6 text-white" />
+                    ) : (
+                      <Play className="w-6 h-6 text-white ml-0.5" />
+                    )}
+                  </button>
+
+                  {/* Mute Button */}
+                  <button
+                    onClick={() => setIsMuted(!isMuted)}
+                    className="flex items-center justify-center w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full transition-all duration-200 backdrop-blur-sm"
+                  >
+                    {isMuted ? (
+                      <VolumeX className="w-5 h-5 text-white" />
+                    ) : (
+                      <Volume2 className="w-5 h-5 text-white" />
+                    )}
+                  </button>
+
+                  {/* Time Display */}
+                  <div className="text-white text-sm font-mono">
+                    {formatTime(currentTime)} / {formatTime(videoDuration)}
+                  </div>
+                </div>
+
+                {/* Close Button */}
+                <button
+                  onClick={() => {
+                    setIsVideoPlaying(false);
+                    setIsDragDisabled(false);
+                    if (mobileVideoRef.current) {
+                      mobileVideoRef.current.pause();
+                      mobileVideoRef.current.currentTime = 0;
+                    }
+                  }}
+                  className="flex items-center justify-center w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full transition-all duration-200 backdrop-blur-sm"
+                >
+                  <X className="w-6 h-6 text-white" />
+                </button>
+              </div>
+            </div>
+
+            {/* Dark space below controls */}
+            <div className="flex-grow bg-black"></div>
+          </div>
+
+          {/* Desktop Fullscreen Layout - unchanged */}
+          <div className="hidden lg:flex flex-col h-full">
+            {/* Top Controls Bar */}
+            <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4">
+              <div className="flex justify-between items-center">
+                <div className="text-white font-semibold">GymBros Video</div>
+                <button
+                  onClick={() => {
+                    setIsVideoPlaying(false);
+                    setIsDragDisabled(false);
+                    if (videoRef.current) {
+                      videoRef.current.pause();
+                      videoRef.current.currentTime = 0;
+                    }
+                  }}
+                  className="flex items-center justify-center w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full transition-all duration-200 backdrop-blur-sm"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
+              </div>
+            </div>
+
+            {/* Video Container */}
+            <div className="relative flex-1 flex items-center justify-center bg-black">
+              <video
+                ref={videoRef}
+                className="max-w-full max-h-full object-contain"
+                muted={isMuted}
+                autoPlay
+                controls={false}
+                onLoadedMetadata={(e) => handleLoadedMetadata(e.target)}
+                onTimeUpdate={(e) => handleTimeUpdate(e.target)}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <source src="/GymTonic.mp4" type="video/mp4" />
+              </video>
+            </div>
+
+            {/* Bottom Controls Bar */}
+            <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/80 to-transparent p-4">
+              {/* Progress Bar */}
+              <div className="mb-4">
+                <div className="w-full bg-white/20 rounded-full h-1 cursor-pointer">
+                  <div 
+                    className="bg-gradient-to-r from-blue-500 to-purple-500 h-1 rounded-full transition-all duration-150"
+                    style={{ width: `${videoDuration > 0 ? (currentTime / videoDuration) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Control Buttons */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  {/* Play/Pause Button */}
+                  <button
+                    onClick={() => {
+                      const video = videoRef.current;
+                      if (video) {
+                        video.paused ? video.play() : video.pause();
+                      }
+                    }}
+                    className="flex items-center justify-center w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full transition-all duration-200 backdrop-blur-sm"
+                  >
+                    {videoRef.current && !videoRef.current.paused ? (
+                      <Pause className="w-6 h-6 text-white" />
+                    ) : (
+                      <Play className="w-6 h-6 text-white ml-0.5" />
+                    )}
+                  </button>
+
+                  {/* Mute Button */}
+                  <button
+                    onClick={() => setIsMuted(!isMuted)}
+                    className="flex items-center justify-center w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full transition-all duration-200 backdrop-blur-sm"
+                  >
+                    {isMuted ? (
+                      <VolumeX className="w-5 h-5 text-white" />
+                    ) : (
+                      <Volume2 className="w-5 h-5 text-white" />
+                    )}
+                  </button>
+
+                  {/* Time Display */}
+                  <div className="text-white text-sm font-mono">
+                    {formatTime(currentTime)} / {formatTime(videoDuration)}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Minimize Button */}
+                  <button
+                    onClick={() => {
+                      setIsVideoPlaying(false);
+                      setIsDragDisabled(false);
+                    }}
+                    className="flex items-center justify-center w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full transition-all duration-200 backdrop-blur-sm"
+                  >
+                    <Minimize className="w-5 h-5 text-white" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };
