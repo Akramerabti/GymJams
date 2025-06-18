@@ -108,105 +108,7 @@ const ShopSection = ({ onNavigate, isActive }) => {
   const prevAccessories = () => {
     setAccessoriesIndex(prev => (prev - 1 + accessoriesProducts.length) % accessoriesProducts.length);
   };
-
-  const ProductCarousel = ({ products, currentIndex, onNext, onPrev, loading, type, onProductClick }) => {
-    const [isDragging, setIsDragging] = useState(false);
-    const [dragStart, setDragStart] = useState(0);
-    const [dragOffset, setDragOffset] = useState(0);    const handleTouchStart = (e) => {
-      setIsDragging(true);
-      setDragStart(e.touches[0].clientX);
-      setDragOffset(0);
-    };
-
-    const handleTouchMove = (e) => {
-      if (!isDragging) return;
-      
-      const currentX = e.touches[0].clientX;
-      const diff = dragStart - currentX;
-      
-      // Only prevent main page navigation if there's significant horizontal movement
-      if (Math.abs(diff) > 10) {
-        e.stopPropagation(); // Only stop propagation when actively dragging carousel
-      }
-      
-      setDragOffset(diff);
-    };
-
-    const handleTouchEnd = (e) => {
-      if (!isDragging) return;
-      
-      setIsDragging(false);
-      
-      const threshold = 50; // Minimum drag distance to trigger navigation
-      
-      if (Math.abs(dragOffset) > threshold) {
-        e.stopPropagation(); // Only stop propagation when carousel actually changes
-        if (dragOffset > 0) {
-          // Dragged left, go to next
-          onNext();
-        } else {
-          // Dragged right, go to previous
-          onPrev();
-        }
-      }
-      
-      setDragOffset(0);
-    };    const handleMouseDown = (e) => {
-      setIsDragging(true);
-      setDragStart(e.clientX);
-      setDragOffset(0);
-    };
-
-    const handleMouseMove = (e) => {
-      if (!isDragging) return;
-      
-      const currentX = e.clientX;
-      const diff = dragStart - currentX;
-      
-      // Only prevent main page navigation if there's significant horizontal movement
-      if (Math.abs(diff) > 10) {
-        e.stopPropagation();
-      }
-      
-      setDragOffset(diff);
-    };
-
-    const handleMouseUp = (e) => {
-      if (!isDragging) return;
-      
-      setIsDragging(false);
-      
-      const threshold = 50;
-      
-      if (Math.abs(dragOffset) > threshold) {
-        e.stopPropagation(); // Only stop propagation when carousel actually changes
-        if (dragOffset > 0) {
-          onNext();
-        } else {
-          onPrev();
-        }
-      }
-      
-      setDragOffset(0);
-    };
-
-    // Add mouse event listeners to document when dragging
-    useEffect(() => {
-      if (isDragging) {
-        const handleMouseMoveGlobal = (e) => handleMouseMove(e);
-        const handleMouseUpGlobal = (e) => handleMouseUp(e);
-        
-        document.addEventListener('mousemove', handleMouseMoveGlobal);
-        document.addEventListener('mouseup', handleMouseUpGlobal);
-        
-        return () => {
-          document.removeEventListener('mousemove', handleMouseMoveGlobal);
-          document.removeEventListener('mouseup', handleMouseUpGlobal);
-        };
-      }
-    }, [isDragging]);
-
-    return (
+  const ProductCarousel = ({ products, currentIndex, onNext, onPrev, loading, type, onProductClick }) => {    return (
       <div className="relative h-full">
         {loading ? (
           <div className="flex items-center justify-center h-full">
@@ -215,17 +117,13 @@ const ShopSection = ({ onNavigate, isActive }) => {
             }`}></div>
           </div>
         ) : products.length > 0 ? (
-          <>            {/* Product Display */}
+          <>
+            {/* Product Display */}
             <div 
-              className="flex h-full cursor-grab active:cursor-grabbing select-none"
+              className="flex h-full transition-transform duration-300 ease-in-out"
               style={{ 
-                transform: `translateX(-${currentIndex * 100}%) translateX(-${dragOffset * 0.5}px)`,
-                transition: isDragging ? 'none' : 'transform 0.5s ease-in-out'
+                transform: `translateX(-${currentIndex * 100}%)`
               }}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-              onMouseDown={handleMouseDown}
             >
               {products.map((product, index) => {
                 let imageUrl = '/Picture2.png';
@@ -237,13 +135,15 @@ const ShopSection = ({ onNavigate, isActive }) => {
                     const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
                     imageUrl = `${baseUrl}${imagePath.startsWith('/') ? imagePath : `/${imagePath}`}`;
                   }
-                }                return (
+                }
+
+                return (
                   <div key={product._id} className="w-full flex-shrink-0 flex flex-col items-center justify-center h-full px-4">
                     <div className="text-center">
                       <img 
                         src={imageUrl}
                         alt={product.name}
-                        className="w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 mx-auto mb-4 rounded-lg object-cover shadow-md hover:shadow-lg transition-shadow duration-300 pointer-events-auto cursor-pointer"
+                        className="w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 mx-auto mb-4 rounded-lg object-cover shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer"
                         onError={(e) => {
                           e.target.src = '/Picture2.png';
                         }}
@@ -253,7 +153,7 @@ const ShopSection = ({ onNavigate, isActive }) => {
                         }}
                       />
                       <h4 
-                        className={`font-bold text-sm sm:text-base lg:text-lg mb-2 pointer-events-auto cursor-pointer ${
+                        className={`font-bold text-sm sm:text-base lg:text-lg mb-2 cursor-pointer ${
                           darkMode ? 'text-white' : 'text-gray-900'
                         }`}
                         onClick={(e) => {
@@ -264,7 +164,7 @@ const ShopSection = ({ onNavigate, isActive }) => {
                         {product.name}
                       </h4>
                       <p 
-                        className={`text-lg sm:text-xl font-semibold mb-3 pointer-events-auto cursor-pointer ${
+                        className={`text-lg sm:text-xl font-semibold mb-3 cursor-pointer ${
                           type === 'clothes' 
                             ? (darkMode ? 'text-blue-400' : 'text-blue-600')
                             : (darkMode ? 'text-green-400' : 'text-green-600')
@@ -294,7 +194,7 @@ const ShopSection = ({ onNavigate, isActive }) => {
                   onClick={(e) => { e.stopPropagation(); onPrev(); }}
                   className={`absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full ${
                     darkMode ? 'bg-gray-700/90 hover:bg-gray-600 text-white' : 'bg-white/90 hover:bg-gray-100 text-gray-900'
-                  } shadow-lg transition-all duration-200 hover:scale-110 opacity-0 group-hover:opacity-100 pointer-events-auto z-10`}
+                  } shadow-lg transition-all duration-200 hover:scale-110 opacity-0 group-hover:opacity-100 z-10`}
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -303,13 +203,13 @@ const ShopSection = ({ onNavigate, isActive }) => {
                   onClick={(e) => { e.stopPropagation(); onNext(); }}
                   className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full ${
                     darkMode ? 'bg-gray-700/90 hover:bg-gray-600 text-white' : 'bg-white/90 hover:bg-gray-100 text-gray-900'
-                  } shadow-lg transition-all duration-200 hover:scale-110 opacity-0 group-hover:opacity-100 pointer-events-auto z-10`}
+                  } shadow-lg transition-all duration-200 hover:scale-110 opacity-0 group-hover:opacity-100 z-10`}
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
 
                 {/* Dots Indicator */}
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 pointer-events-auto z-10">
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
                   {products.map((_, index) => (
                     <button
                       key={index}
@@ -358,7 +258,7 @@ const ShopSection = ({ onNavigate, isActive }) => {
         <div className="h-full flex flex-col pointer-events-none">
           
           {/* Video Section - 1/3 height */}
-          <div className={`h-1/3 relative z-20 ${
+          <div className={`h-1/4 relative z-20 ${
             isActive 
               ? 'animate-floatOnce' 
               : 'opacity-0 translate-y-8'
@@ -421,9 +321,9 @@ const ShopSection = ({ onNavigate, isActive }) => {
           </div>
 
           {/* Two Components Section - 2/3 height - Mobile: Stack vertically */}
-          <div className="h-2/3 flex flex-col md:flex-row relative z-10 pointer-events-none">            {/* Left Component - Clothes */}
-            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6 pointer-events-none">
-              <div className={`h-full rounded-2xl group relative overflow-hidden transition-all duration-800 pointer-events-auto ${
+          <div className="h-2/3 flex flex-col md:flex-row relative z-10 pointer-events-none">              {/* Left Component - Clothes */}
+            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6">
+              <div className={`h-full rounded-2xl group relative overflow-hidden transition-all duration-800 ${
                 darkMode 
                   ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-blue-900/20' 
                   : 'bg-gradient-to-br from-gray-50 via-gray-100 to-blue-50'
@@ -432,12 +332,11 @@ const ShopSection = ({ onNavigate, isActive }) => {
               } ${
                 isActive 
                   ? 'animate-slideDownFromVideo' 
-                  : 'opacity-0 invisible pointer-events-none'
+                  : 'opacity-0 invisible'
               }`}
               style={{ 
                 animationDelay: isActive ? '0.3s' : '0s',
-                animationFillMode: 'both',
-                touchAction: 'auto'
+                animationFillMode: 'both'
               }}>
                 
                 {/* Header */}
@@ -452,7 +351,7 @@ const ShopSection = ({ onNavigate, isActive }) => {
 
                     <button
                       onClick={() => onNavigate('/shop?category=clothes')}
-                      className={`p-2 rounded-full transition-all duration-300 hover:scale-110 pointer-events-auto ${
+                      className={`p-2 rounded-full transition-all duration-300 hover:scale-110 ${
                         darkMode 
                           ? 'bg-blue-600 hover:bg-blue-500 text-white' 
                           : 'bg-blue-500 hover:bg-blue-600 text-white'
@@ -491,8 +390,8 @@ const ShopSection = ({ onNavigate, isActive }) => {
                 </div>
               </div>
             </div>            {/* Right Component - Accessories */}
-            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6 pointer-events-none">
-              <div className={`h-full rounded-2xl group relative overflow-hidden transition-all duration-800 pointer-events-auto ${
+            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6">
+              <div className={`h-full rounded-2xl group relative overflow-hidden transition-all duration-800 ${
                 darkMode 
                   ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-green-900/20' 
                   : 'bg-gradient-to-br from-gray-50 via-gray-100 to-green-50'
@@ -501,12 +400,11 @@ const ShopSection = ({ onNavigate, isActive }) => {
               } ${
                 isActive 
                   ? 'animate-slideDownFromVideo' 
-                  : 'opacity-0 invisible pointer-events-none'
+                  : 'opacity-0 invisible'
               }`}
               style={{ 
                 animationDelay: isActive ? '0.6s' : '0s',
-                animationFillMode: 'both',
-                touchAction: 'auto'
+                animationFillMode: 'both'
               }}>
                 
                 {/* Header */}
@@ -521,7 +419,7 @@ const ShopSection = ({ onNavigate, isActive }) => {
 
                     <button
                       onClick={() => onNavigate('/shop?category=accessories')}
-                      className={`p-2 rounded-full transition-all duration-300 hover:scale-110 pointer-events-auto ${
+                      className={`p-2 rounded-full transition-all duration-300 hover:scale-110 ${
                         darkMode 
                           ? 'bg-green-600 hover:bg-green-500 text-white' 
                           : 'bg-green-500 hover:bg-green-600 text-white'
