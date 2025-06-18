@@ -73,8 +73,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
       }
     }
   };  // Custom mobile fullscreen overlay (viewport only, no native fullscreen)
-  const createMobileFullscreenOverlay = (video) => {
-    // Create overlay that only covers the viewport
+  const createMobileFullscreenOverlay = (video) => {    // Create overlay that only covers the viewport
     const overlay = document.createElement('div');
     overlay.style.cssText = `
       position: fixed;
@@ -89,6 +88,19 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
       align-items: center;
       justify-content: center;
       touch-action: none;
+      padding: 20px;
+      box-sizing: border-box;
+    `;
+    
+    // Create video container
+    const videoContainer = document.createElement('div');
+    videoContainer.style.cssText = `
+      flex: 1;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
     `;
     
     // Clone the video element
@@ -98,8 +110,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
       height: 100%;
       object-fit: contain;
       max-width: 100vw;
-      max-height: 100vh;
-      flex: 1;
+      max-height: 70vh;
     `;
     
     // Sync video state
@@ -129,22 +140,23 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
       opacity: 1;
       transition: all 0.3s ease;
       backdrop-filter: blur(10px);
-    `;
-      // Create video controls bar
+    `;      // Create video controls bar - positioned below video
     const controlsBar = document.createElement('div');
     controlsBar.style.cssText = `
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
-      padding: 16px;
+      width: 100%;
+      max-width: 600px;
+      background: rgba(0,0,0,0.8);
+      padding: 20px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       z-index: 10001;
       opacity: 1;
       transition: opacity 0.3s ease;
+      border-radius: 12px;
+      margin-top: 20px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.1);
     `;
     
     // Controls visibility state
@@ -218,14 +230,15 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
       font-weight: 500;
       font-family: system-ui, -apple-system, sans-serif;
     `;
-    
-    // Controls container
+      // Controls container - all buttons in one row
     const controlsContainer = document.createElement('div');
     controlsContainer.style.cssText = `
       display: flex;
       align-items: center;
-      gap: 12px;
-    `;      // Sound toggle button
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+    `;// Sound toggle button
     const soundButton = document.createElement('button');
     soundButton.style.cssText = `
       background: rgba(0,0,0,0.8);
@@ -360,17 +373,31 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
     updateTimeDisplay();
     updateSoundButton();
     updatePlayPauseButton();
-    
-    // Assemble controls
-    controlsContainer.appendChild(soundButton);
+      // Assemble controls - all buttons in one container
     controlsContainer.appendChild(playPauseButton);
+    controlsContainer.appendChild(soundButton);
     controlsContainer.appendChild(minimizeButton);
-    controlsBar.appendChild(timeDisplay);
-    controlsBar.appendChild(controlsContainer);
     
-    // Add elements to overlay
-    overlay.appendChild(videoClone);
+    // Create a main controls section with time and buttons
+    const mainControls = document.createElement('div');
+    mainControls.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+    `;
+    
+    mainControls.appendChild(timeDisplay);
+    mainControls.appendChild(controlsContainer);
+    controlsBar.appendChild(mainControls);
+    
+    // Add video to its container
+    videoContainer.appendChild(videoClone);
+    
+    // Add elements to overlay in column layout
     overlay.appendChild(closeButton);
+    overlay.appendChild(videoContainer);
     overlay.appendChild(controlsBar);
     
     // Add to body (this stays within viewport, not native fullscreen)
