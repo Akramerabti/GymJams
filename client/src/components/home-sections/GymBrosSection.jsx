@@ -1,7 +1,22 @@
-import React from 'react';
-import { ArrowRight, Heart, Users, MessageCircle, Dumbbell, MapPin, Calendar, Zap, UserPlus, Target } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowRight, Heart, Users, MessageCircle, Dumbbell, MapPin, Calendar, Zap, UserPlus, Target, Play, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const GymBrosSection = ({ onNavigate, isActive }) => {
+  const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState(null);  const handleVideoClick = (video, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Video clicked:', video); // Debug log
+    setSelectedVideo(video);
+    setVideoModalOpen(true);
+    console.log('Modal should open now'); // Debug log
+  };
+
+  const closeVideoModal = () => {
+    setVideoModalOpen(false);
+    setSelectedVideo(null);
+  };
   return (
     <div className="absolute inset-0 w-full h-full overflow-hidden">
       {/* Background Video */}
@@ -58,19 +73,36 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
               isActive 
                 ? 'opacity-100 translate-y-0 scale-100' 
                 : 'opacity-0 translate-y-8 scale-95'
-            }`} style={{ transitionDelay: isActive ? '400ms' : '0ms' }}>
-              <div className="relative aspect-video rounded-xl overflow-hidden bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-white/20 shadow-2xl backdrop-blur-sm">
-                {/* Video placeholder */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="w-14 h-14 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mb-3 mx-auto">
-                      <Users className="w-7 h-7 text-white" />
-                    </div>
-                    <p className="text-white/80 text-base font-semibold">GymBros Matching Demo</p>
-                    <p className="text-white/50 text-sm mt-1">See how it works</p>
+            }`} style={{ transitionDelay: isActive ? '400ms' : '0ms' }}>              <motion.div
+                className="relative aspect-video rounded-xl overflow-hidden bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-white/20 shadow-2xl backdrop-blur-sm group cursor-pointer hover:border-white/30 transition-all duration-300"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={(e) => handleVideoClick({
+                  title: 'GymBros Matching Demo',
+                  thumbnail: '/GymTonic.mp4',
+                  description: 'See how our intelligent matching system connects you with perfect workout partners'
+                }, e)}
+              >
+                <video 
+                  className="w-full h-full object-cover"
+                  muted
+                  preload="metadata"
+                >
+                  <source src="/GymTonic.mp4" type="video/mp4" />
+                </video>
+                {/* Play Button Overlay */}
+                <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-300 flex items-center justify-center">
+                  <div className="bg-white/95 rounded-full p-4 shadow-xl group-hover:scale-110 transition-transform duration-300">
+                    <Play className="w-8 h-8 text-gray-800 ml-1" />
                   </div>
                 </div>
-              </div>
+                <div className="absolute bottom-4 left-4 right-4 text-center">
+                  <p className="text-white/90 text-base font-semibold drop-shadow-lg">GymBros Matching Demo</p>
+                  <p className="text-white/70 text-sm mt-1 drop-shadow-md">See how it works</p>
+                </div>
+              </motion.div>
             </div>
           </div>
 
@@ -254,20 +286,37 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
               isActive 
                 ? 'opacity-100 translate-y-0 scale-100' 
                 : 'opacity-0 translate-y-8 scale-95'
-            }`} style={{ transitionDelay: isActive ? '400ms' : '0ms' }}>
-              <div className="relative aspect-video rounded-lg overflow-hidden bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-white/20 shadow-lg backdrop-blur-sm">
-                {/* Video placeholder */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mb-1 mx-auto">
-                      <Users className="w-2.5 h-2.5 sm:w-3 sm:h-3 md:w-3.5 md:h-3.5 text-white" />
-                    </div>
-                    <p className="text-white/80 text-xs font-semibold">GymBros Demo</p>
+            }`} style={{ transitionDelay: isActive ? '400ms' : '0ms' }}>              <motion.div
+                className="relative aspect-video rounded-lg overflow-hidden bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-white/20 shadow-lg backdrop-blur-sm group cursor-pointer hover:border-white/30 transition-all duration-300"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={(e) => handleVideoClick({
+                  title: 'GymBros Matching Demo',
+                  thumbnail: '/GymTonic.mp4',
+                  description: 'See how our intelligent matching system connects you with perfect workout partners'
+                }, e)}
+              >
+                <video 
+                  className="w-full h-full object-cover"
+                  muted
+                  preload="metadata"
+                >
+                  <source src="/GymTonic.mp4" type="video/mp4" />
+                </video>
+                {/* Play Button Overlay */}
+                <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-300 flex items-center justify-center">
+                  <div className="bg-white/95 rounded-full p-2 shadow-xl group-hover:scale-110 transition-transform duration-300">
+                    <Play className="w-4 h-4 text-gray-800 ml-0.5" />
                   </div>
                 </div>
-              </div>
+                <div className="absolute bottom-1 left-1 right-1 text-center">
+                  <p className="text-white/90 text-xs font-semibold drop-shadow-lg">GymBros Demo</p>
+                </div>
+              </motion.div>
             </div>
-          </div>          {/* Content Section - More height and better scrolling */}
+          </div>{/* Content Section - More height and better scrolling */}
           <div className="flex-1 min-h-0 overflow-hidden px-4 py-2 pb-6">
             <div className="h-full max-w-6xl mx-auto overflow-y-auto">
               <div className="flex flex-col gap-6">
@@ -401,14 +450,68 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                   >
                     <Users className="w-5 h-5" />
                     <span>Find Your GymBro</span>
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
-                  </button>
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />                  </button>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Video Modal */}
+      <AnimatePresence>
+        {videoModalOpen && selectedVideo && (
+          <motion.div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm bg-black/70"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={closeVideoModal}
+          >
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ 
+                type: "spring", 
+                duration: 0.4,
+                bounce: 0.2
+              }}
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden relative border border-gray-200 dark:border-gray-700"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={closeVideoModal}
+                className="absolute top-4 right-4 z-50 p-2 rounded-full bg-gray-100 text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-600 transition-colors duration-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="aspect-video w-full">
+                <video 
+                  className="w-full h-full"
+                  controls
+                  autoPlay
+                  muted
+                >
+                  <source src={selectedVideo.thumbnail} type="video/mp4" />
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+
+              <div className="p-6">
+                <h3 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">
+                  {selectedVideo.title}
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300">
+                  {selectedVideo.description}
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
