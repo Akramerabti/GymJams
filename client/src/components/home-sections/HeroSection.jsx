@@ -14,6 +14,12 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   const [gymBrosLoading, setGymBrosLoading] = useState(true);
   const [showGymBrosInfo, setShowGymBrosInfo] = useState(false);
   
+  // Video fallback states
+  const [backgroundVideoLoaded, setBackgroundVideoLoaded] = useState(false);
+  const [backgroundVideoError, setBackgroundVideoError] = useState(false);
+  const [mainVideoLoaded, setMainVideoLoaded] = useState(false);
+  const [mainVideoError, setMainVideoError] = useState(false);
+  
   // Add carousel functionality for GymBros
   const [gymBrosCarouselRef, setGymBrosCarouselRef] = useState(null);
   // Carousel navigation for GymBros
@@ -167,18 +173,28 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
 
   const prevProduct = () => {
     setCurrentProductIndex((prev) => (prev - 1 + featuredProducts.length) % featuredProducts.length);
-  };  return (
-    <div className="absolute inset-0">
+  };  return (    <div className="absolute inset-0">
       
       {/* Background Video for entire section - Bottom layer with reduced opacity */}
-      <video
-        autoPlay
-        muted
-        loop
-        className="absolute inset-0 w-full h-full object-cover opacity-10"
-      >
-        <source src="/GymTonic.mp4" type="video/mp4" />
-      </video>
+      {!backgroundVideoError ? (
+        <video
+          autoPlay
+          muted
+          loop
+          className="absolute inset-0 w-full h-full object-cover opacity-10"
+          onLoadedData={() => setBackgroundVideoLoaded(true)}
+          onError={() => setBackgroundVideoError(true)}
+          poster="/Picture3.png"
+        >
+          <source src="/GymTonic.mp4" type="video/mp4" />
+        </video>
+      ) : (
+        <img
+          src="/Picture2.png"
+          alt="Gym background"
+          className="absolute inset-0 w-full h-full object-cover opacity-10"
+        />
+      )}
         {/* Gradient overlay - On top of video */}
       <div className={`absolute inset-0 transition-colors duration-500 ${
         darkMode 
@@ -203,16 +219,27 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               Your Complete Fitness Ecosystem - Shop, Train, Game, Compete
             </p>
           </div>          {/* Section 1: Video Background with GET STARTED text only */}
-          <div className={`h-1/4 sm:h-1/3 lg:h-1/3 relative z-20 ${darkMode ? 'bg-gradient-to-b from-white/5 via-gray-900 to-gray-900' : 'bg-gradient-to-b from-black/5 via-white to-white'}`}>{/* Video Background - Full width */}
+          <div className={`h-1/4 sm:h-1/3 lg:h-1/3 relative z-20 ${darkMode ? 'bg-gradient-to-b from-white/5 via-gray-900 to-gray-900' : 'bg-gradient-to-b from-black/5 via-white to-white'}`}>            {/* Video Background - Full width */}
             <div className="w-full h-full relative overflow-hidden">
-              <video
-                autoPlay
-                muted
-                loop
-                className="absolute inset-0 w-full h-full object-cover"
-              >
-                <source src="/GymTonic.mp4" type="video/mp4" />
-              </video>
+              {!mainVideoError ? (
+                <video
+                  autoPlay
+                  muted
+                  loop
+                  className="absolute inset-0 w-full h-full object-cover"
+                  onLoadedData={() => setMainVideoLoaded(true)}
+                  onError={() => setMainVideoError(true)}
+                  poster="/Picture2.png"
+                >
+                  <source src="/GymTonic.mp4" type="video/mp4" />
+                </video>
+              ) : (
+                <img
+                  src="/Picture2.png"
+                  alt="Gym workout"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              )}
               
               {/* Overlay */}
               <div className={`absolute inset-0 ${
