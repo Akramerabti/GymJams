@@ -443,7 +443,8 @@ const Home = () => {
     }
   };return (
     <>
-      {/* CSS to completely hide scrollbars on all browsers */}      <style jsx>{`
+      {/* CSS to completely hide scrollbars on all browsers */}
+      <style>{`
         .no-scrollbar {
           scrollbar-width: none; /* Firefox */
           -ms-overflow-style: none; /* Internet Explorer 10+ */
