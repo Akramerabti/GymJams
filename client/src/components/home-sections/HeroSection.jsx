@@ -13,12 +13,18 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   const [gymBrosData, setGymBrosData] = useState(null);
   const [gymBrosLoading, setGymBrosLoading] = useState(true);
   const [showGymBrosInfo, setShowGymBrosInfo] = useState(false);
-  
-  // Video fallback states
+    // Video fallback states with retry mechanism
   const [backgroundVideoLoaded, setBackgroundVideoLoaded] = useState(false);
   const [backgroundVideoError, setBackgroundVideoError] = useState(false);
+  const [backgroundRetryCount, setBackgroundRetryCount] = useState(0);
   const [mainVideoLoaded, setMainVideoLoaded] = useState(false);
   const [mainVideoError, setMainVideoError] = useState(false);
+  const [mainRetryCount, setMainRetryCount] = useState(0);
+  const [backgroundVideoKey, setBackgroundVideoKey] = useState(0);
+  const [mainVideoKey, setMainVideoKey] = useState(0);
+  
+  const MAX_RETRY_ATTEMPTS = 10; // Keep trying
+  const RETRY_DELAY = 3000; // 3 seconds between retries
   
   // Add carousel functionality for GymBros
   const [gymBrosCarouselRef, setGymBrosCarouselRef] = useState(null);
@@ -56,7 +62,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         // Take first 4 products or all if less than 4
         const products = data.slice(0, 4).map(product => {
           // Handle image URL properly like in ProductCard
-          let imageUrl = '/Picture2.png'; // fallback
+          let imageUrl = '/Picture3.png'; // fallback
           if (product.images && product.images.length > 0) {
             const imagePath = product.images[0];
             if (imagePath.startsWith('http')) {
@@ -174,33 +180,39 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   const prevProduct = () => {
     setCurrentProductIndex((prev) => (prev - 1 + featuredProducts.length) % featuredProducts.length);
   };  return (    <div className="absolute inset-0">
-      
-      {/* Background Video for entire section - Bottom layer with reduced opacity */}
-      {!backgroundVideoError ? (
+        {/* Background Video for entire section - Bottom layer with reduced opacity */}
+      {!backgroundVideoError || !backgroundVideoLoaded ? (
         <video
+          key={backgroundVideoKey}
           autoPlay
           muted
           loop
           className="absolute inset-0 w-full h-full object-cover opacity-10"
-          onLoadedData={() => setBackgroundVideoLoaded(true)}
-          onError={() => setBackgroundVideoError(true)}
-          poster="/Picture3.png"
+          style={{ display: backgroundVideoLoaded ? 'block' : 'none' }}
+          onLoadedData={() => {
+            console.log('Background video loaded successfully');
+            setBackgroundVideoLoaded(true);
+            setBackgroundVideoError(false);
+          }}
+          onError={(e) => {
+            console.log('Background video error:', e);
+            setBackgroundVideoError(true);
+          }}
+          onCanPlay={() => setBackgroundVideoLoaded(true)}
         >
           <source src="/GymTonic.mp4" type="video/mp4" />
         </video>
-      ) : (
+      ) : null}
+      
+      {/* Show fallback image only while video is loading or during retry */}
+      {(!backgroundVideoLoaded || backgroundVideoError) && (
         <img
-          src="/Picture2.png"
+          src="/Picture3.png"
           alt="Gym background"
           className="absolute inset-0 w-full h-full object-cover opacity-10"
         />
-      )}
-        {/* Gradient overlay - On top of video */}
-      <div className={`absolute inset-0 transition-colors duration-500 ${
-        darkMode 
-          ? 'bg-gray-900/60' 
-          : 'bg-white/60'
-      }`}></div>
+      )}{/* Gradient overlay - On top of video */}
+      <div className="absolute inset-0 transition-colors duration-500 bg-gray-900/60"></div>
 
       <div 
         className={`w-full h-full transition-all duration-700 ${
@@ -221,32 +233,39 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
           </div>          {/* Section 1: Video Background with GET STARTED text only */}
           <div className={`h-1/4 sm:h-1/3 lg:h-1/3 relative z-20 ${darkMode ? 'bg-gradient-to-b from-white/5 via-gray-900 to-gray-900' : 'bg-gradient-to-b from-black/5 via-white to-white'}`}>            {/* Video Background - Full width */}
             <div className="w-full h-full relative overflow-hidden">
-              {!mainVideoError ? (
+              {!mainVideoError || !mainVideoLoaded ? (
                 <video
+                  key={mainVideoKey}
                   autoPlay
                   muted
                   loop
                   className="absolute inset-0 w-full h-full object-cover"
-                  onLoadedData={() => setMainVideoLoaded(true)}
-                  onError={() => setMainVideoError(true)}
-                  poster="/Picture2.png"
+                  style={{ display: mainVideoLoaded ? 'block' : 'none' }}
+                  onLoadedData={() => {
+                    console.log('Main video loaded successfully');
+                    setMainVideoLoaded(true);
+                    setMainVideoError(false);
+                  }}
+                  onError={(e) => {
+                    console.log('Main video error:', e);
+                    setMainVideoError(true);
+                  }}
+                  onCanPlay={() => setMainVideoLoaded(true)}
                 >
                   <source src="/GymTonic.mp4" type="video/mp4" />
                 </video>
-              ) : (
+              ) : null}
+              
+              {/* Show fallback image only while video is loading or during retry */}
+              {(!mainVideoLoaded || mainVideoError) && (
                 <img
-                  src="/Picture2.png"
+                  src="/Picture3.png"
                   alt="Gym workout"
                   className="absolute inset-0 w-full h-full object-cover"
                 />
               )}
-              
-              {/* Overlay */}
-              <div className={`absolute inset-0 ${
-                darkMode 
-                  ? 'bg-black bg-opacity-50' 
-                  : 'bg-white bg-opacity-30'
-              }`}></div>
+                {/* Overlay */}
+              <div className="absolute inset-0 bg-black bg-opacity-50"></div>
 
               {/* GET STARTED Label with floating animation */}
               <div className="absolute inset-0 flex flex-col items-center lg:justify-center justify-center pt-0 space-y-3">                {/* GET STARTED Label with one-time floating animation - Always white */}
@@ -646,7 +665,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                                 alt={product.name}
                                 className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 mx-auto mb-3 rounded-lg object-cover shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105"
                                 onError={(e) => {
-                                  e.target.src = '/Picture2.png';
+                                  e.target.src = '/Picture3.png';
                                 }}
                               />
                               <h4 className={`font-semibold text-sm sm:text-base lg:text-lg mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>

@@ -256,9 +256,8 @@ const ShopSection = ({ onNavigate, isActive }) => {
       >
         {/* Layout: Video top 1/3, Two components bottom 2/3 */}
         <div className="h-full flex flex-col pointer-events-none">
-          
-          {/* Video Section - 1/3 height */}
-          <div className={`h-1/4 relative z-20 ${
+            {/* Video Section - 1/4 height on mobile, 1/3 height on larger screens */}
+          <div className={`h-1/4 lg:h-1/3 relative z-20 ${
             isActive 
               ? 'animate-floatOnce' 
               : 'opacity-0 translate-y-8'
@@ -272,16 +271,10 @@ const ShopSection = ({ onNavigate, isActive }) => {
               >
                 <source src="/GymTonic.mp4" type="video/mp4" />
               </video>
-              
-              {/* Overlay */}
-              <div className={`absolute inset-0 ${
-                darkMode 
-                  ? 'bg-black bg-opacity-60' 
-                  : 'bg-white bg-opacity-60'
-              }`}></div>
-              
-              {/* Video Content */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
+                {/* Overlay */}
+              <div className="absolute inset-0 bg-black bg-opacity-60"></div>
+                {/* Video Content */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center pt-14 lg:justify-end lg:pb-14 text-center px-4">
                 <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold mb-3 transition-all duration-1000 delay-300 ${
                   isActive 
                     ? 'opacity-100 translate-y-0' 
@@ -318,10 +311,8 @@ const ShopSection = ({ onNavigate, isActive }) => {
                 </p>
               </div>
             </div>
-          </div>
-
-          {/* Two Components Section - 2/3 height - Mobile: Stack vertically */}
-          <div className="h-2/3 flex flex-col md:flex-row relative z-10 pointer-events-none">              {/* Left Component - Clothes */}
+          </div>          {/* Two Components Section - 3/4 height on mobile, 2/3 height on larger screens */}
+          <div className="h-3/4 lg:h-2/3 flex flex-col md:flex-row relative z-10 pointer-events-none">{/* Left Component - Clothes */}
             <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6">
               <div className={`h-full rounded-2xl group relative overflow-hidden transition-all duration-800 ${
                 darkMode 
