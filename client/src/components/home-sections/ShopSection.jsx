@@ -113,11 +113,6 @@ const ShopSection = ({ onNavigate, isActive }) => {
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState(0);
     const [dragOffset, setDragOffset] = useState(0);    const handleTouchStart = (e) => {
-      // Only prevent main page navigation if we're actually starting a carousel drag
-      const isCarouselElement = e.target.closest('.carousel-drag-area');
-      if (isCarouselElement) {
-        e.stopPropagation(); // Prevent interfering with main page navigation
-      }
       setIsDragging(true);
       setDragStart(e.touches[0].clientX);
       setDragOffset(0);
@@ -126,31 +121,26 @@ const ShopSection = ({ onNavigate, isActive }) => {
     const handleTouchMove = (e) => {
       if (!isDragging) return;
       
-      // Only prevent main page navigation if we're actively dragging the carousel
-      const isCarouselElement = e.target.closest('.carousel-drag-area');
-      if (isCarouselElement && Math.abs(e.touches[0].clientX - dragStart) > 10) {
-        e.stopPropagation(); // Prevent interfering with main page navigation
-      }
-      
       const currentX = e.touches[0].clientX;
       const diff = dragStart - currentX;
+      
+      // Only prevent main page navigation if there's significant horizontal movement
+      if (Math.abs(diff) > 10) {
+        e.stopPropagation(); // Only stop propagation when actively dragging carousel
+      }
+      
       setDragOffset(diff);
     };
 
     const handleTouchEnd = (e) => {
       if (!isDragging) return;
       
-      // Only prevent main page navigation if this was a carousel drag
-      const isCarouselElement = e.target.closest('.carousel-drag-area');
-      if (isCarouselElement) {
-        e.stopPropagation(); // Prevent interfering with main page navigation
-      }
-      
       setIsDragging(false);
       
       const threshold = 50; // Minimum drag distance to trigger navigation
       
       if (Math.abs(dragOffset) > threshold) {
+        e.stopPropagation(); // Only stop propagation when carousel actually changes
         if (dragOffset > 0) {
           // Dragged left, go to next
           onNext();
@@ -162,11 +152,6 @@ const ShopSection = ({ onNavigate, isActive }) => {
       
       setDragOffset(0);
     };    const handleMouseDown = (e) => {
-      // Only prevent main page navigation if we're actually starting a carousel drag
-      const isCarouselElement = e.target.closest('.carousel-drag-area');
-      if (isCarouselElement) {
-        e.stopPropagation();
-      }
       setIsDragging(true);
       setDragStart(e.clientX);
       setDragOffset(0);
@@ -175,31 +160,26 @@ const ShopSection = ({ onNavigate, isActive }) => {
     const handleMouseMove = (e) => {
       if (!isDragging) return;
       
-      // Only prevent main page navigation if we're actively dragging the carousel
-      const isCarouselElement = e.target.closest('.carousel-drag-area');
-      if (isCarouselElement && Math.abs(e.clientX - dragStart) > 10) {
+      const currentX = e.clientX;
+      const diff = dragStart - currentX;
+      
+      // Only prevent main page navigation if there's significant horizontal movement
+      if (Math.abs(diff) > 10) {
         e.stopPropagation();
       }
       
-      const currentX = e.clientX;
-      const diff = dragStart - currentX;
       setDragOffset(diff);
     };
 
     const handleMouseUp = (e) => {
       if (!isDragging) return;
       
-      // Only prevent main page navigation if this was a carousel drag
-      const isCarouselElement = e.target.closest('.carousel-drag-area');
-      if (isCarouselElement) {
-        e.stopPropagation();
-      }
-      
       setIsDragging(false);
       
       const threshold = 50;
       
       if (Math.abs(dragOffset) > threshold) {
+        e.stopPropagation(); // Only stop propagation when carousel actually changes
         if (dragOffset > 0) {
           onNext();
         } else {
@@ -237,11 +217,10 @@ const ShopSection = ({ onNavigate, isActive }) => {
         ) : products.length > 0 ? (
           <>            {/* Product Display */}
             <div 
-              className="flex h-full cursor-grab active:cursor-grabbing select-none carousel-drag-area"
+              className="flex h-full cursor-grab active:cursor-grabbing select-none"
               style={{ 
                 transform: `translateX(-${currentIndex * 100}%) translateX(-${dragOffset * 0.5}px)`,
-                transition: isDragging ? 'none' : 'transform 0.5s ease-in-out',
-                touchAction: 'pan-x'
+                transition: isDragging ? 'none' : 'transform 0.5s ease-in-out'
               }}
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
@@ -442,8 +421,7 @@ const ShopSection = ({ onNavigate, isActive }) => {
           </div>
 
           {/* Two Components Section - 2/3 height - Mobile: Stack vertically */}
-          <div className="h-2/3 flex flex-col md:flex-row relative z-10 pointer-events-none">
-              {/* Left Component - Clothes */}
+          <div className="h-2/3 flex flex-col md:flex-row relative z-10 pointer-events-none">            {/* Left Component - Clothes */}
             <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6 pointer-events-none">
               <div className={`h-full rounded-2xl group relative overflow-hidden transition-all duration-800 pointer-events-auto ${
                 darkMode 
@@ -459,7 +437,7 @@ const ShopSection = ({ onNavigate, isActive }) => {
               style={{ 
                 animationDelay: isActive ? '0.3s' : '0s',
                 animationFillMode: 'both',
-                touchAction: 'manipulation'
+                touchAction: 'auto'
               }}>
                 
                 {/* Header */}
@@ -528,7 +506,7 @@ const ShopSection = ({ onNavigate, isActive }) => {
               style={{ 
                 animationDelay: isActive ? '0.6s' : '0s',
                 animationFillMode: 'both',
-                touchAction: 'manipulation'
+                touchAction: 'auto'
               }}>
                 
                 {/* Header */}
