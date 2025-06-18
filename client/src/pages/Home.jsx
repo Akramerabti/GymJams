@@ -21,8 +21,7 @@ const Home = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   const [isScrolling, setIsScrolling] = useState(false);
-  const [scrollOffset, setScrollOffset] = useState(0);
-  // Section data
+  const [scrollOffset, setScrollOffset] = useState(0);  // Section data
   const sections = [
     {
       id: 'hero',
@@ -43,6 +42,15 @@ const Home = () => {
       color: 'from-indigo-600/80 to-indigo-900/80'
     },
     {
+      id: 'coaching',
+      title: 'Expert Coaching',
+      description: 'Transform your fitness journey with guidance from certified trainers. Personalized plans, real-time feedback, and continuous support.',
+      buttonText: 'Find a Coach',
+      route: '/coaching',
+      videoSrc: "/GymTonic.mp4",
+      color: 'from-red-600/80 to-red-900/80'
+    },
+    {
       id: 'gymBros',
       title: 'Track Your Gains',
       description: 'Monitor your progress, set new records, and celebrate achievements. Our intelligent tracking helps you visualize your journey and stay motivated.',
@@ -59,15 +67,6 @@ const Home = () => {
       route: '/games',
       videoSrc: "/GymTonic.mp4",
       color: 'from-green-600/80 to-green-900/80'
-    },
-    {
-      id: 'coaching',
-      title: 'Expert Coaching',
-      description: 'Transform your fitness journey with guidance from certified trainers. Personalized plans, real-time feedback, and continuous support.',
-      buttonText: 'Find a Coach',
-      route: '/coaching',
-      videoSrc: "/GymTonic.mp4",
-      color: 'from-red-600/80 to-red-900/80'
     }
   ];
   // Initialize video refs

@@ -386,11 +386,13 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   animationFillMode: 'both'
                 }}
               >
-                <Users className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
+                <Trophy className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
                 <span className={`absolute -bottom-6 sm:-bottom-7 md:-bottom-8 lg:-bottom-7 text-xs font-medium transition-all duration-500 ${
                   darkMode ? 'text-white' : 'text-gray-900'
-                } group-hover:scale-110`}>Gains</span>
-              </button>              <button
+                } group-hover:scale-110`}>Coaching</span>
+              </button>
+
+              <button
                 onClick={() => navigateToSection(3)}
                 className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
                   hasAnimationStarted 
@@ -406,10 +408,10 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   animationFillMode: 'both'
                 }}
               >
-                <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
+                <Users className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
                 <span className={`absolute -bottom-6 sm:-bottom-7 md:-bottom-8 lg:-bottom-7 text-xs font-medium transition-all duration-500 ${
                   darkMode ? 'text-white' : 'text-gray-900'
-                } group-hover:scale-110`}>Games</span>
+                } group-hover:scale-110`}>Gains</span>
               </button>
 
               <button
@@ -428,10 +430,10 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   animationFillMode: 'both'
                 }}
               >
-                <Trophy className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
+                <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
                 <span className={`absolute -bottom-6 sm:-bottom-7 md:-bottom-8 lg:-bottom-7 text-xs font-medium transition-all duration-500 ${
                   darkMode ? 'text-white' : 'text-gray-900'
-                } group-hover:scale-110`}>Coaching</span>
+                } group-hover:scale-110`}>Games</span>
               </button>
             </div>
           </div>          {/* Section 2: Featured Products and GymBros - Reduced padding since buttons take space */}
