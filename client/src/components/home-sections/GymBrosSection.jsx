@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowRight, Heart, Users, MessageCircle, Dumbbell, MapPin, Calendar, Zap, UserPlus, Target, Play, Pause, Volume2, VolumeX, Maximize } from 'lucide-react';
+import { ArrowRight, Heart, Users, MessageCircle, Dumbbell, MapPin, Calendar, Zap, UserPlus, Target, Play, Pause, Volume2, VolumeX, Maximize, Minimize, X } from 'lucide-react';
 
 const GymBrosSection = ({ onNavigate, isActive }) => {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
@@ -48,23 +48,331 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
     if (mobileVideoRef.current) {
       mobileVideoRef.current.muted = newMutedState;
     }
-  };
-
-  // Handle fullscreen
-  const handleFullscreen = (e, isMobile = false) => {
+  };  // Handle fullscreen - mobile gets custom overlay, desktop gets native fullscreen
+  const handleFullscreen = async (e, isMobile = false) => {
     e.stopPropagation();
     const targetVideo = isMobile ? mobileVideoRef.current : videoRef.current;
     
     if (targetVideo) {
-      if (targetVideo.requestFullscreen) {
-        targetVideo.requestFullscreen();
-      } else if (targetVideo.webkitRequestFullscreen) {
-        targetVideo.webkitRequestFullscreen();
-      } else if (targetVideo.msRequestFullscreen) {
-        targetVideo.msRequestFullscreen();
+      if (isMobile) {
+        // Always use custom overlay for mobile to avoid taking over PC monitor
+        createMobileFullscreenOverlay(targetVideo);
+      } else {
+        // Desktop can use native fullscreen
+        try {
+          if (targetVideo.requestFullscreen) {
+            await targetVideo.requestFullscreen();
+          } else if (targetVideo.webkitRequestFullscreen) {
+            await targetVideo.webkitRequestFullscreen();
+          } else if (targetVideo.msRequestFullscreen) {
+            await targetVideo.msRequestFullscreen();
+          }
+        } catch (error) {
+          console.error('Desktop fullscreen request failed:', error);
+        }
       }
     }
+  };  // Custom mobile fullscreen overlay (viewport only, no native fullscreen)
+  const createMobileFullscreenOverlay = (video) => {
+    // Create overlay that only covers the viewport
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: black;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+    `;
+    
+    // Clone the video element
+    const videoClone = video.cloneNode(true);
+    videoClone.style.cssText = `
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      max-width: 100vw;
+      max-height: 100vh;
+      flex: 1;
+    `;
+    
+    // Sync video state
+    videoClone.currentTime = video.currentTime;
+    videoClone.muted = video.muted;
+    if (isVideoPlaying) {
+      videoClone.play();
+    }    // Create close button
+    const closeButton = document.createElement('button');
+    closeButton.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+    closeButton.style.cssText = `
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      border: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      cursor: pointer;
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: manipulation;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    `;
+      // Create video controls bar
+    const controlsBar = document.createElement('div');
+    controlsBar.style.cssText = `
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 10001;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    `;
+    
+    // Controls visibility state
+    let controlsVisible = true;
+    let hideControlsTimeout;
+    
+    // Function to show controls
+    const showControls = () => {
+      controlsVisible = true;
+      controlsBar.style.opacity = '1';
+      closeButton.style.opacity = '1';
+      
+      // Clear existing timeout
+      if (hideControlsTimeout) {
+        clearTimeout(hideControlsTimeout);
+      }
+      
+      // Auto-hide after 3 seconds (only if video is playing)
+      if (!videoClone.paused) {
+        hideControlsTimeout = setTimeout(() => {
+          if (controlsVisible && !videoClone.paused) {
+            controlsVisible = false;
+            controlsBar.style.opacity = '0';
+            closeButton.style.opacity = '0.3';
+          }
+        }, 3000);
+      }
+    };
+    
+    // Function to toggle controls
+    const toggleControls = () => {
+      if (controlsVisible) {
+        controlsVisible = false;
+        controlsBar.style.opacity = '0';
+        closeButton.style.opacity = '0.3';
+        if (hideControlsTimeout) {
+          clearTimeout(hideControlsTimeout);
+        }
+      } else {
+        showControls();
+      }
+    };
+    
+    // Add tap to toggle controls
+    videoClone.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleControls();
+    });
+    
+    // Show controls when video is paused
+    videoClone.addEventListener('pause', showControls);
+    videoClone.addEventListener('play', showControls);
+    
+    // Time display
+    const timeDisplay = document.createElement('div');
+    timeDisplay.style.cssText = `
+      color: white;
+      font-size: 14px;
+      font-weight: 500;
+      font-family: system-ui, -apple-system, sans-serif;
+    `;
+    
+    // Controls container
+    const controlsContainer = document.createElement('div');
+    controlsContainer.style.cssText = `
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    `;
+      // Sound toggle button
+    const soundButton = document.createElement('button');
+    soundButton.style.cssText = `
+      background: rgba(0,0,0,0.6);
+      color: white;
+      border: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: manipulation;
+      transition: background 0.2s;
+    `;
+      // Play/Pause button
+    const playPauseButton = document.createElement('button');
+    playPauseButton.style.cssText = `
+      background: rgba(0,0,0,0.6);
+      color: white;
+      border: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: manipulation;
+      transition: background 0.2s;
+    `;
+      // Minimize button (same as close)
+    const minimizeButton = document.createElement('button');
+    minimizeButton.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>`;
+    minimizeButton.style.cssText = `
+      background: rgba(0,0,0,0.6);
+      color: white;
+      border: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: manipulation;
+      transition: background 0.2s;
+    `;
+    
+    // Update functions
+    const updateTimeDisplay = () => {
+      const current = Math.floor(videoClone.currentTime);
+      const duration = Math.floor(videoClone.duration) || 0;
+      timeDisplay.textContent = `${formatTime(current)} / ${formatTime(duration)}`;
+    };    const updateSoundButton = () => {
+      if (videoClone.muted) {
+        soundButton.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 17 9 17 15 11 19 11 5"></polygon><line x1="22" y1="9" x2="16" y2="15"></line><line x1="16" y1="9" x2="22" y2="15"></line></svg>`;
+        soundButton.title = 'Unmute';
+      } else {
+        soundButton.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 17 9 17 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`;
+        soundButton.title = 'Mute';
+      }
+    };
+    
+    const updatePlayPauseButton = () => {
+      if (videoClone.paused) {
+        playPauseButton.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+        playPauseButton.title = 'Play';
+      } else {
+        playPauseButton.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
+        playPauseButton.title = 'Pause';
+      }
+    };
+    
+    // Event listeners
+    videoClone.addEventListener('timeupdate', updateTimeDisplay);
+    videoClone.addEventListener('loadedmetadata', updateTimeDisplay);
+    videoClone.addEventListener('play', updatePlayPauseButton);
+    videoClone.addEventListener('pause', updatePlayPauseButton);
+    
+    soundButton.onclick = () => {
+      videoClone.muted = !videoClone.muted;
+      updateSoundButton();
+    };
+    
+    playPauseButton.onclick = () => {
+      if (videoClone.paused) {
+        videoClone.play();
+      } else {
+        videoClone.pause();
+      }
+      updatePlayPauseButton();
+    };
+    
+    // Handle close
+    const closeOverlay = () => {
+      // Sync video state back
+      video.currentTime = videoClone.currentTime;
+      video.muted = videoClone.muted;
+      if (!videoClone.paused) {
+        video.play();
+      } else {
+        video.pause();
+      }
+      
+      // Remove overlay
+      document.body.removeChild(overlay);
+      
+      // Unlock orientation if possible
+      if (screen.orientation && screen.orientation.unlock) {
+        try {
+          screen.orientation.unlock();
+        } catch (e) {
+          // Orientation unlock failed, ignore
+        }
+      }
+    };
+    
+    closeButton.onclick = closeOverlay;
+    minimizeButton.onclick = closeOverlay;
+    
+    // Handle escape key
+    const handleKeyPress = (e) => {
+      if (e.key === 'Escape') {
+        closeOverlay();
+        document.removeEventListener('keydown', handleKeyPress);
+      }
+    };
+    document.addEventListener('keydown', handleKeyPress);
+      // Initialize displays
+    updateTimeDisplay();
+    updateSoundButton();
+    updatePlayPauseButton();
+    
+    // Assemble controls
+    controlsContainer.appendChild(soundButton);
+    controlsContainer.appendChild(playPauseButton);
+    controlsContainer.appendChild(minimizeButton);
+    controlsBar.appendChild(timeDisplay);
+    controlsBar.appendChild(controlsContainer);
+    
+    // Add elements to overlay
+    overlay.appendChild(videoClone);
+    overlay.appendChild(closeButton);
+    overlay.appendChild(controlsBar);
+    
+    // Add to body (this stays within viewport, not native fullscreen)
+    document.body.appendChild(overlay);
+    
+    // Try to lock orientation to landscape for mobile
+    if (screen.orientation && screen.orientation.lock) {
+      try {
+        screen.orientation.lock('landscape');
+      } catch (orientationError) {
+        console.log('Orientation lock not supported or failed:', orientationError);
+      }    }
   };
+
   // Sync video playback between desktop and mobile
   useEffect(() => {
     const syncVideos = () => {
@@ -131,34 +439,23 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
         className="absolute inset-0 w-full h-full object-cover"
       >
         <source src="/GymTonic.mp4" type="video/mp4" />
-      </video>
-        {/* Overlay */}
+      </video>        {/* Overlay */}
       <div className={`absolute inset-0 bg-gradient-to-br from-black/70 via-black/60 to-black/70 transition-all duration-300 ${
         isDragDisabled ? 'bg-black/80' : ''
       }`}></div>
       
-      {/* Drag Disabled Indicator */}
-      {isDragDisabled && (
-        <div className="absolute top-4 left-4 z-50 bg-black/60 backdrop-blur-sm rounded-full px-3 py-2 border border-white/20">
-          <p className="text-white text-xs font-medium flex items-center gap-2">
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-            Drag disabled - Video playing
-          </p>
-        </div>
-      )}
-        <div 
+      <div 
         className={`relative z-10 h-full w-full transition-all duration-800 ${
           isActive 
             ? 'opacity-100 translate-y-0' 
             : 'opacity-0 translate-y-8'
         }`}
         style={{ pointerEvents: 'auto' }}
-      >
-        {/* Large Screen Layout */}
-        <div className="hidden lg:flex h-full">
+      >        {/* Large Screen Layout */}
+        <div className="hidden lg:flex h-full pt-16 relative">
           {/* Left Side - Header + Video */}
-          <div className="w-1/2 flex flex-col justify-center items-center px-8 py-6">            {/* Header Section */}
-            <div className={`text-center mb-8 transition-all duration-1000 ${
+          <div className="w-1/2 flex flex-col justify-center items-center px-8 py-6 pt-8 pb-24">{/* Header Section */}
+            <div className={`text-center mb-8 pt-8 transition-all duration-1000 ${
               isActive 
                 ? 'opacity-100 translate-y-0' 
                 : 'opacity-0 translate-y-8'
@@ -192,13 +489,14 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
               <div className="relative aspect-video rounded-xl overflow-hidden bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-white/20 shadow-2xl backdrop-blur-sm">
                 {/* Video Element */}
                 <video
-                  ref={videoRef}
-                  className="absolute inset-0 w-full h-full object-cover"
+                  ref={videoRef}                  className="absolute inset-0 w-full h-full object-cover"
                   muted={isMuted}
                   onClick={(e) => handleVideoClick(e, false)}
                   onLoadedMetadata={(e) => handleLoadedMetadata(e.target)}
                   onTimeUpdate={(e) => handleTimeUpdate(e.target)}
                   style={{ pointerEvents: 'auto' }}
+                  playsInline
+                  preload="metadata"
                 >
                   <source src="/GymTonic.mp4" type="video/mp4" />
                 </video>
@@ -267,10 +565,8 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Right Side - Content */}
-          <div className="w-1/2 flex items-center px-8 py-6">
+          </div>          {/* Right Side - Content */}
+          <div className="w-1/2 flex items-center px-8 py-6 pt-8 pb-24">
             <div className="w-full max-w-xl">
               <div className="grid grid-cols-1 gap-8">
                   {/* Benefits Section */}
@@ -414,12 +710,9 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Mobile/Tablet Layout */}
-        <div className="lg:hidden h-full flex flex-col">          {/* Header Section - Reduced height */}
-          <div className="flex-none h-[20vh] min-h-[140px] max-h-[180px] flex items-center justify-center px-4 py-2">
-            <div className={`text-center max-w-4xl mx-auto transition-all duration-1000 ${
+        </div>        {/* Mobile/Tablet Layout */}
+        <div className="lg:hidden h-full flex flex-col pt-16">          {/* Header Section - Reduced height */}
+          <div className="flex-none h-[20vh] min-h-[140px] max-h-[180px] flex items-center justify-center px-4 py-2 pt-4">            <div className={`text-center max-w-4xl mx-auto transition-all duration-1000 pt-4 ${
               isActive 
                 ? 'opacity-100 translate-y-0' 
                 : 'opacity-0 translate-y-8'
@@ -446,14 +739,13 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
               </p>
             </div>
           </div>          {/* Video Section - Much smaller and responsive like HeroSection */}
-          <div className="flex-none h-[12vh] min-h-[80px] max-h-[100px] flex items-center justify-center px-4 py-10 mb-3">
+          <div className="flex-none h-[12vh] min-h-[80px] max-h-[100px] flex items-center justify-center px-4 py-2 mb-3">
             <div className={`w-full max-w-[200px] sm:max-w-[240px] md:max-w-[280px] mx-auto transition-all duration-1000 ${
               isActive 
                 ? 'opacity-100 translate-y-0 scale-100' 
                 : 'opacity-0 translate-y-8 scale-95'
             }`} style={{ transitionDelay: isActive ? '400ms' : '0ms' }}>
-              <div className="relative aspect-video rounded-lg overflow-hidden bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-white/20 shadow-lg backdrop-blur-sm">
-                {/* Video Element */}
+              <div className="relative aspect-video rounded-lg overflow-hidden bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-white/20 shadow-lg backdrop-blur-sm">                {/* Video Element */}
                 <video
                   ref={mobileVideoRef}
                   className="absolute inset-0 w-full h-full object-cover"
@@ -462,6 +754,10 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                   onLoadedMetadata={(e) => handleLoadedMetadata(e.target)}
                   onTimeUpdate={(e) => handleTimeUpdate(e.target)}
                   style={{ pointerEvents: 'auto' }}
+                  playsInline
+                  webkit-playsinline="true"
+                  x5-playsinline="true"
+                  preload="metadata"
                 >
                   <source src="/GymTonic.mp4" type="video/mp4" />
                 </video>
@@ -530,84 +826,81 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                 </div>
               </div>
             </div>
-          </div>{/* Content Section - More height and better scrolling */}
-          <div className="flex-1 min-h-0 overflow-hidden px-4 py-2 pb-6">
+          </div>          {/* Content Section - More height and better scrolling */}
+          <div className="flex-1 min-h-0 overflow-hidden px-4 py-2 pb-6 pt-2">
             <div className="h-full max-w-6xl mx-auto overflow-y-auto">
-              <div className="flex flex-col gap-6">
-                  {/* Benefits Section */}
+              <div className="flex flex-col gap-4">                  {/* Benefits Section - Condensed for mobile */}
                 <div className={`transition-all duration-1000 ${
                   isActive 
                     ? 'opacity-100 translate-y-0' 
                     : 'opacity-0 translate-y-8'
                 }`} style={{ transitionDelay: isActive ? '600ms' : '0ms' }}>
-                  <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2 flex-shrink-0">
-                    <div className="w-5 h-5 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
-                      <Zap className="w-3 h-3 text-white" />
+                  <h3 className="text-base font-bold text-white mb-2 flex items-center gap-2 flex-shrink-0">
+                    <div className="w-4 h-4 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
+                      <Zap className="w-2.5 h-2.5 text-white" />
                     </div>
                     Why GymBros?
                   </h3>
                   
-                  <div className="space-y-3">
-                    <div className={`flex items-start gap-3 p-3 rounded-lg bg-white/10 border border-white/20 hover:border-white/30 transition-all duration-300 backdrop-blur-sm ${
+                  <div className="space-y-2">
+                    <div className={`flex items-start gap-2 p-2 rounded-lg bg-white/10 border border-white/20 hover:border-white/30 transition-all duration-300 backdrop-blur-sm ${
                       isActive ? 'animate-fade-in-up' : ''
                     }`} style={{ animationDelay: isActive ? '800ms' : '0ms' }}>
-                      <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <UserPlus className="w-4 h-4 text-white" />
+                      <div className="w-6 h-6 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <UserPlus className="w-3 h-3 text-white" />
                       </div>
                       <div className="min-w-0">
-                        <h4 className="font-semibold text-white text-sm">Smart Matching</h4>
-                        <p className="text-white/70 text-xs">Algorithm matches based on goals and preferences</p>
+                        <h4 className="font-semibold text-white text-xs">Smart Matching</h4>
+                        <p className="text-white/70 text-xs">Algorithm matches based on goals</p>
                       </div>
                     </div>
                     
-                    <div className={`flex items-start gap-3 p-3 rounded-lg bg-white/10 border border-white/20 hover:border-white/30 transition-all duration-300 backdrop-blur-sm ${
+                    <div className={`flex items-start gap-2 p-2 rounded-lg bg-white/10 border border-white/20 hover:border-white/30 transition-all duration-300 backdrop-blur-sm ${
                       isActive ? 'animate-fade-in-up' : ''
                     }`} style={{ animationDelay: isActive ? '900ms' : '0ms' }}>
-                      <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Target className="w-4 h-4 text-white" />
+                      <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Target className="w-3 h-3 text-white" />
                       </div>
                       <div className="min-w-0">
-                        <h4 className="font-semibold text-white text-sm">Accountability</h4>
-                        <p className="text-white/70 text-xs">Stay motivated with workout partners</p>
+                        <h4 className="font-semibold text-white text-xs">Accountability</h4>
+                        <p className="text-white/70 text-xs">Stay motivated with partners</p>
                       </div>
                     </div>
-                      <div className={`flex items-start gap-3 p-3 rounded-lg bg-white/10 border border-white/20 hover:border-white/30 transition-all duration-300 backdrop-blur-sm ${
+                      <div className={`flex items-start gap-2 p-2 rounded-lg bg-white/10 border border-white/20 hover:border-white/30 transition-all duration-300 backdrop-blur-sm ${
                       isActive ? 'animate-fade-in-up' : ''
-                    }`} style={{ animationDelay: isActive ? '1000ms' : '0ms' }}>
-                      <div className="w-8 h-8 bg-gradient-to-r from-pink-500 to-pink-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <MessageCircle className="w-4 h-4 text-white" />
+                    }`} style={{ animationDelay: isActive ? '1000ms' : '0ms' }}>                      <div className="w-6 h-6 bg-gradient-to-r from-pink-500 to-pink-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <MessageCircle className="w-3 h-3 text-white" />
                       </div>
                       <div className="min-w-0">
-                        <h4 className="font-semibold text-white text-sm">Community</h4>
-                        <p className="text-white/70 text-xs">Share progress and celebrate together</p>
+                        <h4 className="font-semibold text-white text-xs">Community</h4>
+                        <p className="text-white/70 text-xs">Share progress together</p>
                       </div>
                     </div>
                   </div>
-                </div>                {/* How It Works Section */}
+                </div>                {/* How It Works Section - Condensed for mobile */}
                 <div className={`transition-all duration-1000 ${
                   isActive 
                     ? 'opacity-100 translate-y-0' 
                     : 'opacity-0 translate-y-8'
                 }`} style={{ transitionDelay: isActive ? '1100ms' : '0ms' }}>
-                  <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2 flex-shrink-0">
-                    <div className="w-5 h-5 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg flex items-center justify-center">
-                      <Dumbbell className="w-3 h-3 text-white" />
+                  <h3 className="text-base font-bold text-white mb-2 flex items-center gap-2 flex-shrink-0">
+                    <div className="w-4 h-4 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg flex items-center justify-center">
+                      <Dumbbell className="w-2.5 h-2.5 text-white" />
                     </div>
                     How It Works
-                  </h3>
-                  
-                  <div className="space-y-3">
+                  </h3>                  
+                  <div className="space-y-2">
                     <div className={`flex items-start gap-2 transition-all duration-500 ${
                       isActive 
                         ? 'opacity-100 translate-x-0' 
                         : 'opacity-0 translate-x-4'
                     }`} style={{ transitionDelay: isActive ? '1200ms' : '0ms' }}>
-                      <div className="w-6 h-6 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">
+                      <div className="w-5 h-5 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">
                         1
                       </div>
                       <div className="min-w-0">
-                        <h4 className="font-semibold text-white text-sm">Create Profile</h4>
-                        <p className="text-white/70 text-xs">Set your goals and preferences</p>
+                        <h4 className="font-semibold text-white text-xs">Create Profile</h4>
+                        <p className="text-white/70 text-xs">Set goals and preferences</p>
                       </div>
                     </div>
                     
@@ -616,12 +909,12 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                         ? 'opacity-100 translate-x-0' 
                         : 'opacity-0 translate-x-4'
                     }`} style={{ transitionDelay: isActive ? '1300ms' : '0ms' }}>
-                      <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">
+                      <div className="w-5 h-5 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">
                         2
                       </div>
                       <div className="min-w-0">
-                        <h4 className="font-semibold text-white text-sm">Discover Matches</h4>
-                        <p className="text-white/70 text-xs">Browse compatible workout partners</p>
+                        <h4 className="font-semibold text-white text-xs">Discover Matches</h4>
+                        <p className="text-white/70 text-xs">Browse compatible partners</p>
                       </div>
                     </div>
                       <div className={`flex items-start gap-2 transition-all duration-500 ${
@@ -629,30 +922,29 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                         ? 'opacity-100 translate-x-0' 
                         : 'opacity-0 translate-x-4'
                     }`} style={{ transitionDelay: isActive ? '1400ms' : '0ms' }}>
-                      <div className="w-6 h-6 bg-gradient-to-r from-green-500 to-green-600 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">
+                      <div className="w-5 h-5 bg-gradient-to-r from-green-500 to-green-600 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">
                         3
                       </div>
                       <div className="min-w-0">
-                        <h4 className="font-semibold text-white text-sm">Connect & Chat</h4>
-                        <p className="text-white/70 text-xs">Start conversations and plan sessions</p>
-                      </div>
-                    </div>
+                        <h4 className="font-semibold text-white text-xs">Connect & Chat</h4>
+                        <p className="text-white/70 text-xs">Start conversations</p>
+                      </div>                    </div>
                     
                     <div className={`flex items-start gap-2 transition-all duration-500 ${
                       isActive 
                         ? 'opacity-100 translate-x-0' 
                         : 'opacity-0 translate-x-4'
                     }`} style={{ transitionDelay: isActive ? '1500ms' : '0ms' }}>
-                      <div className="w-6 h-6 bg-gradient-to-r from-pink-500 to-pink-600 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">
+                      <div className="w-5 h-5 bg-gradient-to-r from-pink-500 to-pink-600 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">
                         4
                       </div>
                       <div className="min-w-0">
-                        <h4 className="font-semibold text-white text-sm">Workout Together</h4>
-                        <p className="text-white/70 text-xs">Train and build lasting friendships</p>
+                        <h4 className="font-semibold text-white text-xs">Workout Together</h4>
+                        <p className="text-white/70 text-xs">Train and build friendships</p>
                       </div>
                     </div>
                   </div>
-                </div>                {/* CTA Button with proper margin from bottom */}
+                </div>{/* CTA Button with proper margin from bottom */}
                 <div className={`pt-4 pb-4 transition-all duration-1000 ${
                   isActive 
                     ? 'opacity-100 translate-y-0 scale-100' 
