@@ -381,7 +381,7 @@ const ShopSection = ({ onNavigate, isActive }) => {
                 </div>
               </div>
             </div>            {/* Right Component - Accessories */}
-            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6 mb-8 md:mb-0">
+            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6 mb-14 md:mb-0">
               <div className={`h-full rounded-2xl group relative overflow-hidden transition-all duration-800 ${
                 darkMode 
                   ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-green-900/20' 
