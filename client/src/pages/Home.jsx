@@ -146,8 +146,7 @@ const Home = () => {
   // Enhanced helper functions
   const isSectionVisible = (index) => visibleSections.has(index);
   const isActiveSection = (index) => activeSection === index;
-
-  // Advanced parallax calculations with momentum
+  // Advanced parallax calculations with momentum and enhanced fading
   const getParallaxOffset = (sectionIndex, intensity = 0.15) => {
     const sectionElement = sectionRefs.current[sectionIndex];
     if (!sectionElement) return { y: 0, scale: 1, opacity: 1 };
@@ -160,10 +159,23 @@ const Home = () => {
     // Calculate parallax with easing
     const parallaxY = distanceFromCenter * intensity;
     
-    // Calculate scale and opacity based on scroll position
+    // Enhanced scale and opacity calculations for dramatic fading
     const viewportDistance = Math.abs(distanceFromCenter) / window.innerHeight;
-    const scale = Math.max(0.95, 1 - viewportDistance * 0.05);
-    const opacity = Math.max(0.3, 1 - viewportDistance * 0.7);
+    const scale = Math.max(0.85, 1 - viewportDistance * 0.15); // More dramatic scaling
+    
+    // Enhanced opacity fade - more dramatic transition
+    let opacity;
+    if (Math.abs(distanceFromCenter) < window.innerHeight * 0.3) {
+      // Section is mostly in view - full opacity
+      opacity = 1;
+    } else if (Math.abs(distanceFromCenter) < window.innerHeight * 0.8) {
+      // Section is partially in view - gradual fade
+      const fadeRatio = (Math.abs(distanceFromCenter) - window.innerHeight * 0.3) / (window.innerHeight * 0.5);
+      opacity = Math.max(0.1, 1 - Math.pow(fadeRatio, 1.5)); // Exponential fade for smoother transition
+    } else {
+      // Section is mostly out of view - minimum opacity
+      opacity = 0.1;
+    }
     
     return {
       y: parallaxY,
@@ -172,11 +184,14 @@ const Home = () => {
     };
   };
 
-  // Dynamic background effects
+  // Enhanced background effects with dramatic fading
   const getBackgroundEffect = (sectionIndex) => {
     const effects = getParallaxOffset(sectionIndex, 0.1);
     const mouseX = mousePosition.x * 10;
     const mouseY = mousePosition.y * 10;
+    
+    // Additional blur effect for out-of-focus sections
+    const blurAmount = effects.opacity < 0.8 ? (1 - effects.opacity) * 8 : 0;
     
     return {
       transform: `
@@ -185,7 +200,8 @@ const Home = () => {
         scale(${effects.scale})
       `,
       opacity: effects.opacity,
-      filter: `blur(${Math.max(0, (1 - effects.opacity) * 2)}px)`,
+      filter: `blur(${blurAmount}px) brightness(${0.3 + effects.opacity * 0.7})`,
+      transition: 'opacity 0.6s ease-out, filter 0.6s ease-out, transform 0.3s ease-out',
     };
   };
 
@@ -209,17 +225,16 @@ const Home = () => {
   return (
     <>
       {/* Enhanced Global CSS for sophisticated animations */}
-      <style jsx>{`
-        @keyframes revealSection {
+      <style jsx>{`        @keyframes revealSection {
           from {
             opacity: 0;
-            transform: translateY(100px) scale(0.95);
-            filter: blur(10px);
+            transform: translateY(100px) scale(0.9);
+            filter: blur(15px) brightness(0.3);
           }
           to {
             opacity: 1;
             transform: translateY(0) scale(1);
-            filter: blur(0px);
+            filter: blur(0px) brightness(1);
           }
         }
 
@@ -270,26 +285,27 @@ const Home = () => {
         }
 
         .section-transition {
-          transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+          transition: all 1.0s cubic-bezier(0.25, 0.46, 0.45, 0.94);
         }
 
         .section-visible {
-          animation: revealSection 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+          animation: revealSection 1.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
         }
 
         .section-hidden {
           opacity: 0;
-          transform: translateY(100px) scale(0.95);
-          filter: blur(10px);
+          transform: translateY(100px) scale(0.9);
+          filter: blur(15px) brightness(0.3);
         }
 
         .section-active {
           transform: scale(1.02);
           z-index: 10;
+          filter: brightness(1.1) contrast(1.05);
         }
 
         .parallax-bg {
-          transition: transform 0.1s ease-out, opacity 0.3s ease, filter 0.3s ease;
+          transition: transform 0.3s ease-out, opacity 0.6s ease-out, filter 0.6s ease-out;
         }
 
         .floating-elements {

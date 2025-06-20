@@ -5,9 +5,13 @@ import { ArrowRight, Heart, Users, MessageCircle, Dumbbell, MapPin, Calendar, Za
 const GymBrosSection = ({ onNavigate, isActive }) => {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [isDragDisabled, setIsDragDisabled] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);  const [videoDuration, setVideoDuration] = useState(0);
+  const [isMuted, setIsMuted] = useState(true);
+  const [videoDuration, setVideoDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [touchStartY, setTouchStartY] = useState(null);
+  const [touchStartTime, setTouchStartTime] = useState(null);  const [isTouchScrolling, setIsTouchScrolling] = useState(false);
   const videoRef = useRef(null);
+  const mobileVideoRef = useRef(null);
 
   // Format time display (mm:ss)
   const formatTime = (time) => {
@@ -15,13 +19,27 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
+  // Handle video events
+  const handleVideoPlay = () => {
+    setIsVideoPlaying(true);
+    setIsDragDisabled(true);
+  };
+
+  const handleVideoPause = () => {
+    setIsVideoPlaying(false);
+    setIsDragDisabled(false);
+  };
+  const handleVideoEnded = () => {
+    setIsVideoPlaying(false);
+    setIsDragDisabled(false);
+  };
 
   // Handle video metadata loaded
   const handleLoadedMetadata = (video) => {
     if (video && video.duration) {
       setVideoDuration(video.duration);
     }
-  };  // Handle time update
+  };// Handle time update
   const handleTimeUpdate = (video) => {
     if (video) {
       setCurrentTime(video.currentTime);
@@ -309,32 +327,87 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
       setIsDragDisabled(false);
       setCurrentTime(0);
     }
-  }, [isActive, isVideoPlaying]);
-  const handlePlayVideo = (isMobile = false) => {
-    const targetVideo = videoRef.current;
+  }, [isActive, isVideoPlaying]);  const handlePlayVideo = (isMobile = false) => {
+    const targetVideo = isMobile ? mobileVideoRef.current : videoRef.current;
+    
+    console.log('handlePlayVideo called - isMobile:', isMobile, 'targetVideo:', targetVideo, 'isVideoPlaying:', isVideoPlaying);
+    
     if (targetVideo) {
       if (isVideoPlaying) {
+        // Pause the video
+        console.log('Pausing video');
+        targetVideo.pause();
         setIsVideoPlaying(false);
         setIsDragDisabled(false);
       } else {
-        setIsVideoPlaying(true);
-        setIsDragDisabled(true);
+        // Play the video
+        console.log('Playing video');
+        targetVideo.play().then(() => {
+          console.log('Video play successful');
+          setIsVideoPlaying(true);
+          setIsDragDisabled(true);
+        }).catch((error) => {
+          console.error('Error playing video:', error);
+        });
       }
+    } else {
+      console.error('No target video found');
+    }
+  };
+  // Enhanced touch handling for mobile
+  const handleTouchStart = (e) => {
+    const touch = e.touches[0];
+    setTouchStartY(touch.clientY);
+    setTouchStartTime(Date.now());
+    setIsTouchScrolling(false);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!touchStartY || !touchStartTime) return;
+    
+    const touch = e.touches[0];
+    const deltaY = Math.abs(touch.clientY - touchStartY);
+    const deltaTime = Date.now() - touchStartTime;
+    
+    // If user is scrolling (significant Y movement), mark as scrolling
+    if (deltaY > 10 && deltaTime > 50) {
+      setIsTouchScrolling(true);
     }
   };
 
+  const handleTouchEnd = (e) => {
+    const deltaTime = Date.now() - (touchStartTime || 0);
+    
+    // Only trigger video action if it's a quick tap (not a scroll gesture)
+    if (!isTouchScrolling && deltaTime < 300) {
+      e.preventDefault();
+      e.stopPropagation();
+      handlePlayVideo(true);
+    }
+    
+    // Reset touch tracking
+    setTouchStartY(null);
+    setTouchStartTime(null);
+    setIsTouchScrolling(false);
+  };
   const handleVideoClick = (e, isMobile = false) => {
     e.stopPropagation();
     e.preventDefault();
-    handlePlayVideo(isMobile);
+    
+    console.log('Video clicked - isMobile:', isMobile, 'isVideoPlaying:', isVideoPlaying);
+    
+    // For desktop, always handle click
+    if (!isMobile) {
+      handlePlayVideo(false);
+    }
+    // For mobile, touch events are handled separately
   };
-
   return (
     <div 
       className="absolute inset-0 w-full h-full overflow-hidden" 
       style={{ 
-        pointerEvents: isDragDisabled ? 'auto' : 'none',
-        touchAction: isDragDisabled ? 'auto' : 'none'
+        pointerEvents: 'auto', // Always allow pointer events
+        touchAction: 'pan-y', // Allow vertical scrolling but prevent other gestures
       }}
     >
       {/* Background Video */}
@@ -349,15 +422,17 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
       <div className={`absolute inset-0 bg-gradient-to-br from-black/70 via-black/60 to-black/70 transition-all duration-300 ${
         isDragDisabled ? 'bg-black/80' : ''
       }`}></div>
-      
-      <div 
+        <div 
         className={`relative z-10 h-full w-full transition-all duration-800 ${
           isActive 
             ? 'opacity-100 translate-y-0' 
             : 'opacity-0 translate-y-8'
         }`}
-        style={{ pointerEvents: 'auto' }}
-      >        {/* Large Screen Layout */}
+        style={{ 
+          pointerEvents: 'auto',
+          touchAction: 'pan-y' // Allow vertical scrolling
+        }}
+      >{/* Large Screen Layout */}
         <div className="hidden lg:flex h-full pt-16 relative">
           {/* Left Side - Header + Video */}
           <div className="w-1/2 flex flex-col justify-center items-center px-8 py-6 pt-8 pb-24">{/* Header Section */}
@@ -393,14 +468,20 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                 : 'opacity-0 translate-y-8 scale-95'
             }`} style={{ transitionDelay: isActive ? '400ms' : '0ms' }}>
               <div className="relative aspect-video rounded-xl overflow-hidden bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-white/20 shadow-2xl backdrop-blur-sm">
-                {/* Video Element */}
-                <video
-                  ref={videoRef}                  className="absolute inset-0 w-full h-full object-cover"
+                {/* Video Element */}                <video
+                  ref={videoRef}
+                  className="absolute inset-0 w-full h-full object-cover cursor-pointer"
                   muted={isMuted}
                   onClick={(e) => handleVideoClick(e, false)}
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                  onPlay={handleVideoPlay}
+                  onPause={handleVideoPause}
+                  onEnded={handleVideoEnded}
                   onLoadedMetadata={(e) => handleLoadedMetadata(e.target)}
                   onTimeUpdate={(e) => handleTimeUpdate(e.target)}
-                  style={{ pointerEvents: 'auto' }}
+                  style={{ touchAction: 'manipulation', pointerEvents: 'auto' }}
                   playsInline
                   preload="metadata"
                 >
@@ -600,12 +681,20 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                 ? 'opacity-100 translate-y-0 scale-100' 
                 : 'opacity-0 translate-y-8 scale-95'
             }`} style={{ transitionDelay: isActive ? '400ms' : '0ms' }}>              <div className="relative aspect-video rounded-lg overflow-hidden bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-white/20 shadow-lg backdrop-blur-sm">
-                {/* Video Element */}
-                <video
-                  className="absolute inset-0 w-full h-full object-cover"
+                {/* Video Element */}                <video
+                  ref={mobileVideoRef}
+                  className="absolute inset-0 w-full h-full object-cover cursor-pointer"
                   muted={isMuted}
-                  onClick={(e) => handleVideoClick(e, false)}
-                  style={{ pointerEvents: 'auto' }}
+                  onClick={(e) => handleVideoClick(e, true)}
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                  onPlay={handleVideoPlay}
+                  onPause={handleVideoPause}
+                  onEnded={handleVideoEnded}
+                  onLoadedMetadata={(e) => handleLoadedMetadata(e.target)}
+                  onTimeUpdate={(e) => handleTimeUpdate(e.target)}
+                  style={{ touchAction: 'manipulation', pointerEvents: 'auto' }}
                   playsInline
                   webkit-playsinline="true"
                   x5-playsinline="true"
