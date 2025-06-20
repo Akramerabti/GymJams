@@ -61,91 +61,34 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
       }
     }
   };  // Custom mobile fullscreen overlay (viewport only, no native fullscreen)
-  const createMobileFullscreenOverlay = (video) => {    // Create overlay that only covers the viewport
+  const createMobileFullscreenOverlay = (video) => {
+    // Create overlay that only covers the viewport
     const overlay = document.createElement('div');
-    overlay.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: black;
-      z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      touch-action: none;
-      padding: 20px;
-      box-sizing: border-box;
-    `;
+    overlay.className = 'fixed inset-0 w-screen h-screen bg-black z-[9999] flex flex-col items-center justify-center touch-none p-4 md:p-5 lg:p-6';
     
     // Create video container
     const videoContainer = document.createElement('div');
-    videoContainer.style.cssText = `
-      flex: 1;
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-    `;
+    videoContainer.className = 'flex-1 w-full flex items-center justify-center relative';
     
     // Clone the video element
     const videoClone = video.cloneNode(true);
-    videoClone.style.cssText = `
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      max-width: 100vw;
-      max-height: 70vh;
-    `;
+    videoClone.className = 'w-full h-full object-contain max-w-full max-h-[70vh]';
     
     // Sync video state
     videoClone.currentTime = video.currentTime;
     videoClone.muted = video.muted;
     if (isVideoPlaying) {
       videoClone.play();
-    }    // Create close button
+    }
+
+    // Create close button
     const closeButton = document.createElement('button');
     closeButton.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
-    closeButton.style.cssText = `
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      background: rgba(0,0,0,0.8);
-      color: white;
-      border: 2px solid rgba(255,255,255,0.3);
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      cursor: pointer;
-      z-index: 10000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      touch-action: manipulation;
-      opacity: 1;
-      transition: all 0.3s ease;
-      backdrop-filter: blur(10px);
-    `;      // Create video controls bar - positioned below video
+    closeButton.className = 'absolute top-4 right-4 md:top-5 md:right-5 lg:top-6 lg:right-6 bg-black/80 text-white border-2 border-white/30 w-10 h-10 md:w-12 md:h-12 rounded-full cursor-pointer z-[10000] flex items-center justify-center opacity-100 transition-all duration-300 backdrop-blur-sm hover:bg-white/20 hover:border-white/50';
+
+    // Create video controls bar - positioned below video
     const controlsBar = document.createElement('div');
-    controlsBar.style.cssText = `
-      width: 100%;
-      max-width: 600px;
-      background: rgba(0,0,0,0.8);
-      padding: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      z-index: 10001;
-      opacity: 1;
-      transition: opacity 0.3s ease;
-      border-radius: 12px;
-      margin-top: 20px;
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255,255,255,0.1);
-    `;
+    controlsBar.className = 'w-full max-w-md md:max-w-lg lg:max-w-xl bg-black/80 p-4 md:p-5 flex items-center justify-between z-[10001] opacity-100 transition-opacity duration-300 rounded-xl mt-4 md:mt-5 backdrop-blur-sm border border-white/10';
     
     // Controls visibility state
     let controlsVisible = true;
@@ -208,81 +151,31 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
     
     // Show controls when video is paused
     videoClone.addEventListener('pause', showControls);
-    videoClone.addEventListener('play', showControls);
-    
+    videoClone.addEventListener('play', showControls);    
     // Time display
     const timeDisplay = document.createElement('div');
-    timeDisplay.style.cssText = `
-      color: white;
-      font-size: 14px;
-      font-weight: 500;
-      font-family: system-ui, -apple-system, sans-serif;
-    `;
-      // Controls container - all buttons in one row
+    timeDisplay.className = 'text-white text-sm font-medium';
+    
+    // Controls container - all buttons in one row
     const controlsContainer = document.createElement('div');
-    controlsContainer.style.cssText = `
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-      justify-content: center;
-    `;// Sound toggle button
-    const soundButton = document.createElement('button');
-    soundButton.style.cssText = `
-      background: rgba(0,0,0,0.8);
-      color: white;
-      border: 2px solid rgba(255,255,255,0.2);
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      touch-action: manipulation;
-      transition: all 0.2s;
-      backdrop-filter: blur(10px);
-    `;      // Play/Pause button
+    controlsContainer.className = 'flex items-center gap-3 md:gap-4 flex-wrap justify-center';
+
+    // Sound toggle button
+    const soundButton = document.createElement('button');    soundButton.className = 'bg-black/80 text-white border-2 border-white/20 w-10 h-10 md:w-12 md:h-12 rounded-full cursor-pointer flex items-center justify-center transition-all duration-200 hover:bg-white/20 hover:border-white/40 active:scale-95 touch-manipulation backdrop-blur-sm';
+
+    // Play/Pause button
     const playPauseButton = document.createElement('button');
-    playPauseButton.style.cssText = `
-      background: rgba(0,0,0,0.8);
-      color: white;
-      border: 2px solid rgba(255,255,255,0.2);
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      touch-action: manipulation;
-      transition: all 0.2s;
-      backdrop-filter: blur(10px);
-    `;      // Minimize button (same as close)
+    playPauseButton.className = 'bg-black/80 text-white border-2 border-white/20 w-10 h-10 md:w-12 md:h-12 rounded-full cursor-pointer flex items-center justify-center transition-all duration-200 hover:bg-white/20 hover:border-white/40 active:scale-95 touch-manipulation backdrop-blur-sm';    // Minimize button (same as close)
     const minimizeButton = document.createElement('button');
     minimizeButton.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>`;
-    minimizeButton.style.cssText = `
-      background: rgba(0,0,0,0.8);
-      color: white;
-      border: 2px solid rgba(255,255,255,0.2);
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      touch-action: manipulation;
-      transition: all 0.2s;
-      backdrop-filter: blur(10px);
-    `;
+    minimizeButton.className = 'bg-black/80 text-white border-2 border-white/20 w-10 h-10 md:w-12 md:h-12 rounded-full cursor-pointer flex items-center justify-center transition-all duration-200 hover:bg-white/20 hover:border-white/40 active:scale-95 touch-manipulation backdrop-blur-sm';
     
     // Update functions
     const updateTimeDisplay = () => {
       const current = Math.floor(videoClone.currentTime);
       const duration = Math.floor(videoClone.duration) || 0;
       timeDisplay.textContent = `${formatTime(current)} / ${formatTime(duration)}`;
-    };    const updateSoundButton = () => {
+    };const updateSoundButton = () => {
       if (videoClone.muted) {
         soundButton.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 17 9 17 15 11 19 11 5"></polygon><line x1="22" y1="9" x2="16" y2="15"></line><line x1="16" y1="9" x2="22" y2="15"></line></svg>`;
         soundButton.title = 'Unmute';
@@ -363,18 +256,11 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
     updatePlayPauseButton();
       // Assemble controls - all buttons in one container
     controlsContainer.appendChild(playPauseButton);
-    controlsContainer.appendChild(soundButton);
-    controlsContainer.appendChild(minimizeButton);
+    controlsContainer.appendChild(soundButton);    controlsContainer.appendChild(minimizeButton);
     
     // Create a main controls section with time and buttons
     const mainControls = document.createElement('div');
-    mainControls.style.cssText = `
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-      width: 100%;
-    `;
+    mainControls.className = 'flex flex-col items-center gap-3 w-full';
     
     mainControls.appendChild(timeDisplay);
     mainControls.appendChild(controlsContainer);

@@ -366,8 +366,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   animationFillMode: 'both'
                 }}
               >
-                <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
-                <span className={`absolute -bottom-6 sm:-bottom-7 md:-bottom-8 lg:-bottom-7 text-xs font-medium transition-all duration-500 ${
+                <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />                <span className={`absolute -bottom-full text-xs font-medium transition-all duration-500 ${
                   darkMode ? 'text-white' : 'text-gray-900'
                 } group-hover:scale-110`}>Shop</span>
               </button>              <button
@@ -386,8 +385,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   animationFillMode: 'both'
                 }}
               >
-                <Trophy className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
-                <span className={`absolute -bottom-6 sm:-bottom-7 md:-bottom-8 lg:-bottom-7 text-xs font-medium transition-all duration-500 ${
+                <Trophy className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />                <span className={`absolute -bottom-full text-xs font-medium transition-all duration-500 ${
                   darkMode ? 'text-white' : 'text-gray-900'
                 } group-hover:scale-110`}>Coaching</span>
               </button>
@@ -408,8 +406,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   animationFillMode: 'both'
                 }}
               >
-                <Users className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
-                <span className={`absolute -bottom-6 sm:-bottom-7 md:-bottom-8 lg:-bottom-7 text-xs font-medium transition-all duration-500 ${
+                <Users className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />                <span className={`absolute -bottom-full text-xs font-medium transition-all duration-500 ${
                   darkMode ? 'text-white' : 'text-gray-900'
                 } group-hover:scale-110`}>Gains</span>
               </button>
@@ -430,8 +427,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   animationFillMode: 'both'
                 }}
               >
-                <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
-                <span className={`absolute -bottom-6 sm:-bottom-7 md:-bottom-8 lg:-bottom-7 text-xs font-medium transition-all duration-500 ${
+                <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />                <span className={`absolute -bottom-full text-xs font-medium transition-all duration-500 ${
                   darkMode ? 'text-white' : 'text-gray-900'
                 } group-hover:scale-110`}>Games</span>
               </button>

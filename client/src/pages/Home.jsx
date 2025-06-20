@@ -1,563 +1,625 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
-import SectionWrapper from '../components/home-sections/SectionWrapper';
 import { useTheme } from '../contexts/ThemeContext';
+import { 
+  HeroSection, 
+  ShopSection, 
+  GymBrosSection, 
+  GamesSection, 
+  CoachingSection 
+} from '../components/home-sections';
 
 const Home = () => {
-  const { darkMode } = useTheme(); // Add theme context
-  // Refs
-  const containerRef = useRef(null);
-  const videoRefs = useRef([]);
-  const touchStartRef = useRef({ x: 0, y: 0, time: 0 });
-  const animationFrameRef = useRef(null);
-
-  // Core state
-  const [currentSection, setCurrentSection] = useState(0);
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const [hasLoaded, setHasLoaded] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-    // Touch/swipe state
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState(0);
-  const [isScrolling, setIsScrolling] = useState(false);
-  const [scrollOffset, setScrollOffset] = useState(0);  // Section data
-  const sections = [
-    {
-      id: 'hero',
-      title: 'Transform Your Fitness Journey',
-      description: 'Join thousands of fitness enthusiasts who\'ve revolutionized their health with our AI-powered platform, expert coaching, and gamified workouts.',
-      buttonText: 'Start Free Trial',
-      route: '/register',
-      videoSrc: "/GymTonic.mp4",
-      color: 'from-blue-900/70 to-black/50'
-    },
-    {
-      id: 'shop',
-      title: 'Premium Equipment Shop',
-      description: 'Discover professional-grade fitness equipment for home and commercial gyms. Quality gear that lasts, designed for optimal performance.',
-      buttonText: 'Shop Now',
-      route: '/shop',
-      videoSrc: "/GymTonic.mp4",
-      color: 'from-indigo-600/80 to-indigo-900/80'
-    },
-    {
-      id: 'coaching',
-      title: 'Expert Coaching',
-      description: 'Transform your fitness journey with guidance from certified trainers. Personalized plans, real-time feedback, and continuous support.',
-      buttonText: 'Find a Coach',
-      route: '/coaching',
-      videoSrc: "/GymTonic.mp4",
-      color: 'from-red-600/80 to-red-900/80'
-    },
-    {
-      id: 'gymBros',
-      title: 'Track Your Gains',
-      description: 'Monitor your progress, set new records, and celebrate achievements. Our intelligent tracking helps you visualize your journey and stay motivated.',
-      buttonText: 'Track Gains',
-      route: '/gymbros',
-      videoSrc: "/GymTonic.mp4",
-      color: 'from-purple-600/80 to-purple-900/80'
-    },
-    {
-      id: 'games',
-      title: 'Fitness Games',
-      description: 'Play exclusive games, earn points, and unlock special rewards. Make your workout fun and engaging with gamified fitness experiences.',
-      buttonText: 'Play Games',
-      route: '/games',
-      videoSrc: "/GymTonic.mp4",
-      color: 'from-green-600/80 to-green-900/80'
-    }
-  ];
-  // Initialize video refs
-  useEffect(() => {
-    videoRefs.current = videoRefs.current.slice(0, sections.length);
-  }, [sections.length]);  // Prevent document scrolling and pull-to-refresh for ENTIRE Home page
-  useEffect(() => {    // Store original styles
-    const originalBodyOverflow = document.body.style.overflow;
-    const originalHtmlOverflow = document.documentElement.style.overflow;
-    const originalBodyOverscroll = document.body.style.overscrollBehavior;
-    const originalHtmlOverscroll = document.documentElement.style.overscrollBehavior;
-      // Apply Home-specific styles - prevent scrolling but allow navbar interaction
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
-    document.body.style.overscrollBehavior = 'none';
-    document.documentElement.style.overscrollBehavior = 'none';
-    // Removed touchAction: 'none' to allow navbar interaction
-      // SELECTIVE pull-to-refresh prevention - allow navbar interaction
-    const preventPullToRefresh = (e) => {
-      // Allow navbar interactions - check if click is in navbar area
-      const navbar = document.querySelector('nav') || document.querySelector('[class*="navbar"]') || document.querySelector('[class*="fixed top"]');
-      if (navbar && navbar.contains(e.target)) {
-        return; // Don't prevent navbar interactions
-      }
-      
-      // Allow button and link interactions anywhere
-      if (e.target.closest('button') || e.target.closest('a') || e.target.closest('[role="button"]')) {
-        return; // Don't prevent interactive elements
-      }
-      
-      // Only prevent pull-to-refresh for main content area
-      e.preventDefault();
-      e.stopPropagation();
-    };
-    
-    document.addEventListener('touchstart', preventPullToRefresh, { passive: false });
-    document.addEventListener('touchmove', preventPullToRefresh, { passive: false });
-      // Cleanup on unmount - restore original styles
-    return () => {
-      document.body.style.overflow = originalBodyOverflow;
-      document.documentElement.style.overflow = originalHtmlOverflow;
-      document.body.style.overscrollBehavior = originalBodyOverscroll;
-      document.documentElement.style.overscrollBehavior = originalHtmlOverscroll;
-      document.removeEventListener('touchstart', preventPullToRefresh);
-      document.removeEventListener('touchmove', preventPullToRefresh);
-    };
-  }, []);
-
-  // Detect mobile vs desktop
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    // Set loaded after a brief delay
-    setTimeout(() => setHasLoaded(true), 200);
-    
-    return () => {
-      window.removeEventListener('resize', checkMobile);
-    };
-  }, []);
-
-  // Video playback control
-  useEffect(() => {
-    if (isTransitioning) return;
-    
-    videoRefs.current.forEach((video, index) => {
-      if (!video) return;
-      
-      if (index === currentSection) {
-        if (video.paused) {
-          video.play().catch(console.error);
-        }
-      } else {
-        if (!video.paused) {
-          video.pause();
-        }
-      }
-    });
-  }, [currentSection, isTransitioning]);
-  // Navigation function with faster transitions
-  const goToSection = (targetIndex) => {
-    if (targetIndex === currentSection) return;
-    
-    const boundedIndex = Math.max(0, Math.min(targetIndex, sections.length - 1));
-    
-    setIsTransitioning(true);
-    setCurrentSection(boundedIndex);
-    
-    // Much faster reset of transition state
-    setTimeout(() => {
-      setIsTransitioning(false);
-    }, 400); // Reduced from 800ms to 400ms
-  };  // Selective touch handling - allow navbar interactions
-  const handleTouchStart = (e) => {
-    // Allow navbar interactions
-    const navbar = document.querySelector('nav') || document.querySelector('[class*="navbar"]') || document.querySelector('[class*="fixed top"]');
-    if (navbar && navbar.contains(e.target)) {
-      return; // Don't interfere with navbar
-    }
-    
-    // Skip if touching interactive elements
-    if (e.target.closest('button') || e.target.closest('a') || e.target.closest('[role="button"]')) return;
-    
-    // Prevent pull-to-refresh for main content area
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // Store initial touch position
-    touchStartRef.current = {
-      y: e.touches[0].clientY,
-      time: Date.now(),
-      startY: e.touches[0].clientY
-    };
-    
-    setIsDragging(true);
-    setDragOffset(0);
-  };
-
-  const handleTouchMove = (e) => {
-    if (!isDragging) return;
-    
-    // Allow navbar interactions
-    const navbar = document.querySelector('nav') || document.querySelector('[class*="navbar"]') || document.querySelector('[class*="fixed top"]');
-    if (navbar && navbar.contains(e.target)) {
-      return; // Don't interfere with navbar
-    }
-    
-    if (e.target.closest('button') || e.target.closest('a') || e.target.closest('[role="button"]')) return;
-    
-    // Prevent pull-to-refresh and browser scrolling for main content
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const currentY = e.touches[0].clientY;
-    const deltaY = currentY - touchStartRef.current.startY;
-    const maxDrag = window.innerHeight * 0.3;
-    
-    // Less resistance for more responsive feel
-    let boundedDelta = deltaY;
-    if (currentSection === 0 && deltaY > 0) {
-      boundedDelta = Math.min(maxDrag * 0.4, deltaY * 0.4);
-    } else if (currentSection === sections.length - 1 && deltaY < 0) {
-      boundedDelta = Math.max(-maxDrag * 0.4, deltaY * 0.4);
-    } else {
-      boundedDelta = Math.max(-maxDrag, Math.min(maxDrag, deltaY));
-    }
-    
-    setDragOffset(boundedDelta);
-  };
-
-  const handleTouchEnd = (e) => {
-    if (!isDragging) return;
-    
-    setIsDragging(false);
-    
-    const endY = e.changedTouches[0].clientY;
-    const deltaY = endY - touchStartRef.current.startY;
-    const deltaTime = Date.now() - touchStartRef.current.time;
-    const velocity = Math.abs(deltaY) / deltaTime;
-    
-    // Much more responsive thresholds for touch
-    const threshold = window.innerHeight * 0.04; // Very low threshold
-    const velocityThreshold = 0.15; // Lower velocity threshold
-    
-    let targetSection = currentSection;
-    
-    // Fast swipe - immediate response
-    if (velocity > velocityThreshold && Math.abs(deltaY) > 20) {
-      if (deltaY > 0 && currentSection > 0) {
-        targetSection = currentSection - 1;
-      } else if (deltaY < 0 && currentSection < sections.length - 1) {
-        targetSection = currentSection + 1;
-      }
-    } 
-    // Slow drag - very responsive threshold
-    else if (Math.abs(deltaY) > threshold) {
-      if (deltaY > 0 && currentSection > 0) {
-        targetSection = currentSection - 1;
-      } else if (deltaY < 0 && currentSection < sections.length - 1) {
-        targetSection = currentSection + 1;
-      }
-    }
-    
-    setDragOffset(0);
-    goToSection(targetSection);
-  };// Mouse handlers for desktop
-  const handleMouseDown = (e) => {
-    if (e.button !== 0 || isTransitioning) return;
-    if (e.target.closest('button') || e.target.closest('a')) return;
-    
-    e.preventDefault();
-    setIsDragging(true);
-    touchStartRef.current = {
-      y: e.clientY,
-      time: Date.now(),
-      startY: e.clientY
-    };
-    setDragOffset(0);
-  };
-
-  const handleMouseMove = (e) => {
-    if (!isDragging || isTransitioning) return;
-    
-    const deltaY = e.clientY - touchStartRef.current.startY;
-    const maxDrag = window.innerHeight * 0.25;
-    
-    let boundedDelta = deltaY;
-    if (currentSection === 0 && deltaY > 0) {
-      boundedDelta = Math.min(maxDrag * 0.2, deltaY * 0.2);
-    } else if (currentSection === sections.length - 1 && deltaY < 0) {
-      boundedDelta = Math.max(-maxDrag * 0.2, deltaY * 0.2);
-    } else {
-      boundedDelta = Math.max(-maxDrag, Math.min(maxDrag, deltaY));
-    }
-    
-    setDragOffset(boundedDelta);
-  };
-
-  const handleMouseUp = (e) => {
-    if (!isDragging) return;
-    
-    setIsDragging(false);
-    
-    const deltaY = e.clientY - touchStartRef.current.startY;
-    const deltaTime = Date.now() - touchStartRef.current.time;
-    const velocity = Math.abs(deltaY) / deltaTime;
-    
-    const threshold = window.innerHeight * 0.12;
-    const velocityThreshold = 0.4;
-    
-    let targetSection = currentSection;
-    
-    if (velocity > velocityThreshold && Math.abs(deltaY) > 40) {
-      if (deltaY > 0 && currentSection > 0) {
-        targetSection = currentSection - 1;
-      } else if (deltaY < 0 && currentSection < sections.length - 1) {
-        targetSection = currentSection + 1;
-      }
-    } else if (Math.abs(deltaY) > threshold) {
-      if (deltaY > 0 && currentSection > 0) {
-        targetSection = currentSection - 1;
-      } else if (deltaY < 0 && currentSection < sections.length - 1) {
-        targetSection = currentSection + 1;
-      }
-    }
-    
-    setDragOffset(0);
-    goToSection(targetSection);
-  };
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-        e.preventDefault();
-        goToSection(currentSection - 1);
-      } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-        e.preventDefault();
-        goToSection(currentSection + 1);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentSection]);  // Highly responsive wheel handling for fast consecutive scrolls
-  useEffect(() => {
-    let wheelTimeout;
-    let accumulatedDelta = 0;
-    let lastWheelTime = 0;
-    let consecutiveScrollCount = 0;
-    
-    const handleWheel = (e) => {
-      if (isTransitioning) return;
-      
-      e.preventDefault();
-      e.stopPropagation();
-      
-      const currentTime = Date.now();
-      const timeDiff = currentTime - lastWheelTime;
-      
-      // Reset accumulated delta if too much time has passed
-      if (timeDiff > 100) {
-        accumulatedDelta = 0;
-        consecutiveScrollCount = 0;
-      } else {
-        consecutiveScrollCount++;
-      }
-      
-      lastWheelTime = currentTime;
-      accumulatedDelta += e.deltaY;
-      
-      setIsScrolling(true);
-      setScrollOffset(Math.max(-200, Math.min(200, accumulatedDelta * 0.3)));
-      
-      clearTimeout(wheelTimeout);
-      
-      // Much more responsive thresholds
-      let threshold = 40; // Base threshold
-      
-      // Reduce threshold for consecutive scrolls to make it more responsive
-      if (consecutiveScrollCount > 1) {
-        threshold = Math.max(20, threshold - (consecutiveScrollCount * 5));
-      }
-      
-      wheelTimeout = setTimeout(() => {
-        let targetSection = currentSection;
-        
-        if (accumulatedDelta > threshold && currentSection < sections.length - 1) {
-          targetSection = currentSection + 1;
-        } else if (accumulatedDelta < -threshold && currentSection > 0) {
-          targetSection = currentSection - 1;
-        }
-        
-        // Always reset scroll state
-        setIsScrolling(false);
-        setScrollOffset(0);
-        accumulatedDelta = 0;
-        consecutiveScrollCount = 0;
-        
-        if (targetSection !== currentSection) {
-          goToSection(targetSection);
-        }
-      }, 50); // Much faster debounce time for quick response
-    };
-    
-    const containerElement = containerRef.current;
-    if (containerElement) {
-      containerElement.addEventListener('wheel', handleWheel, { passive: false });
-      return () => {
-        containerElement.removeEventListener('wheel', handleWheel);
-        clearTimeout(wheelTimeout);
-      };
-    }
-  }, [currentSection, isTransitioning, sections.length]);
-  // Mouse event cleanup
-  useEffect(() => {
-    const handleMouseUpGlobal = (e) => handleMouseUp(e);
-    const handleMouseMoveGlobal = (e) => handleMouseMove(e);
-
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMoveGlobal);
-      document.addEventListener('mouseup', handleMouseUpGlobal);
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMoveGlobal);
-      document.removeEventListener('mouseup', handleMouseUpGlobal);
-    };
-  }, [isDragging]);
-  // Calculate transform for sections
-  const getSectionTransform = () => {
-    const baseTransform = -currentSection * 100; // Each section is 100vh
-    const dragTransform = isDragging ? (dragOffset / window.innerHeight) * 100 : 0;
-    const scrollTransform = isScrolling ? (scrollOffset / window.innerHeight) * 100 : 0;
-    return baseTransform + dragTransform + scrollTransform;
-  };
+  const { darkMode } = useTheme();
   const navigate = useNavigate();
   
+  // Enhanced state for scroll animations
+  const [visibleSections, setVisibleSections] = useState(new Set([0]));
+  const [scrollY, setScrollY] = useState(0);
+  const [scrollDirection, setScrollDirection] = useState('down');
+  const [scrollVelocity, setScrollVelocity] = useState(0);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [activeSection, setActiveSection] = useState(0);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  
+  // Refs for sections and animations
+  const sectionRefs = useRef([]);
+  const containerRef = useRef(null);
+  const lastScrollY = useRef(0);
+  const lastScrollTime = useRef(Date.now());
+  const animationFrameId = useRef(null);
+  // Enhanced intersection observer for scroll animations
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const sectionIndex = parseInt(entry.target.dataset.sectionIndex);
+          setVisibleSections(prev => {
+            const newSet = new Set(prev);
+            if (entry.isIntersecting) {
+              newSet.add(sectionIndex);
+              // Update active section based on most visible section
+              if (entry.intersectionRatio > 0.5) {
+                setActiveSection(sectionIndex);
+              }
+            } else {
+              if (entry.intersectionRatio < 0.1) {
+                newSet.delete(sectionIndex);
+              }
+            }
+            return newSet;
+          });
+        });
+      },
+      {
+        threshold: [0, 0.1, 0.3, 0.5, 0.7, 0.9, 1],
+        rootMargin: '-5% 0px -5% 0px'
+      }
+    );
+
+    // Observe all sections
+    sectionRefs.current.forEach((ref) => {
+      if (ref) observer.observe(ref);
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Enhanced scroll handler with velocity and direction tracking
+  const handleScroll = useCallback(() => {
+    const currentScrollY = window.scrollY;
+    const currentTime = Date.now();
+    
+    // Calculate scroll direction and velocity
+    const direction = currentScrollY > lastScrollY.current ? 'down' : 'up';
+    const velocity = Math.abs(currentScrollY - lastScrollY.current) / (currentTime - lastScrollTime.current);
+    
+    setScrollY(currentScrollY);
+    setScrollDirection(direction);
+    setScrollVelocity(velocity);
+    
+    lastScrollY.current = currentScrollY;
+    lastScrollTime.current = currentTime;
+  }, []);
+
+  // Smooth scroll with RAF optimization
+  useEffect(() => {
+    const optimizedScrollHandler = () => {
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
+      animationFrameId.current = requestAnimationFrame(handleScroll);
+    };
+
+    window.addEventListener('scroll', optimizedScrollHandler, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', optimizedScrollHandler);
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
+    };
+  }, [handleScroll]);
+
+  // Mouse movement tracking for subtle interactive effects
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      setMousePosition({
+        x: (e.clientX / window.innerWidth - 0.5) * 2,
+        y: (e.clientY / window.innerHeight - 0.5) * 2
+      });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+  // Add smooth scroll behavior and loading state
+  useEffect(() => {
+    document.documentElement.style.scrollBehavior = 'smooth';
+    
+    // Enhanced loading with staggered reveal
+    const timer = setTimeout(() => {
+      setIsLoaded(true);
+      // Trigger hero section animation after load
+      const heroElement = sectionRefs.current[0];
+      if (heroElement) {
+        heroElement.classList.add('animate-fadeInUp');
+      }
+    }, 300);
+    
+    return () => {
+      document.documentElement.style.scrollBehavior = 'auto';
+      clearTimeout(timer);
+    };
+  }, []);
+
   const handleNavigate = (route) => {
-    // Handle special routes
+    // Handle special routes with smooth transitions
     if (route === '/demo') {
-      // For demo, we could scroll to a specific section or open a modal
-      // For now, let's navigate to the coaching section as a demo
       navigate('/coaching');
     } else if (route === '/register') {
-      // Navigate to registration/signup
       navigate('/register');
     } else {
       navigate(route);
     }
-  };return (
+  };
+
+  // Enhanced helper functions
+  const isSectionVisible = (index) => visibleSections.has(index);
+  const isActiveSection = (index) => activeSection === index;
+
+  // Advanced parallax calculations with momentum
+  const getParallaxOffset = (sectionIndex, intensity = 0.15) => {
+    const sectionElement = sectionRefs.current[sectionIndex];
+    if (!sectionElement) return { y: 0, scale: 1, opacity: 1 };
+    
+    const rect = sectionElement.getBoundingClientRect();
+    const sectionCenter = rect.top + rect.height / 2;
+    const viewportCenter = window.innerHeight / 2;
+    const distanceFromCenter = sectionCenter - viewportCenter;
+    
+    // Calculate parallax with easing
+    const parallaxY = distanceFromCenter * intensity;
+    
+    // Calculate scale and opacity based on scroll position
+    const viewportDistance = Math.abs(distanceFromCenter) / window.innerHeight;
+    const scale = Math.max(0.95, 1 - viewportDistance * 0.05);
+    const opacity = Math.max(0.3, 1 - viewportDistance * 0.7);
+    
+    return {
+      y: parallaxY,
+      scale: scale,
+      opacity: isActiveSection(sectionIndex) ? 1 : opacity
+    };
+  };
+
+  // Dynamic background effects
+  const getBackgroundEffect = (sectionIndex) => {
+    const effects = getParallaxOffset(sectionIndex, 0.1);
+    const mouseX = mousePosition.x * 10;
+    const mouseY = mousePosition.y * 10;
+    
+    return {
+      transform: `
+        translateY(${effects.y}px) 
+        translateX(${mouseX * 0.5}px) 
+        scale(${effects.scale})
+      `,
+      opacity: effects.opacity,
+      filter: `blur(${Math.max(0, (1 - effects.opacity) * 2)}px)`,
+    };
+  };
+
+  // Section animation variants
+  const getSectionAnimation = (index) => {
+    const animations = [
+      'animate-fadeInScale', // Hero
+      'animate-slideInLeft', // Shop
+      'animate-slideInRight', // Coaching
+      'animate-floatIn', // Gym Bros
+      'animate-slideUpFade', // Games
+    ];
+    return animations[index] || 'animate-fadeInUp';
+  };
+
+  // Calculate scroll progress
+  const scrollProgress = Math.min(
+    100,
+    (scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100
+  );
+  return (
     <>
-      {/* CSS to completely hide scrollbars on all browsers */}
-      <style>{`
-        .no-scrollbar {
-          scrollbar-width: none; /* Firefox */
-          -ms-overflow-style: none; /* Internet Explorer 10+ */
+      {/* Enhanced Global CSS for sophisticated animations */}
+      <style jsx>{`
+        @keyframes revealSection {
+          from {
+            opacity: 0;
+            transform: translateY(100px) scale(0.95);
+            filter: blur(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            filter: blur(0px);
+          }
         }
-        .no-scrollbar::-webkit-scrollbar {
-          display: none; /* Safari and Chrome */
-        }        /* Prevent body and html from scrolling ONLY when Home component is active - but allow navbar */
-        body, html {
-          overflow: hidden !important;
-          width: 100% !important;
-          height: 100% !important;
-          overscroll-behavior: none !important;
+
+        @keyframes morphBackground {
+          0%, 100% {
+            border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+          }
+          50% {
+            border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
+          }
         }
-        /* Allow pointer events for navbar area */
-        .navbar, nav, [class*="fixed top"] {
-          pointer-events: all !important;
-          z-index: 9999 !important;
+
+        @keyframes floatingElements {
+          0%, 100% {
+            transform: translateY(0px) rotate(0deg);
+          }
+          33% {
+            transform: translateY(-10px) rotate(1deg);
+          }
+          66% {
+            transform: translateY(5px) rotate(-1deg);
+          }
+        }
+
+        @keyframes gradientFlow {
+          0% {
+            background-position: 0% 50%;
+          }
+          50% {
+            background-position: 100% 50%;
+          }
+          100% {
+            background-position: 0% 50%;
+          }
+        }
+
+        @keyframes pulseGlow {
+          0%, 100% {
+            box-shadow: 0 0 20px rgba(79, 70, 229, 0.3), 
+                        0 0 40px rgba(124, 58, 237, 0.2),
+                        0 0 60px rgba(236, 72, 153, 0.1);
+          }
+          50% {
+            box-shadow: 0 0 30px rgba(79, 70, 229, 0.5), 
+                        0 0 60px rgba(124, 58, 237, 0.3),
+                        0 0 90px rgba(236, 72, 153, 0.2);
+          }
+        }
+
+        .section-transition {
+          transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        .section-visible {
+          animation: revealSection 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        }
+
+        .section-hidden {
+          opacity: 0;
+          transform: translateY(100px) scale(0.95);
+          filter: blur(10px);
+        }
+
+        .section-active {
+          transform: scale(1.02);
+          z-index: 10;
+        }
+
+        .parallax-bg {
+          transition: transform 0.1s ease-out, opacity 0.3s ease, filter 0.3s ease;
+        }
+
+        .floating-elements {
+          animation: floatingElements 8s ease-in-out infinite;
+        }
+
+        .morphing-bg {
+          animation: morphBackground 20s ease-in-out infinite;
+        }
+
+        .gradient-flow {
+          background: linear-gradient(-45deg, #667eea, #764ba2, #f093fb, #f5576c, #4facfe, #00f2fe);
+          background-size: 400% 400%;
+          animation: gradientFlow 8s ease infinite;
+        }
+
+        .glow-effect {
+          animation: pulseGlow 3s ease-in-out infinite;
+        }
+
+        /* Enhanced scrollbar */
+        ::-webkit-scrollbar {
+          width: 12px;
+        }
+
+        ::-webkit-scrollbar-track {
+          background: ${darkMode ? 'rgba(31, 41, 55, 0.3)' : 'rgba(243, 244, 246, 0.3)'};
+          border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+          background: linear-gradient(45deg, #4f46e5, #7c3aed, #ec4899);
+          border-radius: 10px;
+          border: 2px solid transparent;
+          background-clip: content-box;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(45deg, #4338ca, #6d28d9, #db2777);
+          background-clip: content-box;
         }
       `}</style>
-        <div 
-        className="relative w-full bg-black no-scrollbar" 
-        style={{ 
-          height: '100vh',
-          width: '100vw',
-          overflow: 'hidden',
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,          // Prevent scrolling but allow navbar interaction
-          overscrollBehavior: 'none',
-          // Hide scrollbars completely
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none'
-        }}
-      >
-      {/* Loading indicator */}
-      {!hasLoaded && (
-        <div className="absolute inset-0 bg-black flex items-center justify-center z-50">
-          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-        </div>
-      )}      {/* Main container with minimal touch interference */}      <div 
-        ref={containerRef}
-        className="h-full w-full overflow-hidden cursor-grab active:cursor-grabbing no-scrollbar"
-        style={{ 
-          visibility: hasLoaded ? 'visible' : 'hidden',
-          userSelect: 'none',
-          height: '100vh',
-          width: '100vw',
-          position: 'relative',
-          overflow: 'hidden',
-          // Completely hide scrollbars
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',          // Prevent any form of scrolling and selective pull-to-refresh prevention
-          overscrollBehavior: 'none',
-          touchAction: 'none'
-        }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onMouseDown={handleMouseDown}
-      >{/* Sections container */}        <div 
-          className="flex flex-col h-full w-full will-change-transform"
-          style={{
-            transform: `translateY(${getSectionTransform()}vh)`,            transition: (isDragging || isScrolling)
-              ? 'none' 
-              : 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)' // Much faster transition
-          }}        >          {sections.map((section, index) => (
-            <SectionWrapper
-              key={section.id}
-              section={section}
-              index={index}
-              currentSection={currentSection}
-              videoRef={el => videoRefs.current[index] = el}
-              onNavigate={handleNavigate}
-              goToSection={goToSection}
+
+      <div ref={containerRef} className="w-full relative overflow-hidden">
+        {/* Enhanced loading overlay with animated elements */}
+        {!isLoaded && (
+          <div className="fixed inset-0 z-50 bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center">
+            <div className="text-center relative">
+              {/* Animated background elements */}
+              <div className="absolute -top-20 -left-20 w-40 h-40 bg-blue-500/20 rounded-full morphing-bg"></div>
+              <div className="absolute -bottom-20 -right-20 w-32 h-32 bg-purple-500/20 rounded-full morphing-bg" style={{animationDelay: '3s'}}></div>
+              
+              {/* Loading spinner with glow effect */}
+              <div className="w-20 h-20 border-4 border-white/20 border-t-white rounded-full animate-spin mb-6 mx-auto glow-effect"></div>
+              
+              {/* Animated text */}
+              <p className="text-white text-xl font-medium mb-2 animate-pulse">Loading your fitness journey...</p>
+              <div className="flex justify-center space-x-1">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="w-2 h-2 bg-white rounded-full animate-bounce"
+                    style={{ animationDelay: `${i * 0.2}s` }}
+                  ></div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Floating decorative elements */}
+        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+          {[...Array(8)].map((_, i) => (
+            <div
+              key={i}
+              className={`absolute w-4 h-4 bg-gradient-to-r from-blue-400/10 to-purple-400/10 rounded-full floating-elements`}
+              style={{
+                left: `${10 + i * 12}%`,
+                top: `${20 + (i % 3) * 30}%`,
+                animationDelay: `${i * 0.8}s`,
+                animationDuration: `${6 + i * 0.5}s`
+              }}
             />
           ))}
+        </div>        {/* Hero Section with enhanced effects */}
+        <section 
+          ref={el => sectionRefs.current[0] = el}
+          data-section-index={0}
+          className={`min-h-screen w-full relative overflow-hidden section-transition ${
+            isSectionVisible(0) ? `section-visible ${getSectionAnimation(0)}` : 'section-hidden'
+          } ${isActiveSection(0) ? 'section-active' : ''}`}
+        >
+          <div 
+            className="absolute inset-0 parallax-bg"
+            style={getBackgroundEffect(0)}
+          >
+            {/* Animated background gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 via-purple-900/20 to-pink-900/20 gradient-flow"></div>
+            
+            <HeroSection 
+              onNavigate={handleNavigate} 
+              isActive={isSectionVisible(0)}
+              goToSection={() => {}}
+              scrollY={scrollY}
+              mousePosition={mousePosition}
+            />
+          </div>
+          
+          {/* Section transition effect */}
+          <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-transparent via-gray-900/10 to-transparent pointer-events-none"></div>
+        </section>
+
+        {/* Shop Section with slide-in animation */}
+        <section 
+          ref={el => sectionRefs.current[1] = el}
+          data-section-index={1}
+          className={`min-h-screen w-full relative overflow-hidden section-transition ${
+            isSectionVisible(1) ? `section-visible ${getSectionAnimation(1)}` : 'section-hidden'
+          } ${isActiveSection(1) ? 'section-active' : ''}`}
+        >
+          <div 
+            className="absolute inset-0 parallax-bg"
+            style={{
+              ...getBackgroundEffect(1),
+              animationDelay: '0.2s'
+            }}
+          >
+            {/* Animated background pattern */}
+            <div className="absolute inset-0 bg-gradient-to-r from-green-900/10 via-blue-900/10 to-purple-900/10"></div>
+            
+            <ShopSection 
+              onNavigate={handleNavigate} 
+              isActive={isSectionVisible(1)}
+              scrollY={scrollY}
+              parallaxOffset={getParallaxOffset(1)}
+            />
+          </div>
+          
+          {/* Subtle border effect */}
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+        </section>
+
+        {/* Coaching Section with slide-in from right */}
+        <section 
+          ref={el => sectionRefs.current[2] = el}
+          data-section-index={2}
+          className={`min-h-screen w-full relative overflow-hidden section-transition ${
+            isSectionVisible(2) ? `section-visible ${getSectionAnimation(2)}` : 'section-hidden'
+          } ${isActiveSection(2) ? 'section-active' : ''}`}
+        >
+          <div 
+            className="absolute inset-0 parallax-bg"
+            style={{
+              ...getBackgroundEffect(2),
+              animationDelay: '0.4s'
+            }}
+          >
+            {/* Dynamic background */}
+            <div className="absolute inset-0 bg-gradient-to-l from-orange-900/10 via-red-900/10 to-pink-900/10"></div>
+            
+            <CoachingSection 
+              onNavigate={handleNavigate} 
+              isActive={isSectionVisible(2)}
+              scrollY={scrollY}
+              scrollDirection={scrollDirection}
+            />
+          </div>
+          
+          {/* Glowing accent line */}
+          <div className="absolute top-1/2 left-0 w-2 h-32 bg-gradient-to-b from-orange-500/50 via-red-500/50 to-pink-500/50 rounded-r-full blur-sm"></div>
+        </section>
+
+        {/* Gym Bros Section with float-in animation */}
+        <section 
+          ref={el => sectionRefs.current[3] = el}
+          data-section-index={3}
+          className={`min-h-screen w-full relative overflow-hidden section-transition ${
+            isSectionVisible(3) ? `section-visible ${getSectionAnimation(3)}` : 'section-hidden'
+          } ${isActiveSection(3) ? 'section-active' : ''}`}
+        >
+          <div 
+            className="absolute inset-0 parallax-bg"
+            style={{
+              ...getBackgroundEffect(3),
+              animationDelay: '0.6s'
+            }}
+          >
+            {/* Morphing background */}
+            <div className="absolute inset-0 bg-gradient-to-br from-teal-900/10 via-blue-900/10 to-indigo-900/10 morphing-bg"></div>
+            
+            <GymBrosSection 
+              onNavigate={handleNavigate} 
+              isActive={isSectionVisible(3)}
+              scrollY={scrollY}
+              scrollVelocity={scrollVelocity}
+            />
+          </div>
+          
+          {/* Animated corner accents */}
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-teal-500/20 to-transparent rounded-bl-full"></div>
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-blue-500/20 to-transparent rounded-tr-full"></div>
+        </section>
+
+        {/* Games Section with slide-up animation */}
+        <section 
+          ref={el => sectionRefs.current[4] = el}
+          data-section-index={4}
+          className={`min-h-screen w-full relative overflow-hidden section-transition ${
+            isSectionVisible(4) ? `section-visible ${getSectionAnimation(4)}` : 'section-hidden'
+          } ${isActiveSection(4) ? 'section-active' : ''}`}
+        >
+          <div 
+            className="absolute inset-0 parallax-bg"
+            style={{
+              ...getBackgroundEffect(4),
+              animationDelay: '0.8s'
+            }}
+          >
+            {/* Gaming-themed background */}
+            <div className="absolute inset-0 bg-gradient-to-t from-purple-900/10 via-pink-900/10 to-yellow-900/10"></div>
+            
+            <GamesSection 
+              onNavigate={handleNavigate} 
+              isActive={isSectionVisible(4)}
+              scrollY={scrollY}
+              isLastSection={true}
+            />
+          </div>
+          
+          {/* Bottom glow effect */}
+          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-96 h-2 bg-gradient-to-r from-transparent via-purple-500/50 to-transparent blur-sm"></div>
+        </section>        {/* Enhanced Scroll Progress Indicator */}
+        <div className="fixed top-0 left-0 w-full h-2 bg-black/20 backdrop-blur-sm z-50">
+          <div 
+            className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-orange-500 transition-all duration-500 ease-out relative overflow-hidden"
+            style={{ width: `${scrollProgress}%` }}
+          >
+            {/* Animated shine effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse"></div>
+          </div>
+        </div>        {/* Enhanced Section Navigation with labels */}
+        <div className="fixed right-6 top-1/2 transform -translate-y-1/2 z-40 space-y-6">
+          {[
+            { index: 0, label: 'Home', icon: '🏠' },
+            { index: 1, label: 'Shop', icon: '🛍️' },
+            { index: 2, label: 'Coaching', icon: '💪' },
+            { index: 3, label: 'Community', icon: '👥' },
+            { index: 4, label: 'Games', icon: '🎮' }
+          ].map(({ index, label, icon }) => (
+            <div key={index} className="relative group">
+              <button
+                onClick={() => {
+                  sectionRefs.current[index]?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className={`block w-4 h-4 rounded-full transition-all duration-500 relative overflow-hidden ${
+                  isActiveSection(index)
+                    ? `${darkMode ? 'bg-white' : 'bg-gray-900'} scale-150 shadow-lg ${darkMode ? 'shadow-white/50 ring-2 ring-white/30' : 'shadow-gray-900/50 ring-2 ring-gray-900/30'}`
+                    : isSectionVisible(index)
+                    ? `${darkMode ? 'bg-white/80' : 'bg-gray-900/80'} scale-125 shadow-md ${darkMode ? 'shadow-white/30' : 'shadow-gray-900/30'}`
+                    : `${darkMode ? 'bg-white/30 hover:bg-white/60' : 'bg-gray-900/30 hover:bg-gray-900/60'} hover:scale-110`
+                }`}
+                aria-label={`Go to ${label} section`}
+              >
+                {/* Pulsing center dot for active section */}
+                {isActiveSection(index) && (
+                  <div className={`absolute inset-1 ${darkMode ? 'bg-blue-400' : 'bg-blue-600'} rounded-full animate-ping`}></div>
+                )}
+              </button>
+              
+              {/* Tooltip */}
+              <div className={`absolute right-8 top-1/2 transform -translate-y-1/2 ${darkMode ? 'bg-black/80 text-white' : 'bg-white/90 text-gray-900'} px-3 py-2 rounded-lg text-sm font-medium backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap shadow-lg`}>
+                <span className="mr-2">{icon}</span>
+                {label}
+                <div className={`absolute left-full top-1/2 transform -translate-y-1/2 border-4 border-transparent ${darkMode ? 'border-l-black/80' : 'border-l-white/90'}`}></div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Multi-functional floating action button */}
+        {scrollY > 400 && (
+          <div className="fixed bottom-8 right-8 z-40 space-y-4">
+            {/* Scroll to top button */}
+            <button
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="w-16 h-16 bg-gradient-to-r from-blue-500 via-purple-600 to-pink-600 text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-110 transition-all duration-300 flex items-center justify-center group glow-effect"
+              style={{
+                animation: 'revealSection 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards'
+              }}
+            >
+              <svg 
+                className="w-7 h-7 transform group-hover:-translate-y-1 transition-transform duration-200" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+              </svg>
+              
+              {/* Animated background */}
+              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+            </button>
+
+            {/* Scroll velocity indicator */}
+            {scrollVelocity > 2 && (
+              <div className="w-16 h-2 bg-white/20 rounded-full overflow-hidden backdrop-blur-sm">
+                <div 
+                  className="h-full bg-gradient-to-r from-green-400 to-blue-500 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min(100, scrollVelocity * 10)}%` }}
+                ></div>
+              </div>
+            )}
+          </div>
+        )}        {/* Section transition overlays */}
+        <div className="fixed inset-0 pointer-events-none z-30">
+          {/* Dynamic background overlay based on active section */}
+          <div 
+            className="absolute inset-0 transition-all duration-1000 ease-in-out"
+            style={{
+              background: activeSection === 0 ? 'radial-gradient(circle at 20% 80%, rgba(59, 130, 246, 0.05) 0%, transparent 50%)' :
+                         activeSection === 1 ? 'radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.05) 0%, transparent 50%)' :
+                         activeSection === 2 ? 'radial-gradient(circle at 20% 20%, rgba(245, 101, 101, 0.05) 0%, transparent 50%)' :
+                         activeSection === 3 ? 'radial-gradient(circle at 80% 80%, rgba(14, 165, 233, 0.05) 0%, transparent 50%)' :
+                         activeSection === 4 ? 'radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.05) 0%, transparent 50%)' :
+                         'transparent'
+            }}
+          />
         </div>
       </div>
-        {/* Section indicators */}
-      <div className="fixed right-6 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-4">
-        {sections.map((_, index) => (
-          <button
-            key={index}
-            onClick={() => goToSection(index)}
-            className={`w-4 h-4 rounded-full transition-all duration-300 border-2 ${
-              currentSection === index
-                ? darkMode 
-                  ? 'bg-white border-white scale-125'
-                  : 'bg-gray-900 border-gray-900 scale-125'
-                : darkMode
-                  ? 'bg-transparent border-white/50 hover:border-white hover:bg-white/20'
-                  : 'bg-transparent border-gray-900/50 hover:border-gray-900 hover:bg-gray-900/20'
-            }`}
-            aria-label={`Go to section ${index + 1}`}
-          />
-        ))}
-      </div>
-        {/* Navigation arrows - REMOVED */}
-      
-      {/* Section title indicator - REMOVED */}        {/* Drag indicator */}
-      {(isDragging || isScrolling) && (
-        <div className="fixed inset-x-0 bottom-8 z-30 flex justify-center">
-          <div className="bg-white/20 backdrop-blur-sm rounded-full px-6 py-3 border border-white/30">
-            <p className="text-white text-sm font-medium">
-              {isDragging 
-                ? (dragOffset > 20 ? '↑ Release to go back' : dragOffset < -20 ? '↓ Release to continue' : 'Drag to navigate')
-                : (scrollOffset > 20 ? '↓ Scrolling down' : scrollOffset < -20 ? '↑ Scrolling up' : 'Scroll to navigate')
-              }
-            </p>
-          </div>        </div>
-      )}
-    </div>
     </>
   );
 };
