@@ -5,6 +5,7 @@ import { MessageSquare, ArrowRight, User, Award, Crown, Zap, FileEdit, Calendar,
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import subscriptionService from '../../../services/subscription.service';
+import ratingService from '../../../services/rating.service';
 
 // Subscription tier configuration
 const SUBSCRIPTION_TIERS = {
@@ -63,8 +64,7 @@ const WelcomeHeader = ({
   
   // Check if user can request plan update
   const canRequestPlanUpdate = currentTier.canRequestPlanUpdate;
-  
-  // Check if user has already rated this coach - run this on component mount
+    // Check if user has already rated this coach - run this on component mount
   useEffect(() => {
     const checkCoachRating = async () => {
       if (!assignedCoach || !assignedCoach._id || !subscription) {
@@ -75,14 +75,15 @@ const WelcomeHeader = ({
       try {
         setCheckingRating(true);
         
-        // Check using the subscriptionService method (which currently uses localStorage)
-        const hasRated = await subscriptionService.checkIfUserRatedCoach(assignedCoach._id);
-        setHasRatedCoach(hasRated);
+        // Use the proper rating API to check if user has rated this coach
+        const result = await ratingService.checkUserRating(assignedCoach._id);
+        setHasRatedCoach(result.hasRated);
       } catch (error) {
         console.error('Error checking if user has rated coach:', error);
-        // Direct fallback to localStorage just to be safe
-        const ratedCoaches = JSON.parse(localStorage.getItem('ratedCoaches') || '[]');
-        setHasRatedCoach(ratedCoaches.includes(assignedCoach._id));
+        
+        // Fallback: assume they haven't rated if the API call fails
+        // This allows them to try rating, and the backend will prevent duplicates
+        setHasRatedCoach(false);
       } finally {
         setCheckingRating(false);
       }
@@ -146,8 +147,7 @@ const WelcomeHeader = ({
       setIsSubmitting(false);
     }
   };
-  
-  const handleSubmitRating = async () => {
+    const handleSubmitRating = async () => {
     if (rating === 0) {
       toast.error('Please select a rating');
       return;
@@ -162,38 +162,31 @@ const WelcomeHeader = ({
     setIsSubmitting(true);
     
     try {
-      // Call API to submit the coach rating
+      // Use the proper rating API to submit the rating
       if (assignedCoach && assignedCoach._id) {
-        try {
-          // Try to call the API, but don't worry if it fails
-          await subscriptionService.rateCoach(assignedCoach._id, rating);
-          toast.success('Thank you for rating your coach!');
-        } catch (apiError) {
-          console.error('API error when rating coach:', apiError);
-          
-          // Even if the API call fails, we'll still save to localStorage and show success
-          toast.success('Thank you for rating your coach! Your rating has been saved.');
-        }
+        const result = await ratingService.rateCoach(assignedCoach._id, rating);
         
-        // Always update localStorage and UI state regardless of API success
-        const ratedCoaches = JSON.parse(localStorage.getItem('ratedCoaches') || '[]');
-        if (!ratedCoaches.includes(assignedCoach._id)) {
-          ratedCoaches.push(assignedCoach._id);
-          localStorage.setItem('ratedCoaches', JSON.stringify(ratedCoaches));
-        }
+        toast.success('Thank you for rating your coach!');
+        console.log('Coach rating submitted:', result);
         
+        // Update local state to reflect that user has rated
         setShowRatingModal(false);
         setRating(0); // Reset rating after submission
-        setHasRatedCoach(true); // Update local state to reflect that user has rated
+        setHasRatedCoach(true);
       } else {
         throw new Error('Coach information is missing');
       }
     } catch (error) {
       console.error('Error submitting coach rating:', error);
       
-      if (error.response && error.response.status === 400 && error.response.data.error === 'You have already rated this coach') {
+      // Handle specific error cases
+      if (error.response?.status === 400 && error.response?.data?.error?.includes('already rated')) {
         toast.error('You have already rated this coach');
-        setHasRatedCoach(true);
+        setHasRatedCoach(true); // Update state to prevent further attempts
+      } else if (error.response?.status === 401) {
+        toast.error('You must be logged in to rate a coach');
+      } else if (error.response?.status === 404) {
+        toast.error('Coach not found');
       } else {
         toast.error('Failed to submit rating. Please try again.');
       }
