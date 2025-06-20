@@ -151,15 +151,9 @@ html, body {
     padding: 0; /* Remove default padding */
     scroll-behavior: smooth;
   }
-  
-  /* Ensure no child elements overflow horizontally */
+    /* Ensure no child elements overflow horizontally */
   * {
     box-sizing: border-box; /* Prevent padding and border from causing overflow */
-  }
-  
-  /* Optional: Hide scrollbar for WebKit browsers (Chrome, Safari) */
-  ::-webkit-scrollbar {
-    display: none; /* Hide scrollbar */
   }
 
   /* Dynamic Background */
@@ -728,30 +722,6 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Custom scrollbar styling */
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: rgba(31, 41, 55, 0.1);
-}
-
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #4f46e5, #7c3aed);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #4338ca, #6d28d9);
-}
-
-/* Firefox scrollbar */
-html {
-  scrollbar-width: thin;
-  scrollbar-color: #4f46e5 rgba(31, 41, 55, 0.1);
-}
-
 /* Stagger animation utility classes */
 .animate-stagger-1 {
   animation-delay: 0.1s;
@@ -1006,32 +976,6 @@ html {
 .parallax-layer {
   transform-style: preserve-3d;
   backface-visibility: hidden;
-}
-
-/* Enhanced scrollbar with animated thumb */
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(45deg, #4f46e5, #7c3aed, #ec4899);
-  border-radius: 10px;
-  border: 2px solid transparent;
-  background-clip: content-box;
-  position: relative;
-}
-
-::-webkit-scrollbar-thumb::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(45deg, #60a5fa, #a78bfa, #f472b6);
-  border-radius: inherit;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-::-webkit-scrollbar-thumb:hover::before {
-  opacity: 1;
 }
 
 /* Mouse interaction enhancements */
