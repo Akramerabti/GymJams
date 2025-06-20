@@ -98,16 +98,22 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
       setLoading(false);
     }
   };
-
   return (
     <div className="flex flex-col items-center">
-      <div className="relative">        <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-lg">
+      <div className="relative">
+        {/* Attractive background with gradient and blur effects */}
+        <div className="absolute -inset-4 bg-gradient-to-r from-purple-400 via-pink-500 to-orange-400 rounded-full blur-md opacity-75 animate-pulse"></div>
+        <div className="absolute -inset-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-400 rounded-full blur-sm opacity-60"></div>
+        
+        {/* Main profile image container */}
+        <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-2xl bg-white">
           {previewUrl ? (
             <img
               src={previewUrl}
               alt="Profile preview"
               className="w-full h-full object-cover"
-            />          ) : (
+            />
+          ) : (
             <img
               src={imageUrl || fallbackAvatarUrl}
               alt="Profile"
@@ -132,10 +138,10 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
           )}
         </div>
 
-        {/* Camera Icon for Mobile */}
+        {/* Camera Icon for Mobile with improved styling */}
         <label
           htmlFor="profileImageUpload"
-          className="absolute bottom-0 right-0 bg-blue-500 rounded-full p-3 cursor-pointer hover:bg-blue-600 transition-colors shadow-md"
+          className="absolute bottom-0 right-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full p-3 cursor-pointer hover:from-blue-600 hover:to-purple-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-110"
           style={{ touchAction: 'manipulation' }} // Ensure touch events work properly
         >
           <Camera className="w-5 h-5 text-white" />
@@ -154,7 +160,7 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
         <Button
           onClick={handleUpload}
           disabled={loading}
-          className="mt-4 bg-blue-500 hover:bg-blue-600 text-white"
+          className="mt-4 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-semibold px-6 py-2 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
           style={{ touchAction: 'manipulation' }} // Ensure touch events work properly
         >
           {loading ? 'Uploading...' : 'Save Image'}
