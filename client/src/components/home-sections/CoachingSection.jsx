@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowRight, Users, MessageCircle, Calendar, UserCheck, Play, X, Target, Award } from 'lucide-react';
 import subscriptionService from '../../services/subscription.service';
+import { formatImageUrl } from '../../utils/imageUtils';
 
 const CoachingSection = ({ onNavigate, isActive }) => {  const [coaches, setCoaches] = useState([]);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
@@ -84,24 +85,27 @@ const CoachingSection = ({ onNavigate, isActive }) => {  const [coaches, setCoac
 
   return (
     <div className="absolute inset-0 flex items-center justify-center p-4 md:p-6 lg:p-8 pointer-events-none overflow-hidden">      {/* Floating Coach Bubbles */}
-      <div className="absolute inset-0 pointer-events-none">
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {coaches.map((coach, index) => (
           <div
             key={coach._id || index}
             className="absolute rounded-full overflow-hidden border-2 border-purple-400/40 shadow-lg animate-float"
             style={{
-              width: `${40 + (index % 3) * 10}px`,
-              height: `${40 + (index % 3) * 10}px`,
-              left: `${10 + (index * 11) % 80}%`,
-              top: `${15 + (index * 13) % 70}%`,
+              width: `${80 + (index % 3) * 20}px`,
+              height: `${80 + (index % 3) * 20}px`,
+              left: `${Math.max(5, Math.min(85, 10 + (index * 11) % 70))}%`,
+              top: `${Math.max(10, Math.min(80, 15 + (index * 13) % 60))}%`,
               animationDelay: `${index * 0.5}s`,
               animationDuration: `${4 + (index % 3)}s`,
             }}
           >
             <img
-              src={coach.profilePicture || '/fallback-avatar.jpg'}
+              src={formatImageUrl(coach.profileImage)}
               alt={coach.fullName || 'Coach'}
               className="w-full h-full object-cover"
+              onError={(e) => {
+                e.target.src = '/fallback-avatar.jpg';
+              }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-purple-600/50 to-transparent"></div>
           </div>
