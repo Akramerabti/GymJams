@@ -406,36 +406,34 @@ const Questionnaire = () => {
     );
   }
 
-  return (    <div className="questionnaire-fullscreen questionnaire-container w-screen h-screen overflow-hidden bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 dark:from-purple-900 dark:via-indigo-900 dark:to-violet-900">
+  return (    <div className="questionnaire-fullscreen questionnaire-container w-screen h-screen overflow-hidden bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 dark">
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-pink-400/30 to-rose-500/30 dark:from-pink-600/20 dark:to-rose-700/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-cyan-400/30 to-blue-500/30 dark:from-cyan-600/20 dark:to-blue-700/20 rounded-full blur-3xl animate-pulse animation-delay-1000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-br from-yellow-400/20 to-orange-500/20 dark:from-yellow-600/10 dark:to-orange-700/10 rounded-full blur-3xl animate-pulse animation-delay-2000"></div>
-      </div>        {/* Main content container */}
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-pink-600/20 to-rose-700/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-cyan-600/20 to-blue-700/20 rounded-full blur-3xl animate-pulse animation-delay-1000"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-br from-yellow-600/10 to-orange-700/10 rounded-full blur-3xl animate-pulse animation-delay-2000"></div>
+      </div>{/* Main content container */}
       <div className="relative z-0 w-full h-full flex flex-col questionnaire-content pt-16">
         <div className="flex-1 px-2 sm:px-4 lg:px-6 py-1 sm:py-2 lg:py-3 flex flex-col overflow-hidden min-h-0">
           <div className="max-w-6xl mx-auto flex-1 flex flex-col min-h-0 w-full">
             {/* Header with subscription badge - Compact for mobile */}
-            <div className="text-center mb-1 sm:mb-2 lg:mb-3 flex-shrink-0">
-              <motion.div 
+            <div className="text-center mb-1 sm:mb-2 lg:mb-3 flex-shrink-0">              <motion.div 
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="inline-flex items-center bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-full px-2 sm:px-3 lg:px-4 py-1 sm:py-1.5 lg:py-2 border-2 border-white/50 dark:border-gray-700/50 shadow-2xl mb-1 sm:mb-2"
+                className="inline-flex items-center bg-gray-800/90 backdrop-blur-xl rounded-full px-2 sm:px-3 lg:px-4 py-1 sm:py-1.5 lg:py-2 border-2 border-gray-700/50 shadow-2xl mb-1 sm:mb-2"
               >
                 <div className="p-0.5 sm:p-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full mr-1 sm:mr-2">
                   <div className="text-white text-xs sm:text-sm lg:text-base">
                     {SUBSCRIPTION_TIERS[subscriptionTier].icon}
                   </div>
                 </div>
-                <span className="font-bold text-xs sm:text-sm lg:text-base text-gray-800 dark:text-gray-200">{SUBSCRIPTION_TIERS[subscriptionTier].name} Plan</span>
+                <span className="font-bold text-xs sm:text-sm lg:text-base text-gray-200">{SUBSCRIPTION_TIERS[subscriptionTier].name} Plan</span>
               </motion.div>
-              
-              <motion.h1 
+                <motion.h1 
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.2 }}
-                className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold bg-gradient-to-r from-white via-cyan-100 to-white dark:from-gray-100 dark:via-blue-100 dark:to-gray-100 bg-clip-text text-transparent mb-0.5 sm:mb-1 drop-shadow-lg leading-tight"
+                className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold bg-gradient-to-r from-white via-cyan-100 to-white bg-clip-text text-transparent mb-0.5 sm:mb-1 drop-shadow-lg leading-tight"
               >
                 {isEditing ? 'Update Your Fitness Profile' : 'Complete Your Fitness Profile'}
               </motion.h1>
@@ -444,7 +442,7 @@ const Questionnaire = () => {
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.4 }}
-                className="text-xs sm:text-sm lg:text-base text-white/90 dark:text-gray-200/90 max-w-2xl mx-auto leading-relaxed drop-shadow-md hidden sm:block"
+                className="text-xs sm:text-sm lg:text-base text-white/90 max-w-2xl mx-auto leading-relaxed drop-shadow-md hidden sm:block"
               >
                 This information helps us create a personalized plan to achieve your fitness goals.
                 {subscriptionTier === 'elite' && 
@@ -548,7 +546,7 @@ const Questionnaire = () => {
                   transition={{ duration: 0.3 }}
                   className="h-full flex flex-col"
                 >
-                  <Card className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl shadow-2xl border-0 overflow-hidden flex-1 flex flex-col">
+                  <Card className="bg-gray-800/80 backdrop-blur-xl shadow-2xl border-0 overflow-hidden flex-1 flex flex-col">
                     <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 h-1"></div>
                     <CardContent className="questionnaire-card-content pt-2 sm:pt-3 lg:pt-4 pb-2 sm:pb-3 lg:pb-4 flex-1 flex flex-col overflow-hidden">
                       <motion.div 
@@ -560,12 +558,11 @@ const Questionnaire = () => {
                           <div className="text-white text-sm sm:text-base lg:text-lg">
                             {sections[currentStep].icon}
                           </div>
-                        </div>
-                        <div>
-                          <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 dark:text-white mb-0.5 sm:mb-1">
+                        </div>                        <div>
+                          <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white mb-0.5 sm:mb-1">
                             {sections[currentStep].title}
                           </h2>
-                          <p className="text-xs sm:text-sm lg:text-base text-gray-600 dark:text-gray-300">
+                          <p className="text-xs sm:text-sm lg:text-base text-gray-300">
                             {sections[currentStep].description}
                           </p>
                         </div>
@@ -577,14 +574,12 @@ const Questionnaire = () => {
                         }`}>
                           {getCurrentSectionComponent()}
                         </div>
-                      </div>
-
-                      <div className="questionnaire-navigation flex justify-between mt-2 sm:mt-3 lg:mt-4 pt-2 sm:pt-3 lg:pt-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+                      </div>                      <div className="questionnaire-navigation flex justify-between mt-2 sm:mt-3 lg:mt-4 pt-2 sm:pt-3 lg:pt-4 border-t border-gray-700 flex-shrink-0">
                         <Button
                           variant="outline"
                           onClick={handleBack}
                           disabled={currentStep === 0}
-                          className="flex items-center px-3 sm:px-4 lg:px-6 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm lg:text-base font-semibold rounded-lg sm:rounded-xl border-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex items-center px-3 sm:px-4 lg:px-6 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm lg:text-base font-semibold rounded-lg sm:rounded-xl border-2 bg-gray-700 text-white border-gray-600 hover:bg-gray-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <ChevronLeft className="w-3 sm:w-4 lg:w-5 h-3 sm:h-4 lg:h-5 mr-1 sm:mr-2" />
                           Back
@@ -637,9 +632,8 @@ const BasicInformationForm = ({ formData, onChange }) => {
 
   return (
     <div className="h-full flex flex-col space-y-2 sm:space-y-3 overflow-hidden">
-      {/* Physical Stats */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-2 sm:p-3 lg:p-4 rounded-lg sm:rounded-xl border border-blue-200 dark:border-blue-800 flex-shrink-0">
-        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 dark:text-white mb-2 sm:mb-3 flex items-center">
+      {/* Physical Stats */}      <div className="bg-gradient-to-r from-blue-900/20 to-indigo-900/20 p-2 sm:p-3 lg:p-4 rounded-lg sm:rounded-xl border border-blue-800 flex-shrink-0">
+        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-white mb-2 sm:mb-3 flex items-center">
           <div className="w-5 sm:w-6 lg:w-7 h-5 sm:h-6 lg:h-7 bg-blue-500 rounded-full flex items-center justify-center mr-2">
             📏
           </div>
@@ -647,7 +641,7 @@ const BasicInformationForm = ({ formData, onChange }) => {
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
           <div className="space-y-1 sm:space-y-2">
-            <Label htmlFor="height" className="text-xs sm:text-sm lg:text-base font-medium text-gray-700 dark:text-gray-300">Height (cm)</Label>
+            <Label htmlFor="height" className="text-xs sm:text-sm lg:text-base font-medium text-gray-300">Height (cm)</Label>
             <div className="relative">
               <Input
                 id="height"
@@ -655,7 +649,7 @@ const BasicInformationForm = ({ formData, onChange }) => {
                 placeholder="175"
                 value={formData.height}
                 onChange={(e) => onChange('height', e.target.value)}
-                className="h-8 sm:h-10 lg:h-12 text-sm sm:text-base bg-white dark:bg-gray-800 border-2 border-blue-200 dark:border-blue-700 focus:border-blue-500 dark:focus:border-blue-400 rounded-lg shadow-lg transition-all duration-300 hover:shadow-xl"
+                className="h-8 sm:h-10 lg:h-12 text-sm sm:text-base bg-gray-800 border-2 border-blue-700 focus:border-blue-400 rounded-lg shadow-lg transition-all duration-300 hover:shadow-xl text-white"
               />
               <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs sm:text-sm">
                 📏
@@ -663,7 +657,7 @@ const BasicInformationForm = ({ formData, onChange }) => {
             </div>
           </div>
           <div className="space-y-1 sm:space-y-2">
-            <Label htmlFor="weight" className="text-xs sm:text-sm lg:text-base font-medium text-gray-700 dark:text-gray-300">Weight (kg)</Label>
+            <Label htmlFor="weight" className="text-xs sm:text-sm lg:text-base font-medium text-gray-300">Weight (kg)</Label>
             <div className="relative">
               <Input
                 id="weight"
@@ -671,7 +665,7 @@ const BasicInformationForm = ({ formData, onChange }) => {
                 placeholder="70"
                 value={formData.weight}
                 onChange={(e) => onChange('weight', e.target.value)}
-                className="h-8 sm:h-10 lg:h-12 text-sm sm:text-base bg-white dark:bg-gray-800 border-2 border-green-200 dark:border-green-700 focus:border-green-500 dark:focus:border-green-400 rounded-lg shadow-lg transition-all duration-300 hover:shadow-xl"
+                className="h-8 sm:h-10 lg:h-12 text-sm sm:text-base bg-gray-800 border-2 border-green-700 focus:border-green-400 rounded-lg shadow-lg transition-all duration-300 hover:shadow-xl text-white"
               />
               <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs sm:text-sm">
                 ⚖️
@@ -679,7 +673,7 @@ const BasicInformationForm = ({ formData, onChange }) => {
             </div>
           </div>
           <div className="space-y-1 sm:space-y-2">
-            <Label htmlFor="age" className="text-xs sm:text-sm lg:text-base font-medium text-gray-700 dark:text-gray-300">Age</Label>
+            <Label htmlFor="age" className="text-xs sm:text-sm lg:text-base font-medium text-gray-300">Age</Label>
             <div className="relative">
               <Input
                 id="age"
@@ -687,7 +681,7 @@ const BasicInformationForm = ({ formData, onChange }) => {
                 placeholder="30"
                 value={formData.age}
                 onChange={(e) => onChange('age', e.target.value)}
-                className="h-8 sm:h-10 lg:h-12 text-sm sm:text-base bg-white dark:bg-gray-800 border-2 border-purple-200 dark:border-purple-700 focus:border-purple-500 dark:focus:border-purple-400 rounded-lg shadow-lg transition-all duration-300 hover:shadow-xl"
+                className="h-8 sm:h-10 lg:h-12 text-sm sm:text-base bg-gray-800 border-2 border-purple-700 focus:border-purple-400 rounded-lg shadow-lg transition-all duration-300 hover:shadow-xl text-white"
               />
               <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs sm:text-sm">
                 🎂
@@ -697,9 +691,8 @@ const BasicInformationForm = ({ formData, onChange }) => {
         </div>
       </div>
       
-      {/* Gender Selection */}
-      <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 p-2 sm:p-3 lg:p-4 rounded-lg sm:rounded-xl border border-purple-200 dark:border-purple-800 flex-1 min-h-0 flex flex-col">
-        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 dark:text-white mb-2 sm:mb-3 flex items-center flex-shrink-0">
+      {/* Gender Selection */}      <div className="bg-gradient-to-r from-purple-900/20 to-pink-900/20 p-2 sm:p-3 lg:p-4 rounded-lg sm:rounded-xl border border-purple-800 flex-1 min-h-0 flex flex-col">
+        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-white mb-2 sm:mb-3 flex items-center flex-shrink-0">
           <div className="w-5 sm:w-6 lg:w-7 h-5 sm:h-6 lg:h-7 bg-purple-500 rounded-full flex items-center justify-center mr-2">
             👤
           </div>
@@ -710,11 +703,10 @@ const BasicInformationForm = ({ formData, onChange }) => {
             <motion.div
               key={option.value}
               whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-              className={`relative cursor-pointer rounded-lg p-2 sm:p-3 border-2 transition-all duration-300 flex flex-col justify-center ${
+              whileTap={{ scale: 0.98 }}              className={`relative cursor-pointer rounded-lg p-2 sm:p-3 border-2 transition-all duration-300 flex flex-col justify-center ${
                 formData.gender === option.value
                   ? `bg-gradient-to-br ${option.color} text-white border-transparent shadow-xl`
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-lg'
+                  : 'bg-gray-800 border-gray-700 hover:border-purple-400 hover:shadow-lg text-white'
               }`}
               onClick={() => onChange('gender', option.value)}
             >

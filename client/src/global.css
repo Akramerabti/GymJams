@@ -1200,3 +1200,108 @@ html {
     max-height: calc(100svh - 244px) !important;
   }
 }
+
+/* Force dark mode for all questionnaire elements */
+.questionnaire-fullscreen,
+.questionnaire-fullscreen * {
+  color-scheme: dark !important;
+}
+
+.questionnaire-fullscreen .bg-white {
+  background-color: rgb(31 41 55) !important; /* gray-800 */
+}
+
+.questionnaire-fullscreen .text-gray-900 {
+  color: white !important;
+}
+
+.questionnaire-fullscreen .text-gray-800 {
+  color: rgb(229 231 235) !important; /* gray-200 */
+}
+
+.questionnaire-fullscreen .text-gray-700 {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+.questionnaire-fullscreen .text-gray-600 {
+  color: rgb(156 163 175) !important; /* gray-400 */
+}
+
+.questionnaire-fullscreen .border-gray-200 {
+  border-color: rgb(55 65 81) !important; /* gray-700 */
+}
+
+.questionnaire-fullscreen .border-gray-300 {
+  border-color: rgb(75 85 99) !important; /* gray-600 */
+}
+
+.questionnaire-fullscreen .bg-gray-50 {
+  background-color: rgb(55 65 81) !important; /* gray-700 */
+}
+
+.questionnaire-fullscreen .bg-gray-100 {
+  background-color: rgb(75 85 99) !important; /* gray-600 */
+}
+
+/* Force dark mode for all background gradients */
+.questionnaire-fullscreen .from-blue-50 {
+  --tw-gradient-from: rgb(30 58 138 / 0.2) !important; /* blue-900/20 */
+}
+
+.questionnaire-fullscreen .to-indigo-50 {
+  --tw-gradient-to: rgb(49 46 129 / 0.2) !important; /* indigo-900/20 */
+}
+
+.questionnaire-fullscreen .from-emerald-50 {
+  --tw-gradient-from: rgb(6 78 59 / 0.2) !important; /* emerald-900/20 */
+}
+
+.questionnaire-fullscreen .to-teal-50 {
+  --tw-gradient-to: rgb(19 78 74 / 0.2) !important; /* teal-900/20 */
+}
+
+.questionnaire-fullscreen .from-purple-50 {
+  --tw-gradient-from: rgb(88 28 135 / 0.2) !important; /* purple-900/20 */
+}
+
+.questionnaire-fullscreen .to-pink-50 {
+  --tw-gradient-to: rgb(131 24 67 / 0.2) !important; /* pink-900/20 */
+}
+
+.questionnaire-fullscreen .from-cyan-50 {
+  --tw-gradient-from: rgb(22 78 99 / 0.2) !important; /* cyan-900/20 */
+}
+
+.questionnaire-fullscreen .to-blue-50 {
+  --tw-gradient-to: rgb(30 58 138 / 0.2) !important; /* blue-900/20 */
+}
+
+.questionnaire-fullscreen .from-green-50 {
+  --tw-gradient-from: rgb(20 83 45 / 0.2) !important; /* green-900/20 */
+}
+
+.questionnaire-fullscreen .to-emerald-50 {
+  --tw-gradient-to: rgb(6 78 59 / 0.2) !important; /* emerald-900/20 */
+}
+
+/* Force dark mode for input fields */
+.questionnaire-fullscreen input[type="text"],
+.questionnaire-fullscreen input[type="number"],
+.questionnaire-fullscreen input[type="email"],
+.questionnaire-fullscreen textarea {
+  background-color: rgb(31 41 55) !important; /* gray-800 */
+  color: white !important;
+  border-color: rgb(55 65 81) !important; /* gray-700 */
+}
+
+.questionnaire-fullscreen input[type="text"]:focus,
+.questionnaire-fullscreen input[type="number"]:focus,
+.questionnaire-fullscreen input[type="email"]:focus,
+.questionnaire-fullscreen textarea:focus {
+  border-color: rgb(99 102 241) !important; /* indigo-500 */
+}
+
+/* Force dark mode for labels */
+.questionnaire-fullscreen label {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
