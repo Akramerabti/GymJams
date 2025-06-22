@@ -26,6 +26,8 @@ import {
   getPendingGoalApprovals,
   getClientSessions,
   requestSession,
+  syncSubscriptionFromStripe,
+  syncAllSubscriptions
 } from '../controllers/subscription.Controller.js';
 import stripe from '../config/stripe.js';
 import upload from '../config/multer.js';
@@ -61,35 +63,8 @@ router.post('/:subscriptionId/goals/:goalId/reject', optionalAuthenticate, isCoa
 router.get('/:subscriptionId/sessions', optionalAuthenticate, getClientSessions);
 router.post('/:subscriptionId/request-session', optionalAuthenticate, requestSession);
 
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  
-  try {
-    
-    if (!sig) {
-      console.error('No Stripe signature found in webhook request');
-      return res.status(400).send('No Stripe signature found');
-    }
-    
-    if (!process.env.STRIPE_WEBHOOK_SECRET) {
-      console.error('STRIPE_WEBHOOK_SECRET environment variable is not set');
-      return res.status(500).send('Webhook secret not configured');
-    }
-    
-    const event = stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
-    
-    await handleWebhook(event);
-    
-    // Respond to Stripe
-    res.status(200).json({ received: true });
-  } catch (err) {
-    console.error('Webhook Error:', err);
-    res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-});
+// Admin routes for syncing subscription data
+router.post('/sync/:subscriptionId', authenticate, syncSubscriptionFromStripe);
+router.post('/sync-all', authenticate, syncAllSubscriptions);
 
 export default router;

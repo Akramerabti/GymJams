@@ -739,12 +739,13 @@ export const assignCoach = async (req, res) => {
 
 export const handleWebhook = async (event) => {
   try {
+    logger.info(`Processing webhook event: ${event.type}`);
 
     switch (event.type) {
     
       case 'customer.subscription.deleted': {
         const deletedSubscription = event.data.object;
-        //('Subscription deleted event:', deletedSubscription);
+        logger.info('Subscription deleted event:', deletedSubscription.id);
       
         const dbSubscription = await Subscription.findOne({
           stripeSubscriptionId: deletedSubscription.id,
@@ -755,16 +756,12 @@ export const handleWebhook = async (event) => {
           return;
         }
       
-        //('Database subscription:', dbSubscription);
+        logger.info('Processing subscription deletion for:', dbSubscription._id);
       
         const session = await mongoose.startSession();
         session.startTransaction();
       
         try {
-          const isRefundEligible = dbSubscription.isEligibleForRefund();
-          //('Refund eligible:', isRefundEligible);
-      
-      
           // Handle coach updates - only remove from client list, don't adjust earnings
           if (dbSubscription.assignedCoach) {
             const coach = await User.findById(dbSubscription.assignedCoach);
@@ -781,7 +778,7 @@ export const handleWebhook = async (event) => {
               };
       
               await User.findByIdAndUpdate(dbSubscription.assignedCoach, coachUpdate, { session });
-              //(`Updated coach ${coach._id} subscription list`);
+              logger.info(`Updated coach ${coach._id} subscription list`);
             }
           }
       
@@ -792,16 +789,18 @@ export const handleWebhook = async (event) => {
             };
       
             await User.findByIdAndUpdate(dbSubscription.user, userUpdate, { session });
-            //(`Removed subscription reference for user ${dbSubscription.user}`);
+            logger.info(`Removed subscription reference for user ${dbSubscription.user}`);
           }
       
-          // Just update subscription status
+          // Update subscription status and set end date
           dbSubscription.status = 'cancelled';
-          dbSubscription.endDate = new Date();
+          dbSubscription.endDate = deletedSubscription.canceled_at ? 
+            new Date(deletedSubscription.canceled_at * 1000) : new Date();
+          dbSubscription.currentPeriodEnd = new Date(deletedSubscription.current_period_end * 1000);
           await dbSubscription.save({ session });
       
           await session.commitTransaction();
-          //('Webhook cleanup completed successfully');
+          logger.info('Webhook cleanup completed successfully');
       
         } catch (error) {
           await session.abortTransaction();
@@ -812,10 +811,11 @@ export const handleWebhook = async (event) => {
         }
         break;
       }
-       // Add this case to handle subscription renewals
+      
+       // Handle subscription updates (renewals, status changes)
        case 'customer.subscription.updated': {
         const updatedSubscription = event.data.object;
-        //('Subscription updated event:', updatedSubscription);
+        logger.info('Subscription updated event:', updatedSubscription.id);
         
         // Find the subscription in our database
         const dbSubscription = await Subscription.findOne({
@@ -831,24 +831,27 @@ export const handleWebhook = async (event) => {
         dbSubscription.currentPeriodStart = new Date(updatedSubscription.current_period_start * 1000);
         dbSubscription.currentPeriodEnd = new Date(updatedSubscription.current_period_end * 1000);
         dbSubscription.status = updatedSubscription.status;
+        dbSubscription.cancelAtPeriodEnd = updatedSubscription.cancel_at_period_end;
         
-        // If the subscription was previously marked for cancellation but then renewed
-        if (updatedSubscription.cancel_at_period_end === false && dbSubscription.cancelAtPeriodEnd === true) {
-          dbSubscription.cancelAtPeriodEnd = false;
+        // If subscription is marked as cancelled in Stripe
+        if (updatedSubscription.status === 'canceled') {
+          dbSubscription.status = 'cancelled';
+          dbSubscription.endDate = updatedSubscription.canceled_at ? 
+            new Date(updatedSubscription.canceled_at * 1000) : new Date();
         }
         
         await dbSubscription.save();
-        //(`Updated subscription ${dbSubscription._id} with new billing period`);
+        logger.info(`Updated subscription ${dbSubscription._id} with new data from Stripe`);
         break;
       }
       
-      // Add this case to handle payment success events (which would trigger a renewal)
+      // Handle payment success events (renewals)
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object;
         
         // Only process subscription invoices
         if (invoice.subscription) {
-          //(`Payment succeeded for subscription: ${invoice.subscription}`);
+          logger.info(`Payment succeeded for subscription: ${invoice.subscription}`);
           
           // Find the subscription in our database
           const dbSubscription = await Subscription.findOne({
@@ -862,11 +865,9 @@ export const handleWebhook = async (event) => {
           
           // Check if this is a renewal (not the initial payment)
           if (invoice.billing_reason === 'subscription_cycle') {
-            //('This is a subscription renewal payment');
+            logger.info('This is a subscription renewal payment');
             
-            // Update the subscription with the new billing period (should be in the event)
-            // This might be redundant if the subscription.updated event is processed,
-            // but it's a good fallback
+            // Fetch the latest subscription data from Stripe
             const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
             
             dbSubscription.currentPeriodStart = new Date(subscription.current_period_start * 1000);
@@ -874,19 +875,19 @@ export const handleWebhook = async (event) => {
             dbSubscription.status = 'active';
             
             await dbSubscription.save();
-            //(`Updated subscription ${dbSubscription._id} after successful payment`);
+            logger.info(`Updated subscription ${dbSubscription._id} after successful renewal payment`);
           }
         }
         break;
       }
       
-      // Add this case to handle payment failures
+      // Handle payment failures
       case 'invoice.payment_failed': {
         const invoice = event.data.object;
         
         // Only process subscription invoices
         if (invoice.subscription) {
-          //(`Payment failed for subscription: ${invoice.subscription}`);
+          logger.info(`Payment failed for subscription: ${invoice.subscription}`);
           
           // Find the subscription in our database
           const dbSubscription = await Subscription.findOne({
@@ -902,15 +903,13 @@ export const handleWebhook = async (event) => {
           dbSubscription.status = 'past_due';
           
           await dbSubscription.save();
-          //(`Updated subscription ${dbSubscription._id} status to past_due`);
-          
-          // Here you might want to add code to notify the user about the payment failure
+          logger.info(`Updated subscription ${dbSubscription._id} status to past_due`);
         }
         break;
       }
 
       default:
-        //(`Unhandled event type: ${event.type}`);
+        logger.info(`Unhandled event type: ${event.type}`);
     }
   } catch (error) {
     console.error('Webhook Handling Error:', error);
@@ -1805,6 +1804,8 @@ export const requestSession = async (req, res) => {
   try {
     const { subscriptionId } = req.params;
 
+    const { date, time, sessionType, notes, duration } = req.body;
+
     const providedSessionType = sessionType || type;
 
     if (!date || !time || !providedSessionType) {
@@ -1921,5 +1922,129 @@ export const requestSession = async (req, res) => {
       details: error.message,
       stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
     });
+  }
+};
+
+// Add this function to manually sync subscription data from Stripe
+export const syncSubscriptionFromStripe = async (req, res) => {
+  try {
+    const { subscriptionId } = req.params;
+    
+    // Find the subscription in our database
+    let dbSubscription;
+    if (subscriptionId.startsWith('sub_')) {
+      // If it's a Stripe subscription ID
+      dbSubscription = await Subscription.findOne({
+        stripeSubscriptionId: subscriptionId
+      });
+    } else {
+      // If it's our database ID
+      dbSubscription = await Subscription.findById(subscriptionId);
+    }
+
+    if (!dbSubscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+
+    // Fetch the latest data from Stripe
+    const stripeSubscription = await stripe.subscriptions.retrieve(
+      dbSubscription.stripeSubscriptionId
+    );
+
+    // Update our database with the latest Stripe data
+    dbSubscription.status = stripeSubscription.status;
+    dbSubscription.currentPeriodStart = new Date(stripeSubscription.current_period_start * 1000);
+    dbSubscription.currentPeriodEnd = new Date(stripeSubscription.current_period_end * 1000);
+    dbSubscription.cancelAtPeriodEnd = stripeSubscription.cancel_at_period_end;
+    
+    // If subscription is cancelled, set the end date
+    if (stripeSubscription.status === 'canceled') {
+      dbSubscription.status = 'cancelled';
+      dbSubscription.endDate = stripeSubscription.canceled_at ? 
+        new Date(stripeSubscription.canceled_at * 1000) : new Date();
+    }
+
+    await dbSubscription.save();
+
+    res.json({
+      message: 'Subscription synced successfully',
+      subscription: dbSubscription,
+      stripeData: {
+        status: stripeSubscription.status,
+        currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000),
+        currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000),
+        cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+        canceledAt: stripeSubscription.canceled_at ? new Date(stripeSubscription.canceled_at * 1000) : null
+      }
+    });
+
+  } catch (error) {
+    logger.error('Error syncing subscription:', error);
+    res.status(500).json({ error: 'Failed to sync subscription' });
+  }
+};
+
+// Add this function to sync all subscriptions
+export const syncAllSubscriptions = async (req, res) => {
+  try {
+    const subscriptions = await Subscription.find({
+      stripeSubscriptionId: { $exists: true }
+    });
+
+    const results = [];
+
+    for (const dbSubscription of subscriptions) {
+      try {
+        // Fetch the latest data from Stripe
+        const stripeSubscription = await stripe.subscriptions.retrieve(
+          dbSubscription.stripeSubscriptionId
+        );
+
+        const oldStatus = dbSubscription.status;
+        const oldPeriodEnd = dbSubscription.currentPeriodEnd;
+
+        // Update our database with the latest Stripe data
+        dbSubscription.status = stripeSubscription.status;
+        dbSubscription.currentPeriodStart = new Date(stripeSubscription.current_period_start * 1000);
+        dbSubscription.currentPeriodEnd = new Date(stripeSubscription.current_period_end * 1000);
+        dbSubscription.cancelAtPeriodEnd = stripeSubscription.cancel_at_period_end;
+        
+        // If subscription is cancelled, set the end date
+        if (stripeSubscription.status === 'canceled') {
+          dbSubscription.status = 'cancelled';
+          dbSubscription.endDate = stripeSubscription.canceled_at ? 
+            new Date(stripeSubscription.canceled_at * 1000) : new Date();
+        }
+
+        await dbSubscription.save();
+
+        results.push({
+          subscriptionId: dbSubscription._id,
+          stripeSubscriptionId: dbSubscription.stripeSubscriptionId,
+          updated: oldStatus !== dbSubscription.status || oldPeriodEnd.getTime() !== dbSubscription.currentPeriodEnd.getTime(),
+          changes: {
+            status: { old: oldStatus, new: dbSubscription.status },
+            periodEnd: { old: oldPeriodEnd, new: dbSubscription.currentPeriodEnd }
+          }
+        });
+
+      } catch (stripeError) {
+        results.push({
+          subscriptionId: dbSubscription._id,
+          stripeSubscriptionId: dbSubscription.stripeSubscriptionId,
+          error: stripeError.message
+        });
+      }
+    }
+
+    res.json({
+      message: 'Sync completed',
+      totalProcessed: subscriptions.length,
+      results
+    });
+
+  } catch (error) {
+    logger.error('Error syncing all subscriptions:', error);
+    res.status(500).json({ error: 'Failed to sync subscriptions' });
   }
 };

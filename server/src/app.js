@@ -141,7 +141,38 @@ const helmetConfig = {
 
 app.use(helmet(helmetConfig));
 
-// Body parsing Middleware - MUST come before webhook routes
+// Stripe webhook endpoint - MUST come before express.json() to preserve raw body
+app.post('/api/subscription/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  
+  try {
+    if (!sig) {
+      console.error('No Stripe signature found in webhook request');
+      return res.status(400).send('No Stripe signature found');
+    }
+    
+    if (!process.env.STRIPE_WEBHOOK_SECRET) {
+      console.error('STRIPE_WEBHOOK_SECRET environment variable is not set');
+      return res.status(500).send('Webhook secret not configured');
+    }
+    
+    const event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
+    
+    await handleWebhook(event);
+    
+    // Respond to Stripe
+    res.status(200).json({ received: true });
+  } catch (err) {
+    console.error('Webhook Error:', err);
+    res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+});
+
+// Body parsing Middleware - MUST come after webhook routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

@@ -2,10 +2,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { 
-  Edit3, Download, Badge
+  Edit3, Download
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 // Helper function for formatting dates
 const formatDate = (dateString) => {
@@ -37,34 +38,62 @@ const ProfileSection = ({
                 {currentTier.icon && <span className="w-5 h-5 mr-2">{currentTier.icon}</span>}
                 {currentTier.name}
               </span>
-            </div>
-            
-            <div className="flex justify-between items-center pb-2 border-b">
+            </div>            <div className="flex justify-between items-center pb-2 border-b">
               <span className="font-medium">Status</span>
-              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                {subscription?.status === 'active' ? 'Active' : subscription?.status}
+              <Badge 
+                variant="outline" 
+                className={
+                  subscription?.status === 'active' 
+                    ? "bg-green-50 text-green-700 border-green-200"
+                    : subscription?.status === 'cancelled'
+                    ? "bg-red-50 text-red-700 border-red-200"
+                    : subscription?.status === 'past_due'
+                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                    : "bg-gray-50 text-gray-700 border-gray-200"
+                }
+              >
+                {subscription?.status === 'active' 
+                  ? 'Active' 
+                  : subscription?.status === 'cancelled'
+                  ? 'Cancelled'
+                  : subscription?.status === 'past_due'
+                  ? 'Past Due'
+                  : subscription?.status || 'Unknown'}
               </Badge>
             </div>
-            
             <div className="flex justify-between items-center pb-2 border-b">
               <span className="font-medium">Start Date</span>
-              <span>{formatDate(subscription?.startDate)}</span>
+              <span>{subscription?.startDate ? formatDate(subscription.startDate) : 'N/A'}</span>
             </div>
             
             <div className="flex justify-between items-center pb-2 border-b">
-              <span className="font-medium">Next Billing</span>
-              <span>{formatDate(subscription?.currentPeriodEnd)}</span>
-            </div>
-            
-            <div className="flex justify-between items-center">
+              <span className="font-medium">
+                {subscription?.status === 'cancelled' ? 'Ended' : 'Next Billing'}
+              </span>
+              <span>
+                {subscription?.status === 'cancelled' && subscription?.endDate
+                  ? formatDate(subscription.endDate)
+                  : subscription?.currentPeriodEnd 
+                  ? formatDate(subscription.currentPeriodEnd)
+                  : 'N/A'}
+              </span>
+            </div>            <div className="flex justify-between items-center">
               <span className="font-medium">Auto-Renewal</span>
               <Badge 
                 variant="outline" 
-                className={subscription?.cancelAtPeriodEnd 
-                  ? "bg-amber-50 text-amber-700 border-amber-200" 
-                  : "bg-green-50 text-green-700 border-green-200"}
+                className={
+                  subscription?.status === 'cancelled'
+                    ? "bg-gray-50 text-gray-700 border-gray-200"
+                    : subscription?.cancelAtPeriodEnd 
+                    ? "bg-amber-50 text-amber-700 border-amber-200" 
+                    : "bg-green-50 text-green-700 border-green-200"
+                }
               >
-                {subscription?.cancelAtPeriodEnd ? 'Off' : 'On'}
+                {subscription?.status === 'cancelled' 
+                  ? 'N/A' 
+                  : subscription?.cancelAtPeriodEnd 
+                  ? 'Off' 
+                  : 'On'}
               </Badge>
             </div>
           </div>

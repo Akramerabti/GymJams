@@ -28,7 +28,9 @@ import productService from '../services/product.service';
 import inventoryService from '../services/inventory.service';
 import orderService from '../services/order.service';
 import blogService from '../services/blog.service';
+import supportTicketService from '../services/supportTicket.service';
 import { useAuth } from '../stores/authStore';
+import { useTheme } from '../contexts/ThemeContext';
 
 const TaskForceDashboard = () => {
   const { slug } = useParams();
@@ -36,8 +38,8 @@ const TaskForceDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const [dashboardData, setDashboardData] = useState({
+  const { darkMode } = useTheme();
+  const navigate = useNavigate();  const [dashboardData, setDashboardData] = useState({
     products: { total: 0, outOfStock: 0, lowStock: 0 },
     orders: { recent: 0, pending: 0, total: 0 },
     revenue: { daily: 0, weekly: 0, monthly: 0 },
@@ -135,8 +137,7 @@ const TaskForceDashboard = () => {
         console.error('Error fetching inventory:', error);
         // Continue with products data only
       }
-      
-      // Fetch blog data if available
+        // Fetch blog data if available
       let blogStats = { total: 0, published: 0, draft: 0 };
       try {
         const blogResponse = await blogService.getBlogs();
@@ -149,14 +150,22 @@ const TaskForceDashboard = () => {
         console.error('Error fetching blogs:', error);
       }
       
+      // Fetch support ticket data
+      let supportStats = { open: 0, resolved: 0 };
+      try {
+        const supportResponse = await supportTicketService.getSupportTicketStats();
+        supportStats.open = supportResponse.ticketsByStatus?.open || 0;
+        supportStats.resolved = supportResponse.ticketsByStatus?.resolved || 0;
+      } catch (error) {
+        console.error('Error fetching support tickets:', error);
+      }
+      
       // Combine data for statistics or use product data if inventory not available
       const stockData = inventoryData.length > 0 ? inventoryData : products;
       
       // Calculate dashboard metrics
       const outOfStock = stockData.filter(item => item.stockQuantity <= 0).length;
-      const lowStock = stockData.filter(item => item.stockQuantity > 0 && item.stockQuantity <= 5).length;
-      
-      // Update dashboard data
+      const lowStock = stockData.filter(item => item.stockQuantity > 0 && item.stockQuantity <= 5).length;        // Update dashboard data
       setDashboardData({
         products: { 
           total: products.length, 
@@ -165,8 +174,8 @@ const TaskForceDashboard = () => {
         },
         orders: orderStats,
         revenue: revenueStats,
-        applications: { pending: 2, approved: 15, rejected: 3 }, // Example data, would be replaced with real API data
-        support: { open: 4, resolved: 12 }, // Example data, would be replaced with real API data
+        applications: { pending: 0, approved: 0, rejected: 0 }, // Real API data should replace this
+        support: supportStats, // Now using real data
         blogs: blogStats
       });
     } catch (error) {
@@ -211,7 +220,6 @@ const TaskForceDashboard = () => {
       </CardContent>
     </Card>
   );
-
   const AlertCard = ({ title, count, icon: Icon, variant, loading }) => (
     <div className={`flex items-center p-4 rounded-lg ${
       variant === 'danger' ? 'bg-red-50' : 
@@ -228,15 +236,12 @@ const TaskForceDashboard = () => {
         </div>
       )}
       <div className="ml-4">
-        <h4 className="text-sm font-medium text-gray-900">{title}</h4>
+        <h4 className="text-sm font-medium text-black">{title}</h4>
         {loading ? (
           <Skeleton className="h-5 w-12 mt-1" />
         ) : (
-          <p className={`text-xl font-semibold ${
-            variant === 'danger' ? 'text-red-600' : 
-            variant === 'warning' ? 'text-amber-600' : 'text-blue-600'
-          }`}>
-            {count}
+          <p className={`text-xl font-semibold text-black`}>
+            {count === 0 ? 'No Data' : count}
           </p>
         )}
       </div>
@@ -419,45 +424,60 @@ const TaskForceDashboard = () => {
                         </div>
                       </div>
                     ))}
-                  </div>
-                ) : (
+                  </div>                ) : (
                   <div className="space-y-4">
-                    <div className="flex items-start">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-blue-600">
-                        <ShoppingCart className="h-5 w-5" />
-                      </span>
-                      <div className="ml-4">
-                        <p className="text-sm font-medium">New order #12345</p>
-                        <p className="text-sm text-gray-500">30 minutes ago</p>
+                    {dashboardData.orders.recent > 0 || dashboardData.revenue.daily > 0 || dashboardData.products.lowStock > 0 || dashboardData.blogs.total > 0 ? (
+                      <>
+                        {dashboardData.orders.recent > 0 && (
+                          <div className="flex items-start">
+                            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                              <ShoppingCart className="h-5 w-5" />
+                            </span>
+                            <div className="ml-4">
+                              <p className="text-sm font-medium">{dashboardData.orders.recent} new order(s) today</p>
+                              <p className="text-sm text-gray-500">Recent activity</p>
+                            </div>
+                          </div>
+                        )}
+                        {dashboardData.revenue.daily > 0 && (
+                          <div className="flex items-start">
+                            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-green-50 text-green-600">
+                              <DollarSign className="h-5 w-5" />
+                            </span>
+                            <div className="ml-4">
+                              <p className="text-sm font-medium">Revenue: ${dashboardData.revenue.daily.toLocaleString()}</p>
+                              <p className="text-sm text-gray-500">Today's earnings</p>
+                            </div>
+                          </div>
+                        )}
+                        {dashboardData.products.lowStock > 0 && (
+                          <div className="flex items-start">
+                            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+                              <AlertTriangle className="h-5 w-5" />
+                            </span>
+                            <div className="ml-4">
+                              <p className="text-sm font-medium">{dashboardData.products.lowStock} product(s) low on stock</p>
+                              <p className="text-sm text-gray-500">Needs attention</p>
+                            </div>
+                          </div>
+                        )}
+                        {dashboardData.blogs.total > 0 && (
+                          <div className="flex items-start">
+                            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-50 text-purple-600">
+                              <FileText className="h-5 w-5" />
+                            </span>
+                            <div className="ml-4">
+                              <p className="text-sm font-medium">{dashboardData.blogs.published} blog post(s) published</p>
+                              <p className="text-sm text-gray-500">Content activity</p>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500">No recent activity</p>
                       </div>
-                    </div>
-                    <div className="flex items-start">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-green-50 text-green-600">
-                        <DollarSign className="h-5 w-5" />
-                      </span>
-                      <div className="ml-4">
-                        <p className="text-sm font-medium">Payment received for order #12342</p>
-                        <p className="text-sm text-gray-500">2 hours ago</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-50 text-amber-600">
-                        <AlertTriangle className="h-5 w-5" />
-                      </span>
-                      <div className="ml-4">
-                        <p className="text-sm font-medium">Product "Fitness Band XL" is low on stock</p>
-                        <p className="text-sm text-gray-500">5 hours ago</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-50 text-purple-600">
-                        <FileText className="h-5 w-5" />
-                      </span>
-                      <div className="ml-4">
-                        <p className="text-sm font-medium">New blog post published</p>
-                        <p className="text-sm text-gray-500">1 day ago</p>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -480,37 +500,52 @@ const TaskForceDashboard = () => {
                         <Skeleton className="h-8 w-16" />
                       </div>
                     ))}
-                  </div>
-                ) : (
+                  </div>                ) : (
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <input type="checkbox" className="mr-2" />
-                        <span className="text-sm md:text-base">Review pending applications (2)</span>
+                    {dashboardData.applications.pending > 0 || dashboardData.products.outOfStock > 0 || dashboardData.support.open > 0 || dashboardData.blogs.draft > 0 ? (
+                      <>
+                        {dashboardData.applications.pending > 0 && (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <input type="checkbox" className="mr-2" />
+                              <span className="text-sm md:text-base">Review pending applications ({dashboardData.applications.pending})</span>
+                            </div>
+                            <Badge>High</Badge>
+                          </div>
+                        )}
+                        {dashboardData.products.outOfStock > 0 && (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <input type="checkbox" className="mr-2" />
+                              <span className="text-sm md:text-base">Restock out-of-stock items ({dashboardData.products.outOfStock})</span>
+                            </div>
+                            <Badge variant="secondary">Medium</Badge>
+                          </div>
+                        )}
+                        {dashboardData.support.open > 0 && (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <input type="checkbox" className="mr-2" />
+                              <span className="text-sm md:text-base">Respond to support tickets ({dashboardData.support.open})</span>
+                            </div>
+                            <Badge variant="outline">Low</Badge>
+                          </div>
+                        )}
+                        {dashboardData.blogs.draft > 0 && (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <input type="checkbox" className="mr-2" />
+                              <span className="text-sm md:text-base">Update blog content ({dashboardData.blogs.draft})</span>
+                            </div>
+                            <Badge variant="secondary">Medium</Badge>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500">No pending tasks</p>
                       </div>
-                      <Badge>High</Badge>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <input type="checkbox" className="mr-2" />
-                        <span className="text-sm md:text-base">Restock out-of-stock items (3)</span>
-                      </div>
-                      <Badge variant="secondary">Medium</Badge>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <input type="checkbox" className="mr-2" />
-                        <span className="text-sm md:text-base">Respond to support tickets (4)</span>
-                      </div>
-                      <Badge variant="outline">Low</Badge>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <input type="checkbox" className="mr-2" />
-                        <span className="text-sm md:text-base">Update blog content (1)</span>
-                      </div>
-                      <Badge variant="secondary">Medium</Badge>
-                    </div>
+                    )}
                   </div>
                 )}
                 <div className="mt-4">

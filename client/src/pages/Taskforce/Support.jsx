@@ -490,19 +490,19 @@ const Support = () => {
         <TabsContent value="closed" className="mt-4">
           {renderTicketList()}
         </TabsContent>
-      </Tabs>
-
-      {/* Ticket Detail Dialog */}
-      <Dialog open={viewTicketDialogOpen} onOpenChange={setViewTicketDialogOpen}>
-        <DialogContent className="max-w-4xl h-[80vh] flex flex-col z-[50]">
+      </Tabs>      {/* Ticket Detail Dialog */}
+      <Dialog open={viewTicketDialogOpen} onOpenChange={setViewTicketDialogOpen}>        <DialogContent 
+          className="max-w-4xl h-[80vh] flex flex-col bg-white border shadow-2xl text-black"
+          style={{ zIndex: 9999, position: 'fixed' }}
+        >
           <DialogHeader>
-            <DialogTitle>Support Ticket #{selectedTicket?._id}</DialogTitle>
+            <DialogTitle className="text-black">Support Ticket #{selectedTicket?._id}</DialogTitle>
             <DialogDescription>
               {selectedTicket && (
                 <div className="flex flex-wrap gap-2 mt-2">
                   {getStatusBadge(selectedTicket.status)}
                   {getPriorityBadge(selectedTicket.priority)}
-                  <span className="text-sm text-gray-500">
+                  <span className="text-sm text-black">
                     Created: {formatTimestamp(selectedTicket.createdAt)}
                   </span>
                 </div>
@@ -514,8 +514,8 @@ const Support = () => {
             <>
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-lg font-medium">{selectedTicket.subject}</h3>
-                  <div className="flex items-center text-sm text-gray-500">
+                  <h3 className="text-lg font-medium text-black">{selectedTicket.subject}</h3>
+                  <div className="flex items-center text-sm text-black">
                     <User className="h-4 w-4 mr-1" />
                     <span>From: {selectedTicket.userName || selectedTicket.userEmail}</span>
                   </div>
@@ -526,14 +526,14 @@ const Support = () => {
                     value={ticketStatus} 
                     onValueChange={setTicketStatus}
                   >
-                    <SelectTrigger className="w-[150px]">
-                      <SelectValue placeholder="Status" />
+                    <SelectTrigger className="w-[150px] text-black">
+                      <SelectValue placeholder="Status" className="text-black" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="open">Open</SelectItem>
-                      <SelectItem value="in-progress">In Progress</SelectItem>
-                      <SelectItem value="resolved">Resolved</SelectItem>
-                      <SelectItem value="closed">Closed</SelectItem>
+                    <SelectContent className="text-black">
+                      <SelectItem value="open" className="text-black">Open</SelectItem>
+                      <SelectItem value="in-progress" className="text-black">In Progress</SelectItem>
+                      <SelectItem value="resolved" className="text-black">Resolved</SelectItem>
+                      <SelectItem value="closed" className="text-black">Closed</SelectItem>
                     </SelectContent>
                   </Select>
                   
@@ -541,6 +541,7 @@ const Support = () => {
                     <Button
                       size="sm"
                       variant="outline"
+                      className="text-black border-gray-300 bg-white hover:bg-gray-100"
                       onClick={() => handleAssignToMe(selectedTicket._id)}
                     >
                       Assign to Me
@@ -558,14 +559,14 @@ const Support = () => {
                         : 'bg-gray-50 border border-gray-100'
                     }`}>
                       <div className="flex justify-between mb-2">
-                        <span className="font-medium">
+                        <span className="font-medium text-black">
                           {message.sender === 'user' ? 'Customer' : 'Support Staff'}
                         </span>
-                        <span className="text-sm text-gray-500">
+                        <span className="text-sm text-black">
                           {formatTimestamp(message.timestamp)}
                         </span>
                       </div>
-                      <p className="whitespace-pre-wrap">{message.content}</p>
+                      <p className="whitespace-pre-wrap text-black">{message.content}</p>
                     </div>
                   ))}
                 </div>
@@ -576,17 +577,23 @@ const Support = () => {
                   placeholder="Type your response here..."
                   value={responseContent}
                   onChange={(e) => setResponseContent(e.target.value)}
-                  className="min-h-[100px]"
+                  className="min-h-[100px] text-black placeholder:text-gray-500"
                 />
                 
                 <div className="flex justify-end gap-2">
                   <DialogClose asChild>
-                    <Button variant="outline">Cancel</Button>
+                    <Button 
+                      variant="outline" 
+                      className="text-black border-gray-300 bg-white hover:bg-gray-100"
+                    >
+                      Cancel
+                    </Button>
                   </DialogClose>
                   
                   <Button 
                     onClick={handleSendResponse}
                     disabled={isSubmitting || !responseContent.trim()}
+                    className="text-white bg-blue-600 hover:bg-blue-700"
                   >
                     {isSubmitting ? (
                       <>
@@ -701,12 +708,11 @@ const Support = () => {
                         <span className="font-medium">Assigned to:</span> {' '}
                         {ticket.assignedTo.firstName} {ticket.assignedTo.lastName}
                       </span>
-                    ) : (
-                      <span className="text-sm text-gray-500">
+                    ) : (                      <span className="text-sm text-gray-500">
                         <Button 
                           variant="ghost" 
                           size="sm" 
-                          className="h-auto p-0 text-blue-600"
+                          className="h-auto p-0 text-black hover:bg-gray-100"
                           onClick={() => handleAssignToMe(ticket._id)}
                         >
                           Assign to me

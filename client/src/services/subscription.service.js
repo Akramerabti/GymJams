@@ -746,13 +746,31 @@ async submitQuestionnaire(answers, accessToken = null) {
         localStorage.setItem('ratedCoaches', JSON.stringify(ratedCoaches));
       }
       
-      // Rethrow the error for the caller to handle
+      // Rethrow the error for the caller to handle      throw error;
+    }
+  },
+
+  // Sync subscription from Stripe
+  async syncSubscriptionFromStripe(subscriptionId) {
+    try {
+      const response = await api.post(`/subscription/sync/${subscriptionId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to sync subscription:', error);
       throw error;
     }
   },
 
-
-
+  // Sync all subscriptions
+  async syncAllSubscriptions() {
+    try {
+      const response = await api.post('/subscription/sync-all');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to sync all subscriptions:', error);
+      throw error;
+    }
+  },
 
 };
 
