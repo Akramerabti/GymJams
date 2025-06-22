@@ -317,11 +317,10 @@ const CoachingHome = () => {
                     preload="metadata"
                   >
                     <source src="/GymTonic.mp4" type="video/mp4" />
-                  </video>
-                  {/* Play Button Overlay */}
+                  </video>                  {/* Play Button Overlay */}
                   <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-300 flex items-center justify-center">
                     <div className="bg-white/95 rounded-full p-6 shadow-xl group-hover:scale-110 transition-transform duration-300">
-                      <Play className="w-10 h-10 text-gray-800 ml-1" />
+                      <Play className="w-10 h-10 text-gray-900 ml-1" style={{ color: '#1f2937' }} />
                     </div>
                   </div>
                 </div>

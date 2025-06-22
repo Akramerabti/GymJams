@@ -7,10 +7,12 @@ import {
   Heart, Dumbbell, Zap, Medal, Brain, Coffee
 } from 'lucide-react';
 import Progress from '@/components/ui/progress';
+import { useTheme } from '../../../contexts/ThemeContext';
 import clientService from '../../../services/client.service';
 import { toast } from 'sonner';
 
 const ClientStatsWidget = ({ clients }) => {
+  const { darkMode } = useTheme();
   const [stats, setStats] = useState({
     totalWorkouts: 0,
     averageProgress: 0,
@@ -298,10 +300,9 @@ const ClientStatsWidget = ({ clients }) => {
                 )}
                 <span className="text-xs font-medium">{Math.abs(stats.progressTrend)}%</span>
               </div>
-            </div>
-            <p className="text-3xl font-bold text-gray-900 mb-2">{stats.averageProgress}%</p>
+            </div>            <p className="text-3xl font-bold mb-2" style={{ color: '#000000' }}>{stats.averageProgress}%</p>
             <div className="space-y-1">
-              <div className="flex justify-between items-center text-xs text-gray-500">
+              <div className="flex justify-between items-center text-xs" style={{ color: '#000000' }}>
                 <span>Average</span>
                 <span>100%</span>
               </div>
@@ -325,17 +326,16 @@ const ClientStatsWidget = ({ clients }) => {
               <div className="bg-green-100 p-1.5 rounded-full">
                 <Dumbbell className="w-4 h-4 text-green-600" />
               </div>
-            </div>
-            <p className="text-3xl font-bold text-gray-900 mb-1">{stats.totalWorkouts}</p>
-            <p className="text-xs text-gray-600 mb-2">Total workouts completed</p>
+            </div>            <p className="text-3xl font-bold mb-1" style={{ color: '#000000' }}>{stats.totalWorkouts}</p>
+            <p className="text-xs mb-2" style={{ color: '#000000' }}>Total workouts completed</p>
             <div className="space-y-2 mt-2">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-600">Most Active Day</span>
-                <span className="font-medium">{getTopWorkoutDay()}</span>
+                <span style={{ color: '#000000' }}>Most Active Day</span>
+                <span className="font-medium" style={{ color: '#000000' }}>{getTopWorkoutDay()}</span>
               </div>
               <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-600">Most Popular</span>
-                <span className="font-medium capitalize">
+                <span style={{ color: '#000000' }}>Most Popular</span>
+                <span className="font-medium capitalize" style={{ color: '#000000' }}>
                   {stats.topWorkoutTypes[0]?.type || 'N/A'}
                 </span>
               </div>
@@ -352,11 +352,10 @@ const ClientStatsWidget = ({ clients }) => {
               <div className="bg-amber-100 p-1.5 rounded-full">
                 <Award className="w-4 h-4 text-amber-600" />
               </div>
-            </div>
-            <div className="flex items-center justify-between">
+            </div>            <div className="flex items-center justify-between">
               <div>
-                <p className="text-3xl font-bold text-gray-900">{stats.completedGoals}</p>
-                <p className="text-xs text-gray-600">Completed goals</p>
+                <p className="text-3xl font-bold" style={{ color: '#000000' }}>{stats.completedGoals}</p>
+                <p className="text-xs" style={{ color: '#000000' }}>Completed goals</p>
               </div>
               {stats.pendingApprovals > 0 && (
                 <div className="bg-amber-100 p-2 rounded-md">
@@ -367,8 +366,8 @@ const ClientStatsWidget = ({ clients }) => {
             </div>
             <div className="mt-3">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-600">Client Motivation</span>
-                <span className="font-medium">
+                <span style={{ color: '#000000' }}>Client Motivation</span>
+                <span className="font-medium" style={{ color: '#000000' }}>
                   {stats.averageProgress >= 75 ? 'High' : 
                    stats.averageProgress >= 50 ? 'Good' : 
                    stats.averageProgress >= 25 ? 'Moderate' : 'Low'}
@@ -387,21 +386,20 @@ const ClientStatsWidget = ({ clients }) => {
               <div className="bg-purple-100 p-1.5 rounded-full">
                 <Heart className="w-4 h-4 text-purple-600" />
               </div>
-            </div>
-            <div className="flex justify-between">
+            </div>            <div className="flex justify-between">
               <div>
-                <p className="text-3xl font-bold text-gray-900 mb-1">{stats.sleepQualityAvg || '-'}</p>
-                <p className="text-xs text-gray-600">Sleep quality score</p>
+                <p className="text-3xl font-bold mb-1" style={{ color: '#000000' }}>{stats.sleepQualityAvg || '-'}</p>
+                <p className="text-xs" style={{ color: '#000000' }}>Sleep quality score</p>
               </div>
               <div>
-                <p className="text-3xl font-bold text-gray-900 mb-1">{stats.nutritionComplianceAvg}%</p>
-                <p className="text-xs text-gray-600">Nutrition compliance</p>
+                <p className="text-3xl font-bold mb-1" style={{ color: '#000000' }}>{stats.nutritionComplianceAvg}%</p>
+                <p className="text-xs" style={{ color: '#000000' }}>Nutrition compliance</p>
               </div>
             </div>
             <div className="space-y-1 mt-2">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-gray-600">Overall Wellness</span>
-                <span className="font-medium">
+                <span style={{ color: '#000000' }}>Overall Wellness</span>
+                <span className="font-medium" style={{ color: '#000000' }}>
                   {((stats.sleepQualityAvg + stats.nutritionComplianceAvg) / 2) >= 75 ? 'Excellent' : 
                    ((stats.sleepQualityAvg + stats.nutritionComplianceAvg) / 2) >= 60 ? 'Good' : 
                    ((stats.sleepQualityAvg + stats.nutritionComplianceAvg) / 2) >= 40 ? 'Average' : 'Needs Improvement'}
@@ -493,11 +491,10 @@ const ClientStatsWidget = ({ clients }) => {
                   <div className="flex items-center mb-2">
                     <Medal className="w-4 h-4 text-green-600 mr-1" />
                     <h4 className="text-sm font-medium text-green-800">Top Performer</h4>
-                  </div>
-                  <p className="text-sm font-semibold">
+                  </div>                  <p className="text-sm font-semibold" style={{ color: '#000000' }}>
                     {stats.topPerformer.firstName} {stats.topPerformer.lastName || ''}
                   </p>
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs" style={{ color: '#000000' }}>
                     Progress: <span className="font-medium">{stats.topPerformer.stats?.monthlyProgress || 0}%</span>
                   </p>
                 </div>
@@ -508,11 +505,10 @@ const ClientStatsWidget = ({ clients }) => {
                   <div className="flex items-center mb-2">
                     <AlertTriangle className="w-4 h-4 text-amber-600 mr-1" />
                     <h4 className="text-sm font-medium text-amber-800">Needs Attention</h4>
-                  </div>
-                  <p className="text-sm font-semibold">
+                  </div>                  <p className="text-sm font-semibold" style={{ color: '#000000' }}>
                     {stats.needsAttention.firstName} {stats.needsAttention.lastName || ''}
                   </p>
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs" style={{ color: '#000000' }}>
                     Progress: <span className="font-medium">{stats.needsAttention.stats?.monthlyProgress || 0}%</span>
                   </p>
                 </div>

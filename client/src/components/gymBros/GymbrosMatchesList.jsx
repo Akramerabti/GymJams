@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
+import { useTheme } from '../../contexts/ThemeContext';
 import gymbrosService from '../../services/gymbros.service';
 import { usePoints } from '../../hooks/usePoints';
 import useAuthStore from '../../stores/authStore';
@@ -27,6 +28,7 @@ const GymbrosMatchesList = () => {
   const { balance: pointsBalance, subtractPoints, updatePointsInBackend } = usePoints();
   const { optimizedApiCall, clearCache } = useApiOptimization();
   const { subscribeToMatches, subscribeToNewMatches, subscribeToMessages } = useRealtimeUpdates();
+  const { darkMode } = useTheme();
   
   // State
   const [matches, setMatches] = useState([]);
@@ -626,12 +628,18 @@ const renderConversations = () => {
               (typeof match.lastMessage.sender === 'object' && match.lastMessage.sender?.id === currentUserId)
             );
             
-            const displayUnreadCount = false;
-              return (
+            const displayUnreadCount = false;            return (
               <motion.div
                 key={match._id}
-                whileHover={{ scale: 1.02, backgroundColor: "rgba(249, 250, 251, 1)" }}
-                className="bg-white rounded-xl shadow-sm overflow-hidden cursor-pointer transition-all"
+                whileHover={{ 
+                  scale: 1.02, 
+                  backgroundColor: darkMode ? "rgba(31, 41, 55, 0.8)" : "rgba(249, 250, 251, 1)" 
+                }}
+                className={`${
+                  darkMode 
+                    ? 'bg-gray-800 hover:bg-gray-750' 
+                    : 'bg-white hover:bg-gray-50'
+                } rounded-xl shadow-sm overflow-hidden cursor-pointer transition-all`}
                 onClick={() => handleOpenChat(match)}
               >
                 <div className="p-3 flex items-center">

@@ -3,10 +3,10 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../stores/authStore';
 
 const ProtectedRoute = ({ children }) => {
-  const { user, checkAuth, loading, logout, isTokenValid } = useAuth();
+  const { user, loading, logout, isTokenValid } = useAuth();
   const [isChecking, setIsChecking] = useState(true);
   const location = useLocation();
-  const navigate = useNavigate(); // Add this line to use the navigate function
+  const navigate = useNavigate();
 
   useEffect(() => {
     const validateAuth = async () => {

@@ -642,42 +642,7 @@ const Home = () => {  const { darkMode } = useTheme();
               </div>
             </div>
           ))}
-        </div>        {/* Enhanced Scroll to Top Button */}
-        {scrollY > 400 && (
-          <div className="fixed bottom-8 right-8 z-40 space-y-4">
-            {/* Scroll to top button */}
-            <button
-              onClick={() => navigateToSection(0)}
-              className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-gradient-to-r from-blue-500 via-purple-600 to-pink-600 text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-110 transition-all duration-300 flex items-center justify-center group glow-effect"
-              style={{
-                animation: 'revealSection 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards'
-              }}
-              aria-label="Scroll to top"
-            >
-              <svg 
-                className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 transform group-hover:-translate-y-1 transition-transform duration-200" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-              </svg>
-              
-              {/* Animated background */}
-              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
-            </button>
-
-            {/* Scroll velocity indicator */}
-            {scrollVelocity > 2 && (
-              <div className="w-12 h-2 sm:w-14 sm:h-2 md:w-16 md:h-2 bg-white/20 rounded-full overflow-hidden backdrop-blur-sm">
-                <div 
-                  className="h-full bg-gradient-to-r from-green-400 to-blue-500 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.min(100, scrollVelocity * 10)}%` }}
-                ></div>
-              </div>
-            )}
-          </div>
-        )}{/* Section transition overlays */}
+        </div>{/* Section transition overlays */}
         <div className="fixed inset-0 pointer-events-none z-30">
           {/* Dynamic background overlay based on active section */}
           <div 

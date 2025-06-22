@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useTheme } from '../../contexts/ThemeContext';
 import { 
   Card, 
   CardContent, 
@@ -16,6 +17,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 
 // Export AboutSection component for use in contact.jsx
 export const AboutSection = ({ showCollapseButtons, setShowCollapseButtons, setActiveTab }) => {
+  const { darkMode } = useTheme();
   return (
     <div className="space-y-8">
       <div className="mb-8">
@@ -49,10 +51,9 @@ export const AboutSection = ({ showCollapseButtons, setShowCollapseButtons, setA
               Founded in 2022, GymTonic started as a small online store selling premium fitness equipment. 
               As we grew, we recognized the need for personalized coaching to help our customers maximize their results.
               Today, we offer a comprehensive platform that combines top-tier products with expert coaching services.
-            </p>
-            
+            </p>            
             <h2>Our Team</h2>
-            <p>
+            <p >
               Our team consists of passionate fitness enthusiasts, certified coaches, and industry experts who are dedicated to helping you achieve your fitness goals. 
               From product specialists to personal trainers, every member of the GymTonic family is committed to your success.
             </p>
@@ -108,10 +109,9 @@ export const AboutSection = ({ showCollapseButtons, setShowCollapseButtons, setA
           </CardContent>
         </Card>
       </div>
-      
-      <div className="bg-blue-50 p-8 rounded-lg text-center mb-12">
-        <h2 className="text-2xl font-bold mb-4">Join Our Team</h2>
-        <p className="text-gray-600 mb-6">
+        <div className="bg-blue-50 p-8 rounded-lg text-center mb-12">
+        <h2 className="text-2xl font-bold mb-4" style={{ color: '#000000' }}>Join Our Team</h2>
+        <p className="mb-6" style={{ color: '#000000' }}>
           Passionate about fitness? We're always looking for talented individuals to join our growing team.
         </p>
         <Button 
