@@ -113,9 +113,7 @@ const Home = () => {  const { darkMode } = useTheme();
       clearTimeout(timer);
     };
   }, []);
-
   const handleNavigate = (route) => {
-    // Handle special routes with smooth transitions
     if (route === '/demo') {
       navigate('/coaching');
     } else if (route === '/register') {
@@ -124,22 +122,16 @@ const Home = () => {  const { darkMode } = useTheme();
       navigate(route);
     }
   };
-  // Enhanced helper functions
+
   const isSectionVisible = (index) => visibleSections.has(index);
-  const isActiveSection = (index) => activeSection === index;  // Navigation function for circle buttons - scrolls to exact top of sections
-  const navigateToSection = useCallback((sectionIndex) => {
-    console.log('=== Navigation Debug ===');
-    console.log('Navigating to section:', sectionIndex);
-    
+  const isActiveSection = (index) => activeSection === index;  const navigateToSection = useCallback((sectionIndex) => {
     const targetSection = sectionRefs.current[sectionIndex];
     if (!targetSection) {
       console.warn('Target section not found:', sectionIndex);
       return;
     }
 
-    // For Hero section (index 0), scroll to absolute top
     if (sectionIndex === 0) {
-      console.log('Scrolling to hero section (top)');
       window.scrollTo({
         top: 0,
         behavior: 'smooth'
@@ -148,7 +140,6 @@ const Home = () => {  const { darkMode } = useTheme();
       return;
     }
 
-    // For other sections, detect navbar more accurately
     const navbarSelectors = [
       'nav',
       '[data-navbar]', 
@@ -170,31 +161,16 @@ const Home = () => {  const { darkMode } = useTheme();
     if (navbar) {
       const navbarRect = navbar.getBoundingClientRect();
       navbarHeight = navbarRect.height;
-      console.log('Found navbar with height:', navbarHeight);
-    } else {
-      console.log('No navbar found, using 0 height');
     }
     
-    // Calculate the exact top position of the section
-    const sectionRect = targetSection.getBoundingClientRect();
     const sectionTop = targetSection.offsetTop;
-    
-    console.log('Section offsetTop:', sectionTop);
-    console.log('Section getBoundingClientRect top:', sectionRect.top);
-    console.log('Window scrollY:', window.scrollY);
-    
-    // Scroll to exact top of section minus navbar height
     const targetPosition = Math.max(0, sectionTop - navbarHeight);
-    
-    console.log('Final target position:', targetPosition);
-    console.log('======================');
     
     window.scrollTo({
       top: targetPosition,
       behavior: 'smooth'
     });
     
-    // Update active section immediately for visual feedback
     setActiveSection(sectionIndex);
   }, []);
   // Advanced parallax calculations with momentum and enhanced fading
@@ -400,7 +376,7 @@ const Home = () => {  const { darkMode } = useTheme();
         }
       `}</style>
 
-      <div ref={containerRef} className="w-full relative overflow-hidden">
+      <div ref={containerRef} className="w-full relative overflow-hidden" style={{ margin: 0, padding: 0, top: 0 }}>
         {/* Enhanced loading overlay with animated elements */}
         {!isLoaded && (
           <div className="fixed inset-0 z-50 bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center">
@@ -441,13 +417,13 @@ const Home = () => {  const { darkMode } = useTheme();
               }}
             />
           ))}
-        </div>        {/* Hero Section with enhanced effects */}
-        <section 
+        </div>        {/* Hero Section with enhanced effects */}        <section 
           ref={el => sectionRefs.current[0] = el}
           data-section-index={0}
           className={`min-h-screen w-full relative overflow-hidden section-transition ${
             isSectionVisible(0) ? `section-visible ${getSectionAnimation(0)}` : 'section-hidden'
           } ${isActiveSection(0) ? 'section-active' : ''}`}
+          style={{ margin: 0, padding: 0, top: 0, position: 'relative' }}
         >
           <div 
             className="absolute inset-0 parallax-bg"
