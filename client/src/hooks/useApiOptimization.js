@@ -1,26 +1,18 @@
-// hooks/useApiOptimization.js
 import { useRef, useCallback, useEffect } from 'react';
 
-/**
- * Custom hook for optimizing API calls with debouncing, caching, and rate limiting
- */
 export const useApiOptimization = () => {
   const cache = useRef(new Map());
   const requestQueue = useRef(new Map());
   const lastRequestTimes = useRef(new Map());
-  
-  // Default configuration
+ 
   const defaultConfig = {
-    cacheTime: 5 * 60 * 1000, // 5 minutes
-    minInterval: 1000, // 1 second minimum between requests
-    debounceDelay: 300, // 300ms debounce
+    cacheTime: 5 * 60 * 1000, 
+    minInterval: 1000, 
+    debounceDelay: 300, 
     maxRetries: 3,
     retryDelay: 1000,
   };
 
-  /**
-   * Check if cached data is still valid
-   */
   const isCacheValid = useCallback((key, cacheTime = defaultConfig.cacheTime) => {
     const cached = cache.current.get(key);
     if (!cached) return false;
@@ -29,17 +21,13 @@ export const useApiOptimization = () => {
     return (now - cached.timestamp) < cacheTime;
   }, []);
 
-  /**
-   * Get cached data if valid
-   */
+
   const getCachedData = useCallback((key) => {
     const cached = cache.current.get(key);
     return cached ? cached.data : null;
   }, []);
 
-  /**
-   * Set cache data
-   */
+
   const setCacheData = useCallback((key, data) => {
     cache.current.set(key, {
       data,
@@ -47,9 +35,6 @@ export const useApiOptimization = () => {
     });
   }, []);
 
-  /**
-   * Check if we can make a request based on rate limiting
-   */
   const canMakeRequest = useCallback((key, minInterval = defaultConfig.minInterval) => {
     const lastTime = lastRequestTimes.current.get(key);
     if (!lastTime) return true;
@@ -58,29 +43,24 @@ export const useApiOptimization = () => {
     return (now - lastTime) >= minInterval;
   }, []);
 
-  /**
-   * Optimized API call with caching and rate limiting
-   */
+
   const optimizedApiCall = useCallback(async (
     key, 
     apiFunction, 
     config = {}
   ) => {
     const mergedConfig = { ...defaultConfig, ...config };
-    
-    // Check cache first
+
     if (isCacheValid(key, mergedConfig.cacheTime) && !config.bypassCache) {
       console.log(`[API Optimization] Using cached data for ${key}`);
       return getCachedData(key);
     }
 
-    // Check rate limiting
     if (!canMakeRequest(key, mergedConfig.minInterval)) {
       console.log(`[API Optimization] Rate limited for ${key}, using cache if available`);
       const cachedData = getCachedData(key);
       if (cachedData) return cachedData;
-      
-      // If no cache and rate limited, wait
+
       const lastTime = lastRequestTimes.current.get(key);
       const waitTime = mergedConfig.minInterval - (Date.now() - lastTime);
       await new Promise(resolve => setTimeout(resolve, waitTime));
@@ -92,18 +72,16 @@ export const useApiOptimization = () => {
       return requestQueue.current.get(key);
     }
 
-    // Make the API call
+ 
     const requestPromise = (async () => {
       let retries = 0;
       
       while (retries < mergedConfig.maxRetries) {
         try {
-          console.log(`[API Optimization] Making API call for ${key} (attempt ${retries + 1})`);
           lastRequestTimes.current.set(key, Date.now());
           
           const result = await apiFunction();
-          
-          // Cache successful results
+
           if (result !== undefined && result !== null) {
             setCacheData(key, result);
           }
@@ -117,8 +95,6 @@ export const useApiOptimization = () => {
           
           if (retries >= mergedConfig.maxRetries) {
             requestQueue.current.delete(key);
-            
-            // Return cached data if available on error
             const cachedData = getCachedData(key);
             if (cachedData) {
               console.log(`[API Optimization] Returning cached data due to API error for ${key}`);
@@ -128,7 +104,6 @@ export const useApiOptimization = () => {
             throw error;
           }
           
-          // Wait before retry
           await new Promise(resolve => setTimeout(resolve, mergedConfig.retryDelay * retries));
         }
       }
@@ -138,9 +113,6 @@ export const useApiOptimization = () => {
     return requestPromise;
   }, [isCacheValid, getCachedData, setCacheData, canMakeRequest]);
 
-  /**
-   * Debounced API call
-   */
   const debouncedApiCall = useCallback((
     key,
     apiFunction,
@@ -169,9 +141,7 @@ export const useApiOptimization = () => {
     });
   }, [optimizedApiCall]);
 
-  /**
-   * Clear cache for specific key or all
-   */
+
   const clearCache = useCallback((key = null) => {
     if (key) {
       cache.current.delete(key);
@@ -182,9 +152,7 @@ export const useApiOptimization = () => {
     }
   }, []);
 
-  /**
-   * Prefetch data
-   */
+ 
   const prefetch = useCallback(async (key, apiFunction, config = {}) => {
     if (!isCacheValid(key, config.cacheTime)) {
       try {
@@ -196,9 +164,7 @@ export const useApiOptimization = () => {
     }
   }, [optimizedApiCall, isCacheValid]);
 
-  /**
-   * Get cache stats for debugging
-   */
+
   const getCacheStats = useCallback(() => {
     return {
       cacheSize: cache.current.size,
@@ -207,7 +173,7 @@ export const useApiOptimization = () => {
     };
   }, []);
 
-  // Cleanup on unmount
+
   useEffect(() => {
     return () => {
       // Clear all timeouts

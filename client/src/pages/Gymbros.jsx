@@ -10,6 +10,7 @@ import {
 import useAuthStore from '../stores/authStore';
 import { useGuestFlow } from '../components/gymBros/components/GuestFlowContext';
 import gymbrosService from '../services/gymbros.service';
+import useApiOptimization from '../hooks/useApiOptimization';
 
 import DiscoverTab from '../components/gymBros/components/DiscoverTab';
 import GymBrosSetup from '../components/gymBros/GymBrosSetup';
@@ -84,6 +85,9 @@ const GymBros = () => {
     clearGuestState
   } = useGuestFlow();
   
+  // API optimization
+  const { optimizedApiCall, clearCache } = useApiOptimization();
+  
   // Component state
   const [profiles, setProfiles] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -147,8 +151,8 @@ useEffect(() => {
     // Switch to the matches tab
     setActiveTab('matches');
     
-    // Refresh matches to ensure the new match is included
-    fetchMatches();
+    // Clear matches cache and refresh to ensure the new match is included
+    clearCache('matches-with-preview');
     
     // Optionally scroll to or highlight the new match
     const matchedProfileId = event.detail?.matchedProfile?._id;
@@ -173,7 +177,7 @@ useEffect(() => {
   return () => {
     window.removeEventListener('navigateToMatches', handleNavigateToMatches);
   };
-}, []);
+}, [clearCache]);
 
   
   const checkUserProfile = async () => {
@@ -428,14 +432,20 @@ useEffect(() => {
     console.log('Verification token:', localStorage.getItem('verificationToken')?.substring(0, 15) + '...');
     console.log('Auth token:', localStorage.getItem('token')?.substring(0, 15) + '...');
   }
-  
-  const fetchProfiles = async () => {
+    const fetchProfiles = async () => {
     try {
       console.log('[GymBros] Fetching profiles with filters:', filters);
       setLoading(true);
       
-      // Use the service function to get recommended profiles
-      const fetchedProfiles = await gymbrosService.getRecommendedProfiles(filters);
+      // Use optimized API call for fetching profiles
+      const fetchedProfiles = await optimizedApiCall(
+        'recommended-profiles',
+        () => gymbrosService.getRecommendedProfiles(filters),
+        {
+          cacheTime: 60 * 1000, // Cache for 1 minute
+          minInterval: 5 * 1000, // Minimum 5 seconds between requests
+        }
+      );
       
       // Add detailed logging
       console.log('[GymBros] Received profiles:', fetchedProfiles.length, 
@@ -459,8 +469,16 @@ useEffect(() => {
           // Try to refresh the guest profile
           await fetchGuestProfile();
           
-          // Try fetching profiles again
-          const retryProfiles = await gymbrosService.getRecommendedProfiles(filters);
+          // Clear cache and retry with fresh request
+          clearCache('recommended-profiles');
+          const retryProfiles = await optimizedApiCall(
+            'recommended-profiles',
+            () => gymbrosService.getRecommendedProfiles(filters),
+            {
+              bypassCache: true, // Force fresh request on retry
+              minInterval: 0,    // Allow immediate retry
+            }
+          );
           
           if (Array.isArray(retryProfiles) && retryProfiles.length > 0) {
             console.log('[GymBros] Retry successful, got', retryProfiles.length, 'profiles');
@@ -543,14 +561,24 @@ useEffect(() => {
       fetchProfiles();
     }, 500);
   };
-
   const fetchProfilesWithFilters = async (filterValues) => {
     try {
       console.log('[GymBros] Fetching profiles with filters:', filterValues);
       setLoading(true);
       
-      // Use the provided filter values directly 
-      const fetchedProfiles = await gymbrosService.getRecommendedProfiles(filterValues);
+      // Clear cache when filters change to ensure fresh results
+      clearCache('recommended-profiles');
+      
+      // Use optimized API call with filter-specific cache key
+      const cacheKey = `recommended-profiles-${JSON.stringify(filterValues)}`;
+      const fetchedProfiles = await optimizedApiCall(
+        cacheKey,
+        () => gymbrosService.getRecommendedProfiles(filterValues),
+        {
+          cacheTime: 60 * 1000, // Cache for 1 minute
+          minInterval: 5 * 1000, // Minimum 5 seconds between requests
+        }
+      );
       
       console.log('[GymBros] Received profiles:', fetchedProfiles.length, 
         fetchedProfiles.map(p => ({id: p._id || p.id, name: p.name})));
@@ -597,32 +625,40 @@ useEffect(() => {
       setLoading(false);
     }
   };
-
   const handleFilterChange = (newFilters) => {
     console.log('[GymBros] Filters updated:', newFilters);
     setFilters(newFilters);
     setShowFilters(false);
     
-    // Also update user preferences in the database
+    // Also update user preferences in the database with optimization
     updateUserPreferences(newFilters);
+    
+    // Clear all profile caches when filters change
+    clearCache('recommended-profiles');
     
     // Use helper function with the new filters directly
     fetchProfilesWithFilters(newFilters);
   };
-  
-  const updateUserPreferences = async (newFilters) => {
+    const updateUserPreferences = async (newFilters) => {
     try {
       console.log('[GymBros] Updating user preferences with new filters:', newFilters);
       
-      // Use the service function to update preferences
-      await gymbrosService.updateUserPreferences({
-        workoutTypes: newFilters.workoutTypes,
-        experienceLevel: newFilters.experienceLevel !== 'Any' ? newFilters.experienceLevel : undefined,
-        preferredTime: newFilters.preferredTime !== 'Any' ? newFilters.preferredTime : undefined,
-        genderPreference: newFilters.genderPreference !== 'All' ? newFilters.genderPreference : undefined,
-        ageRange: newFilters.ageRange,
-        maxDistance: newFilters.maxDistance
-      });
+      // Use optimized API call for updating preferences
+      await optimizedApiCall(
+        `update-preferences-${JSON.stringify(newFilters)}`,
+        () => gymbrosService.updateUserPreferences({
+          workoutTypes: newFilters.workoutTypes,
+          experienceLevel: newFilters.experienceLevel !== 'Any' ? newFilters.experienceLevel : undefined,
+          preferredTime: newFilters.preferredTime !== 'Any' ? newFilters.preferredTime : undefined,
+          genderPreference: newFilters.genderPreference !== 'All' ? newFilters.genderPreference : undefined,
+          ageRange: newFilters.ageRange,
+          maxDistance: newFilters.maxDistance
+        }),
+        {
+          cacheTime: 0, // Don't cache preference updates
+          minInterval: 2 * 1000, // Minimum 2 seconds between preference updates
+        }
+      );
       
       console.log('[GymBros] User preferences updated successfully');
     } catch (error) {

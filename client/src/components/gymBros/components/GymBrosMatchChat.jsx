@@ -6,11 +6,15 @@ import { toast } from 'sonner';
 import { useSocket } from '../../../SocketContext';
 import useAuthStore from '../../../stores/authStore';
 import gymbrosService from '../../../services/gymbros.service';
+import useApiOptimization from '../../../hooks/useApiOptimization';
+import useRealtimeUpdates from '../../../hooks/useRealtimeUpdates';
 import ProfileDetailModal from './ProfileDetailModal';
 
 const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
   const { user } = useAuthStore();
   const { socket, connected: socketConnected } = useSocket();
+  const { optimizedApiCall, clearCache } = useApiOptimization();
+  const { subscribeToMessages, sendTypingIndicator, sendReadReceipt } = useRealtimeUpdates();
     const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [files, setFiles] = useState([]);
@@ -79,14 +83,22 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     seenContentMessages.current.clear();
   }, [matchId]);
 
-
   useEffect(() => {
     const fetchMessages = async () => {
       try {
         setIsLoading(true);
         if (DEBUG) console.log(`Fetching messages for match: ${matchId}`);
         
-        const fetchedMessages = await gymbrosService.fetchMatchMessages(matchId);
+        // Use optimized API call for fetching messages
+        const fetchedMessages = await optimizedApiCall(
+          `match-messages-${matchId}`,
+          () => gymbrosService.fetchMatchMessages(matchId),
+          {
+            cacheTime: 30 * 1000, // Cache for 30 seconds
+            minInterval: 5 * 1000, // Minimum 5 seconds between requests
+          }
+        );
+        
         if (DEBUG) console.log('Fetched messages:', fetchedMessages);
         
         // Reset before processing
@@ -128,8 +140,37 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     
     if (matchId) {
       fetchMessages();
+      
+      // Subscribe to real-time message updates
+      const unsubscribe = subscribeToMessages(matchId, (messageData) => {
+        console.log('New message received via socket:', messageData);
+        
+        // Clear cache when new message arrives
+        clearCache(`match-messages-${matchId}`);
+        
+        // Add new message to state immediately for real-time feel
+        setMessages(prevMessages => {
+          // Check if message already exists to prevent duplicates
+          const messageExists = prevMessages.some(msg => 
+            msg._id === messageData._id || 
+            (msg.content === messageData.content && 
+             Math.abs(new Date(msg.timestamp) - new Date(messageData.timestamp)) < 1000)
+          );
+          
+          if (!messageExists) {
+            const newMessages = [...prevMessages, messageData].sort((a, b) => 
+              new Date(a.timestamp) - new Date(b.timestamp)
+            );
+            return newMessages;
+          }
+          
+          return prevMessages;
+        });
+      });
+      
+      return unsubscribe;
     }
-  }, [matchId]);
+  }, [matchId, optimizedApiCall, subscribeToMessages, clearCache]);
 
   // Register with socket effect
   useEffect(() => {

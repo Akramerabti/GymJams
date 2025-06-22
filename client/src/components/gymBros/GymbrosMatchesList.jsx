@@ -276,59 +276,10 @@ useEffect(() => {
     setConversations(conversationsList);
   } else {
     setNewMatches([]);
-    setConversations([]);
-  }
+    setConversations([]);  }
 }, [matches]);
   
-const fetchMatchesAndLikes = async (bypassCache = false) => {
-  setLoading(true);
-  try {
-    // Fetch matches with message preview
-    const matchesData = await gymbrosService.getMatchesWithPreview();
-    
-    // Process and sort matches
-    const sortedMatches = Array.isArray(matchesData) ? matchesData : [];
-    setMatches(sortedMatches);
-    
-    // Check if we should fetch the likes count based on time
-    const now = Date.now();
-    const timeSinceLastFetch = now - lastLikesCountFetchRef.current;
-    const MIN_FETCH_INTERVAL = 60000; // 1 minute minimum between fetches
-    
-    if (timeSinceLastFetch > MIN_FETCH_INTERVAL) {
-      try {
-        // Fetch who liked me count
-        const likedCount = await gymbrosService.getWhoLikedMeCount();
-        setLikedMeCount(likedCount);
-        
-        // Update the last fetch timestamp
-        lastLikesCountFetchRef.current = now;
-      } catch (likeError) {
-        // Handle rate limiting for likes count specifically
-        if (likeError.response?.status === 429) {
-          console.log('Rate limited on likes count, using previous value');
-          // Don't show toast for this specific error to avoid spamming the user
-        } else {
-          console.error('Error fetching who liked me count:', likeError);
-          // Only show toast for non-rate-limit errors
-          toast.error('Could not update likes count');
-        }
-        // Keep the previous likes count value
-      }
-    } else {
-      console.log('Skipping likes count fetch due to rate limiting', {
-        timeSince: timeSinceLastFetch,
-        minInterval: MIN_FETCH_INTERVAL
-      });
-    }
-  } catch (error) {
-    console.error('Error fetching matches:', error);
-    toast.error('Failed to load matches');
-  } finally {
-    setLoading(false);
-  }
-};
-    // Optimized refresh handler with cache bypass
+  // Optimized refresh handler with cache bypass
   const handleRefresh = async () => {
     if (refreshing) return;
     
@@ -721,8 +672,6 @@ const renderConversations = () => {
                         }}
                       />
                     </div>
-                    
-                    {/* Notification badge removed */}
                   </div>
                   
                   <div className="ml-3 flex-1 min-w-0">
@@ -783,12 +732,9 @@ const renderConversations = () => {
   
   return (
     <div className="h-[calc(100vh-136px)] flex flex-col p-4 overflow-hidden bg-gray-50">
-      {/* Main content area */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        {/* If no matches at all, show empty state with unlock card */}
         {matches.length === 0 && !loading ? (
           <div className="flex-1 flex flex-col">
-            {/* Always show new matches section with unlock card */}
             {renderNewMatches()}
             
             <div className="flex-1 flex items-center justify-center">
@@ -800,16 +746,13 @@ const renderConversations = () => {
           </div>
         ) : (
           <>
-            {/* New Matches */}
             {renderNewMatches()}
             
-            {/* Messages - always show the section even if empty */}
             {renderConversations()}
           </>
         )}
       </div>
       
-      {/* Chat overlay when a match is selected */}
       <AnimatePresence>
         {isShowingChat && selectedChat && (
           <GymBrosMatchChat
