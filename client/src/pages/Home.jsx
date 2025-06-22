@@ -9,11 +9,9 @@ import {
   CoachingSection 
 } from '../components/home-sections';
 
-const Home = () => {
-  const { darkMode } = useTheme();
+const Home = () => {  const { darkMode } = useTheme();
   const navigate = useNavigate();
   
-  // Enhanced state for scroll animations
   const [visibleSections, setVisibleSections] = useState(new Set([0]));
   const [scrollY, setScrollY] = useState(0);
   const [scrollDirection, setScrollDirection] = useState('down');
@@ -22,14 +20,11 @@ const Home = () => {
   const [activeSection, setActiveSection] = useState(0);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   
-  // Refs for sections and animations
   const sectionRefs = useRef([]);
   const containerRef = useRef(null);
   const lastScrollY = useRef(0);
   const lastScrollTime = useRef(Date.now());
-  const animationFrameId = useRef(null);
-  // Enhanced intersection observer for scroll animations
-  useEffect(() => {
+  const animationFrameId = useRef(null);  useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -38,7 +33,6 @@ const Home = () => {
             const newSet = new Set(prev);
             if (entry.isIntersecting) {
               newSet.add(sectionIndex);
-              // Update active section based on most visible section
               if (entry.intersectionRatio > 0.5) {
                 setActiveSection(sectionIndex);
               }
@@ -57,20 +51,16 @@ const Home = () => {
       }
     );
 
-    // Observe all sections
     sectionRefs.current.forEach((ref) => {
       if (ref) observer.observe(ref);
     });
 
     return () => observer.disconnect();
   }, []);
-
-  // Enhanced scroll handler with velocity and direction tracking
   const handleScroll = useCallback(() => {
     const currentScrollY = window.scrollY;
     const currentTime = Date.now();
     
-    // Calculate scroll direction and velocity
     const direction = currentScrollY > lastScrollY.current ? 'down' : 'up';
     const velocity = Math.abs(currentScrollY - lastScrollY.current) / (currentTime - lastScrollTime.current);
     
@@ -81,8 +71,6 @@ const Home = () => {
     lastScrollY.current = currentScrollY;
     lastScrollTime.current = currentTime;
   }, []);
-
-  // Smooth scroll with RAF optimization
   useEffect(() => {
     const optimizedScrollHandler = () => {
       if (animationFrameId.current) {
@@ -99,8 +87,6 @@ const Home = () => {
       }
     };
   }, [handleScroll]);
-
-  // Mouse movement tracking for subtle interactive effects
   useEffect(() => {
     const handleMouseMove = (e) => {
       setMousePosition({
@@ -111,15 +97,11 @@ const Home = () => {
 
     window.addEventListener('mousemove', handleMouseMove, { passive: true });
     return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
-  // Add smooth scroll behavior and loading state
-  useEffect(() => {
+  }, []);  useEffect(() => {
     document.documentElement.style.scrollBehavior = 'smooth';
     
-    // Enhanced loading with staggered reveal
     const timer = setTimeout(() => {
       setIsLoaded(true);
-      // Trigger hero section animation after load
       const heroElement = sectionRefs.current[0];
       if (heroElement) {
         heroElement.classList.add('animate-fadeInUp');
@@ -142,10 +124,79 @@ const Home = () => {
       navigate(route);
     }
   };
-
   // Enhanced helper functions
   const isSectionVisible = (index) => visibleSections.has(index);
-  const isActiveSection = (index) => activeSection === index;
+  const isActiveSection = (index) => activeSection === index;  // Navigation function for circle buttons - scrolls to exact top of sections
+  const navigateToSection = useCallback((sectionIndex) => {
+    console.log('=== Navigation Debug ===');
+    console.log('Navigating to section:', sectionIndex);
+    
+    const targetSection = sectionRefs.current[sectionIndex];
+    if (!targetSection) {
+      console.warn('Target section not found:', sectionIndex);
+      return;
+    }
+
+    // For Hero section (index 0), scroll to absolute top
+    if (sectionIndex === 0) {
+      console.log('Scrolling to hero section (top)');
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+      setActiveSection(sectionIndex);
+      return;
+    }
+
+    // For other sections, detect navbar more accurately
+    const navbarSelectors = [
+      'nav',
+      '[data-navbar]', 
+      '.fixed.top-0',
+      'header',
+      '.navbar',
+      '.nav'
+    ];
+    
+    let navbar = null;
+    for (const selector of navbarSelectors) {
+      navbar = document.querySelector(selector);
+      if (navbar && navbar.getBoundingClientRect().height > 0) {
+        break;
+      }
+    }
+    
+    let navbarHeight = 0;
+    if (navbar) {
+      const navbarRect = navbar.getBoundingClientRect();
+      navbarHeight = navbarRect.height;
+      console.log('Found navbar with height:', navbarHeight);
+    } else {
+      console.log('No navbar found, using 0 height');
+    }
+    
+    // Calculate the exact top position of the section
+    const sectionRect = targetSection.getBoundingClientRect();
+    const sectionTop = targetSection.offsetTop;
+    
+    console.log('Section offsetTop:', sectionTop);
+    console.log('Section getBoundingClientRect top:', sectionRect.top);
+    console.log('Window scrollY:', window.scrollY);
+    
+    // Scroll to exact top of section minus navbar height
+    const targetPosition = Math.max(0, sectionTop - navbarHeight);
+    
+    console.log('Final target position:', targetPosition);
+    console.log('======================');
+    
+    window.scrollTo({
+      top: targetPosition,
+      behavior: 'smooth'
+    });
+    
+    // Update active section immediately for visual feedback
+    setActiveSection(sectionIndex);
+  }, []);
   // Advanced parallax calculations with momentum and enhanced fading
   const getParallaxOffset = (sectionIndex, intensity = 0.15) => {
     const sectionElement = sectionRefs.current[sectionIndex];
@@ -404,11 +455,10 @@ const Home = () => {
           >
             {/* Animated background gradient */}
             <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 via-purple-900/20 to-pink-900/20 gradient-flow"></div>
-            
-            <HeroSection 
+              <HeroSection 
               onNavigate={handleNavigate} 
               isActive={isSectionVisible(0)}
-              goToSection={() => {}}
+              goToSection={navigateToSection}
               scrollY={scrollY}
               mousePosition={mousePosition}
             />
@@ -586,19 +636,49 @@ const Home = () => {
           ))}
         </div>
 
-        {/* Multi-functional floating action button */}
+        {/* Multi-functional floating action button */}        {/* Section Navigation Dots */}
+        <div className="fixed right-4 sm:right-6 md:right-8 top-1/2 transform -translate-y-1/2 z-50 space-y-3">
+          {['Hero', 'Shop', 'Coaching', 'GymBros', 'Games'].map((sectionName, index) => (
+            <button
+              key={index}
+              onClick={() => navigateToSection(index)}
+              className={`group relative w-3 h-3 rounded-full transition-all duration-300 ${
+                isActiveSection(index)
+                  ? 'bg-white shadow-lg scale-125'
+                  : 'bg-white/40 hover:bg-white/60 hover:scale-110'
+              }`}
+              aria-label={`Navigate to ${sectionName} section`}
+            >
+              {/* Hover tooltip */}
+              <div className="absolute right-6 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                <div className="bg-black/80 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+                  {sectionName}
+                </div>
+                <div className="absolute left-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-l-black/80"></div>
+              </div>
+              
+              {/* Active indicator */}
+              {isActiveSection(index) && (
+                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 animate-pulse"></div>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Enhanced Scroll to Top Button */}
         {scrollY > 400 && (
           <div className="fixed bottom-8 right-8 z-40 space-y-4">
             {/* Scroll to top button */}
             <button
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              className="w-16 h-16 bg-gradient-to-r from-blue-500 via-purple-600 to-pink-600 text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-110 transition-all duration-300 flex items-center justify-center group glow-effect"
+              onClick={() => navigateToSection(0)}
+              className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-gradient-to-r from-blue-500 via-purple-600 to-pink-600 text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-110 transition-all duration-300 flex items-center justify-center group glow-effect"
               style={{
                 animation: 'revealSection 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards'
               }}
+              aria-label="Scroll to top"
             >
               <svg 
-                className="w-7 h-7 transform group-hover:-translate-y-1 transition-transform duration-200" 
+                className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 transform group-hover:-translate-y-1 transition-transform duration-200" 
                 fill="none" 
                 stroke="currentColor" 
                 viewBox="0 0 24 24"
@@ -612,7 +692,7 @@ const Home = () => {
 
             {/* Scroll velocity indicator */}
             {scrollVelocity > 2 && (
-              <div className="w-16 h-2 bg-white/20 rounded-full overflow-hidden backdrop-blur-sm">
+              <div className="w-12 h-2 sm:w-14 sm:h-2 md:w-16 md:h-2 bg-white/20 rounded-full overflow-hidden backdrop-blur-sm">
                 <div 
                   className="h-full bg-gradient-to-r from-green-400 to-blue-500 rounded-full transition-all duration-300"
                   style={{ width: `${Math.min(100, scrollVelocity * 10)}%` }}
@@ -620,7 +700,7 @@ const Home = () => {
               </div>
             )}
           </div>
-        )}        {/* Section transition overlays */}
+        )}{/* Section transition overlays */}
         <div className="fixed inset-0 pointer-events-none z-30">
           {/* Dynamic background overlay based on active section */}
           <div 
