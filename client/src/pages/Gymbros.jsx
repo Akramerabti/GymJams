@@ -706,7 +706,7 @@ useEffect(() => {
     // Common header title with logo
     const headerTitle = (
       <h1 className="text-xl font-bold flex items-center">
-        <Dumbbell className="mr-2 text-blue-500" /> GymMatch
+        <Dumbbell className="mr-2 text-blue-500" />
       </h1>
     );
 

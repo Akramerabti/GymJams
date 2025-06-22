@@ -856,10 +856,73 @@ export const getGymBrosMatches = async (req, res) => {
     }
     
     logger.debug(`getGymBrosMatches: Returning ${matchedProfiles.length} profiles`);
-    res.json(matchedProfiles);
-  } catch (error) {
+    res.json(matchedProfiles);  } catch (error) {
     logger.error(`Error in getGymBrosMatches: ${error.message}`, error);
     res.status(500).json({ error: 'Failed to retrieve matches' });
+  }
+};
+
+// Remove a match
+export const removeMatch = async (req, res) => {
+  try {
+    const { matchId } = req.params;
+    const effectiveUser = getEffectiveUser(req);
+    
+    // Validate that user has valid identifier
+    if (!effectiveUser.userId && !effectiveUser.profileId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required to remove matches'
+      });
+    }
+    
+    // Find the match
+    const match = await GymBrosMatch.findById(matchId);
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: 'Match not found'
+      });
+    }
+    
+    // Get user identifier
+    const userIdentifier = effectiveUser.userId || effectiveUser.profileId;
+    
+    // Check if user is part of this match
+    const isUserInMatch = match.users.some(userId => 
+      userId.toString() === userIdentifier.toString()
+    );
+    
+    if (!isUserInMatch) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to remove this match'
+      });
+    }
+    
+    // Remove the match
+    await GymBrosMatch.findByIdAndDelete(matchId);
+    
+    logger.info(`Match ${matchId} removed by user ${userIdentifier}`);
+    
+    // Prepare response
+    let responseData = {
+      success: true,
+      message: 'Match removed successfully'
+    };
+    
+    // Add guest token if applicable
+    if (effectiveUser.isGuest) {
+      responseData.guestToken = generateGuestToken(effectiveUser.phone, effectiveUser.profileId);
+    }
+    
+    return res.json(responseData);
+  } catch (error) {
+    logger.error(`Error removing match: ${error.message}`, error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to remove match'
+    });
   }
 };
 

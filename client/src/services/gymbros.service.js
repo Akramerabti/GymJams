@@ -1375,7 +1375,24 @@ async getBoostLimits() {
     console.error('Error fetching boost limits:', error);
     throw error;
   }
-}
+},
+
+// Remove a match
+async removeMatch(matchId) {
+  try {
+    const config = this.configWithGuestToken();
+    
+    const response = await api.delete(`/gym-bros/matches/${matchId}`, config);
+    
+    return {
+      success: true,
+      message: response.data.message || 'Match removed successfully'
+    };
+  } catch (error) {
+    console.error('Error removing match:', error);
+    throw error;
+  }
+},
 };
 
 export default gymbrosService;

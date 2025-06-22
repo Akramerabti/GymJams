@@ -9,9 +9,12 @@ import { toast } from 'sonner';
 import gymbrosService from '../../services/gymbros.service';
 import { usePoints } from '../../hooks/usePoints';
 import useAuthStore from '../../stores/authStore';
+import useApiOptimization from '../../hooks/useApiOptimization';
+import useRealtimeUpdates from '../../hooks/useRealtimeUpdates';
 import GymBrosMatchChat from './components/GymBrosMatchChat';
 import ActiveStatus from './components/ActiveStatus';
 import EmptyStateMessage from './components/EmptyStateMessage';
+import ProfileDetailModal from './components/ProfileDetailModal';
 import { getPlaceholderUrl } from '../../utils/imageUtils';
 
 // Premium feature unlock cost
@@ -22,6 +25,8 @@ const PREMIUM_FEATURES = {
 const GymbrosMatchesList = () => {
   const { user, isAuthenticated } = useAuthStore();
   const { balance: pointsBalance, subtractPoints, updatePointsInBackend } = usePoints();
+  const { optimizedApiCall, clearCache } = useApiOptimization();
+  const { subscribeToMatches, subscribeToNewMatches, subscribeToMessages } = useRealtimeUpdates();
   
   // State
   const [matches, setMatches] = useState([]);
@@ -33,6 +38,8 @@ const GymbrosMatchesList = () => {
   const [isShowingChat, setIsShowingChat] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedChat, setSelectedChat] = useState(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState(null);
   
   // Animation state for the unlock card
   const [isHovering, setIsHovering] = useState(false);
@@ -40,41 +47,122 @@ const GymbrosMatchesList = () => {
   // Refs
   const matchesCarouselRef = useRef(null);
   const userIdRef = useRef(null);
-const lastLikesCountFetchRef = useRef(0);
+  const lastLikesCountFetchRef = useRef(0);
   
-  // Fetch matches and liked count on component mount
-  useEffect(() => {
-    fetchMatchesAndLikes();
-  }, []);
-
-  useEffect(() => {
-    // Listen for match highlight events
-    const handleHighlightMatch = (event) => {
-      const matchedProfile = event.detail?.matchedProfile;
-      if (matchedProfile) {
-        // Refresh matches to show the new match
-        fetchMatchesAndLikes();
-        
-        // Find the match in the list and potentially open the chat
-        const match = matches.find(m => 
-          m._id === matchedProfile._id || 
-          m.name === matchedProfile.name
+  // Get user ID for real-time updates
+  const userId = user?.id || user?.user?.id;
+    // Optimized fetch function with caching and rate limiting
+  const fetchMatchesAndLikes = async (bypassCache = false) => {
+    setLoading(true);
+    try {
+      // Fetch matches with optimization
+      const matchesData = await optimizedApiCall(
+        'matches-with-preview',
+        () => gymbrosService.getMatchesWithPreview(),
+        {
+          cacheTime: 2 * 60 * 1000, // Cache for 2 minutes
+          minInterval: 10 * 1000,   // Minimum 10 seconds between requests
+          bypassCache
+        }
+      );
+      
+      // Process and sort matches
+      const sortedMatches = Array.isArray(matchesData) ? matchesData : [];
+      setMatches(sortedMatches);
+      
+      // Optimized likes count fetch with longer intervals
+      try {
+        const likedCount = await optimizedApiCall(
+          'who-liked-me-count',
+          () => gymbrosService.getWhoLikedMeCount(),
+          {
+            cacheTime: 5 * 60 * 1000, // Cache for 5 minutes
+            minInterval: 60 * 1000,   // Minimum 1 minute between requests
+            bypassCache
+          }
         );
-        
-        if (match) {
-          // Automatically open chat with this match
-          handleOpenChat(match);
+        setLikedMeCount(likedCount);
+      } catch (likeError) {
+        // Handle rate limiting gracefully
+        if (likeError.response?.status === 429) {
+          console.log('Rate limited on likes count, using cached value');
+        } else {
+          console.error('Error fetching who liked me count:', likeError);
         }
       }
-    };
+      
+    } catch (error) {
+      console.error('Error fetching matches:', error);
+      toast.error('Failed to load matches');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Initial fetch and real-time subscription setup
+  useEffect(() => {
+    fetchMatchesAndLikes();
     
-    window.addEventListener('highlightMatch', handleHighlightMatch);
+    let unsubscribeMatches, unsubscribeNewMatches;
+    
+    if (userId) {
+      // Subscribe to match updates (like new messages, match status changes)
+      unsubscribeMatches = subscribeToMatches(userId, (matchUpdate) => {
+        console.log('Match update received:', matchUpdate);
+        
+        setMatches(prevMatches => {
+          const updatedMatches = [...prevMatches];
+          const matchIndex = updatedMatches.findIndex(m => 
+            m._id === matchUpdate.matchId || m.matchId === matchUpdate.matchId
+          );
+          
+          if (matchIndex !== -1) {
+            // Update existing match
+            if (matchUpdate.type === 'new_message') {
+              updatedMatches[matchIndex] = {
+                ...updatedMatches[matchIndex],
+                lastMessage: matchUpdate.message,
+                hasConversation: true
+              };
+            } else if (matchUpdate.type === 'match_removed') {
+              // Remove the match
+              updatedMatches.splice(matchIndex, 1);
+            }
+          }
+          
+          return updatedMatches;
+        });
+      });
+      
+      // Subscribe to completely new matches
+      unsubscribeNewMatches = subscribeToNewMatches(userId, (newMatchData) => {
+        console.log('New match received:', newMatchData);
+        
+        setMatches(prevMatches => {
+          // Check if match already exists
+          const existingMatch = prevMatches.find(m => 
+            m._id === newMatchData.matchId || 
+            m.userId === newMatchData.matchedProfile?.userId
+          );
+          
+          if (!existingMatch) {
+            return [newMatchData.matchedProfile, ...prevMatches];
+          }
+          
+          return prevMatches;
+        });
+        
+        // Clear cache to ensure fresh data on next fetch
+        clearCache('matches-with-preview');
+      });
+    }
     
     return () => {
-      window.removeEventListener('highlightMatch', handleHighlightMatch);
+      if (unsubscribeMatches) unsubscribeMatches();
+      if (unsubscribeNewMatches) unsubscribeNewMatches();
     };
-  }, [matches]);
-  
+  }, [userId]);
+  // Store user ID in ref for guest users
   useEffect(() => {
     // For authenticated users, store the user ID in the ref
     if (user?.id) {
@@ -103,6 +191,37 @@ const lastLikesCountFetchRef = useRef(0);
       }
     }
   }, [user]);
+
+  // Handle match highlight events with real-time integration
+  useEffect(() => {
+    const handleHighlightMatch = (event) => {
+      const matchedProfile = event.detail?.matchedProfile;
+      if (matchedProfile) {
+        // Clear cache and refresh to ensure we get the latest data
+        clearCache('matches-with-preview');
+        fetchMatchesAndLikes(true); // Force bypass cache
+        
+        // Find the match in the list and potentially open the chat
+        setTimeout(() => {
+          const match = matches.find(m => 
+            m._id === matchedProfile._id || 
+            m.name === matchedProfile.name
+          );
+          
+          if (match) {
+            // Automatically open chat with this match
+            handleOpenChat(match);
+          }
+        }, 1000); // Wait for matches to be updated
+      }
+    };
+    
+    window.addEventListener('highlightMatch', handleHighlightMatch);
+    
+    return () => {
+      window.removeEventListener('highlightMatch', handleHighlightMatch);
+    };
+  }, [matches, clearCache]);
 
 useEffect(() => {
   if (matches.length > 0) {
@@ -161,7 +280,7 @@ useEffect(() => {
   }
 }, [matches]);
   
-const fetchMatchesAndLikes = async () => {
+const fetchMatchesAndLikes = async (bypassCache = false) => {
   setLoading(true);
   try {
     // Fetch matches with message preview
@@ -209,14 +328,17 @@ const fetchMatchesAndLikes = async () => {
     setLoading(false);
   }
 };
-  
-  // Pull-to-refresh handler
+    // Optimized refresh handler with cache bypass
   const handleRefresh = async () => {
     if (refreshing) return;
     
     setRefreshing(true);
     try {
-      await fetchMatchesAndLikes();
+      // Clear cache before refreshing
+      clearCache('matches-with-preview');
+      clearCache('who-liked-me-count');
+      
+      await fetchMatchesAndLikes(true); // Force bypass cache
       toast.success('Matches refreshed');
     } catch (error) {
       console.error('Error refreshing matches:', error);
@@ -241,17 +363,18 @@ const fetchMatchesAndLikes = async () => {
       if (matchData === 'auth-required') {
         return navigate('/login');
       }
-      
-      if (!matchData?.matchId) {
+        if (!matchData?.matchId) {
         // Create new match if one doesn't exist
         const newMatch = await gymbrosService.createMatch(targetIdentifier);
         if (!newMatch?.matchId) {
           return toast.error('Could not start conversation');
         }
-        return setSelectedChat({
+        setSelectedChat({
           userInfo: user,
           matchId: newMatch.matchId
         });
+        setIsShowingChat(true);
+        return;
       }
   
       // Open existing chat
@@ -267,17 +390,10 @@ const fetchMatchesAndLikes = async () => {
     }
   };
   
-  // Handle horizontal scroll on matches carousel
-  const handleHorizontalScroll = (direction) => {
-    if (!matchesCarouselRef.current) return;
-    
-    const scrollAmount = 200; // px
-    const currentScroll = matchesCarouselRef.current.scrollLeft;
-    
-    matchesCarouselRef.current.scrollTo({
-      left: direction === 'right' ? currentScroll + scrollAmount : currentScroll - scrollAmount,
-      behavior: 'smooth'
-    });
+  // Handle opening profile modal
+  const handleOpenProfileModal = (profileData) => {
+    setSelectedProfile(profileData);
+    setShowProfileModal(true);
   };
   
   // Handle unlocking who liked me
@@ -491,9 +607,7 @@ const fetchMatchesAndLikes = async () => {
         className="flex overflow-x-auto gap-4 pb-3 scrollbar-hide snap-x snap-mandatory"
       >
         {/* Who Liked You card (first position) */}
-        {renderUnlockCard()}
-        
-        {/* New Matches */}
+        {renderUnlockCard()}          {/* New Matches */}
         {newMatches.length > 0 ? (
           newMatches.map(match => (
             <motion.div
@@ -502,7 +616,7 @@ const fetchMatchesAndLikes = async () => {
               whileHover={{ scale: 1.03 }}
               onClick={() => handleOpenChat(match)}
             >
-              <div className="relative w-28 aspect-[7/10] rounded-lg overflow-hidden shadow-md bg-gray-100">
+              <div className="relative w-28 aspect-[7/10] rounded-lg overflow-hidden shadow-md bg-gray-100 cursor-pointer">
                 <img
                   src={formatImageUrl(match.profileImage || (match.images && match.images[0]))}
                   alt={match.name}
@@ -514,7 +628,7 @@ const fetchMatchesAndLikes = async () => {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-70"></div>
                 <div className="absolute bottom-0 left-0 right-0 p-2">
-                  <p className="text-white text-sm font-semibold truncate">{match.name}, {match.age}</p>
+                  <p className="text-white text-sm font-semibold truncate">{match.name.split(' ')[0]}</p>
                   <div className="flex items-center mt-1">
                     <motion.div
                       animate={{ scale: [1, 1.2, 1] }}
@@ -581,8 +695,7 @@ const renderConversations = () => {
             
             // IMPORTANT: Never show unread count notification badge
             const displayUnreadCount = false;
-            
-            return (
+              return (
               <motion.div
                 key={match._id}
                 whileHover={{ scale: 1.02, backgroundColor: "rgba(249, 250, 251, 1)" }}
@@ -591,7 +704,13 @@ const renderConversations = () => {
               >
                 <div className="p-3 flex items-center">
                   <div className="relative">
-                    <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-gray-100">
+                    <div 
+                      className="w-14 h-14 rounded-full overflow-hidden border-2 border-gray-100 cursor-pointer hover:border-blue-300 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenProfileModal(match);
+                      }}
+                    >
                       <img
                         src={formatImageUrl(match.profileImage || (match.images && match.images[0]))}
                         alt={match.name}
@@ -702,9 +821,22 @@ const renderConversations = () => {
               setSelectedChat(null);
               fetchMatchesAndLikes();
             }}
-          />
-        )}
-      </AnimatePresence>
+          />        )}
+      </AnimatePresence>      {/* Profile Detail Modal */}
+      <ProfileDetailModal 
+        profile={selectedProfile}
+        isVisible={showProfileModal}
+        onClose={() => {
+          setShowProfileModal(false);
+          setSelectedProfile(null);
+        }}
+        isMatch={true}
+        userProfile={user}
+        fullScreen={true}
+        onLike={() => {}}
+        onDislike={() => {}}
+        onSuperLike={() => {}}
+      />
     </div>
   );
 };

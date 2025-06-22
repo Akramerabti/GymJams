@@ -3,40 +3,79 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, Clock, X } from 'lucide-react';
 import gymbrosService from '../../../services/gymbros.service';
+import useApiOptimization from '../../../hooks/useApiOptimization';
+import useRealtimeUpdates from '../../../hooks/useRealtimeUpdates';
+import useAuthStore from '../../../stores/authStore';
 
 const ActiveBoostNotification = () => {
+  const { user } = useAuthStore();
+  const { optimizedApiCall } = useApiOptimization();
+  const { subscribeToBoosts } = useRealtimeUpdates();
+  
   const [activeBoost, setActiveBoost] = useState(null);
   const [isVisible, setIsVisible] = useState(true);
   const [timeRemaining, setTimeRemaining] = useState('');
   
-  // Fetch active boosts on mount
-  useEffect(() => {
-    const fetchBoosts = async () => {
-      try {
-        const boosts = await gymbrosService.getActiveBoosts();
-        
-        if (boosts && boosts.length > 0) {
-          // Get the boost with the highest factor
-          const highestBoost = boosts.reduce((prev, current) => 
-            (prev.boostFactor > current.boostFactor) ? prev : current
-          );
-          
-          setActiveBoost(highestBoost);
-        } else {
-          setActiveBoost(null);
+  // Get user ID for real-time updates
+  const userId = user?.id || user?.user?.id;
+  
+  // Fetch active boosts with optimization
+  const fetchBoosts = async () => {
+    try {
+      const boosts = await optimizedApiCall(
+        'active-boosts',
+        () => gymbrosService.getActiveBoosts(),
+        {
+          cacheTime: 2 * 60 * 1000, // Cache for 2 minutes
+          minInterval: 30 * 1000,   // Minimum 30 seconds between requests
         }
-      } catch (error) {
-        console.error('Error fetching active boosts:', error);
+      );
+      
+      if (boosts && boosts.length > 0) {
+        // Get the boost with the highest factor
+        const highestBoost = boosts.reduce((prev, current) => 
+          (prev.boostFactor > current.boostFactor) ? prev : current
+        );
+        
+        setActiveBoost(highestBoost);
+      } else {
+        setActiveBoost(null);
       }
-    };
-    
+    } catch (error) {
+      console.error('Error fetching active boosts:', error);
+    }
+  };
+  
+  // Initial fetch and real-time subscription
+  useEffect(() => {
     fetchBoosts();
     
-    // Poll for active boosts every minute
-    const interval = setInterval(fetchBoosts, 60000);
+    // Subscribe to real-time boost updates if user is authenticated
+    let unsubscribe;
+    if (userId) {
+      unsubscribe = subscribeToBoosts(userId, (boostData) => {
+        console.log('Received boost update:', boostData);
+        
+        if (boostData.type === 'boost_activated') {
+          setActiveBoost(boostData.boost);
+        } else if (boostData.type === 'boost_expired') {
+          setActiveBoost(null);
+        } else if (boostData.type === 'boost_updated') {
+          setActiveBoost(boostData.boost);
+        }
+      });
+    }
     
-    return () => clearInterval(interval);
-  }, []);
+    // Fallback polling with much longer interval (5 minutes)
+    const fallbackInterval = setInterval(() => {
+      fetchBoosts();
+    }, 5 * 60 * 1000);
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+      clearInterval(fallbackInterval);
+    };
+  }, [userId]);
   
   // Update time remaining every second
   useEffect(() => {

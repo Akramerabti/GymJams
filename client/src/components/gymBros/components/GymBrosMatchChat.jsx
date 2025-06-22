@@ -1,25 +1,27 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, ArrowLeft, Image, X, Loader2, MapPin, Calendar, Award, Flag, Phone } from 'lucide-react';
+import { Send, ArrowLeft, Image, X, Loader2, MapPin, Calendar, Award, Flag, Phone, MoreVertical, Trash2, ArrowUp } from 'lucide-react';
 import { format, parseISO, isSameDay, formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { useSocket } from '../../../SocketContext';
 import useAuthStore from '../../../stores/authStore';
 import gymbrosService from '../../../services/gymbros.service';
+import ProfileDetailModal from './ProfileDetailModal';
 
 const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
   const { user } = useAuthStore();
   const { socket, connected: socketConnected } = useSocket();
-  
-  const [messages, setMessages] = useState([]);
+    const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [files, setFiles] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedProfile, setExpandedProfile] = useState(false);
-  
-  // Refs
+  const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [isRemovingMatch, setIsRemovingMatch] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+    // Refs
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -27,6 +29,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
   const processedMessageIds = useRef(new Set());
   const userIdRef = useRef(null);
   const seenContentMessages = useRef(new Map()); // Changed to Map to store timestamps
+  const optionsMenuRef = useRef(null);
   
   // Debug flag to help troubleshoot
   const DEBUG = true;
@@ -69,88 +72,14 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
-  
-  // Check if user is at bottom of chat
-  const isAtBottom = useCallback(() => {
-    if (!chatContainerRef.current) return true;
-    const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
-    return scrollHeight - (scrollTop + clientHeight) < 50;
-  }, []);
 
-  // Create a message deduplication key
-  const createMessageKey = (message) => {
-    const sender = normalizeId(message.sender);
-    const content = message.content || '';
-    const timestamp = message.timestamp ? new Date(message.timestamp).getTime() : Date.now();
-    return `${sender}:${content}:${timestamp}`;
-  };
-
-  // Modified addMessageWithDeduplication function with better logging
-  const addMessageWithDeduplication = useCallback((newMessage, currentMessages) => {
-    if (DEBUG) console.log('Processing message:', newMessage);
-    
-    // Skip if already processed by ID (if it has an ID)
-    if (newMessage._id && processedMessageIds.current.has(newMessage._id)) {
-      if (DEBUG) console.log('Skipping duplicate message by ID:', newMessage._id);
-      return currentMessages;
-    }
-    
-    // Create a content key for deduplication
-    const messageKey = createMessageKey(newMessage);
-    
-    // Check for content-based duplicates with time expiration
-    const now = Date.now();
-    const recentContentSeen = seenContentMessages.current.get(messageKey);
-    
-    if (recentContentSeen && (now - recentContentSeen) < 5000) { // 5 second window
-      if (DEBUG) console.log('Skipping duplicate message by content (within 5s):', messageKey);
-      return currentMessages;
-    }
-    
-    // Update tracking data
-    if (newMessage._id) {
-      processedMessageIds.current.add(newMessage._id);
-    }
-    seenContentMessages.current.set(messageKey, now);
-    
-    // Clean up old entries from the seenContentMessages map
-    // Remove entries older than 10 seconds
-    for (const [key, timestamp] of seenContentMessages.current.entries()) {
-      if (now - timestamp > 10000) {
-        seenContentMessages.current.delete(key);
-      }
-    }
-    
-    // Check for pending messages to replace
-    if (!newMessage.pending) {
-      const pendingIndex = currentMessages.findIndex(msg => 
-        msg.pending && 
-        normalizeId(msg.sender) === normalizeId(newMessage.sender) && 
-        msg.content === newMessage.content &&
-        Math.abs(new Date(msg.timestamp) - new Date(newMessage.timestamp)) < 15000 // Extended to 15 seconds
-      );
-      
-      if (pendingIndex >= 0) {
-        if (DEBUG) console.log('Replacing pending message with confirmed message');
-        const updatedMessages = [...currentMessages];
-        updatedMessages[pendingIndex] = newMessage;
-        return updatedMessages;
-      }
-    }
-    
-    // Add new message
-    if (DEBUG) console.log('Adding new message to state:', newMessage);
-    return [...currentMessages, newMessage];
-  }, []);
-
-  // Reset deduplication tracking when component mounts
   useEffect(() => {
     if (DEBUG) console.log('Resetting deduplication tracking');
     processedMessageIds.current.clear();
     seenContentMessages.current.clear();
   }, [matchId]);
 
-  // Fetch messages effect with deduplication
+
   useEffect(() => {
     const fetchMessages = async () => {
       try {
@@ -432,11 +361,27 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
       }
     };
   }, [newMessage, socket, socketConnected, isTyping, userId, otherUserId, matchId]);
-  
-  // Auto-scroll when messages change
+    // Auto-scroll when messages change
   useEffect(() => {
     scrollToBottom();
   }, [messages, otherUserTyping, scrollToBottom]);
+
+  // Click away listener for options menu
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (optionsMenuRef.current && !optionsMenuRef.current.contains(event.target)) {
+        setShowOptionsMenu(false);
+      }
+    };
+
+    if (showOptionsMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showOptionsMenu]);
 
   // Determine guest user ID effect
   useEffect(() => {
@@ -625,7 +570,6 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
       return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
     }
   };
-
   // Report user handler
   const handleReportUser = () => {
     toast('Report submitted', {
@@ -635,6 +579,33 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     
     // Close modal
     setExpandedProfile(false);
+  };
+  // Handle Enter key press
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+  // Remove match handler
+  const handleRemoveMatch = async () => {
+    if (isRemovingMatch) return;
+
+    setIsRemovingMatch(true);
+    try {
+      await gymbrosService.removeMatch(matchId);
+      
+      toast.success('Match removed successfully');
+      
+      // Close the chat and go back to matches list
+      onClose();
+    } catch (error) {
+      console.error('Error removing match:', error);
+      toast.error('Failed to remove match. Please try again.');
+    } finally {
+      setIsRemovingMatch(false);
+      setShowOptionsMenu(false);
+    }
   };
 
   // Sort and group messages by date
@@ -686,7 +657,6 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     `I usually work out in the ${otherUserInfo?.preferredTime?.toLowerCase() || 'evening'}. Does that work for you too?`,
     "Looking for a workout buddy this weekend. Interested?",
   ];
-
   return (
     <motion.div
       initial={{ x: '100%' }}
@@ -694,53 +664,94 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
       exit={{ x: '100%' }}
       transition={{ type: 'tween', ease: 'easeInOut', duration: 0.3 }}
       className="fixed inset-0 bg-white z-[9999] flex flex-col"
-    >
-      {/* Chat Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-4 shadow-md">
-        <div className="flex items-center">
-          <button onClick={onClose} className="text-white p-2">
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          
-          {/* Profile info and toggle */}
-          <div 
-            className="flex items-center ml-3 cursor-pointer"
-            onClick={() => setExpandedProfile(!expandedProfile)}
-          >
-            <img
-              src={formatImageUrl(otherUserInfo.profileImage || (otherUserInfo.images && otherUserInfo.images[0]))}
-              alt={otherUserInfo.name}
-              className="w-10 h-10 rounded-full object-cover border-2 border-white"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = "/api/placeholder/400/400";
+    >      {/* Fixed Top Bar - positioned below navbar */}
+      <div className="fixed top-16 left-0 right-0 bg-white border-b border-gray-200 p-4 shadow-sm z-[9998]">
+        <div className="flex items-center justify-between max-w-2xl mx-auto">
+          {/* Left side - Back arrow and profile */}
+          <div className="flex items-center">
+            <button 
+              onClick={onClose} 
+              className="text-gray-600 hover:text-gray-800 p-1 rounded-full hover:bg-gray-100 transition-colors mr-3"
+            >
+              <ArrowLeft className="w-6 h-6" />
+            </button>              <div 
+              className="flex items-center cursor-pointer"
+              onClick={() => {
+                setShowProfileModal(true);
+                setShowOptionsMenu(false);
               }}
-            />
-            <div className="ml-3 text-white">
-              <h3 className="font-semibold">{otherUserInfo.name}, {otherUserInfo.age}</h3>
-              <p className="text-xs text-white/80">
-                {otherUserInfo.lastActive ? formatDistanceToNow(new Date(otherUserInfo.lastActive), { addSuffix: true }) : 'Offline'}
-              </p>
+            >
+              <img
+                src={formatImageUrl(otherUserInfo?.profileImage || (otherUserInfo?.images && otherUserInfo?.images[0]))}
+                alt={otherUserInfo?.name || 'User'}
+                className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 hover:border-blue-300 transition-colors"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = "/api/placeholder/400/400";
+                }}
+              /><div className="ml-3">
+                <h3 className="font-semibold text-gray-900">{otherUserInfo?.name}{otherUserInfo?.age ? `, ${otherUserInfo.age}` : ''}</h3>
+                <p className="text-xs text-gray-500">
+                  {otherUserInfo?.lastActive ? formatDistanceToNow(new Date(otherUserInfo.lastActive), { addSuffix: true }) : 'Offline'}
+                </p>
+              </div>
             </div>
           </div>
-          
-          {!socketConnected && (
-            <div className="ml-auto rounded-full bg-red-500 px-3 py-1 text-xs text-white">
-              Reconnecting...
-            </div>
-          )}
+            {/* Right side - Options menu */}
+          <div className="relative" ref={optionsMenuRef}>
+            <button
+              onClick={() => setShowOptionsMenu(!showOptionsMenu)}
+              className="text-gray-600 hover:text-gray-800 p-2 rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <MoreVertical className="w-5 h-5" />
+            </button>
+            
+            {/* Options dropdown */}
+            <AnimatePresence>
+              {showOptionsMenu && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
+                >                  <div className="py-2">                    <button
+                      onClick={() => {
+                        setShowProfileModal(true);
+                        setShowOptionsMenu(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      View Profile
+                    </button>
+                    <div className="border-t border-gray-100 my-1"></div>
+                    <button
+                      onClick={handleRemoveMatch}
+                      disabled={isRemovingMatch}
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center disabled:opacity-50"
+                    >
+                      {isRemovingMatch ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4 mr-2" />
+                      )}
+                      Remove Match
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>          </div>
         </div>
       </div>
       
       {/* Expanded profile section */}
-      <AnimatePresence>
-        {expandedProfile && (
+      <AnimatePresence>        {expandedProfile && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3 }}
-            className="overflow-hidden bg-gray-50 border-b"
+            className="fixed top-32 left-0 right-0 bg-gray-50 border-b z-[9997] overflow-hidden"
           >
             <div className="p-4">
               <div className="flex items-center">
@@ -808,12 +819,10 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
             </div>
           </motion.div>
         )}
-      </AnimatePresence>
-
-      {/* Chat Message Container */}
+      </AnimatePresence>      {/* Chat Message Container */}
       <div
         ref={chatContainerRef}
-        className="flex-1 p-4 overflow-y-auto"
+        className={`flex-1 p-4 overflow-y-auto ${expandedProfile ? 'pt-96' : 'pt-24'}`}
       >
         {isLoading ? (
           <div className="h-full flex items-center justify-center">
@@ -1037,8 +1046,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
             ))}
           </div>
         )}
-        
-        {/* Message form */}
+          {/* Message form */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -1061,18 +1069,29 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
+            onKeyDown={handleKeyDown}
+            placeholder="Type a message... (Press Enter to send)"
             className="flex-1 rounded-full px-4 py-2 border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors"
           />
           <button
             type="submit"
-            disabled={(!newMessage.trim() && files.length === 0) || !socketConnected}
-            className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-2 w-10 h-10 flex items-center justify-center shadow-md transition-colors disabled:bg-gray-400"
+            disabled={(!newMessage.trim() && files.length === 0)}
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-2 w-10 h-10 flex items-center justify-center shadow-md transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            <Send className="w-5 h-5" />
-          </button>
-        </form>
-      </div>
+            <ArrowUp className="w-5 h-5" />
+          </button>        </form>
+      </div>      {/* Profile Detail Modal */}
+      <ProfileDetailModal 
+        profile={otherUserInfo}
+        isVisible={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        isMatch={true}
+        userProfile={user}
+        fullScreen={true}
+        onLike={() => {}}
+        onDislike={() => {}}
+        onSuperLike={() => {}}
+      />
     </motion.div>
   );
 };

@@ -20,24 +20,25 @@ const ProfileDetailModal = ({
   isMatch = false,
   isPremium = false,
   distanceUnit = 'miles',
-  userProfile
+  userProfile,
+  fullScreen = false // New prop to control full screen vs overlay
 }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [activeTab, setActiveTab] = useState('about');
   const [animateDirection, setAnimateDirection] = useState('right');
   const [isImageFullscreen, setIsImageFullscreen] = useState(false);
-  
-  // Reset image index when profile changes
+    // Reset image index when profile changes
   useEffect(() => {
     setCurrentImageIndex(0);
     setActiveTab('about');
   }, [profile?._id]);
 
-  if (!profile) return null;
-
   const compatibilityScores = useMemo(() => {
+    if (!userProfile || !profile) return {};
     return calculateCompatibility(userProfile, profile);
   }, [userProfile, profile]);
+
+  if (!profile) return null;
     // Format image URL
   const formatImageUrl = (imageUrl) => {
     if (!imageUrl) return "/fallback.svg";
@@ -84,7 +85,7 @@ const ProfileDetailModal = ({
   // Handle tab change with animation direction
   const changeTab = (newTab) => {
     // Set animation direction based on tab order
-    const tabOrder = ['about', 'photos', 'interests', 'compatibility'];
+    const tabOrder = ['about', 'compatibility'];
     const currentIndex = tabOrder.indexOf(activeTab);
     const newIndex = tabOrder.indexOf(newTab);
     
@@ -266,54 +267,7 @@ const ProfileDetailModal = ({
     </div>
   );
   
-  // Photos Tab Content
-  const PhotosTabContent = () => (
-    <div className="p-5">
-      <h3 className="text-lg font-semibold mb-3">Photos</h3>
-      <div className="grid grid-cols-3 gap-2">
-        {profile.images && profile.images.length > 0 ? (
-          profile.images.map((image, index) => (
-            <div 
-              key={index} 
-              className="aspect-square rounded-lg overflow-hidden cursor-pointer relative group"
-              onClick={() => {
-                setCurrentImageIndex(index);
-                setIsImageFullscreen(true);
-              }}
-            >
-              <img 
-                src={formatImageUrl(image)} 
-                alt={`${profile.name} ${index + 1}`}
-                className="w-full h-full object-cover transition-transform group-hover:scale-105"                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = "/fallback.svg";
-                }}
-              />
-              {/* Primary photo indicator */}
-              {index === 0 && (
-                <div className="absolute bottom-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
-                  Primary
-                </div>
-              )}
-              
-              {/* View fullscreen overlay */}
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                <div className="bg-white/30 backdrop-blur-sm p-1.5 rounded-full">
-                  <Camera size={18} className="text-white" />
-                </div>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="col-span-3 text-center py-10 text-gray-500">
-            No photos available
-          </div>
-        )}
-      </div>
-    </div>
-  );
-  
-
+  // Photos Tab Content  
 const CompatibilityTabContent = () => (
   <div className="p-5">
     <h3 className="text-lg font-semibold mb-3">Match Compatibility</h3>
@@ -437,9 +391,8 @@ const CompatibilityTabContent = () => (
   // Fullscreen Image Modal
   const ImageFullscreenModal = () => (
     <AnimatePresence>
-      {isImageFullscreen && (
-        <motion.div 
-          className="fixed inset-0 z-[60] bg-black flex items-center justify-center"
+      {isImageFullscreen && (        <motion.div 
+          className="fixed inset-0 z-[10001] bg-black flex items-center justify-center"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -523,85 +476,115 @@ const CompatibilityTabContent = () => (
       )}
     </AnimatePresence>
   );
-
   return (
     <AnimatePresence>
       {isVisible && (
         <motion.div
-          className="fixed inset-0 z-50 w-full h-full max-w-xl mx-auto"
+          className={fullScreen ? "fixed inset-0 z-[10000] bg-white" : "fixed inset-0 z-50 w-full h-full max-w-xl mx-auto"}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={onClose}
+          onClick={fullScreen ? undefined : onClose}
         >
           <motion.div
-            className="bg-white w-full h-[calc(100vh-136px)] overflow-hidden flex flex-col"
-            initial={{ y: 20, opacity: 0 }}
+            className={fullScreen 
+              ? "bg-white w-full h-full overflow-y-auto flex flex-col modal-scrollable" 
+              : "bg-white w-full h-[calc(100vh-136px)] overflow-y-auto flex flex-col modal-scrollable"
+            }
+            initial={{ y: fullScreen ? "100%" : 20, opacity: fullScreen ? 1 : 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 20, opacity: 0 }}
+            exit={{ y: fullScreen ? "100%" : 20, opacity: fullScreen ? 1 : 0 }}
+            transition={{ type: fullScreen ? 'tween' : 'spring', ease: 'easeInOut', duration: fullScreen ? 0.3 : 0.2 }}
             onClick={e => e.stopPropagation()}
-          >
-            {/* Header with image */}
-            <div className="relative h-96 bg-gray-200">
-              <img
-                src={currentImage}
-                alt={profile.name}
-                className="w-full h-full object-cover cursor-pointer"
-                onClick={() => setIsImageFullscreen(true)}
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = "/api/placeholder/400/300";
-                }}
-              />
-              
-              {/* Image navigation */}
-              {profile.images && profile.images.length > 1 && (
-                <>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (currentImageIndex > 0) {
-                        setCurrentImageIndex(currentImageIndex - 1);
-                      }
-                    }}
-                    className={`absolute top-1/2 left-2 transform -translate-y-1/2 p-2 rounded-full bg-white/30 backdrop-blur-sm text-white ${
-                      currentImageIndex === 0 ? 'opacity-30 cursor-not-allowed' : 'opacity-80 hover:opacity-100'
-                    }`}
-                    disabled={currentImageIndex === 0}
-                  >
-                    <ChevronLeft size={24} />
-                  </button>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (currentImageIndex < profile.images.length - 1) {
-                        setCurrentImageIndex(currentImageIndex + 1);
-                      }
-                    }}
-                    className={`absolute top-1/2 right-2 transform -translate-y-1/2 p-2 rounded-full bg-white/30 backdrop-blur-sm text-white ${
-                      currentImageIndex === profile.images.length - 1 ? 'opacity-30 cursor-not-allowed' : 'opacity-80 hover:opacity-100'
-                    }`}
-                    disabled={currentImageIndex === profile.images.length - 1}
-                  >
-                    <ChevronRight size={24} />
-                  </button>
-                </>
-              )}
-              
-              {/* Image indicators */}
-              {profile.images && profile.images.length > 1 && (
-                <div className="absolute top-2 left-0 right-0 flex justify-center gap-1">
-                  {profile.images.map((_, index) => (
-                    <div 
-                      key={index}
-                      className={`h-1 rounded-full transition-all duration-300 ${
-                        index === currentImageIndex ? 'bg-white w-6' : 'bg-white/50 w-2'
+            style={{ 
+              scrollbarWidth: 'none', 
+              msOverflowStyle: 'none'
+            }}
+          >            <style>{`
+              .modal-scrollable::-webkit-scrollbar {
+                display: none;
+              }
+            `}</style>
+            
+            {/* Top navigation bar for fullScreen mode */}
+            {fullScreen && (
+              <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between sticky top-0 z-10">
+                <button 
+                  onClick={onClose}
+                  className="flex items-center justify-center p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+                >
+                  <ArrowLeft size={20} className="text-gray-700" />
+                </button>
+                <h1 className="text-lg font-semibold text-gray-900">{profile.name?.split(' ')[0]}</h1>
+                <div className="w-10"></div> {/* Spacer for centering */}
+              </div>
+            )}
+
+            {/* Header with image */}            <div className="relative bg-white flex justify-center items-center" style={{ height: '400px' }}>
+              <div className="relative w-64 h-full">
+                <img
+                  src={currentImage}
+                  alt={profile.name}
+                  className="w-full h-full object-cover rounded-lg cursor-pointer shadow-lg"
+                  style={{ aspectRatio: '7/10' }}
+                  onClick={() => setIsImageFullscreen(true)}
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "/api/placeholder/400/300";
+                  }}
+                />
+                
+                {/* Enhanced Image navigation */}
+                {profile.images && profile.images.length > 1 && (
+                  <>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (currentImageIndex > 0) {
+                          setCurrentImageIndex(currentImageIndex - 1);
+                        }
+                      }}                      className={`absolute top-1/2 -left-12 transform -translate-y-1/2 p-2 rounded-full bg-gray-600/80 backdrop-blur-sm text-white hover:bg-gray-500/80 transition-all ${
+                        currentImageIndex === 0 ? 'opacity-30 cursor-not-allowed' : 'opacity-80 hover:opacity-100'
                       }`}
-                    />
-                  ))}
-                </div>
-              )}
-              
+                      disabled={currentImageIndex === 0}
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (currentImageIndex < profile.images.length - 1) {
+                          setCurrentImageIndex(currentImageIndex + 1);
+                        }
+                      }}                      className={`absolute top-1/2 -right-12 transform -translate-y-1/2 p-2 rounded-full bg-gray-600/80 backdrop-blur-sm text-white hover:bg-gray-500/80 transition-all ${
+                        currentImageIndex === profile.images.length - 1 ? 'opacity-30 cursor-not-allowed' : 'opacity-80 hover:opacity-100'
+                      }`}
+                      disabled={currentImageIndex === profile.images.length - 1}
+                    >
+                      <ChevronRight size={20} />
+                    </button>
+                  </>
+                )}
+                  {/* Image dots indicator - positioned at bottom center of image */}
+                {profile.images && profile.images.length > 1 && (
+                  <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex justify-center gap-2">
+                    {profile.images.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentImageIndex(index);
+                        }}
+                        className={`w-2 h-2 rounded-full transition-all duration-300 hover:scale-125 ${
+                          index === currentImageIndex 
+                            ? 'bg-gray-800 scale-110' 
+                            : 'bg-gray-600 hover:bg-gray-700'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>              
               {/* Header controls */}
               <div className="absolute top-0 left-0 right-0 p-3 flex justify-between items-center">
                 {/* Back Button */}
@@ -615,8 +598,6 @@ const CompatibilityTabContent = () => (
                       className="text-gray-100 group-hover:-translate-x-0.5 group-hover:scale-105 transition-all duration-300" 
                       strokeWidth={2.3}
                     />
-
-                    {/* Subtle glow effect */}
                     <span className="absolute inset-0 rounded-full bg-gradient-to-br from-white/10 to-white/5 group-hover:from-white/20 group-hover:to-white/10 transition-all duration-300" />
                   </button>
                 </div>
@@ -635,37 +616,31 @@ const CompatibilityTabContent = () => (
                       className="text-blue-100 group-hover:rotate-12 group-hover:scale-105 transition-all duration-300" 
                       strokeWidth={2.3}
                     />
-
-                    {/* Subtle glow effect */}
                     <span className="absolute inset-0 rounded-full bg-gradient-to-br from-white/10 to-white/5 group-hover:from-white/20 group-hover:to-white/10 transition-all duration-300" />
                   </button>
                 </div>
               </div>
-              
-              {/* User info overlay */}
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-4 text-white">
-                <div className="flex items-center">
-                  <h2 className="text-2xl font-bold mr-2">{profile.name}</h2>
-                  <span className="text-xl">{profile.age}</span>
+            </div>            {/* Profile Info Section */}
+            <div className="px-6 py-4 bg-white border-b border-gray-100">
+              <div className="text-center">
+                <div className="flex items-center justify-center mb-2">
+                  <h2 className="text-2xl font-bold text-gray-900">{profile.name?.split(' ')[0]}</h2>
+                  {/* Green dot for active users - positioned right after first name */}
+                  {profile.lastActive && new Date() - new Date(profile.lastActive) < 15 * 60 * 1000 && (
+                    <div className="ml-2 w-3 h-3 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>
+                  )}
+                  <span className="text-xl text-gray-600 ml-2">{profile.age}</span>
                   {profile.verified && (
-                    <div className="ml-2 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center text-xs">✓</div>
+                    <div className="ml-2 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center text-xs text-white">✓</div>
                   )}
                 </div>
-                
-                <ActiveStatus 
-                  lastActive={profile.lastActive} 
-                  textColorClass="text-green-300" 
-                  dotColorClass="bg-green-500"
-                />
-                
-                <div className="flex items-center mt-1">
+                  <div className="flex items-center justify-center text-gray-600 mb-2">
                   <MapPin size={16} className="mr-1" />
                   <span>{profile.location?.distance || 0} {distanceUnit} away</span>
                 </div>
               </div>
             </div>
-            
-            {/* Tab navigation */}
+              {/* Tab navigation */}
             <div className="flex border-b overflow-x-auto">
               <TabButton 
                 tab="about" 
@@ -679,17 +654,8 @@ const CompatibilityTabContent = () => (
                 icon={<Activity size={18} />} 
                 current={activeTab} 
               />
-              <TabButton 
-                tab="photos" 
-                label="Photos" 
-                icon={<Camera size={18} />} 
-                current={activeTab} 
-              />
-              
-            </div>
-            
-            {/* Tab content */}
-            <div className="flex-1 overflow-y-auto">
+            </div>            {/* Tab content */}
+            <div className="pb-4">
               <AnimatePresence custom={animateDirection} mode="wait">
                 <motion.div
                   key={activeTab}
@@ -701,7 +667,6 @@ const CompatibilityTabContent = () => (
                   transition={{ duration: 0.3 }}
                 >
                   {activeTab === 'about' && <AboutTabContent />}
-                  {activeTab === 'photos' && <PhotosTabContent />}
                   {activeTab === 'compatibility' && <CompatibilityTabContent />}
                 </motion.div>
               </AnimatePresence>
@@ -765,26 +730,7 @@ const CompatibilityTabContent = () => (
                   <Heart size={24} className="mr-2" />
                   <span>Like</span>
                 </button>
-              </div>
-            )}
-            
-            {/* Message button for matched profiles */}
-            {isMatch && (
-              <div className="p-4 pt-0">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onClose();
-                    // Navigate to messages with this match
-                    toast.success(`Starting conversation with ${profile.name}`);
-                  }}
-                  className="w-full flex items-center justify-center rounded-full bg-green-500 text-white py-3"
-                >
-                  <MessageCircle size={20} className="mr-2" />
-                  <span>Send Message</span>
-                </button>
-              </div>
-            )}
+              </div>            )}
           </motion.div>
           
           {/* Fullscreen image viewer */}

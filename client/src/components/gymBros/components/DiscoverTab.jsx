@@ -12,6 +12,8 @@ import SwipeableCard from './SwipeableCard';
 import gymbrosService from '../../../services/gymbros.service';
 import { usePoints } from '../../../hooks/usePoints';
 import useAuthStore from '../../../stores/authStore';
+import useApiOptimization from '../../../hooks/useApiOptimization';
+import useRealtimeUpdates from '../../../hooks/useRealtimeUpdates';
 import ActiveBoostNotification from './ActiveBoostNotification';
 
 // Premium feature costs
@@ -33,7 +35,10 @@ const DiscoverTab = ({
   onNavigateToMatches
 }) => {
   const { balance: pointsBalance, subtractPoints, updatePointsInBackend } = usePoints();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
+  const { optimizedApiCall, debouncedApiCall, clearCache } = useApiOptimization();
+  const { subscribeToNewMatches } = useRealtimeUpdates();
+  
   const [profiles, setProfiles] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showProfileDetail, setShowProfileDetail] = useState(false);
@@ -58,8 +63,10 @@ const DiscoverTab = ({
   
   // Container ref for pull-to-refresh
   const containerRef = useRef(null);
-
-  // Initialize with initial profiles only once
+  
+  // Get user ID for real-time updates
+  const userId = user?.id || user?.user?.id;
+  // Initialize with initial profiles and set up real-time updates
   useEffect(() => {
     if (initialProfiles && Array.isArray(initialProfiles) && initialProfiles.length > 0) {
       console.log('DiscoverTab: Setting profiles from initialProfiles:', initialProfiles.length);
@@ -67,7 +74,21 @@ const DiscoverTab = ({
       setCurrentIndex(initialIndex || 0);
       setNetworkError(false);
     }
-  }, []); // Empty dependency array - only run on mount
+    
+    // Subscribe to new matches to clear profile cache when needed
+    let unsubscribeNewMatches;
+    if (userId) {
+      unsubscribeNewMatches = subscribeToNewMatches(userId, (newMatchData) => {
+        console.log('New match in discover tab:', newMatchData);
+        // Clear profiles cache to ensure fresh data
+        clearCache('recommended-profiles');
+      });
+    }
+    
+    return () => {
+      if (unsubscribeNewMatches) unsubscribeNewMatches();
+    };
+  }, [initialProfiles, initialIndex, userId, clearCache]); // Updated dependencies
   
   useEffect(() => {
     if (profiles.length > 0 && currentIndex < profiles.length) {
@@ -107,18 +128,24 @@ const DiscoverTab = ({
       }, 500);
     }
   }, [currentIndex, profiles.length, isTransitioning]);
-
-  // Load more profiles when running low
+  // Optimized load more profiles with caching
   const loadMoreProfiles = async () => {
     if (loadingMoreProfiles || !hasMoreProfiles) return;
   
     setLoadingMoreProfiles(true);
   
     try {
-      const moreProfiles = await gymbrosService.getRecommendedProfiles({
-        ...filters,
-        skip: profiles.length
-      });
+      const moreProfiles = await optimizedApiCall(
+        `recommended-profiles-skip-${profiles.length}`,
+        () => gymbrosService.getRecommendedProfiles({
+          ...filters,
+          skip: profiles.length
+        }),
+        {
+          cacheTime: 30 * 1000, // Cache for 30 seconds
+          minInterval: 5 * 1000, // Minimum 5 seconds between requests
+        }
+      );
   
       if (moreProfiles.length > 0) {
         setProfiles(prev => [...prev, ...moreProfiles]);
@@ -133,16 +160,23 @@ const DiscoverTab = ({
       setLoadingMoreProfiles(false);
     }
   };
-  
+    // Optimized refresh with cache clearing
   const handleRefresh = async () => {
     if (refreshing) return;
     
     setRefreshing(true);
     
     try {
-      // Clear existing profiles and fetch new ones
+      // Clear existing profiles and cache
       setProfiles([]);
       setCurrentIndex(0);
+      
+      // Clear all profile-related cache
+      clearCache('recommended-profiles');
+      // Clear any skip-based cache entries
+      for (let i = 0; i < 100; i += 10) {
+        clearCache(`recommended-profiles-skip-${i}`);
+      }
       
       // Use the fetchProfiles prop which now points to fetchProfilesWithFilters
       if (fetchProfiles && typeof fetchProfiles === 'function') {
@@ -248,26 +282,38 @@ const DiscoverTab = ({
       });
   
       // Set forceDirection - this triggers the card animation
-      setForceSwipeDirection(direction);
-  
-      // Handle like/dislike API calls
+      setForceSwipeDirection(direction);      // Handle like/dislike API calls with debouncing for rapid swipes
       let matchResult = false;
-  
+
       if (direction === 'right') {
-        // Handle like
-        const response = await gymbrosService.likeProfile(profileId, viewDuration);
+        // Handle like with debouncing to prevent rapid-fire requests
+        const response = await debouncedApiCall(
+          `like-profile-${profileId}-${Date.now()}`,
+          () => gymbrosService.likeProfile(profileId, viewDuration),
+          {
+            debounceDelay: 200, // 200ms debounce for swipes
+            minInterval: 500,   // Minimum 500ms between actual API calls
+          }
+        );
         console.log('Like response received:', response);
-  
+
         // Check if it's a match
         matchResult = response.match === true;
-  
+
         // Provide feedback
         if (navigator.vibrate) {
           navigator.vibrate(20);
         }
       } else if (direction === 'left') {
-        // Handle dislike
-        await gymbrosService.dislikeProfile(profileId, viewDuration);
+        // Handle dislike with debouncing
+        await debouncedApiCall(
+          `dislike-profile-${profileId}-${Date.now()}`,
+          () => gymbrosService.dislikeProfile(profileId, viewDuration),
+          {
+            debounceDelay: 200,
+            minInterval: 500,
+          }
+        );
       } else if (direction === 'super') {
         // Handle super like
         if (!isAuthenticated) {
@@ -288,10 +334,15 @@ const DiscoverTab = ({
   
         // Deduct points for super like
         subtractPoints(PREMIUM_FEATURES.SUPERSTAR);
-        updatePointsInBackend(-PREMIUM_FEATURES.SUPERSTAR);
-  
-        // Perform the like
-        const response = await gymbrosService.likeProfile(profileId, viewDuration);
+        updatePointsInBackend(-PREMIUM_FEATURES.SUPERSTAR);        // Perform the like with debouncing
+        const response = await debouncedApiCall(
+          `super-like-profile-${profileId}-${Date.now()}`,
+          () => gymbrosService.likeProfile(profileId, viewDuration),
+          {
+            debounceDelay: 200,
+            minInterval: 500,
+          }
+        );
   
         // Check if it's a match
         matchResult = response.match === true;

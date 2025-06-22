@@ -15,6 +15,7 @@ import {
   likeGymBrosProfile,
   dislikeGymBrosProfile,
   getGymBrosMatches,
+  removeMatch,
   updateUserPreferences,
   getUserSettings,
   updateUserSettings,
@@ -115,6 +116,9 @@ router.post('/dislike/:profileId', optionalAuthenticate, dislikeGymBrosProfile);
 
 // Get user matches - works with guests
 router.get('/matches', optionalAuthenticate, getGymBrosMatches);
+
+// Remove a match - works with guests  
+router.delete('/matches/:matchId', optionalAuthenticate, removeMatch);
 
 // Get count of users who liked me
 router.get('/who-liked-me/count', optionalAuthenticate, getWhoLikedMeCount);
