@@ -9,7 +9,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../services/api';
 import Onboarding from '../../pages/Onboarding';
 
-// Country codes data
 const countryCodes = [
   { code: '1', name: 'United States', flag: '🇺🇸', country: 'US' },
   { code: '1', name: 'Canada', flag: '🇨🇦', country: 'CA' },
@@ -29,12 +28,12 @@ const countryCodes = [
 
 const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUpdate }) => {
   const navigate = useNavigate();
-  const [countryCode, setCountryCode] = useState('1'); // Default to US
-  const [countryFlag, setCountryFlag] = useState('🇺🇸'); // Default to US flag
+  const [countryCode, setCountryCode] = useState('1');
+  const [countryFlag, setCountryFlag] = useState('🇺🇸'); 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [phoneInputValue, setPhoneInputValue] = useState('');
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [currentUser, setCurrentUser] = useState(user); // Local state for user
+  const [currentUser, setCurrentUser] = useState(user); 
   const dropdownRef = useRef(null);
   
   const [formData, setFormData] = useState({
@@ -42,7 +41,7 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
     lastName: ''
   });
   const [submitting, setSubmitting] = useState(false);
-  const [formErrors, setFormErrors] = useState({});  // Handle click outside to close dropdown
+  const [formErrors, setFormErrors] = useState({});  
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -56,7 +55,6 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
     };
   }, []);
 
-  // Update phone format when country or input changes
   useEffect(() => {
     if (missingFields?.phone && phoneInputValue) {
       const e164Value = `+${countryCode}${phoneInputValue}`;
@@ -64,13 +62,11 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
     }
   }, [phoneInputValue, countryCode, missingFields]);
 
-  // Validation functions
   const validatePhone = (phoneNumber) => {
     if (!phoneNumber || phoneNumber.trim() === '') {
       return 'Phone number is required';
     }
     
-    // Check if it's a valid E.164 format
     const cleanPhone = phoneNumber.replace(/[^\d+]/g, '');
     if (!cleanPhone.startsWith('+') || cleanPhone.length < 10) {
       return 'Please enter a valid phone number with country code';
@@ -86,43 +82,36 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
     return '';
   };
 
-  // Format phone number for display based on country
   const formatPhoneDisplay = (phone, code) => {
     if (!phone) return '';
     
-    // For US/Canada format
     if (code === '1' && phone.length === 10) {
       return `(${phone.slice(0, 3)}) ${phone.slice(3, 6)}-${phone.slice(6)}`;
     }
-    
-    // For other countries, just return the raw digits
     return phone;
   };
 
-  // Handle country selection
   const handleCountrySelect = (code, flag) => {
     setCountryCode(code);
     setCountryFlag(flag);
     setIsDropdownOpen(false);
   };
 
-  // Handle phone input changes
   const handlePhoneInputChange = (e) => {
     const digits = e.target.value.replace(/\D/g, '');
     setPhoneInputValue(digits);
     
-    // Clear phone error when user starts typing
     if (formErrors.phone) {
       setFormErrors(prev => ({ ...prev, phone: '' }));
     }
-  };  // Handle input changes
+  };  
+
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
     }));
     
-    // Clear error for this field when user starts typing
     if (formErrors[field]) {
       setFormErrors(prev => ({
         ...prev,
@@ -130,11 +119,10 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
       }));
     }
   };
-    // Handle form submission
+
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     
-    // Validate required fields
     const errors = {};
     
     if (missingFields.phone) {
@@ -151,37 +139,27 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
       setFormErrors(errors);
       return;
     }
-    
+
     setSubmitting(true);
-    
     try {
-      // Prepare data to send
+
       const updateData = {};
       if (missingFields.phone) updateData.phone = formData.phone;
       if (missingFields.lastName) updateData.lastName = formData.lastName;
-        // Handle temporary token case (new user creation)
       if (currentUser.tempToken) {
         updateData.tempToken = currentUser.tempToken;
-        //('Sending profile completion with temp token');
       }
-      
-      //('Sending update data:', updateData);
+
         const response = await api.post('/auth/complete-oauth-profile', updateData, {
         headers: currentUser.tempToken ? {} : {
           'Authorization': `Bearer ${token}`
         }
       });
-      
-      //('Profile completion response:', response.data);
-        // Check if profile is now complete
+
       if (response.data.isComplete) {
-        // For new users with temp token, we need to handle the new auth token
         if (currentUser.tempToken && response.data.token) {
-          // Store the new token (this should be handled by auth store)
           localStorage.setItem('token', response.data.token);
         }
-        
-        // Show success message
         if (response.data.bonusAwarded) {
           toast.success('Profile completed successfully! You received 100 bonus points!', {
             duration: 4000
@@ -189,8 +167,6 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
         } else {
           toast.success('Profile completed successfully!');
         }
-        
-        // Show onboarding modal with points message if bonus was awarded
         setShowOnboarding(true);
       } else {
         toast.error('Profile completion failed. Please try again.');
@@ -200,40 +176,34 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
       
       const errorData = error.response?.data;
       const errorMessage = errorData?.message || 'Failed to complete profile. Please try again.';
-      
-      // Log detailed error information for debugging
+
       if (errorData?.error) {
         console.error('Server error details:', errorData.error);
       }
       if (errorData?.debug) {
         console.error('Debug information:', errorData.debug);
       }
-      
-      // Handle new temporary token for retry
+
       if (errorData?.tempToken) {
-        // Update the user object with the new temporary token
+
         const updatedUser = {
           ...currentUser,
           tempToken: errorData.tempToken
         };
         setCurrentUser(updatedUser);
-        
-        // Notify parent component if callback is provided
+
         if (onUserUpdate) {
           onUserUpdate(updatedUser);
         }
-        
-        //('Received new temporary token for retry');
       }
       
-      // Handle specific error types
       if (errorData?.error?.type === 'duplicate') {
         const field = errorData.error.field;
         setFormErrors({
           [field]: `This ${field} is already registered with another account. Please use a different ${field}.`
         });
       } else if (errorData?.error?.type === 'validation') {
-        // Handle validation errors
+
         const validationErrors = {};
         if (errorData.error.fields) {
           errorData.error.fields.forEach(field => {
@@ -242,7 +212,6 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
         }
         setFormErrors(validationErrors);
       } else if (errorData?.error?.type === 'token' || errorData?.error?.type === 'token_expired') {
-        // Token is invalid, need to restart OAuth flow
         toast.error('Your session has expired. Please sign in again.');
         navigate('/login');
         return;
@@ -255,12 +224,10 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
           [errorData.field]: errorMessage
         });
       } else if (errorData?.requiresReauth) {
-        // Token is completely invalid, need to restart OAuth flow
         toast.error('Your session has expired. Please sign in again.');
         navigate('/login');
         return;
       } else {
-        // Show detailed error message for debugging
         const detailMessage = errorData?.debug 
           ? `${errorMessage} (${errorData.debug.name}: ${errorData.debug.originalMessage})`
           : errorMessage;
@@ -271,7 +238,6 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
     }
   };
 
-  // Handle onboarding close - complete the flow
   const handleOnboardingClose = () => {
     setShowOnboarding(false);
     if (onComplete) {
@@ -314,7 +280,7 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
     }
     return 'Please complete your profile information.';
   };
-  // Show onboarding if needed
+
   if (showOnboarding) {
     return <Onboarding onClose={handleOnboardingClose} showPointsMessage={true} />;
   }
@@ -364,11 +330,9 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Phone Number
                 </label>
-                
-                {/* Custom Phone Input with Country Code Dropdown */}
+
                 <div className="relative">
                   <div className={`flex h-10 w-full rounded-md border ${formErrors.phone ? 'border-red-500' : 'border-gray-300'} bg-white overflow-hidden`}>
-                    {/* Country dropdown button */}
                     <div className="relative z-20" ref={dropdownRef}>
                       <button
                         type="button"
@@ -382,8 +346,7 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
                           <ChevronDown className="h-3 w-3 ml-1" />
                         }
                       </button>
-                      
-                      {/* Country dropdown menu */}
+                    
                       <AnimatePresence>
                         {isDropdownOpen && (
                           <motion.div 
@@ -417,10 +380,8 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
                       </AnimatePresence>
                     </div>
                     
-                    {/* Divider */}
                     <div className="w-px h-6 self-center bg-gray-300"></div>
                     
-                    {/* Phone input */}
                     <div className="relative flex-grow">
                       <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
                         <Phone className="h-4 w-4 text-gray-500" />
