@@ -100,10 +100,29 @@ const Home = () => {  const { darkMode } = useTheme();
   }, []);  useEffect(() => {
     document.documentElement.style.scrollBehavior = 'smooth';
     
-    // Force scroll to top on mobile when component mounts
-    window.scrollTo(0, 0);
+    // Multiple methods to force scroll to top, especially for pull-to-refresh
+    const forceScrollToTop = () => {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+    
+    // Immediate scroll to top
+    forceScrollToTop();
+    
+    // Handle page show event (covers pull-to-refresh and back button)
+    const handlePageShow = (event) => {
+      if (event.persisted) {
+        // Page was loaded from cache (like pull-to-refresh)
+        forceScrollToTop();
+      }
+    };
+    
+    window.addEventListener('pageshow', handlePageShow);
     
     const timer = setTimeout(() => {
+      // Force scroll to top again after component loads
+      forceScrollToTop();
       setIsLoaded(true);
       const heroElement = sectionRefs.current[0];
       if (heroElement) {
@@ -113,6 +132,7 @@ const Home = () => {  const { darkMode } = useTheme();
     
     return () => {
       document.documentElement.style.scrollBehavior = 'auto';
+      window.removeEventListener('pageshow', handlePageShow);
       clearTimeout(timer);
     };
   }, []);
