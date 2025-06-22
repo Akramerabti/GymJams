@@ -610,38 +610,7 @@ const Home = () => {  const { darkMode } = useTheme();
               </div>
             </div>
           ))}
-        </div>
-
-        {/* Multi-functional floating action button */}        {/* Section Navigation Dots */}
-        <div className="fixed right-4 sm:right-6 md:right-8 top-1/2 transform -translate-y-1/2 z-50 space-y-3">
-          {['Hero', 'Shop', 'Coaching', 'GymBros', 'Games'].map((sectionName, index) => (
-            <button
-              key={index}
-              onClick={() => navigateToSection(index)}
-              className={`group relative w-3 h-3 rounded-full transition-all duration-300 ${
-                isActiveSection(index)
-                  ? 'bg-white shadow-lg scale-125'
-                  : 'bg-white/40 hover:bg-white/60 hover:scale-110'
-              }`}
-              aria-label={`Navigate to ${sectionName} section`}
-            >
-              {/* Hover tooltip */}
-              <div className="absolute right-6 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                <div className="bg-black/80 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
-                  {sectionName}
-                </div>
-                <div className="absolute left-full top-1/2 transform -translate-y-1/2 border-4 border-transparent border-l-black/80"></div>
-              </div>
-              
-              {/* Active indicator */}
-              {isActiveSection(index) && (
-                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 animate-pulse"></div>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* Enhanced Scroll to Top Button */}
+        </div>        {/* Enhanced Scroll to Top Button */}
         {scrollY > 400 && (
           <div className="fixed bottom-8 right-8 z-40 space-y-4">
             {/* Scroll to top button */}
