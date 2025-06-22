@@ -13,7 +13,7 @@ const useProductStore = create((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await productService.getProducts();
-      console.log('response:', response);
+      //('response:', response);
       set({ products: response.data || [] });
     } catch (error) {
       set({ error: error.message });
@@ -54,7 +54,7 @@ const useProductStore = create((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await productService.getProduct(productId);
-      console.log('response:', response);
+      //('response:', response);
       return response.data;
     } catch (error) {
       set({ error: error.message });

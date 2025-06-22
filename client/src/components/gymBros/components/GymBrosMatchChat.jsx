@@ -41,21 +41,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
   // Get user info
   const userId = user?.id || (user?.user && user?.user.id);
   const otherUserId = otherUserInfo.userId || otherUserInfo._id;
-  
-  // Debug IDs - helps debugging ID matching issues
-  useEffect(() => {
-    if (DEBUG) {
-      console.log('--- GymBrosMatchChat Debug Info ---');
-      console.log('Current userId:', userId);
-      console.log('UserIdRef.current:', userIdRef.current);
-      console.log('OtherUserId:', otherUserId);
-      console.log('MatchId:', matchId);
-      console.log('Socket connected:', socketConnected);
-      console.log('----------------------------------');
-    }
-  }, [userId, otherUserId, matchId, socketConnected]);
 
-  // Function to normalize IDs for comparison
   const normalizeId = (id) => {
     if (!id) return null;
     
@@ -78,7 +64,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
   }, []);
 
   useEffect(() => {
-    if (DEBUG) console.log('Resetting deduplication tracking');
+    if (DEBUG) //('Resetting deduplication tracking');
     processedMessageIds.current.clear();
     seenContentMessages.current.clear();
   }, [matchId]);
@@ -87,9 +73,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     const fetchMessages = async () => {
       try {
         setIsLoading(true);
-        if (DEBUG) console.log(`Fetching messages for match: ${matchId}`);
-        
-        // Use optimized API call for fetching messages
+
         const fetchedMessages = await optimizedApiCall(
           `match-messages-${matchId}`,
           () => gymbrosService.fetchMatchMessages(matchId),
@@ -99,7 +83,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
           }
         );
         
-        if (DEBUG) console.log('Fetched messages:', fetchedMessages);
+        if (DEBUG) //('Fetched messages:', fetchedMessages);
         
         // Reset before processing
         processedMessageIds.current.clear();
@@ -109,9 +93,6 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
         let normalizedMessages = [];
         
         if (Array.isArray(fetchedMessages) && fetchedMessages.length > 0) {
-          if (DEBUG) console.log(`Processing ${fetchedMessages.length} messages`);
-          
-          // Sort by timestamp first to ensure consistent order
           const sortedMessages = [...fetchedMessages].sort((a, b) => 
             new Date(a.timestamp) - new Date(b.timestamp)
           );
@@ -120,7 +101,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
             // Add message ID to processed set
             if (message._id) {
               processedMessageIds.current.add(message._id);
-              if (DEBUG) console.log(`Added message ID to processed set: ${message._id}`);
+
             }
             
             // Add to messages array
@@ -128,7 +109,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
           });
         }
         
-        if (DEBUG) console.log(`Setting ${normalizedMessages.length} messages to state`);
+        if (DEBUG) //(`Setting ${normalizedMessages.length} messages to state`);
         setMessages(normalizedMessages);
       } catch (error) {
         console.error('Failed to load messages:', error);
@@ -143,7 +124,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
       
       // Subscribe to real-time message updates
       const unsubscribe = subscribeToMessages(matchId, (messageData) => {
-        console.log('New message received via socket:', messageData);
+        //('New message received via socket:', messageData);
         
         // Clear cache when new message arrives
         clearCache(`match-messages-${matchId}`);
@@ -178,18 +159,18 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
       try {
         // For authenticated users, register with their user ID
         if (userId) {
-          if (DEBUG) console.log('Registering authenticated user with socket:', userId);
+          if (DEBUG) //('Registering authenticated user with socket:', userId);
           socket.emit('register', userId);
         } 
         // For guest users, check if we have a userIdRef value
         else if (userIdRef.current) {
-          if (DEBUG) console.log('Registering guest user with socket:', userIdRef.current);
+          if (DEBUG) //('Registering guest user with socket:', userIdRef.current);
           socket.emit('register', userIdRef.current);
         }
         // For new guest users without an ID yet
         else if (matchId && otherUserId) {
           // Attempt to find the match details to determine the guest ID
-          if (DEBUG) console.log('Attempting to determine guest ID for registration');
+          if (DEBUG) //('Attempting to determine guest ID for registration');
           gymbrosService.findMatch(otherUserId)
             .then(matchDetails => {
               if (matchDetails && matchDetails.users && matchDetails.users.length === 2) {
@@ -199,7 +180,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
                 );
                 
                 if (guestUserId) {
-                  if (DEBUG) console.log(`Found and registering guest user ID: ${guestUserId}`);
+                  if (DEBUG) //(`Found and registering guest user ID: ${guestUserId}`);
                   userIdRef.current = guestUserId;
                   socket.emit('register', guestUserId);
                 }
@@ -215,24 +196,20 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     }
   }, [socket, socketConnected, userId, matchId, otherUserId]);
 
-  // Socket event handlers for messages and typing
+
   useEffect(() => {
     if (!socket || !socketConnected || !matchId) return;
 
-    // Create a unique key for the current instance
     const instanceId = `socket-${Date.now()}`;
-    
-    if (DEBUG) console.log(`Setting up socket event listeners (instance ${instanceId})`);
 
-    // Track recently received message timestamps to avoid duplicates
     const recentlyReceivedMessages = new Map();
     
     const handleReceiveMessage = (message) => {
-      if (DEBUG) console.log('Received message via socket:', message);
+      if (DEBUG) //('Received message via socket:', message);
       
       // Skip if wrong match
       if (message.matchId && message.matchId !== matchId) {
-        if (DEBUG) console.log('Message is for a different match, ignoring');
+        if (DEBUG) //('Message is for a different match, ignoring');
         return;
       }
       
@@ -244,7 +221,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
       if (recentlyReceivedMessages.has(messageKey)) {
         const lastReceived = recentlyReceivedMessages.get(messageKey);
         if (now - lastReceived < 2000) { // 2 second window for duplicates
-          if (DEBUG) console.log('Duplicate socket message received within 2s, ignoring:', messageKey);
+          if (DEBUG) //('Duplicate socket message received within 2s, ignoring:', messageKey);
           return;
         }
       }
@@ -262,14 +239,13 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
       // Ensure we have a message ID
       if (!message._id) {
         message._id = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        if (DEBUG) console.log('Generated temporary ID for message:', message._id);
       }
       
       // Add to messages state with improved deduplication
       setMessages(prev => {
         // Check for existing ID first
         if (prev.some(m => m._id === message._id)) {
-          if (DEBUG) console.log('Message with this ID already exists, skipping');
+          if (DEBUG) //('Message with this ID already exists, skipping');
           return prev;
         }
         
@@ -281,7 +257,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
         );
         
         if (duplicateByContent) {
-          if (DEBUG) console.log('Very similar message already in state, skipping');
+          if (DEBUG) //('Very similar message already in state, skipping');
           return prev;
         }
         
@@ -293,25 +269,20 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
         );
         
         if (pendingIndex >= 0) {
-          if (DEBUG) console.log('Replacing pending message with confirmed message');
           const newMessages = [...prev];
           newMessages[pendingIndex] = message;
           return newMessages;
         }
         
-        // Add the new message
-        if (DEBUG) console.log('Adding new message from socket to state');
         return [...prev, message];
       });
     };
 
     const handleTypingEvent = (data) => {
       if (data.matchId !== matchId) return;
-      if (DEBUG) console.log('Received typing event:', data);
       setOtherUserTyping(data.isTyping);
     };
 
-    // Use namespaced events to prevent duplicate handlers
     const receiveMessageEvent = `receiveMessage.${instanceId}`;
     const typingEvent = `typing.${instanceId}`;
     
@@ -325,7 +296,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
 
     // Clean up function
     return () => {
-      if (DEBUG) console.log(`Cleaning up socket event listeners (instance ${instanceId})`);
+
       socket.off('receiveMessage', handleReceiveMessage);
       socket.off('typing', handleTypingEvent);
     };
@@ -342,9 +313,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     // Get effective user ID (authenticated user or guest)
     const effectiveSenderId = userId || userIdRef.current;
     
-    // If we don't have a sender ID yet, we can't send typing indicators
     if (!effectiveSenderId) {
-      if (DEBUG) console.log('Cannot send typing indicator - sender ID not yet determined');
       return;
     }
     
@@ -353,7 +322,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
       if (!isTyping) {
         setIsTyping(true);
         try {
-          if (DEBUG) console.log('Sending typing start with sender ID:', effectiveSenderId);
+          if (DEBUG) //('Sending typing start with sender ID:', effectiveSenderId);
           socket.emit('typing', {
             senderId: effectiveSenderId,
             receiverId: otherUserId,
@@ -424,27 +393,22 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     };
   }, [showOptionsMenu]);
 
-  // Determine guest user ID effect
   useEffect(() => {
-    // If user is not authenticated (guest) or userId is null, fetch the match to determine the user's ID
+
     if (!userId && matchId && otherUserId) {
       const determineGuestUserId = async () => {
         try {
-          if (DEBUG) console.log('Determining guest user ID');
           const matchDetails = await gymbrosService.findMatch(otherUserId);
           
           if (matchDetails && matchDetails.users && matchDetails.users.length === 2) {
-            // Find the user that's not the receiver (must be the sender/guest)
+
             const guestUserId = matchDetails.users.find(id => 
               normalizeId(id) !== normalizeId(otherUserId)
             );
             
             if (guestUserId) {
-              if (DEBUG) console.log(`Found guest user ID: ${guestUserId}`);
-              // Store the determined userId in a ref so we can use it later
               userIdRef.current = guestUserId;
-              
-              // Register with socket now that we have the ID
+
               if (socket && socketConnected) {
                 socket.emit('register', guestUserId);
               }
@@ -461,10 +425,10 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     }
   }, [userId, matchId, otherUserId, socket, socketConnected]);
 
-  // Send message handler - simplified
+
   const handleSendMessage = async () => {
     if ((!newMessage.trim() && files.length === 0)) {
-      if (DEBUG) console.log('Nothing to send');
+
       return;
     }
     
@@ -478,28 +442,13 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     const timestamp = new Date().toISOString();
     
     try {
-      // Get effective sender ID
+
       let effectiveSenderId = userId || userIdRef.current;
-      
-      if (DEBUG) console.log(`Sending message - From: ${effectiveSenderId}, To: ${otherUserId}, Content: ${messageContent}`);
-      
-      // Create temporary message
-      const tempMessage = {
-        _id: tempId,
-        sender: effectiveSenderId,
-        content: messageContent,
-        timestamp,
-        pending: true
-      };
-      
-      // Add to messages state
-      if (DEBUG) console.log('Adding temp message to state:', tempMessage);
+
       setMessages(prev => [...prev, tempMessage]);
       
-      // Clear input field
       setNewMessage('');
-      
-      // If no sender ID available, try to determine it
+
       if (!effectiveSenderId) {
         try {
           const matchDetails = await gymbrosService.findMatch(otherUserId);
@@ -509,7 +458,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
               normalizeId(id) !== normalizeId(otherUserId)
             );
             
-            if (DEBUG) console.log(`Determined sender ID: ${effectiveSenderId}`);
+            if (DEBUG) //(`Determined sender ID: ${effectiveSenderId}`);
             userIdRef.current = effectiveSenderId;
           }
         } catch (error) {
@@ -518,8 +467,6 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
         }
       }
       
-      // Send via socket first for immediate display
-      if (DEBUG) console.log('Sending message via socket');
       socket.emit('sendMessage', {
         matchId,
         senderId: effectiveSenderId,
@@ -529,8 +476,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
         tempId
       });
       
-      // Then via API for persistence
-      if (DEBUG) console.log('Sending message via API');
+
       const response = await gymbrosService.sendMessage({
         matchId,
         senderId: effectiveSenderId,
@@ -540,9 +486,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
         timestamp
       });
       
-      if (DEBUG) console.log('API response:', response);
-      
-      // Update the message to remove pending status
+
       if (response && response.success) {
         setMessages(prev => prev.map(msg => {
           if (msg._id === tempId) {

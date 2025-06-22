@@ -26,7 +26,7 @@ export const SocketProvider = ({ children }) => {
     // Initialize socket connection only once
     if (!socketRef.current) {
       setConnecting(true);
-      console.log("Initializing socket connection...");
+      //("Initializing socket connection...");
       
       const getBaseUrl = (url) => {
         if (!url) return 'http://localhost:5000';
@@ -40,7 +40,7 @@ export const SocketProvider = ({ children }) => {
       };
       
       const baseUrl = getBaseUrl(import.meta.env.VITE_API_URL);
-      console.log("Using socket base URL:", baseUrl);
+      //("Using socket base URL:", baseUrl);
       
       const socketInstance = io(baseUrl, {
         withCredentials: true,
@@ -52,14 +52,14 @@ export const SocketProvider = ({ children }) => {
       });
 
       socketInstance.on('connect', () => {
-        console.log('Socket connected successfully with ID:', socketInstance.id);
+        //('Socket connected successfully with ID:', socketInstance.id);
         setConnected(true);
         setConnecting(false);
         
         if (isAuthenticated && user) {
           const userId = user.id || user._id;
           if (userId) {
-            console.log('Registering user with socket on connect:', userId);
+            //('Registering user with socket on connect:', userId);
             socketInstance.emit('register', userId);
           }
         }
@@ -72,7 +72,7 @@ export const SocketProvider = ({ children }) => {
       });
 
       socketInstance.on('disconnect', (reason) => {
-        console.log('Socket disconnected:', reason);
+        //('Socket disconnected:', reason);
         setConnected(false);
       });
 
@@ -83,7 +83,7 @@ export const SocketProvider = ({ children }) => {
       
       // Add listeners for goal approvals and rejections
       socketInstance.on('goalApproved', (data) => {
-        console.log('Goal approved event received:', data);
+        //('Goal approved event received:', data);
         const { goalId, title, pointsAwarded } = data;
         
         // Show toast notification
@@ -120,7 +120,7 @@ export const SocketProvider = ({ children }) => {
       });
       
       socketInstance.on('goalRejected', (data) => {
-        console.log('Goal rejected event received:', data);
+        //('Goal rejected event received:', data);
         const { goalId, title, reason } = data;
         
         // Show toast notification
@@ -150,7 +150,7 @@ export const SocketProvider = ({ children }) => {
 
     return () => {
       if (socketRef.current) {
-        console.log("Disconnecting socket on cleanup");
+        //("Disconnecting socket on cleanup");
         socketRef.current.disconnect();
         socketRef.current = null;
         setConnected(false);
@@ -164,7 +164,7 @@ export const SocketProvider = ({ children }) => {
     if (socketRef.current && isAuthenticated && user) {
       const userId = user.id || user._id;
       if (userId) {
-        console.log('Re-registering user with socket on auth change:', userId);
+        //('Re-registering user with socket on auth change:', userId);
         
         if (socketRef.current.connected) {
           socketRef.current.emit('register', userId);

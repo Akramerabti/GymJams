@@ -140,8 +140,8 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         });
         
         setFeaturedProducts(products);
-        console.log('Successfully loaded products from API:', products.length);
-      } catch (error) {        console.log('Using fallback products data:', error.message);
+        //('Successfully loaded products from API:', products.length);
+      } catch (error) {        //('Using fallback products data:', error.message);
         // Fallback to placeholder products - Multiple products for testing carousel
         setFeaturedProducts([
           { id: 1, name: "Premium Protein", image: "/Picture2.png", price: "$49.99" },
@@ -172,13 +172,13 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         // Check if user has profile using service
         try {
           const profileResponse = await gymBrosService.getGymBrosProfile();
-          console.log('Profile response from service:', profileResponse);
+          //('Profile response from service:', profileResponse);
           
           if (profileResponse.hasProfile) {
             // Fetch matches using service
             try {
               const matchesData = await gymBrosService.getMatches();
-              console.log('Matches data from service:', matchesData);
+              //('Matches data from service:', matchesData);
               
               setGymBrosData({
                 hasProfile: true,
@@ -186,18 +186,18 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                 recentMatches: matchesData.slice(0, 3)
               });
             } catch (matchesError) {
-              console.log('Error fetching matches:', matchesError.message);
+              //('Error fetching matches:', matchesError.message);
               setGymBrosData({ hasProfile: true, matchesCount: 0 });
             }
           } else {
             setGymBrosData({ hasProfile: false });
           }
         } catch (profileError) {
-          console.log('Error fetching profile:', profileError.message);
+          //('Error fetching profile:', profileError.message);
           setGymBrosData({ hasProfile: false });
         }
       } catch (error) {
-        console.log('GymBros service error:', error.message);
+        //('GymBros service error:', error.message);
         setGymBrosData({ hasProfile: false });
       } finally {
         setGymBrosLoading(false);
@@ -218,7 +218,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   }, [featuredProducts.length]);
   // Navigate to specific sections
   const navigateToSection = (sectionIndex) => {
-    console.log('Navigating to section:', sectionIndex);
+    //('Navigating to section:', sectionIndex);
     if (goToSection) {
       goToSection(sectionIndex);
     }
@@ -254,12 +254,12 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
           className="absolute inset-0 w-full h-full object-cover opacity-10"
           style={{ display: backgroundVideoLoaded ? 'block' : 'none' }}
           onLoadedData={() => {
-            console.log('Background video loaded successfully');
+            //('Background video loaded successfully');
             setBackgroundVideoLoaded(true);
             setBackgroundVideoError(false);
           }}
           onError={(e) => {
-            console.log('Background video error:', e);
+            //('Background video error:', e);
             setBackgroundVideoError(true);
           }}
           onCanPlay={() => setBackgroundVideoLoaded(true)}
@@ -304,12 +304,12 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   className="absolute inset-0 w-full h-full object-cover"
                   style={{ display: mainVideoLoaded ? 'block' : 'none' }}
                   onLoadedData={() => {
-                    console.log('Main video loaded successfully');
+                    //('Main video loaded successfully');
                     setMainVideoLoaded(true);
                     setMainVideoError(false);
                   }}
                   onError={(e) => {
-                    console.log('Main video error:', e);
+                    //('Main video error:', e);
                     setMainVideoError(true);
                   }}
                   onCanPlay={() => setMainVideoLoaded(true)}
@@ -501,7 +501,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                                         e.target.src = getFallbackAvatarUrl();
                                         
                                         if (e.target.src.includes('supabase.co')) {
-                                          console.log('🧹 Broken Supabase URL for match:', match.name);
+                                          //('🧹 Broken Supabase URL for match:', match.name);
                                         }
                                       }}
                                     />

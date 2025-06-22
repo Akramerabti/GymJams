@@ -38,7 +38,7 @@ const productService = {
     try {
       // Check cache first
       if (isCacheValid(productCache.all)) {
-        console.log('Using cached products data');
+        //('Using cached products data');
         return productCache.all.data;
       }
 
@@ -55,7 +55,7 @@ const productService = {
     try {
       // Check cache first
       if (isCacheValid(productCache.featured)) {
-        console.log('Using cached featured products data');
+        //('Using cached featured products data');
         return productCache.featured.data;
       }
 
@@ -73,7 +73,7 @@ const productService = {
       // Check product-specific cache
       const cacheKey = { id: productId };
       if (productCache.products[productId] && isCacheValid(productCache.products[productId])) {
-        console.log(`Using cached data for product ${productId}`);
+        //(`Using cached data for product ${productId}`);
         return productCache.products[productId].data;
       }
 
@@ -90,7 +90,7 @@ const productService = {
     try {
       // Check cache first
       if (isCacheValid(productCache.categories)) {
-        console.log('Using cached categories data');
+        //('Using cached categories data');
         return productCache.categories.data;
       }
 
@@ -201,13 +201,13 @@ const productService = {
     productCache.featured = { data: null, timestamp: 0 };
     productCache.categories = { data: null, timestamp: 0 };
     productCache.products = {};
-    console.log('Product cache cleared');
+    //('Product cache cleared');
   },
   
   invalidateProductCache(productId) {
     if (productCache.products[productId]) {
       delete productCache.products[productId];
-      console.log(`Cache for product ${productId} invalidated`);
+      //(`Cache for product ${productId} invalidated`);
     }
   }
 };

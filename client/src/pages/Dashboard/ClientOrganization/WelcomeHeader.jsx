@@ -167,7 +167,7 @@ const WelcomeHeader = ({
         const result = await ratingService.rateCoach(assignedCoach._id, rating);
         
         toast.success('Thank you for rating your coach!');
-        console.log('Coach rating submitted:', result);
+        //('Coach rating submitted:', result);
         
         // Update local state to reflect that user has rated
         setShowRatingModal(false);

@@ -374,15 +374,15 @@ const ShopCheckout = () => {
   };
 
   const handlePaymentSuccess = async (paymentIntentId) => {
-    console.log("Payment success handler called with paymentIntentId:", paymentIntentId);
+    //("Payment success handler called with paymentIntentId:", paymentIntentId);
   
     try {
       setLoading(true);
-      console.log("Processing payment on server side...");
+      //("Processing payment on server side...");
   
       // Include points information when processing payment
       const paymentResult = await processPayment(paymentIntentId);
-      console.log("Payment processing result:", paymentResult);
+      //("Payment processing result:", paymentResult);
   
       // Mark payment as complete
       setIsPaymentComplete(true);

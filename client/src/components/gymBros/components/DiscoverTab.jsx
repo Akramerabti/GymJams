@@ -69,7 +69,7 @@ const DiscoverTab = ({
   // Initialize with initial profiles and set up real-time updates
   useEffect(() => {
     if (initialProfiles && Array.isArray(initialProfiles) && initialProfiles.length > 0) {
-      console.log('DiscoverTab: Setting profiles from initialProfiles:', initialProfiles.length);
+      //('DiscoverTab: Setting profiles from initialProfiles:', initialProfiles.length);
       setProfiles(initialProfiles);
       setCurrentIndex(initialIndex || 0);
       setNetworkError(false);
@@ -79,7 +79,7 @@ const DiscoverTab = ({
     let unsubscribeNewMatches;
     if (userId) {
       unsubscribeNewMatches = subscribeToNewMatches(userId, (newMatchData) => {
-        console.log('New match in discover tab:', newMatchData);
+        //('New match in discover tab:', newMatchData);
         // Clear profiles cache to ensure fresh data
         clearCache('recommended-profiles');
       });
@@ -249,7 +249,7 @@ const DiscoverTab = ({
   
     // Use a ref for swipe locking to prevent race conditions
     if (swipeLockRef.current) {
-      console.log('DiscoverTab: Swipe locked, ignoring this swipe');
+      //('DiscoverTab: Swipe locked, ignoring this swipe');
       return;
     }
   
@@ -262,7 +262,7 @@ const DiscoverTab = ({
   
     // Skip if we've already processed this profile
     if (lastProcessedProfileRef.current === currentProfileId) {
-      console.log('DiscoverTab: Already processed profile', currentProfileId);
+      //('DiscoverTab: Already processed profile', currentProfileId);
       swipeLockRef.current = false; // Unlock the swipe
       return;
     }
@@ -295,7 +295,7 @@ const DiscoverTab = ({
             minInterval: 500,   // Minimum 500ms between actual API calls
           }
         );
-        console.log('Like response received:', response);
+        //('Like response received:', response);
 
         // Check if it's a match
         matchResult = response.match === true;
@@ -355,7 +355,7 @@ const DiscoverTab = ({
   
       // Handle match if one occurred
       if (matchResult) {
-        console.log('MATCH DETECTED with profile:', currentProfile.name);
+        //('MATCH DETECTED with profile:', currentProfile.name);
   
         // Store matched profile and show modal
         setMatchedProfile({ ...currentProfile });
@@ -468,7 +468,7 @@ const handleSendMessage = () => {
 };
   
   const handleKeepSwiping = () => {
-    console.log('Closing match modal and continuing to swipe');
+    //('Closing match modal and continuing to swipe');
     setShowMatchModal(false);
     
     // Advance to next profile with a small delay
@@ -767,7 +767,7 @@ const handleSendMessage = () => {
         <MatchModal
           isVisible={showMatchModal}
           onClose={() => {
-            console.log("Manual close of match modal");
+            //("Manual close of match modal");
             setShowMatchModal(false);
             // Advance to next profile on close with a slight delay
             setTimeout(() => {

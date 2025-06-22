@@ -48,7 +48,7 @@ export const submitApplication = async (req, res) => {
         
         // Store Supabase URL in database
         newApplication.resume = uploadResult.url;
-        console.log(`[APPLICATION] Resume uploaded to Supabase: ${uploadResult.url}`);
+        //(`[APPLICATION] Resume uploaded to Supabase: ${uploadResult.url}`);
       } catch (uploadError) {
         console.error('[APPLICATION] Error uploading resume to Supabase:', uploadError);
         return res.status(500).json({
@@ -215,7 +215,7 @@ export const updateApplicationStatus = async (req, res) => {
     const { id } = req.params;
     const { status, feedback, signedDocumentReceived } = req.body;
     
-    console.log(`[DEBUG] updateApplicationStatus - Request received to update application ${id} to status: ${status}`);
+    //(`[DEBUG] updateApplicationStatus - Request received to update application ${id} to status: ${status}`);
       // Validate status
     if (!['pending', 'awaiting', 'received', 'approved', 'rejected'].includes(status)) {
       return res.status(400).json({
@@ -227,13 +227,13 @@ export const updateApplicationStatus = async (req, res) => {
     const application = await Application.findById(id);
     
     if (!application) {
-      console.log(`[DEBUG] Application with ID ${id} not found`);
+      //(`[DEBUG] Application with ID ${id} not found`);
       return res.status(404).json({
         success: false,
         message: 'Application not found'
       });
     }
-      console.log(`[DEBUG] Application found: ${application.name} (${application.email}), current status: ${application.status}, new status: ${status}`);
+      //(`[DEBUG] Application found: ${application.name} (${application.email}), current status: ${application.status}, new status: ${status}`);
     
     // Store the original status before updating
     const originalStatus = application.status;
@@ -259,16 +259,16 @@ export const updateApplicationStatus = async (req, res) => {
     
     // Handle the approval process based on the original status and the new status
     if (originalStatus === 'pending' && status === 'awaiting') {
-      console.log(`[DEBUG] Processing transition from 'pending' to 'awaiting' for application ${id}`);
+      //(`[DEBUG] Processing transition from 'pending' to 'awaiting' for application ${id}`);
       // Initial approval - Send documents to sign
       try {
         // Create the templates directory if it doesn't exist
         const templatesDir = path.join(__dirname, '../../templates');
-        console.log(`[DEBUG] Templates directory path: ${templatesDir}`);
+        //(`[DEBUG] Templates directory path: ${templatesDir}`);
         
         try {
           await fs.mkdir(templatesDir, { recursive: true });
-          console.log(`[DEBUG] Templates directory created or already exists`);
+          //(`[DEBUG] Templates directory created or already exists`);
         } catch (mkdirError) {
           console.error(`[ERROR] Failed to create templates directory: ${mkdirError.message}`);
         }
@@ -277,15 +277,15 @@ export const updateApplicationStatus = async (req, res) => {
         const attachments = [];
         const filePromises = [];
         const filesToAttach = getFilesToAttachByType(application.applicationType);
-        console.log(`[DEBUG] Files to attach for type '${application.applicationType}': ${JSON.stringify(filesToAttach)}`);
+        //(`[DEBUG] Files to attach for type '${application.applicationType}': ${JSON.stringify(filesToAttach)}`);
         
         for (const fileInfo of filesToAttach) {
           const filePath = path.join(templatesDir, fileInfo.filename);
-          console.log(`[DEBUG] Preparing to attach file: ${filePath}`);
+          //(`[DEBUG] Preparing to attach file: ${filePath}`);
           filePromises.push(
             fs.readFile(filePath)
               .then(buffer => {
-                console.log(`[DEBUG] Successfully read file: ${fileInfo.filename}, size: ${buffer.length} bytes`);
+                //(`[DEBUG] Successfully read file: ${fileInfo.filename}, size: ${buffer.length} bytes`);
                 attachments.push({
                   filename: fileInfo.filename,
                   content: buffer,
@@ -318,7 +318,7 @@ Please contact support@gymtonic.com for the official document.
                 // Try to save the fallback file
                 try {
                   await fs.writeFile(filePath, fallbackBuffer);
-                  console.log(`[DEBUG] Created fallback file: ${fileInfo.filename}`);
+                  //(`[DEBUG] Created fallback file: ${fileInfo.filename}`);
                 } catch (writeError) {
                   console.error(`[ERROR] Failed to write fallback file: ${writeError.message}`);
                 }
@@ -333,7 +333,7 @@ Please contact support@gymtonic.com for the official document.
         }
         
         await Promise.all(filePromises);
-        console.log(`[DEBUG] Prepared ${attachments.length} attachments for email`);
+        //(`[DEBUG] Prepared ${attachments.length} attachments for email`);
         
         // Send email with attachments using Brevo
         const emailResult = await sendEmail({
@@ -359,7 +359,7 @@ The GymTonic Team`,
           attachments: attachments
         });
         
-        console.log(`[DEBUG] Email sent to ${application.email} with ${attachments.length} attachments. Result: ${JSON.stringify(emailResult)}`);
+        //(`[DEBUG] Email sent to ${application.email} with ${attachments.length} attachments. Result: ${JSON.stringify(emailResult)}`);
         
         // Set document sent fields
         application.documentSent = true;
@@ -449,7 +449,7 @@ GymTonic Team`
     
     await application.save();
     
-    console.log(`[DEBUG] Application ${id} successfully updated to status: ${status}`);
+    //(`[DEBUG] Application ${id} successfully updated to status: ${status}`);
     
     res.status(200).json({
       success: true,
@@ -532,7 +532,7 @@ export const receiveSignedDocument = async (req, res) => {
       
       await application.save();
       
-      console.log(`[APPLICATION] Signed document uploaded to Supabase: ${uploadResult.url}`);
+      //(`[APPLICATION] Signed document uploaded to Supabase: ${uploadResult.url}`);
       
       res.status(200).json({
         success: true,

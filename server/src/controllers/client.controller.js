@@ -258,7 +258,7 @@ export const getClientById = async (req, res) => {
   try {
     const { clientId } = req.params;
 
-    console.log('Getting client by ID:', clientId);
+    //('Getting client by ID:', clientId);
 
     // Validate clientId
     if (!mongoose.Types.ObjectId.isValid(clientId)) {

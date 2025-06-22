@@ -33,7 +33,7 @@ const LoginForm = () => {
   const onSubmit = async (data, retryCount = 0) => {
     try {
       setError('');
-      console.log('Sending login request:', data);
+      //('Sending login request:', data);
 
       // Use the login function from useAuthStore
       await login(data.email, data.password);

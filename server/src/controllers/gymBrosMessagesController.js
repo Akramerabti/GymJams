@@ -10,8 +10,8 @@ export const sendMessage = async (req, res) => {
     const { matchId } = req.params;
     const { content, file } = req.body;
     
-    console.log('Match ID:', matchId);
-    console.log('Content:', content);
+    //('Match ID:', matchId);
+    //('Content:', content);
 
     // Get effective user (authenticated or guest)
     const effectiveUser = getEffectiveUser(req);
@@ -138,7 +138,7 @@ export const getMessages = async (req, res) => {
       // Check if user is part of the match
       const userId = effectiveUser.userId || effectiveUser.profileId;
 
-      console.log('User ID:', userId);
+      //('User ID:', userId);
       const userInMatch = match.users.some(u => u._id.toString() === userId.toString());
       
       if (!userInMatch) {

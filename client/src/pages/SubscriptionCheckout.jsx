@@ -245,15 +245,6 @@ const SubscriptionCheckout = () => {
                       clientSecret={clientSecret}
                       onSuccess={async (setupIntentId, paymentMethodId, email) => {
                         try {
-                          // Get email correctly from user object
-                          const userEmail = email || undefined;
-                          console.log('Handling subscription with:', {
-                            planType: currentPlan.id,
-                            setupIntentId,
-                            paymentMethodId,
-                            email: userEmail
-                          });
-                          
                           await subscriptionService.handleSubscriptionSuccess(
                             currentPlan.id,
                             setupIntentId,

@@ -60,7 +60,7 @@ const AdBanner = ({ position, className = '' }) => {
     // Check if ad is unfilled
     const adStatus = adElement.getAttribute('data-ad-status');
     if (adStatus === 'unfilled') {
-      console.log(`Ad in position ${position} is unfilled, showing fallback`);
+      //(`Ad in position ${position} is unfilled, showing fallback`);
       setAdUnfilled(true);
     }
     

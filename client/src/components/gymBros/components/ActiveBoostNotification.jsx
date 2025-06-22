@@ -54,7 +54,7 @@ const ActiveBoostNotification = () => {
     let unsubscribe;
     if (userId) {
       unsubscribe = subscribeToBoosts(userId, (boostData) => {
-        console.log('Received boost update:', boostData);
+        //('Received boost update:', boostData);
         
         if (boostData.type === 'boost_activated') {
           setActiveBoost(boostData.boost);

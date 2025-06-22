@@ -142,7 +142,7 @@ export const optionalAuthenticate = async (req, res, next) => {
   } catch (error) {
     // Token error, but that's ok for optional authentication
     // Continue as unauthenticated
-    console.log('Optional auth error (continuing):', error.message);
+    //('Optional auth error (continuing):', error.message);
     next();
   }
 };

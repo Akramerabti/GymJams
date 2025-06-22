@@ -20,7 +20,7 @@ export const useRealtimeUpdates = () => {
     subscriptions.current.add(subscriptionKey);
   
     const eventHandler = (data) => {
-      console.log(`[Realtime] Received ${updateType} update:`, data);
+      //(`[Realtime] Received ${updateType} update:`, data);
       
       try {
         callback(data);
@@ -151,7 +151,7 @@ export const useRealtimeUpdates = () => {
   const requestRefresh = useCallback((dataType, params = {}) => {
     if (socket && connected) {
       socket.emit(`refresh-${dataType}`, params);
-      console.log(`[Realtime] Requested refresh for ${dataType}`);
+      //(`[Realtime] Requested refresh for ${dataType}`);
     }
   }, [socket, connected]);
 
@@ -179,7 +179,7 @@ export const useRealtimeUpdates = () => {
       eventListeners.current.clear();
       subscriptions.current.clear();
       
-      console.log('[Realtime] Cleaned up all subscriptions');
+      //('[Realtime] Cleaned up all subscriptions');
     };
   }, [socket]);
 
@@ -187,7 +187,7 @@ export const useRealtimeUpdates = () => {
   useEffect(() => {
     if (socket) {
       const handleReconnect = () => {
-        console.log('[Realtime] Socket reconnected, refreshing subscriptions');
+        //('[Realtime] Socket reconnected, refreshing subscriptions');
         
         // Optionally trigger a refresh of critical data
         requestRefresh('matches');
@@ -195,7 +195,7 @@ export const useRealtimeUpdates = () => {
       };
 
       const handleDisconnect = () => {
-        console.log('[Realtime] Socket disconnected');
+        //('[Realtime] Socket disconnected');
       };
 
       socket.on('connect', handleReconnect);

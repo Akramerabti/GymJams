@@ -1071,7 +1071,7 @@ const fetchFromNewsAPI = async (categories) => {
   try {
     const apiKey = process.env.NEWS_API_KEY;
     if (!apiKey) {
-      console.log('NEWS_API_KEY not found in environment variables');
+      //('NEWS_API_KEY not found in environment variables');
       return [];
     }
     
@@ -1214,9 +1214,9 @@ const parseRSSFeeds = async (categories) => {
   
   for (const feedUrl of feedsToFetch) {
     try {
-      console.log(`Fetching RSS feed: ${feedUrl}`);
+      //(`Fetching RSS feed: ${feedUrl}`);
       const feed = await parser.parseURL(feedUrl);
-      console.log(`Successfully parsed RSS feed: ${feedUrl}, found ${feed.items.length} items`);
+      //(`Successfully parsed RSS feed: ${feedUrl}, found ${feed.items.length} items`);
       
       // Process each item
       const items = feed.items.map(item => ({
@@ -1245,7 +1245,7 @@ const parseRSSFeeds = async (categories) => {
 // Improved full content fetching with multiple fallback strategies
 const fetchFullContent = async (url) => {
   try {
-    console.log(`Fetching full content from: ${url}`);
+    //(`Fetching full content from: ${url}`);
     
     // Set timeout to avoid hanging on slow sites
     const response = await axios.get(url, {
@@ -1263,11 +1263,11 @@ const fetchFullContent = async (url) => {
     try {
       const wpContent = await fetchWordPressContent(url);
       if (wpContent && wpContent.length > 1000) {
-        console.log(`Successfully fetched WordPress content (${wpContent.length} chars)`);
+        //(`Successfully fetched WordPress content (${wpContent.length} chars)`);
         return wpContent;
       }
     } catch (wpError) {
-      console.log('WordPress API strategy failed:', wpError.message);
+      //('WordPress API strategy failed:', wpError.message);
     }
     
     // Strategy 2: JSDOM with common content selectors
@@ -1305,13 +1305,13 @@ const fetchFullContent = async (url) => {
           const content = cleanupContent(contentElement.innerHTML);
           
           if (content.length > 1000) {
-            console.log(`Found content with selector "${selector}" (${content.length} chars)`);
+            //(`Found content with selector "${selector}" (${content.length} chars)`);
             return content;
           }
         }
       }
     } catch (domError) {
-      console.log('JSDOM strategy failed:', domError.message);
+      //('JSDOM strategy failed:', domError.message);
     }
     
     // Strategy 3: Cheerio as a fallback
@@ -1339,13 +1339,13 @@ const fetchFullContent = async (url) => {
           const content = cleanupContent(bestElement.html());
           
           if (content.length > 1000) {
-            console.log(`Found content with cheerio selector "${selector}" (${content.length} chars)`);
+            //(`Found content with cheerio selector "${selector}" (${content.length} chars)`);
             return content;
           }
         }
       }
     } catch (cheerioError) {
-      console.log('Cheerio strategy failed:', cheerioError.message);
+      //('Cheerio strategy failed:', cheerioError.message);
     }
     
     // Strategy 4: Extract the largest div by content
@@ -1367,12 +1367,12 @@ const fetchFullContent = async (url) => {
         const content = cleanupContent($(contentDivs[0]).html());
         
         if (content.length > 1000) {
-          console.log(`Extracted content from largest div (${content.length} chars)`);
+          //(`Extracted content from largest div (${content.length} chars)`);
           return content;
         }
       }
     } catch (divError) {
-      console.log('Largest div strategy failed:', divError.message);
+      //('Largest div strategy failed:', divError.message);
     }
     
     // Strategy 5: Extract all paragraphs
@@ -1392,15 +1392,15 @@ const fetchFullContent = async (url) => {
         const content = paragraphs.join('');
         
         if (content.length > 1000) {
-          console.log(`Extracted content from ${paragraphs.length} paragraphs (${content.length} chars)`);
+          //(`Extracted content from ${paragraphs.length} paragraphs (${content.length} chars)`);
           return content;
         }
       }
     } catch (pError) {
-      console.log('Paragraph extraction strategy failed:', pError.message);
+      //('Paragraph extraction strategy failed:', pError.message);
     }
     
-    console.log('All content extraction strategies failed');
+    //('All content extraction strategies failed');
     return null;
   } catch (error) {
     console.error(`Error fetching from ${url}:`, error.message);
@@ -1511,11 +1511,11 @@ const processContent = async (articles, categories) => {
   
   for (const article of articles) {
     try {
-      console.log(`Processing article: "${article.title}"`);
+      //(`Processing article: "${article.title}"`);
       
       // Skip articles without title
       if (!article.title) {
-        console.log('Skipping article without title');
+        //('Skipping article without title');
         continue;
       }
       
@@ -1524,26 +1524,26 @@ const processContent = async (articles, categories) => {
       
       // Always try to fetch full content if URL is available
       if (article.source?.url) {
-        console.log(`Attempting to fetch full content from: ${article.source.url}`);
+        //(`Attempting to fetch full content from: ${article.source.url}`);
         
         const fetchedContent = await fetchFullContent(article.source.url);
         
         if (fetchedContent && fetchedContent.length > MINIMUM_CONTENT_LENGTH) {
-          console.log(`Successfully fetched full content (${fetchedContent.length} chars)`);
+          //(`Successfully fetched full content (${fetchedContent.length} chars)`);
           finalContent = fetchedContent;
         } else {
-          console.log(`Could not fetch content with minimum length (got ${fetchedContent?.length || 0} chars)`);
+          //(`Could not fetch content with minimum length (got ${fetchedContent?.length || 0} chars)`);
           
           // Skip this article if content is too short
           if (finalContent.length < MINIMUM_CONTENT_LENGTH) {
-            console.log(`Skipping article with insufficient content (${finalContent.length} chars)`);
+            //(`Skipping article with insufficient content (${finalContent.length} chars)`);
             continue;
           }
         }
       } else {
         // Skip articles without URL and with short content
         if (finalContent.length < MINIMUM_CONTENT_LENGTH) {
-          console.log(`Skipping article without URL and insufficient content (${finalContent.length} chars)`);
+          //(`Skipping article without URL and insufficient content (${finalContent.length} chars)`);
           continue;
         }
       }
@@ -1598,7 +1598,7 @@ const processContent = async (articles, categories) => {
         publishDate: article.publishDate || new Date()
       });
       
-      console.log(`Successfully processed "${article.title}" - ${finalContent.length} chars, ${readingTime} min read time`);
+      //(`Successfully processed "${article.title}" - ${finalContent.length} chars, ${readingTime} min read time`);
       
     } catch (error) {
       console.error(`Error processing article "${article.title}":`, error);
@@ -1635,15 +1635,15 @@ export const importContent = async (req, res) => {
       });
     }
     
-    console.log(`Importing content from sources: ${selectedSources.join(', ')}`);
-    console.log(`Categories: ${selectedCategories.join(', ')}`);
-    console.log(`Requested count: ${count}`);
+    //(`Importing content from sources: ${selectedSources.join(', ')}`);
+    //(`Categories: ${selectedCategories.join(', ')}`);
+    //(`Requested count: ${count}`);
     
     // First, get existing source URLs from the database
     const existingBlogs = await Blog.find({ 'source.url': { $exists: true, $ne: '' } }, 'source.url');
     const existingUrls = new Set(existingBlogs.map(blog => blog.source.url));
     
-    console.log(`Found ${existingUrls.size} existing blog URLs in database`);
+    //(`Found ${existingUrls.size} existing blog URLs in database`);
     
     // Fetch articles from selected sources in parallel
     const fetchPromises = [];
@@ -1675,7 +1675,7 @@ export const importContent = async (req, res) => {
       return true;
     });
     
-    console.log(`Found ${allArticles.length} total articles, ${newArticles.length} are new unique articles`);
+    //(`Found ${allArticles.length} total articles, ${newArticles.length} are new unique articles`);
     
     if (newArticles.length === 0) {
       return res.status(404).json({
@@ -1687,7 +1687,7 @@ export const importContent = async (req, res) => {
     // Process up to 3x the requested count to ensure we have enough
     // after content processing (some might be rejected due to content length)
     const articlesToProcess = newArticles.slice(0, count * 3);
-    console.log(`Processing ${articlesToProcess.length} articles to meet target count of ${count}...`);
+    //(`Processing ${articlesToProcess.length} articles to meet target count of ${count}...`);
     
     // Process and clean articles
     const processedArticles = await processContent(articlesToProcess, selectedCategories);
@@ -1699,11 +1699,11 @@ export const importContent = async (req, res) => {
       });
     }
     
-    console.log(`Successfully processed ${processedArticles.length} articles with sufficient content`);
+    //(`Successfully processed ${processedArticles.length} articles with sufficient content`);
     
     // Limit to requested count
     const limitedArticles = processedArticles.slice(0, count);
-    console.log(`Limited to ${limitedArticles.length} articles per user request`);
+    //(`Limited to ${limitedArticles.length} articles per user request`);
     
     // Save articles to database
     const importedBlogs = [];
@@ -1730,7 +1730,7 @@ export const importContent = async (req, res) => {
         
         await blog.save();
         importedBlogs.push(blog);
-        console.log(`Saved blog "${article.title}" to database`);
+        //(`Saved blog "${article.title}" to database`);
       } catch (error) {
         console.error(`Error saving blog "${article.title}":`, error);
       }

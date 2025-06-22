@@ -227,7 +227,7 @@ const Profile = () => {
         `${window.location.origin}/profile`  // Use the new route
       );
       
-      console.log('Verification URL:', url);
+      //('Verification URL:', url);
 
       // Store the verification session ID
       setVerificationSessionId(verificationSessionId);

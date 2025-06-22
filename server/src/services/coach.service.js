@@ -113,7 +113,7 @@ export const initializeCoachPayouts = () => {
 
 
 export const initializeSubcleanupJobs = () => {
-  console.log('Running daily subscription cleanup');
+  //('Running daily subscription cleanup');
 
   cron.schedule('0 */2 * * *', async () => {
     logger.info('Running daily subscription cleanup');

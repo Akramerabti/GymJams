@@ -45,7 +45,7 @@ const Register = () => {
     document.addEventListener('mousedown', handleClickOutside);
     
     // Debugging - log dropdown state changes
-    console.log("Dropdown state changed:", isDropdownOpen);
+    //("Dropdown state changed:", isDropdownOpen);
     
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);

@@ -98,14 +98,6 @@ const DashboardCoach = () => {
     try {
       setIsLoading(true);
       
-      console.log('Goal approval data:', {
-        clientId,
-        goalId,
-        pointsToAward,
-        isApproval
-      });
-      
-      // Find the client
       const client = clients.find(c => c.id === clientId);
       if (!client) {
         console.error('Client not found:', { clientId, availableClientsIds: clients.map(c => c.id) });
@@ -245,11 +237,6 @@ const DashboardCoach = () => {
   const handleRejectGoalCompletion = async (clientId, goalId) => {
     try {
       setIsLoading(true);
-      
-      console.log('Goal rejection data:', {
-        clientId,
-        goalId
-      });
       
       // Call the reject endpoint
       await subscriptionService.rejectGoalCompletion(clientId, goalId);

@@ -80,9 +80,9 @@ const CoachingHome = () => {
     const checkSubscription = async () => {
       try {
         if (user) {
-          console.log('User:', user);
+          //('User:', user);
           if ((user.role || user.user?.role) === 'coach') {
-            console.log('User is a coach');
+            //('User is a coach');
             navigate('/dashboard');
             return;
           }
@@ -113,7 +113,7 @@ const CoachingHome = () => {
         // Shuffle the coaches array to randomize the order
         const shuffledCoaches = shuffleArray(originalCoaches);
         setCoaches(shuffledCoaches);
-        console.log('Original Coaches:', originalCoaches);
+        //('Original Coaches:', originalCoaches);
       } catch (error) {
         console.error('Error fetching coaches:', error);
         setCoaches([]);

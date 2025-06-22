@@ -255,7 +255,7 @@ const GoalsSection = ({
     if (!socket) return;
     
     const handleGoalApproved = (data) => {
-      console.log('Goal approved socket event received:', data);
+      //('Goal approved socket event received:', data);
       const { goalId, pointsAwarded } = data;
       
       // Update the goals array
@@ -281,7 +281,7 @@ const GoalsSection = ({
     };
     
     const handleGoalRejected = (data) => {
-      console.log('Goal rejected socket event received:', data);
+      //('Goal rejected socket event received:', data);
       const { goalId, reason } = data;
       
       // Update the goals array

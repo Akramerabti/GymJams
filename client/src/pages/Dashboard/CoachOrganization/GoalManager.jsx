@@ -307,7 +307,7 @@ const IntegratedGoalsSection = ({
     if (!socket) return;
     
     const handleGoalApproved = (data) => {
-      console.log('Goal approved socket event received:', data);
+      //('Goal approved socket event received:', data);
       const { goalId, pointsAwarded } = data;
       
       // Update the goals array
@@ -333,7 +333,7 @@ const IntegratedGoalsSection = ({
     };
     
     const handleGoalRejected = (data) => {
-      console.log('Goal rejected socket event received:', data);
+      //('Goal rejected socket event received:', data);
       const { goalId, reason } = data;
       
       // Update the goals array
@@ -388,7 +388,7 @@ const IntegratedGoalsSection = ({
       
       // Get subscription ID safely
       const subscriptionId = subscription._id;
-      console.log('Using subscription ID for goal completion:', subscriptionId);
+      //('Using subscription ID for goal completion:', subscriptionId);
       
       // Optimistic UI update
       const updatedGoals = goals.map(g => 
@@ -508,7 +508,7 @@ const IntegratedGoalsSection = ({
       
       // Get subscription ID safely
       const subscriptionId = subscription._id;
-      console.log('Using subscription ID for goal:', subscriptionId);
+      //('Using subscription ID for goal:', subscriptionId);
       
       // Add or update the goal
       let updatedGoal;

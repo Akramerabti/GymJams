@@ -47,55 +47,23 @@ import Returns from './pages/CustomerService/returns';
 import ApplicationForm from './pages/CustomerService/application';
 import OAuthCallback from './pages/OAuthCallback';
 import Blog from './pages/Blog';
-import BlogPost from './components/blog/BlogPost'; // Import the BlogPost component
+import BlogPost from './components/blog/BlogPost'; 
 
-
-// Socket Context
 import { SocketProvider } from './SocketContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 
-const RouteChangeHandler = () => {
-  const location = useLocation();
-  
-  useEffect(() => {
-    // When the route changes, initialize/refresh ads
-    const refreshAdsOnRouteChange = async () => {
-      try {
-        await adService.init();
-        
-        setTimeout(() => {
-          // AdSense doesn't use the same selectors as GPT
-          const existingAds = document.querySelectorAll('.adsbygoogle');
-          if (existingAds.length > 0) {
-            adService.refreshAds();
-          }
-        }, 1500);
-        
-        // And change this log message
-        console.log('Google AdSense initialized successfully');
-      } catch (error) {
-        console.error('Error refreshing ads on route change:', error);
-      }
-    };
-    
-    refreshAdsOnRouteChange();
-  }, [location.pathname]);
-  
-  return null;
-};
 
 const App = () => {
   const { checkAuth, logout, showOnboarding, setShowOnboarding } = useAuthStore();
 
   useEffect(() => {
-    // Token validation
     const validateTokenOnLoad = async () => {
       try {
         const token = localStorage.getItem('token');
         if (token) {
           const isValid = await checkAuth();
           if (!isValid) {
-            console.log('Token validation failed, logging out');
+            //('Token validation failed, logging out');
             logout();
           }
         }
@@ -105,18 +73,17 @@ const App = () => {
       }
     };
 
-    // Initialize Google Ad Manager with retry
     const initGAM = async (retryCount = 0) => {
       try {
-        // Initialize and set up slots
+
         await adService.init();
-        console.log('Google Ad Manager initialized successfully');
+        
       } catch (error) {
         console.error('Google Ad Manager initialization error:', error);
         // Retry initialization a few times with exponential backoff
         if (retryCount < 3) {
           const delay = Math.pow(2, retryCount) * 1000;
-          console.log(`Retrying GAM initialization in ${delay}ms...`);
+          //(`Retrying GAM initialization in ${delay}ms...`);
           setTimeout(() => initGAM(retryCount + 1), delay);
         }
       }

@@ -52,12 +52,12 @@ export const useApiOptimization = () => {
     const mergedConfig = { ...defaultConfig, ...config };
 
     if (isCacheValid(key, mergedConfig.cacheTime) && !config.bypassCache) {
-      console.log(`[API Optimization] Using cached data for ${key}`);
+      //(`[API Optimization] Using cached data for ${key}`);
       return getCachedData(key);
     }
 
     if (!canMakeRequest(key, mergedConfig.minInterval)) {
-      console.log(`[API Optimization] Rate limited for ${key}, using cache if available`);
+      //(`[API Optimization] Rate limited for ${key}, using cache if available`);
       const cachedData = getCachedData(key);
       if (cachedData) return cachedData;
 
@@ -68,7 +68,7 @@ export const useApiOptimization = () => {
 
     // Check if request is already in progress
     if (requestQueue.current.has(key)) {
-      console.log(`[API Optimization] Request already in progress for ${key}, waiting...`);
+      //(`[API Optimization] Request already in progress for ${key}, waiting...`);
       return requestQueue.current.get(key);
     }
 
@@ -97,7 +97,7 @@ export const useApiOptimization = () => {
             requestQueue.current.delete(key);
             const cachedData = getCachedData(key);
             if (cachedData) {
-              console.log(`[API Optimization] Returning cached data due to API error for ${key}`);
+              //(`[API Optimization] Returning cached data due to API error for ${key}`);
               return cachedData;
             }
             
@@ -145,10 +145,10 @@ export const useApiOptimization = () => {
   const clearCache = useCallback((key = null) => {
     if (key) {
       cache.current.delete(key);
-      console.log(`[API Optimization] Cleared cache for ${key}`);
+      //(`[API Optimization] Cleared cache for ${key}`);
     } else {
       cache.current.clear();
-      console.log(`[API Optimization] Cleared all cache`);
+      //(`[API Optimization] Cleared all cache`);
     }
   }, []);
 
@@ -157,7 +157,7 @@ export const useApiOptimization = () => {
     if (!isCacheValid(key, config.cacheTime)) {
       try {
         await optimizedApiCall(key, apiFunction, { ...config, silent: true });
-        console.log(`[API Optimization] Prefetched data for ${key}`);
+        //(`[API Optimization] Prefetched data for ${key}`);
       } catch (error) {
         console.warn(`[API Optimization] Prefetch failed for ${key}:`, error);
       }

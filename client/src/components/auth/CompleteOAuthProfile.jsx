@@ -162,17 +162,17 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
         // Handle temporary token case (new user creation)
       if (currentUser.tempToken) {
         updateData.tempToken = currentUser.tempToken;
-        console.log('Sending profile completion with temp token');
+        //('Sending profile completion with temp token');
       }
       
-      console.log('Sending update data:', updateData);
+      //('Sending update data:', updateData);
         const response = await api.post('/auth/complete-oauth-profile', updateData, {
         headers: currentUser.tempToken ? {} : {
           'Authorization': `Bearer ${token}`
         }
       });
       
-      console.log('Profile completion response:', response.data);
+      //('Profile completion response:', response.data);
         // Check if profile is now complete
       if (response.data.isComplete) {
         // For new users with temp token, we need to handle the new auth token
@@ -223,7 +223,7 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
           onUserUpdate(updatedUser);
         }
         
-        console.log('Received new temporary token for retry');
+        //('Received new temporary token for retry');
       }
       
       // Handle specific error types

@@ -110,7 +110,7 @@ export const handleStripeWebhook = async (event) => {
       await handleRefund(data.object);
       break;
     default:
-      console.log(`Unhandled event type ${type}`);
+      //(`Unhandled event type ${type}`);
   }
 };
 

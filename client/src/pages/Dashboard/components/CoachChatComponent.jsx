@@ -43,14 +43,14 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
     if (!socket) return;
 
     const handleConnect = () => {
-      console.log('Socket connected');
+      //('Socket connected');
       if (user?.id) {
         socket.emit('register', user.id);
       }
     };
 
     const handleDisconnect = () => {
-      console.log('Socket disconnected');
+      //('Socket disconnected');
     };
 
     socket.on('connect', handleConnect);
@@ -80,7 +80,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
     
     try {
       markingAsRead.current = true;
-      console.log('Marking messages as read:', messageIds);
+      //('Marking messages as read:', messageIds);
       
       // Update local state immediately
       setMessages(prev => 
@@ -103,7 +103,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
             messageIds,
             receiverId: clientId
           });
-          console.log('Read receipt sent via socket');
+          //('Read receipt sent via socket');
         } catch (err) {
           console.error('Error sending read receipt via socket:', err);
         }
@@ -115,19 +115,11 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
     }
   }, [socket, connected, subscriberId, clientId]);
 
-  // MAIN UNIFIED SOCKET EFFECT - handles socket state, registration, and event listeners
-  useEffect(() => {
-    console.log('==== SOCKET EFFECT RUN ====');
-    console.log(`Socket: ${socket ? 'Available' : 'NULL'}, Connected: ${connected}, User ID: ${userId}, Client ID: ${clientId}`);
-    console.log(`Selected Client: ${JSON.stringify({
-      id: subscriberId,
-      userId: clientId,
-      name: selectedClient?.firstName
-    })}`);
 
-    // STEP 1: Check if socket needs reconnection
+  useEffect(() => {
+
     if (!socket && !connecting) {
-      console.log('Socket not connected and not connecting, attempting reconnect...');
+      //('Socket not connected and not connecting, attempting reconnect...');
       reconnect();
       return; // Exit early and wait for next effect run with socket
     }
@@ -136,7 +128,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
     if (socket && connected && userId) {
       try {
         registrationAttemptsRef.current += 1;
-        console.log(`Registering user with socket (attempt #${registrationAttemptsRef.current}):`, userId);
+        //(`Registering user with socket (attempt #${registrationAttemptsRef.current}):`, userId);
         socket.emit('register', userId);
         setSocketReady(true);
       } catch (err) {
@@ -149,17 +141,17 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
 
     // STEP 3: Setup event listeners if socket is available
       const handleReceiveMessage = (message) => {
-        console.log('Received message via socket:', message);
+        //('Received message via socket:', message);
         
         // Skip if not for this subscription
         if (message.subscriptionId !== subscriberId) {
-          console.log('Message is for a different subscription, ignoring');
+          //('Message is for a different subscription, ignoring');
           return;
         }
         
         // Skip if already processed by ID
         if (processedMessageIds.current.has(message._id)) {
-          console.log('Skipping already processed message by ID:', message._id);
+          //('Skipping already processed message by ID:', message._id);
           return;
         }
         
@@ -175,7 +167,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
         setMessages(prev => {
           // First check: ID-based deduplication
           if (prev.some(m => m._id === message._id)) {
-            console.log('Message already exists in state, skipping duplicate by ID');
+            //('Message already exists in state, skipping duplicate by ID');
             return prev;
           }
           
@@ -187,7 +179,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
           );
           
           if (isDuplicateContent) {
-            console.log('Skipping duplicate message with same content & similar timestamp');
+            //('Skipping duplicate message with same content & similar timestamp');
             return prev;
           }
           
@@ -201,7 +193,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
           
           let newMessages;
           if (hasPendingVersion !== -1) {
-            console.log('Replacing pending message with confirmed message');
+            //('Replacing pending message with confirmed message');
             newMessages = [...prev];
             newMessages[hasPendingVersion] = message;
           } else {
@@ -233,7 +225,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
       
       // Handle message read receipts
       const handleMessagesRead = (data) => {
-        console.log('Messages read event received:', data);
+        //('Messages read event received:', data);
         
         // Skip if not for this subscription
         if (data.subscriptionId !== subscriberId) return;
@@ -261,13 +253,13 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
   useEffect(() => {
     const fetchMessages = async () => {
       if (!subscriberId) {
-        console.log('No subscription ID available, skipping message fetch');
+        //('No subscription ID available, skipping message fetch');
         return;
       }
 
       try {
         setIsLoading(true);
-        console.log('Fetching messages for subscription:', subscriberId);
+        //('Fetching messages for subscription:', subscriberId);
         const response = await subscriptionService.fetchMessages(subscriberId);
         
         // Reset processed message IDs
@@ -284,7 +276,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
           fetchedMessages = [];
         }
         
-        console.log(`Received ${fetchedMessages.length} messages, processing...`);
+        //(`Received ${fetchedMessages.length} messages, processing...`);
         
         // Sort and deduplicate messages with improved algorithm
         const uniqueMessages = [];
@@ -317,7 +309,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
                 m.content === msg.content && 
                 m.timestamp === msg.timestamp && 
                 m.sender === msg.sender)) {
-            console.log('Skipping duplicate content message:', msg._id);
+            //('Skipping duplicate content message:', msg._id);
             return;
           }
           
@@ -330,7 +322,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
           new Date(a.timestamp) - new Date(b.timestamp)
         );
         
-        console.log(`After deduplication: ${uniqueMessages.length} unique messages`);
+        //(`After deduplication: ${uniqueMessages.length} unique messages`);
         setMessages(uniqueMessages);
         
         // Check for unread messages after initial load
@@ -340,7 +332,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
           );
           
           if (unreadMessages.length > 0) {
-            console.log(`Marking ${unreadMessages.length} unread messages as read`);
+            //(`Marking ${unreadMessages.length} unread messages as read`);
             markMessagesAsRead(unreadMessages.map(msg => msg._id));
           }
         }, 500);
@@ -482,36 +474,36 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
   useEffect(() => {
     if (!socket || !connected || !subscriberId) return;
 
-    console.log('Setting up messagesRead event listener');
+    //('Setting up messagesRead event listener');
     
     const handleMessagesReadEvent = (data) => {
-      console.log('Received messagesRead event:', data);
+      //('Received messagesRead event:', data);
       
       if (data.subscriptionId !== subscriberId) return;
       
       // Check if this response includes a lastReadMessage directly from server
       if (data.lastReadMessage && data.lastReadMessage._id) {
-        console.log('Using server-provided last read message ID:', data.lastReadMessage._id);
+        //('Using server-provided last read message ID:', data.lastReadMessage._id);
         setLastReadMessageId(data.lastReadMessage._id);
         return;
       }
       
       // Get messages sent by me (user) that were marked as read
       const myMessages = messages.filter(msg => msg.sender === userId);
-      console.log(`Found ${myMessages.length} messages from me`);
+      //(`Found ${myMessages.length} messages from me`);
       
       const myReadMessages = myMessages.filter(msg => 
         data.messageIds.includes(msg._id)
       );
       
-      console.log(`${myReadMessages.length} of my messages were marked as read in this event`);
+      //(`${myReadMessages.length} of my messages were marked as read in this event`);
       
       // If any messages were marked as read, update the last read message ID
       if (myReadMessages.length > 0) {
         // Sort in reverse chronological order
         myReadMessages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         const newLastReadMessageId = myReadMessages[0]._id;
-        console.log('Setting last read message ID to:', newLastReadMessageId);
+        //('Setting last read message ID to:', newLastReadMessageId);
         setLastReadMessageId(newLastReadMessageId);
       }
     };
@@ -601,7 +593,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
       );
       
       if (isDuplicateSend) {
-        console.log('Preventing duplicate message send within 10 seconds');
+        //('Preventing duplicate message send within 10 seconds');
         toast.info('Message already being sent');
         return;
       }
@@ -633,7 +625,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
       if (files.length > 0) {
         try {
           const onProgress = (progress) => {
-            console.log(`Upload progress: ${progress}%`);
+            //(`Upload progress: ${progress}%`);
           };
           
           uploadedFiles = await subscriptionService.uploadFiles(files, onProgress);
@@ -669,7 +661,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
               type: file.type
             }))
           });
-          console.log('Message sent via socket for real-time delivery');
+          //('Message sent via socket for real-time delivery');
         } catch (socketError) {
           console.error('Error sending message via socket:', socketError);
           // Continue with API call even if socket fails
@@ -708,7 +700,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
         }
         
         if (serverMessage) {
-          console.log('Replacing temp message with server message:', serverMessage._id);
+          //('Replacing temp message with server message:', serverMessage._id);
           processedMessageIds.current.add(serverMessage._id);
           
           // Update messages state
@@ -723,7 +715,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
             );
             
             if (hasDuplicate) {
-              console.log('Server message appears to be a duplicate, just removing temp message');
+              //('Server message appears to be a duplicate, just removing temp message');
               return prev.filter(msg => msg._id !== tempId);
             }
             
@@ -733,7 +725,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
               .concat(serverMessage);
           });
         } else {
-          console.log('No server message returned, but API call succeeded');
+          //('No server message returned, but API call succeeded');
           // Update the pending status on the temporary message
           setMessages(prev => 
             prev.map(msg => 
@@ -833,36 +825,36 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
   useEffect(() => {
     if (!socket || !connected || !subscriberId) return;
 
-    console.log('Setting up messagesRead event listener');
+    //('Setting up messagesRead event listener');
     
     const handleMessagesReadEvent = (data) => {
-      console.log('Received messagesRead event:', data);
+      //('Received messagesRead event:', data);
       
       if (data.subscriptionId !== selectedClient._id) return;
       
       // Check if this response includes a lastReadMessage directly from server
       if (data.lastReadMessage && data.lastReadMessage._id) {
-        console.log('Using server-provided last read message ID:', data.lastReadMessage._id);
+        //('Using server-provided last read message ID:', data.lastReadMessage._id);
         setLastReadMessageId(data.lastReadMessage._id);
         return;
       }
       
       // Get messages sent by me (user) that were marked as read
       const myMessages = messages.filter(msg => msg.sender === userId);
-      console.log(`Found ${myMessages.length} messages from me`);
+      //(`Found ${myMessages.length} messages from me`);
       
       const myReadMessages = myMessages.filter(msg => 
         data.messageIds.includes(msg._id)
       );
       
-      console.log(`${myReadMessages.length} of my messages were marked as read in this event`);
+      //(`${myReadMessages.length} of my messages were marked as read in this event`);
       
       // If any messages were marked as read, update the last read message ID
       if (myReadMessages.length > 0) {
         // Sort in reverse chronological order
         myReadMessages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         const newLastReadMessageId = myReadMessages[0]._id;
-        console.log('Setting last read message ID to:', newLastReadMessageId);
+        //('Setting last read message ID to:', newLastReadMessageId);
         setLastReadMessageId(newLastReadMessageId);
       }
     };

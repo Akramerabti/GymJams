@@ -85,7 +85,7 @@ const GymbrosMatchesList = () => {
       } catch (likeError) {
         // Handle rate limiting gracefully
         if (likeError.response?.status === 429) {
-          console.log('Rate limited on likes count, using cached value');
+          //('Rate limited on likes count, using cached value');
         } else {
           console.error('Error fetching who liked me count:', likeError);
         }
@@ -108,7 +108,7 @@ const GymbrosMatchesList = () => {
     if (userId) {
       // Subscribe to match updates (like new messages, match status changes)
       unsubscribeMatches = subscribeToMatches(userId, (matchUpdate) => {
-        console.log('Match update received:', matchUpdate);
+        //('Match update received:', matchUpdate);
         
         setMatches(prevMatches => {
           const updatedMatches = [...prevMatches];
@@ -136,7 +136,7 @@ const GymbrosMatchesList = () => {
       
       // Subscribe to completely new matches
       unsubscribeNewMatches = subscribeToNewMatches(userId, (newMatchData) => {
-        console.log('New match received:', newMatchData);
+        //('New match received:', newMatchData);
         
         setMatches(prevMatches => {
           // Check if match already exists
@@ -184,7 +184,7 @@ const GymbrosMatchesList = () => {
           // Guest tokens could have profileId or guestId
           userIdRef.current = payload.profileId || payload.guestId;
           
-          console.log('Found guest user ID from token:', userIdRef.current);
+          //('Found guest user ID from token:', userIdRef.current);
         } catch (e) {
           console.error('Error decoding guest token:', e);
         }
@@ -225,7 +225,7 @@ const GymbrosMatchesList = () => {
 
 useEffect(() => {
   if (matches.length > 0) {
-    console.log('Processing matches:', matches);
+    //('Processing matches:', matches);
     
     // More robust filtering based on whether the match has messages
     const conversationsList = matches.filter(match => {
@@ -264,7 +264,7 @@ useEffect(() => {
       return getTimestamp(b) - getTimestamp(a);
     });
     
-    console.log(`Sorted into ${conversationsList.length} conversations and ${newMatchesList.length} new matches`);
+    //(`Sorted into ${conversationsList.length} conversations and ${newMatchesList.length} new matches`);
     setNewMatches(newMatchesList);
     setConversations(conversationsList);
   } else {

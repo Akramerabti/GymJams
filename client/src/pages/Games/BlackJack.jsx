@@ -177,7 +177,7 @@ const Blackjack = ({ minBet = 100, maxBet = 10000 }) => {
       values.map(value => ({ suit, value }))
     );
     // Ensure all cards have valid suit and value properties
-    console.log('Created deck with', newDeck.length, 'cards');
+    //('Created deck with', newDeck.length, 'cards');
     return newDeck.sort(() => Math.random() - 0.5);
   };
 

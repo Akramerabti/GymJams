@@ -16,15 +16,7 @@ const upload = multer({
 
 // Middleware to handle Mailgun webhook format specifically
 const mailgunMiddleware = (req, res, next) => {
-  // Log detailed information about the webhook request
-  console.log(`[MAILGUN MIDDLEWARE] ${new Date().toISOString()} - Method: ${req.method}, URL: ${req.url}`);
-  console.log(`[MAILGUN MIDDLEWARE] Content-Type: ${req.headers['content-type']}`);
-  console.log(`[MAILGUN MIDDLEWARE] User-Agent: ${req.headers['user-agent']}`);
-  console.log(`[MAILGUN MIDDLEWARE] Origin: ${req.headers.origin || 'none'}`);
-  console.log(`[MAILGUN MIDDLEWARE] X-Forwarded-For: ${req.headers['x-forwarded-for'] || 'none'}`);
-  console.log(`[MAILGUN MIDDLEWARE] Real IP: ${req.ip}`);
-  
-  // Set CORS headers for webhook endpoint
+
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
@@ -34,7 +26,7 @@ const mailgunMiddleware = (req, res, next) => {
 
 // Handle OPTIONS requests for CORS preflight
 router.options('/email-webhook', mailgunMiddleware, (req, res) => {
-  console.log('[WEBHOOK] Handling OPTIONS preflight request');
+  //('[WEBHOOK] Handling OPTIONS preflight request');
   res.sendStatus(200);
 });
 

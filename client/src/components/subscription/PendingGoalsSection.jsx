@@ -76,12 +76,7 @@ const PendingGoalsSection = ({
     // Get the goal ID safely
     const goalId = getGoalId(goal);
     
-    console.log("Goal data for approval:", {
-      goal,
-      extractedId: goalId,
-      subscriptionId
-    });
-    
+
     if (!subscriptionId || !goalId) {
       console.error("Invalid goal data:", { subscriptionId, goalId, goal });
       toast.error("Invalid goal data");
@@ -104,12 +99,7 @@ const PendingGoalsSection = ({
   const handleRejectClick = (subscriptionId, goal) => {
     // Get the goal ID safely
     const goalId = getGoalId(goal);
-    
-    console.log("Goal data for rejection:", {
-      goal,
-      extractedId: goalId,
-      subscriptionId
-    });
+
     
     if (!subscriptionId || !goalId) {
       console.error("Invalid goal data:", { subscriptionId, goalId, goal });
@@ -143,13 +133,6 @@ const PendingGoalsSection = ({
     const difficulty = data.difficulty || 'medium';
     const pointsToAward = GOAL_DIFFICULTY[difficulty]?.points || 100;
 
-    console.log("Approving goal with data:", {
-      subscriptionId: data.subscriptionId,
-      goalId: data.goalId,
-      pointsToAward,
-      isApproval: true
-    });
-
     // Call the handler with data from the ref
     handleCompleteClientGoal(
       data.subscriptionId,
@@ -173,10 +156,7 @@ const PendingGoalsSection = ({
       return;
     }
 
-    console.log("Rejecting goal with data:", {
-      subscriptionId: data.subscriptionId,
-      goalId: data.goalId
-    });
+
 
     // Call the handler with data from the ref
     handleRejectGoalCompletion(

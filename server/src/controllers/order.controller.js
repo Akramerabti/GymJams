@@ -13,7 +13,7 @@ export const getOrders = async (req, res) => {
     // Extract user ID from the authenticated user
     const userId = req.user.id;
 
-    console.log('User ID:', userId);
+    //('User ID:', userId);
     
     if (!userId || typeof userId !== 'string') {
       logger.error(`Invalid userId format: ${userId}`);
@@ -32,7 +32,7 @@ export const getOrders = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean(); // Use lean for better performance when you don't need Mongoose documents
 
-      console.log('Orders:', orders);
+      //('Orders:', orders);
     return res.status(200).json({ orders });
   } catch (error) {
     logger.error('Error fetching orders:', error);

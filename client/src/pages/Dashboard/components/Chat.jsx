@@ -49,7 +49,7 @@ const Chat = ({ subscription, onClose }) => {
   // Try to reconnect socket if needed
   useEffect(() => {
     if (!connected && !connecting && socket === null) {
-      console.log('Chat: Socket not connected, attempting to reconnect...');
+      //('Chat: Socket not connected, attempting to reconnect...');
       reconnect();
     }
   }, [connected, connecting, socket, reconnect]);
@@ -116,7 +116,7 @@ const Chat = ({ subscription, onClose }) => {
   useEffect(() => {
     if (socket && connected && userId) {
       try {
-        console.log('Registering user with socket in Chat component:', userId);
+        //('Registering user with socket in Chat component:', userId);
         socket.emit('register', userId);
       } catch (err) {
         console.error('Error registering user with socket:', err);
@@ -130,7 +130,7 @@ const Chat = ({ subscription, onClose }) => {
     
     try {
       markingAsRead.current = true;
-      console.log('Marking messages as read:', messageIds);
+      //('Marking messages as read:', messageIds);
       
       // Update local state immediately
       setMessages(prev => 
@@ -153,7 +153,7 @@ const Chat = ({ subscription, onClose }) => {
             messageIds,
             receiverId: coachId
           });
-          console.log('Read receipt sent via socket');
+          //('Read receipt sent via socket');
         } catch (err) {
           console.error('Error sending read receipt via socket:', err);
         }
@@ -171,11 +171,11 @@ const Chat = ({ subscription, onClose }) => {
     
     // Handler functions
     const handleReceiveMessage = (message) => {
-      console.log('Received message via socket:', message);
+      //('Received message via socket:', message);
       
       // Skip if already processed
       if (processedMessageIds.current.has(message._id)) {
-        console.log('Skipping duplicate message:', message._id);
+        //('Skipping duplicate message:', message._id);
         return;
       }
       
@@ -217,7 +217,7 @@ const Chat = ({ subscription, onClose }) => {
     
     // Handle message read receipts
     const handleMessagesRead = (data) => {
-      console.log('Messages read event received:', data);
+      //('Messages read event received:', data);
       
       if (data.subscriptionId === subscription._id) {
         setMessages(prev => 
@@ -421,7 +421,7 @@ const Chat = ({ subscription, onClose }) => {
       if (files.length > 0) {
         try {
           const onProgress = (progress) => {
-            console.log(`Upload progress: ${progress}%`);
+            //(`Upload progress: ${progress}%`);
           };
           
           uploadedFiles = await subscriptionService.uploadFiles(files, onProgress);
@@ -568,36 +568,36 @@ const Chat = ({ subscription, onClose }) => {
   useEffect(() => {
     if (!socket || !connected || !subscription?._id) return;
 
-    console.log('Setting up messagesRead event listener');
+    //('Setting up messagesRead event listener');
     
     const handleMessagesReadEvent = (data) => {
-      console.log('Received messagesRead event:', data);
+      //('Received messagesRead event:', data);
       
       if (data.subscriptionId !== subscription._id) return;
       
       // Check if this response includes a lastReadMessage directly from server
       if (data.lastReadMessage && data.lastReadMessage._id) {
-        console.log('Using server-provided last read message ID:', data.lastReadMessage._id);
+        //('Using server-provided last read message ID:', data.lastReadMessage._id);
         setLastReadMessageId(data.lastReadMessage._id);
         return;
       }
       
       // Get messages sent by me (user) that were marked as read
       const myMessages = messages.filter(msg => msg.sender === userId);
-      console.log(`Found ${myMessages.length} messages from me`);
+      //(`Found ${myMessages.length} messages from me`);
       
       const myReadMessages = myMessages.filter(msg => 
         data.messageIds.includes(msg._id)
       );
       
-      console.log(`${myReadMessages.length} of my messages were marked as read in this event`);
+      //(`${myReadMessages.length} of my messages were marked as read in this event`);
       
       // If any messages were marked as read, update the last read message ID
       if (myReadMessages.length > 0) {
         // Sort in reverse chronological order
         myReadMessages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         const newLastReadMessageId = myReadMessages[0]._id;
-        console.log('Setting last read message ID to:', newLastReadMessageId);
+        //('Setting last read message ID to:', newLastReadMessageId);
         setLastReadMessageId(newLastReadMessageId);
       }
     };

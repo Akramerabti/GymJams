@@ -26,10 +26,10 @@ export const checkGymBrosProfile = async (req, res) => {
     
     // Handle authenticated user
     if (effectiveUser.userId) {
-      console.log('Checking profile for authenticated user:', effectiveUser.userId);
+      //('Checking profile for authenticated user:', effectiveUser.userId);
       
       const profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
-      console.log('Profile found:', profile);
+      //('Profile found:', profile);
       
       if (profile) {
         return res.json({ hasProfile: true, profile });
@@ -39,7 +39,7 @@ export const checkGymBrosProfile = async (req, res) => {
     } 
     // Handle guest user with profileId
     else if (effectiveUser.profileId) {
-      console.log('Checking profile for guest with profileId:', effectiveUser.profileId);
+      //('Checking profile for guest with profileId:', effectiveUser.profileId);
       
       const profile = await GymBrosProfile.findById(effectiveUser.profileId);
       if (profile) {
@@ -56,7 +56,7 @@ export const checkGymBrosProfile = async (req, res) => {
     }
     // Handle guest user with phone but no profileId
     else if (effectiveUser.phone) {
-      console.log('Checking profile for guest with phone:', effectiveUser.phone);
+      //('Checking profile for guest with phone:', effectiveUser.phone);
       
       const profile = await GymBrosProfile.findOne({ phone: effectiveUser.phone });
       if (profile) {
@@ -105,7 +105,7 @@ export const checkGymBrosProfileByPhone = async (req, res) => {
   try {
     const { verifiedPhone, verificationToken } = req.body;
 
-    console.log('Checking profile by phone:', verifiedPhone);
+    //('Checking profile by phone:', verifiedPhone);
     
     if (!verifiedPhone || !verificationToken) {
       return res.status(400).json({ 
@@ -117,7 +117,7 @@ export const checkGymBrosProfileByPhone = async (req, res) => {
     // Verify token
     try {
       const decodedToken = jwt.verify(verificationToken, process.env.JWT_SECRET);
-      console.log('Decoded token:', decodedToken);
+      //('Decoded token:', decodedToken);
       // Check if token was issued for this phone and is verified
       if (!decodedToken.phone || decodedToken.phone !== verifiedPhone || !decodedToken.verified) {
         return res.status(401).json({
@@ -176,7 +176,7 @@ export const checkGymBrosProfileByPhone = async (req, res) => {
     const gymBrosProfile = await GymBrosProfile.findOne({ phone: verifiedPhone });
     
     if (gymBrosProfile) {
-      console.log('Found GymBros profile without user account:', gymBrosProfile._id);
+      //('Found GymBros profile without user account:', gymBrosProfile._id);
       
       // Return the profile info without user data
       return res.json({
@@ -212,8 +212,8 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
     let profileData = req.body;
     const verificationToken = req.body.verificationToken;
     
-    console.log('Creating/updating GymBros profile:', profileData);
-    console.log('Guest token from request:', req.headers['x-gymbros-guest-token'] || req.query.guestToken);
+    //('Creating/updating GymBros profile:', profileData);
+    //('Guest token from request:', req.headers['x-gymbros-guest-token'] || req.query.guestToken);
     
     // Validate profile data
     if (!profileData || typeof profileData !== 'object') {
@@ -332,7 +332,7 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
         
         // Generate a guest token for future requests with the profile ID
         const guestToken = generateGuestToken(profileData.phone, profile._id);
-        console.log(`Created guest token for profile ${profile._id}:`, guestToken);
+        //(`Created guest token for profile ${profile._id}:`, guestToken);
         
         return res.status(201).json({
           success: true,
@@ -364,7 +364,7 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
 
 export const uploadProfileImages = async (req, res) => {
   try {
-    console.log('Uploading profile images:', req.files);
+    //('Uploading profile images:', req.files);
     // Get effective user (either authenticated or guest)
     const effectiveUser = getEffectiveUser(req);
     
@@ -414,7 +414,7 @@ export const uploadProfileImages = async (req, res) => {
       });
     }
     
-    console.log('Uploading images to Supabase for profile:', profile._id);
+    //('Uploading images to Supabase for profile:', profile._id);
     
     try {
       // Upload files to Supabase
@@ -429,7 +429,7 @@ export const uploadProfileImages = async (req, res) => {
       // Extract URLs from upload results
       const imageUrls = uploadResults.map(result => result.url);
       
-      console.log('Successfully uploaded to Supabase, URLs:', imageUrls);
+      //('Successfully uploaded to Supabase, URLs:', imageUrls);
       
       // Add new images to profile
       if (!profile.images) {
@@ -609,7 +609,7 @@ export const getGymBrosProfiles = async (req, res, next) => {
       logger.error(`Error updating lastActive timestamp: ${updateError.message}`);
     }
 
-    console.log('User profiles:', req.query);
+    //('User profiles:', req.query);
     const { 
       workoutTypes, 
       experienceLevel, 
@@ -1019,7 +1019,7 @@ export const findUsersWhoLikedMe = async (effectiveUser) => {
       !matchedUserIds.has(id) && !allCurrentUserIds.includes(id)
     );
 
-    console.log('Potential matches:', potentialMatches);
+    //('Potential matches:', potentialMatches);
     
     return potentialMatches;
   } catch (error) {
@@ -1400,7 +1400,7 @@ export const updateUserSettings = async (req, res) => {
 export const deleteGymBrosProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    console.log('Deleting GymBros profile for user:', userId);
+    //('Deleting GymBros profile for user:', userId);
 
     // Delete the profile
     const deleteResult = await GymBrosProfile.findOneAndDelete({ userId });
@@ -1551,7 +1551,7 @@ export const sendVerificationCode = async (req, res) => {
     // Check if we're in production mode
     if (process.env.NODE_ENV !== 'production') {
       // Development mode: Log the code and return it in the response
-      console.log(`[DEV MODE] Verification code for ${phone}: ${verificationCode}`);
+      //(`[DEV MODE] Verification code for ${phone}: ${verificationCode}`);
       return res.json({ 
         success: true, 
         message: 'Verification code generated (check server logs)',
@@ -1581,7 +1581,7 @@ export const sendVerificationCode = async (req, res) => {
         to: phone
       });
       
-      console.log(`Verification SMS sent to ${phone}`);
+      //(`Verification SMS sent to ${phone}`);
       
       res.json({ success: true, message: 'Verification code sent' });
     } catch (twilioError) {
@@ -1629,7 +1629,7 @@ export const verifyCode = async (req, res) => {
       });
     }
     
-    console.log('Verifying code:', code, 'for phone:', phone);
+    //('Verifying code:', code, 'for phone:', phone);
     
     // Find the verification record
     const verification = await PhoneVerification.findOne({ 
@@ -1796,7 +1796,7 @@ async function saveBrowsingSession(userId, profileIds) {
 async function handleProfileCheckByPhone(req, res) {
   const { verifiedPhone, verificationToken } = req.body;
   
-  console.log('Checking profile by verified phone:', verifiedPhone);
+  //('Checking profile by verified phone:', verifiedPhone);
   
   // First try to find a User with this phone number
   const user = await User.findOne({ phone: verifiedPhone });

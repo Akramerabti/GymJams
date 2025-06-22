@@ -171,7 +171,7 @@ export const checkPayoutSetup = async (req, res) => {
     // Retrieve the Stripe account to check if payouts are enabled
     const account = await stripe.accounts.retrieve(user.stripeAccountId);
 
-    console.log('Account Requirements:', account.requirements);
+    //('Account Requirements:', account.requirements);
 
     if (account.charges_enabled && account.payouts_enabled) {
       // Update the coach's payout setup status in the database
@@ -179,11 +179,11 @@ export const checkPayoutSetup = async (req, res) => {
         payoutSetupComplete: true,
       });
 
-      console.log('Payout setup complete:', user.stripeAccountId);
+      //('Payout setup complete:', user.stripeAccountId);
       return res.json({ payoutSetupComplete: true });
     } else {
       // Log the missing requirements for debugging
-      console.log('Missing requirements:', account.requirements.currently_due);
+      //('Missing requirements:', account.requirements.currently_due);
       return res.json({
         payoutSetupComplete: false,
         missingRequirements: account.requirements.currently_due,

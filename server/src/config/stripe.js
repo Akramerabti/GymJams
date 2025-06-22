@@ -82,9 +82,9 @@ export const createAccountLink = async (accountId, returnUrl, refreshUrl) => {
 export const retrieveConnectAccount = async (accountId) => {
   try {
     const account = await stripe.accounts.retrieve(accountId);
-    console.log('Stripe Account:', account);
-    console.log('Charges Enabled:', account.charges_enabled);
-    console.log('Payouts Enabled:', account.payouts_enabled);
+    //('Stripe Account:', account);
+    //('Charges Enabled:', account.charges_enabled);
+    //('Payouts Enabled:', account.payouts_enabled);
     return account;
   } catch (error) {
     logger.error('Error retrieving Connect account:', error);

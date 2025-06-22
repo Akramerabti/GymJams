@@ -208,12 +208,12 @@ const ImageCropperModal = ({ image, onCropComplete, onCropCancel }) => {
     
     let formattedUrl = image;
     
-    console.log('Formatting image URL:', image);
+    //('Formatting image URL:', image);
     
     // Case 1: If it's a blob URL, use it directly
     if (typeof image === 'string' && image.startsWith('blob:')) {
       // No change needed for blob URLs
-      console.log('Using blob URL directly:', image);
+      //('Using blob URL directly:', image);
       setFormattedImageUrl(image);
       return;
     }
@@ -223,20 +223,20 @@ const ImageCropperModal = ({ image, onCropComplete, onCropCancel }) => {
       // Construct the full URL to the API server where the actual file is
       const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       formattedUrl = `${apiBaseUrl}${image}`;
-      console.log('Formatted legacy server path to API URL:', formattedUrl);
+      //('Formatted legacy server path to API URL:', formattedUrl);
       setFormattedImageUrl(formattedUrl);
       return;
     }
     
     // Case 3: Any other URL format (http, https, etc.)
-    console.log('Using image URL as-is:', image);
+    //('Using image URL as-is:', image);
     setFormattedImageUrl(image);
   }, [image]);
   
   // Log what image value we're receiving to help with debugging
   useEffect(() => {
     if (formattedImageUrl) {
-      console.log('Final formatted image URL:', formattedImageUrl);
+      //('Final formatted image URL:', formattedImageUrl);
     }
   }, [formattedImageUrl]);
 
@@ -247,7 +247,7 @@ const ImageCropperModal = ({ image, onCropComplete, onCropCancel }) => {
     
     const preloadImage = async () => {
       try {
-        console.log('Attempting to preload image:', formattedImageUrl);
+        //('Attempting to preload image:', formattedImageUrl);
         
         // Early validation
         if (!formattedImageUrl) {
@@ -271,15 +271,10 @@ const ImageCropperModal = ({ image, onCropComplete, onCropCancel }) => {
           if ((formattedImageUrl.startsWith('http://') || formattedImageUrl.startsWith('https://')) && 
               !formattedImageUrl.startsWith('blob:')) {
             img.crossOrigin = "anonymous";
-            console.log('Setting crossOrigin for remote URL');
+            //('Setting crossOrigin for remote URL');
           }
           
           img.onload = () => {
-            console.log('Image successfully loaded:', {
-              width: img.width,
-              height: img.height,
-              src: img.src
-            });
             setImageLoaded(true);
             resolve();
           };
@@ -294,7 +289,7 @@ const ImageCropperModal = ({ image, onCropComplete, onCropCancel }) => {
           };
           
           img.src = formattedImageUrl;
-          console.log('Image src assigned:', img.src);
+          //('Image src assigned:', img.src);
         });
       } catch (error) {
         console.error('Image preload error:', error);
@@ -318,30 +313,23 @@ const handleSave = async () => {
   setLoading(true);
   
   try {
-    console.log('Starting crop operation with:', {
-      croppedAreaPixels,
-      imageUrl: formattedImageUrl
-    });
-    
-    // Create a canvas to draw the cropped image
+
     const canvas = document.createElement('canvas');
     const img = new Image();
     
     // Use the formatted URL for the image source
     const imageSource = formattedImageUrl || image;
-    console.log('Using image source for cropping:', imageSource);
-    
-    // Set crossOrigin for all images that are not blob URLs
+
     if (!imageSource.startsWith('blob:')) {
       img.crossOrigin = "anonymous";
-      console.log('Setting crossOrigin for cropping');
+      //('Setting crossOrigin for cropping');
     }
       // WORKAROUND: For server-side images, try to pre-fetch the image with fetch API
     // This can help with CORS issues in some cases
     // Note: Legacy support for /uploads/ paths - new uploads use Supabase URLs
     if (imageSource.includes('/uploads/') && !imageSource.startsWith('blob:')) {
       try {
-        console.log('Attempting to pre-fetch image with fetch API...');
+        //('Attempting to pre-fetch image with fetch API...');
         const response = await fetch(imageSource, { 
           mode: 'cors',
           credentials: 'omit'
@@ -353,7 +341,7 @@ const handleSave = async () => {
         
         const blob = await response.blob();
         const objectUrl = URL.createObjectURL(blob);
-        console.log('Created object URL from fetched image:', objectUrl);
+        //('Created object URL from fetched image:', objectUrl);
         
         // Use the object URL instead
         img.src = objectUrl;
@@ -362,7 +350,7 @@ const handleSave = async () => {
         const cleanup = () => {
           setTimeout(() => {
             URL.revokeObjectURL(objectUrl);
-            console.log('Revoked object URL after cropping');
+            //('Revoked object URL after cropping');
           }, 1000);
         };
         
@@ -370,7 +358,7 @@ const handleSave = async () => {
           // Modern browsers support Image.decode() which ensures image is fully loaded
           if (typeof img.decode === 'function') {
             await img.decode();
-            console.log('Image decoded successfully');
+            //('Image decoded successfully');
           } else {
             // Fallback for browsers that don't support decode()
             await new Promise((resolve, reject) => {
@@ -404,10 +392,6 @@ const handleSave = async () => {
         // Set up src and wait for load
         await new Promise((resolve, reject) => {
           img.onload = () => {
-            console.log('Image loaded normally, dimensions:', {
-              width: img.width,
-              height: img.height
-            });
             resolve();
           };
           img.onerror = (e) => {
@@ -430,7 +414,7 @@ const handleSave = async () => {
       // Set canvas dimensions to cropped dimensions
       canvas.width = croppedAreaPixels.width;
       canvas.height = croppedAreaPixels.height;
-      console.log('Canvas dimensions set:', canvas.width, 'x', canvas.height);
+      //('Canvas dimensions set:', canvas.width, 'x', canvas.height);
       
       const ctx = canvas.getContext('2d');
       
@@ -447,7 +431,7 @@ const handleSave = async () => {
         croppedAreaPixels.height
       );
       
-      console.log('Image drawn to canvas, converting to blob...');
+      //('Image drawn to canvas, converting to blob...');
       
       // Convert canvas to blob and create file
       canvas.toBlob((blob) => {
@@ -455,7 +439,7 @@ const handleSave = async () => {
           throw new Error('Failed to create blob from canvas');
         }
         
-        console.log('Blob created, size:', blob.size, 'bytes');
+        //('Blob created, size:', blob.size, 'bytes');
         
         // Create a File object from the blob
         const croppedFile = new File(
@@ -464,7 +448,7 @@ const handleSave = async () => {
           { type: 'image/jpeg' }
         );
         
-        console.log('File created, calling onCropComplete');
+        //('File created, calling onCropComplete');
         onCropComplete(croppedFile);
         setLoading(false);
       }, 'image/jpeg', 0.95);
@@ -592,7 +576,7 @@ useEffect(() => {
     if (cropImage && typeof cropImage === 'string' && cropImage.startsWith('blob:')) {
       try {
         URL.revokeObjectURL(cropImage);
-        console.log('Cleaned up blob URL on unmount or cropImage change:', cropImage);
+        //('Cleaned up blob URL on unmount or cropImage change:', cropImage);
       } catch (error) {
         console.error('Error revoking blob URL:', error);
       }
@@ -605,7 +589,7 @@ useEffect(() => {
     if (photos && photos.length > 0 && displayPhotos.length === 0) {
       // Filter out any blob URLs from initialization - these should never come from the backend
       const filteredPhotos = photos.filter(url => !url || !url.startsWith('blob:'));
-      console.log("Initializing displayPhotos with filtered photos:", filteredPhotos);
+      //("Initializing displayPhotos with filtered photos:", filteredPhotos);
       setDisplayPhotos([...filteredPhotos]);
     }
   }, [photos]);
@@ -724,7 +708,7 @@ useEffect(() => {
   const handleCropComplete = (croppedFile) => {
     // Create blob URL for display only
     const blobUrl = URL.createObjectURL(croppedFile);
-    console.log(`Created blob URL for display: ${blobUrl}`);
+    //(`Created blob URL for display: ${blobUrl}`);
     
     // Update display photos with the blob URL for immediate visual feedback
     const newDisplayPhotos = [...displayPhotos];
@@ -764,7 +748,7 @@ useEffect(() => {
         blobUrl: blobUrl
       });
       
-      console.log("Updated photoFiles:", updatedFiles);
+      //("Updated photoFiles:", updatedFiles);
       return updatedFiles;
     });
     
@@ -825,9 +809,7 @@ useEffect(() => {
       // Filter to make sure we only have valid items with files
       const validItems = photoFiles.filter(item => item && item.file);
       const files = validItems.map(item => item.file);
-      
-      console.log("Getting files to upload:", files.length, "files", 
-        files.map(f => f ? {name: f.name, size: f.size} : "invalid file"));
+
       return files;
     },
     
@@ -837,15 +819,14 @@ useEffect(() => {
         url && !url.startsWith('blob:')
       );
       
-      console.log("Getting server URLs to preserve:", serverUrls);
+      //("Getting server URLs to preserve:", serverUrls);
       return serverUrls;
     },
     
     // Get count of pending uploads
     getPendingUploadsCount: () => photoFiles.length,
     
-    // Get information about which blob URLs correspond to which files
-    // This helps with replacing blobs with server URLs after upload
+
     getBlobUrlMapping: () => {
       // Add safety check to filter out invalid items
       return photoFiles
@@ -863,7 +844,7 @@ useEffect(() => {
         .forEach(item => {
           map[item.index] = item.blobUrl;
         });
-      console.log("Generated blob URL map:", map);
+      //("Generated blob URL map:", map);
       return map;
     }
   }), [photoFiles, displayPhotos]);

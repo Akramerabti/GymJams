@@ -193,7 +193,7 @@ const SlotMachine = ({ minBet = 50, maxBet = 5000 }) => {
     }    // Animated reveal with enhanced timing and effects
     const staggerDelay = 0.2; // Stagger delay between reels
     const revealDelay = (Math.max(...spinDurations) + (staggerDelay * (spinDurations.length - 1))) * 1000; // Convert to milliseconds
-    console.log('Spin durations:', spinDurations, 'Stagger delay:', staggerDelay, 'Reveal delay:', revealDelay); // Debug timing
+    //('Spin durations:', spinDurations, 'Stagger delay:', staggerDelay, 'Reveal delay:', revealDelay); // Debug timing
     setTimeout(() => {
       setReels(results);
       setIsSpinning(false);

@@ -68,7 +68,7 @@ const useAuthStore = create(
       // Validate phone
       validatePhone: async (phone) => {
         const { user } = get();
-        console.log('Validating phone:', phone); // Log the phone number
+        //('Validating phone:', phone); // Log the phone number
         try {
           const response = await api.post('/auth/validate-phone', {
             phone: phone,
@@ -197,7 +197,7 @@ const useAuthStore = create(
           if (user.points !== undefined) {
             usePoints.getState().setBalance(user.points);
           }
-          console.log('has received login bonus', user.hasReceivedFirstLoginBonus)
+          //('has received login bonus', user.hasReceivedFirstLoginBonus)
           if (!(user.hasReceivedFirstLoginBonus)) {
             set({ showOnboarding: true }); 
             usePoints.getState().updatePointsInBackend((user.points)+100);

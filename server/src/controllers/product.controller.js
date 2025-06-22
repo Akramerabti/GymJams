@@ -60,7 +60,7 @@ export const addProduct = async (req, res) => {
       // Extract URLs from upload results
       const images = uploadResults.map(result => result.url);
       
-      console.log('Product images uploaded to Supabase:', images);      // Create a new product
+      //('Product images uploaded to Supabase:', images);      // Create a new product
       const newProduct = new Product({
         name,
         description,

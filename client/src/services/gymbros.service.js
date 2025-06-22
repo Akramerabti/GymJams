@@ -11,11 +11,11 @@ const gymbrosService = {
     if (token) {
       localStorage.setItem('gymbros_guest_token', token);
       api.defaults.headers.common['x-gymbros-guest-token'] = token;
-      console.log('Guest token set:', token.substring(0, 15) + '...');
+      //('Guest token set:', token.substring(0, 15) + '...');
     } else {
       localStorage.removeItem('gymbros_guest_token');
       delete api.defaults.headers.common['x-gymbros-guest-token'];
-      console.log('Guest token cleared');
+      //('Guest token cleared');
     }
     return token;
   },
@@ -115,7 +115,7 @@ const gymbrosService = {
 
   async checkProfileWithVerifiedPhone(phone, verificationToken) {
     try {
-      console.log('Checking profile with verified phone:', phone);
+      //('Checking profile with verified phone:', phone);
       
       // Call the endpoint that does everything in one step
       const response = await api.post('/gym-bros/profile/by-phone', {
@@ -123,14 +123,14 @@ const gymbrosService = {
         verificationToken
       });
       
-      console.log('Profile by phone response:', response.data);
+      //('Profile by phone response:', response.data);
       
       // If the request was successful and we got a token
       if (response.data.success && response.data.token) {
         // Set the token in localStorage and update API headers
         localStorage.setItem('token', response.data.token);
         api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-        console.log('Auth token set:', response.data.token);
+        //('Auth token set:', response.data.token);
         
         // Clean up any temporary storage
         localStorage.removeItem('verifiedPhone');
@@ -143,7 +143,7 @@ const gymbrosService = {
       else if (response.data.guestToken) {
         // Save the guest token for future requests
         this.setGuestToken(response.data.guestToken);
-        console.log('Guest token set:', response.data.guestToken);
+        //('Guest token set:', response.data.guestToken);
       }
       
       return response.data;
@@ -190,7 +190,7 @@ const gymbrosService = {
       // Create config with guest token explicitly added
       const config = this.configWithGuestToken();
       
-      console.log('Making profile request with config:', JSON.stringify(config));
+      //('Making profile request with config:', JSON.stringify(config));
       
       const response = await api.get('/gym-bros/profile', config);
       
@@ -212,7 +212,7 @@ const gymbrosService = {
       // If we received a guest token in the response, update it
       if (response.data.guestToken) {
         this.setGuestToken(response.data.guestToken);
-        console.log('Updated guest token from response');
+        //('Updated guest token from response');
       }
       
       return response.data;
@@ -222,26 +222,15 @@ const gymbrosService = {
     }
   },
 
-  // Updated createOrUpdateProfile function for gymbros.service.js
+
 async createOrUpdateProfile(profileData) {
-  console.log('Creating/updating GymBros profile with original data:', profileData);
+
   try {
-    // Check if we have verified phone data for a guest
     const verificationToken = localStorage.getItem('verificationToken');
     const verifiedPhone = localStorage.getItem('verifiedPhone');
     
-    // Create a deep copy of the data to avoid modifying the original
     const processedData = { ...profileData };
-    
-    // IMPORTANT: Handle images correctly - log raw data for debugging
-    console.log('Received images in profileData:', 
-                profileData.images ? 
-                `${Array.isArray(profileData.images) ? profileData.images.length : 'non-array'} images: ${
-                  Array.isArray(profileData.images) ? JSON.stringify(profileData.images) : profileData.images
-                }` : 
-                'No images');
-                
-    // Fix images field if it's a string instead of an array (crucial)
+
     if (typeof profileData.images === 'string') {
       console.warn('Images field is a string, not an array! Converting to empty array.');
       processedData.images = [];
@@ -254,7 +243,7 @@ async createOrUpdateProfile(profileData) {
       // Try to use photos field if available
       if (profileData.photos && Array.isArray(profileData.photos)) {
         const validUrls = profileData.photos.filter(url => url && !url.startsWith('blob:'));
-        console.log(`Found ${validUrls.length} valid URLs in photos field:`, validUrls);
+        //(`Found ${validUrls.length} valid URLs in photos field:`, validUrls);
         processedData.images = validUrls;
       } else {
         // Initialize as empty array
@@ -284,13 +273,6 @@ async createOrUpdateProfile(profileData) {
       }
     }
     
-    // Log the final data being sent
-    console.log('Sending processed data to server:', {
-      ...processedData,
-      images: processedData.images && Array.isArray(processedData.images) ? 
-              `Array with ${processedData.images.length} items: ${JSON.stringify(processedData.images)}` : 
-              'Invalid images field'
-    });
     
     // Create request config with guest token
     const config = this.configWithGuestToken();
@@ -351,14 +333,14 @@ async getRecommendedProfiles(filters = {}) {
       params: queryParams
     });
     
-    console.log('Making profiles request with params:', JSON.stringify(config));
+    //('Making profiles request with params:', JSON.stringify(config));
     
     const response = await api.get('/gym-bros/profiles', config);
     
     // If we received a guest token in the response, update it
     if (response.data.guestToken) {
       this.setGuestToken(response.data.guestToken);
-      console.log('Updated guest token from profiles response');
+      //('Updated guest token from profiles response');
     }
     
     // Return the recommendations array
@@ -372,7 +354,7 @@ async getRecommendedProfiles(filters = {}) {
 async likeProfile(profileId, viewDuration = 0) {
   try {
     // Add debug info
-    console.log(`GymBrosService: Sending like for profile ${profileId} with view duration ${viewDuration}ms`);
+    //(`GymBrosService: Sending like for profile ${profileId} with view duration ${viewDuration}ms`);
     
     // Add guest token
     const config = this.configWithGuestToken();
@@ -384,7 +366,7 @@ async likeProfile(profileId, viewDuration = 0) {
     );
     
     // Log the entire response to see its structure
-    console.log('GymBrosService: Like response received:', response.data);
+    //('GymBrosService: Like response received:', response.data);
     
     // Update guest token if returned
     if (response.data.guestToken) {
@@ -411,7 +393,7 @@ async dislikeProfile(profileId, viewDuration = 0) {
     // Add guest token
     const config = this.configWithGuestToken();
     
-    console.log(`Sending dislike for profile ${profileId} with view duration ${viewDuration}ms`);
+    //(`Sending dislike for profile ${profileId} with view duration ${viewDuration}ms`);
     
     const response = await api.post(
       `/gym-bros/dislike/${profileId}`, 
@@ -439,7 +421,7 @@ async getMatches() {
     
     const response = await api.get('/gym-bros/matches', config);
 
-    console.log('Matches response:', response.data);
+    //('Matches response:', response.data);
     
     // Update guest token if returned
     if (response.data.guestToken) {
@@ -461,7 +443,7 @@ async getMatches() {
       matchesData = [];
     }
     
-    console.log('[GymBros] Matches received:', matchesData.length);
+    //('[GymBros] Matches received:', matchesData.length);
     return matchesData;
   } catch (error) {
     console.error('Error fetching matches:', error);
@@ -546,39 +528,33 @@ async getMatches() {
   },
 
 
-// Fixed uploadProfileImages function for gymbros.service.js
 async uploadProfileImages(files) {
   try {
-    console.log('=== SERVICE UPLOAD IMAGES DEBUG START ===');
-    
-    // Validate input
+
     if (!files || !files.length) {
       console.error('No files provided to uploadProfileImages');
       throw new Error('No images provided');
     }
     
-    // Log what we're trying to upload to help debug
-    console.log(`Attempting to upload ${files.length} files:`, 
-      files.map(f => ({name: f.name, type: f.type, size: f.size})));
     
     // Create FormData for the files
     const formData = new FormData();
     
     // CRITICAL FIX: The server expects 'images' as the field name, not 'files'
     files.forEach((file) => {
-      console.log(`Adding file "${file.name}" to FormData with field name "images"`);
+      //(`Adding file "${file.name}" to FormData with field name "images"`);
       formData.append('images', file);
     });
     
     // Log the FormData keys to verify correct structure
-    console.log('FormData entries:');
+    //('FormData entries:');
     for (let pair of formData.entries()) {
-      console.log(`- ${pair[0]}: ${typeof pair[1] === 'object' ? 'File object' : pair[1]}`);
+      //(`- ${pair[0]}: ${typeof pair[1] === 'object' ? 'File object' : pair[1]}`);
     }
     
     // Get guest token if available
     const guestToken = this.getGuestToken();
-    console.log('Guest token available:', !!guestToken);
+    //('Guest token available:', !!guestToken);
     
     // Set up config with guest token and content type
     const config = {
@@ -594,23 +570,8 @@ async uploadProfileImages(files) {
       config.params.guestToken = guestToken;
     }
     
-    console.log('Upload request configuration:', {
-      url: '/gym-bros/profile-images',
-      method: 'POST',
-      headers: {...config.headers},
-      params: {...config.params}
-    });
-    
-    // Make the API request
-    console.log('Sending upload request to server...');
-    const uploadStartTime = Date.now();
     const response = await api.post('/gym-bros/profile-images', formData, config);
-    const uploadDuration = Date.now() - uploadStartTime;
-    
-    console.log(`Upload request completed in ${uploadDuration}ms with status ${response.status}`);
-    console.log('Upload response data:', response.data);
-    
-    // Check if the response contains image URLs
+
     if (!response.data || !response.data.imageUrls) {
       console.error('Invalid response format:', response.data);
       throw new Error('Invalid server response format - missing imageUrls array');
@@ -618,11 +579,11 @@ async uploadProfileImages(files) {
 
     // Return the image URLs exactly as they are from the server
     const imageUrls = response.data.imageUrls;
-    console.log(`Received ${imageUrls.length} image URLs from server:`, imageUrls);
+    //(`Received ${imageUrls.length} image URLs from server:`, imageUrls);
     
     // Update guest token if one was returned
     if (response.data.guestToken) {
-      console.log('Updating guest token from response');
+      //('Updating guest token from response');
       this.setGuestToken(response.data.guestToken);
     }
     
@@ -632,8 +593,8 @@ async uploadProfileImages(files) {
       message: response.data.message || 'Images uploaded successfully'
     };
     
-    console.log('Returning result:', result);
-    console.log('=== SERVICE UPLOAD IMAGES DEBUG END ===');
+    //('Returning result:', result);
+    //('=== SERVICE UPLOAD IMAGES DEBUG END ===');
     return result;
   } catch (error) {
     console.error('Error in uploadProfileImages:', error);
@@ -658,7 +619,7 @@ async uploadProfileImages(files) {
       throw new Error(error.response.data.error);
     }
     
-    console.log('=== SERVICE UPLOAD IMAGES DEBUG END (WITH ERROR) ===');
+    //('=== SERVICE UPLOAD IMAGES DEBUG END (WITH ERROR) ===');
     throw error;
   }
 },
@@ -744,7 +705,7 @@ async uploadProfileImages(files) {
         headers: { 'Content-Type': 'application/json' }
       });
 
-      console.log('Sending message with data:', messageData);
+      //('Sending message with data:', messageData);
       
       const response = await api.post(`gym-bros/matches/${messageData.matchId}/messages`, {
         senderId: messageData.senderId,
@@ -764,7 +725,7 @@ async uploadProfileImages(files) {
   // Enhanced fetchMatchMessages method
 async fetchMatchMessages(matchId, options = {}) {
   if (!matchId) {
-    console.log('No matchId provided to fetchMatchMessages');
+    //('No matchId provided to fetchMatchMessages');
     return [];
   }
   
@@ -780,7 +741,7 @@ async fetchMatchMessages(matchId, options = {}) {
       params
     });
 
-    console.log(`Fetching messages for match: ${matchId}`);
+    //(`Fetching messages for match: ${matchId}`);
     const response = await api.get(`/gym-bros/matches/${matchId}/messages`, config);
     
     let messages = [];
@@ -798,7 +759,7 @@ async fetchMatchMessages(matchId, options = {}) {
       console.warn('Unexpected response format from match messages API:', response.data);
     }
     
-    console.log(`Received ${messages.length} messages for match ${matchId}`);
+    //(`Received ${messages.length} messages for match ${matchId}`);
     
     // Update guest token if returned
     if (response.data && response.data.guestToken) {
@@ -816,11 +777,11 @@ async fetchMatchMessages(matchId, options = {}) {
 
   // Enhanced findMatch method for gymbrosService.js
 async findMatch(otherUserId) {
-  console.log('Finding match with user ID:', otherUserId);
+  //('Finding match with user ID:', otherUserId);
   try {
     const config = this.configWithGuestToken();
     const response = await api.get(`/gym-bros/matches/find-match/${otherUserId}`, config);
-    console.log('Find match response:', response.data);
+    //('Find match response:', response.data);
     
     // If successful, ensure we extract both users
     if (response.data.success) {
@@ -842,7 +803,7 @@ async findMatch(otherUserId) {
     // Handle specific error cases
     if (error.response) {
       if (error.response.status === 404) {
-        console.log('No existing match found between users');
+        //('No existing match found between users');
         return null;
       }
       if (error.response.status === 401) {
@@ -933,7 +894,7 @@ async getMatchesWithPreview() {
   try {
     // Get effective user ID
     const effectiveUserId = this.userId || localStorage.getItem('gymbrosUserId');
-    console.log('Effective user ID for message comparison:', effectiveUserId);
+    //('Effective user ID for message comparison:', effectiveUserId);
     
     // Set up guest token in config
     const config = this.configWithGuestToken();
@@ -953,7 +914,7 @@ async getMatchesWithPreview() {
       matchedProfiles = [];
     }
     
-    console.log(`Found ${matchedProfiles.length} matched profiles`);
+    //(`Found ${matchedProfiles.length} matched profiles`);
     
     // If no matches, return empty array
     if (matchedProfiles.length === 0) {
@@ -1000,7 +961,7 @@ async getMatchesWithPreview() {
             (latestMsg.sender && latestMsg.sender._id === effectiveUserId) ||
             (typeof latestMsg.sender === 'object' && latestMsg.sender.id === effectiveUserId);
           
-          console.log(`Latest message from ${latestMsg.sender}, current user: ${effectiveUserId}, isFromUser: ${isLastMessageFromUser}`);
+          //(`Latest message from ${latestMsg.sender}, current user: ${effectiveUserId}, isFromUser: ${isLastMessageFromUser}`);
           
           // Create a lastMessage object with content
           lastMessage = {
@@ -1045,7 +1006,7 @@ async getMatchesWithPreview() {
       }
     }));
     
-    console.log(`Enhanced ${enhancedMatches.length} matches with conversation data`);
+    //(`Enhanced ${enhancedMatches.length} matches with conversation data`);
     
     // Update guest token if returned
     if (profilesResponse.data && profilesResponse.data.guestToken) {
@@ -1070,7 +1031,7 @@ async getWhoLikedMeCount() {
     
     // Use cached value if it's less than 5 minutes old
     if (cachedCount && cachedTimestamp && (now - parseInt(cachedTimestamp)) < 5 * 60 * 1000) {
-      console.log('Using cached likes count');
+      //('Using cached likes count');
       return parseInt(cachedCount);
     }
     

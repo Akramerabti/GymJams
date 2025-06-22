@@ -58,7 +58,7 @@ const Cart = () => {
       };
 
       const order = await initiateCheckout(checkoutData);
-      console.log('Checkout successful, redirecting to /shop-checkout', order);
+      //('Checkout successful, redirecting to /shop-checkout', order);
       navigate('/shop-checkout');
       return;
     }
@@ -103,7 +103,7 @@ const handleGuestCheckout = async () => {
     };
 
     const order = await initiateCheckout(checkoutData);
-    console.log('Checkout successful, redirecting to /shop-checkout', order);
+    //('Checkout successful, redirecting to /shop-checkout', order);
     navigate('/shop-checkout');
   } catch (error) {
     console.error('Checkout failed:', error);

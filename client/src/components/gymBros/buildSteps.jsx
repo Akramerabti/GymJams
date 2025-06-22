@@ -193,7 +193,7 @@ export const buildSteps = ({
           if (verified && userData?.phone) {
             handleChange('phone', userData.phone);
           }
-          console.log('BUILDSTEPS DATA FROM PHONEINPUT.JSX:', verified, userData, token, profileData);
+          //('BUILDSTEPS DATA FROM PHONEINPUT.JSX:', verified, userData, token, profileData);
           handlePhoneVerified(verified, userData, token, profileData);
         }}
         isLoginFlow={authMode === 'login'}
@@ -417,7 +417,7 @@ export const buildSteps = ({
               ref={imageUploaderRef}
               images={profileData.photos || []}
               onImagesChange={(newImages) => {
-                console.log('ImageUploader onImagesChange called with', newImages.length, 'images');
+                //('ImageUploader onImagesChange called with', newImages.length, 'images');
                 handleChange('photos', newImages);
               }}
               uploadAfterCompletion={true}
@@ -434,7 +434,7 @@ export const buildSteps = ({
         ),
         isValid: () => {
           const hasEnoughPhotos = profileData.photos && profileData.photos.filter(Boolean).length >= 2;
-          console.log('Photos step isValid check:', hasEnoughPhotos, 'with', profileData.photos?.length || 0, 'photos');
+          //('Photos step isValid check:', hasEnoughPhotos, 'with', profileData.photos?.length || 0, 'photos');
           return hasEnoughPhotos;
         }
       },

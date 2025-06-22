@@ -18,14 +18,14 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
     const fetchProfile = async () => {
       try {
         const response = await api.get('/auth/profile');
-        console.log('Full profile response:', response.data);
+        //('Full profile response:', response.data);
         if (response.data.profileImage) {
-          console.log('Profile image URL received:', response.data.profileImage);
-          console.log('Profile image URL length:', response.data.profileImage.length);
-          console.log('Profile image URL type:', typeof response.data.profileImage);
+          //('Profile image URL received:', response.data.profileImage);
+          //('Profile image URL length:', response.data.profileImage.length);
+          //('Profile image URL type:', typeof response.data.profileImage);
           setImageUrl(response.data.profileImage);
         } else {
-          console.log('No profile image in response');
+          //('No profile image in response');
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
@@ -64,7 +64,7 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
     setLoading(true);
 
     try {
-      console.log('🔄 Starting profile image upload...');
+      //('🔄 Starting profile image upload...');
       const formData = new FormData();
       formData.append('profileImage', file);
 
@@ -74,7 +74,7 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
         },
       });
 
-      console.log('✅ Upload response:', response.data);
+      //('✅ Upload response:', response.data);
 
       if (response.data.profileImage) {
         // Construct the full URL if it's a relative path
@@ -82,7 +82,7 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
           ? response.data.profileImage
           : `${baseUrl}${response.data.profileImage}`;
 
-        console.log('🎯 New profile image URL:', fullImageUrl);
+        //('🎯 New profile image URL:', fullImageUrl);
         setImageUrl(fullImageUrl);
         onUploadSuccess(fullImageUrl);
       }
@@ -120,7 +120,7 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
               className="w-full h-full object-cover"
               crossOrigin="anonymous"
               onLoad={(e) => {
-                console.log('✅ Image loaded successfully:', e.target.src);
+                //('✅ Image loaded successfully:', e.target.src);
               }}
               onError={(e) => {
                 console.error('❌ Image load error:', e.target.src);
@@ -130,7 +130,7 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
                 
                 // If this is a Supabase URL that failed, clear it from state
                 if (e.target.src.includes('supabase.co')) {
-                  console.log('🧹 Clearing broken Supabase URL from state');
+                  //('🧹 Clearing broken Supabase URL from state');
                   setImageUrl('');
                 }
               }}

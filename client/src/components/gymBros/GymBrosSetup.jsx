@@ -106,13 +106,13 @@ const GymBrosSetup = ({ onProfileCreated }) => {
   const dragConstraints = useRef({ left: 0, right: 0 });
 
   useEffect(() => {
-    console.log('ImageUploaderRef initialized:', imageUploaderRef.current ? 'YES' : 'NO');
+    //('ImageUploaderRef initialized:', imageUploaderRef.current ? 'YES' : 'NO');
   }, []);
 
   // If user is authenticated, initialize profile data with user info
   useEffect(() => {
     if (user) {
-      console.log('Initializing profile data with user info:', user);
+      //('Initializing profile data with user info:', user);
       const userData = user.user || user;
       
       // Pre-fill data if user is logged in
@@ -125,7 +125,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
       // If user has a phone number, consider it verified
       if (userData.phone) {
         setIsPhoneVerified(true);
-        console.log('User already has a phone number, marking as verified:', userData.phone);
+        //('User already has a phone number, marking as verified:', userData.phone);
       }
     }
   }, [user]);
@@ -134,15 +134,15 @@ const GymBrosSetup = ({ onProfileCreated }) => {
   const handleChange = (field, value) => {
     // Special handling for photos to track changes
     if (field === 'photos') {
-      console.log(`Photo update: ${value ? value.length : 0} photos`);
+      //(`Photo update: ${value ? value.length : 0} photos`);
       
       // Log detailed info about the photos
       if (value && Array.isArray(value)) {
         const blobCount = value.filter(url => url && url.startsWith('blob:')).length;
         const serverCount = value.filter(url => url && !url.startsWith('blob:')).length;
         
-        console.log(`Photos breakdown: ${blobCount} blob URLs, ${serverCount} server URLs`);
-        console.log('Photo URLs:', value);
+        //(`Photos breakdown: ${blobCount} blob URLs, ${serverCount} server URLs`);
+        //('Photo URLs:', value);
       }
     }
     
@@ -158,7 +158,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
       if (field === 'photos') {
         // For images, we only want to include non-blob URLs
         const serverUrls = Array.isArray(value) ? value.filter(url => url && !url.startsWith('blob:')) : [];
-        console.log(`Syncing images field with ${serverUrls.length} server URLs from photos`);
+        //(`Syncing images field with ${serverUrls.length} server URLs from photos`);
         
         // Update the images field in profile data
         setProfileData(prev => ({ 
@@ -272,7 +272,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
       }
       
       if (profileData && profileData.hasProfile) {
-        console.log('User has a profile:', profileData.profile);
+        //('User has a profile:', profileData.profile);
         
         onProfileCreated(profileData.profile);
         return; // Exit early as we're done
@@ -297,7 +297,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
     setLoading(true);
   
     try {
-      console.log('=== PROFILE SUBMISSION DEBUG START ===');
+      //('=== PROFILE SUBMISSION DEBUG START ===');
       
       // STEP 1: First create the profile WITHOUT images
       // This ensures the profile exists before trying to upload images
@@ -309,14 +309,13 @@ const GymBrosSetup = ({ onProfileCreated }) => {
         images: undefined
       };
       
-      console.log('Creating initial profile without images');
+      //('Creating initial profile without images');
       const initialResponse = await gymbrosService.createOrUpdateProfile(initialPayload);
       
       if (!initialResponse.success) {
         throw new Error(initialResponse.message || 'Failed to create profile');
       }
       
-      console.log('Initial profile created successfully:', initialResponse.profile);
       
       // STEP 2: Now upload images to the newly created profile
       let uploadedImageUrls = [];
@@ -325,7 +324,6 @@ const GymBrosSetup = ({ onProfileCreated }) => {
       const blobUrls = profileData.photos?.filter(url => url && url.startsWith('blob:')) || [];
       
       if (blobUrls.length > 0) {
-        console.log(`Found ${blobUrls.length} blob URLs to upload`);
         
         try {
           // Convert blob URLs to files with original filenames when possible
@@ -342,7 +340,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
           
           // Filter out any nulls from failed conversions
           const validFiles = files.filter(Boolean);
-          console.log(`Successfully converted ${validFiles.length} blob URLs to files`);
+   
           
           if (validFiles.length > 0) {
             // Upload the files to the newly created profile
@@ -350,7 +348,6 @@ const GymBrosSetup = ({ onProfileCreated }) => {
             
             if (uploadResult.success) {
               uploadedImageUrls = uploadResult.imageUrls || [];
-              console.log(`Successfully uploaded ${uploadedImageUrls.length} images:`, uploadedImageUrls);
               
               // STEP 3: Update the profile with the image URLs if needed
               if (uploadedImageUrls.length > 0) {
@@ -359,7 +356,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
                   images: uploadedImageUrls
                 });
                 
-                console.log('Profile updated with images:', updateResponse);
+                //('Profile updated with images:', updateResponse);
                 
                 // Call the onProfileCreated callback with the final profile
                 onProfileCreated(updateResponse.profile || initialResponse.profile);

@@ -1,11 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Phone, CheckCircle, Loader, ArrowRight, LogIn } from 'lucide-react';
-import api from '../../services/api';
 import gymbrosService from '../../services/gymbros.service';
 import useAuthStore from '../../stores/authStore';
 import PhoneInput from '../../pages/phoneinput';
-import { removeCountryCode, detectCountryFromPhone } from '../../utils/phoneUtils'; // Add this import
 
 const PhoneVerification = ({ 
   phone, 
@@ -16,7 +14,7 @@ const PhoneVerification = ({
   onContinueWithNewAccount
 }) => {
   const { loginWithToken } = useAuthStore();
-  const [verificationStep, setVerificationStep] = useState('input'); // 'input', 'verifying', 'verified'
+  const [verificationStep, setVerificationStep] = useState('input'); 
   const [isLoading, setIsLoading] = useState(false);
   const [phoneError, setPhoneError] = useState('');
   const [otpValues, setOtpValues] = useState(['', '', '', '', '', '']);
@@ -49,11 +47,9 @@ const PhoneVerification = ({
 
 
       const exists = await gymbrosService.checkPhoneExists(phone);
-      console.log('Phone exists check:', exists);
       setPhoneExists(exists);
       
       if (exists && !isLoginFlow) {
-        // If this is not explicitly a login flow and phone exists, alert the user
         toast.info(
           'This phone is already registered',
           {
@@ -67,8 +63,7 @@ const PhoneVerification = ({
         setIsLoading(false);
         return;
       }
-      
-      // Send verification code
+
       const response = await gymbrosService.sendVerificationCode(phone);
       
       if (response.success) {
@@ -105,7 +100,7 @@ const PhoneVerification = ({
     try {
       // First verify the phone number with the code
       const response = await gymbrosService.verifyCode(phone, verificationCode);
-      console.log('Verification response:', response);
+      //('Verification response:', response);
       
       if (response.success && response.token) {
         setVerificationToken(response.token);
@@ -116,21 +111,12 @@ const PhoneVerification = ({
         localStorage.setItem('verificationToken', response.token);
         
         try {
-          console.log('Checking profile with verified phone');
+          //('Checking profile with verified phone');
           const profileData = await gymbrosService.checkProfileWithVerifiedPhone(
             phone, 
             response.token
           );
           
-          console.log('Profile check result:', profileData);
-          
-          // If we received and saved a guest token, log it
-          if (profileData.guestToken) {
-            console.log('Received guest token from profile check:', 
-              profileData.guestToken.substring(0, 15) + '...');
-          }
-          
-          // Add a slight delay to ensure token is saved properly before proceeding
           setTimeout(() => {
             if (profileData.success) {
               // Check if we have a user account

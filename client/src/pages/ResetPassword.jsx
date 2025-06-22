@@ -20,13 +20,13 @@ const ResetPassword = () => {
 
   // Add debugging
   useEffect(() => {
-    console.log('Reset Password Component Mounted');
-    console.log('Token from URL:', token);
+    //('Reset Password Component Mounted');
+    //('Token from URL:', token);
   }, [token]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Form submitted');
+    //('Form submitted');
     
     if (formData.password !== formData.confirmPassword) {
       toast.error('Passwords do not match');
@@ -41,12 +41,12 @@ const ResetPassword = () => {
     setLoading(true);
 
     try {
-      console.log('Sending reset request...');
+      //('Sending reset request...');
       const response = await api.post('/auth/reset-password', {
         token,
         password: formData.password
       });
-      console.log('Reset response:', response);
+      //('Reset response:', response);
 
       toast.success('Password reset successfully!');
       navigate('/login');
@@ -62,11 +62,11 @@ const ResetPassword = () => {
   };
 
   // Add debugging for render paths
-  console.log('Rendering ResetPassword component');
-  console.log('Current token:', token);
+  //('Rendering ResetPassword component');
+  //('Current token:', token);
 
   if (!token) {
-    console.log('No token found, showing error state');
+    //('No token found, showing error state');
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
         <Card className="w-full max-w-md">
@@ -85,7 +85,7 @@ const ResetPassword = () => {
     );
   }
 
-  console.log('Token found, showing reset form');
+  //('Token found, showing reset form');
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">

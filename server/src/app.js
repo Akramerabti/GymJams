@@ -156,7 +156,7 @@ app.use('/api/auth', apiRateLimiter);
 app.use('/api', (req, res, next) => {
   // Skip rate limiting for webhook endpoints
   if (req.path === '/email-webhook' || req.path.includes('/webhook')) {
-    console.log(`[RATE LIMITER] Skipping rate limit for webhook: ${req.path}`);
+    //(`[RATE LIMITER] Skipping rate limit for webhook: ${req.path}`);
     return next();
   }
   // Apply rate limiting for all other API routes
@@ -178,7 +178,7 @@ app.use(compression());
 
 // Log request URLs for debugging
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url} (Origin: ${req.headers.origin || 'unknown'})`);
+  //(`${req.method} ${req.url} (Origin: ${req.headers.origin || 'unknown'})`);
   next();
 });
 

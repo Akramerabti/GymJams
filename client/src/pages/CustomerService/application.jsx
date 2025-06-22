@@ -45,11 +45,7 @@ const ApplicationForm = ({
   isUserDataLocked = true 
 }) => {
   const navigate = useNavigate();  // Debug log when this component is rendered
-  useEffect(() => {
-    console.log('[ApplicationForm] Rendering with user:', user ? 
-      `${user.email || user.user?.email} (${user.id || user.user?.id})` : 'undefined', user);
-  }, [user]);
-  // If no user is available, show login prompt instead of the form
+
   if (!user) {
     return (
       <motion.div
@@ -452,10 +448,10 @@ const ApplicationFormPage = () => {
     }
     
     setIsSubmitting(true);
-    console.log('[Application] Starting submission process...');
+
     
     try {
-      // Create FormData object for file upload
+
       const formDataToSend = new FormData();
       formDataToSend.append('name', formData.name);
       formDataToSend.append('email', formData.email);
@@ -464,17 +460,10 @@ const ApplicationFormPage = () => {
       formDataToSend.append('message', formData.message);
       if (formData.portfolioUrl) formDataToSend.append('portfolioUrl', formData.portfolioUrl);
       if (resumeFile) formDataToSend.append('resume', resumeFile);
-      
-      console.log('[Application] Submitting application with data:', {
-        name: formData.name,
-        email: formData.email,
-        type: formData.applicationType,
-        hasResume: !!resumeFile
-      });
+
       
       const response = await applicationService.submitApplication(formDataToSend);
-      console.log('[Application] Submission successful, response:', response);
-        // Show success message
+
       setSuccessMessage('Your application has been successfully submitted! We will review it and get back to you soon.');
       
       // Reset form while preserving user info fields from authenticated user
@@ -508,17 +497,10 @@ const ApplicationFormPage = () => {
     }
   };
 
-  // Improved authentication check with debug logging
-  console.log('[ApplicationPage] Auth check:', { 
-    hasAuthUser: !!authUser, 
-    authState: JSON.stringify(useAuthStore.getState())
-  });
-
   // Redirect unauthenticated users immediately
   useEffect(() => {
     if (!authUser) {
-      console.log('[ApplicationPage] No authenticated user found, redirecting to login');
-      // Add a message to localStorage that can be shown on the login page
+
       localStorage.setItem('auth_redirect_message', 'You need to log in to submit an application');
       navigate('/login?redirect=application', { replace: true });
       return; // Stop execution of the rest of this component
@@ -537,7 +519,7 @@ const ApplicationFormPage = () => {
 
   // If not authenticated, show a more prominent login prompt
   if (!authUser) {
-    console.log('[ApplicationPage] Rendering login prompt (user is not authenticated)');
+    //('[ApplicationPage] Rendering login prompt (user is not authenticated)');
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 to-blue-900 flex items-center justify-center p-4">
         <motion.div

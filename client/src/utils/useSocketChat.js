@@ -18,7 +18,7 @@ export function useSocketChat({ userId, recipientId, conversationId, onMessageRe
   // Register with socket when connected
   useEffect(() => {
     if (socket && connected && userId) {
-      console.log('Socket chat: Registering user with socket:', userId);
+      //('Socket chat: Registering user with socket:', userId);
       
       try {
         socket.emit('register', userId);
@@ -37,7 +37,7 @@ export function useSocketChat({ userId, recipientId, conversationId, onMessageRe
     // Don't register events multiple times
     if (registeredEventsRef.current) return;
     
-    console.log('Setting up socket chat events for conversation:', conversationId);
+    //('Setting up socket chat events for conversation:', conversationId);
     
     // Handle receiving messages
     const handleReceiveMessage = (message) => {
@@ -50,7 +50,7 @@ export function useSocketChat({ userId, recipientId, conversationId, onMessageRe
       
       // Skip if already processed
       if (processedMessageIds.current.has(message._id)) {
-        console.log('Skipping duplicate message:', message._id);
+        //('Skipping duplicate message:', message._id);
         return;
       }
       
@@ -84,7 +84,7 @@ export function useSocketChat({ userId, recipientId, conversationId, onMessageRe
       socket.on('typing', handleTypingEvent);
       registeredEventsRef.current = true;
       
-      console.log('Successfully registered socket chat events');
+      //('Successfully registered socket chat events');
     } catch (err) {
       console.error('Error setting up socket chat event listeners:', err);
       toast.error('Connection issue. Messages might be delayed.');
@@ -180,7 +180,7 @@ export function useSocketChat({ userId, recipientId, conversationId, onMessageRe
     // Send via socket
     try {
       socket.emit('sendMessage', message);
-      console.log('Message sent via socket');
+      //('Message sent via socket');
       
       // Add to processed IDs
       processedMessageIds.current.add(tempId);

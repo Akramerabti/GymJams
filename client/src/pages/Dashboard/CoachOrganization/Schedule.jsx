@@ -52,9 +52,9 @@ const Schedule = ({ clients = [], onRefreshData, darkMode }) => {
   const fetchSessions = async () => {
     try {
       setIsLoading(true);
-      console.log('Fetching sessions...');
+      //('Fetching sessions...');
       const response = await clientService.getCoachSessions();
-      console.log('Sessions response:', response.data || response);
+      //('Sessions response:', response.data || response);
       
       // Handle both formats - response.data or direct response
       const sessionsData = response.data || response;
@@ -147,7 +147,7 @@ const Schedule = ({ clients = [], onRefreshData, darkMode }) => {
         notes: newSession.notes || ''
       };
       
-      console.log('Creating new session with data:', sessionData);
+      //('Creating new session with data:', sessionData);
       
       // Send to backend
       const response = await clientService.createSession(sessionData);
@@ -183,7 +183,7 @@ const Schedule = ({ clients = [], onRefreshData, darkMode }) => {
     try {
       setIsLoading(true);
       
-      console.log('Deleting session:', sessionToDelete);
+      //('Deleting session:', sessionToDelete);
       
       // Send delete request to backend
       await clientService.deleteSession(sessionToDelete);
@@ -242,7 +242,7 @@ const Schedule = ({ clients = [], onRefreshData, darkMode }) => {
         notes: editedSession.notes || ''
       };
       
-      console.log('Updating session with data:', sessionData);
+      //('Updating session with data:', sessionData);
       
       // Send to backend
       const response = await clientService.updateSession(editedSession.id, sessionData);

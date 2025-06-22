@@ -49,7 +49,7 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
   // Initialize form with data if editing
   useEffect(() => {
     if (initialData && isEditing) {
-      console.log("Initializing form with data:", initialData);
+      //("Initializing form with data:", initialData);
       
       // Format dates for input fields
       let formattedDiscount = { 
@@ -85,7 +85,7 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
         return `${apiUrl}${image}`;
       });
 
-      console.log("Setting image previews:", imagePreviews);
+      //("Setting image previews:", imagePreviews);
 
       // Set the product state with all the data
       setProduct({
@@ -145,7 +145,7 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
     const files = Array.from(e.target.files);
     if (!files.length) return;
     
-    console.log('Selected Files:', files);
+    //('Selected Files:', files);
   
     const totalImages = product.images.length + product.imagePreviews.length + files.length;
   

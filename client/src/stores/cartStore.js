@@ -76,7 +76,7 @@ const retryWithBackoff = async (apiCall, options = {}) => {
       
       // Calculate delay with exponential backoff and jitter
       const delay = baseDelay * Math.pow(2, attempt) + Math.random() * jitterRange;
-      console.log(`Attempt ${attempt + 1} failed. Retrying in ${Math.round(delay)}ms...`);
+      //(`Attempt ${attempt + 1} failed. Retrying in ${Math.round(delay)}ms...`);
       
       // Wait before next attempt
       await new Promise(resolve => setTimeout(resolve, delay));
@@ -223,14 +223,14 @@ const useCartStore = create(
         
         // If validation already in progress, don't start another
         if (stockValidationInProgress) {
-          console.log('Stock validation already in progress, using last result');
+          //('Stock validation already in progress, using last result');
           return lastValidationResult;
         }
         
         // If we validated recently, return the last result
         const now = Date.now();
         if (now - lastValidationTime < VALIDATION_THROTTLE && lastValidationResult !== null) {
-          console.log('Using cached stock validation result');
+          //('Using cached stock validation result');
           return lastValidationResult;
         }
         
@@ -318,7 +318,7 @@ const useCartStore = create(
                 data: requestData,
               })
             );
-            console.log('Order updated successfully:', response.data);
+            //('Order updated successfully:', response.data);
           } else {
             // If there's no existing orderId, create a new order
             response = await retryWithBackoff(() =>
@@ -328,7 +328,7 @@ const useCartStore = create(
                 data: requestData,
               })
             );
-            console.log('New order created successfully:', response.data);
+            //('New order created successfully:', response.data);
           }
       
           // Update the state with the new checkout data
@@ -371,7 +371,7 @@ const useCartStore = create(
               // Fetch the current points balance
               const currentBalance = usePoints.getState().balance;
 
-              console.log('Current points balance:', currentBalance);
+              //('Current points balance:', currentBalance);
                
               const newBalance = currentBalance - pointsUsed;
 
@@ -414,7 +414,7 @@ const useCartStore = create(
             shippingAddress: { email },
           });
       
-          console.log('Guest email updated successfully:', response.data);
+          //('Guest email updated successfully:', response.data);
           set({ checkoutData: response.data });
           return response.data;
         } catch (error) {
@@ -486,7 +486,7 @@ const useCartStore = create(
           
           // Use cached data if available and fresh
           if (cachedMethods && Date.now() - lastFetchTime < SHIPPING_CACHE_TTL) {
-            console.log('Using cached shipping methods');
+            //('Using cached shipping methods');
             return cachedMethods;
           }
           

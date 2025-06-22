@@ -25,7 +25,7 @@ export const ReadReceiptManager = {
       if (!messageIds || messageIds.length === 0) return false;
       
       try {
-        console.log(`Marking ${messageIds.length} messages as read in subscription ${subscriptionId}`);
+        //(`Marking ${messageIds.length} messages as read in subscription ${subscriptionId}`);
         
         // Update the last read timestamp
         if (lastReadTimestamp) {
@@ -49,7 +49,7 @@ export const ReadReceiptManager = {
             receiverId,
             readerId: userId
           });
-          console.log('Read receipt sent via socket');
+          //('Read receipt sent via socket');
         } else {
           console.warn('Socket not connected, using API fallback for read receipts');
         }
@@ -136,7 +136,7 @@ export const ReadReceiptManager = {
     
     try {
       markingAsRead.current = true;
-      console.log('Marking messages as read:', messageIds);
+      //('Marking messages as read:', messageIds);
       
       // Update UI immediately
       setMessages(prev => 
@@ -156,7 +156,7 @@ export const ReadReceiptManager = {
           receiverId: coachId,
           readerId: userId
         });
-        console.log('Read receipt sent via socket');
+        //('Read receipt sent via socket');
       }
       
       // Then send API request as a fallback
@@ -191,11 +191,11 @@ export const ReadReceiptManager = {
   
   // Process new messages for read status when receiving messages
   const handleReceiveMessage = (message) => {
-    console.log('Received message via socket:', message);
+    //('Received message via socket:', message);
     
     // Check if we've already processed this message ID
     if (processedMessageIds.current.has(message._id)) {
-      console.log('Skipping duplicate message:', message._id);
+      //('Skipping duplicate message:', message._id);
       return;
     }
     

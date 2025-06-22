@@ -45,7 +45,7 @@ const orderService = {
   async getUserOrders() {
     try {
       const response = await api.get('/orders');
-      console.log('User orders response:', response.data);
+      //('User orders response:', response.data);
       return response.data?.orders || [];
     } catch (error) {
       console.error('Failed to fetch user orders:', error);
@@ -66,7 +66,7 @@ const orderService = {
   async getOrderTracking(orderId) {
     try {
       const response = await api.get(`/orders/${orderId}/tracking`);
-      console.log('Order tracking response:', response.data);
+      //('Order tracking response:', response.data);
       return response.data;
     } catch (error) {
       console.error(`Failed to get tracking for order ${orderId}:`, error);

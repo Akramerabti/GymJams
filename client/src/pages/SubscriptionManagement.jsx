@@ -22,7 +22,7 @@ const SubscriptionManagement = () => {
         if (response) {
           setSubscriptionDetails(response);
         } else {
-          console.log('No active subscription found');
+          //('No active subscription found');
         }
       } catch (error) {
         console.error('Error fetching subscription details:', error);
@@ -65,7 +65,7 @@ const SubscriptionManagement = () => {
     setLoading(true);
     try {
       // Ensure subscriptionDetails._id is being passed
-      console.log('Subscription ID:', subscriptionDetails._id); // Debugging
+      //('Subscription ID:', subscriptionDetails._id); // Debugging
       await subscriptionService.finishCurrentMonth(subscriptionDetails._id);
       toast.success('Recurring payments cancelled. You will retain access until the end of the current billing period.');
       setSubscriptionDetails({ ...subscriptionDetails, cancelAtPeriodEnd: true });

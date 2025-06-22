@@ -206,7 +206,7 @@ const SessionsView = ({ subscription }) => {
         duration: '60 minutes'
       };
       
-      console.log('Sending session request with data:', sessionData);
+      //('Sending session request with data:', sessionData);
       
       // Send the actual API request
       const response = await clientService.requestSession(subscription._id, sessionData);

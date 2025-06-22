@@ -56,7 +56,7 @@ const ProductPage = ({ isPreview = false }) => {
     const fetchProduct = async () => {
       try {
         setLoading(true);
-        console.log('productId:', productId);
+        //('productId:', productId);
         const productData = await productService.getProduct(productId);
         setProduct(productData);
       } catch (err) {
@@ -112,7 +112,7 @@ const ProductPage = ({ isPreview = false }) => {
       }
     } else {
       // Redirect to login page or show a login modal
-      console.log('User is not logged in');
+      //('User is not logged in');
     }
   };
 
@@ -134,7 +134,7 @@ const ProductPage = ({ isPreview = false }) => {
       }
     } else {
       // Redirect to login page or show a login modal
-      console.log('User is not logged in');
+      //('User is not logged in');
     }
   };
 

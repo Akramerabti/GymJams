@@ -417,17 +417,14 @@ const InventoryManagement = ({ onRefreshDashboard }) => {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Warehouse Options</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => console.log('Edit warehouse', warehouse._id)}>
+                        <DropdownMenuItem >
                           Edit Connection
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => window.open(getWarehousePortalUrl(warehouse), '_blank')}>
                           Open 3PL Portal
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          className="text-red-600" 
-                          onClick={() => console.log('Disable warehouse', warehouse._id)}
-                        >
+                        <DropdownMenuItem className="text-red-600" >
                           {warehouse.isActive ? 'Disable Warehouse' : 'Enable Warehouse'}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -782,10 +779,7 @@ const InventoryManagement = ({ onRefreshDashboard }) => {
               )}
               
               {selectedOrder.fulfillment?.thirdPartyId && (
-                <Button 
-                  variant="outline"
-                  onClick={() => console.log('Update tracking for', selectedOrder._id)}
-                >
+                <Button variant="outline" >
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Update Tracking
                 </Button>

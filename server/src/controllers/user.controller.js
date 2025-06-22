@@ -212,9 +212,9 @@ export const updateClientStats = async (req, res) => {
 
 export const updatePoints = async (req, res) => {
   const { points } = req.body;
-  console.log('Updating points:', points);
+  //('Updating points:', points);
   const userId = req.user.id; // Assuming you have user authentication middleware
-  console.log('User ID:', userId);
+  //('User ID:', userId);
 
   try {
     const user = await User.findById(userId);
@@ -272,7 +272,7 @@ export const completeGame = async (req, res) => {
 
     // Check if the user won or lost the game
     const { win } = req.body; // Expecting `win` to be a boolean (true/false)
-    console.log('Game result:', win ? 'Win' : 'Lose');
+    //('Game result:', win ? 'Win' : 'Lose');
 
     const now = new Date();
     const lastReset = new Date(user.lastGameReset);
@@ -334,7 +334,7 @@ export const dailyCount = async (req, res) => {
 };
 
 export const uploadFile = async (req, res) => {
-  console.log('Uploaded files:', req.files);
+  //('Uploaded files:', req.files);
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: 'No files uploaded' });

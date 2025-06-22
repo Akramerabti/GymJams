@@ -50,10 +50,6 @@ router.put('/:subscriptionId/goals/:goalId', optionalAuthenticate, updateGoal);
 router.delete('/:subscriptionId/goals/:goalId', optionalAuthenticate, deleteGoal);
 router.post('/:subscriptionId/goals/:goalId/request-completion', optionalAuthenticate, requestGoalCompletion);
 router.post('/:subscriptionId/goals/:goalId/approve', (req, res, next) => {
-  console.log('Goal approval route hit:', {
-    subscriptionId: req.params.subscriptionId,
-    goalId: req.params.goalId
-  });
   next();
 }, optionalAuthenticate, approveGoalCompletion);
 router.post('/:subscriptionId/goals/:goalId/reject', optionalAuthenticate, rejectGoalCompletion);
@@ -69,9 +65,6 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   const sig = req.headers['stripe-signature'];
   
   try {
-    // Add logging to troubleshoot
-    console.log('Received webhook request to /api/webhook');
-    console.log('Webhook Signature:', sig ? 'Present' : 'Missing');
     
     if (!sig) {
       console.error('No Stripe signature found in webhook request');
@@ -83,16 +76,12 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       return res.status(500).send('Webhook secret not configured');
     }
     
-    // Verify and construct the event
     const event = stripe.webhooks.constructEvent(
       req.body,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET
     );
     
-    console.log(`Webhook event verified: ${event.type}`);
-    
-    // Process the event
     await handleWebhook(event);
     
     // Respond to Stripe

@@ -59,7 +59,7 @@ const subscriptionService = {
         paymentMethodId,
         email,
       });
-      console.log('Subscription success CALLING:', response.data);
+      //('Subscription success CALLING:', response.data);
       return response.data;
     } catch (error) {
       console.error('Failed to handle subscription success:', error);
@@ -72,7 +72,7 @@ const subscriptionService = {
       const response = await api.get('/subscription/current', {
         params: accessToken ? { accessToken } : undefined
       });
-      console.log('Current subscription:', response.data);
+      //('Current subscription:', response.data);
       return response.data;
     } catch (error) {
       console.error('Failed to fetch current subscription:', error);
@@ -164,7 +164,7 @@ async submitQuestionnaire(answers, accessToken = null) {
     try {
       const params = accessToken ? { accessToken } : {};
       const response = await api.get('/auth/coach', { params });
-      console.log('All coaches:', response.data);
+      //('All coaches:', response.data);
       // Filter coaches to only include those with payout setup complete
       const coaches = response.data.filter(coach => coach.payoutSetupComplete);
       return coaches ;
@@ -180,7 +180,7 @@ async submitQuestionnaire(answers, accessToken = null) {
       const accessToken = localStorage.getItem('accessToken');
       // Get all available coaches with payout setup complete
       const coaches = await this.getCoaches(accessToken); // Directly assign the array
-      console.log('All coaches:', coaches);
+      //('All coaches:', coaches);
   
       if (!coaches || coaches.length === 0) {
         throw new Error('No coaches available with payout setup complete');
@@ -189,7 +189,7 @@ async submitQuestionnaire(answers, accessToken = null) {
       // Randomly select a coach
       const randomIndex = Math.floor(Math.random() * coaches.length);
       const selectedCoach = coaches[randomIndex];
-      console.log('Selected coach:', selectedCoach);
+      //('Selected coach:', selectedCoach);
   
       if (!selectedCoach) {
         throw new Error('Failed to select a coach');
@@ -242,7 +242,7 @@ async submitQuestionnaire(answers, accessToken = null) {
   // Function to create a Stripe account
   async createStripeAccount(formData) {
     try {
-      console.log('Creating Stripe account:', formData);
+      //('Creating Stripe account:', formData);
   
       // Define the refresh and return URLs
       const refreshUrl = `${window.location.origin}/profile`; // URL to redirect if onboarding is incomplete
@@ -425,7 +425,7 @@ async submitQuestionnaire(answers, accessToken = null) {
         if (retryCount < MAX_RETRIES) {
           // Add exponential backoff delay between retries
           const delay = Math.pow(2, retryCount) * 500;
-          console.log(`Retry ${retryCount}/${MAX_RETRIES} for fetchMessages after ${delay}ms`);
+          //(`Retry ${retryCount}/${MAX_RETRIES} for fetchMessages after ${delay}ms`);
           await new Promise(resolve => setTimeout(resolve, delay));
         } else {
           console.error(`Failed to fetch messages after ${MAX_RETRIES} attempts:`, error);
@@ -616,7 +616,7 @@ async submitQuestionnaire(answers, accessToken = null) {
         throw new Error('Subscription ID and goal ID are required');
       }
       
-      console.log(`Approving goal ${goalId} for subscription ${subscriptionId} with ${pointsToAward} points`);
+      //(`Approving goal ${goalId} for subscription ${subscriptionId} with ${pointsToAward} points`);
       
       // Make API request with retry logic
       let retryCount = 0;
@@ -638,10 +638,10 @@ async submitQuestionnaire(answers, accessToken = null) {
           );
           
           // Log success
-          console.log('Goal approval response:', response.data);
+          //('Goal approval response:', response.data);
           
           if (response.data.pointsAwardedSuccess) {
-            console.log(`Successfully awarded ${pointsToAward} points to client`);
+            //(`Successfully awarded ${pointsToAward} points to client`);
           } else {
             console.warn('Goal approved but points may not have been awarded');
           }

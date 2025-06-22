@@ -218,7 +218,7 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
         if (isBasicPlan) {
           setTimeout(async () => {
             const response = await subscriptionService.assignRandomCoach();
-            console.log('Random Coach Response:', response);
+            //('Random Coach Response:', response);
             setSelectedCoach(response.coach);
             setAssignmentStatus('assigned');
             await new Promise(resolve => setTimeout(resolve, 7000));
@@ -226,11 +226,11 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
           }, 8000);
         } else {
           const response = await subscriptionService.getCoaches();
-          console.log('Coaches Response:', response); // Debugging log
+          //('Coaches Response:', response); // Debugging log
     
           // Ensure response is an array
           if (Array.isArray(response)) {
-            console.log('Number of Coaches:', response.length); // Debugging log
+            //('Number of Coaches:', response.length); // Debugging log
             setCoaches(response); // Set the coaches array directly
           } else {
             console.error('Invalid coaches data:', response);

@@ -402,7 +402,7 @@ const ClientDashboard = () => {
       // Save generated goals to the server in the background
       try {
         await subscriptionService.saveQuestionnaireDerivedGoals(subscriptionData._id, generatedGoals);
-        console.log('Goals saved to backend successfully');
+        //('Goals saved to backend successfully');
       } catch (error) {
         console.error('Failed to save goals to backend:', error);
       }
@@ -438,7 +438,7 @@ const ClientDashboard = () => {
       if (goals) {
         // Use goals from server
         setGoals(goals);
-        console.log('Goals fetched from server:', goals);
+        //('Goals fetched from server:', goals);
         return;
       }
       
@@ -784,7 +784,7 @@ const ClientDashboard = () => {
     // Check if we've refreshed recently (within the last 10 seconds) unless forced
     const now = Date.now();
     if (!forceRefresh && now - lastRefresh < 10000) {
-      console.log('Skipping refresh - too recent');
+      //('Skipping refresh - too recent');
       return;
     }
     
@@ -916,7 +916,7 @@ const ClientDashboard = () => {
       const cachedSubscription = cacheManager.getCache(cacheKey);
       
       if (cachedSubscription) {
-        console.log('Loading from cache while fetching fresh data');
+        //('Loading from cache while fetching fresh data');
         setSubscription(cachedSubscription);
         
         // Load other cached data
@@ -937,7 +937,7 @@ const ClientDashboard = () => {
     // Set up a more reasonable refresh interval - every 3 minutes instead of constantly
     const refreshInterval = setInterval(() => {
       if (document.visibilityState === 'visible') {
-        console.log('Background refresh triggered');
+        //('Background refresh triggered');
         fetchDashboardData(false);
       }
     }, 3 * 60 * 1000); // Every 3 minutes
@@ -949,7 +949,7 @@ const ClientDashboard = () => {
         const now = Date.now();
         // Only refresh if it's been more than 2 minutes since the last refresh
         if (now - lastRefresh > 2 * 60 * 1000) {
-          console.log('Visibility change triggered refresh');
+          //('Visibility change triggered refresh');
           fetchDashboardData(false);
         }
       }

@@ -25,7 +25,7 @@ export const GuestFlowProvider = ({ children }) => {
   const [initAttempted, setInitAttempted] = useState(false);
   const fetchGuestProfile = useCallback(async () => {
     if (isAuthenticated) {
-      console.log('[GuestFlow] User is authenticated, not using guest flow');
+      //('[GuestFlow] User is authenticated, not using guest flow');
       setIsGuest(false);
       setLoading(false);
       return;
@@ -33,11 +33,11 @@ export const GuestFlowProvider = ({ children }) => {
     
     setLoading(true);
     try {
-      console.log('[GuestFlow] Fetching guest profile');
+      //('[GuestFlow] Fetching guest profile');
       const response = await gymbrosService.getGymBrosProfile();
       
       if (response.hasProfile && (response.isGuest || !response.userId)) {
-        console.log('[GuestFlow] Found guest profile:', response.profile);
+        //('[GuestFlow] Found guest profile:', response.profile);
         setGuestProfile(response.profile);
         setIsGuest(true);
         
@@ -47,12 +47,12 @@ export const GuestFlowProvider = ({ children }) => {
         }
       } else if (response.guestToken) {
         // We have a guest token but no profile yet
-        console.log('[GuestFlow] Have guest token but no profile yet');
+        //('[GuestFlow] Have guest token but no profile yet');
         gymbrosService.setGuestToken(response.guestToken);
         setIsGuest(true);
         setGuestProfile(null);
       } else {
-        console.log('[GuestFlow] No guest profile found');
+        //('[GuestFlow] No guest profile found');
         setGuestProfile(null);
         
         // Only reset isGuest if we don't have a token
@@ -82,10 +82,10 @@ export const GuestFlowProvider = ({ children }) => {
       setLoading(true);
       const guestToken = gymbrosService.getGuestToken();
       
-      console.log('[GuestFlow] Initializing guest flow');
+      //('[GuestFlow] Initializing guest flow');
       
       if (guestToken) {
-        console.log('[GuestFlow] Found existing guest token:', guestToken.substring(0, 15) + '...');
+        //('[GuestFlow] Found existing guest token:', guestToken.substring(0, 15) + '...');
         
         // Make sure the token is set in the api headers
         gymbrosService.setGuestToken(guestToken);
@@ -100,7 +100,7 @@ export const GuestFlowProvider = ({ children }) => {
           
           // Check if the error is due to an invalid token
           if (error.response && error.response.status === 401) {
-            console.log('[GuestFlow] Invalid guest token, clearing...');
+            //('[GuestFlow] Invalid guest token, clearing...');
             // Clear guest token if it's invalid
             gymbrosService.clearGuestState();
             setIsGuest(false);
@@ -113,7 +113,7 @@ export const GuestFlowProvider = ({ children }) => {
         const verificationToken = localStorage.getItem('verificationToken');
         
         if (verifiedPhone && verificationToken) {
-          console.log('[GuestFlow] Found verified phone but no guest token, creating one...');
+          //('[GuestFlow] Found verified phone but no guest token, creating one...');
           
           // Create a guest token for the verified phone
           try {
@@ -123,7 +123,7 @@ export const GuestFlowProvider = ({ children }) => {
             );
             
             if (response.guestToken) {
-              console.log('[GuestFlow] Created guest token from verified phone');
+              //('[GuestFlow] Created guest token from verified phone');
               gymbrosService.setGuestToken(response.guestToken);
               setIsGuest(true);
               
@@ -135,7 +135,7 @@ export const GuestFlowProvider = ({ children }) => {
             console.error('[GuestFlow] Error creating guest token:', error);
           }
         } else {
-          console.log('[GuestFlow] No guest token or verified phone found');
+          //('[GuestFlow] No guest token or verified phone found');
         }
         
         setLoading(false);
@@ -148,7 +148,7 @@ export const GuestFlowProvider = ({ children }) => {
     if (!isAuthenticated) {
       initGuestFlow();
     } else {
-      console.log('[GuestFlow] User is authenticated, skipping guest initialization');
+      //('[GuestFlow] User is authenticated, skipping guest initialization');
       setInitAttempted(true);
       setLoading(false);
     }

@@ -131,7 +131,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
       return;
     }
     
-    console.log('Received photo update with', newPhotos.length, 'photos');
+    //('Received photo update with', newPhotos.length, 'photos');
     
     setFormData(prev => ({
       ...prev,
@@ -150,7 +150,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     setLoading(true);
     
     try {
-      console.log('Starting profile submission...');
+      //('Starting profile submission...');
       
       // Validate the form data
       const validationErrors = validateForm(formData);
@@ -163,7 +163,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
       
       // 1. Get the current display order of photos
       const currentPhotos = [...formData.photos].filter(url => url);
-      console.log('Current display order:', currentPhotos);
+      //('Current display order:', currentPhotos);
       
       // 2. Get files to upload from the PhotoEditor with their positions
       let filesToUpload = [];
@@ -179,13 +179,13 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
           blobPositions[blobUrl] = parseInt(position);
         });
         
-        console.log('Files to upload:', filesToUpload.length);
-        console.log('Blob positions map:', blobPositions);
+        //('Files to upload:', filesToUpload.length);
+        //('Blob positions map:', blobPositions);
       }
       
       // 3. Identify all URLs that are NOT blobs (server URLs to keep)
       const serverUrls = currentPhotos.filter(url => !url.startsWith('blob:'));
-      console.log('Server URLs to preserve:', serverUrls);
+      //('Server URLs to preserve:', serverUrls);
       
       // 4. Create a position map for all current photos
       // This maps the URL (blob or server) to its position
@@ -193,19 +193,19 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
       currentPhotos.forEach((url, index) => {
         positionMap[url] = index;
       });
-      console.log('Position map for all photos:', positionMap);
+      //('Position map for all photos:', positionMap);
       
       let uploadedImageUrls = [];
       
       // 5. Upload new files if there are any
       if (filesToUpload.length > 0) {
         try {
-          console.log('Starting file upload process...');
+          //('Starting file upload process...');
           const uploadResult = await gymbrosService.uploadProfileImages(filesToUpload);
           
           if (uploadResult.success && uploadResult.imageUrls) {
             uploadedImageUrls = uploadResult.imageUrls;
-            console.log('Upload successful, received URLs:', uploadedImageUrls);
+            //('Upload successful, received URLs:', uploadedImageUrls);
           } else {
             throw new Error(uploadResult.message || 'Failed to upload images');
           }
@@ -256,7 +256,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
       
       // Remove any null entries and create final array
       const finalImages = tempArray.filter(url => url !== null);
-      console.log('Final images array with preserved positions:', finalImages);
+      //('Final images array with preserved positions:', finalImages);
       
       // 7. Prepare final data for saving
       const finalData = {
@@ -265,12 +265,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
         profileImage: finalImages.length > 0 ? finalImages[0] : null,
         photos: undefined // Remove the photos field
       };
-      
-      console.log('Saving profile with final data:', {
-        ...finalData,
-        images: `${finalData.images.length} images with preserved positions`
-      });
-      
+
       // FIXED: Use the proper method from gymbrosService and correctly handle the response
       const response = await gymbrosService.createOrUpdateProfile(finalData);
       

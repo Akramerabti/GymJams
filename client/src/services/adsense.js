@@ -55,7 +55,7 @@ class AdSenseService {
 
       // Skip actual ad loading in development mode to avoid CORS issues
       if (this.isDevelopment) {
-        console.log('Development mode: Using fallback ads instead of AdSense');
+        //('Development mode: Using fallback ads instead of AdSense');
         this.initialized = true;
         resolve(true);
         return;
@@ -63,7 +63,7 @@ class AdSenseService {
 
       // Check if adsbygoogle is already defined
       if (window.adsbygoogle && window.adsbygoogle.loaded) {
-        console.log('AdSense already initialized, using existing instance');
+        //('AdSense already initialized, using existing instance');
         this.initialized = true;
         resolve(true);
         return;
@@ -322,7 +322,7 @@ class AdSenseService {
       
       // If ad is unfilled, replace with premium promo
       if (hasUnfilled && domElement.parentNode) {
-        console.log(`Ad ${adId} in position ${position} is unfilled, replacing with promo`);
+        //(`Ad ${adId} in position ${position} is unfilled, replacing with promo`);
         
         // Create a temporary container
         const tempContainer = document.createElement('div');
@@ -352,24 +352,24 @@ class AdSenseService {
 
   displayAd(domElement, position = 'sidebar', containerId = null) {
     // Debug information
-    console.log('Displaying ad in:', domElement);
-    console.log('Position:', position);
-    console.log('Container ID:', containerId);
+    //('Displaying ad in:', domElement);
+    //('Position:', position);
+    //('Container ID:', containerId);
     
     // Skip in development mode
     if (this.isDevelopment) {
-      console.log('Development mode detected, showing mock ad');
+      //('Development mode detected, showing mock ad');
       return true; // Pretend it worked
     }
   
     if (!this.initialized || this.adBlocked) {
-      console.log('Cannot display ad: AdSense not initialized or blocked');
+      //('Cannot display ad: AdSense not initialized or blocked');
       return false;
     }
   
     try {
       const adId = containerId || `ad-${position}-${Date.now()}`;
-      console.log('Pushing ad to adsbygoogle with ID:', adId);
+      //('Pushing ad to adsbygoogle with ID:', adId);
       
       // Use AdSense's push method to display ads
       (window.adsbygoogle = window.adsbygoogle || []).push({});
@@ -377,7 +377,7 @@ class AdSenseService {
       // Set a timeout to check if the ad was filled
       setTimeout(() => {
         const result = this.checkAdVisibility(domElement, position, adId);
-        console.log('Ad visibility check result:', result);
+        //('Ad visibility check result:', result);
       }, 2000);
       
       return true;

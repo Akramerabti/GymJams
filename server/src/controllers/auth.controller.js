@@ -245,8 +245,8 @@ export const loginWithTokenFORPHONE = async (req, res) => {
 // auth.controller.js
 export const validateToken = async (req, res) => {
   try {
-    console.log('Validating token...');
-    console.log('req.user:', req.user);
+    //('Validating token...');
+    //('req.user:', req.user);
 
     if (!req.user) {
       console.error('User not found in request');
@@ -314,7 +314,7 @@ export const updateProfile = async (req, res) => {
           if (oldFilePath) {
             try {
               await supabaseStorageService.deleteFile(oldFilePath);
-              console.log('Old image deleted successfully from Supabase:', oldFilePath);
+              //('Old image deleted successfully from Supabase:', oldFilePath);
             } catch (deleteError) {
               console.error('Failed to delete old image from Supabase:', deleteError);
               // Continue with upload even if delete fails
@@ -331,7 +331,7 @@ export const updateProfile = async (req, res) => {
 
         // Save the Supabase URL
         user.profileImage = uploadResult.url;
-        console.log('New image uploaded to Supabase:', uploadResult.url);
+        //('New image uploaded to Supabase:', uploadResult.url);
       } catch (uploadError) {
         console.error('Error uploading profile image to Supabase:', uploadError);
         return res.status(500).json({ 
@@ -351,7 +351,7 @@ export const updateProfile = async (req, res) => {
         youtube: socialLinks?.youtube || user.socialLinks?.youtube,
       };
 
-      console.log('Specialties:', specialties);
+      //('Specialties:', specialties);
       // Update specialties if provided and valid
       if (Array.isArray(specialties)) {
         user.specialties = specialties;
@@ -421,7 +421,7 @@ export const verifyEmail = async (req, res) => {
   try {
     const { token } = req.params;
 
-    console.log('Verifying email...', token);
+    //('Verifying email...', token);
 
     // Find the user by verification token
     const user = await User.findOne({
@@ -558,7 +558,7 @@ export const resetPassword = async (req, res) => {
 
     // You might want to invalidate all existing sessions here
     // depending on your security requirements
-    console.log('Password reset successfully', user);
+    //('Password reset successfully', user);
     res.status(200).json({ 
       message: 'Password has been reset successfully' 
     });
@@ -831,7 +831,7 @@ export const completeOAuthProfile = async (req, res) => {
   try {
     const { phone, lastName, tempToken } = req.body;
     
-    console.log('Complete OAuth Profile - Request:', { phone, lastName, tempToken: !!tempToken, hasUser: !!req.user });
+    //('Complete OAuth Profile - Request:', { phone, lastName, tempToken: !!tempToken, hasUser: !!req.user });
 
     // Handle temporary token case (new user creation from OAuth profile)
     if (tempToken) {
@@ -846,7 +846,7 @@ export const completeOAuthProfile = async (req, res) => {
         }
 
         oauthProfile = decoded.oauthProfile;
-        console.log('Creating new user from OAuth profile:', oauthProfile);
+        //('Creating new user from OAuth profile:', oauthProfile);
       } catch (tokenError) {
         console.error('Temporary token verification error:', tokenError);
         return res.status(400).json({ 
@@ -958,12 +958,6 @@ export const completeOAuthProfile = async (req, res) => {
         hasReceivedFirstLoginBonus: true
       });
 
-      console.log('Created new user:', {
-        id: newUser._id,
-        email: newUser.email,
-        phone: newUser.phone,
-        points: newUser.points
-      });
 
       // Generate authentication token
       const token = jwt.sign(
@@ -1001,13 +995,6 @@ export const completeOAuthProfile = async (req, res) => {
     if (!currentUser) {
       return res.status(404).json({ message: 'User not found' });
     }
-
-    console.log('Updating existing user profile:', {
-      id: currentUser._id,
-      phone: currentUser.phone,
-      lastName: currentUser.lastName,
-      oauth: currentUser.oauth
-    });
 
     const updateFields = {};
     const oauthUpdateFields = {};

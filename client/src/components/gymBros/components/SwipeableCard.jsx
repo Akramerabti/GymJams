@@ -63,7 +63,7 @@ const SwipeableCard = ({
 
     useEffect(() => {
   if (forceDirection && isActive) {
-    console.log(`Forcing swipe direction: ${forceDirection}`);
+    //(`Forcing swipe direction: ${forceDirection}`);
     
     let xDestination = 0;
     let yDestination = 0;

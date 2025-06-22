@@ -6,7 +6,7 @@ const clientService = {
   async getCoachClients() {
     try {
       const response = await api.get('/client/coach-clients');
-      console.log('Fetched coach clients:', response.data);
+      //('Fetched coach clients:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error fetching coach clients:', error);
@@ -43,7 +43,7 @@ async requestSession(subscriptionId, sessionData) {
     }
     
     // Log the request for debugging
-    console.log(`Requesting session for subscription ${subscriptionId}:`, sessionData);
+    //(`Requesting session for subscription ${subscriptionId}:`, sessionData);
     
     // Make sure all required fields are present and properly named
     const payload = {
@@ -69,7 +69,7 @@ async requestSession(subscriptionId, sessionData) {
       { params }
     );
     
-    console.log('Session request successful:', response.data);
+    //('Session request successful:', response.data);
     return response.data;
   } catch (error) {
     console.error('Failed to request session:', error);

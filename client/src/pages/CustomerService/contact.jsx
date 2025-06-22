@@ -100,7 +100,7 @@ const Contact = () => {
   }, [activeTab, faqScrollPosition]);
   useEffect(() => {
     if (user) {
-      console.log('User data loaded in Contact component:', user);
+      //('User data loaded in Contact component:', user);
       const userData = user?.user || user; // Handle nested user structure
       setApplicationForm(prev => ({
         ...prev,
@@ -111,7 +111,7 @@ const Contact = () => {
         phone: userData.phone || userData.phoneNumber || ''
       }));
     } else {
-      console.log('No user data available in Contact component');
+      //('No user data available in Contact component');
     }
   }, [user]);
 
