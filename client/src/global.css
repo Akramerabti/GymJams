@@ -1001,3 +1001,202 @@ html {
   backface-visibility: hidden;
   perspective: 1000px;
 }
+
+/* Hide scrollbars for questionnaire */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
+
+/* Animation delays for staggered effects */
+.animation-delay-1000 {
+  animation-delay: 1s;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+/* Border width utilities */
+.border-3 {
+  border-width: 3px;
+}
+
+/* Questionnaire specific full-screen styles */
+.questionnaire-fullscreen {
+  height: 100vh !important;
+  height: 100dvh !important; /* Dynamic viewport height for mobile */
+  max-height: 100vh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 50 !important;
+}
+
+/* Ensure questionnaire content fits perfectly */
+.questionnaire-content {
+  height: 100% !important;
+  max-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+/* Force all questionnaire children to respect the container */
+.questionnaire-container * {
+  box-sizing: border-box !important;
+}
+
+/* Ensure questionnaire never overlaps navbar */
+.questionnaire-fullscreen {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 1 !important; /* Lower than navbar z-index (9999) */
+}
+
+/* Mobile specific questionnaire adjustments */
+@media (max-width: 768px) {
+  .questionnaire-fullscreen {
+    height: 100vh !important;
+    height: 100svh !important; /* Small viewport height for mobile browsers */
+    max-height: 100vh !important;
+    max-height: 100svh !important;
+  }
+  
+  /* Reduce header height on mobile */
+  .questionnaire-header {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+  
+  /* Compact card padding on mobile */
+  .questionnaire-card {
+    padding: 0.5rem !important;
+  }
+  
+  /* Ensure form sections with many options can scroll */
+  .questionnaire-form-content {
+    max-height: calc(100vh - 200px) !important;
+    overflow-y: auto !important;
+  }
+    /* Improve touch scrolling on iOS */
+  .scrollable-form {
+    -webkit-overflow-scrolling: touch !important;
+  }
+}
+
+/* Ultra-small screen adjustments */
+@media (max-height: 600px) {
+  .questionnaire-spacing-sm {
+    margin-bottom: 0.5rem !important;
+    padding: 0.5rem !important;
+  }
+  
+  .questionnaire-text-sm {
+    font-size: 0.875rem !important;
+    line-height: 1.25rem !important;
+  }
+  
+  /* Further reduce spacing on very small screens */
+  .questionnaire-fullscreen .text-base {
+    font-size: 0.875rem !important;
+  }
+  
+  .questionnaire-fullscreen .text-lg {
+    font-size: 1rem !important;
+  }
+}
+
+/* Very small height adjustments */
+@media (max-height: 500px) {
+  .questionnaire-spacing-xs {
+    margin-bottom: 0.25rem !important;
+    padding: 0.25rem !important;
+  }
+  
+  .questionnaire-text-xs {
+    font-size: 0.75rem !important;
+    line-height: 1rem !important;
+  }
+  
+  /* Hide description text on very small screens */
+  .questionnaire-description-hide {
+    display: none !important;
+  }
+}
+
+/* Mobile landscape specific adjustments */
+@media (max-width: 768px) and (orientation: landscape) and (max-height: 500px) {
+  .questionnaire-fullscreen h1 {
+    font-size: 1rem !important;
+    margin-bottom: 0.25rem !important;
+  }
+  
+  .questionnaire-fullscreen .mb-2 {
+    margin-bottom: 0.25rem !important;
+  }
+  
+  .questionnaire-fullscreen .py-2 {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+}
+
+/* Ensure navigation buttons are always visible on mobile */
+@media (max-width: 768px) {
+  .questionnaire-content {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100vh !important;
+    height: 100svh !important;
+  }
+  
+  /* Ensure the card content area respects button space */
+  .questionnaire-card-content {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+    /* Make sure form content is properly scrollable and leaves space for buttons */
+  .questionnaire-form-content {
+    flex: 1 !important;
+    min-height: 0 !important;
+    max-height: calc(100vh - 314px) !important; /* Reserve space for navbar (64px) + header + buttons (250px) */
+    max-height: calc(100svh - 314px) !important;
+    overflow-y: auto !important;
+  }
+  
+  /* Ensure navigation buttons are always visible */
+  .questionnaire-navigation {
+    flex-shrink: 0 !important;
+    padding: 0.5rem 0 !important;
+    margin-top: auto !important;
+  }
+}
+
+/* For very small screens, reduce reserved space even more */
+@media (max-width: 768px) and (max-height: 600px) {
+  .questionnaire-form-content {
+    max-height: calc(100vh - 264px) !important; /* Navbar + smaller reserved space */
+    max-height: calc(100svh - 264px) !important;
+  }
+}
+
+@media (max-width: 768px) and (max-height: 500px) {
+  .questionnaire-form-content {
+    max-height: calc(100vh - 244px) !important; /* Navbar + even smaller reserved space */
+    max-height: calc(100svh - 244px) !important;
+  }
+}

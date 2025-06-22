@@ -315,8 +315,7 @@ const ClientDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [workouts, setWorkouts] = useState([]);
   const [progress, setProgress] = useState(null);
-  const [goals, setGoals] = useState([]);
-  const [assignedCoach, setAssignedCoach] = useState(null);
+  const [goals, setGoals] = useState([]);  const [assignedCoach, setAssignedCoach] = useState(null);
   const [showChat, setShowChat] = useState(false);
   const [upcomingWorkout, setUpcomingWorkout] = useState(null);
   const [historicalStats, setHistoricalStats] = useState(null);
@@ -633,9 +632,7 @@ const ClientDashboard = () => {
         }
       }
     }
-  };
-
-  const handleEditQuestionnaire = () => {
+  };  const handleEditQuestionnaire = () => {
     navigate('/questionnaire', {
       state: {
         isEditing: true,
@@ -821,9 +818,7 @@ const ClientDashboard = () => {
           cacheDuration: cacheManager.CACHE_DURATION.QUESTIONNAIRE,
           forceRefresh
         }
-      );
-
-      // Redirect to questionnaire if not completed
+      );      // Redirect to questionnaire if not completed
       if (!questionnaireData?.completed) {
         navigate('/questionnaire', {
           state: { subscription: subData, accessToken: accessToken || null },
@@ -1083,9 +1078,7 @@ const ClientDashboard = () => {
     if (ref && ref.current) {
       ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  };
-
-  if (loading) {
+  };  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800">
         <motion.div

@@ -239,8 +239,7 @@ const SubscriptionCheckout = () => {
                         },
                       },
                     }}
-                  >
-                    <PaymentForm
+                  >                    <PaymentForm
                       plan={currentPlan}
                       clientSecret={clientSecret}
                       onSuccess={async (setupIntentId, paymentMethodId, email) => {
@@ -249,7 +248,7 @@ const SubscriptionCheckout = () => {
                             currentPlan.id,
                             setupIntentId,
                             paymentMethodId,
-                            userEmail
+                            email || user?.email
                           );
                           navigate('/dashboard');
                           window.location.reload();

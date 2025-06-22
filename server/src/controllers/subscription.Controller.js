@@ -189,7 +189,6 @@ export const submitQuestionnaire = async (req, res) => {
       .sort({ startDate: -1 }) 
       .exec();
     } else if (accessToken) {
-
       subscription = await Subscription.findOne({ 
         accessToken, 
         status: 'active'
@@ -202,17 +201,22 @@ export const submitQuestionnaire = async (req, res) => {
 
     if (!subscription) {
       return res.status(404).json({ error: 'No active subscription found' });
-    }
-
+    }    // Update questionnaire data
     subscription.hasCompletedQuestionnaire = true;
     subscription.questionnaireData = answers;
     subscription.questionnaireCompletedAt = new Date();
+    subscription.coachAssignmentStatus = 'pending'; // Set to pending for UI assignment flow
+    
     await subscription.save();
+
+    // Don't automatically assign coach here - let the frontend UI handle the assignment flow
 
     res.json({
       success: true,
       message: 'Questionnaire completed successfully',
-      subscriptionStartDate: subscription.startDate
+      subscriptionStartDate: subscription.startDate,
+      coachAssignmentStatus: subscription.coachAssignmentStatus,
+      subscription: subscription // Return updated subscription data for UI
     });
   } catch (error) {
     logger.error('Error submitting questionnaire:', error);
@@ -1922,6 +1926,136 @@ export const requestSession = async (req, res) => {
       details: error.message,
       stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
     });
+  }
+};
+
+// Automatic coach assignment function
+const automaticCoachAssignment = async (subscription) => {
+  try {
+    logger.info(`Starting automatic coach assignment for subscription ${subscription._id}`);
+    
+    // Find available coaches with completed payout setup
+    const availableCoaches = await User.find({
+      role: 'coach',
+      isEmailVerified: true,
+      coachStatus: 'available',
+      payoutSetupComplete: true,
+      'availability.currentClients': { $lt: 10 } // Max 10 clients per coach
+    }).sort({ 
+      'availability.currentClients': 1, // Prefer coaches with fewer clients
+      'stats.rating': -1 // Then by rating
+    }).limit(5);
+
+    if (!availableCoaches || availableCoaches.length === 0) {
+      logger.warn('No available coaches found for automatic assignment');
+      subscription.coachAssignmentStatus = 'no_coaches_available';
+      await subscription.save();
+      return;
+    }
+
+    // Select the best available coach (first in the sorted list)
+    const selectedCoach = availableCoaches[0];
+    
+    // Verify the coach's Stripe account
+    try {
+      const account = await stripe.accounts.retrieve(selectedCoach.stripeAccountId);
+      if (!account.charges_enabled || !account.payouts_enabled) {
+        logger.warn(`Coach ${selectedCoach._id} has incomplete Stripe setup`);
+        selectedCoach.coachStatus = 'unavailable';
+        await selectedCoach.save();
+        return await automaticCoachAssignment(subscription); // Try next coach
+      }
+    } catch (stripeError) {
+      logger.error('Stripe account verification error:', stripeError);
+      return;
+    }
+
+    // Calculate coach's share
+    const plan = PLANS[subscription.subscription];
+    const coachShare = Math.round(plan.price * 0.6 * 100); // 60% to coach
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // Update subscription with coach assignment
+      const updatedSubscription = await Subscription.findByIdAndUpdate(
+        subscription._id,
+        {
+          assignedCoach: selectedCoach._id,
+          coachAssignmentDate: new Date(),
+          coachAssignmentStatus: 'assigned',
+          coachPaymentDetails: {
+            weeklyAmount: coachShare,
+            startDate: new Date(),
+            lastPayoutDate: null,
+            subscriptionPrice: plan.price,
+            isRefundable: true
+          }
+        },
+        { session, new: true }
+      );
+
+      // Update coach
+      await User.findByIdAndUpdate(
+        selectedCoach._id,
+        {
+          $addToSet: { coachingSubscriptions: subscription._id },
+          $inc: { 
+            'availability.currentClients': 1,
+            'earnings.pendingAmount': coachShare
+          }
+        },
+        { session }
+      );
+
+      // Update coach status if they reach max clients
+      if (selectedCoach.availability.currentClients + 1 >= selectedCoach.availability.maxClients) {
+        await User.findByIdAndUpdate(
+          selectedCoach._id,
+          { coachStatus: 'full' },
+          { session }
+        );
+      }
+
+      await session.commitTransaction();
+      
+      logger.info(`Successfully assigned coach ${selectedCoach._id} to subscription ${subscription._id}`);
+      
+      // Send notification to client (if they have socket connection)
+      try {
+        const io = getIoInstance();
+        const userId = subscription.user?.toString();
+        if (userId && activeUsers.has(userId)) {
+          const socketId = activeUsers.get(userId);
+          io.to(socketId).emit('coachAssigned', {
+            coach: {
+              _id: selectedCoach._id,
+              firstName: selectedCoach.firstName,
+              lastName: selectedCoach.lastName,
+              profileImage: selectedCoach.profileImage,
+              bio: selectedCoach.bio,
+              specialties: selectedCoach.specialties
+            },
+            assignmentDate: updatedSubscription.coachAssignmentDate
+          });
+        }
+      } catch (socketError) {
+        logger.error('Socket notification error:', socketError);
+      }
+
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+
+  } catch (error) {
+    logger.error('Automatic coach assignment error:', error);
+    subscription.coachAssignmentStatus = 'assignment_failed';
+    await subscription.save();
+    throw error;
   }
 };
 
