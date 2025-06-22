@@ -233,34 +233,27 @@ useEffect(() => {
       if (match.hasConversation === true) {
         return true;
       }
-      
-      // Check if match has messages array with content
+
       if (match.messages && match.messages.length > 0) {
         return true;
       }
-      
-      // Check if match has lastMessage object with content
+
       if (match.lastMessage && match.lastMessage.content) {
         return true;
       }
       
-      // No messages found
       return false;
     });
     
-    // All other matches are considered new
+
     const newMatchesList = matches.filter(match => !conversationsList.includes(match));
-    
-    // Sort conversations by most recent message time
     conversationsList.sort((a, b) => {
-      // Get timestamp from whatever form lastMessage takes
       const getTimestamp = (match) => {
         if (match.lastMessage && match.lastMessage.timestamp) {
           return new Date(match.lastMessage.timestamp);
         }
         
         if (match.messages && match.messages.length > 0) {
-          // Get the latest message timestamp
           const timestamps = match.messages.map(msg => new Date(msg.timestamp));
           return new Date(Math.max(...timestamps.map(date => date.getTime())));
         }
@@ -285,7 +278,6 @@ useEffect(() => {
     
     setRefreshing(true);
     try {
-      // Clear cache before refreshing
       clearCache('matches-with-preview');
       clearCache('who-liked-me-count');
       
@@ -301,13 +293,7 @@ useEffect(() => {
   
   const handleOpenChat = async (user) => {
     try {
-      console.log('Opening chat with:', user);
-      
-      // Determine the correct identifier based on user type
       const targetIdentifier = user.userId || user._id;
-      
-      console.log('Target identifier:', targetIdentifier);
-      // Get actual match ID between current user and target user
       const matchData = await gymbrosService.findMatch(targetIdentifier);
       
       // Handle different response cases
@@ -594,7 +580,6 @@ useEffect(() => {
             </motion.div>
           ))
         ) : (
-          // Show empty placeholders if no new matches
           Array.from({ length: 3 }).map((_, index) => (
             <div key={`empty-${index}`} className="w-28 snap-start">
               <div className="w-28 aspect-[7/10] rounded-lg bg-gray-100 border border-dashed border-gray-300 flex items-center justify-center">
@@ -607,9 +592,7 @@ useEffect(() => {
     </div>
   );
  
-// Updated renderConversations with bold text for messages from others
 const renderConversations = () => {
-  // Get userId from the authentication store or from ref for guest users
   const currentUserId = user?.id || (user?.user && user?.user.id) || userIdRef.current;
   
   return (
@@ -636,7 +619,6 @@ const renderConversations = () => {
       {conversations.length > 0 ? (
         <div className="space-y-3">
           {conversations.map(match => {
-            // More thorough check if last message is from current user with fallback checks
             const isLastMessageFromUser = match.lastMessage && (
               match.lastMessage.isYours === true || 
               (currentUserId && match.lastMessage.sender === currentUserId) ||
@@ -644,7 +626,6 @@ const renderConversations = () => {
               (typeof match.lastMessage.sender === 'object' && match.lastMessage.sender?.id === currentUserId)
             );
             
-            // IMPORTANT: Never show unread count notification badge
             const displayUnreadCount = false;
               return (
               <motion.div

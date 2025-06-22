@@ -100,6 +100,9 @@ const Home = () => {  const { darkMode } = useTheme();
   }, []);  useEffect(() => {
     document.documentElement.style.scrollBehavior = 'smooth';
     
+    // Force scroll to top on mobile when component mounts
+    window.scrollTo(0, 0);
+    
     const timer = setTimeout(() => {
       setIsLoaded(true);
       const heroElement = sectionRefs.current[0];
@@ -164,7 +167,16 @@ const Home = () => {  const { darkMode } = useTheme();
     }
     
     const sectionTop = targetSection.offsetTop;
-    const targetPosition = Math.max(0, sectionTop - navbarHeight);
+      // Check if we're on mobile (screen width less than 768px)
+    const isMobile = window.innerWidth < 768;
+    
+    // Add extra offset for Coaching (section 2) and GymBros (section 3) on mobile
+    let extraOffset = 0;
+    if (isMobile && (sectionIndex === 2 || sectionIndex === 3)) {
+      extraOffset = -50; // Scroll 100px higher for these sections on mobile
+    }
+    
+    const targetPosition = Math.max(0, sectionTop - navbarHeight - extraOffset);
     
     window.scrollTo({
       top: targetPosition,
