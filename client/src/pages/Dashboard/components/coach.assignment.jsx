@@ -279,9 +279,7 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
           }, 8000);
         } else {
           const response = await subscriptionService.getCoaches();
-          //('Coaches Response:', response); // Debugging log
-    
-          // Ensure response is an array
+          //('Coaches Response:', response); // Debugging log          // Ensure response is an array
           if (Array.isArray(response)) {
             //('Number of Coaches:', response.length); // Debugging log
             setCoaches(response); // Set the coaches array directly
@@ -827,18 +825,17 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
         </CardContent>
       </Card>
     );
-  }  return (
-    <Card className="w-full bg-gradient-to-br from-slate-50 to-gray-100 border-gray-200 shadow-xl">
-      <CardHeader className="border-b border-gray-200 bg-white">
+  }  return (    <Card className="w-full bg-gradient-to-br from-purple-100 via-blue-50 to-indigo-100 border-purple-200 shadow-xl mt-8">
+      <CardHeader className="border-b border-purple-200 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-indigo-500/10 backdrop-blur-sm">
         <CardTitle className="flex items-center text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
           <User className="w-6 h-6 mr-3 text-blue-500" />
           Choose Your Personal Coach
           <Sparkles className="w-5 h-5 ml-2 text-yellow-500" />
         </CardTitle>
-      </CardHeader>
-      <CardContent className="p-6">
-        {/* Responsive Grid - 1 col on mobile, 2 on tablet, 3 on large tablet+, 4 on desktop, 5 on large desktop */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 lg:gap-6">
+      </CardHeader>      <CardContent className="p-6 bg-gradient-to-br from-blue-50/50 via-purple-50/50 to-indigo-50/50">
+        {/* Scrollable Container with Custom Scrollbar */}
+        <div className="max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gradient bg-gradient-to-br from-cyan-100/30 via-blue-100/30 to-purple-100/30 rounded-2xl p-4 backdrop-blur-sm border border-white/20 shadow-inner">{/* Responsive Grid - 2 cols on mobile, 2 on tablet, 3 on large tablet+, 4 on desktop, 5 on large desktop */}
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 lg:gap-6">
           {coaches && coaches.length > 0 ? (
             coaches.map((coach, index) => {
               const gradientClass = gradientCombinations[index % gradientCombinations.length];
@@ -992,9 +989,9 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
               </p>
               <p className="text-sm text-gray-400">
                 Please try again later or contact support.
-              </p>
-            </div>
+              </p>            </div>
           )}
+        </div>
         </div>
       </CardContent>
   

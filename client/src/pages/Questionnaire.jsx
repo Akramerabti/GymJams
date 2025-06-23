@@ -393,15 +393,15 @@ const Questionnaire = () => {
         return null;
     }
   };
-
   // Show coach assignment after questionnaire completion
   if (showCoachAssignment) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <CoachAssignment 
-          subscription={subscription}
-          onCoachAssigned={handleCoachAssigned}
-        />
+    return (      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4 pt-8">
+        <div className="w-full max-w-7xl mx-auto">
+          <CoachAssignment 
+            subscription={subscription}
+            onCoachAssigned={handleCoachAssigned}
+          />
+        </div>
       </div>
     );
   }

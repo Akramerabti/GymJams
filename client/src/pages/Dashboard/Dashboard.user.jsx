@@ -22,9 +22,9 @@ import ProfileSection from './ClientOrganization/ProfileSection';
 import UpcomingSessions from './ClientOrganization/UpcomingSessions';
 import SessionsView from '../../components/subscription/SessionsView';
 import Chat from './components/Chat';
+import CoachAssignment from './components/coach.assignment';
 
 const createCacheManager = () => {
-  // Cache configuration
   const CACHE_DURATION = {
     SUBSCRIPTION: 5 * 60 * 1000, // 5 minutes
     QUESTIONNAIRE: 60 * 60 * 1000, // 1 hour
@@ -817,8 +817,12 @@ const ClientDashboard = () => {
         { 
           cacheDuration: cacheManager.CACHE_DURATION.QUESTIONNAIRE,
           forceRefresh
-        }
-      );      // Redirect to questionnaire if not completed
+        }      );
+
+      // Set questionnaire state regardless of completion status
+      setQuestionnaire(questionnaireData);
+
+      // Redirect to questionnaire if not completed
       if (!questionnaireData?.completed) {
         navigate('/questionnaire', {
           state: { subscription: subData, accessToken: accessToken || null },
@@ -831,11 +835,9 @@ const ClientDashboard = () => {
         workoutsCompleted: Math.max(0, (subData.stats?.workoutsCompleted || 0) - 2),
         currentStreak: Math.max(0, (subData.stats?.currentStreak || 0) - 1),
         monthlyProgress: Math.max(0, (subData.stats?.monthlyProgress || 0) - 5),
-        goalsAchieved: Math.max(0, (subData.stats?.goalsAchieved || 0)),
-      });
+        goalsAchieved: Math.max(0, (subData.stats?.goalsAchieved || 0)),      });
 
       setSubscription(subData);
-      setQuestionnaire(questionnaireData);
 
       // Get coach details if assigned, with caching
       if (subData.assignedCoach) {
@@ -1089,6 +1091,56 @@ const ClientDashboard = () => {
       </div>
     );
   }
+  // CRITICAL: Check questionnaire completion first - if not completed, redirect will happen in useEffect
+  // This prevents showing coach assignment or dashboard before questionnaire is verified
+  if (questionnaire === null || subscription === null) {
+    // Still loading questionnaire or subscription status - show loading
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full drop-shadow-lg"
+        />
+      </div>
+    );
+  }
+
+  // If questionnaire is not completed, don't show anything (redirect will happen)
+  if (!questionnaire?.completed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full drop-shadow-lg"
+        />
+      </div>
+    );
+  }
+  // Early return for coach assignment - takes full screen (only after questionnaire is confirmed complete)
+  if (subscription?.coachAssignmentStatus === 'pending') {
+    return (      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4 pt-8">
+        <div className="w-full max-w-7xl mx-auto">
+          <CoachAssignment 
+            subscription={subscription} 
+            onCoachAssigned={(coach) => {
+              // Update subscription status and refresh data
+              setSubscription(prev => ({
+                ...prev,
+                coachAssignmentStatus: 'assigned',
+                assignedCoach: coach.id
+              }));
+              setAssignedCoach(coach);
+              // Optionally reload the dashboard data
+              setLoading(true);
+              window.location.reload(); // Simple refresh to ensure all data is updated
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-blue-50 dark:from-gray-950 dark:to-indigo-950 py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
@@ -1099,8 +1151,7 @@ const ClientDashboard = () => {
           subscription={subscription}
           assignedCoach={assignedCoach}
           onChatOpen={() => setShowChat(true)}
-          onUpgradeClick={handleUpgradeClick}
-        />
+          onUpgradeClick={handleUpgradeClick}        />
 
         {/* Notification Banner for upcoming workout with enhanced styling */}
         {upcomingWorkout && (
