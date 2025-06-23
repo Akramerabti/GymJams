@@ -1217,115 +1217,115 @@ const RecoveryForm= ({ formData, onChange, onArrayToggle }) => {
     { id: 'bath', label: 'Hot Bath', icon: '🛁', color: 'from-orange-400 to-red-400' },
     { id: 'sauna', label: 'Sauna/Steam', icon: '🧖‍♂️', color: 'from-red-400 to-rose-500' },
     { id: 'none', label: 'None', icon: '❌', color: 'from-gray-400 to-slate-500' }
-  ];
-
-  return (
-    <div className="h-full flex flex-col space-y-2 sm:space-y-3 overflow-hidden">
-      {/* Sleep Hours */}
-      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 p-2 sm:p-3 rounded-lg border border-indigo-200 dark:border-indigo-800 flex-shrink-0">
-        <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
-          <div className="w-5 sm:w-6 h-5 sm:h-6 bg-indigo-500 rounded-full flex items-center justify-center mr-2">
-            🌙
+  ];  return (
+    <div className="h-full overflow-y-auto scrollbar-hide scrollable-form">
+      <div className="space-y-2 sm:space-y-3 pb-4">
+        {/* Sleep Hours */}
+        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 p-2 sm:p-3 rounded-lg border border-indigo-200 dark:border-indigo-800">
+          <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
+            <div className="w-5 sm:w-6 h-5 sm:h-6 bg-indigo-500 rounded-full flex items-center justify-center mr-2">
+              🌙
+            </div>
+            Sleep Hours Per Night
+          </h3>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-1 sm:gap-2">
+            {sleepOptions.map((option) => (
+              <motion.div
+                key={option.value}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 ${
+                  formData.sleep === option.value
+                    ? `bg-gradient-to-br ${option.color} text-white border-transparent shadow-xl`
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
+                }`}
+                onClick={() => onChange('sleep', option.value)}
+              >
+                <div className="text-center">
+                  <div className="text-lg">{option.icon}</div>
+                  <div className="font-semibold text-xs">{option.label}</div>
+                </div>
+              </motion.div>
+            ))}
           </div>
-          Sleep Hours Per Night
-        </h3>
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-1 sm:gap-2">
-          {sleepOptions.map((option) => (
-            <motion.div
-              key={option.value}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 ${
-                formData.sleep === option.value
-                  ? `bg-gradient-to-br ${option.color} text-white border-transparent shadow-xl`
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
-              }`}
-              onClick={() => onChange('sleep', option.value)}
-            >
-              <div className="text-center">
-                <div className="text-lg">{option.icon}</div>
-                <div className="font-semibold text-xs">{option.label}</div>
-              </div>
-            </motion.div>
-          ))}
         </div>
-      </div>
 
-      {/* Stress Factors */}
-      <div className="bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 p-2 sm:p-3 rounded-lg border border-red-200 dark:border-red-800 flex-1 min-h-0 flex flex-col">
-        <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center flex-shrink-0">
-          <div className="w-5 sm:w-6 h-5 sm:h-6 bg-red-500 rounded-full flex items-center justify-center mr-2">
-            😰
+        {/* Stress Factors */}
+        <div className="bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 p-2 sm:p-3 rounded-lg border border-red-200 dark:border-red-800">
+          <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
+            <div className="w-5 sm:w-6 h-5 sm:h-6 bg-red-500 rounded-full flex items-center justify-center mr-2">
+              😰
+            </div>
+            Main Stress Factors
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-1 sm:gap-2">
+            {stressOptions.map((stress) => (
+              <motion.div
+                key={stress.id}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 flex flex-col justify-center min-h-[4rem] ${
+                  formData.stress?.includes(stress.id)
+                    ? `bg-gradient-to-br ${stress.color} text-white border-transparent shadow-xl`
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
+                }`}
+                onClick={() => onArrayToggle('stress', stress.id)}
+              >
+                <div className="text-center">
+                  <div className="text-base sm:text-lg mb-1">{stress.icon}</div>
+                  <div className="font-semibold text-xs">{stress.label}</div>
+                </div>
+                {formData.stress?.includes(stress.id) && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-lg"
+                  >
+                    <CheckCircle className="w-3 h-3 text-green-500" />
+                  </motion.div>
+                )}
+              </motion.div>
+            ))}
           </div>
-          Main Stress Factors
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-1 sm:gap-2 flex-1">
-          {stressOptions.map((stress) => (
-            <motion.div
-              key={stress.id}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 flex flex-col justify-center ${
-                formData.stress?.includes(stress.id)
-                  ? `bg-gradient-to-br ${stress.color} text-white border-transparent shadow-xl`
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
-              }`}
-              onClick={() => onArrayToggle('stress', stress.id)}
-            >
-              <div className="text-center">
-                <div className="text-base sm:text-lg mb-1">{stress.icon}</div>
-                <div className="font-semibold text-xs">{stress.label}</div>
-              </div>
-              {formData.stress?.includes(stress.id) && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-lg"
-                >
-                  <CheckCircle className="w-3 h-3 text-green-500" />
-                </motion.div>
-              )}
-            </motion.div>
-          ))}
         </div>
-      </div>
 
-      {/* Recovery Methods */}
-      <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 p-2 sm:p-3 rounded-lg border border-green-200 dark:border-green-800 flex-1 min-h-0 flex flex-col">
-        <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center flex-shrink-0">
-          <div className="w-5 sm:w-6 h-5 sm:h-6 bg-green-500 rounded-full flex items-center justify-center mr-2">
-            🔄
+        {/* Recovery Methods */}
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 p-2 sm:p-3 rounded-lg border border-green-200 dark:border-green-800">
+          <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
+            <div className="w-5 sm:w-6 h-5 sm:h-6 bg-green-500 rounded-full flex items-center justify-center mr-2">
+              🔄
+            </div>
+            Recovery Methods You Use
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-1 sm:gap-2">
+            {recoveryOptions.map((recovery) => (
+              <motion.div
+                key={recovery.id}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 flex flex-col justify-center min-h-[4rem] ${
+                  formData.recovery?.includes(recovery.id)
+                    ? `bg-gradient-to-br ${recovery.color} text-white border-transparent shadow-xl`
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
+                }`}
+                onClick={() => onArrayToggle('recovery', recovery.id)}
+              >
+                <div className="text-center">
+                  <div className="text-base sm:text-lg mb-1">{recovery.icon}</div>
+                  <div className="font-semibold text-xs">{recovery.label}</div>
+                </div>
+                {formData.recovery?.includes(recovery.id) && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-lg"
+                  >
+                    <CheckCircle className="w-3 h-3 text-green-500" />
+                  </motion.div>
+                )}
+              </motion.div>
+            ))}
           </div>
-          Recovery Methods You Use
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-1 sm:gap-2 flex-1">
-          {recoveryOptions.map((recovery) => (
-            <motion.div
-              key={recovery.id}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 flex flex-col justify-center ${
-                formData.recovery?.includes(recovery.id)
-                  ? `bg-gradient-to-br ${recovery.color} text-white border-transparent shadow-xl`
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
-              }`}
-              onClick={() => onArrayToggle('recovery', recovery.id)}
-            >
-              <div className="text-center">
-                <div className="text-base sm:text-lg mb-1">{recovery.icon}</div>
-                <div className="font-semibold text-xs">{recovery.label}</div>
-              </div>
-              {formData.recovery?.includes(recovery.id) && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-lg"
-                >
-                  <CheckCircle className="w-3 h-3 text-green-500" />
-                </motion.div>
-              )}
-            </motion.div>
-          ))}
         </div>
       </div>
     </div>
@@ -1363,136 +1363,137 @@ const LifestyleForm = ({ formData, onChange, onArrayToggle }) => {
     { value: 4, label: 'Good', icon: '😊', color: 'from-green-400 to-emerald-500' },
     { value: 5, label: 'Excellent', icon: '🤩', color: 'from-blue-400 to-cyan-500' }
   ];
-
   return (
-    <div className="h-full flex flex-col space-y-2 sm:space-y-3 overflow-hidden">
-      {/* Occupation */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-2 sm:p-3 rounded-lg border border-blue-200 dark:border-blue-800 flex-shrink-0">
-        <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
-          <div className="w-5 sm:w-6 h-5 sm:h-6 bg-blue-500 rounded-full flex items-center justify-center mr-2">
-            💼
+    <div className="h-full overflow-y-auto scrollbar-hide scrollable-form">
+      <div className="space-y-2 sm:space-y-3 pb-4">
+        {/* Occupation */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-2 sm:p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+          <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
+            <div className="w-5 sm:w-6 h-5 sm:h-6 bg-blue-500 rounded-full flex items-center justify-center mr-2">
+              💼
+            </div>
+            Work Environment
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-1 sm:gap-2">
+            {occupationOptions.map((option) => (
+              <motion.div
+                key={option.value}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 ${
+                  formData.occupation === option.value
+                    ? `bg-gradient-to-br ${option.color} text-white border-transparent shadow-xl`
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
+                }`}
+                onClick={() => onChange('occupation', option.value)}
+              >
+                <div className="text-center">
+                  <div className="text-lg">{option.icon}</div>
+                  <div className="font-semibold text-xs">{option.label}</div>
+                </div>
+              </motion.div>
+            ))}
           </div>
-          Work Environment
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-1 sm:gap-2">
-          {occupationOptions.map((option) => (
-            <motion.div
-              key={option.value}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 ${
-                formData.occupation === option.value
-                  ? `bg-gradient-to-br ${option.color} text-white border-transparent shadow-xl`
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
-              }`}
-              onClick={() => onChange('occupation', option.value)}
-            >
-              <div className="text-center">
-                <div className="text-lg">{option.icon}</div>
-                <div className="font-semibold text-xs">{option.label}</div>
-              </div>
-            </motion.div>
-          ))}
         </div>
-      </div>
 
-      {/* Activity Level */}
-      <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 p-2 sm:p-3 rounded-lg border border-green-200 dark:border-green-800 flex-shrink-0">
-        <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
-          <div className="w-5 sm:w-6 h-5 sm:h-6 bg-green-500 rounded-full flex items-center justify-center mr-2">
-            🏃‍♂️
+        {/* Activity Level */}
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 p-2 sm:p-3 rounded-lg border border-green-200 dark:border-green-800">
+          <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
+            <div className="w-5 sm:w-6 h-5 sm:h-6 bg-green-500 rounded-full flex items-center justify-center mr-2">
+              🏃‍♂️
+            </div>
+            Daily Activity Level
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-1 sm:gap-2">
+            {activityLevelOptions.map((option) => (
+              <motion.div
+                key={option.value}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 ${
+                  formData.activityLevel === option.value
+                    ? `bg-gradient-to-br ${option.color} text-white border-transparent shadow-xl`
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
+                }`}
+                onClick={() => onChange('activityLevel', option.value)}
+              >
+                <div className="text-center">
+                  <div className="text-lg">{option.icon}</div>
+                  <div className="font-semibold text-xs">{option.label}</div>
+                </div>
+              </motion.div>
+            ))}
           </div>
-          Daily Activity Level
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-1 sm:gap-2">
-          {activityLevelOptions.map((option) => (
-            <motion.div
-              key={option.value}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 ${
-                formData.activityLevel === option.value
-                  ? `bg-gradient-to-br ${option.color} text-white border-transparent shadow-xl`
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
-              }`}
-              onClick={() => onChange('activityLevel', option.value)}
-            >
-              <div className="text-center">
-                <div className="text-lg">{option.icon}</div>
-                <div className="font-semibold text-xs">{option.label}</div>
-              </div>
-            </motion.div>
-          ))}
         </div>
-      </div>
 
-      {/* Hobbies */}
-      <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 p-2 sm:p-3 rounded-lg border border-purple-200 dark:border-purple-800 flex-1 min-h-0 flex flex-col">
-        <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center flex-shrink-0">
-          <div className="w-5 sm:w-6 h-5 sm:h-6 bg-purple-500 rounded-full flex items-center justify-center mr-2">
-            🎯
+        {/* Hobbies */}
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 p-2 sm:p-3 rounded-lg border border-purple-200 dark:border-purple-800">
+          <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
+            <div className="w-5 sm:w-6 h-5 sm:h-6 bg-purple-500 rounded-full flex items-center justify-center mr-2">
+              🎯
+            </div>
+            Your Hobbies & Interests
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-1 sm:gap-2">
+            {hobbyOptions.map((hobby) => (
+              <motion.div
+                key={hobby.id}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 flex flex-col justify-center min-h-[4rem] ${
+                  formData.hobbies?.includes(hobby.id)
+                    ? `bg-gradient-to-br ${hobby.color} text-white border-transparent shadow-xl`
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
+                }`}
+                onClick={() => onArrayToggle('hobbies', hobby.id)}
+              >
+                <div className="text-center">
+                  <div className="text-base sm:text-lg mb-1">{hobby.icon}</div>
+                  <div className="font-semibold text-xs">{hobby.label}</div>
+                </div>
+                {formData.hobbies?.includes(hobby.id) && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-lg"
+                  >
+                    <CheckCircle className="w-3 h-3 text-green-500" />
+                  </motion.div>
+                )}
+              </motion.div>
+            ))}
           </div>
-          Your Hobbies & Interests
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-1 sm:gap-2 flex-1">
-          {hobbyOptions.map((hobby) => (
-            <motion.div
-              key={hobby.id}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 flex flex-col justify-center ${
-                formData.hobbies?.includes(hobby.id)
-                  ? `bg-gradient-to-br ${hobby.color} text-white border-transparent shadow-xl`
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
-              }`}
-              onClick={() => onArrayToggle('hobbies', hobby.id)}
-            >
-              <div className="text-center">
-                <div className="text-base sm:text-lg mb-1">{hobby.icon}</div>
-                <div className="font-semibold text-xs">{hobby.label}</div>
-              </div>
-              {formData.hobbies?.includes(hobby.id) && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-lg"
-                >
-                  <CheckCircle className="w-3 h-3 text-green-500" />
-                </motion.div>
-              )}
-            </motion.div>
-          ))}
         </div>
-      </div>
 
-      {/* Energy Levels */}
-      <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 p-2 sm:p-3 rounded-lg border border-yellow-200 dark:border-yellow-800 flex-shrink-0">
-        <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
-          <div className="w-5 sm:w-6 h-5 sm:h-6 bg-yellow-500 rounded-full flex items-center justify-center mr-2">
-            ⚡
+        {/* Energy Levels */}
+        <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 p-2 sm:p-3 rounded-lg border border-yellow-200 dark:border-yellow-800">
+          <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
+            <div className="w-5 sm:w-6 h-5 sm:h-6 bg-yellow-500 rounded-full flex items-center justify-center mr-2">
+              ⚡
+            </div>
+            Energy Level (1-5)
+          </h3>
+          <div className="grid grid-cols-5 gap-1 sm:gap-2">
+            {energyLevels.map((level) => (
+              <motion.div
+                key={level.value}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 ${
+                  formData.energy === level.value
+                    ? `bg-gradient-to-br ${level.color} text-white border-transparent shadow-xl`
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
+                }`}
+                onClick={() => onChange('energy', level.value)}
+              >
+                <div className="text-center">
+                  <div className="text-lg">{level.icon}</div>
+                  <div className="font-bold text-xs">{level.value}</div>
+                  <div className="font-semibold text-xs">{level.label}</div>
+                </div>
+              </motion.div>
+            ))}
           </div>
-          Energy Level (1-5)
-        </h3>
-        <div className="grid grid-cols-5 gap-1 sm:gap-2">
-          {energyLevels.map((level) => (
-            <motion.div
-              key={level.value}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 ${
-                formData.energy === level.value
-                  ? `bg-gradient-to-br ${level.color} text-white border-transparent shadow-xl`
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
-              }`}
-              onClick={() => onChange('energy', level.value)}
-            >
-              <div className="text-center">
-                <div className="text-lg">{level.icon}</div>
-                <div className="font-bold text-xs">{level.value}</div>
-                <div className="font-semibold text-xs">{level.label}</div>
-              </div>
-            </motion.div>
-          ))}
         </div>
       </div>
     </div>
@@ -1534,162 +1535,163 @@ const MedicalForm = ({ formData, onChange, onArrayToggle }) => {
     { id: 'latex', label: 'Latex', icon: '🧤', color: 'from-yellow-400 to-orange-400' },
     { id: 'none', label: 'No Allergies', icon: '✅', color: 'from-green-400 to-emerald-500' }
   ];
-
   return (
-    <div className="h-full flex flex-col space-y-2 sm:space-y-3 overflow-hidden">
-      {/* Medical Conditions */}
-      <div className="bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 p-2 sm:p-3 rounded-lg border border-red-200 dark:border-red-800 flex-1 min-h-0 flex flex-col">
-        <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center flex-shrink-0">
-          <div className="w-5 sm:w-6 h-5 sm:h-6 bg-red-500 rounded-full flex items-center justify-center mr-2">
-            🏥
+    <div className="h-full overflow-y-auto scrollbar-hide scrollable-form">
+      <div className="space-y-2 sm:space-y-3 pb-4">
+        {/* Medical Conditions */}
+        <div className="bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 p-2 sm:p-3 rounded-lg border border-red-200 dark:border-red-800">
+          <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
+            <div className="w-5 sm:w-6 h-5 sm:h-6 bg-red-500 rounded-full flex items-center justify-center mr-2">
+              🏥
+            </div>
+            Medical Conditions
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-1 sm:gap-2">
+            {medicalConditionOptions.map((condition) => (
+              <motion.div
+                key={condition.id}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 flex flex-col justify-center min-h-[4rem] ${
+                  formData.medicalConditions?.includes(condition.id)
+                    ? `bg-gradient-to-br ${condition.color} text-white border-transparent shadow-xl`
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
+                }`}
+                onClick={() => onArrayToggle('medicalConditions', condition.id)}
+              >
+                <div className="text-center">
+                  <div className="text-base sm:text-lg mb-1">{condition.icon}</div>
+                  <div className="font-semibold text-xs">{condition.label}</div>
+                </div>
+                {formData.medicalConditions?.includes(condition.id) && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-lg"
+                  >
+                    <CheckCircle className="w-3 h-3 text-green-500" />
+                  </motion.div>
+                )}
+              </motion.div>
+            ))}
           </div>
-          Medical Conditions
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-1 sm:gap-2 flex-1">
-          {medicalConditionOptions.map((condition) => (
-            <motion.div
-              key={condition.id}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 flex flex-col justify-center ${
-                formData.medicalConditions?.includes(condition.id)
-                  ? `bg-gradient-to-br ${condition.color} text-white border-transparent shadow-xl`
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
-              }`}
-              onClick={() => onArrayToggle('medicalConditions', condition.id)}
-            >
-              <div className="text-center">
-                <div className="text-base sm:text-lg mb-1">{condition.icon}</div>
-                <div className="font-semibold text-xs">{condition.label}</div>
-              </div>
-              {formData.medicalConditions?.includes(condition.id) && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-lg"
-                >
-                  <CheckCircle className="w-3 h-3 text-green-500" />
-                </motion.div>
-              )}
-            </motion.div>
-          ))}
         </div>
-      </div>
 
-      {/* Injuries */}
-      <div className="bg-gradient-to-r from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20 p-2 sm:p-3 rounded-lg border border-orange-200 dark:border-orange-800 flex-1 min-h-0 flex flex-col">
-        <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center flex-shrink-0">
-          <div className="w-5 sm:w-6 h-5 sm:h-6 bg-orange-500 rounded-full flex items-center justify-center mr-2">
-            🤕
+        {/* Injuries */}
+        <div className="bg-gradient-to-r from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20 p-2 sm:p-3 rounded-lg border border-orange-200 dark:border-orange-800">
+          <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
+            <div className="w-5 sm:w-6 h-5 sm:h-6 bg-orange-500 rounded-full flex items-center justify-center mr-2">
+              🤕
+            </div>
+            Previous Injuries
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-1 sm:gap-2">
+            {injuryOptions.map((injury) => (
+              <motion.div
+                key={injury.id}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 flex flex-col justify-center min-h-[4rem] ${
+                  formData.injuries?.includes(injury.id)
+                    ? `bg-gradient-to-br ${injury.color} text-white border-transparent shadow-xl`
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
+                }`}
+                onClick={() => onArrayToggle('injuries', injury.id)}
+              >
+                <div className="text-center">
+                  <div className="text-base sm:text-lg mb-1">{injury.icon}</div>
+                  <div className="font-semibold text-xs">{injury.label}</div>
+                </div>
+                {formData.injuries?.includes(injury.id) && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-lg"
+                  >
+                    <CheckCircle className="w-3 h-3 text-green-500" />
+                  </motion.div>
+                )}
+              </motion.div>
+            ))}
           </div>
-          Previous Injuries
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-1 sm:gap-2 flex-1">
-          {injuryOptions.map((injury) => (
-            <motion.div
-              key={injury.id}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 flex flex-col justify-center ${
-                formData.injuries?.includes(injury.id)
-                  ? `bg-gradient-to-br ${injury.color} text-white border-transparent shadow-xl`
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
-              }`}
-              onClick={() => onArrayToggle('injuries', injury.id)}
-            >
-              <div className="text-center">
-                <div className="text-base sm:text-lg mb-1">{injury.icon}</div>
-                <div className="font-semibold text-xs">{injury.label}</div>
-              </div>
-              {formData.injuries?.includes(injury.id) && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-lg"
-                >
-                  <CheckCircle className="w-3 h-3 text-green-500" />
-                </motion.div>
-              )}
-            </motion.div>
-          ))}
         </div>
-      </div>
 
-      {/* Medications */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-2 sm:p-3 rounded-lg border border-blue-200 dark:border-blue-800 flex-1 min-h-0 flex flex-col">
-        <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center flex-shrink-0">
-          <div className="w-5 sm:w-6 h-5 sm:h-6 bg-blue-500 rounded-full flex items-center justify-center mr-2">
-            💊
+        {/* Medications */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-2 sm:p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+          <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
+            <div className="w-5 sm:w-6 h-5 sm:h-6 bg-blue-500 rounded-full flex items-center justify-center mr-2">
+              💊
+            </div>
+            Current Medications
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-1 sm:gap-2">
+            {medicationOptions.map((medication) => (
+              <motion.div
+                key={medication.id}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 flex flex-col justify-center min-h-[4rem] ${
+                  formData.medications?.includes(medication.id)
+                    ? `bg-gradient-to-br ${medication.color} text-white border-transparent shadow-xl`
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
+                }`}
+                onClick={() => onArrayToggle('medications', medication.id)}
+              >
+                <div className="text-center">
+                  <div className="text-base sm:text-lg mb-1">{medication.icon}</div>
+                  <div className="font-semibold text-xs">{medication.label}</div>
+                </div>
+                {formData.medications?.includes(medication.id) && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-lg"
+                  >
+                    <CheckCircle className="w-3 h-3 text-green-500" />
+                  </motion.div>
+                )}
+              </motion.div>
+            ))}
           </div>
-          Current Medications
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-1 sm:gap-2 flex-1">
-          {medicationOptions.map((medication) => (
-            <motion.div
-              key={medication.id}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 flex flex-col justify-center ${
-                formData.medications?.includes(medication.id)
-                  ? `bg-gradient-to-br ${medication.color} text-white border-transparent shadow-xl`
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
-              }`}
-              onClick={() => onArrayToggle('medications', medication.id)}
-            >
-              <div className="text-center">
-                <div className="text-base sm:text-lg mb-1">{medication.icon}</div>
-                <div className="font-semibold text-xs">{medication.label}</div>
-              </div>
-              {formData.medications?.includes(medication.id) && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-lg"
-                >
-                  <CheckCircle className="w-3 h-3 text-green-500" />
-                </motion.div>
-              )}
-            </motion.div>
-          ))}
         </div>
-      </div>
 
-      {/* Allergies */}
-      <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 p-2 sm:p-3 rounded-lg border border-green-200 dark:border-green-800 flex-1 min-h-0 flex flex-col">
-        <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center flex-shrink-0">
-          <div className="w-5 sm:w-6 h-5 sm:h-6 bg-green-500 rounded-full flex items-center justify-center mr-2">
-            🤧
+        {/* Allergies */}
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 p-2 sm:p-3 rounded-lg border border-green-200 dark:border-green-800">
+          <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
+            <div className="w-5 sm:w-6 h-5 sm:h-6 bg-green-500 rounded-full flex items-center justify-center mr-2">
+              🤧
+            </div>
+            Known Allergies
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-1 sm:gap-2">
+            {allergyOptions.map((allergy) => (
+              <motion.div
+                key={allergy.id}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 flex flex-col justify-center min-h-[4rem] ${
+                  formData.allergies?.includes(allergy.id)
+                    ? `bg-gradient-to-br ${allergy.color} text-white border-transparent shadow-xl`
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
+                }`}
+                onClick={() => onArrayToggle('allergies', allergy.id)}
+              >
+                <div className="text-center">
+                  <div className="text-base sm:text-lg mb-1">{allergy.icon}</div>
+                  <div className="font-semibold text-xs">{allergy.label}</div>
+                </div>
+                {formData.allergies?.includes(allergy.id) && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-lg"
+                  >
+                    <CheckCircle className="w-3 h-3 text-green-500" />
+                  </motion.div>
+                )}
+              </motion.div>
+            ))}
           </div>
-          Known Allergies
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-1 sm:gap-2 flex-1">
-          {allergyOptions.map((allergy) => (
-            <motion.div
-              key={allergy.id}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`relative cursor-pointer rounded-lg p-2 border-2 transition-all duration-300 flex flex-col justify-center ${
-                formData.allergies?.includes(allergy.id)
-                  ? `bg-gradient-to-br ${allergy.color} text-white border-transparent shadow-xl`
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg'
-              }`}
-              onClick={() => onArrayToggle('allergies', allergy.id)}
-            >
-              <div className="text-center">
-                <div className="text-base sm:text-lg mb-1">{allergy.icon}</div>
-                <div className="font-semibold text-xs">{allergy.label}</div>
-              </div>
-              {formData.allergies?.includes(allergy.id) && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-lg"
-                >
-                  <CheckCircle className="w-3 h-3 text-green-500" />
-                </motion.div>
-              )}
-            </motion.div>
-          ))}
         </div>
       </div>
     </div>

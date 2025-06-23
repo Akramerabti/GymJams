@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import logger from '../utils/logger.js';
 import cron from 'node-cron';
 import Subscription from '../models/Subscription.js';
+import { sendSubscriptionEndEmail } from './email.service.js';
 
 
 export const processWeeklyCoachPayouts = async () => {
@@ -66,12 +67,57 @@ export const cleanupSubscriptions = async () => {
 
     // Group subscriptions by coach
     const coachesSubs = {};
+    const subscriptionsToNotify = [];
+    
     expiredSubscriptions.forEach(sub => {
       if (!coachesSubs[sub.assignedCoach]) {
         coachesSubs[sub.assignedCoach] = [];
       }
       coachesSubs[sub.assignedCoach].push(sub._id);
+      
+      // Check if this subscription just expired and needs an email notification
+      const isJustExpired = sub.status === 'active' && sub.currentPeriodEnd < new Date();
+      if (isJustExpired) {
+        subscriptionsToNotify.push(sub);
+      }
     });
+
+    // Send emails for newly expired subscriptions
+    for (const subscription of subscriptionsToNotify) {
+      try {
+        // Update subscription status first
+        subscription.status = 'cancelled';
+        subscription.endDate = new Date();
+        await subscription.save();
+        
+        // Determine email and guest status
+        let userEmail = null;
+        let isGuest = false;
+
+        if (subscription.user) {
+          // For registered users, get email from user object
+          const user = await User.findById(subscription.user);
+          userEmail = user?.email;
+        } else {
+          // For guest subscriptions, get email from the subscription
+          userEmail = subscription.guestEmail;
+          isGuest = true;
+        }
+
+        // Send subscription end email
+        if (userEmail) {
+          await sendSubscriptionEndEmail({
+            subscription: subscription.subscription,
+            startDate: subscription.startDate,
+            accessToken: subscription.accessToken
+          }, userEmail, 'expired', isGuest);
+          
+          logger.info(`Sent expiration email to ${userEmail} for subscription ${subscription._id}`);
+        }
+      } catch (emailError) {
+        logger.error(`Failed to send expiration email for subscription ${subscription._id}:`, emailError);
+      }
+    }
 
     // Update each affected coach
     for (const [coachId, expiredSubs] of Object.entries(coachesSubs)) {

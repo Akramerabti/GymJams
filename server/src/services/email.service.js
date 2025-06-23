@@ -68,13 +68,19 @@ export const sendPasswordResetEmail = async (user, resetToken) => {
 };
 
 export const sendSubscriptionReceipt = async (subscriptionData, email, isGuest = false) => {
-
-  const subscriptionAccessUrl = isGuest
-    ? `${process.env.CLIENT_URL}/dashboard?accessToken=${subscriptionData.accessToken}`
-    : `${process.env.CLIENT_URL}/dashboard`;
-
   try {
-    await resend.emails.send({
+    logger.info(`Attempting to send subscription receipt to ${email}, isGuest: ${isGuest}`);
+    
+    // Validate required data
+    if (!subscriptionData || !email) {
+      throw new Error('Missing required subscription data or email');
+    }
+
+    const subscriptionAccessUrl = isGuest
+      ? `${process.env.CLIENT_URL}/dashboard?accessToken=${subscriptionData.accessToken}`
+      : `${process.env.CLIENT_URL}/dashboard`;
+
+    const emailData = {
       from: 'GYMTONIC.CA <subscriptions@gymtonic.ca>',
       to: email,
       subject: 'Welcome to GymTonic - Your Subscription Details',
@@ -141,11 +147,16 @@ export const sendSubscriptionReceipt = async (subscriptionData, email, isGuest =
           </div>
         </div>
       `
-    });
+    };
+
+    logger.info(`Sending email to Resend API...`);
+    const result = await resend.emails.send(emailData);
+    logger.info(`Email sent successfully! Resend response:`, result);
 
     return true;
   } catch (error) {
     logger.error('Subscription receipt email error:', error);
+    logger.error('Email data:', { email, subscriptionData, isGuest });
     throw error;
   }
 };
@@ -578,6 +589,196 @@ export const sendOrderUpdateEmail = async (order, email, updateType) => {
     return true;
   } catch (error) {
     logger.error(`Error sending order update email: ${error}`);
+    throw error;
+  }
+};
+
+export const sendSubscriptionCancellationEmail = async (subscriptionData, email, isRefundEligible = false, isGuest = false) => {
+  const accessInfo = isGuest ? `
+    <div style="background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 20px 0;">
+      <h3 style="color: #92400e; margin-top: 0;">Access Token Information</h3>
+      <p style="margin-bottom: 15px;">Your access token was: <strong>${subscriptionData.accessToken}</strong></p>
+      <p style="margin-top: 15px; font-style: italic;">This token is no longer valid since your subscription has been cancelled.</p>
+    </div>
+  ` : '';
+
+  try {
+    await resend.emails.send({
+      from: 'GYMTONIC.CA <subscriptions@gymtonic.ca>',
+      to: email,
+      subject: 'Your GymTonic Subscription Has Been Cancelled',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
+          <div style="text-align: center; padding: 20px; background-color: #fef2f2; border-bottom: 1px solid #fecaca;">
+            <h1 style="color: #dc2626; margin: 0;">Subscription Cancelled</h1>
+            <p style="color: #4a5568; font-size: 18px;">Your GymTonic subscription has been cancelled</p>
+          </div>
+
+          <div style="background-color: #f7fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h2 style="color: #2d3748; margin-bottom: 15px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">
+              Cancellation Details
+            </h2>
+            <div style="margin-bottom: 20px;">
+              <p style="margin: 8px 0;"><strong>Plan:</strong> ${subscriptionData.subscription.charAt(0).toUpperCase() + subscriptionData.subscription.slice(1)}</p>
+              <p style="margin: 8px 0;"><strong>Cancellation Date:</strong> ${new Date().toLocaleDateString()}</p>
+              <p style="margin: 8px 0;"><strong>Original Start Date:</strong> ${new Date(subscriptionData.startDate).toLocaleDateString()}</p>
+              ${isRefundEligible ? 
+                `<p style="margin: 8px 0; color: #059669;"><strong>Refund Status:</strong> A 40% refund will be processed to your original payment method within 5-10 business days</p>` :
+                `<p style="margin: 8px 0; color: #d97706;"><strong>Access:</strong> You will retain access until ${new Date(subscriptionData.currentPeriodEnd).toLocaleDateString()}</p>`
+              }
+            </div>
+          </div>
+
+          ${accessInfo}
+
+          <div style="margin-top: 40px; border-top: 2px solid #e2e8f0; padding-top: 20px;">
+            <h3 style="color: #2d3748; margin-bottom: 10px;">What happens next?</h3>
+            <ul style="list-style: none; padding: 0; margin: 0;">
+              ${isRefundEligible ? `
+                <li style="margin: 8px 0; padding-left: 20px; position: relative;">
+                  <span style="color: #059669; position: absolute; left: 0;">✓</span>
+                  Your refund will be processed within 5-10 business days
+                </li>
+                <li style="margin: 8px 0; padding-left: 20px; position: relative;">
+                  <span style="color: #059669; position: absolute; left: 0;">✓</span>
+                  Your access has been immediately terminated
+                </li>
+              ` : `
+                <li style="margin: 8px 0; padding-left: 20px; position: relative;">
+                  <span style="color: #d97706; position: absolute; left: 0;">•</span>
+                  You will retain access until the end of your current billing period
+                </li>
+                <li style="margin: 8px 0; padding-left: 20px; position: relative;">
+                  <span style="color: #d97706; position: absolute; left: 0;">•</span>
+                  No future charges will be made to your payment method
+                </li>
+              `}
+              <li style="margin: 8px 0; padding-left: 20px; position: relative;">
+                <span style="color: #4299e1; position: absolute; left: 0;">•</span>
+                You can resubscribe at any time if you change your mind
+              </li>
+            </ul>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${process.env.CLIENT_URL}/coaching" 
+               style="display: inline-block; background-color: #4299e1; color: white; padding: 12px 24px; 
+                      text-decoration: none; border-radius: 6px; font-weight: bold;">
+              Resubscribe to GymTonic
+            </a>
+          </div>
+
+          <div style="margin-top: 30px; padding: 20px; background-color: #f7fafc; border-radius: 8px; font-size: 14px; color: #718096;">
+            <p style="margin: 0 0 10px 0;"><strong>We're sorry to see you go!</strong></p>
+            <p style="margin: 0;">If you have any feedback about your experience or need assistance, please contact our support team at support@gymtonic.ca</p>
+            <p style="margin: 10px 0 0 0; font-size: 12px;">© 2024 GymTonic. All rights reserved.</p>
+          </div>
+        </div>
+      `
+    });
+
+    logger.info(`Subscription cancellation email sent to ${email}`);
+    return true;
+  } catch (error) {
+    logger.error('Subscription cancellation email error:', error);
+    throw error;
+  }
+};
+
+export const sendSubscriptionEndEmail = async (subscriptionData, email, reason = 'expired', isGuest = false) => {
+  const reasonMessages = {
+    expired: {
+      title: 'Your GymTonic Subscription Has Expired',
+      message: 'Your subscription has reached the end of its billing period',
+      color: '#d97706'
+    },
+    cancelled: {
+      title: 'Your GymTonic Subscription Has Ended', 
+      message: 'Your cancelled subscription has now ended',
+      color: '#dc2626'
+    },
+    deleted: {
+      title: 'Your GymTonic Subscription Has Ended',
+      message: 'Your subscription has been terminated',
+      color: '#dc2626'
+    }
+  };
+
+  const reasonData = reasonMessages[reason] || reasonMessages.expired;
+
+  const accessInfo = isGuest ? `
+    <div style="background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 20px 0;">
+      <h3 style="color: #92400e; margin-top: 0;">Access Token Information</h3>
+      <p style="margin-bottom: 15px;">Your access token was: <strong>${subscriptionData.accessToken}</strong></p>
+      <p style="margin-top: 15px; font-style: italic;">This token is no longer valid since your subscription has ended.</p>
+    </div>
+  ` : '';
+
+  try {
+    await resend.emails.send({
+      from: 'GYMTONIC.CA <subscriptions@gymtonic.ca>',
+      to: email,
+      subject: reasonData.title,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a202c;">
+          <div style="text-align: center; padding: 20px; background-color: #fef2f2; border-bottom: 1px solid #fecaca;">
+            <h1 style="color: ${reasonData.color}; margin: 0;">Subscription Ended</h1>
+            <p style="color: #4a5568; font-size: 18px;">${reasonData.message}</p>
+          </div>
+
+          <div style="background-color: #f7fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h2 style="color: #2d3748; margin-bottom: 15px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">
+              Subscription Summary
+            </h2>
+            <div style="margin-bottom: 20px;">
+              <p style="margin: 8px 0;"><strong>Plan:</strong> ${subscriptionData.subscription.charAt(0).toUpperCase() + subscriptionData.subscription.slice(1)}</p>
+              <p style="margin: 8px 0;"><strong>Start Date:</strong> ${new Date(subscriptionData.startDate).toLocaleDateString()}</p>
+              <p style="margin: 8px 0;"><strong>End Date:</strong> ${new Date().toLocaleDateString()}</p>
+              <p style="margin: 8px 0;"><strong>Total Duration:</strong> ${Math.ceil((new Date() - new Date(subscriptionData.startDate)) / (1000 * 60 * 60 * 24))} days</p>
+            </div>
+          </div>
+
+          ${accessInfo}
+
+          <div style="margin-top: 40px; border-top: 2px solid #e2e8f0; padding-top: 20px;">
+            <h3 style="color: #2d3748; margin-bottom: 10px;">What's next?</h3>
+            <ul style="list-style: none; padding: 0; margin: 0;">
+              <li style="margin: 8px 0; padding-left: 20px; position: relative;">
+                <span style="color: #4299e1; position: absolute; left: 0;">•</span>
+                Your access to GymTonic coaching services has ended
+              </li>
+              <li style="margin: 8px 0; padding-left: 20px; position: relative;">
+                <span style="color: #4299e1; position: absolute; left: 0;">•</span>
+                You can resubscribe at any time to regain access
+              </li>
+              <li style="margin: 8px 0; padding-left: 20px; position: relative;">
+                <span style="color: #4299e1; position: absolute; left: 0;">•</span>
+                All your data and progress are safely stored for when you return
+              </li>
+            </ul>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${process.env.CLIENT_URL}/coaching" 
+               style="display: inline-block; background-color: #4299e1; color: white; padding: 12px 24px; 
+                      text-decoration: none; border-radius: 6px; font-weight: bold;">
+              Resubscribe to GymTonic
+            </a>
+          </div>
+
+          <div style="margin-top: 30px; padding: 20px; background-color: #f7fafc; border-radius: 8px; font-size: 14px; color: #718096;">
+            <p style="margin: 0 0 10px 0;"><strong>Thank you for being part of GymTonic!</strong></p>
+            <p style="margin: 0;">We hope you achieved your fitness goals with us. If you have any questions or need assistance, please contact our support team at support@gymtonic.ca</p>
+            <p style="margin: 10px 0 0 0; font-size: 12px;">© 2024 GymTonic. All rights reserved.</p>
+          </div>
+        </div>
+      `
+    });
+
+    logger.info(`Subscription end email sent to ${email} for reason: ${reason}`);
+    return true;
+  } catch (error) {
+    logger.error('Subscription end email error:', error);
     throw error;
   }
 };

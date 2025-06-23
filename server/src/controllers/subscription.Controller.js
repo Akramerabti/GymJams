@@ -1,9 +1,8 @@
-// controllers/subscription.controller.js
 import Stripe from 'stripe';
 import User from '../models/User.js';
 import Subscription from '../models/Subscription.js';
 import logger from '../utils/logger.js';
-import { sendSubscriptionReceipt } from '../services/email.service.js';
+import { sendSubscriptionReceipt, sendSubscriptionCancellationEmail, sendSubscriptionEndEmail } from '../services/email.service.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { getIoInstance, activeUsers, notifyGoalApproval, notifyGoalRejection } from '../socketServer.js';
@@ -17,19 +16,42 @@ const PLANS = {
     name: 'Basic',
     price: 39.99,
     stripePriceId: 'price_1Qj4nqFGfbnmVSqEuxLNYQr2',
-    points: 100
+    points: 100,
+    features: [
+      'Access to workout library',
+      'Basic nutrition guidance',
+      'Community support forum',
+      'Monthly progress tracking'
+    ]
   },
   premium: {
     name: 'Premium',
     price: 69.99,
     stripePriceId: 'price_1Qi0q2FGfbnmVSqEiDg7Z4cK',
-    points: 200
+    points: 200,
+    features: [
+      'All Basic features',
+      'Personal coach assignment',
+      'Custom workout plans',
+      'Weekly check-ins',
+      'Priority support',
+      'Advanced analytics'
+    ]
   },
   elite: {
     name: 'Elite',
     price: 89.99,
     stripePriceId: 'price_1Qi0noFGfbnmVSqEdkYZHCiM',
-    points: 500
+    points: 500,
+    features: [
+      'All Premium features',
+      'Daily coach interaction',
+      'Live workout sessions',
+      'Meal planning',
+      'Supplement recommendations',
+      'VIP support',
+      '24/7 coach availability'
+    ]
   }
 };
 
@@ -247,12 +269,38 @@ export const finishCurrentMonth = async (req, res) => {
     // Cancel the subscription in Stripe but allow it to run until the end of the current period
     await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
       cancel_at_period_end: true,
-    });
-
-    // Update the subscription in the database
+    });    // Update the subscription in the database
     subscription.cancelAtPeriodEnd = true;
     subscription.endDate = endDate; // Set the end date to one month after the start date
     await subscription.save();
+
+    // Determine email and guest status
+    let userEmail = null;
+    let isGuest = false;
+
+    if (subscription.user) {
+      // For registered users, get email from user object
+      const user = await User.findById(subscription.user);
+      userEmail = user?.email;
+    } else {
+      // For guest subscriptions, get email from the subscription
+      userEmail = subscription.guestEmail;
+      isGuest = true;
+    }
+
+    // Send cancellation email
+    if (userEmail) {
+      try {
+        await sendSubscriptionCancellationEmail({
+          subscription: subscription.subscription,
+          startDate: subscription.startDate,
+          currentPeriodEnd: subscription.currentPeriodEnd,
+          accessToken: subscription.accessToken
+        }, userEmail, false, isGuest); // false for isRefundEligible since this is just cancelling future payments
+      } catch (emailError) {
+        logger.error('Failed to send finish current month email:', emailError);
+      }
+    }
 
     res.json({
       message: 'Recurring payments have been cancelled. You will retain access until the end of the current billing period.',
@@ -377,11 +425,37 @@ export const cancelSubscription = async (req, res) => {
           await User.findByIdAndUpdate(subscription.assignedCoach, coachUpdate, { session });
           //(`Updated coach ${coach._id} metrics - Current clients: ${updatedSubscriptions.length}`);
         }
-      }
-
-      await subscription.save({ session });
+      }      await subscription.save({ session });
 
       await session.commitTransaction();
+
+      // Determine email and guest status
+      let userEmail = null;
+      let isGuest = false;
+
+      if (subscription.user) {
+        // For registered users, get email from user object
+        const user = await User.findById(subscription.user);
+        userEmail = user?.email;
+      } else {
+        // For guest subscriptions, get email from the subscription
+        userEmail = subscription.guestEmail;
+        isGuest = true;
+      }
+
+      // Send cancellation email
+      if (userEmail) {
+        try {
+          await sendSubscriptionCancellationEmail({
+            subscription: subscription.subscription,
+            startDate: subscription.startDate,
+            currentPeriodEnd: subscription.currentPeriodEnd,
+            accessToken: subscription.accessToken
+          }, userEmail, isRefundEligible, isGuest);
+        } catch (emailError) {
+          logger.error('Failed to send cancellation email:', emailError);
+        }
+      }
 
       res.json({
         message: isRefundEligible
@@ -524,10 +598,11 @@ export const handleSubscriptionSuccess = async (req, res) => {
         status: 'succeeded'
       };
     });
-
-
     if (result && !result.duplicate) {
       try {
+        // Determine if this is a guest subscription based on whether there's a user ID in the result
+        const isGuestSubscription = !result.subscription.user;
+        
         await sendSubscriptionReceipt({
           subscription: planType,
           price: PLANS[planType].price,
@@ -535,10 +610,12 @@ export const handleSubscriptionSuccess = async (req, res) => {
           features: PLANS[planType].features,
           startDate: result.subscription.startDate,
           accessToken: result.subscription.accessToken
-        }, email, !user);
+        }, email, isGuestSubscription);
 
+        logger.info(`Subscription receipt email sent to ${email} (guest: ${isGuestSubscription})`);
       } catch (emailError) {
-        console.error('Failed to send receipt email:', emailError);
+        logger.error('Failed to send receipt email:', emailError);
+        console.error('Email error details:', emailError);
       }
     }
 
@@ -794,16 +871,42 @@ export const handleWebhook = async (event) => {
       
             await User.findByIdAndUpdate(dbSubscription.user, userUpdate, { session });
             logger.info(`Removed subscription reference for user ${dbSubscription.user}`);
-          }
-      
-          // Update subscription status and set end date
+          }          // Update subscription status and set end date
           dbSubscription.status = 'cancelled';
           dbSubscription.endDate = deletedSubscription.canceled_at ? 
             new Date(deletedSubscription.canceled_at * 1000) : new Date();
           dbSubscription.currentPeriodEnd = new Date(deletedSubscription.current_period_end * 1000);
           await dbSubscription.save({ session });
-      
+
           await session.commitTransaction();
+
+          // Send end subscription email after successful database updates
+          let userEmail = null;
+          let isGuest = false;
+
+          if (dbSubscription.user) {
+            // For registered users, get email from user object
+            const user = await User.findById(dbSubscription.user);
+            userEmail = user?.email;
+          } else {
+            // For guest subscriptions, get email from the subscription
+            userEmail = dbSubscription.guestEmail;
+            isGuest = true;
+          }
+
+          // Send subscription end email
+          if (userEmail) {
+            try {
+              await sendSubscriptionEndEmail({
+                subscription: dbSubscription.subscription,
+                startDate: dbSubscription.startDate,
+                accessToken: dbSubscription.accessToken
+              }, userEmail, 'deleted', isGuest);
+            } catch (emailError) {
+              logger.error('Failed to send subscription end email:', emailError);
+            }
+          }
+
           logger.info('Webhook cleanup completed successfully');
       
         } catch (error) {
