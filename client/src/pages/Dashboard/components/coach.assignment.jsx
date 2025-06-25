@@ -307,7 +307,6 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
       setShowConfirmationModal(false);
     }
   };
-
   const handleCoachSelect = async (coach, retryCount = 0) => {
     try {
       setAssignmentStatus('pending');
@@ -315,7 +314,17 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
 
       setSelectedCoach(coach);
       setAssignmentStatus('assigned');
-      onCoachAssigned(coach);
+      
+      // For premium and elite users, show 5-second "Meet Your Coach" animation
+      if (subscription?.subscription === 'premium' || subscription?.subscription === 'elite') {
+        // Wait 5 seconds to show the coach reveal animation
+        setTimeout(() => {
+          onCoachAssigned(coach);
+        }, 5000);
+      } else {
+        // For basic users, proceed immediately
+        onCoachAssigned(coach);
+      }
     } catch (error) {
       console.error('Coach selection error:', error);
       if (retryCount < MAX_RETRIES) {
@@ -832,169 +841,179 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
           Choose Your Personal Coach
           <Sparkles className="w-5 h-5 ml-2 text-yellow-500" />
         </CardTitle>
-      </CardHeader>      <CardContent className="p-6 bg-gradient-to-br from-blue-50/50 via-purple-50/50 to-indigo-50/50">
-        {/* Scrollable Container with Custom Scrollbar */}
-        <div className="max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gradient bg-gradient-to-br from-cyan-100/30 via-blue-100/30 to-purple-100/30 rounded-2xl p-4 backdrop-blur-sm border border-white/20 shadow-inner">{/* Responsive Grid - 2 cols on mobile, 2 on tablet, 3 on large tablet+, 4 on desktop, 5 on large desktop */}
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 lg:gap-6">
-          {coaches && coaches.length > 0 ? (
-            coaches.map((coach, index) => {
-              const gradientClass = gradientCombinations[index % gradientCombinations.length];
-              
-              return (
-                <motion.div
-                  key={coach.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1, duration: 0.5 }}
-                  whileHover={{ 
-                    scale: 1.03,
-                    y: -5,
-                  }}
-                  whileTap={{ scale: 0.98 }}
-                  className="group relative cursor-pointer rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300"
-                  onClick={() => {
-                    setTempSelectedCoach(coach);
-                    setShowConfirmationModal(true);
-                  }}
-                >
-                  {/* Vibrant Gradient Background */}
-                  <div className={`absolute inset-0 bg-gradient-to-br ${gradientClass} opacity-90`} />
-                  
-                  {/* Content Overlay */}
-                  <div className="relative z-10 p-6 text-white">
-                    {/* Info Button - Always Visible */}
-                    <button
-                      className="absolute top-3 right-3 w-8 h-8 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedCoachForProfile(coach);
-                      }}
-                    >
-                      <Info className="w-4 h-4 text-white" />
-                    </button>
-
-                    {/* Coach Card Content */}
-                    <div className="flex flex-col items-center space-y-4">
-                      {/* Profile Image */}
+      </CardHeader>
+      <CardContent className="p-6 bg-gradient-to-br from-blue-50/50 via-purple-50/50 to-indigo-50/50">
+        {/* Show CoachReveal animation for premium/elite users when coach is assigned */}
+        {assignmentStatus === 'assigned' && selectedCoach && !isBasicPlan ? (
+          <CoachReveal selectedCoach={selectedCoach} />
+        ) : (
+          <>
+            {/* Scrollable Container with Custom Scrollbar */}
+            <div className="max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gradient bg-gradient-to-br from-cyan-100/30 via-blue-100/30 to-purple-100/30 rounded-2xl p-4 backdrop-blur-sm border border-white/20 shadow-inner">
+              {/* Responsive Grid - 2 cols on mobile, 2 on tablet, 3 on large tablet+, 4 on desktop, 5 on large desktop */}
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 lg:gap-6">
+                {coaches && coaches.length > 0 ? (
+                  coaches.map((coach, index) => {
+                    const gradientClass = gradientCombinations[index % gradientCombinations.length];
+                    
+                    return (
                       <motion.div
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ type: "spring", bounce: 0.4, delay: index * 0.1 + 0.2 }}
-                        className="relative"
+                        key={coach.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1, duration: 0.5 }}
+                        whileHover={{ 
+                          scale: 1.03,
+                          y: -5,
+                        }}
+                        whileTap={{ scale: 0.98 }}
+                        className="group relative cursor-pointer rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300"
+                        onClick={() => {
+                          setTempSelectedCoach(coach);
+                          setShowConfirmationModal(true);
+                        }}
                       >
-                        <img
-                          src={formatImageUrl(coach.profileImage)}
-                          alt="Coach profile"
-                          className="w-20 h-20 lg:w-24 lg:h-24 rounded-full object-cover border-4 border-white/50 shadow-lg group-hover:border-white transition-all duration-300"
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = getFallbackAvatarUrl(); 
-                          }}
-                        />
+                        {/* Vibrant Gradient Background */}
+                        <div className={`absolute inset-0 bg-gradient-to-br ${gradientClass} opacity-90`} />
                         
-                        {/* Animated Ring on Hover */}
-                        <motion.div
-                          className="absolute inset-0 border-2 border-white/60 rounded-full"
-                          initial={{ scale: 1, opacity: 0 }}
-                          whileHover={{ scale: 1.1, opacity: 1 }}
-                          transition={{ duration: 0.3 }}
-                        />
-                      </motion.div>
+                        {/* Content Overlay */}
+                        <div className="relative z-10 p-6 text-white">
+                          {/* Info Button - Always Visible */}
+                          <button
+                            className="absolute top-3 right-3 w-8 h-8 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedCoachForProfile(coach);
+                            }}
+                          >
+                            <Info className="w-4 h-4 text-white" />
+                          </button>
 
-                      {/* Coach Info */}
-                      <div className="text-center w-full space-y-2">
-                        {/* Name */}
-                        <h4 className="text-lg lg:text-xl font-bold text-white drop-shadow-sm">
-                          {coach.firstName} {coach.lastName}
-                        </h4>
-                        
-                        {/* Specialties */}
-                        <div className="min-h-[2.5rem] flex items-center justify-center">
-                          {coach.specialties && coach.specialties.length > 0 ? (
-                            <div className="flex flex-wrap justify-center gap-1">
-                              {coach.specialties.slice(0, 2).map((specialty, idx) => (
-                                <span
-                                  key={idx}
-                                  className="px-2 py-1 text-xs font-medium rounded-full bg-white/20 backdrop-blur-sm text-white border border-white/30"
-                                >
-                                  {specialty}
-                                </span>
-                              ))}
-                              {coach.specialties.length > 2 && (
-                                <span className="px-2 py-1 text-xs font-medium rounded-full bg-white/30 backdrop-blur-sm text-white border border-white/40">
-                                  +{coach.specialties.length - 2}
-                                </span>
+                          {/* Coach Card Content */}
+                          <div className="flex flex-col items-center space-y-4">
+                            {/* Profile Image */}
+                            <motion.div
+                              initial={{ scale: 0.8, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              transition={{ type: "spring", bounce: 0.4, delay: index * 0.1 + 0.2 }}
+                              className="relative"
+                            >
+                              <img
+                                src={formatImageUrl(coach.profileImage)}
+                                alt="Coach profile"
+                                className="w-20 h-20 lg:w-24 lg:h-24 rounded-full object-cover border-4 border-white/50 shadow-lg group-hover:border-white transition-all duration-300"
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.src = getFallbackAvatarUrl(); 
+                                }}
+                              />
+                              
+                              {/* Animated Ring on Hover */}
+                              <motion.div
+                                className="absolute inset-0 border-2 border-white/60 rounded-full"
+                                initial={{ scale: 1, opacity: 0 }}
+                                whileHover={{ scale: 1.1, opacity: 1 }}
+                                transition={{ duration: 0.3 }}
+                              />
+                            </motion.div>
+
+                            {/* Coach Info */}
+                            <div className="text-center w-full space-y-2">
+                              {/* Name */}
+                              <h4 className="text-lg lg:text-xl font-bold text-white drop-shadow-sm">
+                                {coach.firstName} {coach.lastName}
+                              </h4>
+                              
+                              {/* Specialties */}
+                              <div className="min-h-[2.5rem] flex items-center justify-center">
+                                {coach.specialties && coach.specialties.length > 0 ? (
+                                  <div className="flex flex-wrap justify-center gap-1">
+                                    {coach.specialties.slice(0, 2).map((specialty, idx) => (
+                                      <span
+                                        key={idx}
+                                        className="px-2 py-1 text-xs font-medium rounded-full bg-white/20 backdrop-blur-sm text-white border border-white/30"
+                                      >
+                                        {specialty}
+                                      </span>
+                                    ))}
+                                    {coach.specialties.length > 2 && (
+                                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-white/30 backdrop-blur-sm text-white border border-white/40">
+                                        +{coach.specialties.length - 2}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-white/80">
+                                    Fitness Coach
+                                  </p>
+                                )}
+                              </div>
+                              
+                              {/* Rating */}
+                              {coach.rating && (
+                                <div className="flex items-center justify-center space-x-1 mt-2">
+                                  <Star className="w-4 h-4 text-yellow-300 fill-yellow-300 drop-shadow-sm" />
+                                  <span className="text-sm font-semibold text-white drop-shadow-sm">
+                                    {coach.rating.toFixed(1)}
+                                  </span>
+                                </div>
                               )}
                             </div>
-                          ) : (
-                            <p className="text-sm text-white/80">
-                              Fitness Coach
-                            </p>
-                          )}
-                        </div>
-                        
-                        {/* Rating */}
-                        {coach.rating && (
-                          <div className="flex items-center justify-center space-x-1 mt-2">
-                            <Star className="w-4 h-4 text-yellow-300 fill-yellow-300 drop-shadow-sm" />
-                            <span className="text-sm font-semibold text-white drop-shadow-sm">
-                              {coach.rating.toFixed(1)}
-                            </span>
                           </div>
-                        )}
-                      </div>
-                    </div>
 
-                    {/* Subtle Bottom Decoration */}
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20"></div>
-                  </div>
+                          {/* Subtle Bottom Decoration */}
+                          <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20"></div>
+                        </div>
 
-                  {/* Animated Particles on Hover */}
-                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                    {[...Array(8)].map((_, i) => (
-                      <motion.div
-                        key={i}
-                        className="absolute w-1 h-1 bg-white/60 rounded-full"
-                        style={{
-                          left: `${Math.random() * 100}%`,
-                          top: `${Math.random() * 100}%`,
-                        }}
-                        animate={{
-                          scale: [0, 1, 0],
-                          opacity: [0, 1, 0],
-                        }}
-                        transition={{
-                          duration: 2,
-                          repeat: Infinity,
-                          delay: i * 0.2,
-                        }}
-                      />
-                    ))}
+                        {/* Animated Particles on Hover */}
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                          {[...Array(8)].map((_, i) => (
+                            <motion.div
+                              key={i}
+                              className="absolute w-1 h-1 bg-white/60 rounded-full"
+                              style={{
+                                left: `${Math.random() * 100}%`,
+                                top: `${Math.random() * 100}%`,
+                              }}
+                              animate={{
+                                scale: [0, 1, 0],
+                                opacity: [0, 1, 0],
+                              }}
+                              transition={{
+                                duration: 2,
+                                repeat: Infinity,
+                                delay: i * 0.2,
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </motion.div>
+                    );
+                  })
+                ) : (
+                  <div className="col-span-full flex flex-col items-center justify-center py-12 space-y-4">
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", bounce: 0.5 }}
+                      className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center"
+                    >
+                      <User className="w-8 h-8 text-gray-500" />
+                    </motion.div>
+                    <p className="text-lg font-medium text-gray-500">
+                      No coaches available at the moment.
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      Please try again later or contact support.
+                    </p>
                   </div>
-                </motion.div>
-              );
-            })
-          ) : (
-            <div className="col-span-full flex flex-col items-center justify-center py-12 space-y-4">
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", bounce: 0.5 }}
-                className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center"
-              >
-                <User className="w-8 h-8 text-gray-500" />
-              </motion.div>
-              <p className="text-lg font-medium text-gray-500">
-                No coaches available at the moment.
-              </p>
-              <p className="text-sm text-gray-400">
-                Please try again later or contact support.
-              </p>            </div>
-          )}
-        </div>
-        </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </CardContent>
-  
+
       {/* Coach Profile Modal */}
       <AnimatePresence>
         {selectedCoachForProfile && (
