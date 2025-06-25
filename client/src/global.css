@@ -1343,3 +1343,13 @@ html {
 .scrollbar-thumb-gradient::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(135deg, #7c3aed, #2563eb, #0891b2);
 }
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 0px;  /* Remove scrollbar space */
+  background: transparent;  /* Optional: just make it transparent */
+}
+
+/* Hide scrollbar for Firefox */
+.custom-scrollbar {
+  scrollbar-width: none;  /* Remove scrollbar space */
+}
