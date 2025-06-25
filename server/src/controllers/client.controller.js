@@ -34,11 +34,14 @@ import { subscriptionEnhancements,generateFitnessSummary,determineFitnessLevel,c
     // Group sessions by client (subscription) ID
     const clientSessions = {};
     sessions.forEach(session => {
-      const subId = session.subscription.toString();
-      if (!clientSessions[subId]) {
-        clientSessions[subId] = [];
+      // Add a check here for session.subscription to prevent error if it's null
+      if (session.subscription) { 
+        const subId = session.subscription.toString();
+        if (!clientSessions[subId]) {
+          clientSessions[subId] = [];
+        }
+        clientSessions[subId].push(session);
       }
-      clientSessions[subId].push(session);
     });
 
     // Calculate current date for various time-based operations
@@ -744,10 +747,13 @@ export const getCoachSessions = async (req, res) => {
     // Format session data for the frontend
     const formattedSessions = sessions.map(session => ({
       id: session._id,
-      clientId: session.subscription._id, // Use subscription ID as client reference
-      clientName: session.subscription.user 
-        ? `${session.subscription.user.firstName} ${session.subscription.user.lastName || ''}`.trim() 
-        : (session.subscription.guestEmail || 'Guest User'),
+      // Add a check for session.subscription to prevent errors
+      clientId: session.subscription ? session.subscription._id : null, 
+      clientName: session.subscription 
+        ? (session.subscription.user 
+          ? `${session.subscription.user.firstName} ${session.subscription.user.lastName || ''}`.trim() 
+          : (session.subscription.guestEmail || 'Guest User'))
+        : 'Unknown Client', // Fallback if subscription is null
       date: session.date,
       time: session.time,
       type: session.sessionType,
