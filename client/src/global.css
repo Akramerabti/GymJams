@@ -1,7 +1,9 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/*
+  This file contains global CSS styles that are not directly managed by Tailwind's utility classes.
+  It includes CSS variables for theming, general layout resets, and specific custom component styles.
+*/
 
+/* Define CSS variables for light mode theme colors */
 :root {
   --background: 0 0% 100%;
   --foreground: 222.2 84% 4.9%;
@@ -18,8 +20,41 @@
   --ring: 222.2 84% 4.9%;
 }
 
-/* Prevent flash of unstyled content during theme initialization */
+/* Define CSS variables for dark mode theme colors, applied when 'dark-mode' class is present */
+.dark-mode {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --primary: 217.2 91.2% 59.8%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 224.3 76.3% 48%;
+}
+
+/* Base HTML and Body styles for consistent layout and responsiveness */
+html, body, #root {
+  height: 100%; /* Ensure full viewport height */
+  margin: 0; /* Remove default margin */
+  padding: 0; /* Remove default padding */
+  overflow-x: hidden; /* Prevent horizontal scrolling */
+  width: 100%; /* Ensure full width */
+  scroll-behavior: smooth; /* Smooth scrolling for anchor links */
+}
+
+/* Apply border-box globally for consistent box model calculations */
+* {
+  box-sizing: border-box; 
+}
+
+/* Prevent flash of unstyled content during theme initialization and enable smooth transitions */
 html {
+  /* Initial theme variables for light mode, overridden by dark mode script/class */
   --bg-primary: #ffffff;
   --text-primary: #000000;
   --bg-navbar: #ffffff;
@@ -29,6 +64,7 @@ html {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+/* Dark mode specific variables for direct use in CSS (if not using Tailwind colors) */
 html.dark,
 html.dark-mode {
   --bg-primary: #1f2937;
@@ -52,24 +88,7 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Dark mode variables */
-.dark-mode {
-  --background: 240 10% 3.9%;
-  --foreground: 0 0% 98%;
-  --primary: 217.2 91.2% 59.8%;
-  --primary-foreground: 222.2 47.4% 11.2%;
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 224.3 76.3% 48%;
-}
-
-/* Dark theme styles */
+/* Dark theme styles (if 'dark-theme' class is used instead of 'dark-mode') */
 .dark-theme {
   color-scheme: dark;
 }
@@ -124,7 +143,7 @@ body {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
 }
 
-/* Exclude navbar from dark mode styles */
+/* Exclude navbar from dark mode styles (if specific override is desired) */
 .dark-theme nav:first-child {
   background-color: white;
   color: hsl(222.2, 84%, 4.9%);
@@ -144,19 +163,7 @@ body {
   background-color: hsl(210, 40%, 90%);
 }
 
-html, body {
-    overflow-x: hidden; /* Hide horizontal scrollbar */
-    width: 100%; /* Ensure full width */
-    margin: 0; /* Remove default margin */
-    padding: 0; /* Remove default padding */
-    scroll-behavior: smooth;
-  }
-    /* Ensure no child elements overflow horizontally */
-  * {
-    box-sizing: border-box; /* Prevent padding and border from causing overflow */
-  }
-
-  /* Dynamic Background */
+/* Dynamic Background for register page */
 @keyframes gradientShift {
   0% { background-position: 0% 25%; }
   25% { background-position: 0% 50%; }
@@ -176,8 +183,7 @@ html, body {
   overflow: hidden;
 }
 
-
-/* Glassmorphism Card */
+/* Glassmorphism Card for register page */
 .register-card {
   background: rgba(10, 15, 26, 0.7); /* Dark blue with transparency */
   backdrop-filter: blur(10px);
@@ -195,7 +201,7 @@ html, body {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
 
-/* Input Fields */
+/* Input Fields for register page */
 .input-field {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -215,7 +221,7 @@ html, body {
   box-shadow: 0 0 10px rgba(255, 165, 0, 0.3);
 }
 
-/* Button Animation */
+/* Button Animation for register page */
 .submit-button {
   background: linear-gradient(45deg, #ff7e5f, #feb47b); /* Orange gradient */
   border: none;
@@ -267,7 +273,7 @@ html, body {
   animation: spin 1s linear infinite;
 }
 
-/* Text and Links */
+/* Text and Links for register page */
 .text-gray-300 {
   color: rgba(255, 255, 255, 0.7);
 }
@@ -298,15 +304,17 @@ html, body {
   color: #ff7e5f; /* Orange accent */
 }
 
+/* Content padding to account for fixed headers */
 .content-padding-top {
   padding-top: calc(4rem + 3rem); /* navbar + gymbros header */
 }
 
+/* Hide GymBros header with a transform */
 .gymbros-header.hidden {
   transform: translateY(-100%);
 }
 
-/* Hide footer when specified - Enhanced for mobile compatibility */
+/* Aggressive styles to hide footer when 'hide-footer' class is present on body/html */
 body.hide-footer footer,
 body.hide-footer > footer,
 body.hide-footer [role="contentinfo"],
@@ -321,7 +329,7 @@ body.hide-footer [role="contentinfo"],
   pointer-events: none !important;
 }
 
-/* Additional mobile-specific footer hiding */
+/* Additional mobile-specific footer hiding for stubborn browsers */
 @media (max-width: 768px) {
   body.hide-footer footer,
   body.hide-footer > footer,
@@ -575,6 +583,7 @@ html.gymbros-setup-fullscreen {
 }
 
 /* Custom animations for Hero Section */
+/* These keyframes are also defined in tailwind.config.js for utility classes */
 @keyframes floatOnce {
   0% {
     transform: translateY(0px);
@@ -715,11 +724,6 @@ html.gymbros-setup-fullscreen {
 
 .parallax-bg {
   transition: transform 0.1s ease-out;
-}
-
-/* Smooth scrolling for the entire page */
-html {
-  scroll-behavior: smooth;
 }
 
 /* Stagger animation utility classes */

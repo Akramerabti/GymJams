@@ -1,14 +1,16 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import adService from './services/adsense';
-import AdDebugger from './components/blog/AdDebugger';
 
-// Import global CSS
+// Import global CSS - already present and correctly linked
 import './global.css';
+import './index.css'; // Ensure index.css is also imported for Tailwind base/components/utilities
 
 // Import providers
 import { GuestFlowProvider } from './components/gymBros/components/GuestFlowContext';
+import { SocketProvider } from './SocketContext';
+import { ThemeProvider } from './contexts/ThemeContext'; // Ensure ThemeProvider is correctly used
 
 // Layout Components
 import Layout from './components/layout/Layout';
@@ -48,22 +50,20 @@ import ApplicationForm from './pages/CustomerService/application';
 import OAuthCallback from './pages/OAuthCallback';
 import Blog from './pages/Blog';
 import BlogPost from './components/blog/BlogPost'; 
-
-import { SocketProvider } from './SocketContext';
-import { ThemeProvider } from './contexts/ThemeContext';
-
+import AdDebugger from './components/blog/AdDebugger';
 
 const App = () => {
   const { checkAuth, logout, showOnboarding, setShowOnboarding } = useAuthStore();
 
   useEffect(() => {
+
     const validateTokenOnLoad = async () => {
       try {
         const token = localStorage.getItem('token');
         if (token) {
           const isValid = await checkAuth();
           if (!isValid) {
-            //('Token validation failed, logging out');
+            console.warn('Token validation failed, logging out');
             logout();
           }
         }
@@ -75,36 +75,35 @@ const App = () => {
 
     const initGAM = async (retryCount = 0) => {
       try {
-
         await adService.init();
-        
       } catch (error) {
         console.error('Google Ad Manager initialization error:', error);
-        // Retry initialization a few times with exponential backoff
+
         if (retryCount < 3) {
           const delay = Math.pow(2, retryCount) * 1000;
-          //(`Retrying GAM initialization in ${delay}ms...`);
+          console.log(`Retrying GAM initialization in ${delay}ms...`);
           setTimeout(() => initGAM(retryCount + 1), delay);
         }
       }
     };
 
-    // Run initializations in parallel
     Promise.all([
       validateTokenOnLoad(),
       initGAM()
     ]).catch(error => {
       console.error('App initialization error:', error);
     });
-  }, [checkAuth, logout]);
+  }, [checkAuth, logout]); 
+
   return (
+
     <ThemeProvider>
       <SocketProvider>
         <GuestFlowProvider>
           <Router>
+       
             <Layout>
               <Routes>
-                {/* Public Routes */}
                 <Route path="/" element={<Home />} />
                 <Route path="/coaching" element={<CoachingHome />} />
                 <Route path="/shop" element={<Shop />} />
@@ -133,10 +132,8 @@ const App = () => {
                 <Route path="/application" element={<ApplicationForm />} />
                 <Route path="/oauth-callback" element={<OAuthCallback />} />
                 <Route path="/blog" element={<Blog />} />
-
                 <Route path="/blog/:slug" element={<BlogPost />} />
-                
-                {/* Protected Routes */}
+              
                 <Route path="/profile" element={
                   <ProtectedRoute>
                     <Profile />
@@ -155,11 +152,14 @@ const App = () => {
                 } />
               </Routes>
 
+             
               {showOnboarding && (
                 <Onboarding onClose={() => setShowOnboarding(false)} />
               )}
 
+        
               <Toaster />
+  
               {process.env.NODE_ENV !== 'production' && <AdDebugger />}
             </Layout>
           </Router>
