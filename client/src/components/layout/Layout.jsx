@@ -7,19 +7,16 @@ import { useTheme } from '../../contexts/ThemeContext';
 const Layout = ({ children }) => {
   const location = useLocation();
   const [showFooter, setShowFooter] = useState(true);
-  const { darkMode } = useTheme(); // Use theme context instead of local state
-      // Check for routes where footer should be hidden
+  const { darkMode } = useTheme();
+
   useEffect(() => {
     const checkFooterVisibility = () => {
-      // Check if body has the hide-footer class
       const hasHideFooterClass = document.body.classList.contains('hide-footer') || 
-                                 document.documentElement.classList.contains('hide-footer');
+                               document.documentElement.classList.contains('hide-footer');
       
-      // Hide footer on home page or if body has hide-footer class
       const shouldHideFooter = location.pathname === '/' || hasHideFooterClass;
       setShowFooter(!shouldHideFooter);
       
-      // Additional enforcement for mobile devices
       if (shouldHideFooter) {
         setTimeout(() => {
           const footers = document.querySelectorAll('footer, [role="contentinfo"]');
@@ -31,21 +28,18 @@ const Layout = ({ children }) => {
             footer.style.opacity = '0';
             footer.style.pointerEvents = 'none';
           });
-        }, 50); // Small delay to ensure DOM is ready
+        }, 50);
       }
     };
 
-    // Initial check
     checkFooterVisibility();
 
-    // Listen for custom events from FooterHider
     const handleFooterHidden = () => setShowFooter(false);
     const handleFooterShown = () => checkFooterVisibility();
     
     window.addEventListener('footerHidden', handleFooterHidden);
     window.addEventListener('footerShown', handleFooterShown);
 
-    // Create a MutationObserver to watch for class changes on body and html
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
@@ -54,7 +48,6 @@ const Layout = ({ children }) => {
       });
     });
 
-    // Start observing both body and html class changes
     observer.observe(document.body, {
       attributes: true,
       attributeFilter: ['class']
@@ -65,7 +58,6 @@ const Layout = ({ children }) => {
       attributeFilter: ['class']
     });
 
-    // Cleanup observer and event listeners
     return () => {
       observer.disconnect();
       window.removeEventListener('footerHidden', handleFooterHidden);
@@ -76,8 +68,12 @@ const Layout = ({ children }) => {
   return (
     <div className={`flex flex-col min-h-screen ${darkMode ? 'dark-theme' : ''}`}>
       <Navbar />
-      <main className={`flex-grow ${darkMode ? 'bg-gray-900 text-gray-100' : ''} ${location.pathname === '/' ? '' : 'pt-16'}`}>
-        {children}
+      <main className={`flex-grow transition-colors duration-300 ${
+        darkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'
+      } ${location.pathname === '/' ? '' : 'pt-16'}`}>
+        <div className="w-full max-w-full px-4 sm:px-6 lg:px-8">
+          {children}
+        </div>
       </main>
       {showFooter && <Footer />}
     </div>
