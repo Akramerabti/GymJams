@@ -292,9 +292,26 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
             }`}>
               Your Complete Fitness Ecosystem - Shop, Train, Game, Compete
             </p>
-          </div>          {/* Section 1: Video Background with GET STARTED text only */}
+          </div>          
+          {/* Section 1: Video Background with GET STARTED text only */}
           <div className={`h-1/4 sm:h-1/3 lg:h-1/3 relative z-20 ${darkMode ? 'bg-gradient-to-b from-white/5 via-gray-900 to-gray-900' : 'bg-gradient-to-b from-black/5 via-white to-white'}`}>            {/* Video Background - Full width */}
-            <div className="w-full h-full relative overflow-hidden">
+            <div
+              className={`
+                relative z-20
+                w-full
+                pt-[var(--navbar-height,4rem)]
+                aspect-video
+                min-h-[100px]
+                max-h-[20vh] sm:max-h-[20vh] md:max-h-[30vh] lg:max-h-[40vh]
+                flex items-center justify-center
+                overflow-hidden
+              `}
+              style={{
+                // fallback for browsers that don't support aspect-ratio
+                height: 'min(25vh, 56vw)',
+              }}
+            >
+              {/* Video Background - Full width */}
               {!mainVideoError || !mainVideoLoaded ? (
                 <video
                   key={mainVideoKey}

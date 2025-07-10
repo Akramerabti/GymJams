@@ -5,10 +5,24 @@ module.exports = {
     "./index.html", // Add your paths here
     "./src/**/*.{js,ts,jsx,tsx}",
   ],  theme: {
+      screens: {
+      'xs': '320px', // Custom extra-small screen size
+      'sm': '640px',
+      'md': '768px',
+      'lg': '1024px',
+      'xl': '1280px',
+      '2xl': '1536px',
+    },
      extend: {
       fontFamily: {
         gym: ['Montserrat', 'sans-serif'],
-      },      animation: {
+      },
+      fontSize: {
+        'fluid-base': 'clamp(1rem, 1vw + 0.5rem, 1.125rem)',
+        'fluid-lg': 'clamp(1.125rem, 2vw + 0.5rem, 1.5rem)',
+        // Add more as needed
+      },
+      animation: {
         'floatOnce': 'floatOnce 2s ease-out forwards',
         'slideDownFromVideo': 'slideDownFromVideo 0.5s ease-out forwards',
         'floatUpSection': 'floatUpSection 0.8s ease-out forwards',

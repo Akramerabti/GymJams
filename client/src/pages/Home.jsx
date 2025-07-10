@@ -452,9 +452,11 @@ const Home = () => {  const { darkMode } = useTheme();
         </div>        {/* Hero Section with enhanced effects */}        <section 
           ref={el => sectionRefs.current[0] = el}
           data-section-index={0}
-          className={`min-h-screen w-full relative overflow-hidden section-transition ${
-            isSectionVisible(0) ? `section-visible ${getSectionAnimation(0)}` : 'section-hidden'
-          } ${isActiveSection(0) ? 'section-active' : ''}`}
+          className={`min-h-screen w-full relative overflow-hidden section-transition
+            px-2 sm:px-4 md:px-8 lg:px-16 xl:px-32
+            ${isSectionVisible(0) ? `section-visible ${getSectionAnimation(0)}` : 'section-hidden'}
+            ${isActiveSection(0) ? 'section-active' : ''}
+          `}
           style={{ margin: 0, padding: 0, top: 0, position: 'relative' }}
         >
           <div 
@@ -464,12 +466,13 @@ const Home = () => {  const { darkMode } = useTheme();
             {/* Animated background gradient */}
             <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 via-purple-900/20 to-pink-900/20 gradient-flow"></div>
               <HeroSection 
-              onNavigate={handleNavigate} 
-              isActive={isSectionVisible(0)}
-              goToSection={navigateToSection}
-              scrollY={scrollY}
-              mousePosition={mousePosition}
-            />
+                onNavigate={handleNavigate} 
+                isActive={isSectionVisible(0)}
+                goToSection={navigateToSection}
+                scrollY={scrollY}
+                mousePosition={mousePosition}
+                className="max-w-2xl mx-auto py-8 sm:py-12 md:py-20"
+              />
           </div>
           
           {/* Section transition effect */}
@@ -480,9 +483,11 @@ const Home = () => {  const { darkMode } = useTheme();
         <section 
           ref={el => sectionRefs.current[1] = el}
           data-section-index={1}
-          className={`min-h-screen w-full relative overflow-hidden section-transition ${
-            isSectionVisible(1) ? `section-visible ${getSectionAnimation(1)}` : 'section-hidden'
-          } ${isActiveSection(1) ? 'section-active' : ''}`}
+          className={`min-h-screen w-full relative overflow-hidden section-transition
+            px-2 sm:px-4 md:px-8 lg:px-16 xl:px-32
+            ${isSectionVisible(1) ? `section-visible ${getSectionAnimation(1)}` : 'section-hidden'}
+            ${isActiveSection(1) ? 'section-active' : ''}
+          `}
         >
           <div 
             className="absolute inset-0 parallax-bg"
@@ -499,6 +504,7 @@ const Home = () => {  const { darkMode } = useTheme();
               isActive={isSectionVisible(1)}
               scrollY={scrollY}
               parallaxOffset={getParallaxOffset(1)}
+              className="max-w-4xl mx-auto py-8 sm:py-12 md:py-20"
             />
           </div>
           
@@ -511,9 +517,11 @@ const Home = () => {  const { darkMode } = useTheme();
         <section 
           ref={el => sectionRefs.current[2] = el}
           data-section-index={2}
-          className={`min-h-screen w-full relative overflow-hidden section-transition ${
-            isSectionVisible(2) ? `section-visible ${getSectionAnimation(2)}` : 'section-hidden'
-          } ${isActiveSection(2) ? 'section-active' : ''}`}
+          className={`min-h-screen w-full relative overflow-hidden section-transition
+            px-2 sm:px-4 md:px-8 lg:px-16 xl:px-32
+            ${isSectionVisible(2) ? `section-visible ${getSectionAnimation(2)}` : 'section-hidden'}
+            ${isActiveSection(2) ? 'section-active' : ''}
+          `}
         >
           <div 
             className="absolute inset-0 parallax-bg"
@@ -530,6 +538,7 @@ const Home = () => {  const { darkMode } = useTheme();
               isActive={isSectionVisible(2)}
               scrollY={scrollY}
               scrollDirection={scrollDirection}
+              className="max-w-3xl mx-auto py-8 sm:py-12 md:py-20"
             />
           </div>
           
@@ -541,9 +550,11 @@ const Home = () => {  const { darkMode } = useTheme();
         <section 
           ref={el => sectionRefs.current[3] = el}
           data-section-index={3}
-          className={`min-h-screen w-full relative overflow-hidden section-transition ${
-            isSectionVisible(3) ? `section-visible ${getSectionAnimation(3)}` : 'section-hidden'
-          } ${isActiveSection(3) ? 'section-active' : ''}`}
+          className={`min-h-screen w-full relative overflow-hidden section-transition
+            px-2 sm:px-4 md:px-8 lg:px-16 xl:px-32
+            ${isSectionVisible(3) ? `section-visible ${getSectionAnimation(3)}` : 'section-hidden'}
+            ${isActiveSection(3) ? 'section-active' : ''}
+          `}
         >
           <div 
             className="absolute inset-0 parallax-bg"
@@ -560,6 +571,7 @@ const Home = () => {  const { darkMode } = useTheme();
               isActive={isSectionVisible(3)}
               scrollY={scrollY}
               scrollVelocity={scrollVelocity}
+              className="max-w-4xl mx-auto py-8 sm:py-12 md:py-20"
             />
           </div>
           
@@ -572,9 +584,11 @@ const Home = () => {  const { darkMode } = useTheme();
         <section 
           ref={el => sectionRefs.current[4] = el}
           data-section-index={4}
-          className={`min-h-screen w-full relative overflow-hidden section-transition ${
-            isSectionVisible(4) ? `section-visible ${getSectionAnimation(4)}` : 'section-hidden'
-          } ${isActiveSection(4) ? 'section-active' : ''}`}
+          className={`min-h-screen w-full relative overflow-hidden section-transition
+            px-2 sm:px-4 md:px-8 lg:px-16 xl:px-32
+            ${isSectionVisible(4) ? `section-visible ${getSectionAnimation(4)}` : 'section-hidden'}
+            ${isActiveSection(4) ? 'section-active' : ''}
+          `}
         >
           <div 
             className="absolute inset-0 parallax-bg"
@@ -591,6 +605,7 @@ const Home = () => {  const { darkMode } = useTheme();
               isActive={isSectionVisible(4)}
               scrollY={scrollY}
               isLastSection={true}
+              className="max-w-3xl mx-auto py-8 sm:py-12 md:py-20"
             />
           </div>
           

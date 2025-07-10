@@ -24,6 +24,7 @@ html {
   --text-primary: #000000;
   --bg-navbar: #ffffff;
   --text-navbar: #000000;
+  font-size: clamp(14px, 1vw + 0.5rem, 18px); 
   
   /* Smooth transition for theme changes */
   transition: background-color 0.2s ease, color 0.2s ease;
@@ -47,6 +48,8 @@ nav {
 
 /* Theme-aware body styling */
 body {
+  max-width: 100%;
+  overflow-x: hidden;
   background-color: var(--bg-primary);
   color: var(--text-primary);
   transition: background-color 0.2s ease, color 0.2s ease;
@@ -720,6 +723,7 @@ html.gymbros-setup-fullscreen {
 /* Smooth scrolling for the entire page */
 html {
   scroll-behavior: smooth;
+  font-size: clamp(0.875rem, 1vw + 0.5rem, 1rem);
 }
 
 /* Stagger animation utility classes */
@@ -1352,4 +1356,149 @@ html {
 /* Hide scrollbar for Firefox */
 .custom-scrollbar {
   scrollbar-width: none;  /* Remove scrollbar space */
+}
+
+.home-container {
+  width: 100%;
+  position: relative;
+  overflow-x: hidden; /* Prevents horizontal scroll */
+  margin: 0;
+  padding: 0;
+  top: 0;
+}
+
+/* --- Section Styling & Transitions --- */
+.home-section {
+  min-height: 100vh;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  transition: all 1.0s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.section-hidden {
+  opacity: 0;
+  transform: translateY(100px) scale(0.9);
+  filter: blur(15px) brightness(0.3);
+}
+
+.section-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0px) brightness(1);
+  animation: revealSection 1.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.section-active {
+  transform: scale(1.02);
+  z-index: 10;
+  filter: brightness(1.1) contrast(1.05);
+}
+
+.parallax-bg {
+  transition: transform 0.3s ease-out, opacity 0.6s ease-out, filter 0.6s ease-out;
+}
+
+/* --- Keyframe Animations --- */
+@keyframes revealSection {
+  from {
+    opacity: 0;
+    transform: translateY(100px) scale(0.9);
+    filter: blur(15px) brightness(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0px) brightness(1);
+  }
+}
+
+@keyframes morphBackground {
+  0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+  50% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
+}
+
+@keyframes floatingElements {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-10px) rotate(1deg); }
+  66% { transform: translateY(5px) rotate(-1deg); }
+}
+
+@keyframes gradientFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(79, 70, 229, 0.3), 
+                0 0 40px rgba(124, 58, 237, 0.2),
+                0 0 60px rgba(236, 72, 153, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(79, 70, 229, 0.5), 
+                0 0 60px rgba(124, 58, 237, 0.3),
+                0 0 90px rgba(236, 72, 153, 0.2);
+  }
+}
+
+.floating-elements { animation: floatingElements 8s ease-in-out infinite; }
+.morphing-bg { animation: morphBackground 20s ease-in-out infinite; }
+.gradient-flow {
+  background: linear-gradient(-45deg, #667eea, #764ba2, #f093fb, #f5576c, #4facfe, #00f2fe);
+  background-size: 400% 400%;
+  animation: gradientFlow 8s ease infinite;
+}
+.glow-effect { animation: pulseGlow 3s ease-in-out infinite; }
+
+/* --- Custom Scrollbar --- */
+::-webkit-scrollbar { width: 12px; }
+::-webkit-scrollbar-track { background: rgba(243, 244, 246, 0.3); border-radius: 10px; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(45deg, #4f46e5, #7c3aed, #ec4899);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: linear-gradient(45deg, #4338ca, #6d28d9, #db2777); background-clip: content-box; }
+
+/* Dark theme scrollbar overrides */
+.dark-theme ::-webkit-scrollbar-track { background: rgba(31, 41, 55, 0.3); }
+
+/*
+=====================================================
+  Responsive Button (New)
+=====================================================
+*/
+.responsive-btn {
+  /* --- Base styles for mobile --- */
+  padding: 0.75rem 1.5rem; /* 12px 24px */
+  font-size: 1rem; /* 16px */
+  font-weight: 600; /* semibold */
+  border-radius: 0.5rem; /* 8px */
+  transition: all 0.3s ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border: 2px solid transparent;
+}
+
+.responsive-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.responsive-btn:active {
+  transform: translateY(-1px);
+}
+
+/* --- Increase size on larger screens --- */
+@media (min-width: 768px) { /* md breakpoint */
+  .responsive-btn {
+    padding: 1rem 2rem; /* 16px 32px */
+    font-size: 1.125rem; /* 18px */
+  }
 }
