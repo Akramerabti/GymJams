@@ -1,250 +1,338 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useAuthStore } from '../../stores/authStore';
-import { useCartStore } from '../../stores/cartStore';
-import { useTheme } from '../../contexts/ThemeContext'; // Import useTheme hook
-import { Sheet, SheetContent, SheetTrigger } from '../ui/sheet'; // Shadcn UI Sheet for mobile menu
-import { Button } from '../ui/button'; // Shadcn UI Button
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'; // Shadcn UI Avatar
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu'; // Shadcn UI Dropdown
-import { ShoppingCart, Menu, X, Sun, Moon, Home, Dumbbell, Store, Gamepad, User, LogOut, Package, Settings, Users, FileText, BarChart, Bell, LifeBuoy, Shield, LayoutDashboard } from 'lucide-react'; // Icons from lucide-react
+import { Menu, X, ShoppingCart, User, Coins, Dumbbell, Sun, Moon } from 'lucide-react';
+import { useAuth } from '../../stores/authStore';
+import { useCart } from '../../stores/cartStore'; // Import useCart hook
+import { usePoints } from '../../hooks/usePoints';
+import { motion, AnimatePresence } from 'framer-motion';
+import useCartStore from '@/stores/cartStore';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const Navbar = () => {
-  const { user, isAuthenticated, logout } = useAuthStore();
-  const { cartItems } = useCartStore();
-  const { theme, toggleTheme } = useTheme(); // Use theme and toggleTheme from context
+  const { user, logout, isTokenValid } = useAuth();
+  const { items } = useCart(); // Get cart items from useCart
+  const itemCount = useCartStore((state) => state.getItemCount());
+  const { balance, fetchPoints } = usePoints();
+  const { darkMode, toggleDarkMode } = useTheme(); // Use theme context
+
+  const [isOpen, setIsOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);  const userMenuRef = useRef(null);
   const location = useLocation();
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // State for mobile menu
 
+  // Remove local dark mode initialization since it's handled by context
 
-  const totalCartItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const getUserrole = (user) => {
+    return user?.user?.role || user?.role || '';
+  };
 
-  const isGymBrosSetup = location.pathname.startsWith('/gymbros-setup');
-  const isQuestionnaire = location.pathname.startsWith('/questionnaire');
+  // Navigation items based on user role
+  const navigationItems = [
+    { name: 'Shop', path: '/shop' },
+    {
+      name:
+        getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin'
+          ? 'Taskforce Dashboard'
+          : 'Gains',
+      path:
+        getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin'
+          ? '/taskforce-dashboard'
+          : '/gymbros',
+    },
+    { name: 'Coaching', path: '/coaching' },
+    { name: 'Games', path: '/games' },
+    { name: 'Blog', path: '/blog' },
+    { name: 'Contact', path: '/contact' },
+  ];
 
+  // Check token validity on mount
   useEffect(() => {
-
-    if (isGymBrosSetup || isQuestionnaire) {
-      document.body.classList.add('hide-footer');
-    } else {
-      document.body.classList.remove('hide-footer');
+    if (user && !isTokenValid()) {
+      logout();
     }
+  }, [user, isTokenValid, logout]);
 
-    const handleScroll = () => {
-      if (window.scrollY > 50) {
-        setIsScrolled(true);
-      } else {
-        setIsScrolled(false);
+  // Debounce fetchPoints
+  useEffect(() => {
+    let debounceTimeout;
+
+    const debouncedFetchPoints = () => {
+      if (user) {
+        clearTimeout(debounceTimeout);
+        debounceTimeout = setTimeout(() => {
+          fetchPoints();
+        }, 500);
       }
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
+    debouncedFetchPoints();
+
+    return () => clearTimeout(debounceTimeout);
+  }, [user, fetchPoints]);  // Close user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setIsUserMenuOpen(false);
+      }
     };
-  }, [location.pathname, isGymBrosSetup, isQuestionnaire]);
+    document.addEventListener('mousedown', handleClickOutside);    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-  const closeMobileMenu = () => {
-    setIsMobileMenuOpen(false);
-  };
-
-  return (
-    <nav 
-      className={`fixed top-0 left-0 right-0 z-[9999] flex items-center justify-between p-4 shadow-md transition-all duration-300 ease-in-out
-      ${isScrolled ? 'bg-opacity-95 backdrop-blur-md' : 'bg-opacity-100'}
-      bg-[var(--bg-navbar)] text-[var(--text-navbar)]`}
+  return (    <div
+      className={`shadow-lg fixed top-0 left-0 right-0 z-[9999] pointer-events-auto ${
+        darkMode ? 'bg-gray-800' : 'bg-white'
+      }`}
+      style={{ 
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 9999,
+        pointerEvents: 'auto'
+      }}
     >
-      {/* Logo and Home Link */}
+      <div
+    className={`max-w-7xl mx-auto px-4 sm:px-6 ${
+      darkMode ? 'bg-gray-800' : 'bg-white'
+    }`}
+  >
+    <div className="flex justify-between h-16">
+      {/* Logo Section */}
       <div className="flex items-center">
-        <Link to="/" className="flex items-center space-x-2">
-          <img src="/logo.png" alt="GymTonic Logo" className="h-8 w-8 rounded-full" />
-          <span className="font-gym text-xl font-bold">GymTonic</span>
+        <Link to="/" className="flex-shrink-0 flex items-center space-x-2">
+        <div style={{ maxWidth: '80px', width: '100%' }}>
+          <img
+            src="/Picture2.png"
+            alt="Gymtonic Logo"
+            style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
+          />
+        </div>
+          <span
+            className={`text-xl font-extrabold ${
+              darkMode ? 'text-white' : 'text-black'
+            }`}
+            style={{ fontFamily: 'Montserrat, sans-serif' }}
+          >
+            GYMTONIC
+          </span>
         </Link>
       </div>
 
-      {/* Desktop Navigation Links */}
-      <div className="hidden md:flex items-center space-x-6">
-        <Link to="/coaching" className="hover:text-primary-foreground transition-colors duration-200">
-          <Dumbbell className="inline-block mr-1" size={18} /> Coaching
-        </Link>
-        <Link to="/shop" className="hover:text-primary-foreground transition-colors duration-200">
-          <Store className="inline-block mr-1" size={18} /> Shop
-        </Link>
-        <Link to="/games" className="hover:text-primary-foreground transition-colors duration-200">
-          <Gamepad className="inline-block mr-1" size={18} /> Games
-        </Link>
-        <Link to="/gymbros" className="hover:text-primary-foreground transition-colors duration-200">
-          <Users className="inline-block mr-1" size={18} /> GymBros
-        </Link>
-        <Link to="/blog" className="hover:text-primary-foreground transition-colors duration-200">
-          <FileText className="inline-block mr-1" size={18} /> Blog
-        </Link>
-      </div>
-
-      <div className="flex items-center space-x-4">
-        {/* Theme Toggle */}
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={toggleTheme} 
-          className="rounded-full hover:bg-secondary-foreground hover:text-primary-foreground transition-colors duration-200"
-          aria-label="Toggle theme"
-        >
-          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-        </Button>
-
-        <Link to="/cart" className="relative p-2 rounded-full hover:bg-secondary-foreground hover:text-primary-foreground transition-colors duration-200">
-          <ShoppingCart size={20} />
-          {totalCartItems > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-              {totalCartItems}
-            </span>
-          )}
-        </Link>
-
-        {isAuthenticated ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={user?.profilePicture || `https://placehold.co/150x150/FFF/000?text=${user?.username?.charAt(0).toUpperCase() || '?'}`} alt={user?.username || "User"} />
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    {user?.username?.charAt(0).toUpperCase() || '?'}
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end" forceMount>
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">{user?.username}</p>
-                  <p className="text-xs leading-none text-muted-foreground">
-                    {user?.email}
-                  </p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link to="/dashboard" onClick={closeMobileMenu} className="flex items-center cursor-pointer">
-                  <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/profile" onClick={closeMobileMenu} className="flex items-center cursor-pointer">
-                  <User className="mr-2 h-4 w-4" /> Profile
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/orders" onClick={closeMobileMenu} className="flex items-center cursor-pointer">
-                  <Package className="mr-2 h-4 w-4" /> Orders
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/subscription-management" onClick={closeMobileMenu} className="flex items-center cursor-pointer">
-                  <Settings className="mr-2 h-4 w-4" /> Subscription
-                </Link>
-              </DropdownMenuItem>
-              {user?.role === 'taskforce' && (
-                <DropdownMenuItem asChild>
-                  <Link to="/taskforce-dashboard" onClick={closeMobileMenu} className="flex items-center cursor-pointer">
-                    <BarChart className="mr-2 h-4 w-4" /> Taskforce
-                  </Link>
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={logout} className="flex items-center cursor-pointer">
-                <LogOut className="mr-2 h-4 w-4" /> Log out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <Link to="/login">
-            <Button className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-4 py-2 transition-colors duration-200">Login</Button>
+      {/* Desktop Navigation Links (Hidden on md screens and below) */}
+      <div className="hidden md:flex items-center space-x-2">
+        {navigationItems.map((item) => (
+          <Link
+            key={item.name}
+            to={item.path}
+            className={`text-sm lg:text-base font-medium transition-colors ${
+              darkMode ? 'text-white hover:text-gray-300' : 'text-black hover:text-blue-600'
+            } ${
+              location.pathname === item.path
+                ? darkMode
+                  ? 'text-gray-300 font-semibold'
+                  : 'text-blue-600 font-semibold'
+                : ''
+            }`}
+          >
+            {item.name}
           </Link>
-        )}
+        ))}
+      </div>
 
-        {/* Mobile Menu Toggle (Hamburger) */}
-        <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-          <SheetTrigger asChild className="md:hidden">
-            <Button variant="ghost" size="icon" aria-label="Open mobile menu">
-              <Menu size={24} />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-full sm:max-w-xs flex flex-col bg-background text-foreground">
-            <div className="flex justify-between items-center p-4 border-b border-border">
-              <span className="font-gym text-xl font-bold">GymTonic</span>
-              <Button variant="ghost" size="icon" onClick={closeMobileMenu} aria-label="Close mobile menu">
-                <X size={24} />
-              </Button>
-            </div>
-            <nav className="flex flex-col p-4 space-y-4 flex-grow">
-              <Link to="/" onClick={closeMobileMenu} className="flex items-center text-lg hover:text-primary transition-colors duration-200">
-                <Home className="mr-3 h-5 w-5" /> Home
-              </Link>
-              <Link to="/coaching" onClick={closeMobileMenu} className="flex items-center text-lg hover:text-primary transition-colors duration-200">
-                <Dumbbell className="mr-3 h-5 w-5" /> Coaching
-              </Link>
-              <Link to="/shop" onClick={closeMobileMenu} className="flex items-center text-lg hover:text-primary transition-colors duration-200">
-                <Store className="mr-3 h-5 w-5" /> Shop
-              </Link>
-              <Link to="/games" onClick={closeMobileMenu} className="flex items-center text-lg hover:text-primary transition-colors duration-200">
-                <Gamepad className="mr-3 h-5 w-5" /> Games
-              </Link>
-              <Link to="/gymbros" onClick={closeMobileMenu} className="flex items-center text-lg hover:text-primary transition-colors duration-200">
-                <Users className="inline-block mr-3 h-5 w-5" /> GymBros
-              </Link>
-              <Link to="/blog" onClick={closeMobileMenu} className="flex items-center text-lg hover:text-primary transition-colors duration-200">
-                <FileText className="inline-block mr-3 h-5 w-5" /> Blog
-              </Link>
-              <div className="border-t border-border my-4 pt-4"></div> 
-              {isAuthenticated ? (
-                <>
-                  <Link to="/dashboard" onClick={closeMobileMenu} className="flex items-center text-lg hover:text-primary transition-colors duration-200">
-                    <LayoutDashboard className="mr-3 h-5 w-5" /> Dashboard
-                  </Link>
-                  <Link to="/profile" onClick={closeMobileMenu} className="flex items-center text-lg hover:text-primary transition-colors duration-200">
-                    <User className="mr-3 h-5 w-5" /> Profile
-                  </Link>
-                  <Link to="/orders" onClick={closeMobileMenu} className="flex items-center text-lg hover:text-primary transition-colors duration-200">
-                    <Package className="mr-3 h-5 w-5" /> Orders
-                  </Link>
-                  <Link to="/subscription-management" onClick={closeMobileMenu} className="flex items-center text-lg hover:text-primary transition-colors duration-200">
-                    <Settings className="mr-3 h-5 w-5" /> Subscription
-                  </Link>
-                  {user?.role === 'taskforce' && (
-                    <Link to="/taskforce-dashboard" onClick={closeMobileMenu} className="flex items-center text-lg hover:text-primary transition-colors duration-200">
-                      <BarChart className="mr-3 h-5 w-5" /> Taskforce
-                    </Link>
-                  )}
-                  <Button 
-                    onClick={() => { logout(); closeMobileMenu(); }} 
-                    className="w-full mt-4 bg-primary text-primary-foreground hover:bg-primary/90"
+          {/* Right Section (Points, Cart, User Menu, Mobile Toggle) */}
+          <div className="flex items-center space-x-4">
+            {/* Points Balance (Logged-in Users Only) */}
+            {user && isTokenValid() && (
+              <div className="flex items-center space-x-2">
+                <Coins
+                  className={`h-5 w-5 ${
+                    darkMode ? 'text-yellow-300' : 'text-yellow-500'
+                  }`}
+                />
+                <span
+                  className={`font-medium text-sm lg:text-base ${
+                    darkMode ? 'text-white' : 'text-black'
+                  }`}
+                >
+                  {balance} points
+                </span>
+              </div>
+            )}
+
+            {/* Cart Icon with Badge */}
+            <Link
+              to="/cart"
+              className={`relative ${
+                darkMode ? 'text-white hover:text-gray-300' : 'text-gray-600 hover:text-blue-600'
+              } transition-colors`}
+            >
+              <ShoppingCart
+                className={`h-6 w-6 lg:h-7 lg:w-7 ${
+                  darkMode ? 'text-white' : 'text-gray-600'
+                }`}
+              />
+              <AnimatePresence>
+                {itemCount > 0 && (
+                  <motion.div
+                    key={itemCount}
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center"
                   >
-                    <LogOut className="mr-2 h-5 w-5" /> Log out
-                  </Button>
-                </>
-              ) : (
-                <Link to="/login" onClick={closeMobileMenu}>
-                  <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">Login</Button>
-                </Link>
-              )}
-            </nav>
-            <div className="p-4 border-t border-border mt-auto">
-              <p className="text-sm font-semibold mb-2">Customer Service</p>
-              <div className="flex flex-col space-y-2">
-                <Link to="/contact" onClick={closeMobileMenu} className="flex items-center text-sm hover:text-primary transition-colors duration-200">
-                  <LifeBuoy className="mr-2 h-4 w-4" /> Contact Us
-                </Link>
-                <Link to="/faq" onClick={closeMobileMenu} className="flex items-center text-sm hover:text-primary transition-colors duration-200">
-                  <Shield className="mr-2 h-4 w-4" /> FAQ
+                    {itemCount}
+                  </motion.div>
+                )}              </AnimatePresence>
+            </Link>            {user && isTokenValid() ? (
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                  className={`${
+                    darkMode ? 'text-white hover:text-gray-300' : 'text-gray-600 hover:text-blue-600'
+                  } transition-colors`}
+                >
+                  <User
+                    className={`h-6 w-6 lg:h-7 lg:w-7 ${
+                      darkMode ? 'text-white' : 'text-gray-600'
+                    }`}
+                  />
+                </button>
+                <AnimatePresence>
+                  {isUserMenuOpen && (
+                    <motion.div
+                      className="absolute right-0 w-48 mt-2 py-2 bg-white rounded-md shadow-lg z-20 border border-gray-100"
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Link
+                        to="/profile"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        Profile
+                      </Link>
+                      <Link
+                        to="/orders"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        Orders
+                      </Link>                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleDarkMode();
+                        }}
+                        className="flex items-center justify-between w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <span>Dark Mode</span>
+                        <div
+                          className={`relative flex h-5 w-9 items-center rounded-full transition-colors ${
+                            darkMode ? 'bg-blue-600' : 'bg-gray-200'
+                          }`}
+                        >
+                          <span
+                            className={`flex h-3 w-3 transform rounded-full bg-white transition-transform items-center justify-center ${
+                              darkMode ? 'translate-x-5' : 'translate-x-1'
+                            }`}
+                          >
+                            {darkMode ? (
+                              <Sun className="h-2 w-2 text-yellow-500" />
+                            ) : (
+                              <Moon className="h-2 w-2 text-gray-600" />
+                            )}
+                          </span>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => {
+                          logout();
+                          setIsUserMenuOpen(false);
+                        }}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        Logout
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>            ) : (
+              <div className="flex items-center space-x-3">
+                {/* Simple Dark Mode Toggle Button - no slider, no text */}
+                <button
+                  onClick={toggleDarkMode}
+                  className={`p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                    darkMode ? 'text-white hover:text-gray-300' : 'text-gray-600 hover:text-blue-600'
+                  }`}
+                  aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                >
+                  {darkMode ? (
+                    <Sun className="h-5 w-5" />
+                  ) : (
+                    <Moon className="h-5 w-5" />
+                  )}
+                </button>
+                <Link
+                  to="/login"
+                  className={`${
+                    darkMode ? 'text-white hover:text-gray-300' : 'text-gray-600 hover:text-blue-600'
+                  } px-3 py-2 rounded-md text-sm lg:text-lg font-medium transition-colors`}
+                >
+                  Login
                 </Link>
               </div>
+            )}
+
+            {/* Mobile Menu Toggle (Visible on md screens and below) */}
+            <div className="md:hidden">
+              <button
+                onClick={() => setIsOpen(!isOpen)}
+                className={`${
+                  darkMode ? 'text-white hover:text-gray-300' : 'text-gray-600 hover:text-blue-600'
+                } transition-colors`}
+              >
+                {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              </button>
             </div>
-          </SheetContent>
-        </Sheet>
+          </div>
+        </div>
+
+        {/* Mobile Navigation Links (Visible on md screens and below) */}
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              className="md:hidden"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.2 }}
+            >
+              <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                {navigationItems.map((item) => (
+                  <Link
+                    key={item.name}
+                    to={item.path}
+                    className={`block px-3 py-2 rounded-md text-base font-medium ${
+                      darkMode ? 'text-white hover:text-gray-300' : 'text-black hover:text-blue-600'
+                    } transition-colors ${
+                      location.pathname === item.path
+                        ? darkMode
+                          ? 'text-gray-300 font-semibold'
+                          : 'text-blue-600 font-semibold'
+                        : ''
+                    }`}
+                    onClick={() => setIsOpen(false)}
+                  >
+                    {item.name}
+                  </Link>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-    </nav>
+    </div>
   );
 };
 
