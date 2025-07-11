@@ -9,7 +9,8 @@ import {
   CoachingSection 
 } from '../components/home-sections';
 
-const Home = () => {  const { darkMode } = useTheme();
+const Home = () => {
+  const { darkMode } = useTheme();
   const navigate = useNavigate();
   
   const [visibleSections, setVisibleSections] = useState(new Set([0]));
@@ -408,7 +409,16 @@ const Home = () => {  const { darkMode } = useTheme();
         }
       `}</style>
 
-      <div ref={containerRef} className="w-full relative overflow-hidden" style={{ margin: 0, padding: 0, top: 0 }}>
+      <div
+        ref={containerRef}
+        className="home-fluid w-full relative overflow-hidden"
+        style={{
+          margin: 0,
+          padding: 0,
+          top: 0,
+          fontSize: 'clamp(1rem, 1vw + 0.75rem, 1.125rem)', // fluid base font size
+        }}
+      >
         {/* Enhanced loading overlay with animated elements */}
         {!isLoaded && (
           <div className="fixed inset-0 z-50 bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center">
@@ -455,7 +465,13 @@ const Home = () => {  const { darkMode } = useTheme();
           className={`min-h-screen w-full relative overflow-hidden section-transition ${
             isSectionVisible(0) ? `section-visible ${getSectionAnimation(0)}` : 'section-hidden'
           } ${isActiveSection(0) ? 'section-active' : ''}`}
-          style={{ margin: 0, padding: 0, top: 0, position: 'relative' }}
+          style={{
+            margin: 0,
+            padding: 0,
+            top: 0,
+            position: 'relative',
+            fontSize: 'clamp(1.1rem, 2vw + 0.5rem, 1.4rem)', // slightly larger for hero
+          }}
         >
           <div 
             className="absolute inset-0 parallax-bg"
@@ -483,6 +499,10 @@ const Home = () => {  const { darkMode } = useTheme();
           className={`min-h-screen w-full relative overflow-hidden section-transition ${
             isSectionVisible(1) ? `section-visible ${getSectionAnimation(1)}` : 'section-hidden'
           } ${isActiveSection(1) ? 'section-active' : ''}`}
+          style={{
+            fontSize: 'clamp(1rem, 1vw + 0.7rem, 1.2rem)',
+            padding: 'clamp(1rem, 3vw, 2rem) 0',
+          }}
         >
           <div 
             className="absolute inset-0 parallax-bg"
@@ -514,6 +534,10 @@ const Home = () => {  const { darkMode } = useTheme();
           className={`min-h-screen w-full relative overflow-hidden section-transition ${
             isSectionVisible(2) ? `section-visible ${getSectionAnimation(2)}` : 'section-hidden'
           } ${isActiveSection(2) ? 'section-active' : ''}`}
+          style={{
+            fontSize: 'clamp(1rem, 1vw + 0.7rem, 1.2rem)',
+            padding: 'clamp(1rem, 3vw, 2rem) 0',
+          }}
         >
           <div 
             className="absolute inset-0 parallax-bg"
@@ -544,6 +568,10 @@ const Home = () => {  const { darkMode } = useTheme();
           className={`min-h-screen w-full relative overflow-hidden section-transition ${
             isSectionVisible(3) ? `section-visible ${getSectionAnimation(3)}` : 'section-hidden'
           } ${isActiveSection(3) ? 'section-active' : ''}`}
+          style={{
+            fontSize: 'clamp(1rem, 1vw + 0.7rem, 1.2rem)',
+            padding: 'clamp(1rem, 3vw, 2rem) 0',
+          }}
         >
           <div 
             className="absolute inset-0 parallax-bg"
@@ -575,6 +603,10 @@ const Home = () => {  const { darkMode } = useTheme();
           className={`min-h-screen w-full relative overflow-hidden section-transition ${
             isSectionVisible(4) ? `section-visible ${getSectionAnimation(4)}` : 'section-hidden'
           } ${isActiveSection(4) ? 'section-active' : ''}`}
+          style={{
+            fontSize: 'clamp(1rem, 1vw + 0.7rem, 1.2rem)',
+            padding: 'clamp(1rem, 3vw, 2rem) 0',
+          }}
         >
           <div 
             className="absolute inset-0 parallax-bg"
@@ -597,16 +629,31 @@ const Home = () => {  const { darkMode } = useTheme();
           {/* Bottom glow effect */}
           <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-96 h-2 bg-gradient-to-r from-transparent via-purple-500/50 to-transparent blur-sm"></div>
         </section>        {/* Enhanced Scroll Progress Indicator */}
-        <div className="fixed top-0 left-0 w-full h-2 bg-black/20 backdrop-blur-sm z-50">
-          <div 
+        <div
+          className="fixed top-0 left-0 w-full h-2 bg-black/20 backdrop-blur-sm z-50"
+          style={{
+            height: 'clamp(0.5rem, 1vw, 1rem)',
+          }}
+        >
+          <div
             className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-orange-500 transition-all duration-500 ease-out relative overflow-hidden"
-            style={{ width: `${scrollProgress}%` }}
+            style={{
+              width: `${scrollProgress}%`,
+              minHeight: 'clamp(0.5rem, 1vw, 1rem)',
+            }}
           >
-            {/* Animated shine effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse"></div>
           </div>
-        </div>        {/* Enhanced Section Navigation with labels */}
-        <div className="fixed right-6 top-1/2 transform -translate-y-1/2 z-40 space-y-6">
+        </div>
+
+        {/* Enhanced Section Navigation with labels */}
+        <div
+          className="fixed right-6 top-1/2 transform -translate-y-1/2 z-40 space-y-6"
+          style={{
+            gap: 'clamp(1rem, 2vw, 2rem)',
+            fontSize: 'clamp(0.9rem, 1vw, 1.1rem)',
+          }}
+        >
           {[
             { index: 0, label: 'Home', icon: '🏠' },
             { index: 1, label: 'Shop', icon: '🛍️' },
@@ -619,13 +666,13 @@ const Home = () => {  const { darkMode } = useTheme();
                 onClick={() => {
                   sectionRefs.current[index]?.scrollIntoView({ behavior: 'smooth' });
                 }}
-                className={`block w-4 h-4 rounded-full transition-all duration-500 relative overflow-hidden ${
-                  isActiveSection(index)
-                    ? `${darkMode ? 'bg-white' : 'bg-gray-900'} scale-150 shadow-lg ${darkMode ? 'shadow-white/50 ring-2 ring-white/30' : 'shadow-gray-900/50 ring-2 ring-gray-900/30'}`
-                    : isSectionVisible(index)
-                    ? `${darkMode ? 'bg-white/80' : 'bg-gray-900/80'} scale-125 shadow-md ${darkMode ? 'shadow-white/30' : 'shadow-gray-900/30'}`
-                    : `${darkMode ? 'bg-white/30 hover:bg-white/60' : 'bg-gray-900/30 hover:bg-gray-900/60'} hover:scale-110`
-                }`}
+                className={`block rounded-full transition-all duration-500 relative overflow-hidden`}
+                style={{
+                  width: 'clamp(1rem, 2vw, 1.5rem)',
+                  height: 'clamp(1rem, 2vw, 1.5rem)',
+                  minWidth: 'clamp(1rem, 2vw, 1.5rem)',
+                  minHeight: 'clamp(1rem, 2vw, 1.5rem)',
+                }}
                 aria-label={`Go to ${label} section`}
               >
                 {/* Pulsing center dot for active section */}
@@ -633,16 +680,22 @@ const Home = () => {  const { darkMode } = useTheme();
                   <div className={`absolute inset-1 ${darkMode ? 'bg-blue-400' : 'bg-blue-600'} rounded-full animate-ping`}></div>
                 )}
               </button>
-              
               {/* Tooltip */}
-              <div className={`absolute right-8 top-1/2 transform -translate-y-1/2 ${darkMode ? 'bg-black/80 text-white' : 'bg-white/90 text-gray-900'} px-3 py-2 rounded-lg text-sm font-medium backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap shadow-lg`}>
+              <div
+                className={`absolute right-8 top-1/2 transform -translate-y-1/2 px-3 py-2 rounded-lg text-sm font-medium backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap shadow-lg`}
+                style={{
+                  fontSize: 'clamp(0.8rem, 0.8vw, 1rem)',
+                  padding: 'clamp(0.25rem, 0.5vw, 0.5rem) clamp(0.5rem, 1vw, 1rem)',
+                }}
+              >
                 <span className="mr-2">{icon}</span>
                 {label}
-                <div className={`absolute left-full top-1/2 transform -translate-y-1/2 border-4 border-transparent ${darkMode ? 'border-l-black/80' : 'border-l-white/90'}`}></div>
+                <div className="absolute left-full top-1/2 transform -translate-y-1/2 border-4 border-transparent"></div>
               </div>
             </div>
           ))}
-        </div>{/* Section transition overlays */}
+        </div>
+        {/* Section transition overlays */}
         <div className="fixed inset-0 pointer-events-none z-30">
           {/* Dynamic background overlay based on active section */}
           <div 

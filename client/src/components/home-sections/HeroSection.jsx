@@ -292,9 +292,26 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
             }`}>
               Your Complete Fitness Ecosystem - Shop, Train, Game, Compete
             </p>
-          </div>          {/* Section 1: Video Background with GET STARTED text only */}
+          </div>          
+          {/* Section 1: Video Background with GET STARTED text only */}
           <div className={`h-1/4 sm:h-1/3 lg:h-1/3 relative z-20 ${darkMode ? 'bg-gradient-to-b from-white/5 via-gray-900 to-gray-900' : 'bg-gradient-to-b from-black/5 via-white to-white'}`}>            {/* Video Background - Full width */}
-            <div className="w-full h-full relative overflow-hidden">
+            <div
+              className={`
+                relative z-20
+                w-full
+                pt-[var(--navbar-height,4rem)]
+                aspect-video
+                min-h-[100px]
+                max-h-[20vh] sm:max-h-[20vh] md:max-h-[30vh] lg:max-h-[40vh]
+                flex items-center justify-center
+                overflow-hidden
+              `}
+              style={{
+                // fallback for browsers that don't support aspect-ratio
+                height: 'min(25vh, 56vw)',
+              }}
+            >
+              {/* Video Background - Full width */}
               {!mainVideoError || !mainVideoLoaded ? (
                 <video
                   key={mainVideoKey}
@@ -330,20 +347,24 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               <div className="absolute inset-0 bg-black bg-opacity-50"></div>
 
               {/* GET STARTED Label with floating animation */}
-              <div className="absolute inset-0 flex flex-col items-center lg:justify-center justify-center pt-0 space-y-3">                {/* GET STARTED Label with one-time floating animation - Always white */}
-                <div className="text-center">                  <h2 className={`text-2xl mt-10 sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-wider text-white drop-shadow-lg transition-all duration-1000 ${
-                    hasAnimationStarted 
-                      ? 'animate-floatOnce' 
-                      : 'opacity-0 translate-y-8'
-                  }`}>
+              <div className="absolute inset-0 flex flex-col items-center justify-center w-full h-full">
+                <div className="w-full max-w-full flex flex-col items-center justify-center">
+                  <h2 className={`
+                    text-fluid-lg font-bold tracking-wider text-white drop-shadow-lg transition-all duration-1000
+                    w-full max-w-full text-center
+                    ${hasAnimationStarted ? 'animate-floatOnce' : 'opacity-0 translate-y-8'}
+                  `}
+                    style={{ wordBreak: 'break-word' }}
+                  >
                     GET STARTED
                   </h2>
-                  {/* Subheading */}
-                  <p className={`text-sm sm:text-base lg:text-lg text-white/90 drop-shadow-md mt-2 font-medium transition-all duration-1000 delay-700 ${
-                    hasAnimationStarted 
-                      ? 'opacity-100 translate-y-0' 
-                      : 'opacity-0 translate-y-4'
-                  }`}>
+                  <p className={`
+                    text-fluid-base font-medium text-white/90 drop-shadow-md transition-all duration-1000 delay-700
+                    w-full max-w-full text-center
+                    ${hasAnimationStarted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
+                  `}
+                    style={{ wordBreak: 'break-word' }}
+                  >
                     The Best Fitness Has to Offer at a Reach
                   </p>
                 </div>
