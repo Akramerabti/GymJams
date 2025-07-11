@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
@@ -8,11 +8,36 @@ const Layout = ({ children }) => {
   const location = useLocation();
   const [showFooter, setShowFooter] = useState(true);
   const { darkMode } = useTheme();
+  
+  // Create a ref for the Navbar wrapper
+  const navbarRef = useRef(null);
 
+  // This new useEffect hook measures the Navbar's height
+  useEffect(() => {
+    const updateNavbarHeight = () => {
+      if (navbarRef.current) {
+        // Get the height of the navbar element
+        const height = navbarRef.current.offsetHeight;
+        // Set it as a CSS variable on the root HTML element
+        document.documentElement.style.setProperty('--navbar-height', `${height}px`);
+      }
+    };
+
+    // Run the function on mount and on window resize
+    updateNavbarHeight();
+    window.addEventListener('resize', updateNavbarHeight);
+
+    // Cleanup function to remove the event listener
+    return () => {
+      window.removeEventListener('resize', updateNavbarHeight);
+    };
+  }, []); // Empty dependency array ensures this runs only once on mount and unmount
+
+  // Your existing useEffect for footer visibility
   useEffect(() => {
     const checkFooterVisibility = () => {
-      const hasHideFooterClass = document.body.classList.contains('hide-footer') || 
-                               document.documentElement.classList.contains('hide-footer');
+      const hasHideFooterClass = document.body.classList.contains('hide-footer') ||
+                                document.documentElement.classList.contains('hide-footer');
       
       const shouldHideFooter = location.pathname === '/' || hasHideFooterClass;
       setShowFooter(!shouldHideFooter);
@@ -67,10 +92,14 @@ const Layout = ({ children }) => {
 
   return (
     <div className={`flex flex-col min-h-screen ${darkMode ? 'dark-theme' : ''}`}>
-      <Navbar />
+      {/* Attach the ref to the Navbar's wrapping div */}
+      <div ref={navbarRef}>
+        <Navbar />
+      </div>
       <main className={`flex-grow transition-colors duration-300 ${
         darkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'
-      } ${location.pathname === '/' ? '' : 'pt-16'}`}>
+      }`}>
+        {/* The children no longer need different padding, this simplifies the logic */}
         <div className="w-full max-w-full px-4 sm:px-6 lg:px-8">
           {children}
         </div>
