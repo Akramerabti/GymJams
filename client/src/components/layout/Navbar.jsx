@@ -181,19 +181,37 @@ const Navbar = () => {
         {/* Mobile Navigation Dropdown */}
         <AnimatePresence>
           {isOpen && (
-            <motion.div className="md:hidden" initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }}>
-              <div className="px-1 pt-1 pb-2 space-y-0.5">
+            <motion.div
+              className="md:hidden overflow-hidden"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0, transition: { opacity: { duration: 0.15 }, height: { duration: 0.25 } } }}
+              transition={{ type: "tween", duration: 0.25 }}
+            >
+              <motion.div
+                className="px-1 pt-1 pb-2 space-y-0.5"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1, transition: { delay: 0.08, duration: 0.18 } }}
+                exit={{ opacity: 0, transition: { duration: 0.13 } }}
+              >
                 {navigationItems.map((item) => (
-                  <Link
+                  <motion.div
                     key={item.name}
-                    to={item.path}
-                    className={`block px-3 py-2 rounded-md text-[clamp(1rem,2vw,1.2rem)] font-medium ${darkMode ? 'text-white hover:bg-gray-700' : 'text-black hover:bg-gray-100'}`}
-                    onClick={() => setIsOpen(false)}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    transition={{ duration: 0.18 }}
                   >
-                    {item.name}
-                  </Link>
+                    <Link
+                      to={item.path}
+                      className={`block px-3 py-2 rounded-md text-[clamp(1rem,2vw,1.2rem)] font-medium ${darkMode ? 'text-white hover:bg-gray-700' : 'text-black hover:bg-gray-100'}`}
+                      onClick={() => setIsOpen(false)}
+                    >
+                      {item.name}
+                    </Link>
+                  </motion.div>
                 ))}
-              </div>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>

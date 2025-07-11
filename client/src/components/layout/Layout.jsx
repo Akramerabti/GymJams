@@ -99,8 +99,7 @@ const Layout = ({ children }) => {
       <main className={`flex-grow transition-colors duration-300 ${
         darkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'
       }`}>
-        {/* The children no longer need different padding, this simplifies the logic */}
-        <div className="w-full max-w-full px-4 sm:px-6 lg:px-8">
+        <div className="w-full max-w-full">
           {children}
         </div>
       </main>

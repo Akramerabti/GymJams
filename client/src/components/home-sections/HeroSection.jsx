@@ -7,83 +7,51 @@ import { formatImageUrl, getFallbackAvatarUrl } from '../../utils/imageUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogTrigger } from '../ui/dialog';
 
 const HeroSection = ({ onNavigate, isActive, goToSection }) => {
-  const { darkMode, toggleDarkMode } = useTheme();
+  const { darkMode } = useTheme();
   const [currentProductIndex, setCurrentProductIndex] = useState(0);
   const [featuredProducts, setFeaturedProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [gymBrosData, setGymBrosData] = useState(null);
   const [gymBrosLoading, setGymBrosLoading] = useState(true);
-  const [showGymBrosInfo, setShowGymBrosInfo] = useState(false);
-
   const [isComponentReady, setIsComponentReady] = useState(false);
   const [hasAnimationStarted, setHasAnimationStarted] = useState(false);
   const [showContent, setShowContent] = useState(false);
-
   const [backgroundVideoLoaded, setBackgroundVideoLoaded] = useState(false);
   const [backgroundVideoError, setBackgroundVideoError] = useState(false);
-  const [backgroundRetryCount, setBackgroundRetryCount] = useState(0);
   const [mainVideoLoaded, setMainVideoLoaded] = useState(false);
   const [mainVideoError, setMainVideoError] = useState(false);
-  const [mainRetryCount, setMainRetryCount] = useState(0);
   const [backgroundVideoKey, setBackgroundVideoKey] = useState(0);
   const [mainVideoKey, setMainVideoKey] = useState(0);
-
-  const MAX_RETRY_ATTEMPTS = 10;
-  const RETRY_DELAY = 3000;
-
   const [gymBrosCarouselRef, setGymBrosCarouselRef] = useState(null);
 
-  useEffect(() => {
+    useEffect(() => {
     let timeouts = [];
     const initializeComponent = () => {
       setIsComponentReady(true);
-      timeouts.push(setTimeout(() => {
-        setShowContent(true);
-      }, 300));
-      timeouts.push(setTimeout(() => {
-        if (isActive) {
-          setHasAnimationStarted(true);
-        }
-      }, 600));
+      timeouts.push(setTimeout(() => setShowContent(true), 300));
+      timeouts.push(setTimeout(() => { if (isActive) setHasAnimationStarted(true); }, 600));
     };
     initializeComponent();
-    return () => {
-      timeouts.forEach(timeout => clearTimeout(timeout));
-    };
-  }, []);
+    return () => timeouts.forEach(clearTimeout);
+  }, [isActive]);
 
   useEffect(() => {
     if (isActive && isComponentReady && showContent) {
-      const timer = setTimeout(() => {
-        setHasAnimationStarted(true);
-      }, 100);
+      const timer = setTimeout(() => setHasAnimationStarted(true), 100);
       return () => clearTimeout(timer);
     } else if (!isActive) {
       setHasAnimationStarted(false);
     }
   }, [isActive, isComponentReady, showContent]);
 
-  const scrollGymBrosLeft = () => {
+  const scrollGymBros = (direction) => {
     if (gymBrosCarouselRef) {
-      const scrollAmount = 200;
-      gymBrosCarouselRef.scrollBy({
-        left: -scrollAmount,
-        behavior: 'smooth'
-      });
+      const scrollAmount = direction === 'left' ? -200 : 200;
+      gymBrosCarouselRef.scrollBy({ left: scrollAmount, behavior: 'smooth' });
     }
   };
-
-  const scrollGymBrosRight = () => {
-    if (gymBrosCarouselRef) {
-      const scrollAmount = 200;
-      gymBrosCarouselRef.scrollBy({
-        left: scrollAmount,
-        behavior: 'smooth'
-      });
-    }
-  };
-
-  useEffect(() => {
+  
+    useEffect(() => {
     const fetchProducts = async () => {
       try {
         setProductsLoading(true);
@@ -167,14 +135,6 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
     fetchGymBrosData();
   }, []);
 
-  useEffect(() => {
-    if (featuredProducts.length > 1) {
-      const interval = setInterval(() => {
-        setCurrentProductIndex((prev) => (prev + 1) % featuredProducts.length);
-      }, 3000);
-      return () => clearInterval(interval);
-    }
-  }, [featuredProducts.length]);
 
   const navigateToSection = (sectionIndex) => {
     if (goToSection) {
@@ -191,18 +151,20 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   };
 
   return (
-    <div className="absolute inset-0">
-      {/* Initial Loading Overlay - Dark background while component initializes */}
+  // The main container for the entire HeroSection
+    <div className="absolute inset-0" style={{ marginTop: 'var(--navbar-height, 0px)' }}>
+      {/* Loading Overlays */}
       {!isComponentReady && (
         <div className="absolute inset-0 z-50 bg-black flex items-center justify-center">
           <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
         </div>
       )}
-
-      {/* Smooth Content Transition Overlay */}
       {isComponentReady && !showContent && (
         <div className="absolute inset-0 z-40 bg-black transition-opacity duration-300"></div>
       )}
+
+      {/* This container holds all visible content and uses flexbox to distribute space */}
+      <div className={`w-full h-full flex flex-col transition-all duration-700 ${showContent ? 'opacity-100' : 'opacity-0'}`}>
 
       {/* Background Video for entire section - Bottom layer with reduced opacity */}
       {!backgroundVideoError || !backgroundVideoLoaded ? (
@@ -253,9 +215,8 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               Your Complete Fitness Ecosystem - Shop, Train, Game, Compete
             </p>
           </div>
-          {/* Section 1: Video Background with GET STARTED text only */}
+     {/* Section 1: Video Background with GET STARTED text only */}
           <div className={`relative z-20 ${darkMode ? 'bg-gradient-to-b from-white/5 via-gray-900 to-gray-900' : 'bg-gradient-to-b from-black/5 via-white to-white'}`}>
-            {/* THE FIX IS HERE: This container now uses the CSS variable and clamp() */}
             <div
               className="relative z-20 w-full flex items-center justify-center overflow-hidden"
               style={{
@@ -294,10 +255,11 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                 />
               )}
               {/* Overlay */}
-              <div className="absolute inset-0 bg-black bg-opacity-50"></div>
+              <div className="absolute inset-0 bg-black bg-opacity-75"></div>
 
               {/* GET STARTED Label with floating animation */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center w-full h-full">
+              {/* FIX: Using responsive padding. Larger on mobile (pt-20), smaller on desktop (md:pt-10) */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center w-full h-full pt-15 md:pt-5">
                 <div className="w-full max-w-full flex flex-col items-center justify-center">
                   <h2 className={`
                     text-fluid-lg font-bold tracking-wider text-white drop-shadow-lg transition-all duration-1000
@@ -322,6 +284,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
             </div>
           </div>
           {/* Navigation Circle Buttons - Below video, above GymBros */}
+           <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-50">
           <div className={`py-6 px-4 relative z-5 ${darkMode ? 'bg-gray-900' : 'bg-white'}`}>
             <div className="flex justify-center items-center gap-5 sm:gap-6 md:gap-8 lg:gap-6 flex-wrap max-w-lg mx-auto">
               <button
@@ -773,7 +736,8 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               </div>
             </div>
           </div>
-
+                  </div>
+</div>
         </div>
       </div>
     </div>
