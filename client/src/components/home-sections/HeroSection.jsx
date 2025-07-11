@@ -14,12 +14,11 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   const [gymBrosData, setGymBrosData] = useState(null);
   const [gymBrosLoading, setGymBrosLoading] = useState(true);
   const [showGymBrosInfo, setShowGymBrosInfo] = useState(false);
-  
-  // Loading and animation states for smooth UX
+
   const [isComponentReady, setIsComponentReady] = useState(false);
   const [hasAnimationStarted, setHasAnimationStarted] = useState(false);
   const [showContent, setShowContent] = useState(false);
-    // Video fallback states with retry mechanism
+
   const [backgroundVideoLoaded, setBackgroundVideoLoaded] = useState(false);
   const [backgroundVideoError, setBackgroundVideoError] = useState(false);
   const [backgroundRetryCount, setBackgroundRetryCount] = useState(0);
@@ -28,61 +27,45 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   const [mainRetryCount, setMainRetryCount] = useState(0);
   const [backgroundVideoKey, setBackgroundVideoKey] = useState(0);
   const [mainVideoKey, setMainVideoKey] = useState(0);
-    const MAX_RETRY_ATTEMPTS = 10; // Keep trying
-  const RETRY_DELAY = 3000; // 3 seconds between retries
-  
-  // Add carousel functionality for GymBros
+
+  const MAX_RETRY_ATTEMPTS = 10;
+  const RETRY_DELAY = 3000;
+
   const [gymBrosCarouselRef, setGymBrosCarouselRef] = useState(null);
 
-  // Component initialization and smooth loading effect
   useEffect(() => {
     let timeouts = [];
-    
-    // Initial setup - ensure component is ready before starting animations
     const initializeComponent = () => {
-      // Phase 1: Component mounting and preparation (immediate)
       setIsComponentReady(true);
-      
-      // Phase 2: Start showing content with dark background (300ms delay)
       timeouts.push(setTimeout(() => {
         setShowContent(true);
       }, 300));
-      
-      // Phase 3: Enable animations when section becomes active (600ms delay total)
       timeouts.push(setTimeout(() => {
         if (isActive) {
           setHasAnimationStarted(true);
         }
       }, 600));
     };
-    
-    // Start initialization
     initializeComponent();
-    
-    // Cleanup timeouts on unmount
     return () => {
       timeouts.forEach(timeout => clearTimeout(timeout));
     };
-  }, []); // Run only once on mount
+  }, []);
 
-  // Handle isActive changes after initial mount
   useEffect(() => {
     if (isActive && isComponentReady && showContent) {
-      // Small delay to ensure smooth transition when section becomes active
       const timer = setTimeout(() => {
         setHasAnimationStarted(true);
       }, 100);
-      
       return () => clearTimeout(timer);
     } else if (!isActive) {
-      // Reset animation state when section becomes inactive
       setHasAnimationStarted(false);
     }
   }, [isActive, isComponentReady, showContent]);
-  // Carousel navigation for GymBros
+
   const scrollGymBrosLeft = () => {
     if (gymBrosCarouselRef) {
-      const scrollAmount = 200; // Scroll by 200px (roughly 3-4 cards)
+      const scrollAmount = 200;
       gymBrosCarouselRef.scrollBy({
         left: -scrollAmount,
         behavior: 'smooth'
@@ -92,7 +75,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
 
   const scrollGymBrosRight = () => {
     if (gymBrosCarouselRef) {
-      const scrollAmount = 200; // Scroll by 200px (roughly 3-4 cards)
+      const scrollAmount = 200;
       gymBrosCarouselRef.scrollBy({
         left: scrollAmount,
         behavior: 'smooth'
@@ -100,20 +83,14 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
     }
   };
 
-  // Fetch real products from API
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         setProductsLoading(true);
-        
-        // Use the same product service as the shop page
         const response = await productService.getProducts();
         const data = response.data || [];
-        
-        // Take first 4 products or all if less than 4
         const products = data.slice(0, 4).map(product => {
-          // Handle image URL properly like in ProductCard
-          let imageUrl = '/Picture3.png'; // fallback
+          let imageUrl = '/Picture3.png';
           if (product.images && product.images.length > 0) {
             const imagePath = product.images[0];
             if (imagePath.startsWith('http')) {
@@ -130,7 +107,6 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               imageUrl = `${baseUrl}${product.image.startsWith('/') ? product.image : `/${product.image}`}`;
             }
           }
-          
           return {
             id: product._id,
             name: product.name,
@@ -138,11 +114,8 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
             price: `$${product.price?.toFixed(2) || '0.00'}`
           };
         });
-        
         setFeaturedProducts(products);
-        //('Successfully loaded products from API:', products.length);
-      } catch (error) {        //('Using fallback products data:', error.message);
-        // Fallback to placeholder products - Multiple products for testing carousel
+      } catch (error) {
         setFeaturedProducts([
           { id: 1, name: "Premium Protein", image: "/Picture2.png", price: "$49.99" },
           { id: 2, name: "Resistance Bands", image: "/Picture2.png", price: "$29.99" },
@@ -159,55 +132,41 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         setProductsLoading(false);
       }
     };
-
     fetchProducts();
   }, []);
 
-  // Fetch GymBros data using service
   useEffect(() => {
     const fetchGymBrosData = async () => {
       try {
         setGymBrosLoading(true);
-        
-        // Check if user has profile using service
         try {
           const profileResponse = await gymBrosService.getGymBrosProfile();
-          //('Profile response from service:', profileResponse);
-          
           if (profileResponse.hasProfile) {
-            // Fetch matches using service
             try {
               const matchesData = await gymBrosService.getMatches();
-              //('Matches data from service:', matchesData);
-              
               setGymBrosData({
                 hasProfile: true,
                 matchesCount: matchesData.length || 0,
                 recentMatches: matchesData.slice(0, 3)
               });
-            } catch (matchesError) {
-              //('Error fetching matches:', matchesError.message);
+            } catch {
               setGymBrosData({ hasProfile: true, matchesCount: 0 });
             }
           } else {
             setGymBrosData({ hasProfile: false });
           }
-        } catch (profileError) {
-          //('Error fetching profile:', profileError.message);
+        } catch {
           setGymBrosData({ hasProfile: false });
         }
-      } catch (error) {
-        //('GymBros service error:', error.message);
+      } catch {
         setGymBrosData({ hasProfile: false });
       } finally {
         setGymBrosLoading(false);
       }
     };
-
     fetchGymBrosData();
   }, []);
 
-  // Auto-rotate carousel
   useEffect(() => {
     if (featuredProducts.length > 1) {
       const interval = setInterval(() => {
@@ -216,9 +175,8 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
       return () => clearInterval(interval);
     }
   }, [featuredProducts.length]);
-  // Navigate to specific sections
+
   const navigateToSection = (sectionIndex) => {
-    //('Navigating to section:', sectionIndex);
     if (goToSection) {
       goToSection(sectionIndex);
     }
@@ -230,7 +188,9 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
 
   const prevProduct = () => {
     setCurrentProductIndex((prev) => (prev - 1 + featuredProducts.length) % featuredProducts.length);
-  };  return (
+  };
+
+  return (
     <div className="absolute inset-0">
       {/* Initial Loading Overlay - Dark background while component initializes */}
       {!isComponentReady && (
@@ -251,15 +211,14 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
           autoPlay
           muted
           loop
+          playsInline
           className="absolute inset-0 w-full h-full object-cover opacity-10"
           style={{ display: backgroundVideoLoaded ? 'block' : 'none' }}
           onLoadedData={() => {
-            //('Background video loaded successfully');
             setBackgroundVideoLoaded(true);
             setBackgroundVideoError(false);
           }}
-          onError={(e) => {
-            //('Background video error:', e);
+          onError={() => {
             setBackgroundVideoError(true);
           }}
           onCanPlay={() => setBackgroundVideoLoaded(true)}
@@ -267,7 +226,6 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
           <source src="/GymTonic.mp4" type="video/mp4" />
         </video>
       ) : null}
-      
       {/* Show fallback image only while video is loading or during retry */}
       {(!backgroundVideoLoaded || backgroundVideoError) && (
         <img
@@ -275,8 +233,10 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
           alt="Gym background"
           className="absolute inset-0 w-full h-full object-cover opacity-10"
         />
-      )}{/* Gradient overlay - On top of video */}
-      <div className="absolute inset-0 transition-colors duration-500 bg-gray-900/60"></div>      <div 
+      )}
+      {/* Gradient overlay - On top of video */}
+      <div className="absolute inset-0 transition-colors duration-500 bg-gray-900/60"></div>
+      <div
         className={`w-full h-full transition-all duration-700 ${
           showContent 
             ? 'opacity-100 translate-y-0' 
@@ -285,16 +245,17 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
       >
         {/* Mobile Layout: Two Sections Stacked */}
         <div className="h-full flex flex-col pointer-events-auto">
-            {/* Desktop Heading - Hidden on Mobile */}
+          {/* Desktop Heading - Hidden on Mobile */}
           <div className="hidden lg:block text-center">
             <p className={`text-xl lg:text-2xl max-w-3xl mx-auto leading-relaxed transition-colors duration-500 ${
               darkMode ? 'text-gray-300' : 'text-gray-700'
             }`}>
               Your Complete Fitness Ecosystem - Shop, Train, Game, Compete
             </p>
-          </div>          
+          </div>
           {/* Section 1: Video Background with GET STARTED text only */}
-          <div className={`h-1/4 sm:h-1/3 lg:h-1/3 relative z-20 ${darkMode ? 'bg-gradient-to-b from-white/5 via-gray-900 to-gray-900' : 'bg-gradient-to-b from-black/5 via-white to-white'}`}>            {/* Video Background - Full width */}
+          <div className={`h-1/4 sm:h-1/3 lg:h-1/3 relative z-20 ${darkMode ? 'bg-gradient-to-b from-white/5 via-gray-900 to-gray-900' : 'bg-gradient-to-b from-black/5 via-white to-white'}`}>
+            {/* Video Background - Full width */}
             <div
               className={`
                 relative z-20
@@ -318,15 +279,14 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   autoPlay
                   muted
                   loop
+                  playsInline
                   className="absolute inset-0 w-full h-full object-cover"
                   style={{ display: mainVideoLoaded ? 'block' : 'none' }}
                   onLoadedData={() => {
-                    //('Main video loaded successfully');
                     setMainVideoLoaded(true);
                     setMainVideoError(false);
                   }}
-                  onError={(e) => {
-                    //('Main video error:', e);
+                  onError={() => {
                     setMainVideoError(true);
                   }}
                   onCanPlay={() => setMainVideoLoaded(true)}
@@ -334,7 +294,6 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   <source src="/GymTonic.mp4" type="video/mp4" />
                 </video>
               ) : null}
-              
               {/* Show fallback image only while video is loading or during retry */}
               {(!mainVideoLoaded || mainVideoError) && (
                 <img
@@ -343,7 +302,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   className="absolute inset-0 w-full h-full object-cover"
                 />
               )}
-                {/* Overlay */}
+              {/* Overlay */}
               <div className="absolute inset-0 bg-black bg-opacity-50"></div>
 
               {/* GET STARTED Label with floating animation */}
@@ -370,10 +329,13 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                 </div>
               </div>
             </div>
-          </div>          {/* Navigation Circle Buttons - Below video, above GymBros */}
+          </div>
+          {/* Navigation Circle Buttons - Below video, above GymBros */}
           <div className={`py-6 px-4 relative z-5 ${darkMode ? 'bg-gray-900' : 'bg-white'}`}>
-            <div className="flex justify-center items-center gap-5 sm:gap-6 md:gap-8 lg:gap-6 flex-wrap max-w-lg mx-auto">              <button
-                onClick={() => navigateToSection(1)}                className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
+            <div className="flex justify-center items-center gap-5 sm:gap-6 md:gap-8 lg:gap-6 flex-wrap max-w-lg mx-auto">
+              <button
+                onClick={() => navigateToSection(1)}
+                className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
                   hasAnimationStarted 
                     ? 'animate-slideDownFromVideo' 
                     : 'opacity-0 invisible pointer-events-none'
@@ -387,10 +349,12 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   animationFillMode: 'both'
                 }}
               >
-                <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />                <span className={`absolute -bottom-full text-xs font-medium transition-all duration-500 ${
+                <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
+                <span className={`absolute -bottom-full text-xs font-medium transition-all duration-500 ${
                   darkMode ? 'text-white' : 'text-gray-900'
                 } group-hover:scale-110`}>Shop</span>
-              </button>              <button
+              </button>
+              <button
                 onClick={() => navigateToSection(2)}
                 className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
                   hasAnimationStarted 
@@ -406,11 +370,11 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   animationFillMode: 'both'
                 }}
               >
-                <Trophy className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />                <span className={`absolute -bottom-full text-xs font-medium transition-all duration-500 ${
+                <Trophy className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
+                <span className={`absolute -bottom-full text-xs font-medium transition-all duration-500 ${
                   darkMode ? 'text-white' : 'text-gray-900'
                 } group-hover:scale-110`}>Coaching</span>
               </button>
-
               <button
                 onClick={() => navigateToSection(3)}
                 className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
@@ -427,11 +391,11 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   animationFillMode: 'both'
                 }}
               >
-                <Users className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />                <span className={`absolute -bottom-full text-xs font-medium transition-all duration-500 ${
+                <Users className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
+                <span className={`absolute -bottom-full text-xs font-medium transition-all duration-500 ${
                   darkMode ? 'text-white' : 'text-gray-900'
                 } group-hover:scale-110`}>Gains</span>
               </button>
-
               <button
                 onClick={() => navigateToSection(4)}
                 className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
@@ -448,14 +412,17 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   animationFillMode: 'both'
                 }}
               >
-                <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />                <span className={`absolute -bottom-full text-xs font-medium transition-all duration-500 ${
+                <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
+                <span className={`absolute -bottom-full text-xs font-medium transition-all duration-500 ${
                   darkMode ? 'text-white' : 'text-gray-900'
                 } group-hover:scale-110`}>Games</span>
               </button>
             </div>
-          </div>          {/* Section 2: Featured Products and GymBros - Reduced padding since buttons take space */}
+          </div>
+          {/* Section 2: Featured Products and GymBros - Reduced padding since buttons take space */}
           <div className={`flex-1 flex flex-col items-center justify-start px-3 sm:px-4 lg:px-8 pt-6 sm:pt-8 lg:pt-6 pb-32 sm:pb-16 ${darkMode ? 'bg-gradient-to-b from-gray-900 via-gray-900 to-white/5' : 'bg-gradient-to-b from-white via-white to-black/5'}`}>
-            <div className="w-full max-w-4xl mx-auto h-full flex flex-col justify-start">              {/* GymBros header - label and match count */}
+            <div className="w-full max-w-4xl mx-auto h-full flex flex-col justify-start">
+              {/* GymBros header - label and match count */}
               <div className="w-full text-left mb-2 sm:mb-3">
                 <div className="flex items-center justify-start gap-2">
                   <h3 className={`text-base sm:text-lg lg:text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -466,8 +433,12 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                       {gymBrosData.recentMatches.length}
                     </span>
                   )}
-                </div>              </div>              {/* All screen sizes: Stacked vertically */}
-              <div className="grid grid-cols-1 sm:gap-12 md:gap-12 lg:gap-14 w-full sm:max-w-none flex-1">                {/* GymBros Section - Card Design */}                <div className={`flex flex-col min-h-[80px] max-h-[120px] sm:min-h-[80px] sm:max-h-[120px] lg:min-h-[80px] lg:max-h-[120px] transition-all duration-800 ${
+                </div>
+              </div>
+              {/* All screen sizes: Stacked vertically */}
+              <div className="grid grid-cols-1 sm:gap-12 md:gap-12 lg:gap-14 w-full sm:max-w-none flex-1">
+                {/* GymBros Section - Card Design */}
+                <div className={`flex flex-col min-h-[80px] max-h-[120px] sm:min-h-[80px] sm:max-h-[120px] lg:min-h-[80px] lg:max-h-[120px] transition-all duration-800 ${
                   hasAnimationStarted 
                     ? 'animate-floatUpSection' 
                     : 'opacity-0 translate-y-8'
@@ -578,7 +549,8 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                     </div>                  ) : (
                     <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-gray-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} p-3 sm:p-4 mt-1 flex flex-col shadow-2xl border-2 ${darkMode ? 'border-blue-500/30 hover:border-purple-500/50' : 'border-blue-300/50 hover:border-purple-400/70'} relative overflow-hidden hover:shadow-3xl transition-all duration-500 hover:scale-[1.02] group`}>
                       {/* Info Button - positioned in top right */}
-                      <Dialog>                        <DialogTrigger asChild>
+                      <Dialog>
+                        <DialogTrigger asChild>
                           <button className={`absolute top-2 right-6 sm:right-2 z-20 p-2 rounded-full transition-all duration-300 hover:scale-110 ${
                             darkMode 
                               ? 'bg-gradient-to-br from-blue-600/70 to-purple-600/70 hover:from-blue-500/80 hover:to-purple-500/80 text-white shadow-lg hover:shadow-blue-500/30' 
@@ -588,7 +560,8 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                           >
                             <Info className="w-4 h-4" />
                           </button>
-                        </DialogTrigger>                        <DialogContent className={`max-w-lg ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900 text-white border-gray-600' : 'bg-gradient-to-br from-white to-gray-50 text-gray-900 border-gray-200'} shadow-2xl backdrop-blur-sm sm:top-1/2 top-[55%] sm:translate-y-[-50%] translate-y-[-50%]`}>
+                        </DialogTrigger>
+                        <DialogContent className={`max-w-lg ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900 text-white border-gray-600' : 'bg-gradient-to-br from-white to-gray-50 text-gray-900 border-gray-200'} shadow-2xl backdrop-blur-sm sm:top-1/2 top-[55%] sm:translate-y-[-50%] translate-y-[-50%]`}>
                           <DialogHeader className="text-center pb-4">
                             <DialogTitle className={`text-2xl font-bold bg-gradient-to-r ${darkMode ? 'from-blue-400 to-purple-400' : 'from-blue-600 to-purple-600'} bg-clip-text text-transparent`}>
                               🏋️ GymBros Network
@@ -681,7 +654,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                             </div>
                           </DialogBody>
                         </DialogContent>
-                      </Dialog>                      
+                      </Dialog>
                       {/* Subtle inner glow */}
                       <div className={`absolute inset-0 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-indigo-500/10' : 'bg-gradient-to-br from-blue-400/15 via-purple-400/10 to-indigo-400/15'} opacity-60 group-hover:opacity-80 transition-all duration-500`}></div>
                       <div className="flex flex-col items-center justify-center h-full py-1 sm:py-2 relative z-10"><div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full ${darkMode ? 'bg-gradient-to-br from-blue-600 to-purple-600' : 'bg-gradient-to-br from-blue-500 to-purple-500'} flex items-center justify-center mb-1 shadow-lg`}>
@@ -689,14 +662,17 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                         </div>
                         <p className={`text-xs font-medium text-center mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                           Connect with GymBros
-                        </p>                          <button 
+                        </p>
+                          <button 
                           onClick={() => window.location.href = '/gymbros'}
                           className={`text-xs py-1 px-3 rounded-full font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/50 hover:scale-105 ${darkMode ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white' : 'bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white'}`}>
                           Get Started
                         </button>
                       </div>
                     </div>)}
-                </div>                {/* Featured Products Section */}                <div className={`space-y-2 sm:space-y-3 sm:col-span-1 flex flex-col h-full transition-all duration-800 ${
+                </div>
+                {/* Featured Products Section */}
+                <div className={`space-y-2 sm:space-y-3 sm:col-span-1 flex flex-col h-full transition-all duration-800 ${
                   hasAnimationStarted 
                     ? 'animate-floatUpSection' 
                     : 'opacity-0 translate-y-8'
