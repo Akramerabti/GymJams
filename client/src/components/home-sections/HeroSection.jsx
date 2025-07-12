@@ -254,11 +254,10 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   className="absolute inset-0 w-full h-full object-cover"
                 />
               )}
-              {/* Overlay */}
-              <div className="absolute inset-0 bg-black bg-opacity-75"></div>
+
 
               {/* GET STARTED Label with floating animation */}
-              {/* FIX: Using responsive padding. Larger on mobile (pt-20), smaller on desktop (md:pt-10) */}
+
               <div className="absolute inset-0 flex flex-col items-center justify-center w-full h-full pt-15 md:pt-5">
                 <div className="w-full max-w-full flex flex-col items-center justify-center">
                   <h2 className={`
@@ -283,99 +282,126 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               </div>
             </div>
           </div>
+
           {/* Navigation Circle Buttons - Below video, above GymBros */}
            <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-50">
-          <div className={`py-6 px-4 relative z-5 ${darkMode ? 'bg-gray-900' : 'bg-white'}`}>
-            <div className="flex justify-center items-center gap-5 sm:gap-6 md:gap-8 lg:gap-6 flex-wrap max-w-lg mx-auto">
-              <button
-                onClick={() => navigateToSection(1)}
-                className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
-                  hasAnimationStarted
-                    ? 'animate-slideDownFromVideo'
-                    : 'opacity-0 invisible pointer-events-none'
-                } ${
-                  darkMode
-                    ? 'bg-gray-800 hover:bg-gray-700 text-white border border-white/30'
-                    : 'bg-white hover:bg-gray-50 text-gray-900 border border-black/30'
-                }`}
-                style={{
-                  animationDelay: hasAnimationStarted ? '0.2s' : '0s',
-                  animationFillMode: 'both'
-                }}
-              >
-                <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
-                <span className={`absolute -bottom-full text-xs font-medium transition-all duration-500 ${
-                  darkMode ? 'text-white' : 'text-gray-900'
-                } group-hover:scale-110`}>Shop</span>
-              </button>
-              <button
-                onClick={() => navigateToSection(2)}
-                className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
-                  hasAnimationStarted
-                    ? 'animate-slideDownFromVideo'
-                    : 'opacity-0 invisible pointer-events-none'
-                } ${
-                  darkMode
-                    ? 'bg-gray-800 hover:bg-gray-700 text-white border border-white/30'
-                    : 'bg-white hover:bg-gray-50 text-gray-900 border border-black/30'
-                }`}
-                style={{
-                  animationDelay: hasAnimationStarted ? '0.4s' : '0s',
-                  animationFillMode: 'both'
-                }}
-              >
-                <Trophy className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
-                <span className={`absolute -bottom-full text-xs font-medium transition-all duration-500 ${
-                  darkMode ? 'text-white' : 'text-gray-900'
-                } group-hover:scale-110`}>Coaching</span>
-              </button>
-              <button
-                onClick={() => navigateToSection(3)}
-                className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
-                  hasAnimationStarted
-                    ? 'animate-slideDownFromVideo'
-                    : 'opacity-0 invisible pointer-events-none'
-                } ${
-                  darkMode
-                    ? 'bg-gray-800 hover:bg-gray-700 text-white border border-white/30'
-                    : 'bg-white hover:bg-gray-50 text-gray-900 border border-black/30'
-                }`}
-                style={{
-                  animationDelay: hasAnimationStarted ? '0.6s' : '0s',
-                  animationFillMode: 'both'
-                }}
-              >
-                <Users className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
-                <span className={`absolute -bottom-full text-xs font-medium transition-all duration-500 ${
-                  darkMode ? 'text-white' : 'text-gray-900'
-                } group-hover:scale-110`}>Gains</span>
-              </button>
-              <button
-                onClick={() => navigateToSection(4)}
-                className={`relative w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-14 lg:h-14 rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
-                  hasAnimationStarted
-                    ? 'animate-slideDownFromVideo'
-                    : 'opacity-0 invisible pointer-events-none'
-                } ${
-                  darkMode
-                    ? 'bg-gray-800 hover:bg-gray-700 text-white border border-white/30'
-                    : 'bg-white hover:bg-gray-50 text-gray-900 border border-black/30'
-                }`}
-                style={{
-                  animationDelay: hasAnimationStarted ? '0.8s' : '0s',
-                  animationFillMode: 'both'
-                }}
-              >
-                <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
-                <span className={`absolute -bottom-full text-xs font-medium transition-all duration-500 ${
-                  darkMode ? 'text-white' : 'text-gray-900'
-                } group-hover:scale-110`}>Games</span>
-              </button>
-            </div>
-          </div>
+           <div className={`py-6 px-4 relative z-5 ${darkMode ? 'bg-gray-900' : 'bg-white'}`}>
+    <div className="flex justify-center items-center gap-5 sm:gap-6 md:gap-8 lg:gap-6 flex-wrap max-w-lg mx-auto">
+      <button
+        onClick={() => navigateToSection(1)}
+        className={`relative rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
+          hasAnimationStarted
+            ? 'animate-slideDownFromVideo'
+            : 'opacity-0 invisible pointer-events-none'
+        } ${
+          darkMode
+            ? 'bg-gray-800 hover:bg-gray-700 text-white border border-white/30'
+            : 'bg-white hover:bg-gray-50 text-gray-900 border border-black/30'
+        }`}
+        style={{
+          width: 'clamp(3rem, 10vw, 4rem)',
+          height: 'clamp(3rem, 10vw, 4rem)',
+          animationDelay: hasAnimationStarted ? '0.2s' : '0s',
+          animationFillMode: 'both'
+        }}
+      >
+        <ShoppingBag style={{ width: 'clamp(1rem, 4vw, 1.5rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
+        <span className={`absolute -bottom-6 text-xs font-medium transition-all duration-500 ${
+          darkMode ? 'text-white' : 'text-gray-900'
+        } group-hover:scale-110`}>Shop</span>
+      </button>
+      <button
+        onClick={() => navigateToSection(2)}
+        className={`relative rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
+          hasAnimationStarted
+            ? 'animate-slideDownFromVideo'
+            : 'opacity-0 invisible pointer-events-none'
+        } ${
+          darkMode
+            ? 'bg-gray-800 hover:bg-gray-700 text-white border border-white/30'
+            : 'bg-white hover:bg-gray-50 text-gray-900 border border-black/30'
+        }`}
+        style={{
+          width: 'clamp(3rem, 10vw, 4rem)',
+          height: 'clamp(3rem, 10vw, 4rem)',
+          animationDelay: hasAnimationStarted ? '0.4s' : '0s',
+          animationFillMode: 'both'
+        }}
+      >
+        <Trophy style={{ width: 'clamp(1rem, 4vw, 1.5rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
+        <span className={`absolute -bottom-6 text-xs font-medium transition-all duration-500 ${
+          darkMode ? 'text-white' : 'text-gray-900'
+        } group-hover:scale-110`}>Coaching</span>
+      </button>
+      <button
+        onClick={() => navigateToSection(3)}
+        className={`relative rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
+          hasAnimationStarted
+            ? 'animate-slideDownFromVideo'
+            : 'opacity-0 invisible pointer-events-none'
+        } ${
+          darkMode
+            ? 'bg-gray-800 hover:bg-gray-700 text-white border border-white/30'
+            : 'bg-white hover:bg-gray-50 text-gray-900 border border-black/30'
+        }`}
+        style={{
+          width: 'clamp(3rem, 10vw, 4rem)',
+           height: 'clamp(3rem, 10vw, 4rem)',
+          animationDelay: hasAnimationStarted ? '0.6s' : '0s',
+          animationFillMode: 'both'
+        }}
+      >
+        <Users style={{ width: 'clamp(1rem, 4vw, 1.5rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
+        <span className={`absolute -bottom-6 text-xs font-medium transition-all duration-500 ${
+          darkMode ? 'text-white' : 'text-gray-900'
+        } group-hover:scale-110`}>Gains</span>
+      </button>
+      <button
+        onClick={() => navigateToSection(4)}
+        className={`relative rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
+          hasAnimationStarted
+            ? 'animate-slideDownFromVideo'
+            : 'opacity-0 invisible pointer-events-none'
+        } ${
+          darkMode
+            ? 'bg-gray-800 hover:bg-gray-700 text-white border border-white/30'
+            : 'bg-white hover:bg-gray-50 text-gray-900 border border-black/30'
+        }`}
+        style={{
+          width: 'clamp(3rem, 10vw, 4rem)',
+          height: 'clamp(3rem, 10vw, 4rem)',
+          animationDelay: hasAnimationStarted ? '0.8s' : '0s',
+          animationFillMode: 'both'
+        }}
+      >
+        <Gamepad2 style={{ width: 'clamp(1rem, 4vw, 1.5rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
+        <span className={`absolute -bottom-6 text-xs font-medium transition-all duration-500 ${
+          darkMode ? 'text-white' : 'text-gray-900'
+        } group-hover:scale-110`}>Games</span>
+      </button>
+    </div>
+ </div>
+          
           {/* Section 2: Featured Products and GymBros - Reduced padding since buttons take space */}
-          <div className={`flex-1 flex flex-col items-center justify-start px-3 sm:px-4 lg:px-8 pt-6 sm:pt-8 lg:pt-6 pb-32 sm:pb-16 ${darkMode ? 'bg-gradient-to-b from-gray-900 via-gray-900 to-white/5' : 'bg-gradient-to-b from-white via-white to-black/5'}`}>
-            <div className="w-full max-w-4xl mx-auto h-full flex flex-col justify-start">
+          <div
+            className={`flex-1 flex flex-col items-center justify-start px-3 sm:px-4 lg:px-8 pt-6 sm:pt-8 lg:pt-6 pb-32 sm:pb-16 ${darkMode ? 'bg-gradient-to-b from-gray-900 via-gray-900 to-white/5' : 'bg-gradient-to-b from-white via-white to-black/5'}`}
+            style={{
+              minHeight: 'clamp(400px, 55vh, 900px)',
+              maxHeight: 'clamp(500px, 70vh, 1100px)',
+              height: '100%',
+              boxSizing: 'border-box',
+              overflow: 'hidden'
+            }}
+          >
+            <div
+              className="w-full max-w-4xl mx-auto h-full flex flex-col justify-start"
+              style={{
+                minHeight: '0',
+                maxHeight: '100%',
+                height: '100%',
+                overflow: 'hidden'
+              }}
+            >
               {/* GymBros header - label and match count */}
               <div className="w-full text-left mb-2 sm:mb-3">
                 <div className="flex items-center justify-start gap-2">
@@ -390,17 +416,31 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                 </div>
               </div>
               {/* All screen sizes: Stacked vertically */}
-              <div className="grid grid-cols-1 sm:gap-12 md:gap-12 lg:gap-14 w-full sm:max-w-none flex-1">
-                {/* GymBros Section - Card Design */}
-                <div className={`flex flex-col min-h-[80px] max-h-[120px] sm:min-h-[80px] sm:max-h-[120px] lg:min-h-[80px] lg:max-h-[120px] transition-all duration-800 ${
-                  hasAnimationStarted
-                    ? 'animate-floatUpSection'
-                    : 'opacity-0 translate-y-8'
-                }`}
+              <div
+                className="grid grid-cols-1 sm:gap-12 md:gap-12 lg:gap-14 w-full sm:max-w-none flex-1"
                 style={{
-                  animationDelay: hasAnimationStarted ? '0.3s' : '0s',
-                  animationFillMode: 'both'
-                }}>{gymBrosLoading ? (
+                  minHeight: '0',
+                  maxHeight: '100%',
+                  height: '100%',
+                  overflow: 'hidden'
+                }}
+              >
+                {/* GymBros Section - Card Design */}
+                <div
+                  className={`flex flex-col flex-1 min-h-0 max-h-[clamp(120px,30vh,260px)] transition-all duration-800 ${
+                    hasAnimationStarted
+                      ? 'animate-floatUpSection'
+                      : 'opacity-0 translate-y-8'
+                  }`}
+                  style={{
+                    animationDelay: hasAnimationStarted ? '0.3s' : '0s',
+                    animationFillMode: 'both',
+                    minHeight: 'clamp(80px,15vh,180px)',
+                    maxHeight: 'clamp(120px,30vh,260px)',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {gymBrosLoading ? (
                     <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-white/5' : 'bg-gradient-to-br from-gray-50 via-gray-100 to-black/5'} p-4 pt-12 flex items-center justify-center shadow-xl border-2 ${darkMode ? 'border-white/30' : 'border-black/30'} relative overflow-hidden`}>
                       <div className={`animate-spin rounded-full h-6 w-6 border-b-2 relative z-10 ${
                         darkMode ? 'border-blue-400' : 'border-blue-600'
@@ -626,17 +666,22 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                     </div>)}
                 </div>
                 {/* Featured Products Section */}
-                <div className={`space-y-2 sm:space-y-3 sm:col-span-1 flex flex-col h-full transition-all duration-800 ${
-                  hasAnimationStarted
-                    ? 'animate-floatUpSection'
-                    : 'opacity-0 translate-y-8'
-                }`}
-                style={{
-                  animationDelay: hasAnimationStarted ? '0.5s' : '0s',
-                  animationFillMode: 'both'
-                }}>
-                  {/* Featured Products with Shop Arrow */}
-                  <div className="flex items-center justify-start gap-2 sm:gap-2 lg:gap-2 mb-2 sm:mb-3">
+                <div
+                  className={`space-y-2 sm:space-y-3 sm:col-span-1 flex flex-col flex-1 min-h-0 transition-all duration-800 ${
+                    hasAnimationStarted
+                      ? 'animate-floatUpSection'
+                      : 'opacity-0 translate-y-8'
+                  }`}
+                  style={{
+                    animationDelay: hasAnimationStarted ? '0.5s' : '0s',
+                    animationFillMode: 'both',
+                    minHeight: 'clamp(200px,30vh,400px)',
+                    maxHeight: 'clamp(350px,40vh,600px)',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {/* Add margin-top for small screens */}
+                  <div className="flex items-center justify-start gap-2 sm:gap-2 lg:gap-2 mb-2 sm:mb-3 mt-10 sm:mt-0">
                     <h3 className={`text-base sm:text-lg lg:text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                       Featured Products
                     </h3>
@@ -652,6 +697,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                       <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
                   </div>
+
                     {productsLoading ? (
                     <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-4 sm:p-6 flex items-center justify-center shadow-lg border-2 ${darkMode ? 'border-white/30' : 'border-black/30'} relative overflow-hidden`}>
                       {/* Subtle inner glow */}

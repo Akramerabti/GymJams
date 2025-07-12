@@ -132,7 +132,10 @@ const SectionWrapper = ({
       )}
       
       {/* Section Content */}
-      {getSectionComponent()}
+      <div className="relative z-10">
+        {/* Remove any hover/slide/translate-x effects from tooltips or navs here */}
+        {getSectionComponent()}
+      </div>
     </div>
   );
 };

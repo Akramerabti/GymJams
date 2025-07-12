@@ -147,19 +147,19 @@ const Navbar = () => {
             ) : (
               // --- Logged-OUT User View ---
               <>
-                <Link to="/cart" className="relative p-0.5">
+                <Link to="/cart" className="relative p-1">
                   <ShoppingCart className={`h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)] ${darkMode ? 'text-white' : 'text-gray-600'}`} />
                   {itemCount > 0 && <div className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[clamp(0.7rem,2vw,1rem)] w-[clamp(1.3rem,2.5vw,1.7rem)] h-[clamp(1.3rem,2.5vw,1.7rem)] rounded-full flex items-center justify-center">{itemCount}</div>}
                 </Link>
 
                 <div className="flex items-center">
-                  <button onClick={toggleDarkMode} className="p-1 rounded-full">
+                  <button onClick={toggleDarkMode} className=" rounded-full ml-1">
                     {darkMode ? 
                       <Sun className="h-[clamp(1.2rem,3vw,1.8rem)] w-[clamp(1.2rem,3vw,1.8rem)] text-yellow-400" /> : 
                       <Moon className="h-[clamp(1.2rem,3vw,1.8rem)] w-[clamp(1.2rem,3vw,1.8rem)] text-gray-500" />
                     }
                   </button>
-                  <Link to="/login" className={`ml-2 px-3 py-1.5 rounded-md text-[clamp(1rem,2vw,1.2rem)] font-medium ${darkMode ? 'text-white hover:text-gray-300' : 'text-gray-600 hover:text-blue-600'}`}>
+                  <Link to="/login" className={` px-3 py-1.5 rounded-md text-[clamp(1rem,2vw,1.2rem)] font-medium ${darkMode ? 'text-white hover:text-gray-300' : 'text-gray-600 hover:text-blue-600'}`}>
                     Login
                   </Link>
                 </div>
