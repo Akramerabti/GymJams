@@ -108,8 +108,32 @@ const ShopSection = ({ onNavigate, isActive }) => {
   const prevAccessories = () => {
     setAccessoriesIndex(prev => (prev - 1 + accessoriesProducts.length) % accessoriesProducts.length);
   };
-  const ProductCarousel = ({ products, currentIndex, onNext, onPrev, loading, type, onProductClick }) => {    return (
-      <div className="relative h-full">
+  // --- Clamp and Responsive Carousel Card Sizing ---
+  const carouselCardStyle = {
+    aspectRatio: '1 / 1',
+    width: 'clamp(140px, 28vw, 220px)',
+    height: 'clamp(140px, 28vw, 220px)',
+    maxWidth: '100%',
+    maxHeight: '100%',
+    minWidth: '120px',
+    minHeight: '120px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center'
+  };
+
+  const ProductCarousel = ({
+    products,
+    currentIndex,
+    onNext,
+    onPrev,
+    loading,
+    type,
+    onProductClick
+  }) => {
+    return (
+      <div className="relative h-full flex items-center justify-center">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
@@ -119,10 +143,12 @@ const ShopSection = ({ onNavigate, isActive }) => {
         ) : products.length > 0 ? (
           <>
             {/* Product Display */}
-            <div 
-              className="flex h-full transition-transform duration-300 ease-in-out"
-              style={{ 
-                transform: `translateX(-${currentIndex * 100}%)`
+            <div
+              className="flex h-full items-center justify-center transition-transform duration-300 ease-in-out"
+              style={{
+                transform: `translateX(-${currentIndex * 100}%)`,
+                minHeight: '0',
+                minWidth: '0'
               }}
             >
               {products.map((product, index) => {
@@ -138,49 +164,66 @@ const ShopSection = ({ onNavigate, isActive }) => {
                 }
 
                 return (
-                  <div key={product._id} className="w-full flex-shrink-0 flex flex-col items-center justify-center h-full px-4">
-                    <div className="text-center">
-                      <img 
+                  <div
+                    key={product._id}
+                    className="flex-shrink-0 flex flex-col items-center justify-center px-2"
+                    style={carouselCardStyle}
+                  >
+                    <div
+                      className="relative group bg-gradient-to-br from-blue-50 via-white to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-blue-900 rounded-xl shadow-lg border border-blue-200 dark:border-blue-900/40 hover:shadow-2xl hover:scale-105 transition-all duration-300 cursor-pointer"
+                      style={{
+                        ...carouselCardStyle,
+                        padding: 'clamp(0.5rem,2vw,1.2rem)'
+                      }}
+                      onClick={() => onProductClick(product._id)}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`View ${product.name}`}
+                    >
+                      <img
                         src={imageUrl}
                         alt={product.name}
-                        className="w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 mx-auto mb-4 rounded-lg object-cover shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer"
-                        onError={(e) => {
+                        className="w-full h-full object-cover rounded-lg mb-2 transition-all duration-300"
+                        style={{
+                          aspectRatio: '1 / 1',
+                          width: '100%',
+                          height: '100%',
+                          minWidth: '80px',
+                          minHeight: '80px',
+                          maxWidth: '100%',
+                          maxHeight: '100%',
+                          objectFit: 'cover'
+                        }}
+                        onError={e => {
                           e.target.src = '/Picture2.png';
                         }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onProductClick(product._id);
-                        }}
                       />
-                      <h4 
-                        className={`font-bold text-sm sm:text-base lg:text-lg mb-2 cursor-pointer ${
-                          darkMode ? 'text-white' : 'text-gray-900'
-                        }`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onProductClick(product._id);
-                        }}
-                      >
-                        {product.name}
-                      </h4>
-                      <p 
-                        className={`text-lg sm:text-xl font-semibold mb-3 cursor-pointer ${
-                          type === 'clothes' 
-                            ? (darkMode ? 'text-blue-400' : 'text-blue-600')
-                            : (darkMode ? 'text-green-400' : 'text-green-600')
-                        }`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onProductClick(product._id);
-                        }}
-                      >
-                        ${product.price?.toFixed(2) || '0.00'}
-                      </p>
-                      <div className="flex items-center justify-center gap-1 mb-4">
-                        {[1,2,3,4,5].map((star) => (
-                          <Star key={star} className={`w-3 h-3 fill-yellow-400 text-yellow-400`} />
-                        ))}
+                      <div className="absolute top-2 right-2 bg-white/80 dark:bg-gray-900/80 rounded-full px-2 py-0.5 text-xs font-bold text-blue-600 dark:text-blue-200 shadow">
+                        {type === 'clothes' ? <Shirt className="inline w-3 h-3 mr-1" /> : <Watch className="inline w-3 h-3 mr-1" />}
+                        {type === 'clothes' ? 'Clothes' : 'Accessory'}
                       </div>
+                    </div>
+                    <h4
+                      className={`font-bold text-xs sm:text-sm lg:text-base mt-2 mb-1 text-center truncate max-w-[90%] ${
+                        darkMode ? 'text-white' : 'text-gray-900'
+                      }`}
+                      title={product.name}
+                    >
+                      {product.name}
+                    </h4>
+                    <p
+                      className={`text-base sm:text-lg font-semibold mb-1 ${
+                        type === 'clothes'
+                          ? (darkMode ? 'text-blue-400' : 'text-blue-600')
+                          : (darkMode ? 'text-green-400' : 'text-green-600')
+                      }`}
+                    >
+                      ${product.price?.toFixed(2) || '0.00'}
+                    </p>
+                    <div className="flex items-center justify-center gap-0.5 mb-1">
+                      {[1, 2, 3, 4, 5].map(star => (
+                        <Star key={star} className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                      ))}
                     </div>
                   </div>
                 );
@@ -191,39 +234,42 @@ const ShopSection = ({ onNavigate, isActive }) => {
             {products.length > 1 && (
               <>
                 <button
-                  onClick={(e) => { e.stopPropagation(); onPrev(); }}
+                  onClick={e => { e.stopPropagation(); onPrev(); }}
                   className={`absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full ${
                     darkMode ? 'bg-gray-700/90 hover:bg-gray-600 text-white' : 'bg-white/90 hover:bg-gray-100 text-gray-900'
-                  } shadow-lg transition-all duration-200 hover:scale-110 opacity-0 group-hover:opacity-100 z-10`}
+                  } shadow-lg transition-all duration-200 hover:scale-110 z-10`}
+                  aria-label="Previous product"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                
                 <button
-                  onClick={(e) => { e.stopPropagation(); onNext(); }}
+                  onClick={e => { e.stopPropagation(); onNext(); }}
                   className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full ${
                     darkMode ? 'bg-gray-700/90 hover:bg-gray-600 text-white' : 'bg-white/90 hover:bg-gray-100 text-gray-900'
-                  } shadow-lg transition-all duration-200 hover:scale-110 opacity-0 group-hover:opacity-100 z-10`}
+                  } shadow-lg transition-all duration-200 hover:scale-110 z-10`}
+                  aria-label="Next product"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
-
                 {/* Dots Indicator */}
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
                   {products.map((_, index) => (
                     <button
                       key={index}
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
+                      onClick={e => {
+                        e.stopPropagation();
                         type === 'clothes' ? setClothesIndex(index) : setAccessoriesIndex(index);
                       }}
-                      className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                      className={`w-2.5 h-2.5 rounded-full transition-all duration-200 border ${
                         index === currentIndex
-                          ? (type === 'clothes' 
-                              ? 'bg-blue-500 scale-125' 
-                              : 'bg-green-500 scale-125')
-                          : (darkMode ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-300 hover:bg-gray-400')
+                          ? (type === 'clothes'
+                              ? 'bg-blue-500 border-blue-500 scale-125 shadow'
+                              : 'bg-green-500 border-green-500 scale-125 shadow')
+                          : (darkMode
+                              ? 'bg-gray-600 border-gray-500 hover:bg-gray-500'
+                              : 'bg-gray-300 border-gray-300 hover:bg-gray-400')
                       }`}
+                      aria-label={`Go to product ${index + 1}`}
                     />
                   ))}
                 </div>
@@ -243,23 +289,23 @@ const ShopSection = ({ onNavigate, isActive }) => {
 
   return (
     <div className={`absolute inset-0 transition-colors duration-500 ${
-      darkMode 
-        ? 'bg-gradient-to-b from-gray-900 via-gray-900/95 to-gray-900/90' 
+      darkMode
+        ? 'bg-gradient-to-b from-gray-900 via-gray-900/95 to-gray-900/90'
         : 'bg-gradient-to-b from-white via-white/95 to-white/90'
     }`}>
-      <div 
+      <div
         className={`w-full h-full transition-all duration-700 ${
-          isActive 
-            ? 'opacity-100 translate-y-0' 
+          isActive
+            ? 'opacity-100 translate-y-0'
             : 'opacity-0 translate-y-8'
         }`}
       >
-        {/* Layout: Video top 1/3, Two components bottom 2/3 */}
+        {/* Layout: Video top 1/4, Two components bottom 3/4 */}
         <div className="h-full flex flex-col pointer-events-none">
-            {/* Video Section - 1/4 height on mobile, 1/3 height on larger screens */}
-          <div className={`h-1/4 lg:h-1/3 relative z-20 ${
-            isActive 
-              ? 'animate-floatOnce' 
+          {/* Video Section */}
+          <div className={`h-[clamp(100px,20vh,160px)] relative z-20 ${
+            isActive
+              ? 'animate-floatOnce'
               : 'opacity-0 translate-y-8'
           }`}>
             <div className="w-full h-full relative overflow-hidden">
@@ -271,38 +317,36 @@ const ShopSection = ({ onNavigate, isActive }) => {
               >
                 <source src="/GymTonic.mp4" type="video/mp4" />
               </video>
-                {/* Overlay */}
+              {/* Overlay */}
               <div className="absolute inset-0 bg-black bg-opacity-60"></div>
-                {/* Video Content */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center pt-14 lg:justify-end lg:pb-14 text-center px-4">
+              {/* Video Content */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center pt-10 lg:justify-end lg:pb-10 text-center px-4">
                 <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold mb-3 transition-all duration-1000 delay-300 ${
-                  isActive 
-                    ? 'opacity-100 translate-y-0' 
+                  isActive
+                    ? 'opacity-100 translate-y-0'
                     : 'opacity-0 translate-y-4'
                 } ${
-                  darkMode 
-                    ? 'bg-blue-500/20 text-blue-200' 
+                  darkMode
+                    ? 'bg-blue-500/20 text-blue-200'
                     : 'bg-blue-500/20 text-blue-800'
                 }`}>
                   <ShoppingBag className="w-4 h-4" />
                   Premium Equipment Store
                 </div>
-                
                 <h2 className={`text-2xl md:text-4xl lg:text-5xl font-bold mb-3 transition-all duration-1000 delay-500 ${
-                  isActive 
-                    ? 'opacity-100 translate-y-0' 
+                  isActive
+                    ? 'opacity-100 translate-y-0'
                     : 'opacity-0 translate-y-4'
                 } ${
-                  darkMode 
-                    ? 'text-white bg-gradient-to-r from-blue-200 to-white bg-clip-text text-transparent' 
+                  darkMode
+                    ? 'text-white bg-gradient-to-r from-blue-200 to-white bg-clip-text text-transparent'
                     : 'text-gray-900 bg-gradient-to-r from-blue-600 to-gray-900 bg-clip-text text-transparent'
                 }`}>
                   Premium Equipment Shop
                 </h2>
-                
                 <p className={`text-sm md:text-lg max-w-2xl mx-auto leading-relaxed transition-all duration-1000 delay-700 ${
-                  isActive 
-                    ? 'opacity-100 translate-y-0' 
+                  isActive
+                    ? 'opacity-100 translate-y-0'
                     : 'opacity-0 translate-y-4'
                 } ${
                   darkMode ? 'text-white/90' : 'text-gray-700'
@@ -311,25 +355,41 @@ const ShopSection = ({ onNavigate, isActive }) => {
                 </p>
               </div>
             </div>
-          </div>          {/* Two Components Section - 3/4 height on mobile, 2/3 height on larger screens */}
-          <div className="h-3/4 lg:h-2/3 flex flex-col md:flex-row relative z-10 pointer-events-none">{/* Left Component - Clothes */}
-            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6">
-              <div className={`h-full rounded-2xl group relative overflow-hidden transition-all duration-800 ${
-                darkMode 
-                  ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-blue-900/20' 
+          </div>
+          {/* Two Components Section - Clothes & Accessories */}
+          <div
+            className="flex-1 flex flex-col md:flex-row relative z-10 pointer-events-none"
+            style={{
+              minHeight: '0',
+              maxHeight: '100%',
+              height: '100%',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Left Component - Clothes */}
+            <div className="w-full md:w-1/2 h-1/2 md:h-full p-2 sm:p-4 lg:p-6 flex items-center justify-center">
+              <div className={`h-full w-full rounded-2xl group relative overflow-hidden transition-all duration-800 ${
+                darkMode
+                  ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-blue-900/20'
                   : 'bg-gradient-to-br from-gray-50 via-gray-100 to-blue-50'
               } shadow-xl border hover:shadow-2xl hover:scale-[1.02] ${
                 darkMode ? 'border-gray-700 hover:border-blue-500/50' : 'border-gray-200 hover:border-blue-300'
               } ${
-                isActive 
-                  ? 'animate-slideDownFromVideo' 
+                isActive
+                  ? 'animate-slideDownFromVideo'
                   : 'opacity-0 invisible'
               }`}
-              style={{ 
+              style={{
                 animationDelay: isActive ? '0.3s' : '0s',
-                animationFillMode: 'both'
+                animationFillMode: 'both',
+                minHeight: 'clamp(220px,32vh,400px)',
+                maxHeight: '100%',
+                minWidth: 0,
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
               }}>
-                
                 {/* Header */}
                 <div className="absolute top-4 left-4 right-4 z-10">
                   <div className="flex items-center justify-between">
@@ -339,12 +399,11 @@ const ShopSection = ({ onNavigate, isActive }) => {
                       <Shirt className="w-3 h-3" />
                       Gym Clothes
                     </div>
-
                     <button
                       onClick={() => onNavigate('/shop?category=clothes')}
                       className={`p-2 rounded-full transition-all duration-300 hover:scale-110 ${
-                        darkMode 
-                          ? 'bg-blue-600 hover:bg-blue-500 text-white' 
+                        darkMode
+                          ? 'bg-blue-600 hover:bg-blue-500 text-white'
                           : 'bg-blue-500 hover:bg-blue-600 text-white'
                       }`}
                     >
@@ -352,9 +411,8 @@ const ShopSection = ({ onNavigate, isActive }) => {
                     </button>
                   </div>
                 </div>
-
                 {/* Product Carousel */}
-                <div className="h-full pt-16 pb-4">
+                <div className="flex-1 flex items-center justify-center pt-16 pb-4">
                   <ProductCarousel
                     products={clothesProducts}
                     currentIndex={clothesIndex}
@@ -365,7 +423,6 @@ const ShopSection = ({ onNavigate, isActive }) => {
                     onProductClick={handleProductClick}
                   />
                 </div>
-
                 {/* Features Footer */}
                 <div className="absolute bottom-4 left-4 right-4">
                   <div className="flex justify-center gap-4 text-xs">
@@ -380,24 +437,31 @@ const ShopSection = ({ onNavigate, isActive }) => {
                   </div>
                 </div>
               </div>
-            </div>            {/* Right Component - Accessories */}
-            <div className="w-full md:w-1/2 h-1/2 md:h-full p-3 sm:p-4 lg:p-6 mb-14 md:mb-0">
-              <div className={`h-full rounded-2xl group relative overflow-hidden transition-all duration-800 ${
-                darkMode 
-                  ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-green-900/20' 
+            </div>
+            {/* Right Component - Accessories */}
+            <div className="w-full md:w-1/2 h-1/2 md:h-full p-2 sm:p-4 lg:p-6 flex items-center justify-center mb-14 md:mb-0">
+              <div className={`h-full w-full rounded-2xl group relative overflow-hidden transition-all duration-800 ${
+                darkMode
+                  ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-green-900/20'
                   : 'bg-gradient-to-br from-gray-50 via-gray-100 to-green-50'
               } shadow-xl border hover:shadow-2xl hover:scale-[1.02] ${
                 darkMode ? 'border-gray-700 hover:border-green-500/50' : 'border-gray-200 hover:border-green-300'
               } ${
-                isActive 
-                  ? 'animate-slideDownFromVideo' 
+                isActive
+                  ? 'animate-slideDownFromVideo'
                   : 'opacity-0 invisible'
               }`}
-              style={{ 
+              style={{
                 animationDelay: isActive ? '0.6s' : '0s',
-                animationFillMode: 'both'
+                animationFillMode: 'both',
+                minHeight: 'clamp(220px,32vh,400px)',
+                maxHeight: '100%',
+                minWidth: 0,
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
               }}>
-                
                 {/* Header */}
                 <div className="absolute top-4 left-4 right-4 z-10">
                   <div className="flex items-center justify-between">
@@ -407,12 +471,11 @@ const ShopSection = ({ onNavigate, isActive }) => {
                       <Watch className="w-3 h-3" />
                       Accessories
                     </div>
-
                     <button
                       onClick={() => onNavigate('/shop?category=accessories')}
                       className={`p-2 rounded-full transition-all duration-300 hover:scale-110 ${
-                        darkMode 
-                          ? 'bg-green-600 hover:bg-green-500 text-white' 
+                        darkMode
+                          ? 'bg-green-600 hover:bg-green-500 text-white'
                           : 'bg-green-500 hover:bg-green-600 text-white'
                       }`}
                     >
@@ -420,9 +483,8 @@ const ShopSection = ({ onNavigate, isActive }) => {
                     </button>
                   </div>
                 </div>
-
                 {/* Product Carousel */}
-                <div className="h-full pt-16 pb-4">
+                <div className="flex-1 flex items-center justify-center pt-16 pb-4">
                   <ProductCarousel
                     products={accessoriesProducts}
                     currentIndex={accessoriesIndex}
@@ -433,7 +495,6 @@ const ShopSection = ({ onNavigate, isActive }) => {
                     onProductClick={handleProductClick}
                   />
                 </div>
-
                 {/* Features Footer */}
                 <div className="absolute bottom-4 left-4 right-4">
                   <div className="flex justify-center gap-4 text-xs">
@@ -449,7 +510,7 @@ const ShopSection = ({ onNavigate, isActive }) => {
                 </div>
               </div>
             </div>
-
+            {/* End Two Components */}
           </div>
         </div>
       </div>
