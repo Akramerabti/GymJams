@@ -451,7 +451,9 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                       <div className={`absolute inset-0 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-indigo-500/10' : 'bg-gradient-to-br from-blue-400/15 via-purple-400/10 to-indigo-400/15'} opacity-60 group-hover:opacity-80 transition-all duration-500`}></div>
                       {gymBrosData.recentMatches && gymBrosData.recentMatches.length > 0 ? (
                         <div className="flex-1 flex flex-col h-full relative z-10">
-                            {/* Card Carousel */}                          <div className="relative overflow-visible z-50 flex-1 h-full">                              <div
+                          {/* Card Carousel */}
+                          <div className="relative overflow-visible z-50 flex-1 h-full">
+                            <div
                               ref={setGymBrosCarouselRef}
                               className="overflow-x-auto overflow-y-visible flex flex-row gap-2 snap-x snap-mandatory scrollbar-hide relative z-50 h-full items-stretch touch-pan-x transition-all duration-300"
                               style={{
@@ -460,52 +462,95 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                                 WebkitOverflowScrolling: 'touch',
                                 scrollBehavior: 'smooth',
                                 scrollSnapType: 'x mandatory'
-                              }}>                              {gymBrosData.recentMatches.map((match, index) => (                                <div
+                              }}
+                            >
+                              {gymBrosData.recentMatches.map((match, index) => (
+                                <div
                                   key={match._id || index}
-                                  className="flex-shrink-0 snap-start cursor-pointer group relative z-50 h-full"
+                                  className="flex-shrink-0 snap-start cursor-pointer group relative z-50 h-full flex items-center"
                                   onClick={() => window.location.href = '/gymbros'}
                                   style={{
-                                    width: "56px",
-                                    minWidth: "56px"
+                                    height: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    // The width is determined by the height and aspect ratio
+                                    aspectRatio: '7 / 10',
+                                    minHeight: '80px',
+                                    minWidth: '56px',
+                                    maxHeight: '100%',
+                                    maxWidth: 'calc(100% * 0.7)', // never wider than 70% of container
                                   }}
-                                ><div
-                                    className="relative w-full h-full overflow-visible rounded-lg transition-all duration-300 group-hover:shadow-lg group-hover:shadow-blue-500/30 group-hover:brightness-125 group-hover:z-[9999] group-hover:scale-105"
+                                >
+                                  <div
+                                    className="relative overflow-visible rounded-lg transition-all duration-300 group-hover:shadow-lg group-hover:shadow-blue-500/30 group-hover:brightness-125 group-hover:z-[9999] group-hover:scale-105"
                                     style={{
-                                      width: "56px",
-                                      height: "80px",
-                                      aspectRatio: "7/10"
+                                      width: '100%',
+                                      height: '100%',
+                                      aspectRatio: '7 / 10',
+                                      minWidth: '56px',
+                                      minHeight: '80px',
+                                      maxHeight: '100%',
+                                      maxWidth: '100%',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      justifyContent: 'flex-end'
                                     }}
                                   >
-                                    <img
-                                      src={formatImageUrl(match.profileImage, getFallbackAvatarUrl())}
-                                      alt={match.name || 'Match'}
-                                      className="w-full h-full object-cover transition-transform duration-300 rounded-lg"
-                                      crossOrigin="anonymous"
-                                      onError={(e) => {
-                                        console.error('❌ Image load error for match:', match.name, e.target.src);
-                                        e.target.onerror = null;
-                                        e.target.src = getFallbackAvatarUrl();
-
-                                        if (e.target.src.includes('supabase.co')) {
-                                          //('🧹 Broken Supabase URL for match:', match.name);
-                                        }
+                                    <div
+                                      style={{
+                                        position: 'relative',
+                                        width: '100%',
+                                        height: '100%',
+                                        aspectRatio: '7 / 10',
+                                        minWidth: '56px',
+                                        minHeight: '80px',
+                                        maxHeight: '100%',
+                                        maxWidth: '100%',
+                                        display: 'flex',
+                                        flexDirection: 'column'
                                       }}
-                                    />
+                                    >
+                                      <img
+                                        src={formatImageUrl(match.profileImage, getFallbackAvatarUrl())}
+                                        alt={match.name || 'Match'}
+                                        className="w-full h-full object-cover transition-transform duration-300 rounded-lg"
+                                        crossOrigin="anonymous"
+                                        style={{
+                                          aspectRatio: '7 / 10',
+                                          width: '100%',
+                                          height: '100%',
+                                          minWidth: '56px',
+                                          minHeight: '80px',
+                                          maxHeight: '100%',
+                                          maxWidth: '100%',
+                                          objectFit: 'cover',
+                                          display: 'block'
+                                        }}
+                                        onError={(e) => {
+                                          console.error('❌ Image load error for match:', match.name, e.target.src);
+                                          e.target.onerror = null;
+                                          e.target.src = getFallbackAvatarUrl();
+                                        }}
+                                      />
 
-                                    {/* Online status indicator */}
-                                    <div className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
-                                      darkMode ? 'bg-green-500' : 'bg-green-500'
-                                    } shadow-lg pulse border border-white`}></div>
+                                      {/* Online status indicator */}
+                                      <div className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
+                                        darkMode ? 'bg-green-500' : 'bg-green-500'
+                                      } shadow-lg pulse border border-white`}></div>
 
-                                    {/* Name overlay at bottom */}
-                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1 transition-all duration-300 group-hover:p-2 rounded-b-lg">
-                                      <p className={`text-xs font-semibold text-white truncate transform transition-all duration-300 origin-bottom-left group-hover:scale-110 group-hover:text-blue-200`}>
-                                        {(match.name || 'Unknown').split(' ')[0]}
-                                      </p>
-                                    </div>                                  </div>
+                                      {/* Name overlay at bottom */}
+                                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1 transition-all duration-300 group-hover:p-2 rounded-b-lg">
+                                        <p className={`text-xs font-semibold text-white truncate transform transition-all duration-300 origin-bottom-left group-hover:scale-110 group-hover:text-blue-200`}>
+                                          {(match.name || 'Unknown').split(' ')[0]}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
                               ))}
-                            </div>                            {/* Carousel Navigation Controls - Only show if more than 2 matches */}
+                            </div>
+                            {/* Carousel Navigation Controls - Only show if more than 2 matches */}
                             {gymBrosData.recentMatches.length > 2 && (
                               <div className="flex justify-center gap-2 mt-1">
                                 <button
