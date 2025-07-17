@@ -174,11 +174,13 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
           muted
           loop
           playsInline
+          controls={false}
           className="absolute inset-0 w-full h-full object-cover opacity-10"
           style={{ display: backgroundVideoLoaded ? 'block' : 'none' }}
-          onLoadedData={() => {
+          onLoadedData={e => {
             setBackgroundVideoLoaded(true);
             setBackgroundVideoError(false);
+            try { e.target.currentTime = 0; e.target.play(); } catch {}
           }}
           onError={() => {
             setBackgroundVideoError(true);
@@ -232,6 +234,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   muted
                   loop
                   playsInline
+                  controls={false}
                   className="absolute inset-0 w-full h-full object-cover"
                   style={{ display: mainVideoLoaded ? 'block' : 'none' }}
                   onLoadedData={() => {
@@ -289,14 +292,14 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
     <div className="flex justify-center items-center gap-5 sm:gap-6 md:gap-8 lg:gap-6 flex-wrap max-w-lg mx-auto">
       <button
         onClick={() => navigateToSection(1)}
-        className={`relative rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
+        className={`relative rounded-full transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
           hasAnimationStarted
             ? 'animate-slideDownFromVideo'
             : 'opacity-0 invisible pointer-events-none'
         } ${
           darkMode
-            ? 'bg-gray-800 hover:bg-gray-700 text-white border border-white/30'
-            : 'bg-white hover:bg-gray-50 text-gray-900 border border-black/30'
+            ? 'bg-gray-800 text-white border border-white/30'
+            : 'bg-white text-gray-900 border border-black/30'
         }`}
         style={{
           width: 'clamp(3rem, 10vw, 4rem)',
@@ -308,18 +311,18 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         <ShoppingBag style={{ width: 'clamp(1rem, 4vw, 1.5rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
         <span className={`absolute -bottom-6 text-xs font-medium transition-all duration-500 ${
           darkMode ? 'text-white' : 'text-gray-900'
-        } group-hover:scale-110`}>Shop</span>
+        }`}>Shop</span>
       </button>
       <button
         onClick={() => navigateToSection(2)}
-        className={`relative rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
+        className={`relative rounded-full transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
           hasAnimationStarted
             ? 'animate-slideDownFromVideo'
             : 'opacity-0 invisible pointer-events-none'
         } ${
           darkMode
-            ? 'bg-gray-800 hover:bg-gray-700 text-white border border-white/30'
-            : 'bg-white hover:bg-gray-50 text-gray-900 border border-black/30'
+            ? 'bg-gray-800 text-white border border-white/30'
+            : 'bg-white text-gray-900 border border-black/30'
         }`}
         style={{
           width: 'clamp(3rem, 10vw, 4rem)',
@@ -331,18 +334,18 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         <Trophy style={{ width: 'clamp(1rem, 4vw, 1.5rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
         <span className={`absolute -bottom-6 text-xs font-medium transition-all duration-500 ${
           darkMode ? 'text-white' : 'text-gray-900'
-        } group-hover:scale-110`}>Coaching</span>
+        }`}>Coaching</span>
       </button>
       <button
         onClick={() => navigateToSection(3)}
-        className={`relative rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
+        className={`relative rounded-full transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
           hasAnimationStarted
             ? 'animate-slideDownFromVideo'
             : 'opacity-0 invisible pointer-events-none'
         } ${
           darkMode
-            ? 'bg-gray-800 hover:bg-gray-700 text-white border border-white/30'
-            : 'bg-white hover:bg-gray-50 text-gray-900 border border-black/30'
+            ? 'bg-gray-800 text-white border border-white/30'
+            : 'bg-white text-gray-900 border border-black/30'
         }`}
         style={{
           width: 'clamp(3rem, 10vw, 4rem)',
@@ -354,18 +357,18 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         <Users style={{ width: 'clamp(1rem, 4vw, 1.5rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
         <span className={`absolute -bottom-6 text-xs font-medium transition-all duration-500 ${
           darkMode ? 'text-white' : 'text-gray-900'
-        } group-hover:scale-110`}>Gains</span>
+        }`}>Gains</span>
       </button>
       <button
         onClick={() => navigateToSection(4)}
-        className={`relative rounded-full hover:scale-110 transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
+        className={`relative rounded-full transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
           hasAnimationStarted
             ? 'animate-slideDownFromVideo'
             : 'opacity-0 invisible pointer-events-none'
         } ${
           darkMode
-            ? 'bg-gray-800 hover:bg-gray-700 text-white border border-white/30'
-            : 'bg-white hover:bg-gray-50 text-gray-900 border border-black/30'
+            ? 'bg-gray-800 text-white border border-white/30'
+            : 'bg-white text-gray-900 border border-black/30'
         }`}
         style={{
           width: 'clamp(3rem, 10vw, 4rem)',
@@ -377,7 +380,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         <Gamepad2 style={{ width: 'clamp(1rem, 4vw, 1.5rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
         <span className={`absolute -bottom-6 text-xs font-medium transition-all duration-500 ${
           darkMode ? 'text-white' : 'text-gray-900'
-        } group-hover:scale-110`}>Games</span>
+        }`}>Games</span>
       </button>
     </div>
  </div>

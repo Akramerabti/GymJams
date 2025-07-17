@@ -276,7 +276,7 @@ const Home = () => {
         .section-transition { transition: all 1.0s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
         .section-visible { animation: revealSection 1.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
         .section-hidden { opacity: 0; transform: translateY(100px) scale(0.9); filter: blur(15px) brightness(0.3); }
-        .section-active { transform: scale(1.02); z-index: 10; filter: brightness(1.1) contrast(1.05); }
+        .section-active { z-index: 10; filter: brightness(1.1) contrast(1.05); }
         .parallax-bg { transition: transform 0.3s ease-out, opacity 0.6s ease-out, filter 0.6s ease-out; }
       `}</style>
 

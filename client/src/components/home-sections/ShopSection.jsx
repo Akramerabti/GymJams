@@ -371,8 +371,12 @@ const ShopSection = ({ onNavigate, isActive }) => {
                 darkMode
                   ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-blue-900/20'
                   : 'bg-gradient-to-br from-gray-50 via-gray-100 to-blue-50'
-              } shadow-xl border hover:shadow-2xl hover:scale-[1.02] ${
-                darkMode ? 'border-gray-700 hover:border-blue-500/50' : 'border-gray-200 hover:border-blue-300'
+              } shadow-xl border ${
+                isActive
+                  ? (darkMode ? 'hover:shadow-2xl hover:scale-[1.02] hover:border-blue-500/50' : 'hover:shadow-2xl hover:scale-[1.02] hover:border-blue-300')
+                  : ''
+              } ${
+                darkMode ? 'border-gray-700' : 'border-gray-200'
               } ${
                 isActive
                   ? 'animate-slideDownFromVideo'
@@ -443,8 +447,12 @@ const ShopSection = ({ onNavigate, isActive }) => {
                 darkMode
                   ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-green-900/20'
                   : 'bg-gradient-to-br from-gray-50 via-gray-100 to-green-50'
-              } shadow-xl border hover:shadow-2xl hover:scale-[1.02] ${
-                darkMode ? 'border-gray-700 hover:border-green-500/50' : 'border-gray-200 hover:border-green-300'
+              } shadow-xl border ${
+                isActive
+                  ? (darkMode ? 'hover:shadow-2xl hover:scale-[1.02] hover:border-green-500/50' : 'hover:shadow-2xl hover:scale-[1.02] hover:border-green-300')
+                  : ''
+              } ${
+                darkMode ? 'border-gray-700' : 'border-gray-200'
               } ${
                 isActive
                   ? 'animate-slideDownFromVideo'
