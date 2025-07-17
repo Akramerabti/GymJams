@@ -16,352 +16,24 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Drawer, DrawerClose, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { format } from 'date-fns';
 
-const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing = false }) => {
-  const isMobile = useMediaQuery({ maxWidth: 768 });
-  const [product, setProduct] = useState({
-    name: '',
-    description: '',
-    price: '',
-    category: '',
-    stockQuantity: '',
-    images: [], // Array of File objects for new uploads
-    imagePreviews: [], // Array of image URLs for preview
-    featured: false,
-    specs: {
-      weight: '',
-      dimensions: '',
-      material: '',
-      warranty: '',
-    },
-    discount: {
-      percentage: '',
-      startDate: '',
-      endDate: '',
-    },
-  });
-
-  const [showDetailedPreview, setShowDetailedPreview] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [touched, setTouched] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [existingImageCount, setExistingImageCount] = useState(0);
-
-  // Initialize form with data if editing
-  useEffect(() => {
-    if (initialData && isEditing) {
-      //("Initializing form with data:", initialData);
-      
-      // Format dates for input fields
-      let formattedDiscount = { 
-        percentage: initialData.discount?.percentage || '',
-        startDate: initialData.discount?.startDate ? format(new Date(initialData.discount.startDate), 'yyyy-MM-dd') : '',
-        endDate: initialData.discount?.endDate ? format(new Date(initialData.discount.endDate), 'yyyy-MM-dd') : ''
-      };
-
-      // Handle image URLs - can be in either imageUrls or images field
-      const existingImages = Array.isArray(initialData.imageUrls) 
-        ? initialData.imageUrls 
-        : (Array.isArray(initialData.images) ? initialData.images : []);
-      
-      setExistingImageCount(existingImages.length);
-      
-      // Create full URLs for images
-      const imagePreviews = existingImages.map(image => {
-        // If it's a full URL, use it directly
-        if (image.startsWith('http')) {
-          return image;
-        }
-        // Otherwise, prepend the API URL, ensuring correct path formatting
-        const apiUrl = import.meta.env.VITE_API_URL;
-        // If image starts with a slash and API URL ends with a slash, avoid double slash
-        if (image.startsWith('/') && apiUrl.endsWith('/')) {
-          return apiUrl + image.substring(1);
-        }
-        // If image doesn't start with slash and API URL doesn't end with slash, add one
-        if (!image.startsWith('/') && !apiUrl.endsWith('/')) {
-          return `${apiUrl}/${image}`;
-        }
-        // Otherwise just concatenate them
-        return `${apiUrl}${image}`;
-      });
-
-      //("Setting image previews:", imagePreviews);
-
-      // Set the product state with all the data
-      setProduct({
-        ...initialData,
-        price: initialData.price.toString(),
-        stockQuantity: initialData.stockQuantity.toString(),
-        discount: formattedDiscount,
-        imagePreviews,
-        images: [], // We don't need to re-upload images unless new ones are added
-        specs: {
-          weight: initialData.specs?.weight || '',
-          dimensions: initialData.specs?.dimensions || '',
-          material: initialData.specs?.material || '',
-          warranty: initialData.specs?.warranty || '',
-        }
-      });
-    }
-  }, [initialData, isEditing]);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setProduct({ ...product, [name]: value });
-    setTouched({ ...touched, [name]: true });
-    validateField(name, value);
-  };
-
-  const handleDiscountChange = (e) => {
-    const { name, value } = e.target;
-    setProduct({
-      ...product,
-      discount: {
-        ...product.discount,
-        [name]: value,
-      },
-    });
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: '' }));
-    }
-  };
-
-  const handleSpecsChange = (e) => {
-    const { name, value } = e.target;
-    setProduct({
-      ...product,
-      specs: {
-        ...product.specs,
-        [name]: value,
-      },
-    });
-  };
-
-  const handleFeaturedChange = (checked) => {
-    setProduct({ ...product, featured: checked });
-  };
-
-  const handleImageChange = (e) => {
-    const files = Array.from(e.target.files);
-    if (!files.length) return;
-    
-    //('Selected Files:', files);
-  
-    const totalImages = product.images.length + product.imagePreviews.length + files.length;
-  
-    // Only enforce the maximum limit during file selection
-    if (totalImages > 8) {
-      setErrors({ ...errors, images: 'Maximum 8 images allowed' });
-      toast.error('Maximum 8 images allowed');
-      return;
-    }
-  
-    // Create object URLs for preview
-    const newPreviews = files.map(file => URL.createObjectURL(file));
-  
-    setProduct(prev => ({
-      ...prev,
-      images: [...prev.images, ...files],
-      imagePreviews: [...prev.imagePreviews, ...newPreviews],
-    }));
-    
-    setTouched({ ...touched, images: true });
-    validateField('images', [...product.images, ...files]);
-  };
-
-  const removeImage = (index) => {
-    // Handle differently based on whether it's a new upload or existing image
-    if (index < existingImageCount) {
-      // This is an existing image, mark it for removal but keep track of it
-      const newImagePreviews = [...product.imagePreviews];
-      newImagePreviews.splice(index, 1);
-      
-      setExistingImageCount(prev => prev - 1);
-      setProduct(prev => ({
-        ...prev,
-        imagePreviews: newImagePreviews,
-      }));
-    } else {
-      // This is a newly uploaded image
-      const adjustedIndex = index - existingImageCount;
-      const newImages = [...product.images];
-      const newPreviews = [...product.imagePreviews];
-      
-      // Revoke the object URL to prevent memory leaks
-      URL.revokeObjectURL(newPreviews[index]);
-      
-      newImages.splice(adjustedIndex, 1);
-      newPreviews.splice(index, 1);
-      
-      setProduct(prev => ({
-        ...prev,
-        images: newImages,
-        imagePreviews: newPreviews,
-      }));
-    }
-    
-    validateField('images', product.images);
-  };
-
-  const handleCategoryChange = (value) => {
-    setProduct({ ...product, category: value });
-    if (errors.category) {
-      setErrors((prev) => ({ ...prev, category: '' }));
-    }
-  };
-
-  const validateField = (name, value) => {
-    const newErrors = { ...errors };
-
-    switch (name) {
-      case 'name':
-        if (!value) newErrors.name = 'Product name is required';
-        else delete newErrors.name;
-        break;
-      case 'description':
-        if (!value) newErrors.description = 'Description is required';
-        else delete newErrors.description;
-        break;
-      case 'price':
-        if (!value) newErrors.price = 'Price is required';
-        else if (isNaN(value) || value <= 0) newErrors.price = 'Price must be greater than 0';
-        else delete newErrors.price;
-        break;
-      case 'category':
-        if (!value) newErrors.category = 'Category is required';
-        else delete newErrors.category;
-        break;
-      case 'stockQuantity':
-        if (!value) newErrors.stockQuantity = 'Stock quantity is required';
-        else if (isNaN(value) || value < 0) newErrors.stockQuantity = 'Stock quantity must be 0 or greater';
-        else delete newErrors.stockQuantity;
-        break;
-      case 'images':
-        const totalImageCount = (Array.isArray(value) ? value.length : 0) + product.imagePreviews.length;
-        
-        // When editing, we don't require new images if there are already previews
-        if (isEditing && product.imagePreviews.length >= 2) {
-          delete newErrors.images;
-        } else if (totalImageCount < 2) {
-          newErrors.images = 'Minimum 2 images required';
-        } else if (totalImageCount > 8) {
-          newErrors.images = 'Maximum 8 images allowed';
-        } else {
-          delete newErrors.images;
-        }
-        break;
-      default:
-        break;
-    }
-
-    setErrors(newErrors);
-  };
-
-  const validateForm = () => {
-    const allFields = ['name', 'description', 'price', 'category', 'stockQuantity', 'images'];
-    allFields.forEach(field => {
-      validateField(field, product[field]);
-      setTouched({ ...touched, [field]: true });
-    });
-  
-    // Check if there are any errors
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-  
-    // Validate the form
-    if (!validateForm()) {
-      toast.error('Please correct all errors before submitting.');
-      setIsSubmitting(false);
-      return;
-    }
-  
-    // Check minimum image requirement
-    const totalImageCount = product.images.length + product.imagePreviews.length;
-    if (totalImageCount < 2) {
-      toast.error('Please upload at least 2 images.');
-      setIsSubmitting(false);
-      return;
-    }
-  
-    try {
-      // Create a FormData object
-      const formData = new FormData();
-  
-      // Append product fields
-      formData.append('name', product.name);
-      formData.append('description', product.description);
-      formData.append('price', product.price);
-      formData.append('category', product.category);
-      formData.append('stockQuantity', product.stockQuantity);
-      formData.append('featured', product.featured);
-      formData.append('specs', JSON.stringify(product.specs));
-      formData.append('discount', JSON.stringify(product.discount));
-  
-      // If editing, include the _id
-      if (isEditing && initialData?._id) {
-        formData.append('_id', initialData._id);
-        
-        // Handle existing images - they could be in imageUrls or images
-        const existingImagesArray = initialData.imageUrls || initialData.images || [];
-        
-        if (existingImagesArray && existingImagesArray.length > 0) {
-          // If we're editing and have removed some images, create a list of remaining images
-          if (product.imagePreviews.length < existingImageCount) {
-            // We need to map back from full URLs to relative paths
-            const apiUrl = import.meta.env.VITE_API_URL;
-            
-            // Extract original paths by comparing with initial images
-            const remainingImagePaths = [];
-            
-            // For each preview that's still shown
-            product.imagePreviews.slice(0, existingImageCount).forEach(previewUrl => {
-              // Find the matching original path
-              for (const originalPath of existingImagesArray) {
-                const fullUrl = originalPath.startsWith('http') 
-                  ? originalPath 
-                  : `${apiUrl}${originalPath.startsWith('/') ? '' : '/'}${originalPath}`;
-                
-                if (previewUrl === fullUrl) {
-                  remainingImagePaths.push(originalPath);
-                  break;
-                }
-              }
-            });
-            
-            formData.append('existingImages', JSON.stringify(remainingImagePaths));
-          } else {
-            // Keep all existing images
-            formData.append('existingImages', JSON.stringify(existingImagesArray));
-          }
-        }
-      }
-  
-      // Append images as binary files (only new images)
-      product.images.forEach((file) => {
-        formData.append('images', file);
-      });
-  
-      // Call the parent function to handle the API request
-      const response = await onAddProduct(formData);
-      
-      // Show success notification
-      toast.success(isEditing ? 'Product updated successfully!' : 'Product added successfully!');
-      
-      return response;
-    } catch (error) {
-      console.error('Error submitting form:', error);
-      toast.error(error.response?.data?.message || `Failed to ${isEditing ? 'update' : 'add'} product. Please try again.`);
-      throw error;
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const MobileForm = () => (
+  const MobileForm = ({
+  product,
+  errors,
+  touched,
+  categories,
+  isSubmitting,
+  isEditing,
+  handleChange,
+  handleDiscountChange,
+  handleSpecsChange,
+  handleFeaturedChange,
+  handlePreOrderChange,
+  handleImageChange,
+  removeImage,
+  handleCategoryChange,
+  handleSubmit,
+  setShowDetailedPreview
+}) => (
     <div className="space-y-6">
       <div className="space-y-3">
         <Label htmlFor="name">Product Name</Label>
@@ -372,8 +44,17 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
           onChange={handleChange}
           placeholder="Enter product name"
           className={errors.name && touched.name ? 'border-red-500' : ''}
+          error={errors.name && touched.name} // only for border color
         />
-        {errors.name && touched.name && <p className="text-xs text-red-500">{errors.name}</p>}
+        {/* Debug: show current value and touched */}
+        <div style={{ fontSize: '0.8em', color: '#999' }}>
+          <div>Debug: value = {product.name}</div>
+          <div>Debug: touched = {JSON.stringify(touched)}</div>
+          <div>Debug: errors = {JSON.stringify(errors)}</div>
+        </div>
+        {errors.name && touched.name && (
+          <p className="text-xs text-red-500">{errors.name}</p>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -449,6 +130,14 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
             id="featured"
             checked={product.featured}
             onCheckedChange={handleFeaturedChange}
+          />
+        </div>
+        <div className="flex items-center justify-between mt-2">
+          <Label htmlFor="preOrder">Pre-order Product</Label>
+          <Switch
+            id="preOrder"
+            checked={product.preOrder}
+            onCheckedChange={handlePreOrderChange}
           />
         </div>
       </div>
@@ -621,7 +310,24 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
     </div>
   );
 
-  const DesktopForm = () => (
+    const DesktopForm = ({
+  product,
+  errors,
+  touched,
+  categories,
+  isSubmitting,
+  isEditing,
+  handleChange,
+  handleDiscountChange,
+  handleSpecsChange,
+  handleFeaturedChange,
+  handlePreOrderChange,
+  handleImageChange,
+  removeImage,
+  handleCategoryChange,
+  handleSubmit,
+  setShowDetailedPreview
+}) => (
     <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
       {/* Form Column */}
       <div className="md:col-span-3 space-y-6">
@@ -720,6 +426,16 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
                 />
                 <span className="ml-2 text-sm text-gray-600">
                   {product.featured ? 'Product will be featured' : 'Not featured'}
+                </span>
+              </div>
+              <div className="flex items-center h-10 mt-2">
+                <Switch
+                  id="preOrder"
+                  checked={product.preOrder}
+                  onCheckedChange={handlePreOrderChange}
+                />
+                <span className="ml-2 text-sm text-gray-600">
+                  {product.preOrder ? 'Pre-order enabled' : 'Not a pre-order'}
                 </span>
               </div>
             </div>
@@ -942,7 +658,7 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
                             {product.name || 'Product Name'}
                           </h2>
                           
-                          <div className="flex items-center space-x-2 mb-4">
+                          <div className="flex items-center space-x-2 mb-2">
                             <span className="text-xl font-bold text-gray-900">
                               ${parseFloat(product.price || 0).toFixed(2)}
                             </span>
@@ -951,8 +667,18 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
                                 {product.discount.percentage}% OFF
                               </Badge>
                             )}
+                          </div>
+                          {/* Add Featured and Pre-order boxes below price */}
+                          <div className="flex gap-2 mb-4">
                             {product.featured && (
-                              <Badge className="bg-blue-500">Featured</Badge>
+                              <span className="inline-block bg-blue-100 px-3 py-1 rounded-full text-sm text-blue-600">
+                                Featured
+                              </span>
+                            )}
+                            {product.preOrder && (
+                              <span className="inline-block bg-yellow-100 px-3 py-1 rounded-full text-sm text-yellow-600">
+                                Pre-order
+                              </span>
                             )}
                           </div>
                           
@@ -1054,8 +780,13 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
                   </span>
                 )}
                 {product.featured && (
-                  <span className="inline-block bg-blue-100 px-2 py-1 rounded-full text-sm text-blue-600">
+                  <span className="inline-block bg-blue-100 ml-2 px-3 py-1 rounded-full text-sm text-blue-600">
                     Featured
+                  </span>
+                )}
+                {product.preOrder && (
+                  <span className="inline-block bg-yellow-100 px-3 py-1 ml-2 rounded-full text-sm text-yellow-600">
+                    Pre-order
                   </span>
                 )}
               </div>
@@ -1066,13 +797,302 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
     </div>
   );
 
+const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing = false }) => {
+  const isMobile = useMediaQuery({ maxWidth: 768 });
+  const [product, setProduct] = useState({
+    name: '', description: '', price: '', category: '', stockQuantity: '',
+    images: [], imagePreviews: [], featured: false, preOrder: false,
+    specs: { weight: '', dimensions: '', material: '', warranty: '' },
+    discount: { percentage: '', startDate: '', endDate: '' },
+  });
+
+  const [showDetailedPreview, setShowDetailedPreview] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [existingImageCount, setExistingImageCount] = useState(0);
+
+ 
+  useEffect(() => {
+    if (initialData && isEditing) {
+      let formattedDiscount = { 
+        percentage: initialData.discount?.percentage || '',
+        startDate: initialData.discount?.startDate ? format(new Date(initialData.discount.startDate), 'yyyy-MM-dd') : '',
+        endDate: initialData.discount?.endDate ? format(new Date(initialData.discount.endDate), 'yyyy-MM-dd') : ''
+      };
+
+      const existingImages = Array.isArray(initialData.imageUrls) ? initialData.imageUrls : (Array.isArray(initialData.images) ? initialData.images : []);
+      setExistingImageCount(existingImages.length);
+      
+      const imagePreviews = existingImages.map(image => {
+        if (image.startsWith('http')) return image;
+        const apiUrl = import.meta.env.VITE_API_URL;
+        return `${apiUrl.replace(/\/$/, '')}/${image.replace(/^\//, '')}`;
+      });
+
+      setProduct({
+        ...initialData,
+        price: initialData.price.toString(),
+        stockQuantity: initialData.stockQuantity.toString(),
+        discount: formattedDiscount,
+        imagePreviews,
+        images: [],
+        specs: {
+          weight: initialData.specs?.weight || '',
+          dimensions: initialData.specs?.dimensions || '',
+          material: initialData.specs?.material || '',
+          warranty: initialData.specs?.warranty || '',
+        }
+      });
+    }
+  }, [initialData, isEditing]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    
+    setProduct(prev => {
+      const updated = { ...prev, [name]: value };
+ 
+      return updated;
+    });
+    setTouched(prev => {
+      if (prev[name]) return prev; 
+      const updated = { ...prev, [name]: true };
+
+      return updated;
+    });
+    validateField(name, value);
+  };
+
+  const handleDiscountChange = (e) => {
+    const { name, value } = e.target;
+    setProduct({
+      ...product,
+      discount: {
+        ...product.discount,
+        [name]: value,
+      },
+    });
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const handleSpecsChange = (e) => {
+    const { name, value } = e.target;
+    setProduct({
+      ...product,
+      specs: {
+        ...product.specs,
+        [name]: value,
+      },
+    });
+  };
+
+  const handleFeaturedChange = (checked) => {
+    setProduct({ ...product, featured: checked });
+  };
+
+  const handlePreOrderChange = (checked) => {
+    setProduct({ ...product, preOrder: checked });
+  };
+
+  const handleImageChange = (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    
+    //('Selected Files:', files);
+  
+    const totalImages = product.images.length + product.imagePreviews.length + files.length;
+  
+    // Only enforce the maximum limit during file selection
+    if (totalImages > 8) {
+      setErrors({ ...errors, images: 'Maximum 8 images allowed' });
+      toast.error('Maximum 8 images allowed');
+      return;
+    }
+  
+    // Create object URLs for preview
+    const newPreviews = files.map(file => URL.createObjectURL(file));
+  
+    setProduct(prev => ({
+      ...prev,
+      images: [...prev.images, ...files],
+      imagePreviews: [...prev.imagePreviews, ...newPreviews],
+    }));
+    
+    setTouched({ ...touched, images: true });
+    validateField('images', [...product.images, ...files]);
+  };
+
+  const removeImage = (index) => {
+    // Handle differently based on whether it's a new upload or existing image
+    if (index < existingImageCount) {
+      // This is an existing image, mark it for removal but keep track of it
+      const newImagePreviews = [...product.imagePreviews];
+      newImagePreviews.splice(index, 1);
+      
+      setExistingImageCount(prev => prev - 1);
+      setProduct(prev => ({
+        ...prev,
+        imagePreviews: newImagePreviews,
+      }));
+    } else {
+      // This is a newly uploaded image
+      const adjustedIndex = index - existingImageCount;
+      const newImages = [...product.images];
+      const newPreviews = [...product.imagePreviews];
+      
+      // Revoke the object URL to prevent memory leaks
+      URL.revokeObjectURL(newPreviews[index]);
+      
+      newImages.splice(adjustedIndex, 1);
+      newPreviews.splice(index, 1);
+      
+      setProduct(prev => ({
+        ...prev,
+        images: newImages,
+        imagePreviews: newPreviews,
+      }));
+    }
+    
+    validateField('images', product.images);
+  };
+
+  const handleCategoryChange = (value) => {
+    setProduct({ ...product, category: value });
+    if (errors.category) {
+      setErrors((prev) => ({ ...prev, category: '' }));
+    }
+  };
+
+ const validateField = (name, value) => {
+    setErrors(prevErrors => {
+      const newErrors = { ...prevErrors };    
+
+
+      switch (name) {
+        case 'name':
+          if (!value) newErrors.name = 'Product name is required';
+          else delete newErrors.name;
+          break;
+        case 'description':
+          if (!value) newErrors.description = 'Description is required';
+          else delete newErrors.description;
+          break;
+        case 'price':
+          if (!value) newErrors.price = 'Price is required';
+          else if (isNaN(value) || value <= 0) newErrors.price = 'Price must be greater than 0';
+          else delete newErrors.price;
+          break;
+        case 'category':
+          if (!value) newErrors.category = 'Category is required';
+          else delete newErrors.category;
+          break;
+        case 'stockQuantity':
+          if (!value) newErrors.stockQuantity = 'Stock quantity is required';
+          else if (isNaN(value) || value < 0) newErrors.stockQuantity = 'Stock quantity must be 0 or greater';
+          else delete newErrors.stockQuantity;
+          break;
+        case 'images':
+          // The total count includes newly added files and existing image previews
+          const totalImageCount = (Array.isArray(value) ? value.length : 0) + (isEditing ? existingImageCount : 0);
+
+          if (isEditing && product.imagePreviews.length >= 2) {
+            delete newErrors.images;
+          } else if (totalImageCount < 2) {
+            newErrors.images = 'Minimum 2 images required';
+          } else if (totalImageCount > 8) {
+            newErrors.images = 'Maximum 8 images allowed';
+          } else {
+            delete newErrors.images;
+          }
+          break;
+        default:
+          break;
+      }
+      return newErrors;
+    });
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!product.name) newErrors.name = 'Product name is required';
+    if (!product.description) newErrors.description = 'Description is required';
+    if (!product.price || isNaN(product.price) || product.price <= 0) newErrors.price = 'Price must be a valid number greater than 0';
+    if (!product.category) newErrors.category = 'Category is required';
+    if (!product.stockQuantity || isNaN(product.stockQuantity) || product.stockQuantity < 0) newErrors.stockQuantity = 'Stock must be a valid number 0 or greater';
+    const totalImageCount = product.images.length + product.imagePreviews.length;
+    if (totalImageCount < 2) newErrors.images = 'Minimum 2 images required';
+    return newErrors;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setTouched({ name: true, description: true, price: true, category: true, stockQuantity: true, images: true });
+    
+    const validationErrors = validateForm();
+    setErrors(validationErrors);
+
+    if (Object.keys(validationErrors).length > 0) {
+      toast.error('Please correct all errors before submitting.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const formData = new FormData();
+      Object.keys(product).forEach(key => {
+        if (key === 'images') {
+          product.images.forEach(file => formData.append('images', file));
+        } else if (key === 'specs' || key === 'discount') {
+          formData.append(key, JSON.stringify(product[key]));
+        } else if (key !== 'imagePreviews') {
+          formData.append(key, product[key]);
+        }
+      });
+       if (isEditing && initialData?._id) {
+        formData.append('_id', initialData._id);
+        const existingImagesFromPreviews = product.imagePreviews
+            .filter(p => !p.startsWith('blob:'))
+            .map(url => url.split('/').slice(-2).join('/'));
+        formData.append('existingImages', JSON.stringify(existingImagesFromPreviews));
+      }
+
+      await onAddProduct(formData);
+      toast.success(isEditing ? 'Product updated successfully!' : 'Product added successfully!');
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      toast.error(error.response?.data?.message || `Failed to ${isEditing ? 'update' : 'add'} product.`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+
+
+ const formProps = {
+      product,
+      errors,
+      touched,
+      categories,
+      isSubmitting,
+      isEditing,
+      handleChange,
+      handleDiscountChange,
+      handleSpecsChange,
+      handleFeaturedChange,
+      handlePreOrderChange,
+      handleImageChange,
+      removeImage,
+      handleCategoryChange,
+      handleSubmit,
+      setShowDetailedPreview,
+  };
+
   return (
     <>
-      {isMobile ? (
-        <MobileForm />
-      ) : (
-        <DesktopForm />
-      )}
+      {isMobile ? <MobileForm {...formProps} /> : <DesktopForm {...formProps} />}
     </>
   );
 };

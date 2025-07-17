@@ -10,15 +10,27 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import useCartStore from '@/stores/cartStore'; // Import the useCartStore
+import useCartStore from '@/stores/cartStore'; 
 
 const ProductGrid = ({ products = [], onProductClick }) => {
-  const cartStore = useCartStore(); // Initialize the cart store
-
+  const cartStore = useCartStore(); 
   const constructImageUrl = (path) => {
     if (!path) return '/placeholder-image.jpg';
     return path.startsWith('http') ? path : `${import.meta.env.VITE_API_URL}${path}`;
   };
+
+  const sortedProducts = [...products].sort((a, b) => {
+    const getPriority = (p) => {
+      if (p.featured && p.preOrder) return 3;
+      if (p.preOrder) return 2;
+      if (p.featured) return 1;
+      return 0;
+    };
+    const priorityDiff = getPriority(b) - getPriority(a);
+    if (priorityDiff !== 0) return priorityDiff;
+
+    return a.name.localeCompare(b.name);
+  });
 
   const getPrice = (product) => {
     if (
@@ -39,26 +51,31 @@ const ProductGrid = ({ products = [], onProductClick }) => {
   };
 
   const handleAddToCart = (e, product) => {
-    e.stopPropagation(); // Prevent the card's onClick from firing
+    e.stopPropagation();
     const productToAdd = {
       ...product,
       id: product._id,
-      quantity: 1, // Default quantity
+      quantity: 1, 
     };
-    cartStore.addItem(productToAdd); // Add the product to the cart
+    cartStore.addItem(productToAdd); 
   };
 
   return (
     <div className="grid grid-cols-2  xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-      {products.map((product) => {
+      {sortedProducts.map((product) => {
         const price = getPrice(product);
         const isOutOfStock = product.stockQuantity === 0;
         const lowStock = product.stockQuantity > 0 && product.stockQuantity <= 5;
 
+        // Add animated glow effect if featured
+        const featuredGlow = product.featured
+          ? "featured-glow"
+          : "";
+
         return (
           <Card 
             key={product._id} 
-            className="group relative overflow-hidden bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer"
+            className={`group relative overflow-hidden bg-white rounded-lg shadow-sm transition-all duration-300 cursor-pointer ${featuredGlow}`}
             onClick={() => onProductClick(product._id)}
           >
             <div className="relative aspect-square overflow-hidden bg-gray-50">
@@ -136,6 +153,24 @@ const ProductGrid = ({ products = [], onProductClick }) => {
               <h3 className="font-medium text-sm sm:text-base text-black mb-1 line-clamp-1">
                 {product.name}
               </h3>
+              <div className="flex gap-2 pt-1 mb-1">
+                {product.preOrder && (
+                  <span
+                    className="
+                      inline-flex items-center rounded-full
+                      bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-500
+                      px-2 py-0.5
+                      text-[8px] sm:text-[8px] md:text-xs lg:text-xs
+                      font-bold uppercase tracking-wider text-amber-900
+                      border border-amber-900
+                      shadow
+                      transition-all duration-30
+                    "
+                  >
+                    Pre-order
+                  </span>
+                )}
+              </div>
               <div className="flex items-baseline gap-2 mb-1">
                 {price.hasDiscount ? (
                   <>
@@ -147,7 +182,7 @@ const ProductGrid = ({ products = [], onProductClick }) => {
                     </span>
                   </>
                 ) : (
-                  <span className="text-base sm:text-lg font-bold text-gray-900">
+                  <span className="text-base sm:text-lg pt-1 font-bold text-gray-900">
                     {formatCurrency(price.original)}
                   </span>
                 )}

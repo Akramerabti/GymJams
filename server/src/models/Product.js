@@ -30,11 +30,15 @@ const productSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  preOrder: {
+    type: Boolean,
+    default: false
+  },
   specs: {
-    weight: Number,
-    dimensions: String,
-    material: String,
-    warranty: String
+    weight: { type: String }, // was Number
+    dimensions: { type: String }, // was Number or String, keep as String for flexibility
+    material: { type: String },
+    warranty: { type: String }
   },
   ratings: [{
     user: {

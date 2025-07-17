@@ -1530,10 +1530,31 @@ html {
   transform: translateY(-1px);
 }
 
-/* --- Increase size on larger screens --- */
-@media (min-width: 768px) { /* md breakpoint */
-  .responsive-btn {
-    padding: 1rem 2rem; /* 16px 32px */
-    font-size: 1.125rem; /* 18px */
+/* Animated featured glow for product cards */
+.featured-glow {
+  box-shadow: 0 0 0 2px rgba(99, 101, 241, 0.247), 0 0 8px 1px rgba(138, 92, 246, 0.24);
+  animation: featuredGlowPulse 3s linear infinite;
+  transition: box-shadow 0.3s;
+}
+.featured-glow:hover {
+  box-shadow: 0 0 0 4px rgba(167,139,250,0.18), 0 0 16px 4px rgba(124,58,237,0.45), 0 0 24px 8px rgba(244,114,182,0.10);
+  animation-play-state: paused;
+}
+
+@keyframes featuredGlowPulse {
+  0% {
+    box-shadow: 0 0 0 2px rgba(99,102,241,0.10), 0 0 8px 1px rgba(139,92,246,0.08);
+  }
+  25% {
+    box-shadow: 0 0 0 3px rgba(124,58,237,0.13), 0 0 12px 2px rgba(167,139,250,0.10);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(244,114,182,0.13), 0 0 16px 4px rgba(236,72,153,0.10);
+  }
+  75% {
+    box-shadow: 0 0 0 3px rgba(79,70,229,0.12), 0 0 12px 2px rgba(99,102,241,0.09);
+  }
+  100% {
+    box-shadow: 0 0 0 2px rgba(99,102,241,0.10), 0 0 8px 1px rgba(139,92,246,0.08);
   }
 }

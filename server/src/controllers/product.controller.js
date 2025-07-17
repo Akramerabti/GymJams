@@ -35,7 +35,7 @@ export const getProductById = async (req, res) => {
 // Add a new product
 export const addProduct = async (req, res) => {
   try {
-    const { name, description, price, category, stockQuantity, specs, discount } = req.body;
+    const { name, description, price, category, stockQuantity, specs, discount, featured, preOrder } = req.body;
 
     // Check if files were uploaded
     if (!req.files || req.files.length === 0) {
@@ -70,6 +70,8 @@ export const addProduct = async (req, res) => {
         imageUrls: images,
         specs: JSON.parse(specs),
         discount: JSON.parse(discount),
+        featured: featured === 'true' || featured === true,
+        preOrder: preOrder === 'true' || preOrder === true,
       });
 
       // Save the product to the database
