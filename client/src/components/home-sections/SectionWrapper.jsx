@@ -91,14 +91,13 @@ const SectionWrapper = ({
           </div>
         );
       default:
-        // Fallback with enhanced clamping
         return (
           <div className="absolute inset-0 flex items-center justify-center p-[clamp(1rem,4vw,3rem)] pointer-events-none">
             <div 
               className={`max-w-[clamp(320px,85vw,1200px)] mx-auto text-center transition-all duration-800 ${
                 isActive 
-                  ? 'opacity-100 translate-y-0 scale-100' 
-                  : 'opacity-0 translate-y-12 scale-95'
+                  ? 'opacity-100 translate-y-0' 
+                  : 'opacity-0 translate-y-12'
               }`}
             >
               <div className="bg-black/30 backdrop-blur-md rounded-[clamp(1rem,3vw,2rem)] p-[clamp(1.5rem,4vw,3rem)] border border-white/20 shadow-2xl pointer-events-auto">
@@ -153,28 +152,15 @@ const SectionWrapper = ({
           <video
             ref={videoRef}
             src={section.videoSrc}
-            className={`absolute inset-0 w-full h-full object-cover transition-all duration-1000 ${
-              isActive 
-                ? 'opacity-100 scale-100' 
-                : 'opacity-30 scale-105'
-            }`}
+            className="absolute inset-0 w-full h-full object-cover"
             muted
             loop
             playsInline
             autoPlay={index === 0}
             preload="metadata"
           />
-          {/* Color overlay with responsive opacity */}
-          <div 
-            className={`absolute inset-0 bg-gradient-to-br ${section.color} transition-opacity duration-1000 ${
-              isActive ? 'opacity-70' : 'opacity-90'
-            }`}
-            style={{
-              opacity: isActive 
-                ? 'clamp(0.6, 0.7, 0.8)' 
-                : 'clamp(0.8, 0.9, 0.95)'
-            }}
-          />
+          {/* Color overlay */}
+          <div className={`absolute inset-0 bg-gradient-to-br ${section.color} opacity-70`} />
         </div>
       )}
       
