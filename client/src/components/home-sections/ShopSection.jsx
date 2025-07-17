@@ -313,7 +313,16 @@ const ShopSection = ({ onNavigate, isActive }) => {
                 autoPlay
                 muted
                 loop
+                playsInline
+                controls={false}
+                preload="auto"
                 className="absolute inset-0 w-full h-full object-cover opacity-40"
+                onCanPlay={e => {
+                  // Try to play programmatically for iOS/Safari
+                  if (e.target.paused) {
+                    try { e.target.play(); } catch {}
+                  }
+                }}
               >
                 <source src="/GymTonic.mp4" type="video/mp4" />
               </video>
