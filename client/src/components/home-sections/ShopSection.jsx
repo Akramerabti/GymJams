@@ -327,37 +327,29 @@ const ShopSection = ({ onNavigate, isActive }) => {
               {/* Overlay */}
               <div className="absolute inset-0 bg-black bg-opacity-60"></div>
               {/* Video Content */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center pt-6 lg:justify-end lg:pb-10 text-center px-4">
-                <div className={`inline-flex items-center gap-2 px-3  rounded-full text-sm font-semibold mb-3 transition-all duration-1000 delay-300 ${
-                  isActive
-                    ? 'opacity-100 translate-y-0'
-                    : 'opacity-0 translate-y-4'
-                } ${
-                  darkMode
-                    ? 'bg-blue-500/20 text-blue-200'
-                    : 'bg-blue-500/20 text-blue-800'
-                }`}>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pt-6 lg:pt-20 xl:pt-32 lg:justify-end lg:pb-10 text-center px-4 z-30">
+                <div className={`inline-flex items-center gap-2 px-3 rounded-full mb-3 font-semibold transition-all duration-1000 delay-300
+                  ${isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
+                  ${darkMode ? 'bg-blue-500/20 text-blue-200' : 'bg-blue-500/20 text-blue-800'}
+                  text-xs sm:text-sm md:text-base lg:text-sm xl:text-xs
+                `}>
                   <ShoppingBag className="w-4 h-4" />
                   Premium Equipment Store
                 </div>
-                <h2 className={`text-2xl md:text-4xl lg:text-5xl font-bold mb-3 transition-all duration-1000 delay-500 ${
-                  isActive
-                    ? 'opacity-100 translate-y-0'
-                    : 'opacity-0 translate-y-4'
-                } ${
-                  darkMode
+                <h2 className={`font-bold mb-3 transition-all duration-1000 delay-500
+                  ${isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
+                  ${darkMode
                     ? 'text-white bg-gradient-to-r from-blue-200 to-white bg-clip-text text-transparent'
-                    : 'text-gray-900 bg-gradient-to-r from-blue-600 to-gray-900 bg-clip-text text-transparent'
-                }`}>
+                    : 'text-gray-900 bg-gradient-to-r from-blue-600 to-gray-900 bg-clip-text text-transparent'}
+                  text-xl sm:text-2xl md:text-4xl lg:text-3xl xl:text-2xl
+                `}>
                   Premium Equipment Shop
                 </h2>
-                <p className={`text-sm md:text-lg max-w-2xl mx-auto leading-relaxed transition-all duration-1000 delay-700 ${
-                  isActive
-                    ? 'opacity-100 translate-y-0'
-                    : 'opacity-0 translate-y-4'
-                } ${
-                  darkMode ? 'text-white/90' : 'text-gray-700'
-                }`}>
+                <p className={`max-w-2xl mx-auto leading-relaxed transition-all duration-1000 delay-700
+                  ${isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
+                  ${darkMode ? 'text-white/90' : 'text-gray-700'}
+                  text-xs sm:text-sm md:text-base lg:text-sm xl:text-xs
+                `}>
                   Discover professional-grade fitness equipment and apparel
                 </p>
               </div>
