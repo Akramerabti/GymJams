@@ -13,14 +13,12 @@ const ShopSection = ({ onNavigate, isActive }) => {
   const [clothesIndex, setClothesIndex] = useState(0);
   const [accessoriesIndex, setAccessoriesIndex] = useState(0);
 
-  // Fetch products on component mount
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         const response = await productService.getProducts();
         const allProducts = response.data || [];
-        
-        // Filter products by category (assuming we have category field)
+
         const clothes = allProducts.filter(product => 
           product.category?.toLowerCase().includes('clothes') || 
           product.category?.toLowerCase().includes('apparel') ||
@@ -329,8 +327,8 @@ const ShopSection = ({ onNavigate, isActive }) => {
               {/* Overlay */}
               <div className="absolute inset-0 bg-black bg-opacity-60"></div>
               {/* Video Content */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center pt-10 lg:justify-end lg:pb-10 text-center px-4">
-                <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold mb-3 transition-all duration-1000 delay-300 ${
+              <div className="absolute inset-0 flex flex-col items-center justify-center pt-6 lg:justify-end lg:pb-10 text-center px-4">
+                <div className={`inline-flex items-center gap-2 px-3  rounded-full text-sm font-semibold mb-3 transition-all duration-1000 delay-300 ${
                   isActive
                     ? 'opacity-100 translate-y-0'
                     : 'opacity-0 translate-y-4'
