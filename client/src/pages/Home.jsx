@@ -19,7 +19,6 @@ const Home = () => {
   const [scrollVelocity, setScrollVelocity] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
   const [activeSection, setActiveSection] = useState(0);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   
   const sectionRefs = useRef([]);
   const containerRef = useRef(null);
@@ -49,7 +48,7 @@ const Home = () => {
         });
       },
       {
-        threshold: [0, 0.1, 0.3, 0.5, 0.7, 0.9, 1],
+        threshold: [0, 0.1, 0.5, 1],
         rootMargin: '-5% 0px -5% 0px'
       }
     );
@@ -249,15 +248,8 @@ const Home = () => {
     };
   };
 
-  const getSectionAnimation = (index) => {
-    const animations = [
-      'animate-fadeInScale',
-      'animate-slideInLeft',
-      'animate-slideInRight',
-      'animate-floatIn',
-      'animate-slideUpFade',
-    ];
-    return animations[index] || 'animate-fadeInUp';
+   const getSectionAnimation = () => {
+    return 'animate-fadeIn';
   };
 
   const scrollProgress = Math.min(
@@ -268,16 +260,15 @@ const Home = () => {
   return (
     <>
       <style jsx>{`
-        /* ... all your existing styles remain the same ... */
-        @keyframes revealSection {
-          from { opacity: 0; transform: translateY(100px) scale(0.9); filter: blur(15px) brightness(0.3); }
-          to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0px) brightness(1); }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
-        .section-transition { transition: all 1.0s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
-        .section-visible { animation: revealSection 1.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
-        .section-hidden { opacity: 0; transform: translateY(100px) scale(0.9); filter: blur(15px) brightness(0.3); }
-        .section-active { z-index: 10; filter: brightness(1.1) contrast(1.05); }
-        .parallax-bg { transition: transform 0.3s ease-out, opacity 0.6s ease-out, filter 0.6s ease-out; }
+        .animate-fadeIn {
+          animation: fadeIn 0.8s ease-out forwards;
+        }
+        .section-hidden { opacity: 0; }
+        .section-active { z-index: 10; }
       `}</style>
 
       <div
@@ -302,102 +293,65 @@ const Home = () => {
         <section 
           ref={el => sectionRefs.current[0] = el}
           data-section-index={0}
-          className={`min-h-screen w-full relative overflow-hidden section-transition ${
-            isSectionVisible(0) ? `section-visible ${getSectionAnimation(0)}` : 'section-hidden'
-          } ${isActiveSection(0) ? 'section-active' : ''}`}
+          className={`min-h-screen w-full relative overflow-hidden ${isSectionVisible(0) ? `animate-fadeIn` : 'section-hidden'} ${isActiveSection(0) ? 'section-active' : ''}`}
         >
-          <div 
-            className="absolute inset-0 parallax-bg"
-            style={getBackgroundEffect(0)}
-          >
-            <HeroSection 
-              onNavigate={handleNavigate} 
-              isActive={isSectionVisible(0)}
-              goToSection={navigateToSection}
-              scrollY={scrollY}
-              mousePosition={mousePosition}
-            />
-          </div>
+          <HeroSection 
+            onNavigate={handleNavigate} 
+            isActive={isSectionVisible(0)}
+            goToSection={navigateToSection}
+            scrollY={scrollY}
+          />
         </section>
 
         <section 
           ref={el => sectionRefs.current[1] = el}
           data-section-index={1}
-          className={`min-h-screen w-full relative overflow-hidden section-transition ${
-            isSectionVisible(1) ? `section-visible ${getSectionAnimation(1)}` : 'section-hidden'
-          } ${isActiveSection(1) ? 'section-active' : ''}`}
+          className={`min-h-screen w-full relative overflow-hidden ${isSectionVisible(1) ? `animate-fadeIn` : 'section-hidden'} ${isActiveSection(1) ? 'section-active' : ''}`}
         >
-          <div 
-            className="absolute inset-0 parallax-bg"
-            style={getBackgroundEffect(1)}
-          >
-            <ShopSection 
-              onNavigate={handleNavigate} 
-              isActive={isSectionVisible(1)}
-              scrollY={scrollY}
-              parallaxOffset={getParallaxOffset(1)}
-            />
-          </div>
+          <ShopSection 
+            onNavigate={handleNavigate} 
+            isActive={isSectionVisible(1)}
+            scrollY={scrollY}
+          />
         </section>
 
         <section 
           ref={el => sectionRefs.current[2] = el}
           data-section-index={2}
-          className={`min-h-screen w-full relative overflow-hidden section-transition ${
-            isSectionVisible(2) ? `section-visible ${getSectionAnimation(2)}` : 'section-hidden'
-          } ${isActiveSection(2) ? 'section-active' : ''}`}
+          className={`min-h-screen w-full relative overflow-hidden ${isSectionVisible(2) ? `animate-fadeIn` : 'section-hidden'} ${isActiveSection(2) ? 'section-active' : ''}`}
         >
-          <div 
-            className="absolute inset-0 parallax-bg"
-            style={getBackgroundEffect(2)}
-          >
-            <CoachingSection 
-              onNavigate={handleNavigate} 
-              isActive={isSectionVisible(2)}
-              scrollY={scrollY}
-              scrollDirection={scrollDirection}
-            />
-          </div>
+          <CoachingSection 
+            onNavigate={handleNavigate} 
+            isActive={isSectionVisible(2)}
+            scrollY={scrollY}
+            scrollDirection={scrollDirection}
+          />
         </section>
 
         <section 
           ref={el => sectionRefs.current[3] = el}
           data-section-index={3}
-          className={`min-h-screen w-full relative overflow-hidden section-transition ${
-            isSectionVisible(3) ? `section-visible ${getSectionAnimation(3)}` : 'section-hidden'
-          } ${isActiveSection(3) ? 'section-active' : ''}`}
+          className={`min-h-screen w-full relative overflow-hidden ${isSectionVisible(3) ? `animate-fadeIn` : 'section-hidden'} ${isActiveSection(3) ? 'section-active' : ''}`}
         >
-          <div 
-            className="absolute inset-0 parallax-bg"
-            style={getBackgroundEffect(3)}
-          >
-            <GymBrosSection 
-              onNavigate={handleNavigate} 
-              isActive={isSectionVisible(3)}
-              scrollY={scrollY}
-              scrollVelocity={scrollVelocity}
-            />
-          </div>
+          <GymBrosSection 
+            onNavigate={handleNavigate} 
+            isActive={isSectionVisible(3)}
+            scrollY={scrollY}
+            scrollVelocity={scrollVelocity}
+          />
         </section>
 
         <section 
           ref={el => sectionRefs.current[4] = el}
           data-section-index={4}
-          className={`min-h-screen w-full relative overflow-hidden section-transition ${
-            isSectionVisible(4) ? `section-visible ${getSectionAnimation(4)}` : 'section-hidden'
-          } ${isActiveSection(4) ? 'section-active' : ''}`}
+          className={`min-h-screen w-full relative overflow-hidden ${isSectionVisible(4) ? `animate-fadeIn` : 'section-hidden'} ${isActiveSection(4) ? 'section-active' : ''}`}
         >
-          <div 
-            className="absolute inset-0 parallax-bg"
-            style={getBackgroundEffect(4)}
-          >
-            <GamesSection 
-              onNavigate={handleNavigate} 
-              isActive={isSectionVisible(4)}
-              scrollY={scrollY}
-              isLastSection={true}
-            />
-          </div>
+          <GamesSection 
+            onNavigate={handleNavigate} 
+            isActive={isSectionVisible(4)}
+            scrollY={scrollY}
+            isLastSection={true}
+          />
         </section>
 
         <div
