@@ -763,7 +763,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                     </div>
                   ) : featuredProducts.length > 0 ? (
                     <div className={`relative flex-1`}>
-                      <div className="flex flex-row gap-4 overflow-x-auto scrollbar-hide p-8 -m-5">
+                      <div className="flex flex-row gap-4 overflow-x-auto scrollbar-hide p-8 -m-5 -mt-10 z-9999">
                         {featuredProducts.map((product) => {
                           const price = getPriceDisplay(product);
                           const isOutOfStock = product.stockQuantity === 0;
