@@ -5,6 +5,7 @@ import productService from '../../services/product.service';
 import gymBrosService from '../../services/gymbros.service';
 import { formatImageUrl, getFallbackAvatarUrl } from '../../utils/imageUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogTrigger } from '../ui/dialog';
+import { useNavigate } from 'react-router-dom';
 
 const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   const { darkMode } = useTheme();
@@ -23,6 +24,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   const [backgroundVideoKey, setBackgroundVideoKey] = useState(0);
   const [mainVideoKey, setMainVideoKey] = useState(0);
   const [gymBrosCarouselRef, setGymBrosCarouselRef] = useState(null);
+  const navigate = useNavigate();
 
     useEffect(() => {
     let timeouts = [];
@@ -52,55 +54,42 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   };
   
     useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchFeaturedProducts = async () => {
       try {
         setProductsLoading(true);
-        const response = await productService.getProducts();
+        // Fetch only featured products
+        const response = await productService.getProducts({ featured: true });
         const data = response.data || [];
-        const products = data.slice(0, 4).map(product => {
+        const products = data.map(product => {
           let imageUrl = '/Picture3.png';
-          if (product.images && product.images.length > 0) {
-            const imagePath = product.images[0];
+          if (product.imageUrls && product.imageUrls.length > 0) {
+            const imagePath = product.imageUrls[0];
             if (imagePath.startsWith('http')) {
               imageUrl = imagePath;
             } else {
               const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
               imageUrl = `${baseUrl}${imagePath.startsWith('/') ? imagePath : `/${imagePath}`}`;
             }
-          } else if (product.image) {
-            if (product.image.startsWith('http')) {
-              imageUrl = product.image;
-            } else {
-              const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-              imageUrl = `${baseUrl}${product.image.startsWith('/') ? product.image : `/${product.image}`}`;
-            }
           }
           return {
             id: product._id,
             name: product.name,
             image: imageUrl,
-            price: `$${product.price?.toFixed(2) || '0.00'}`
+            price: `$${product.price?.toFixed(2) || '0.00'}`,
+            discount: product.discount,
+            originalPrice: product.price,
+            stockQuantity: product.stockQuantity,
+            preOrder: product.preOrder,
           };
         });
         setFeaturedProducts(products);
       } catch (error) {
-        setFeaturedProducts([
-          { id: 1, name: "Premium Protein", image: "/Picture2.png", price: "$49.99" },
-          { id: 2, name: "Resistance Bands", image: "/Picture2.png", price: "$29.99" },
-          { id: 3, name: "Yoga Mat Pro", image: "/Picture2.png", price: "$39.99" },
-          { id: 4, name: "Dumbbells Set", image: "/Picture2.png", price: "$199.99" },
-          { id: 5, name: "Pre-Workout", image: "/Picture2.png", price: "$34.99" },
-          { id: 6, name: "Gym Gloves", image: "/Picture2.png", price: "$24.99" },
-          { id: 7, name: "Water Bottle", image: "/Picture2.png", price: "$19.99" },
-          { id: 8, name: "Gym Towel", image: "/Picture2.png", price: "$14.99" },
-          { id: 9, name: "Protein Shaker", image: "/Picture2.png", price: "$12.99" },
-          { id: 10, name: "Creatine", image: "/Picture2.png", price: "$27.99" }
-        ]);
+        setFeaturedProducts([]);
       } finally {
         setProductsLoading(false);
       }
     };
-    fetchProducts();
+    fetchFeaturedProducts();
   }, []);
 
   useEffect(() => {
@@ -148,6 +137,24 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
 
   const prevProduct = () => {
     setCurrentProductIndex((prev) => (prev - 1 + featuredProducts.length) % featuredProducts.length);
+  };
+
+  // Helper for price display (discount)
+  const getPriceDisplay = (product) => {
+    if (
+      product.discount &&
+      product.discount.percentage &&
+      (!product.discount.startDate || new Date(product.discount.startDate) <= new Date()) &&
+      (!product.discount.endDate || new Date(product.discount.endDate) >= new Date())
+    ) {
+      const discounted = product.originalPrice * (1 - product.discount.percentage / 100);
+      return {
+        discounted: `$${discounted.toFixed(2)}`,
+        original: `$${product.originalPrice.toFixed(2)}`,
+        percentage: product.discount.percentage,
+      };
+    }
+    return { original: product.price };
   };
 
   return (
@@ -393,7 +400,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               maxHeight: 'clamp(500px, 70vh, 1100px)',
               height: '100%',
               boxSizing: 'border-box',
-              overflow: 'hidden'
+              overflow: 'visible' // <-- Allow overflow for scaling cards
             }}
           >
             <div
@@ -402,7 +409,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                 minHeight: '0',
                 maxHeight: '100%',
                 height: '100%',
-                overflow: 'hidden'
+                overflow: 'visible' // <-- Allow overflow for scaling cards
               }}
             >
               {/* GymBros header - label and match count */}
@@ -725,7 +732,8 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                     animationFillMode: 'both',
                     minHeight: 'clamp(200px,30vh,400px)',
                     maxHeight: 'clamp(350px,40vh,600px)',
-                    overflow: 'hidden'
+                    overflow: 'visible', // <-- Allow overflow for scaling cards
+                    zIndex: 300000 // <-- Add this line to raise stacking context
                   }}
                 >
                   {/* Add margin-top for small screens */}
@@ -745,86 +753,92 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                       <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
                   </div>
-
-                    {productsLoading ? (
+                  {/* New horizontal scrollable featured products */}
+                  {productsLoading ? (
                     <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-4 sm:p-6 flex items-center justify-center shadow-lg border-2 ${darkMode ? 'border-white/30' : 'border-black/30'} relative overflow-hidden`}>
-                      {/* Subtle inner glow */}
                       <div className={`absolute inset-0 rounded-xl ${darkMode ? 'bg-gradient-to-br from-green-500/5 to-blue-500/5' : 'bg-gradient-to-br from-green-500/10 to-blue-500/10'}`}></div>
                       <div className={`animate-spin rounded-full h-6 w-6 border-b-2 relative z-10 ${
                         darkMode ? 'border-blue-400' : 'border-blue-600'
                       }`}></div>
-                    </div>                  ) : featuredProducts.length > 0 ? (
-                    <div className="relative flex-1 flex flex-col">
-                      <div className={`flex-1 relative overflow-hidden rounded-xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-gray-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} p-4 sm:p-6 min-h-[200px] shadow-2xl border-2 ${darkMode ? 'border-green-500/30 hover:border-blue-500/50' : 'border-green-300/50 hover:border-blue-400/70'} hover:shadow-3xl transition-all duration-500 hover:scale-[1.02] group`}>
-                        {/* Subtle inner glow */}                        <div className={`absolute inset-0 rounded-xl ${darkMode ? 'bg-gradient-to-br from-green-500/10 via-blue-500/5 to-emerald-500/10' : 'bg-gradient-to-br from-green-400/15 via-blue-400/10 to-emerald-400/15'} opacity-60 group-hover:opacity-80 transition-all duration-500`}></div>
-                        <div
-                          className="flex transition-transform duration-300 ease-in-out h-full relative z-10"
-                          style={{ transform: `translateX(-${currentProductIndex * 100}%)` }}
-                        >
-                          {featuredProducts.map((product) => (
-                            <div key={product.id} className="w-full flex-shrink-0 text-center flex flex-col items-center justify-center h-full">
-                              <img
-                                src={product.image}
-                                alt={product.name}
-                                className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 mx-auto mb-3 rounded-lg object-cover shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105"
-                                onError={(e) => {
-                                  e.target.src = '/Picture3.png';
-                                }}
-                              />
-                              <h4 className={`font-semibold text-sm sm:text-base lg:text-lg mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                {product.name}
-                              </h4>
-                              <p className={`text-sm sm:text-base font-medium ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                                {product.price}
-                              </p>
+                    </div>
+                  ) : featuredProducts.length > 0 ? (
+                    <div className={`relative flex-1`}>
+                      <div className="flex flex-row gap-4 overflow-x-auto scrollbar-hide pb-2">
+                        {featuredProducts.map((product) => {
+                          const price = getPriceDisplay(product);
+                          const isOutOfStock = product.stockQuantity === 0;
+                          const lowStock = product.stockQuantity > 0 && product.stockQuantity <= 5;
+                          return (
+                            <div
+                              key={product.id}
+                              className={`min-w-[180px] max-w-[220px] bg-white dark:bg-gray-900 rounded-xl shadow-lg border-2 ${darkMode ? 'border-green-500/30 hover:border-blue-500/50' : 'border-green-300/50 hover:border-blue-400/70'} hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer group relative`}
+                              onClick={() => navigate(`/product/${product.id}`)}
+                              style={{ flex: '0 0 auto' }}
+                            >
+                              <div className="relative aspect-square overflow-hidden rounded-t-xl bg-gray-50 dark:bg-gray-800">
+                                <img
+                                  src={product.image}
+                                  alt={product.name}
+                                  className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
+                                  onError={e => { e.target.src = '/Picture3.png'; }}
+                                />
+                                {/* Status badges */}
+                                <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+                                  {price.discounted && (
+                                    <span className="px-2 py-1 text-xs rounded-full bg-red-500 text-white font-bold shadow">
+                                      {price.percentage}% OFF
+                                    </span>
+                                  )}
+                                  {isOutOfStock && (
+                                    <span className="px-2 py-1 text-xs rounded-full bg-gray-800 text-white font-bold shadow">
+                                      Out of Stock
+                                    </span>
+                                  )}
+                                  {lowStock && (
+                                    <span className="px-2 py-1 text-xs rounded-full bg-amber-500 text-white font-bold shadow">
+                                      Low Stock
+                                    </span>
+                                  )}
+                                  {product.preOrder && (
+                                    <span className="px-2 py-1 text-[10px] rounded-full bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-500 text-amber-900 font-bold border border-amber-900 shadow">
+                                      Pre-order
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="p-3">
+                                <h4 className={`font-semibold text-sm mb-1 truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {product.name}
+                                </h4>
+                                <div className="flex items-baseline gap-2 mb-1">
+                                  {price.discounted ? (
+                                    <>
+                                      <span className="text-base font-bold text-red-600">{price.discounted}</span>
+                                      <span className="text-xs text-gray-400 line-through">{price.original}</span>
+                                    </>
+                                  ) : (
+                                    <span className="text-base font-bold text-gray-900 dark:text-white">{price.original}</span>
+                                  )}
+                                </div>
+                                {lowStock && (
+                                  <p className="text-xs text-amber-600">
+                                    Only {product.stockQuantity} left
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                          ))}
-                        </div>
+                          );
+                        })}
                       </div>
-
-                      {/* Carousel Controls */}
-                      {featuredProducts.length > 1 && (
-                        <>
-                          <button
-                            onClick={prevProduct}
-                            className={`absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full ${
-                              darkMode ? 'bg-gray-700/90 hover:bg-gray-600 text-white' : 'bg-white/90 hover:bg-gray-100 text-gray-900'
-                            } shadow-lg transition-all duration-200 hover:scale-110`}
-                          >
-                            <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4" />
-                          </button>
-
-                          <button
-                            onClick={nextProduct}
-                            className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full ${
-                              darkMode ? 'bg-gray-700/90 hover:bg-gray-600 text-white' : 'bg-white/90 hover:bg-gray-100 text-gray-900'
-                            } shadow-lg transition-all duration-200 hover:scale-110`}
-                          >
-                            <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" />
-                          </button>
-
-                          {/* Dots Indicator */}
-                          <div className="flex justify-center mt-3 gap-2">
-                            {featuredProducts.map((_, index) => (
-                              <button
-                                key={index}
-                                onClick={() => setCurrentProductIndex(index)}
-                                className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full transition-all duration-200 ${
-                                  index === currentProductIndex
-                                    ? 'bg-blue-500 scale-125'
-                                    : darkMode ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-300 hover:bg-gray-400'
-                                }`}
-                              />
-                            ))}
-                          </div>
-                        </>
-                      )}                    </div>                  ) : (
-                    <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-gray-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} p-4 sm:p-6 text-center flex flex-col items-center justify-center shadow-2xl min-h-[190px] border-2 ${darkMode ? 'border-gray-600/30 hover:border-gray-500/50' : 'border-gray-300/50 hover:border-gray-400/70'} relative overflow-hidden hover:shadow-3xl transition-all duration-500 hover:scale-[1.02] group`}>                      {/* Subtle inner glow */}
+                    </div>
+                  ) : (
+                    <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-gray-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} p-4 sm:p-6 text-center flex flex-col items-center justify-center shadow-2xl min-h-[190px] border-2 ${darkMode ? 'border-gray-600/30 hover:border-gray-500/50' : 'border-gray-300/50 hover:border-gray-400/70'} relative overflow-hidden hover:shadow-3xl transition-all duration-500 hover:scale-[1.02] group`}>
                       <div className={`absolute inset-0 rounded-xl ${darkMode ? 'bg-gradient-to-br from-gray-600/10 via-gray-500/5 to-gray-700/10' : 'bg-gradient-to-br from-gray-400/15 via-gray-300/10 to-gray-500/15'} opacity-60 group-hover:opacity-80 transition-all duration-500`}></div>
                       <XCircle className={`w-12 h-12 mb-3 relative z-10 ${darkMode ? 'text-gray-500 group-hover:text-gray-400' : 'text-gray-400 group-hover:text-gray-500'} transition-all duration-300`} />
                       <p className={`text-sm sm:text-base relative z-10 ${darkMode ? 'text-gray-400 group-hover:text-gray-300' : 'text-gray-600 group-hover:text-gray-700'} transition-all duration-300`}>
-                        Sorry, no products available right now.
-                      </p></div>
+                        Sorry, no featured products available right now.
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>

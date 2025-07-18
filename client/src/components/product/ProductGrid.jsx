@@ -153,13 +153,13 @@ const ProductGrid = ({ products = [], onProductClick }) => {
               <h3 className="font-medium text-sm sm:text-base text-black mb-1 line-clamp-1">
                 {product.name}
               </h3>
-              <div className="flex gap-2 pt-1 mb-1">
+              <div className="flex gap-2 pt-1 mb-1 ">
                 {product.preOrder && (
                   <span
                     className="
                       inline-flex items-center rounded-full
                       bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-500
-                      px-2 py-0.5
+                      px-2 py-0.5 
                       text-[8px] sm:text-[8px] md:text-xs lg:text-xs
                       font-bold uppercase tracking-wider text-amber-900
                       border border-amber-900
