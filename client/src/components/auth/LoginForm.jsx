@@ -1,75 +1,99 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, LogIn, Mail, Lock, AlertCircle } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
-import { useNavigate } from 'react-router-dom'; // <-- Add this import
+import { useNavigate, Link } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'sonner';
+import * as z from 'zod';
+import api from '../../services/api';
+import { useAuth } from '../../stores/authStore';
+import { motion, AnimatePresence } from 'framer-motion';
 import SocialLoginButtons from './SocialLoginButtons';
+
+const loginSchema = z.object({
+  email: z.string().email('Please enter a valid email'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+});
 
 const LoginForm = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState({ email: '', password: '' });
-  const [errors, setErrors] = useState({});
-  const [rememberMe, setRememberMe] = useState(false);
-  const { darkMode } = useTheme(); // <-- Use theme context
-  const navigate = useNavigate(); // <-- Add this line
+  const { darkMode } = useTheme();
+  const { login } = useAuth();
+  const navigate = useNavigate();
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    
-    // Clear field error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
-  };
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: zodResolver(loginSchema),
+  });
 
-  const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData.email) {
-      newErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email';
-    }
-    
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) return;
-    
-    setIsSubmitting(true);
-    setError('');
-    
+  const onSubmit = async (data, retryCount = 0) => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Simulate random success/failure for demo
-      if (Math.random() > 0.3) {
-        alert('Login successful!');
-      } else {
-        throw new Error('Invalid credentials');
-      }
+      setError('');
+      await login(data.email, data.password);
+      navigate('/');
     } catch (err) {
-      setError('Invalid email or password. Please check your credentials.');
-    } finally {
-      setIsSubmitting(false);
+      const MAX_RETRIES = 3;
+      if ((err.statusCode === 408 || !err.response) && retryCount < MAX_RETRIES) {
+        const nextRetry = retryCount + 1;
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+        toast.info(`Retrying login attempt ${nextRetry}/${MAX_RETRIES}...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return onSubmit(data, nextRetry);
+      }
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+      if (err.code === 'ECONNABORTED') {
+        errorMessage = 'Request timed out. Please check your internet connection and try again.';
+      } else if (err.response) {
+        switch (err.response.status) {
+          case 400:
+            errorMessage = 'Email and password are required.';
+            break;
+          case 401:
+            errorMessage = 'Invalid email or password. Please check your credentials.';
+            break;
+          case 403:
+            errorMessage = 'Your email is not verified. Please check your inbox.';
+            break;
+          case 404:
+            errorMessage = 'User not found. Please check your email address.';
+            break;
+          case 429:
+            errorMessage = 'Too many login attempts. Please try again later.';
+            break;
+          case 500:
+            errorMessage = 'Server error. Please try again later.';
+            break;
+          default:
+            errorMessage = 'Something went wrong. Please try again.';
+        }
+      } else if (err.request) {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      }
+      setError(errorMessage);
+      toast.error('Login failed', { description: errorMessage });
+      if (retryCount >= MAX_RETRIES) {
+        toast.info('Refreshing page...', { duration: 2000 });
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      }
     }
   };
 
-  const handleResendVerificationEmail = () => {
-    alert('Verification email sent!');
+  const handleResendVerificationEmail = async () => {
+    try {
+      const email = watch('email');
+      await api.post('/auth/resend-verification', { email });
+      navigate(`/email-verification-notification?email=${encodeURIComponent(email)}`);
+    } catch (err) {
+      toast.error('Failed to resend verification email. Please try again.');
+    }
   };
 
   return (
@@ -121,25 +145,33 @@ const LoginForm = () => {
           </div>
 
           {/* Login Form */}
-          <div className="space-y-6">
+          <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
             {/* Error Message */}
-            {error && (
-              <div className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{error}</p>
-                  {error.includes('not verified') && (
-                    <button
-                      type="button"
-                      onClick={handleResendVerificationEmail}
-                      className="text-sm text-blue-600 hover:text-blue-500 font-medium underline mt-1"
-                    >
-                      Resend verification email
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl"
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{error}</p>
+                    {error.includes('not verified') && (
+                      <button
+                        type="button"
+                        onClick={handleResendVerificationEmail}
+                        className="text-sm text-blue-600 hover:text-blue-500 font-medium underline mt-1"
+                      >
+                        Resend verification email
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Email Field */}
             <div className="space-y-2">
@@ -152,10 +184,8 @@ const LoginForm = () => {
                 </div>
                 <input
                   id="email"
-                  name="email"
                   type="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
+                  {...register('email')}
                   className={`block w-full pl-10 pr-3 py-3 border rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
                     errors.email ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
                   }`}
@@ -170,7 +200,7 @@ const LoginForm = () => {
               {errors.email && (
                 <p className="text-sm text-red-600 flex items-center gap-1">
                   <AlertCircle className="w-4 h-4" />
-                  {errors.email}
+                  {errors.email.message}
                 </p>
               )}
             </div>
@@ -186,10 +216,8 @@ const LoginForm = () => {
                 </div>
                 <input
                   id="password"
-                  name="password"
                   type={showPassword ? 'text' : 'password'}
-                  value={formData.password}
-                  onChange={handleInputChange}
+                  {...register('password')}
                   className={`block w-full pl-10 pr-12 py-3 border rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
                     errors.password ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
                   }`}
@@ -210,7 +238,7 @@ const LoginForm = () => {
               {errors.password && (
                 <p className="text-sm text-red-600 flex items-center gap-1">
                   <AlertCircle className="w-4 h-4" />
-                  {errors.password}
+                  {errors.password.message}
                 </p>
               )}
             </div>
@@ -222,29 +250,27 @@ const LoginForm = () => {
                   id="remember-me"
                   name="remember-me"
                   type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
                   Remember me
                 </label>
               </div>
-              <button
-                type="button"
+              <Link
+                to="/forgot-password"
                 className="text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors"
-                onClick={() => navigate('/forgot-password')} // <-- Add this handler
               >
                 Forgot password?
-              </button>
+              </Link>
             </div>
 
             {/* Submit Button */}
-            <button
+            <motion.button
               type="submit"
               disabled={isSubmitting}
-              onClick={handleSubmit}
               className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 disabled:hover:scale-100 shadow-lg"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.98 }}
             >
               {isSubmitting ? (
                 <div className="flex items-center gap-2">
@@ -257,7 +283,7 @@ const LoginForm = () => {
                   Sign in
                 </div>
               )}
-            </button>
+            </motion.button>
 
             {/* Divider */}
             <div className="relative">
@@ -271,15 +297,15 @@ const LoginForm = () => {
 
             {/* Social Login */}
             <SocialLoginButtons />
-          </div>
+          </form>
 
           {/* Sign Up Link */}
           <div className="text-center">
             <p className="text-sm text-gray-600">
               Don't have an account?{' '}
-              <button className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
+              <Link to="/register" className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
                 Sign up
-              </button>
+              </Link>
             </p>
           </div>
         </div>

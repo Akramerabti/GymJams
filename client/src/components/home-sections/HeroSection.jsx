@@ -872,6 +872,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   </div>
 </div>
 
+
         </div>
         </div>
       </div>
