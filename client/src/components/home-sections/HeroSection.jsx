@@ -771,7 +771,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                           return (
                             <div
                               key={product.id}
-                              className={`bg-white dark:bg-gray-900 rounded-xl shadow-lg border-2 ${darkMode ? 'border-green-500/30 hover:border-blue-500/50' : 'border-green-300/50 hover:border-blue-400/70'} hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer group relative`}
+                              className={`bg-white dark:bg-gray-900 rounded-xl shadow-lg border-2 ${darkMode ? 'border-gray-950/60 hover:border-blue-500/100' : 'border-gray-950/60 hover:border-blue-400/70'} hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer group relative`}
                               onClick={() => navigate(`/product/${product.id}`)}
                               style={{
                                 flex: '0 0 auto',
