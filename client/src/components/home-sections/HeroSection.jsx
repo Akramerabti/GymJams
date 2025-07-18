@@ -400,7 +400,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               maxHeight: 'clamp(500px, 70vh, 1100px)',
               height: '100%',
               boxSizing: 'border-box',
-              overflow: 'visible' // <-- Allow overflow for scaling cards
+              overflow: 'visible'
             }}
           >
             <div
@@ -732,8 +732,9 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                     animationFillMode: 'both',
                     minHeight: 'clamp(200px,30vh,400px)',
                     maxHeight: 'clamp(350px,40vh,600px)',
-                    overflow: 'visible', // <-- Allow overflow for scaling cards
-                    zIndex: 1 // <-- Add this line to raise stacking context
+                    height: '100%', // <-- Ensure it stretches to parent
+                    overflow: 'visible',
+                    zIndex: 1
                   }}
                 >
                   {/* Add margin-top for small screens */}
@@ -753,105 +754,128 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                       <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
                   </div>
-                  {/* New horizontal scrollable featured products */}
-                  {productsLoading ? (
-                    <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-4 sm:p-6 flex items-center justify-center shadow-lg border-2 ${darkMode ? 'border-white/30' : 'border-black/30'} relative overflow-hidden`}>
-                      <div className={`absolute inset-0 rounded-xl ${darkMode ? 'bg-gradient-to-br from-green-500/5 to-blue-500/5' : 'bg-gradient-to-br from-green-500/10 to-blue-500/10'}`}></div>
-                      <div className={`animate-spin rounded-full h-6 w-6 border-b-2 relative z-10 ${
-                        darkMode ? 'border-blue-400' : 'border-blue-600'
-                      }`}></div>
-                    </div>
-                  ) : featuredProducts.length > 0 ? (
-                    <div className={`relative flex-1`}>
-                      <div className="flex flex-row gap-4 overflow-x-auto scrollbar-hide p-8 -m-5 -mt-10 z-9999">
-                        {featuredProducts.map((product) => {
-                          const price = getPriceDisplay(product);
-                          const isOutOfStock = product.stockQuantity === 0;
-                          const lowStock = product.stockQuantity > 0 && product.stockQuantity <= 5;
-                          return (
-                            <div
-                              key={product.id}
-                              className={`bg-white dark:bg-gray-900 rounded-xl shadow-lg border-2 ${darkMode ? 'border-gray-950/60 hover:border-blue-500/100' : 'border-gray-950/60 hover:border-blue-400/70'} hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer group relative group-hover:z-10`}
-                              onClick={() => navigate(`/product/${product.id}`)}
-                              style={{
-                                flex: '0 0 auto',
-                                width: 'clamp(170px, 22vw, 220px)'
-                              }}
-                            >
-                                <div className="relative aspect-square overflow-hidden rounded-t-xl bg-gray-50 dark:bg-gray-800">
-                                <img
-                                  src={product.image}
-                                  alt={product.name}
-                                  className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
-                                  onError={e => { e.target.src = '/Picture3.png'; }}
-                                />
-                                {/* Status badges */}
-                                <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
-                                  {price.discounted && (
-                                    <span className="px-2 py-1 text-xs rounded-full bg-red-500 text-white font-bold shadow">
-                                      {price.percentage}% OFF
-                                    </span>
-                                  )}
-                                  {isOutOfStock && (
-                                    <span className="px-2 py-1 text-xs rounded-full bg-gray-800 text-white font-bold shadow">
-                                      Out of Stock
-                                    </span>
-                                  )}
-                                  {lowStock && (
-                                    <span className="px-2 py-1 text-xs rounded-full bg-amber-500 text-white font-bold shadow">
-                                      Low Stock
-                                    </span>
-                                  )}
-                                  {product.preOrder && (
-                                    <span className="px-2 py-1 text-[10px] rounded-full bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-500 text-amber-900 font-bold border border-amber-900 shadow">
-                                      Pre-order
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="p-3">
-                                <h4 className={`font-semibold text-sm mb-1 truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                  {product.name}
-                                </h4>
-                                <div className="flex items-baseline gap-2 mb-1">
-                                  {price.discounted ? (
-                                    <>
-                                      <span className="text-base font-bold text-red-600">{price.discounted}</span>
-                                      <span className="text-xs text-gray-400 line-through">{price.original}</span>
-                                    </>
-                                  ) : (
-                                    <span className="text-base font-bold text-gray-900 dark:text-white">{price.original}</span>
-                                  )}
-                                </div>
-                                {lowStock && (
-                                  <p className="text-xs text-amber-600">
-                                    Only {product.stockQuantity} left
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
+                  {/* Featured products content fills the rest */}
+                  <div className="flex-1 min-h-0 flex flex-col" style={{height: '100%'}}>
+                    {productsLoading ? (
+                      <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-4 sm:p-6 flex items-center justify-center shadow-lg border-2 ${darkMode ? 'border-white/30' : 'border-black/30'} relative overflow-hidden`}>
+                        <div className={`absolute inset-0 rounded-xl ${darkMode ? 'bg-gradient-to-br from-green-500/5 to-blue-500/5' : 'bg-gradient-to-br from-green-500/10 to-blue-500/10'}`}></div>
+                        <div className={`animate-spin rounded-full h-6 w-6 border-b-2 relative z-10 ${
+                          darkMode ? 'border-blue-400' : 'border-blue-600'
+                        }`}></div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-gray-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} p-4 sm:p-6 text-center flex flex-col items-center justify-center shadow-2xl min-h-[190px] border-2 ${darkMode ? 'border-gray-600/30 hover:border-gray-500/50' : 'border-gray-300/50 hover:border-gray-400/70'} relative overflow-hidden hover:shadow-3xl transition-all duration-500 hover:scale-[1.02] group`}>
-                      <div className={`absolute inset-0 rounded-xl ${darkMode ? 'bg-gradient-to-br from-gray-600/10 via-gray-500/5 to-gray-700/10' : 'bg-gradient-to-br from-gray-400/15 via-gray-300/10 to-gray-500/15'} opacity-60 group-hover:opacity-80 transition-all duration-500`}></div>
-                      <XCircle className={`w-12 h-12 mb-3 relative z-10 ${darkMode ? 'text-gray-500 group-hover:text-gray-400' : 'text-gray-400 group-hover:text-gray-500'} transition-all duration-300`} />
-                      <p className={`text-sm sm:text-base relative z-10 ${darkMode ? 'text-gray-400 group-hover:text-gray-300' : 'text-gray-600 group-hover:text-gray-700'} transition-all duration-300`}>
-                        Sorry, no featured products available right now.
-                      </p>
-                    </div>
-                  )}
+                    ) : featuredProducts.length > 0 ? (
+                   <div className="flex flex-row gap-4 overflow-x-auto scrollbar-hide p-8 -m-5 -mt-10 z-9999">
+                        <div className="flex flex-row gap-4 h-full w-full">
+                          {featuredProducts.map((product) => {
+                            const price = getPriceDisplay(product);
+                            const isOutOfStock = product.stockQuantity === 0;
+                            const lowStock = product.stockQuantity > 0 && product.stockQuantity <= 5;
+                            return (
+                              <div
+                                key={product.id}
+                                className={`bg-white dark:bg-gray-900 rounded-xl shadow-lg border-2 ${darkMode ? 'border-gray-950/60 hover:border-blue-500/100' : 'border-gray-950/60 hover:border-blue-400/70'} hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer group relative group-hover:z-10 flex flex-col`}
+                                onClick={() => navigate(`/product/${product.id}`)}
+                                style={{
+                                  flex: '0 0 auto',
+                                  aspectRatio: '7 / 10',
+                                  height: '100%',
+                                  minWidth: 0,
+                                  minHeight: 0,
+                                  maxHeight: '100%',
+                                }}
+                              >
+                                {/* Image stays square */}
+                                <div className="flex flex-col h-full aspect-[7/10]">
+                                <div className="relative h-1/2 overflow-hidden bg-gray-50 dark:bg-gray-800">
+    <div className="relative aspect-square h-full w-full">
+      <img
+        src={product.image}
+        alt={product.name}
+        className="absolute h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+        onError={e => { e.target.src = '/Picture3.png'; }}
+      />
+      {/* Status badges */}
+      <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+        {price.discounted && (
+          <span className="px-2 py-1 text-xs rounded-full bg-red-500 text-white font-bold shadow">
+            {price.percentage}% OFF
+          </span>
+        )}
+        {isOutOfStock && (
+          <span className="px-2 py-1 text-xs rounded-full bg-gray-800 text-white font-bold shadow">
+            Out of Stock
+          </span>
+        )}
+        {lowStock && (
+          <span className="px-2 py-1 text-xs rounded-full bg-amber-500 text-white font-bold shadow">
+            Low Stock
+          </span>
+        )}
+        {product.preOrder && (
+          <span className="px-2 py-1 text-[10px] rounded-full bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-500 text-amber-900 font-bold border border-amber-900 shadow">
+            Pre-order
+          </span>
+        )}
+      </div>
+    </div>
+                                </div>
+                                <div className="flex flex-col h-1/2 p-3 overflow-hidden">
+      <h4
+        className={`font-semibold text-sm mb-1 truncate ${
+          darkMode ? 'text-white' : 'text-gray-900'
+        }`}
+      >
+        {product.name}
+      </h4>
+      <div className="flex items-baseline gap-2 -mb-1">
+        {price.discounted ? (
+          <>
+            <span className="text-base font-bold text-red-600">
+              {price.discounted}
+            </span>
+            <span className="text-xs text-gray-400 line-through">
+              {price.original}
+            </span>
+          </>
+        ) : (
+          <span className="text-base font-bold text-gray-900 dark:text-white">
+            {price.original}
+          </span>
+        )}
+      </div>
+      {lowStock && (
+        <p className="text-xs text-amber-600 mt-auto">
+          Only {product.stockQuantity} left
+        </p>
+      )}
+                                </div>
+                                </div>
+
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-gray-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} p-4 sm:p-6 text-center flex flex-col items-center justify-center shadow-2xl min-h-[190px] border-2 ${darkMode ? 'border-gray-600/30 hover:border-gray-500/50' : 'border-gray-300/50 hover:border-gray-400/70'} relative overflow-hidden hover:shadow-3xl transition-all duration-500 hover:scale-[1.02] group`}>
+                        <div className={`absolute inset-0 rounded-xl ${darkMode ? 'bg-gradient-to-br from-gray-600/10 via-gray-500/5 to-gray-700/10' : 'bg-gradient-to-br from-gray-400/15 via-gray-300/10 to-gray-500/15'} opacity-60 group-hover:opacity-80 transition-all duration-500`}></div>
+                        <XCircle className={`w-12 h-12 mb-3 relative z-10 ${darkMode ? 'text-gray-500 group-hover:text-gray-400' : 'text-gray-400 group-hover:text-gray-500'} transition-all duration-300`} />
+                        <p className={`text-sm sm:text-base relative z-10 ${darkMode ? 'text-gray-400 group-hover:text-gray-300' : 'text-gray-600 group-hover:text-gray-700'} transition-all duration-300`}>
+                          Sorry, no featured products available right now.
+                        </p>
+                      </div>
+                    )}
                 </div>
               </div>
             </div>
           </div>
                   </div>
 </div>
+
+        </div>
         </div>
       </div>
-    </div>
+      </div>
   );
 };
 
