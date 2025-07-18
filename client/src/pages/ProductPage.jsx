@@ -34,7 +34,6 @@ const constructImageUrl = (path) => {
     return path;
   }
   
-  // For legacy local files, construct the full URL
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
 };
@@ -71,7 +70,7 @@ const ProductPage = ({ isPreview = false }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center mt-10">
         <span className="loading loading-spinner loading-lg"></span>
       </div>
     );
@@ -159,7 +158,7 @@ const ProductPage = ({ isPreview = false }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 mt-15">
       <div className="container mx-auto px-4 py-8">
         {!isPreview && (
           <div className="flex mb-4 md:mb-6 items-center text-sm text-gray-500">

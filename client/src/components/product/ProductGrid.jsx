@@ -11,9 +11,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import useCartStore from '@/stores/cartStore'; 
+import { useTheme } from '@/contexts/ThemeContext'; // <-- Add this import
 
 const ProductGrid = ({ products = [], onProductClick }) => {
   const cartStore = useCartStore(); 
+  const { darkMode } = useTheme(); // <-- Use the theme context
   const constructImageUrl = (path) => {
     if (!path) return '/placeholder-image.jpg';
     return path.startsWith('http') ? path : `${import.meta.env.VITE_API_URL}${path}`;
@@ -150,7 +152,9 @@ const ProductGrid = ({ products = [], onProductClick }) => {
             </div>
 
             <CardContent className="p-4 sm:p-4 bg-white">
-              <h3 className="font-medium text-sm sm:text-base text-black mb-1 line-clamp-1">
+              <h3 className={`font-medium text-sm sm:text-base mb-1 line-clamp-1 ${
+                darkMode ? 'text-white' : 'text-black'
+              }`}>
                 {product.name}
               </h3>
 <div className="flex gap-2 pt-1 mb-1 -ml-1">

@@ -733,7 +733,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                     minHeight: 'clamp(200px,30vh,400px)',
                     maxHeight: 'clamp(350px,40vh,600px)',
                     overflow: 'visible', // <-- Allow overflow for scaling cards
-                    zIndex: 300000 // <-- Add this line to raise stacking context
+                    zIndex: 1 // <-- Add this line to raise stacking context
                   }}
                 >
                   {/* Add margin-top for small screens */}
@@ -771,11 +771,14 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                           return (
                             <div
                               key={product.id}
-                              className={`min-w-[180px] max-w-[220px] bg-white dark:bg-gray-900 rounded-xl shadow-lg border-2 ${darkMode ? 'border-green-500/30 hover:border-blue-500/50' : 'border-green-300/50 hover:border-blue-400/70'} hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer group relative`}
+                              className={`bg-white dark:bg-gray-900 rounded-xl shadow-lg border-2 ${darkMode ? 'border-green-500/30 hover:border-blue-500/50' : 'border-green-300/50 hover:border-blue-400/70'} hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer group relative`}
                               onClick={() => navigate(`/product/${product.id}`)}
-                              style={{ flex: '0 0 auto' }}
+                              style={{
+                                flex: '0 0 auto',
+                                width: 'clamp(170px, 22vw, 220px)'
+                              }}
                             >
-                              <div className="relative aspect-square overflow-hidden rounded-t-xl bg-gray-50 dark:bg-gray-800">
+                                <div className="relative aspect-square overflow-hidden rounded-t-xl bg-gray-50 dark:bg-gray-800">
                                 <img
                                   src={product.image}
                                   alt={product.name}
