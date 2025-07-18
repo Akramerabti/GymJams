@@ -110,10 +110,10 @@ const LoginForm = () => {
   }
 };
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-blue-700 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="flex justify-center w-full">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-blue-700 py-8 px-2 sm:px-6 lg:px-6">
+      <div className="flex justify-center">
         <motion.div
-          className="w-1/3 max-w-md bg-white rounded-2xl shadow-2xl p-8 space-y-8"
+          className="w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl bg-white rounded-xl sm:rounded-2xl shadow-2xl p-4 sm:p-8 space-y-6 min-h-[420px]"
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}

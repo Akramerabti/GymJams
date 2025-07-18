@@ -763,7 +763,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                     </div>
                   ) : featuredProducts.length > 0 ? (
                     <div className={`relative flex-1`}>
-                      <div className="flex flex-row gap-4 overflow-x-auto scrollbar-hide pb-2">
+                      <div className="flex flex-row gap-4 overflow-x-auto scrollbar-hide p-8 -m-5">
                         {featuredProducts.map((product) => {
                           const price = getPriceDisplay(product);
                           const isOutOfStock = product.stockQuantity === 0;
@@ -771,7 +771,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                           return (
                             <div
                               key={product.id}
-                              className={`bg-white dark:bg-gray-900 rounded-xl shadow-lg border-2 ${darkMode ? 'border-gray-950/60 hover:border-blue-500/100' : 'border-gray-950/60 hover:border-blue-400/70'} hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer group relative`}
+                              className={`bg-white dark:bg-gray-900 rounded-xl shadow-lg border-2 ${darkMode ? 'border-gray-950/60 hover:border-blue-500/100' : 'border-gray-950/60 hover:border-blue-400/70'} hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer group relative group-hover:z-10`}
                               onClick={() => navigate(`/product/${product.id}`)}
                               style={{
                                 flex: '0 0 auto',
