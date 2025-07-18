@@ -394,7 +394,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
           
           {/* Section 2: Featured Products and GymBros - Reduced padding since buttons take space */}
           <div
-            className={`flex-1 flex flex-col items-center justify-start px-3 sm:px-4 lg:px-8 pt-6 sm:pt-8 lg:pt-6 pb-32 sm:pb-16 ${darkMode ? 'bg-gradient-to-b from-gray-900 via-gray-900 to-white/5' : 'bg-gradient-to-b from-white via-white to-black/5'}`}
+            className={`flex-1 flex flex-col items-center justify-start px-3 sm:px-4 lg:px-8 pt-6 sm:pt-8 lg:pt-6 pb-10 sm:pb-16 ${darkMode ? 'bg-gradient-to-b from-gray-900 via-gray-900 to-white/5' : 'bg-gradient-to-b from-white via-white to-black/5'}`}
             style={{
               minHeight: 'clamp(400px, 55vh, 900px)',
               maxHeight: 'clamp(500px, 70vh, 1100px)',
