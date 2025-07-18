@@ -316,7 +316,6 @@ const ShopSection = ({ onNavigate, isActive }) => {
                 preload="auto"
                 className="absolute inset-0 w-full h-full object-cover opacity-40"
                 onCanPlay={e => {
-                  // Try to play programmatically for iOS/Safari
                   if (e.target.paused) {
                     try { e.target.play(); } catch {}
                   }
@@ -324,32 +323,50 @@ const ShopSection = ({ onNavigate, isActive }) => {
               >
                 <source src="/GymTonic.mp4" type="video/mp4" />
               </video>
-              {/* Overlay */}
-              <div className="absolute inset-0 bg-black bg-opacity-60"></div>
               {/* Video Content */}
+               {/* Video Content */}
               <div className="absolute inset-0 flex flex-col items-center justify-center pt-6 lg:pt-20 xl:pt-32 lg:justify-end lg:pb-10 text-center px-4 z-30">
-                <div className={`inline-flex items-center gap-2 px-3 rounded-full mb-3 font-semibold transition-all duration-1000 delay-300
+                <div
+                  className={`inline-flex items-center gap-2 px-3 rounded-full mb-3 font-semibold transition-all duration-1000 delay-300
                   ${isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
-                  ${darkMode ? 'bg-blue-500/20 text-blue-200' : 'bg-blue-500/20 text-blue-800'}
+                  bg-blue-500/20 text-white
                   text-xs sm:text-sm md:text-base lg:text-sm xl:text-xs
-                `}>
+                `}
+                style={{
+                  position: 'relative',
+                  zIndex: 1,
+                  textShadow: '0 0 2px #000, 0 0 8px #000'
+                }}
+                >
                   <ShoppingBag className="w-4 h-4" />
                   Premium Equipment Store
                 </div>
-                <h2 className={`font-bold mb-3 transition-all duration-1000 delay-500
+                <h2
+                  className={`font-bold mb-3 transition-all duration-1000 delay-500
                   ${isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
-                  ${darkMode
-                    ? 'text-white bg-gradient-to-r from-blue-200 to-white bg-clip-text text-transparent'
-                    : 'text-gray-900 bg-gradient-to-r from-blue-600 to-gray-900 bg-clip-text text-transparent'}
+                  text-white
                   text-xl sm:text-2xl md:text-4xl lg:text-3xl xl:text-2xl
-                `}>
+                `}
+                style={{
+                  position: 'relative',
+                  zIndex: 1,
+                  textShadow: '0 0 2px #000, 0 0 8px #000'
+                }}
+                >
                   Premium Equipment Shop
                 </h2>
-                <p className={`max-w-2xl mx-auto leading-relaxed transition-all duration-1000 delay-700
+                <p
+                  className={`max-w-2xl mx-auto leading-relaxed transition-all duration-1000 delay-700
                   ${isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
-                  ${darkMode ? 'text-white/90' : 'text-gray-700'}
+                  text-white
                   text-xs sm:text-sm md:text-base lg:text-sm xl:text-xs
-                `}>
+                `}
+                style={{
+                  position: 'relative',
+                  zIndex: 1,
+                  textShadow: '0 0 2px #000, 0 0 8px #000'
+                }}
+                >
                   Discover professional-grade fitness equipment and apparel
                 </p>
               </div>
