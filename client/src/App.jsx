@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-route
 import { Toaster } from 'sonner';
 import adService from './services/adsense';
 import AdDebugger from './components/blog/AdDebugger';
+import { I18nextProvider } from 'react-i18next';
+import i18n from './i18n';
 
 // Import global CSS
 import './global.css';
@@ -98,74 +100,76 @@ const App = () => {
     });
   }, [checkAuth, logout]);
   return (
-    <ThemeProvider>
-      <SocketProvider>
-        <GuestFlowProvider>
-          <Router>
-            <Layout>
-              <Routes>
-                {/* Public Routes */}
-                <Route path="/" element={<Home />} />
-                <Route path="/coaching" element={<CoachingHome />} />
-                <Route path="/shop" element={<Shop />} />
-                <Route path="/cart" element={<Cart />} />
-                <Route path="/shop-checkout" element={<ShopCheckout />} />
-                <Route path="/subscription-checkout" element={<SubscriptionCheckout />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                <Route path="/verify-email" element={<VerifyEmail />} />
-                <Route path="/email-verification-notification" element={<EmailVerificationNotification />} />
-                <Route path="/forgot-password" element={<ForgotPassword />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/questionnaire" element={<Questionnaire />} />
-                <Route path="/games" element={<Games />} />
-                <Route path="/hidden-games" element={<HiddenGames />} />
-                <Route path="/contact" element={<Contact />} />
-                <Route path="/product/:productId" element={<ProductPage />} />
-                <Route path="/gymbros" element={<GymBros />} />
-                <Route path="/orders" element={<Orders />} />
-                <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
-                <Route path="/contact" element={<Contact />} />
-                <Route path="/about" element={<AboutUs />} />
-                <Route path="/faq" element={<FAQ />} />
-                <Route path="/returns" element={<Returns />} />
-                <Route path="/application" element={<ApplicationForm />} />
-                <Route path="/oauth-callback" element={<OAuthCallback />} />
-                <Route path="/blog" element={<Blog />} />
+    <I18nextProvider i18n={i18n}>
+      <ThemeProvider>
+        <SocketProvider>
+          <GuestFlowProvider>
+            <Router>
+              <Layout>
+                <Routes>
+                  {/* Public Routes */}
+                  <Route path="/" element={<Home />} />
+                  <Route path="/coaching" element={<CoachingHome />} />
+                  <Route path="/shop" element={<Shop />} />
+                  <Route path="/cart" element={<Cart />} />
+                  <Route path="/shop-checkout" element={<ShopCheckout />} />
+                  <Route path="/subscription-checkout" element={<SubscriptionCheckout />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/register" element={<Register />} />
+                  <Route path="/verify-email" element={<VerifyEmail />} />
+                  <Route path="/email-verification-notification" element={<EmailVerificationNotification />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/questionnaire" element={<Questionnaire />} />
+                  <Route path="/games" element={<Games />} />
+                  <Route path="/hidden-games" element={<HiddenGames />} />
+                  <Route path="/contact" element={<Contact />} />
+                  <Route path="/product/:productId" element={<ProductPage />} />
+                  <Route path="/gymbros" element={<GymBros />} />
+                  <Route path="/orders" element={<Orders />} />
+                  <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
+                  <Route path="/contact" element={<Contact />} />
+                  <Route path="/about" element={<AboutUs />} />
+                  <Route path="/faq" element={<FAQ />} />
+                  <Route path="/returns" element={<Returns />} />
+                  <Route path="/application" element={<ApplicationForm />} />
+                  <Route path="/oauth-callback" element={<OAuthCallback />} />
+                  <Route path="/blog" element={<Blog />} />
 
-                <Route path="/blog/:slug" element={<BlogPost />} />
-                
-                {/* Protected Routes */}
-                <Route path="/profile" element={
-                  <ProtectedRoute>
-                    <Profile />
-                  </ProtectedRoute>
-                } />
-                
-                <Route path="/subscription-management" element={
-                  <ProtectedRoute>
-                    <SubscriptionManagement />
-                  </ProtectedRoute>
-                } />
-                <Route path="/taskforce-dashboard" element={
-                  <ProtectedRoute>
-                    <TaskforceDashboard />
-                  </ProtectedRoute>
-                } />
-              </Routes>
+                  <Route path="/blog/:slug" element={<BlogPost />} />
+                  
+                  {/* Protected Routes */}
+                  <Route path="/profile" element={
+                    <ProtectedRoute>
+                      <Profile />
+                    </ProtectedRoute>
+                  } />
+                  
+                  <Route path="/subscription-management" element={
+                    <ProtectedRoute>
+                      <SubscriptionManagement />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/taskforce-dashboard" element={
+                    <ProtectedRoute>
+                      <TaskforceDashboard />
+                    </ProtectedRoute>
+                  } />
+                </Routes>
 
-              {showOnboarding && (
-                <Onboarding onClose={() => setShowOnboarding(false)} />
-              )}
+                {showOnboarding && (
+                  <Onboarding onClose={() => setShowOnboarding(false)} />
+                )}
 
-              <Toaster />
-              {process.env.NODE_ENV !== 'production' && <AdDebugger />}
-            </Layout>
-          </Router>
-        </GuestFlowProvider>
-      </SocketProvider>
-    </ThemeProvider>
+                <Toaster />
+                {process.env.NODE_ENV !== 'production' && <AdDebugger />}
+              </Layout>
+            </Router>
+          </GuestFlowProvider>
+        </SocketProvider>
+      </ThemeProvider>
+    </I18nextProvider>
   );
 };
 
