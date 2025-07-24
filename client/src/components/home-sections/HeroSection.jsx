@@ -176,32 +176,54 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
       <div className={`w-full h-full flex flex-col transition-all duration-700 ${showContent ? 'opacity-100' : 'opacity-0'}`}>
 
       {/* Background Video for entire section - Bottom layer with reduced opacity */}
-      {!backgroundVideoError || !backgroundVideoLoaded ? (
+      {(!backgroundVideoError && !backgroundVideoLoaded) || (!backgroundVideoError && backgroundVideoLoaded) ? (
         <video
           key={backgroundVideoKey}
           autoPlay
           muted
           loop
           playsInline
+          tabIndex="-1"
           controls={false}
           disablePictureInPicture
           controlsList="nodownload nofullscreen noremoteplayback"
           className="absolute inset-0 w-full h-full object-cover opacity-10 bg-video-hide-controls"
-          style={{ display: backgroundVideoLoaded ? 'block' : 'none' }}
+          style={{ display: backgroundVideoLoaded ? 'block' : 'none', pointerEvents: 'none' }}
+          ref={el => {
+            if (el) {
+              // Remove controls attribute forcibly
+              el.removeAttribute('controls');
+              el.setAttribute('tabIndex', '-1');
+              el.setAttribute('playsinline', 'true');
+              el.setAttribute('webkit-playsinline', 'true');
+              el.setAttribute('disablePictureInPicture', 'true');
+              el.setAttribute('controlsList', 'nodownload nofullscreen noremoteplayback');
+              el.style.pointerEvents = 'none';
+            }
+          }}
           onLoadedData={e => {
             setBackgroundVideoLoaded(true);
             setBackgroundVideoError(false);
-            try { e.target.currentTime = 0; e.target.play(); } catch {}
+            try {
+              e.target.currentTime = 0;
+              e.target.play();
+            } catch {}
           }}
           onError={() => {
             setBackgroundVideoError(true);
           }}
-          onCanPlay={() => setBackgroundVideoLoaded(true)}
+          onCanPlay={e => {
+            setBackgroundVideoLoaded(true);
+            try {
+              e.target.currentTime = 0;
+              e.target.play();
+            } catch {}
+          }}
         >
           <source src="/GymTonic.mp4" type="video/mp4" />
         </video>
       ) : null}
-      {/* Hide native video controls on iOS with CSS */}
+      {/* Hide native video controls and play button on iOS and force no controls visually */}
       <style>{`
         .bg-video-hide-controls::-webkit-media-controls-panel {
           display: none !important;
@@ -212,6 +234,13 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         .bg-video-hide-controls::-webkit-media-controls-start-playback-button {
           display: none !important;
         }
+        .bg-video-hide-controls::-webkit-media-controls {
+          opacity: 0 !important;
+          pointer-events: none !important;
+        }
+        .bg-video-hide-controls {
+          pointer-events: none !important;
+        }
       `}</style>
       {/* Show fallback image only while video is loading or during retry */}
       {(!backgroundVideoLoaded || backgroundVideoError) && (
@@ -219,6 +248,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
           src="/Picture3.png"
           alt="Gym background"
           className="absolute inset-0 w-full h-full object-cover opacity-10"
+          style={{ pointerEvents: 'none' }}
         />
       )}
       {/* Gradient overlay - On top of video */}
@@ -257,27 +287,71 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   muted
                   loop
                   playsInline
+                  tabIndex="-1"
                   controls={false}
-                  className="absolute inset-0 w-full h-full object-cover"
-                  style={{ display: mainVideoLoaded ? 'block' : 'none' }}
-                  onLoadedData={() => {
+                  disablePictureInPicture
+                  controlsList="nodownload nofullscreen noremoteplayback"
+                  className="absolute inset-0 w-full h-full object-cover bg-video-hide-controls"
+                  style={{ display: mainVideoLoaded ? 'block' : 'none', pointerEvents: 'none' }}
+                  ref={el => {
+                    if (el) {
+                      el.removeAttribute('controls');
+                      el.setAttribute('tabIndex', '-1');
+                      el.setAttribute('playsinline', 'true');
+                      el.setAttribute('webkit-playsinline', 'true');
+                      el.setAttribute('disablePictureInPicture', 'true');
+                      el.setAttribute('controlsList', 'nodownload nofullscreen noremoteplayback');
+                      el.style.pointerEvents = 'none';
+                    }
+                  }}
+                  onLoadedData={e => {
                     setMainVideoLoaded(true);
                     setMainVideoError(false);
+                    try {
+                      e.target.currentTime = 0;
+                      e.target.play();
+                    } catch {}
                   }}
                   onError={() => {
                     setMainVideoError(true);
                   }}
-                  onCanPlay={() => setMainVideoLoaded(true)}
+                  onCanPlay={e => {
+                    setMainVideoLoaded(true);
+                    try {
+                      e.target.currentTime = 0;
+                      e.target.play();
+                    } catch {}
+                  }}
                 >
                   <source src="/GymTonic.mp4" type="video/mp4" />
                 </video>
               ) : null}
+              {/* Hide native video controls and play button on iOS and force no controls visually */}
+              <style>{`
+                .bg-video-hide-controls::-webkit-media-controls-panel {
+                  display: none !important;
+                }
+                .bg-video-hide-controls::-webkit-media-controls-play-button {
+                  display: none !important;
+                }
+                .bg-video-hide-controls::-webkit-media-controls-start-playback-button {
+                  display: none !important;
+                }
+                .bg-video-hide-controls::-webkit-media-controls {
+                  opacity: 0 !important;
+                  pointer-events: none !important;
+                }
+                .bg-video-hide-controls {
+                  pointer-events: none !important;
+                }
+              `}</style>
               {/* Show fallback image only while video is loading or during retry */}
               {(!mainVideoLoaded || mainVideoError) && (
                 <img
                   src="/Picture3.png"
                   alt="Gym workout"
                   className="absolute inset-0 w-full h-full object-cover"
+                  style={{ pointerEvents: 'none' }}
                 />
               )}
 
@@ -550,12 +624,11 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    // The width is determined by the height and aspect ratio
                                     aspectRatio: '7 / 10',
                                     minHeight: '80px',
                                     minWidth: '56px',
                                     maxHeight: '100%',
-                                    maxWidth: 'calc(100% * 0.7)', // never wider than 70% of container
+                                    maxWidth: 'calc(100% * 0.7)',
                                   }}
                                 >
                                   <div
