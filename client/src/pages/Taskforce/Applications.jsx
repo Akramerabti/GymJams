@@ -1231,7 +1231,8 @@ const Applications = () => {
             </div>
           ) : (
             <div className="border rounded-lg overflow-hidden">
-              <Table>                <TableHeader>
+              <Table>
+                <TableHeader>
                   <TableRow>
                     <TableHead className={`w-[200px] ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Name</TableHead>
                     <TableHead className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>Type</TableHead>
@@ -1239,7 +1240,8 @@ const Applications = () => {
                     <TableHead className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>Status</TableHead>
                     <TableHead className={`text-right ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Actions</TableHead>
                   </TableRow>
-                </TableHeader><TableBody>
+                </TableHeader>
+                <TableBody>
                   {filteredApplications.map((application) => (
                     <TableRow key={application._id} className={`${application.status === 'pending' ? (isDarkMode ? 'bg-yellow-900/20' : 'bg-yellow-50') : ''} ${isDarkMode ? 'text-white' : 'text-black'}`}>
                       <TableCell className={`font-medium ${isDarkMode ? 'text-white' : 'text-black'}`}>
@@ -1256,32 +1258,47 @@ const Applications = () => {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleViewDetails(application)}
-                              className="bg-blue-400 "
+                              className="bg-blue-400"
                             >
-                              <Eye className="h-4 w-4 mr-1 " />
+                              <Eye className="h-4 w-4 mr-1" />
                               View
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-3xl max-h-[90vh] z-50">
-                            <DialogHeader>
+                          <DialogContent
+                            className="w-[50vw] h-[50vh] z-[10001] p-0 bg-white dark:bg-gray-900 rounded-xl shadow-2xl flex flex-col overflow-hidden"
+                            style={{
+                              backdropFilter: 'none',
+                              background: isDarkMode ? '#18181b' : '#fff',
+                              margin: 'auto',
+                              top: '50%',
+                              left: '50%',
+                              transform: 'translate(-50%, -50%)',
+                              position: 'fixed',
+                              boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+                            }}
+                          >
+                            <DialogHeader className="w-full px-6 pt-6 flex-shrink-0">
                               <DialogTitle>Application Details</DialogTitle>
                               <DialogDescription>
                                 Application from {application.name} for {getApplicationTypeLabel(application.applicationType)}
                               </DialogDescription>
                             </DialogHeader>
-                            
-                            {selectedApplication && (
-                              <ApplicationDetails
-                                application={selectedApplication}
-                                onApprove={handleApproveApplication}
-                                onRequestSignature={handleRequestSignature}
-                                onFinalApprove={handleFinalApprove}
-                                onUploadSignedDocument={handleUploadSignedDocument}
-                                onReject={handleRejectApplication}
-                                onClose={() => setShowDetails(false)}
-                                isProcessing={isProcessing}
-                              />
-                            )}
+                            <div className="flex-1 w-full h-full px-6 pb-6 overflow-y-auto">
+                              {selectedApplication && (
+                                <div className="h-full flex flex-col">
+                                  <ApplicationDetails
+                                    application={selectedApplication}
+                                    onApprove={handleApproveApplication}
+                                    onRequestSignature={handleRequestSignature}
+                                    onFinalApprove={handleFinalApprove}
+                                    onUploadSignedDocument={handleUploadSignedDocument}
+                                    onReject={handleRejectApplication}
+                                    onClose={() => setShowDetails(false)}
+                                    isProcessing={isProcessing}
+                                  />
+                                </div>
+                              )}
+                            </div>
                           </DialogContent>
                         </Dialog>
                       </TableCell>
