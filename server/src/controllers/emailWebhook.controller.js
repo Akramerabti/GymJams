@@ -13,7 +13,6 @@ import supabaseStorageService from '../services/supabaseStorage.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Helper function to determine if email contains signed documents
 const hasSignedDocuments = (attachments, bodyPlain, strippedText) => {
   if (!attachments || attachments.length === 0) {
     return false;
@@ -40,7 +39,6 @@ const hasSignedDocuments = (attachments, bodyPlain, strippedText) => {
   return hasKeywords || hasValidAttachments;
 };
 
-// Helper function to download and save attachments from Mailgun storage
 const saveAttachmentsFromMailgun = async (messageUrl, attachments, applicationId, messageData = null) => {
   const savedFiles = [];
   

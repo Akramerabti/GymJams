@@ -70,7 +70,7 @@ const Onboarding = ({ onClose, showPointsMessage = true }) => {
       <motion.div
         initial={{ scale: 0.9 }}
         animate={{ scale: 1 }}
-        className="bg-white rounded-xl max-w-md w-full shadow-xl relative"
+        className="bg-white rounded-xl w-full lg:w-[50vw] shadow-xl relative"
       >
         <button
           onClick={onClose}
