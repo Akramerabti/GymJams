@@ -34,6 +34,36 @@ const updateCache = (cacheKey, data) => {
 };
 
 const productService = {
+  // Fetch coaching promos
+  async getCoachingPromos() {
+    try {
+      const response = await api.get('/products/coaching-promos');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch coaching promos:', error);
+      throw error;
+    }
+  },
+  // Delete coupon code
+  async deleteCouponCode(id) {
+    try {
+      const response = await api.delete(`/products/coupon-codes/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to delete coupon code:', error);
+      throw error;
+    }
+  },
+  // Update coupon code discount
+  async updateCouponDiscount(id, discount) {
+    try {
+      const response = await api.put(`/products/coupon-codes/${id}/discount`, { discount });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update coupon discount:', error);
+      throw error;
+    }
+  },
   async getProducts() {
     try {
       // Check cache first
@@ -195,43 +225,43 @@ const productService = {
     }
   },
 
-  // Coaching promo APIs
-  async createCoachingPromo(data) {
+  // Coupon code APIs
+  async createCouponCode(data) {
     try {
-      const response = await api.post('/products/coaching-promos', data);
+      const response = await api.post('/products/coupon-codes', data);
       return response.data;
     } catch (error) {
-      console.error('Failed to create coaching promo:', error);
+      console.error('Failed to create coupon code:', error);
       throw error;
     }
   },
 
-  async validateCoachingPromo(code, userId) {
+  async validateCouponCode({ code, userId, productId, category }) {
     try {
-      const response = await api.post('/products/coaching-promos/validate', { code, userId });
+      const response = await api.post('/products/coupon-codes/validate', { code, userId, productId, category });
       return response.data;
     } catch (error) {
-      console.error('Failed to validate coaching promo:', error);
+      console.error('Failed to validate coupon code:', error);
       throw error;
     }
   },
 
-  async markPromoAsUsed(code, userId) {
+  async markCouponAsUsed(code, userId) {
     try {
-      const response = await api.post('/products/coaching-promos/mark-used', { code, userId });
+      const response = await api.post('/products/coupon-codes/mark-used', { code, userId });
       return response.data;
     } catch (error) {
-      console.error('Failed to mark promo as used:', error);
+      console.error('Failed to mark coupon as used:', error);
       throw error;
     }
   },
 
-  async getCoachingPromos() {
+  async getCouponCodes() {
     try {
-      const response = await api.get('/products/coaching-promos');
+      const response = await api.get('/products/coupon-codes');
       return response.data;
     } catch (error) {
-      console.error('Failed to get coaching promos:', error);
+      console.error('Failed to get coupon codes:', error);
       throw error;
     }
   },

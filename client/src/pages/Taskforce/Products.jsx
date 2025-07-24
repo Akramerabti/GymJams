@@ -56,6 +56,8 @@ import {
 } from "@/components/ui/collapsible";
 
 const Products = ({ onRefreshDashboard }) => {
+  // Add state for editing coupon
+  const [editingCoupon, setEditingCoupon] = useState(null);
   const [products, setProducts] = useState([]);
   const [activeTab, setActiveTab] = useState("list");
   const [isLoading, setIsLoading] = useState(true);
@@ -369,6 +371,47 @@ const Products = ({ onRefreshDashboard }) => {
 
   const [coachingPromo, setCoachingPromo] = useState({ code: '', discount: '', subscription: '' });
   const [coachingPromos, setCoachingPromos] = useState([]);
+  // Coupon code form and list state
+  const [couponForm, setCouponForm] = useState({ code: '', discount: '', type: '', subscription: '', products: [], categories: [], maxUses: '' });
+  const [couponCodes, setCouponCodes] = useState([]);
+  // Fetch coupon codes
+  useEffect(() => {
+    fetchCouponCodes();
+  }, []);
+
+  const fetchCouponCodes = async () => {
+    try {
+      const codes = await productService.getCouponCodes();
+      setCouponCodes(codes);
+    } catch (err) {
+      toast.error('Failed to fetch coupon codes');
+    }
+  };
+
+  // Handler for coupon code submission
+  const handleCouponCodeSubmit = async (e) => {
+    e.preventDefault();
+    if (!couponForm.code || !couponForm.discount || !couponForm.type) {
+      toast.error('Please enter a coupon code, discount, and select a type.');
+      return;
+    }
+    try {
+      await productService.createCouponCode({
+        code: couponForm.code,
+        discount: couponForm.discount,
+        type: couponForm.type,
+        subscription: couponForm.subscription,
+        products: couponForm.products,
+        categories: couponForm.categories,
+        maxUses: couponForm.maxUses
+      });
+      toast.success(`Coupon code "${couponForm.code}" created!`);
+      setCouponForm({ code: '', discount: '', type: '', subscription: '', products: [], categories: [], maxUses: '' });
+      fetchCouponCodes();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to create coupon code');
+    }
+  };
 
   useEffect(() => {
     fetchCoachingPromos();
@@ -519,10 +562,10 @@ const Products = ({ onRefreshDashboard }) => {
                 <span className="hidden sm:inline">Promotions</span>
                 <span className="sm:hidden">Promo</span>
               </TabsTrigger>
-              <TabsTrigger value="coaching-promos" className="gap-2">
+              <TabsTrigger value="coupon-codes" className="gap-2">
                 <TagIcon className="h-4 w-4" />
-                <span className="hidden sm:inline">Coaching Promotions</span>
-                <span className="sm:hidden">Coach Promo</span>
+                <span className="hidden sm:inline">Coupon Codes</span>
+                <span className="sm:hidden">Coupons</span>
               </TabsTrigger>
               {productToEdit && (
                 <TabsTrigger value="edit-product" className="gap-2">
@@ -533,365 +576,236 @@ const Products = ({ onRefreshDashboard }) => {
               )}
             </TabsList>
 
-            <TabsContent value="list" className="mt-0 space-y-4">
-              {/* Mobile-Friendly Filter Controls */}
-              <div className="space-y-3">
-                {/* Search Bar */}
-                <div className="relative w-full flex-1">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search products..."
-                    className="pl-8"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                
-                {/* Filter Collapsible for Mobile */}
-                <Collapsible 
-                  open={isFiltersOpen} 
-                  onOpenChange={setIsFiltersOpen}
-                  className="w-full md:hidden"
-                >
-                  <CollapsibleTrigger asChild>
-                    <Button variant="outline" className="w-full flex justify-between">
-                      <span className="flex items-center gap-2">
-                        <Filter className="h-4 w-4" />
-                        Filters
-                      </span>
-                      {isFiltersOpen ? 
-                        <ChevronUp className="h-4 w-4" /> : 
-                        <ChevronDown className="h-4 w-4" />
-                      }
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="pt-2 space-y-2">
-                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="All Categories" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Categories</SelectItem>
-                        {categories.map(category => (
-                          <SelectItem key={category} value={category}>
-                            {category}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                      
-                    <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="All Status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="inStock">In Stock</SelectItem>
-                        <SelectItem value="outOfStock">Out of Stock</SelectItem>
-                        <SelectItem value="withDiscount">With Discount</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    
-                    <div className="flex justify-between gap-2">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" className="flex-1 gap-2">
-                            <ArrowUpDown className="h-4 w-4" />
-                            Sort
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Sort By</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleSort('name')}>
-                            Name {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleSort('price')}>
-                            Price {sortConfig.key === 'price' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleSort('stockQuantity')}>
-                            Stock {sortConfig.key === 'stockQuantity' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleSort('category')}>
-                            Category {sortConfig.key === 'category' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      
-                      <Button 
-                        variant={viewMode === 'table' ? 'default' : 'outline'} 
-                        className="gap-2"
-                        onClick={() => setViewMode('table')}
-                      >
-                        <ViewIcon className="h-4 w-4" />
-                      </Button>
-                      
-                      <Button 
-                        variant={viewMode === 'grid' ? 'default' : 'outline'} 
-                        className="gap-2"
-                        onClick={() => setViewMode('grid')}
-                      >
-                        <GridIcon className="h-4 w-4" />
-                      </Button>
+            <TabsContent value="coupon-codes" className="mt-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Add Coupon Code</CardTitle>
+                  <CardDescription>
+                    Create a coupon code for products, coaching, or both. Set usage limits and applicable products or subscriptions.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form className="space-y-4 max-w-md" onSubmit={handleCouponCodeSubmit}>
+                    <div>
+                      <label className="block text-sm font-medium mb-1" htmlFor="coupon-code">Coupon Code</label>
+                      <Input
+                        id="coupon-code"
+                        value={couponForm.code}
+                        onChange={e => setCouponForm({ ...couponForm, code: e.target.value })}
+                        placeholder="e.g. SAVE10"
+                        maxLength={20}
+                        required
+                      />
                     </div>
-                    
-                    <Button
-                      variant="outline"
-                      className="w-full gap-2"
-                      onClick={() => setBulkSelectMode(!bulkSelectMode)}
-                    >
-                      {bulkSelectMode ? 'Exit Selection Mode' : 'Select Multiple'}
-                    </Button>
-                  </CollapsibleContent>
-                </Collapsible>
-                
-                {/* Desktop Filter Controls */}
-                <div className="hidden md:flex md:flex-row gap-4 mb-4">
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      variant={viewMode === 'table' ? 'default' : 'outline'} 
-                      size="sm"
-                      onClick={() => setViewMode('table')}
-                    >
-                      <ViewIcon className="h-4 w-4" />
-                    </Button>
-                    
-                    <Button 
-                      variant={viewMode === 'grid' ? 'default' : 'outline'} 
-                      size="sm"
-                      onClick={() => setViewMode('grid')}
-                    >
-                      <GridIcon className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder="All Categories" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      {categories.map(category => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                    
-                  <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder="All Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="inStock">In Stock</SelectItem>
-                      <SelectItem value="outOfStock">Out of Stock</SelectItem>
-                      <SelectItem value="withDiscount">With Discount</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="gap-2">
-                        <Filter className="h-4 w-4" />
-                        More Filters
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Sort By</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => handleSort('name')}>
-                        Name {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleSort('price')}>
-                        Price {sortConfig.key === 'price' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleSort('stockQuantity')}>
-                        Stock {sortConfig.key === 'stockQuantity' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleSort('category')}>
-                        Category {sortConfig.key === 'category' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuLabel>Bulk Actions</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => setBulkSelectMode(!bulkSelectMode)}>
-                        {bulkSelectMode ? 'Exit Selection Mode' : 'Select Multiple'}
-                      </DropdownMenuItem>
-                      {bulkSelectMode && (
-                        <DropdownMenuItem 
-                          onClick={handleSelectAllProducts}
-                          disabled={filteredProducts.length === 0}
+                    <div>
+                      <label className="block text-sm font-medium mb-1" htmlFor="coupon-discount">Discount (%)</label>
+                      <Input
+                        id="coupon-discount"
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={couponForm.discount}
+                        onChange={e => setCouponForm({ ...couponForm, discount: e.target.value })}
+                        placeholder="e.g. 10"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Coupon Type</label>
+                      <select
+                        value={couponForm.type}
+                        onChange={e => setCouponForm({ ...couponForm, type: e.target.value })}
+                        className="w-full border rounded px-2 py-2"
+                        required
+                      >
+                        <option value="">Select type</option>
+                        <option value="product">Product</option>
+                        <option value="coaching">Coaching</option>
+                        <option value="both">Both</option>
+                      </select>
+                    </div>
+                    {couponForm.type === 'coaching' || couponForm.type === 'both' ? (
+                      <div>
+                        <label className="block text-sm font-medium mb-1" htmlFor="coupon-subscription">Subscription</label>
+                        <select
+                          id="coupon-subscription"
+                          value={couponForm.subscription}
+                          onChange={e => setCouponForm({ ...couponForm, subscription: e.target.value })}
+                          className="w-full border rounded px-2 py-2"
                         >
-                          {selectedProducts.length === filteredProducts.length 
-                            ? 'Deselect All' 
-                            : 'Select All'}
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-              
-              {/* Bulk Action Controls */}
-              {bulkSelectMode && selectedProducts.length > 0 && (
-                <div className="mb-4 flex items-center gap-2 p-2 bg-gray-50 rounded-md">
-                  <span className="text-sm font-medium">
-                    {selectedProducts.length} item{selectedProducts.length !== 1 ? 's' : ''} selected
-                  </span>
-                  <div className="flex-1" />
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="sm" className="gap-1">
-                        <Trash2 className="h-4 w-4" />
-                        <span className="hidden sm:inline">Delete Selected</span>
-                        <span className="sm:hidden">Delete</span>
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete {selectedProducts.length} selected products.
-                          This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleBulkDelete}>
-                          {isLoading ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Deleting...
-                            </>
-                          ) : (
-                            'Delete Selected'
-                          )}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              )}
-              
-              {/* Product List */}
-              {isLoading ? (
-                <div className="flex items-center justify-center h-64">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : filteredProducts.length === 0 ? (
-                <Alert>
-                  <AlertDescription>
-                    {totalCount === 0 
-                      ? 'No products found. Add your first product to get started.'
-                      : 'No products match your filters. Try adjusting your search criteria.'}
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <div>
-                  <ProductList 
-                    products={filteredProducts}
-                    onDeleteProduct={(id) => setProductToDelete(id)}
-                    onEditProduct={(product) => {
-                      setProductToEdit(product);
-                      setActiveTab("edit-product");
-                    }}
-                    bulkSelectMode={bulkSelectMode}
-                    selectedProducts={selectedProducts}
-                    onSelectProduct={handleSelectProduct}
-                    onPromote={(productId) => {
-                      const product = products.find(p => p._id === productId);
-                      setProductToPromote(product);
-                      setActiveTab("promotions");
-                    }}
-                    viewMode={viewMode}
-                  />
-                  
-                  {/* Product Count Info */}
-                  <div className="mt-4 text-sm text-gray-500">
-                    Showing {filteredCount} of {totalCount} products
-                  </div>
-                </div>
-              )}
-              
-              {/* Delete Confirmation Dialog */}
-              <AlertDialog open={!!productToDelete} onOpenChange={() => setProductToDelete(null)}>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Are you sure you want to delete this product?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete the product 
-                      and remove it from your catalog.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => handleDeleteProduct(productToDelete)}>
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Deleting...
-                        </>
-                      ) : (
-                        'Delete'
-                      )}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-
-              {/* Mobile Drawer for Product Actions - Using Drawer component on mobile */}
-              {isMobile && (
-                <Drawer>
-                  <DrawerTrigger asChild>
-                    <Button className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg">
-                      <PlusCircle className="h-6 w-6" />
-                    </Button>
-                  </DrawerTrigger>
-                  <DrawerContent>
-                    <DrawerHeader>
-                      <DrawerTitle>Product Actions</DrawerTitle>
-                      <DrawerDescription>
-                        Quickly add or manage products
-                      </DrawerDescription>
-                    </DrawerHeader>
-                    <div className="p-4 space-y-2">
-                      <Button 
-                        className="w-full justify-start" 
-                        onClick={() => {
-                          setActiveTab("add-product");
-                          setProductToEdit(null);
-                        }}
-                      >
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Add New Product
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        className="w-full justify-start"
-                        onClick={() => {
-                          setActiveTab("promotions");
-                          setProductToPromote(null);
-                        }}
-                      >
-                        <TagIcon className="mr-2 h-4 w-4" />
-                        Create Promotion
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        className="w-full justify-start"
-                        onClick={() => setBulkSelectMode(!bulkSelectMode)}
-                      >
-                        {bulkSelectMode ? <XCircle className="mr-2 h-4 w-4" /> : <CheckCircle className="mr-2 h-4 w-4" />}
-                        {bulkSelectMode ? 'Exit Selection Mode' : 'Select Multiple Products'}
-                      </Button>
+                          <option value="">All</option>
+                          {subscriptionOptions.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : null}
+                    {couponForm.type === 'product' || couponForm.type === 'both' ? (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Products (optional)</label>
+                          <select
+                            multiple
+                            value={couponForm.products}
+                            onChange={e => setCouponForm({ ...couponForm, products: Array.from(e.target.selectedOptions, o => o.value) })}
+                            className="w-full border rounded px-2 py-2"
+                          >
+                            {products.map(product => (
+                              <option key={product._id} value={product._id}>{product.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Categories (optional)</label>
+                          <select
+                            multiple
+                            value={couponForm.categories}
+                            onChange={e => setCouponForm({ ...couponForm, categories: Array.from(e.target.selectedOptions, o => o.value) })}
+                            className="w-full border rounded px-2 py-2"
+                          >
+                            {categories.map(category => (
+                              <option key={category} value={category}>{category}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </>
+                    ) : null}
+                    <div>
+                      <label className="block text-sm font-medium mb-1" htmlFor="coupon-max-uses">Max Uses</label>
+                      <Input
+                        id="coupon-max-uses"
+                        type="number"
+                        min={1}
+                        value={couponForm.maxUses}
+                        onChange={e => setCouponForm({ ...couponForm, maxUses: e.target.value })}
+                        placeholder="e.g. 100 (leave blank for unlimited)"
+                      />
                     </div>
-                    <DrawerFooter>
-                      <DrawerClose asChild>
-                        <Button variant="outline">Close</Button>
-                      </DrawerClose>
-                    </DrawerFooter>
-                  </DrawerContent>
-                </Drawer>
-              )}
+                    <Button type="submit" className="gap-2">
+                      <TagIcon className="h-4 w-4" />
+                      Create Coupon
+                    </Button>
+                  </form>
+                  <div className="mt-4">
+                    <h4 className="font-semibold mb-2">Existing Coupon Codes</h4>
+                    <ul className="text-sm">
+                      {couponCodes.length === 0 && <li className="text-gray-400">No coupons yet.</li>}
+                      {couponCodes.map(coupon => (
+                        <li key={coupon._id} className="flex items-center gap-2 flex-wrap border rounded p-2 mb-2 bg-gray-50">
+                          <button
+                            type="button"
+                            className="bg-blue-600 text-white px-2 py-1 rounded mr-2 text-xs"
+                            onClick={() => setEditingCoupon(coupon)}
+                          >Edit</button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button
+                                type="button"
+                                className="bg-red-600 text-white px-2 py-1 rounded mr-2 text-xs"
+                              >Delete</button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Coupon Code</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete coupon <span className="font-mono font-bold">{coupon.code}</span>? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction asChild>
+                                  <button
+                                    type="button"
+                                    className="bg-red-600 text-white px-3 py-1 rounded"
+                                    onClick={async () => {
+                                      try {
+                                        await productService.deleteCouponCode(coupon._id);
+                                        toast.success('Coupon deleted!');
+                                        fetchCouponCodes();
+                                      } catch (err) {
+                                        toast.error(err.response?.data?.message || 'Failed to delete coupon');
+                                      }
+                                    }}
+                                  >Delete</button>
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                          <span className="font-mono text-base font-bold mr-2">{coupon.code}</span>
+                          <span className="text-lg font-bold text-blue-700 mr-2">{coupon.discount}%</span>
+                          <span className="bg-gray-200 px-2 py-1 rounded text-xs font-semibold mr-2">{coupon.type}</span>
+                          <div className="flex flex-col gap-1 ml-2">
+                            {coupon.subscription && coupon.type !== 'product' && (
+                              <span className="bg-white border px-2 py-1 rounded text-xs">Subscription: <b>{coupon.subscription}</b></span>
+                            )}
+                            {coupon.products && coupon.products.length > 0 && (
+                              <span className="bg-white border px-2 py-1 rounded text-xs">Products: <b>{coupon.products.length}</b></span>
+                            )}
+                            {coupon.categories && coupon.categories.length > 0 && (
+                              <span className="bg-white border px-2 py-1 rounded text-xs">Categories: <b>{coupon.categories.join(', ')}</b></span>
+                            )}
+                            {coupon.maxUses && (
+                              <span className="bg-white border px-2 py-1 rounded text-xs">Max Uses: <b>{coupon.maxUses}</b></span>
+                            )}
+                            {coupon.usedCount !== undefined && (
+                              <span className="bg-white border px-2 py-1 rounded text-xs">Used: <b>{coupon.usedCount}</b></span>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+
+                    {/* Edit Coupon Modal */}
+                    {editingCoupon && (
+                      <div className="fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center">
+                        <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-xs">
+                          <h4 className="font-semibold mb-2">Edit Coupon Discount</h4>
+                          <form
+                            onSubmit={async e => {
+                              e.preventDefault();
+                              const newDiscount = e.target.elements.discount.value;
+                              if (!newDiscount || isNaN(Number(newDiscount)) || Number(newDiscount) < 1 || Number(newDiscount) > 100) {
+                                toast.error('Discount must be a number between 1 and 100.');
+                                return;
+                              }
+                              try {
+                                await productService.updateCouponDiscount(editingCoupon._id, newDiscount);
+                                toast.success('Discount updated!');
+                                setEditingCoupon(null);
+                                fetchCouponCodes();
+                              } catch (err) {
+                                toast.error(err.response?.data?.message || 'Failed to update discount');
+                              }
+                            }}
+                          >
+                            <label className="block text-sm font-medium mb-1">Discount (%)</label>
+                            <input
+                              type="number"
+                              name="discount"
+                              min={1}
+                              max={100}
+                              defaultValue={editingCoupon.discount}
+                              className="w-full px-2 py-1 border rounded mb-3"
+                              required
+                            />
+                            <div className="flex gap-2 justify-end">
+                              <button
+                                type="button"
+                                className="text-gray-500 px-3 py-1 rounded hover:bg-gray-100"
+                                onClick={() => setEditingCoupon(null)}
+                              >Cancel</button>
+                              <button
+                                type="submit"
+                                className="bg-blue-600 text-white px-3 py-1 rounded"
+                              >Save</button>
+                            </div>
+                          </form>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="add-product" className="mt-0">
