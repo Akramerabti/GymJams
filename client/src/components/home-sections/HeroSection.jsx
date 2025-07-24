@@ -184,7 +184,9 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
           loop
           playsInline
           controls={false}
-          className="absolute inset-0 w-full h-full object-cover opacity-10"
+          disablePictureInPicture
+          controlsList="nodownload nofullscreen noremoteplayback"
+          className="absolute inset-0 w-full h-full object-cover opacity-10 bg-video-hide-controls"
           style={{ display: backgroundVideoLoaded ? 'block' : 'none' }}
           onLoadedData={e => {
             setBackgroundVideoLoaded(true);
@@ -199,6 +201,18 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
           <source src="/GymTonic.mp4" type="video/mp4" />
         </video>
       ) : null}
+      {/* Hide native video controls on iOS with CSS */}
+      <style>{`
+        .bg-video-hide-controls::-webkit-media-controls-panel {
+          display: none !important;
+        }
+        .bg-video-hide-controls::-webkit-media-controls-play-button {
+          display: none !important;
+        }
+        .bg-video-hide-controls::-webkit-media-controls-start-playback-button {
+          display: none !important;
+        }
+      `}</style>
       {/* Show fallback image only while video is loading or during retry */}
       {(!backgroundVideoLoaded || backgroundVideoError) && (
         <img
