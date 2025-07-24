@@ -240,8 +240,14 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
 
   const handleOnboardingClose = () => {
     setShowOnboarding(false);
+    // Try to get the token from response or localStorage
+    let newToken = null;
+    if (currentUser && currentUser.tempToken && localStorage.getItem('token')) {
+      newToken = localStorage.getItem('token');
+    }
+    console.log('[CompleteOAuthProfile] handleOnboardingClose', { currentUser, newToken });
     if (onComplete) {
-      onComplete();
+      onComplete(currentUser, newToken);
     } else {
       navigate('/');
     }

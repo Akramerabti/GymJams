@@ -111,18 +111,28 @@ const OAuthCallback = () => {
   }, [authToken, tempToken, loginWithToken, navigate, errorParam, isIncomplete]);
 
   // Handle profile completion
-  const handleProfileComplete = async (updatedUser) => {
+  const handleProfileComplete = async (updatedUser, newToken) => {
+    console.log('[OAuthCallback] handleProfileComplete called:', { updatedUser, newToken });
     setCurrentUser(updatedUser);
     toast.success('Profile completed successfully!');
-    // If a new token was set in localStorage, use it to log in
-    const newToken = localStorage.getItem('token');
+    // Use the new token if provided
     if (newToken) {
       try {
+        console.log('[OAuthCallback] Logging in with newToken:', newToken);
         await loginWithToken(newToken);
+        console.log('[OAuthCallback] loginWithToken success');
       } catch (e) {
+        console.error('[OAuthCallback] loginWithToken error:', e);
         // fallback: just redirect
       }
+    } else {
+      console.warn('[OAuthCallback] No newToken provided to handleProfileComplete');
     }
+    // Debug: check auth state after login
+    setTimeout(() => {
+      const authStorage = localStorage.getItem('auth-storage');
+      console.log('[OAuthCallback] auth-storage after profile complete:', authStorage);
+    }, 500);
     navigate('/');
   };
   
