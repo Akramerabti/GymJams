@@ -781,21 +781,17 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
           )}
         </div>
 
-        <div className="p-6 pb-20">
-          {/* Debug info - helpful for troubleshooting */}
-          <div className="mb-6 p-3 bg-blue-50 rounded text-xs text-blue-700 border border-blue-200">
-            <p><strong>Total Photos:</strong> {formData.photos?.length || 0} items</p>
-            <p><strong>Server Stored:</strong> {formData.photos?.filter(p => p && !p.startsWith('blob:')).length || 0} items</p>
-            <p><strong>Pending Uploads:</strong> {formData.photos?.filter(p => p && p.startsWith('blob:')).length || 0} items</p>
+        {/* Responsive container for gallery */}
+        <div className="p-6 pb-20 flex justify-center">
+          <div className="w-full sm:w-full md:w-1/2 2xl:max-w-md mx-auto">
+            <PhotoEditor
+              ref={photoEditorRef}
+              photos={formData.photos || []}
+              onPhotosChange={handlePhotosChange}
+              maxPhotos={6}
+            />
+            {errors.photos && <p className="text-red-500 text-sm mt-2">{errors.photos}</p>}
           </div>
-
-          <PhotoEditor
-            ref={photoEditorRef}
-            photos={formData.photos || []}
-            onPhotosChange={handlePhotosChange}
-            maxPhotos={6}
-          />
-          {errors.photos && <p className="text-red-500 text-sm mt-2">{errors.photos}</p>}
         </div>
       </>
     );
