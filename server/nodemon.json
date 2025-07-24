@@ -1,0 +1,7 @@
+{
+    "watch": ["src"],
+    "ext": ".js,.json",
+    "ignore": ["src/**/*.spec.js", "src/**/*.test.js"],
+    "exec": "node --experimental-json-modules src/app.js",
+    "esm": true
+  }
