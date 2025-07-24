@@ -796,7 +796,9 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                       </div>
                     </div>)}
                 </div>
-                {/* Featured Products Section */}
+               
+{/* Featured Products Section */}
+{/* Featured Products Section */}
                 <div
                   className={`space-y-2 sm:space-y-3 flex flex-col min-h-0 transition-all duration-800 ${
                     hasAnimationStarted
@@ -816,7 +818,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   }}
                 >
                   {/* Add margin-top for small screens */}
-                  <div className="flex items-center justify-start gap-2 sm:gap-2 lg:gap-2 mb-2 sm:mb-3 mt-10 sm:mt-0">
+                  <div className="flex items-center justify-start gap-2 sm:gap-2 lg:gap-2 mb-1 sm:mb-2 mt-10 sm:mt-0">
                     <h3 className={`text-base sm:text-lg lg:text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                       {t('herosection.featuredProducts')}
                     </h3>
@@ -833,7 +835,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                     </button>
                   </div>
                   {/* Featured products content fills the rest */}
-                  <div className="flex-1 min-h-0 flex flex-col" style={{height: '100%'}}>
+                  <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                     {productsLoading ? (
                       <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-4 sm:p-6 flex items-center justify-center shadow-lg border-2 ${darkMode ? 'border-white/30' : 'border-black/30'} relative overflow-hidden`}>
                         <div className={`absolute inset-0 rounded-xl ${darkMode ? 'bg-gradient-to-br from-green-500/5 to-blue-500/5' : 'bg-gradient-to-br from-green-500/10 to-blue-500/10'}`}></div>
@@ -842,8 +844,8 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                         }`}></div>
                       </div>
                     ) : featuredProducts.length > 0 ? (
-                   <div className="flex flex-row gap-4 overflow-x-auto scrollbar-hide p-8 -m-5 -mt-10 z-9999">
-                        <div className="flex flex-row gap-4 h-full w-full">
+                      <div className="flex-1 overflow-x-auto overflow-y-hidden min-h-0" style={{ contain: 'layout size' }}>
+                        <div className="flex flex-row gap-4 h-full p-2 pt-1 min-w-max" style={{ height: 'calc(100% - 8px)' }}>
                           {featuredProducts.map((product) => {
                             const price = getPriceDisplay(product);
                             const isOutOfStock = product.stockQuantity === 0;
@@ -851,84 +853,160 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                             return (
                               <div
                                 key={product.id}
-                                className={`bg-white dark:bg-gray-900 rounded-xl shadow-lg border-2 ${darkMode ? 'border-gray-950/60 hover:border-blue-500/100' : 'border-gray-950/60 hover:border-blue-400/70'} hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer group relative group-hover:z-10 flex flex-col`}
+                                className={`bg-white dark:bg-gray-900 rounded-xl shadow-lg border-2 ${darkMode ? 'border-gray-950/60 hover:border-blue-500/100' : 'border-gray-950/60 hover:border-blue-400/70'} hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer group relative overflow-hidden`}
                                 onClick={() => navigate(`/product/${product.id}`)}
                                 style={{
                                   flex: '0 0 auto',
-                                  aspectRatio: '7 / 10',
-                                  height: '100%',
-                                  minWidth: 0,
-                                  minHeight: 0,
-                                  maxHeight: '100%',
+                                  width: 'clamp(90px, 18vw, 150px)',
+                                  aspectRatio: '3 / 4',
+                                  minWidth: '90px',
+                                  maxWidth: '150px',
+                                  contain: 'layout size strict'
                                 }}
                               >
-                                {/* Image stays square */}
-                                <div className="flex flex-col h-full aspect-[7/10]">
-                                <div className="relative h-1/2 overflow-hidden bg-gray-50 dark:bg-gray-800">
-    <div className="relative aspect-square h-full w-full">
-      <img
-        src={product.image}
-        alt={product.name}
-        className="absolute h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-        onError={e => { e.target.src = '/Picture3.png'; }}
-      />
-      {/* Status badges */}
-      <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
-        {price.discounted && (
-          <span className="px-2 py-1 text-xs rounded-full bg-red-500 text-white font-bold shadow">
-            {price.percentage}% OFF
-          </span>
-        )}
-        {isOutOfStock && (
-          <span className="px-2 py-1 text-xs rounded-full bg-gray-800 text-white font-bold shadow">
-            {t('herosection.outOfStock')}
-          </span>
-        )}
-        {lowStock && (
-          <span className="px-2 py-1 text-xs rounded-full bg-amber-500 text-white font-bold shadow">
-            {t('herosection.lowStock')}
-          </span>
-        )}
-        {product.preOrder && (
-          <span className="px-2 py-1 text-[10px] rounded-full bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-500 text-amber-900 font-bold border border-amber-900 shadow">
-            {t('herosection.preOrder')}
-          </span>
-        )}
-      </div>
-    </div>
+                                {/* Image container - takes up top portion - SQUARE 1:1 ratio */}
+                                <div 
+                                  className="relative overflow-hidden bg-gray-50 dark:bg-gray-800 flex-shrink-0 mx-auto"
+                                  style={{ 
+                                    height: '50%',
+                                    width: '100%',
+                                    aspectRatio: '1 / 1',
+                                    contain: 'layout size strict'
+                                  }}
+                                >
+                                  <img
+                                    src={product.image}
+                                    alt={product.name}
+                                    className="transition-transform duration-300 group-hover:scale-105"
+                                    onError={e => { e.target.src = '/Picture3.png'; }}
+                                    style={{ 
+                                      position: 'absolute',
+                                      top: 0,
+                                      left: 0,
+                                      width: '100%',
+                                      height: '100%',
+                                      objectFit: 'cover',
+                                      objectPosition: 'center',
+                                      maxWidth: '100%',
+                                      maxHeight: '100%'
+                                    }}
+                                  />
+                                  {/* Status badges */}
+                                  <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+                                    {price.discounted && (
+                                      <span className="px-2 py-1 text-xs rounded-full bg-red-500 text-white font-bold shadow">
+                                        {price.percentage}% OFF
+                                      </span>
+                                    )}
+                                    {isOutOfStock && (
+                                      <span className="px-2 py-1 text-xs rounded-full bg-gray-800 text-white font-bold shadow">
+                                        {t('herosection.outOfStock')}
+                                      </span>
+                                    )}
+                                    {lowStock && (
+                                      <span className="px-2 py-1 text-xs rounded-full bg-amber-500 text-white font-bold shadow">
+                                        {t('herosection.lowStock')}
+                                      </span>
+                                    )}
+                                    {product.preOrder && (
+                                      <span className="px-2 py-1 text-[10px] rounded-full bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-500 text-amber-900 font-bold border border-amber-900 shadow">
+                                        {t('herosection.preOrder')}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
-                                <div className="flex flex-col -mt-1 h-1/2 p-3 overflow-hidden">
-      <h4
-        className={`font-semibold text-sm truncate ${
-          darkMode ? 'text-white' : 'text-gray-900'
-        }`}
-      >
-        {product.name}
-      </h4>
-      <div className="flex items-baseline gap-2 -mb-2">
-        {price.discounted ? (
-          <>
-            <span className="text-base font-bold text-red-600">
-              {price.discounted}
-            </span>
-            <span className="text-xs text-gray-400 line-through">
-              {price.original}
-            </span>
-          </>
-        ) : (
-          <span className="text-base font-bold text-gray-900 dark:text-white">
-            {price.original}
-          </span>
-        )}
-      </div>
-      {lowStock && (
-        <p className={`text-xs text-amber-600 mt-auto`}>
-          {t('herosection.onlyLeft', { count: product.stockQuantity })}
-        </p>
-      )}
+                                
+                                {/* Content container - takes up bottom portion */}
+                                <div 
+                                  className="flex flex-col p-1.5 overflow-hidden"
+                                  style={{ 
+                                    height: '50%',
+                                    contain: 'layout size strict'
+                                  }}
+                                >
+                                  <h4
+                                    className={`font-semibold mb-0.5 leading-tight ${
+                                      darkMode ? 'text-white' : 'text-gray-900'
+                                    }`}
+                                    style={{
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical',
+                                      overflow: 'hidden',
+                                      wordWrap: 'break-word',
+                                      overflowWrap: 'break-word',
+                                      hyphens: 'auto',
+                                      maxWidth: '100%',
+                                      fontSize: 'clamp(0.5rem, 1.8vw, 0.7rem)',
+                                      lineHeight: '1.0',
+                                      maxHeight: 'clamp(20px, 6vw, 28px)',
+                                      contain: 'layout strict'
+                                    }}
+                                  >
+                                    {product.name}
+                                  </h4>
+                                  <div className="flex items-baseline gap-0.5 mb-0.5 min-h-0 overflow-hidden flex-shrink-0">
+                                    {price.discounted ? (
+                                      <>
+                                        <span 
+                                          className="font-bold text-red-600"
+                                          style={{ 
+                                            overflow: 'hidden', 
+                                            textOverflow: 'ellipsis', 
+                                            whiteSpace: 'nowrap',
+                                            maxWidth: '60%',
+                                            fontSize: 'clamp(0.55rem, 2vw, 0.75rem)',
+                                            lineHeight: '1.0'
+                                          }}
+                                        >
+                                          {price.discounted}
+                                        </span>
+                                        <span 
+                                          className="text-gray-400 line-through"
+                                          style={{ 
+                                            overflow: 'hidden', 
+                                            textOverflow: 'ellipsis', 
+                                            whiteSpace: 'nowrap',
+                                            maxWidth: '40%',
+                                            fontSize: 'clamp(0.45rem, 1.5vw, 0.6rem)',
+                                            lineHeight: '1.0'
+                                          }}
+                                        >
+                                          {price.original}
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <span 
+                                        className="font-bold text-gray-900 dark:text-white"
+                                        style={{ 
+                                          overflow: 'hidden', 
+                                          textOverflow: 'ellipsis', 
+                                          whiteSpace: 'nowrap',
+                                          maxWidth: '100%',
+                                          fontSize: 'clamp(0.55rem, 2vw, 0.75rem)',
+                                          lineHeight: '1.0'
+                                        }}
+                                      >
+                                        {price.original}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {lowStock && (
+                                    <p 
+                                      className="text-amber-600 mt-auto flex-shrink-0"
+                                      style={{ 
+                                        overflow: 'hidden', 
+                                        textOverflow: 'ellipsis', 
+                                        whiteSpace: 'nowrap',
+                                        maxWidth: '100%',
+                                        fontSize: 'clamp(0.4rem, 1.3vw, 0.55rem)',
+                                        lineHeight: '1.0'
+                                      }}
+                                    >
+                                      {t('herosection.onlyLeft', { count: product.stockQuantity })}
+                                    </p>
+                                  )}
                                 </div>
-                                </div>
-
                               </div>
                             );
                           })}
@@ -943,8 +1021,8 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                         </p>
                       </div>
                     )}
+                  </div>
                 </div>
-              </div>
             </div>
           </div>
          </div>
