@@ -183,47 +183,24 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
           muted
           loop
           playsInline
-          tabIndex="-1"
           controls={false}
           disablePictureInPicture
           controlsList="nodownload nofullscreen noremoteplayback"
           className="absolute inset-0 w-full h-full object-cover opacity-10 bg-video-hide-controls"
-          style={{ display: backgroundVideoLoaded ? 'block' : 'none', pointerEvents: 'none' }}
-          ref={el => {
-            if (el) {
-              // Remove controls attribute forcibly
-              el.removeAttribute('controls');
-              el.setAttribute('tabIndex', '-1');
-              el.setAttribute('playsinline', 'true');
-              el.setAttribute('webkit-playsinline', 'true');
-              el.setAttribute('disablePictureInPicture', 'true');
-              el.setAttribute('controlsList', 'nodownload nofullscreen noremoteplayback');
-              el.style.pointerEvents = 'none';
-            }
-          }}
+          style={{ display: backgroundVideoLoaded ? 'block' : 'none' }}
           onLoadedData={e => {
             setBackgroundVideoLoaded(true);
             setBackgroundVideoError(false);
-            try {
-              e.target.currentTime = 0;
-              e.target.play();
-            } catch {}
+            try { e.target.currentTime = 0; e.target.play(); } catch {}
           }}
           onError={() => {
             setBackgroundVideoError(true);
           }}
-          onCanPlay={e => {
-            setBackgroundVideoLoaded(true);
-            try {
-              e.target.currentTime = 0;
-              e.target.play();
-            } catch {}
-          }}
+          onCanPlay={() => setBackgroundVideoLoaded(true)}
         >
           <source src="/GymTonic.mp4" type="video/mp4" />
         </video>
       ) : null}
-      {/* Hide native video controls and play button on iOS and force no controls visually */}
       <style>{`
         .bg-video-hide-controls::-webkit-media-controls-panel {
           display: none !important;
@@ -234,13 +211,6 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         .bg-video-hide-controls::-webkit-media-controls-start-playback-button {
           display: none !important;
         }
-        .bg-video-hide-controls::-webkit-media-controls {
-          opacity: 0 !important;
-          pointer-events: none !important;
-        }
-        .bg-video-hide-controls {
-          pointer-events: none !important;
-        }
       `}</style>
       {/* Show fallback image only while video is loading or during retry */}
       {(!backgroundVideoLoaded || backgroundVideoError) && (
@@ -248,7 +218,6 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
           src="/Picture3.png"
           alt="Gym background"
           className="absolute inset-0 w-full h-full object-cover opacity-10"
-          style={{ pointerEvents: 'none' }}
         />
       )}
       {/* Gradient overlay - On top of video */}
@@ -270,7 +239,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               {t('herosection.ecosystem')}
             </p>
           </div>
-     {/* Section 1: Video Background with GET STARTED text only */}
+ {/* Section 1: Video Background with GET STARTED text only */}
           <div className={`relative z-20 ${darkMode ? 'bg-gradient-to-b from-white/5 via-gray-900 to-gray-900' : 'bg-gradient-to-b from-black/5 via-white to-white'}`}>
             <div
               className="relative z-20 w-full flex items-center justify-center overflow-hidden"
@@ -287,74 +256,40 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   muted
                   loop
                   playsInline
-                  tabIndex="-1"
-                  controls={false}
                   disablePictureInPicture
-                  controlsList="nodownload nofullscreen noremoteplayback"
-                  className="absolute inset-0 w-full h-full object-cover bg-video-hide-controls"
-                  style={{ display: mainVideoLoaded ? 'block' : 'none', pointerEvents: 'none' }}
-                  ref={el => {
-                    if (el) {
-                      el.removeAttribute('controls');
-                      el.setAttribute('tabIndex', '-1');
-                      el.setAttribute('playsinline', 'true');
-                      el.setAttribute('webkit-playsinline', 'true');
-                      el.setAttribute('disablePictureInPicture', 'true');
-                      el.setAttribute('controlsList', 'nodownload nofullscreen noremoteplayback');
-                      el.style.pointerEvents = 'none';
-                    }
+                  disableRemotePlayback
+                  preload="auto"
+                  className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                  style={{ 
+                    display: mainVideoLoaded ? 'block' : 'none',
+                    WebkitPlaysinline: true
                   }}
-                  onLoadedData={e => {
+                  onLoadedData={() => {
                     setMainVideoLoaded(true);
                     setMainVideoError(false);
-                    try {
-                      e.target.currentTime = 0;
-                      e.target.play();
-                    } catch {}
                   }}
                   onError={() => {
                     setMainVideoError(true);
                   }}
-                  onCanPlay={e => {
-                    setMainVideoLoaded(true);
-                    try {
-                      e.target.currentTime = 0;
-                      e.target.play();
-                    } catch {}
-                  }}
+                  onCanPlay={() => setMainVideoLoaded(true)}
+                  onContextMenu={(e) => e.preventDefault()}
+                  controlsList="nodownload nofullscreen noremoteplaybook"
+                  webkit-playsinline="true"
+                  x5-playsinline="true"
+                  x5-video-player-type="h5"
+                  x5-video-player-fullscreen="true"
                 >
                   <source src="/GymTonic.mp4" type="video/mp4" />
                 </video>
               ) : null}
-              {/* Hide native video controls and play button on iOS and force no controls visually */}
-              <style>{`
-                .bg-video-hide-controls::-webkit-media-controls-panel {
-                  display: none !important;
-                }
-                .bg-video-hide-controls::-webkit-media-controls-play-button {
-                  display: none !important;
-                }
-                .bg-video-hide-controls::-webkit-media-controls-start-playback-button {
-                  display: none !important;
-                }
-                .bg-video-hide-controls::-webkit-media-controls {
-                  opacity: 0 !important;
-                  pointer-events: none !important;
-                }
-                .bg-video-hide-controls {
-                  pointer-events: none !important;
-                }
-              `}</style>
               {/* Show fallback image only while video is loading or during retry */}
               {(!mainVideoLoaded || mainVideoError) && (
                 <img
                   src="/Picture3.png"
                   alt="Gym workout"
                   className="absolute inset-0 w-full h-full object-cover"
-                  style={{ pointerEvents: 'none' }}
                 />
               )}
-
 
               {/* GET STARTED Label with floating animation */}
 
@@ -483,27 +418,29 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
  </div>
           
           {/* Section 2: Featured Products and GymBros - Reduced padding since buttons take space */}
-          <div
+ 
+<div
             className={`flex-1 flex flex-col items-center justify-start px-3 sm:px-4 lg:px-8 pt-6 sm:pt-8 lg:pt-6 pb-10 sm:pb-16 ${darkMode ? 'bg-gradient-to-b from-gray-900 via-gray-900 to-white/5' : 'bg-gradient-to-b from-white via-white to-black/5'}`}
             style={{
               minHeight: 'clamp(400px, 55vh, 900px)',
               maxHeight: 'clamp(500px, 70vh, 1100px)',
               height: '100%',
               boxSizing: 'border-box',
-              overflow: 'visible'
+              overflow: 'hidden', // Changed from 'visible' to 'hidden'
+              contain: 'layout size style' // Added containment
             }}
           >
             <div
-              className="w-full max-w-4xl mx-auto h-full flex flex-col justify-start"
+              className="w-full max-w-4xl mx-auto h-full flex flex-col justify-start overflow-hidden" // Added overflow-hidden
               style={{
                 minHeight: '0',
-                maxHeight: '100%',
+                maxHeight: '93%',
                 height: '100%',
-                overflow: 'visible'
+                contain: 'layout size' // Added containment
               }}
             >
               {/* GymBros header - label and match count */}
-              <div className="w-full text-left mb-2 sm:mb-3">
+              <div className="w-full text-left mb-2 sm:mb-3 flex-shrink-0"> {/* Added flex-shrink-0 */}
                 <div className="flex items-center justify-start gap-2">
                   <h3 className={`text-base sm:text-lg lg:text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                     {t('herosection.gymbros')}
@@ -517,17 +454,17 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               </div>
               {/* All screen sizes: Stacked vertically */}
               <div
-                className="flex flex-col w-full sm:max-w-none flex-1 gap-4"
+                className="flex flex-col w-full sm:max-w-none flex-1 gap-4 min-h-0 overflow-hidden" // Added min-h-0 and overflow-hidden
                 style={{
                   height: '100%',
                   minHeight: 0,
                   maxHeight: '100%',
-                  overflow: 'hidden',
+                  contain: 'layout size'
                 }}
               >
-                {/* GymBros Section - Card Design */}
+                {/* GymBros Section - Card Design - Reduced size */}
                 <div
-                  className={`flex flex-col min-h-0 transition-all duration-800 box-border px-2 ${
+                  className={`flex flex-col min-h-0 transition-all duration-800 box-border px-2 overflow-hidden ${
                     hasAnimationStarted
                       ? 'animate-floatUpSection'
                       : 'opacity-0 translate-y-8'
@@ -535,15 +472,15 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   style={{
                     animationDelay: hasAnimationStarted ? '0.3s' : '0s',
                     animationFillMode: 'both',
-                    flexBasis: '40%',
+                    flexBasis: '30%', // Reduced from 40% to 30%
                     flexGrow: 0,
                     flexShrink: 1,
                     minHeight: 0,
-                    maxHeight: '100%',
+                    maxHeight: '30%', // Added explicit max height
                     position: 'relative',
+                    contain: 'layout size'
                   }}
                 >
-
                   {(!gymBrosData?.hasProfile || (gymBrosData?.hasProfile && (!gymBrosData.recentMatches || gymBrosData.recentMatches.length === 0))) && !gymBrosLoading && (
                     <div className="absolute inset-0 z-0 overflow-hidden rounded-2xl pointer-events-none">
                       {/* Animated, vibrant conic gradient background for both light and dark mode, always in the background, with !important */}
@@ -960,15 +897,15 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
       </div>
     </div>
                                 </div>
-                                <div className="flex flex-col h-1/2 p-3 overflow-hidden">
+                                <div className="flex flex-col -mt-1 h-1/2 p-3 overflow-hidden">
       <h4
-        className={`font-semibold text-sm mb-1 truncate ${
+        className={`font-semibold text-sm truncate ${
           darkMode ? 'text-white' : 'text-gray-900'
         }`}
       >
         {product.name}
       </h4>
-      <div className="flex items-baseline gap-2 -mb-1">
+      <div className="flex items-baseline gap-2 -mb-2">
         {price.discounted ? (
           <>
             <span className="text-base font-bold text-red-600">
