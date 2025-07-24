@@ -411,7 +411,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                 minHeight: '0',
                 maxHeight: '100%',
                 height: '100%',
-                overflow: 'visible' // <-- Allow overflow for scaling cards
+                overflow: 'visible'
               }}
             >
               {/* GymBros header - label and match count */}
@@ -429,17 +429,17 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               </div>
               {/* All screen sizes: Stacked vertically */}
               <div
-                className="grid grid-cols-1 sm:gap-12 md:gap-12 lg:gap-14 w-full sm:max-w-none flex-1"
+                className="flex flex-col w-full sm:max-w-none flex-1 gap-4"
                 style={{
-                  minHeight: '0',
-                  maxHeight: '100%',
                   height: '100%',
-                  overflow: 'hidden'
+                  minHeight: 0,
+                  maxHeight: '100%',
+                  overflow: 'hidden',
                 }}
               >
                 {/* GymBros Section - Card Design */}
                 <div
-                  className={`flex flex-col flex-1 min-h-0 max-h-[clamp(120px,30vh,260px)] transition-all duration-800 ${
+                  className={`flex flex-col min-h-0 transition-all duration-800 box-border px-2 ${
                     hasAnimationStarted
                       ? 'animate-floatUpSection'
                       : 'opacity-0 translate-y-8'
@@ -447,18 +447,68 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   style={{
                     animationDelay: hasAnimationStarted ? '0.3s' : '0s',
                     animationFillMode: 'both',
-                    minHeight: 'clamp(80px,15vh,180px)',
-                    maxHeight: 'clamp(120px,30vh,260px)',
-                    overflow: 'hidden'
+                    flexBasis: '40%',
+                    flexGrow: 0,
+                    flexShrink: 1,
+                    minHeight: 0,
+                    maxHeight: '100%',
+                    position: 'relative',
                   }}
                 >
+
+                  {(!gymBrosData?.hasProfile || (gymBrosData?.hasProfile && (!gymBrosData.recentMatches || gymBrosData.recentMatches.length === 0))) && !gymBrosLoading && (
+                    <div className="absolute inset-0 z-0 overflow-hidden rounded-2xl pointer-events-none">
+                      {/* Animated, vibrant conic gradient background for both light and dark mode, always in the background, with !important */}
+                      <div
+                        className={`absolute inset-0 w-full h-full animate-gradient-move z-0`}
+                        style={{
+                          background: darkMode
+                            ? 'conic-gradient(at top left, #7c3aed 0%, #06b6d4 25%, #f59e42 50%, #f43f5e 75%, #7c3aed 100%)'
+                            : 'conic-gradient(at top left, #f472b6 0%, #60a5fa 25%, #34d399 50%, #fbbf24 75%, #f472b6 100%)',
+                          opacity: 0.9,
+                          filter: 'blur(2px)',
+                          backgroundSize: '200% 200%',
+                          animation: 'gradient-move 8s ease-in-out infinite',
+                          pointerEvents: 'none',
+                          zIndex: 0,
+                          // Add !important to background and filter
+                          backgroundImage: `$${darkMode ? 'conic-gradient(at top left, #7c3aed 0%, #06b6d4 25%, #f59e42 50%, #f43f5e 75%, #7c3aed 100%)' : 'conic-gradient(at top left, #f472b6 0%, #60a5fa 25%, #34d399 50%, #fbbf24 75%, #f472b6 100%)'} !important`,
+                          filter: 'blur(2px) !important',
+                        }}
+                      ></div>
+                      <style>{`
+                        @keyframes gradient-move {
+                          0% { background-position: 0% 50%; }
+                          50% { background-position: 100% 50%; }
+                          100% { background-position: 0% 50%; }
+                        }
+                        .animate-gradient-move {
+                          background-size: 200% 200%;
+                          animation: gradient-move 8s ease-in-out infinite;
+                        }
+                      `}</style>
+                    </div>
+                  )}
                   {gymBrosLoading ? (
-                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-white/5' : 'bg-gradient-to-br from-gray-50 via-gray-100 to-black/5'} p-4 pt-12 flex items-center justify-center shadow-xl border-2 ${darkMode ? 'border-white/30' : 'border-black/30'} relative overflow-hidden`}>
-                      <div className={`animate-spin rounded-full h-6 w-6 border-b-2 relative z-10 ${
-                        darkMode ? 'border-blue-400' : 'border-blue-600'
-                      }`}></div>
+                    <div className={`flex-1 rounded-2xl p-4 pt-12 flex items-center justify-center shadow-xl border-2 relative overflow-hidden ${darkMode ? 'border-white/30' : 'border-black/30'}`}>
+                      {/* Animated, vibrant gradient background for loading state */}
+                      <div className={`absolute inset-0 w-full h-full animate-gradient-move opacity-80 blur-[2px] pointer-events-none z-0 ${darkMode
+                        ? 'bg-[conic-gradient(at_top_left,_#7c3aed_0%,_#06b6d4_25%,_#f59e42_50%,_#f43f5e_75%,_#7c3aed_100%)]'
+                        : 'bg-[conic-gradient(at_top_left,_#f472b6_0%,_#60a5fa_25%,_#34d399_50%,_#fbbf24_75%,_#f472b6_100%)]'}`}></div>
+                      <div className={`animate-spin rounded-full h-6 w-6 border-b-2 relative z-10 ${darkMode ? 'border-blue-400' : 'border-blue-600'}`}></div>
+                      <style>{`
+                        @keyframes gradient-move {
+                          0% { background-position: 0% 50%; }
+                          50% { background-position: 100% 50%; }
+                          100% { background-position: 0% 50%; }
+                        }
+                        .animate-gradient-move {
+                          background-size: 200% 200%;
+                          animation: gradient-move 8s ease-in-out infinite;
+                        }
+                      `}</style>
                     </div>                  ) : gymBrosData?.hasProfile ? (
-                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-gray-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} p-3 sm:p-4 mt-1 flex flex-col shadow-2xl border-2 ${darkMode ? 'border-blue-500/30 hover:border-purple-500/50' : 'border-blue-300/50 hover:border-purple-400/70'} relative overflow-hidden hover:shadow-3xl transition-all duration-500 hover:scale-[1.02] group`}>
+                    <div className={`flex-1 rounded-2xl px-2 ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-gray-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} p-3 sm:p-4 mt-1 flex flex-col shadow-2xl border-2 ${darkMode ? 'border-blue-500/30 hover:border-purple-500/50' : 'border-blue-300/50 hover:border-purple-400/70'} relative overflow-hidden hover:shadow-3xl transition-all duration-500 hover:scale-[1.01] lg:hover:scale-100 group`}>
                         {/* Subtle inner glow */}
                       <div className={`absolute inset-0 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-indigo-500/10' : 'bg-gradient-to-br from-blue-400/15 via-purple-400/10 to-indigo-400/15'} opacity-60 group-hover:opacity-80 transition-all duration-500`}></div>
                       {gymBrosData.recentMatches && gymBrosData.recentMatches.length > 0 ? (
@@ -724,7 +774,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                 </div>
                 {/* Featured Products Section */}
                 <div
-                  className={`space-y-2 sm:space-y-3 sm:col-span-1 flex flex-col flex-1 min-h-0 transition-all duration-800 ${
+                  className={`space-y-2 sm:space-y-3 flex flex-col min-h-0 transition-all duration-800 ${
                     hasAnimationStarted
                       ? 'animate-floatUpSection'
                       : 'opacity-0 translate-y-8'
@@ -732,9 +782,11 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   style={{
                     animationDelay: hasAnimationStarted ? '0.5s' : '0s',
                     animationFillMode: 'both',
-                    minHeight: 'clamp(200px,30vh,400px)',
-                    maxHeight: 'clamp(350px,40vh,600px)',
-                    height: '100%', // <-- Ensure it stretches to parent
+                    flexBasis: '60%',
+                    flexGrow: 1,
+                    flexShrink: 1,
+                    minHeight: 0,
+                    maxHeight: '100%',
                     overflow: 'visible',
                     zIndex: 1
                   }}
