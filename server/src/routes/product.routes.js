@@ -1,5 +1,6 @@
 import express from 'express';
-import {
+import { getCoachingPromos } from '../controllers/coachingPromos.controller.js';
+import { 
   getProducts,
   addProduct,
   updateProduct,
@@ -8,23 +9,36 @@ import {
   getProductById,
 } from '../controllers/product.controller.js';
 import {
-  createCoachingPromo,
-  validateCoachingPromo,
-  getCoachingPromos,
-  markPromoAsUsed, // <-- import the new controller
-} from '../controllers/coachingPromo.controller.js';
+  createCouponCode,
+  validateCouponCode,
+  getCouponCodes,
+  markCouponAsUsed,
+  updateCouponDiscount,
+} from '../controllers/couponCode.controller.js';
 import upload from '../config/storage.js';
 
 const router = express.Router();
 
-// Public route to get products
 router.get('/', getProducts);
 
-// Coaching promo routes (must come BEFORE /:id)
-router.post('/coaching-promos', createCoachingPromo);
-router.post('/coaching-promos/validate', validateCoachingPromo);
-router.post('/coaching-promos/mark-used', markPromoAsUsed); // <-- new route
+// Delete coupon code
+import { deleteCouponCode } from '../controllers/couponCode.controller.js';
+router.delete('/coupon-codes/:id', deleteCouponCode);
+
+
+router.post('/coupon-codes', createCouponCode);
+router.post('/coupon-codes/validate', validateCouponCode);
+router.post('/coupon-codes/mark-used', markCouponAsUsed);
+router.get('/coupon-codes', getCouponCodes);
+
+// Get all coaching promos
 router.get('/coaching-promos', getCoachingPromos);
+
+// Get all coaching promos
+router.get('/coaching-promos', getCoachingPromos);
+
+// Edit coupon code discount (Taskforce/admin only in real app)
+router.put('/coupon-codes/:id/discount', updateCouponDiscount);
 
 router.get('/:id', getProductById);
 

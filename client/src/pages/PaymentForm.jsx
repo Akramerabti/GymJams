@@ -123,7 +123,12 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError, promoStatus: pare
     try {
       // Pass userId if available
       const userId = user?.user?._id || user?._id;
-      const result = await productService.validateCoachingPromo(promoCode, userId);
+      // For coaching/subscription, pass subscription as plan.id
+      const result = await productService.validateCouponCode({
+        code: promoCode,
+        userId,
+        subscription: plan?.id
+      });
       if (
         result.valid &&
         (result.subscription === 'all' || result.subscription === plan.id)
@@ -157,7 +162,6 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError, promoStatus: pare
     }
   };
 
-  // Calculate discounted price
   const getDiscountedPrice = () => {
     if (promoStatus && promoStatus.valid && promoStatus.discount) {
       return (plan.price * (1 - promoStatus.discount / 100)).toFixed(2);
