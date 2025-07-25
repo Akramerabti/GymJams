@@ -57,6 +57,7 @@ const productSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  ratedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   averageRating: {
     type: Number,
     default: 0
@@ -129,6 +130,12 @@ productSchema.pre('save', function(next) {
   if (this.ratings && this.ratings.length > 0) {
     const totalRating = this.ratings.reduce((sum, item) => sum + item.rating, 0);
     this.averageRating = totalRating / this.ratings.length;
+    this.ratedBy = [];
+    this.ratings.forEach(r => {
+      if (!this.ratedBy.some(u => u.toString() === r.user.toString())) {
+        this.ratedBy.push(r.user);
+      }
+    });
   }
   next();
 });

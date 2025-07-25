@@ -96,12 +96,23 @@ const productService = {
     try {
       // Check cache first
       if (isCacheValid(productCache.all)) {
-        //('Using cached products data');
         return productCache.all.data;
       }
-
       // If cache is invalid or missing, make API call
       const response = await api.get('/products');
+      // Ensure ratedBy is present for frontend logic
+      if (response.data && Array.isArray(response.data.data)) {
+        response.data.data.forEach(product => {
+          if (!product.ratedBy && product.ratings) {
+            product.ratedBy = [];
+            product.ratings.forEach(r => {
+              if (!product.ratedBy.some(u => u.toString() === r.user.toString())) {
+                product.ratedBy.push(r.user);
+              }
+            });
+          }
+        });
+      }
       return updateCache('all', response.data);
     } catch (error) {
       console.error('Failed to get products:', error);
@@ -113,12 +124,23 @@ const productService = {
     try {
       // Check cache first
       if (isCacheValid(productCache.featured)) {
-        //('Using cached featured products data');
         return productCache.featured.data;
       }
-
       // If cache is invalid or missing, make API call
       const response = await api.get('/products/featured');
+      // Ensure ratedBy is present for frontend logic
+      if (response.data && Array.isArray(response.data.data)) {
+        response.data.data.forEach(product => {
+          if (!product.ratedBy && product.ratings) {
+            product.ratedBy = [];
+            product.ratings.forEach(r => {
+              if (!product.ratedBy.some(u => u.toString() === r.user.toString())) {
+                product.ratedBy.push(r.user);
+              }
+            });
+          }
+        });
+      }
       return updateCache('featured', response.data);
     } catch (error) {
       console.error('Failed to get featured products:', error);
@@ -131,12 +153,19 @@ const productService = {
       // Check product-specific cache
       const cacheKey = { id: productId };
       if (productCache.products[productId] && isCacheValid(productCache.products[productId])) {
-        //(`Using cached data for product ${productId}`);
         return productCache.products[productId].data;
       }
-
       // If cache is invalid or missing, make API call
       const response = await api.get(`/products/${productId}`);
+      // Ensure ratedBy is present for frontend logic
+      if (!response.data.ratedBy && response.data.ratings) {
+        response.data.ratedBy = [];
+        response.data.ratings.forEach(r => {
+          if (!response.data.ratedBy.some(u => u.toString() === r.user.toString())) {
+            response.data.ratedBy.push(r.user);
+          }
+        });
+      }
       return updateCache(cacheKey, response.data);
     } catch (error) {
       console.error(`Failed to get product ${productId}:`, error);
@@ -164,6 +193,15 @@ const productService = {
   async getProductReviews(productId) {
     try {
       const response = await api.get(`/products/${productId}/reviews`);
+      // Ensure ratedBy is present for frontend logic
+      if (response.data && Array.isArray(response.data.ratings)) {
+        response.data.ratedBy = [];
+        response.data.ratings.forEach(r => {
+          if (!response.data.ratedBy.some(u => u.toString() === r.user.toString())) {
+            response.data.ratedBy.push(r.user);
+          }
+        });
+      }
       return response.data;
     } catch (error) {
       console.error(`Failed to get reviews for product ${productId}:`, error);
@@ -171,15 +209,20 @@ const productService = {
     }
   },
 
-  async addProductReview(productId, reviewData) {
+  async addReview(productId, reviewData) {
+    console.log(`Adding review for product ${productId} with data:`, reviewData);
     try {
+      if (!productId || typeof productId !== 'string' || productId === 'undefined') {
+        throw new Error('Invalid productId provided to addReview');
+      }
+      if (!reviewData || typeof reviewData !== 'object') {
+        throw new Error('Invalid reviewData provided to addReview');
+      }
       const response = await api.post(`/products/${productId}/reviews`, reviewData);
-      
       // Invalidate the specific product cache since it's been modified
       if (productCache.products[productId]) {
         productCache.products[productId].timestamp = 0;
       }
-      
       return response.data;
     } catch (error) {
       console.error(`Failed to add review for product ${productId}:`, error);
@@ -191,6 +234,19 @@ const productService = {
     try {
       // Search is always fresh (no caching)
       const response = await api.get('/products/search', { params: { query } });
+      // Ensure ratedBy is present for frontend logic
+      if (response.data && Array.isArray(response.data.data)) {
+        response.data.data.forEach(product => {
+          if (!product.ratedBy && product.ratings) {
+            product.ratedBy = [];
+            product.ratings.forEach(r => {
+              if (!product.ratedBy.some(u => u.toString() === r.user.toString())) {
+                product.ratedBy.push(r.user);
+              }
+            });
+          }
+        });
+      }
       return response.data;
     } catch (error) {
       console.error(`Failed to search products with query "${query}":`, error);

@@ -23,6 +23,7 @@ router.get('/', getProducts);
 
 // Delete coupon code
 import { deleteCouponCode } from '../controllers/couponCode.controller.js';
+import { addReview } from '../controllers/product.controller.js';
 router.delete('/coupon-codes/:id', deleteCouponCode);
 
 
@@ -41,6 +42,13 @@ router.get('/coaching-promos', getCoachingPromos);
 router.put('/coupon-codes/:id/discount', updateCouponDiscount);
 
 router.get('/:id', getProductById);
+
+// Get product reviews and ratedBy
+import { getProductReviews } from '../controllers/product.controller.js';
+router.get('/:id/reviews', getProductReviews);
+
+// Add or update review for product
+router.post('/:id/reviews', addReview);
 
 // Taskforce-only routes
 router.post('/', upload.array('images', 8), addProduct);
