@@ -71,7 +71,8 @@ export const addProduct = async (req, res) => {
         specs: JSON.parse(specs),
         discount: JSON.parse(discount),
         featured: featured === 'true' || featured === true,
-        preOrder: preOrder === 'true' || preOrder === true,
+        preOrder: preOrder === 'true' || featured === true,
+        ratings: undefined // omit ratings if no reviews
       });
 
       // Save the product to the database
