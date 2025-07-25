@@ -857,7 +857,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                                 onClick={() => navigate(`/product/${product.id}`)}
                                 style={{
                                   flex: '0 0 auto',
-                                  width: 'clamp(90px, 18vw, 150px)',
+                                  width: 'clamp(90px, 20vw, 150px)',
                                   aspectRatio: '3 / 4',
                                   minWidth: '90px',
                                   maxWidth: '150px',
@@ -866,29 +866,23 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                               >
                                 {/* Image container - takes up top portion - SQUARE 1:1 ratio */}
                                 <div 
-                                  className="relative overflow-hidden bg-gray-50 dark:bg-gray-800 flex-shrink-0 mx-auto"
-                                  style={{ 
-                                    height: '50%',
-                                    width: '100%',
-                                    aspectRatio: '1 / 1',
-                                    contain: 'layout size strict'
-                                  }}
+                                  className="relative overflow-hidden bg-gray-50 dark:bg-gray-800 flex-shrink-0 w-full"
+                                  style={{ height: '50%', contain: 'layout size strict', display: 'flex', alignItems: 'stretch', justifyContent: 'center' }}
                                 >
                                   <img
                                     src={product.image}
                                     alt={product.name}
-                                    className="transition-transform duration-300 group-hover:scale-105"
+                                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 absolute inset-0"
                                     onError={e => { e.target.src = '/Picture3.png'; }}
-                                    style={{ 
-                                      position: 'absolute',
-                                      top: 0,
-                                      left: 0,
+                                    style={{
                                       width: '100%',
                                       height: '100%',
                                       objectFit: 'cover',
                                       objectPosition: 'center',
-                                      maxWidth: '100%',
-                                      maxHeight: '100%'
+                                      display: 'block',
+                                      position: 'absolute',
+                                      top: 0,
+                                      left: 0
                                     }}
                                   />
                                   {/* Status badges */}
@@ -919,10 +913,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                                 {/* Content container - takes up bottom portion */}
                                 <div 
                                   className="flex flex-col p-1.5 overflow-hidden"
-                                  style={{ 
-                                    height: '50%',
-                                    contain: 'layout size strict'
-                                  }}
+                                  style={{ height: '50%', contain: 'layout size strict' }}
                                 >
                                   <h4
                                     className={`font-semibold mb-0.5 leading-tight ${
