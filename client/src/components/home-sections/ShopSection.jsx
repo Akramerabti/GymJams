@@ -435,7 +435,7 @@ const ProductCarousel = ({
 };
 
   return (
-    <div className={`absolute inset-0 transition-colors duration-500 ${
+    <div className={`absolute inset-0 transition-colors duration-500 mb-20 ${
       darkMode
         ? 'bg-gradient-to-b from-gray-900 via-gray-900/95 to-gray-900/90'
         : 'bg-gradient-to-b from-white via-white/95 to-white/90'
