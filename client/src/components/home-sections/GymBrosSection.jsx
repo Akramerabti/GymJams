@@ -102,6 +102,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                     muted
                     playsInline
                     preload="metadata"
+                    poster="/Picture3.png"
                     onTouchStart={handleTouchStart}
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEndVideo}
@@ -173,6 +174,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                   muted
                   playsInline
                   preload="metadata"
+                  poster="/Picture3.png"
                   onClick={handlePlayVideo}
                 >
                   <source src="/GymTonic.mp4" type="video/mp4" />
