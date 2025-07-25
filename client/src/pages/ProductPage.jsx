@@ -48,6 +48,9 @@ const ProductPage = ({ isPreview = false }) => {
   const [isWishlist, setIsWishlist] = useState(false);
   const [showCopied, setShowCopied] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
+  const [hoveredRating, setHoveredRating] = useState(null);
+  const [showReviewSuccess, setShowReviewSuccess] = useState(false);
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
   const { user, logout, checkAuth } = useAuth();
   const cartStore = useCartStore();
 
@@ -202,12 +205,37 @@ const ProductPage = ({ isPreview = false }) => {
                 {[1, 2, 3, 4, 5].map((star) => (
                   <Star
                     key={star}
-                    className={`h-5 w-5 ${star <= (product.averageRating || 0) ? 'text-yellow-400' : 'text-gray-300'}`}
-                    fill={star <= (product.averageRating || 0) ? 'currentColor' : 'none'}
+                    className={`h-5 w-5 cursor-pointer ${star <= (hoveredRating !== null ? hoveredRating : (product.averageRating || 0)) ? 'text-yellow-400' : 'text-gray-300'}`}
+                    fill={star <= (hoveredRating !== null ? hoveredRating : (product.averageRating || 0)) ? 'currentColor' : 'none'}
+                    onMouseEnter={() => setHoveredRating(star)}
+                    onMouseLeave={() => setHoveredRating(null)}
+                    onClick={() => {
+                      if (user) {
+                        handleReviewSubmit(star);
+                        setShowReviewSuccess(true);
+                        setTimeout(() => setShowReviewSuccess(false), 2000);
+                      } else {
+                        setShowLoginDialog(true);
+                      }
+                    }}
                   />
                 ))}
+                <span className="ml-2 text-sm text-gray-500">{hoveredRating !== null ? `${hoveredRating} / 5` : `${product.averageRating || 0} / 5`}</span>
               </div>
               <span className="text-sm text-gray-500">({product.ratings?.length || 0} reviews)</span>
+              {showReviewSuccess && (
+                <div className="text-green-600 text-sm ml-2">Review added!</div>
+              )}
+              {showLoginDialog && (
+                <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
+                  <div className="bg-white rounded-lg shadow-lg p-6 w-80 flex flex-col items-center">
+                    <h3 className="text-lg font-semibold mb-2">Login Required</h3>
+                    <p className="text-gray-600 mb-4">You must be logged in to leave a review.</p>
+                    <Button onClick={() => window.location.href = '/login'} className="w-full mb-2">Login</Button>
+                    <Button variant="outline" onClick={() => setShowLoginDialog(false)} className="w-full">Cancel</Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <p className="text-gray-700">{product.description}</p>
@@ -268,36 +296,20 @@ const ProductPage = ({ isPreview = false }) => {
               </div>
             </div>
 
-            <div className="space-y-4">
+                 <div className="space-y-4">
               <div className="flex items-center space-x-2 text-sm text-gray-600">
                 <Truck className="h-5 w-5" />
-                <span>Free shipping on orders over $50</span>
+                <span>Free shipping on orders over $150</span>
               </div>
               <div className="flex items-center space-x-2 text-sm text-gray-600">
                 <RefreshCw className="h-5 w-5" />
                 <span>30-day return policy</span>
               </div>
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <Shield className="h-5 w-5" />
-                <span>2-year warranty</span>
-              </div>
             </div>
 
-            {user && (
-              <div className="mt-6">
-                <h2 className="text-xl font-bold">Leave a Review</h2>
-                <div className="flex items-center space-x-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      className={`h-5 w-5 cursor-pointer ${star <= (product.averageRating || 0) ? 'text-yellow-400' : 'text-gray-300'}`}
-                      fill={star <= (product.averageRating || 0) ? 'currentColor' : 'none'}
-                      onClick={() => handleReviewSubmit(star)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+           
+
+
           </div>
         </div>
       </div>
