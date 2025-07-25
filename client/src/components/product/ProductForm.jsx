@@ -1058,7 +1058,7 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
             .map(url => url.split('/').slice(-2).join('/'));
         formData.append('existingImages', JSON.stringify(existingImagesFromPreviews));
       }
-
+console.log('Submitting Form Data:', Object.fromEntries(formData.entries()));
       await onAddProduct(formData);
       toast.success(isEditing ? 'Product updated successfully!' : 'Product added successfully!');
     } catch (error) {
@@ -1095,6 +1095,6 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
       {isMobile ? <MobileForm {...formProps} /> : <DesktopForm {...formProps} />}
     </>
   );
-};
+}
 
 export default ProductForm;

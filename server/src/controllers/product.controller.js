@@ -7,8 +7,8 @@ import supabaseStorageService from '../services/supabaseStorage.service.js';
 // Get all products
 export const getProducts = async (req, res) => {
   try {
-    const products = await Product.find({}); // Fetch all products
-    res.status(200).json({ data: products }); // Return products in a `data` field
+    const products = await Product.find({}); 
+    res.status(200).json({ data: products }); 
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -96,11 +96,95 @@ export const addProduct = async (req, res) => {
 // Update a product
 export const updateProduct = async (req, res) => {
   const { id } = req.params;
-  const updates = req.body;
+  let updates = req.body;
+  console.log('[updateProduct] Called for product ID:', id);
+  console.log('[updateProduct] Raw req.body:', req.body);
+  if (req.files) {
+    console.log(`[updateProduct] Received ${req.files.length} files`);
+    req.files.forEach((file, idx) => {
+      console.log(`[updateProduct] File #${idx}:`, file.originalname, file.size, 'bytes');
+    });
+  } else {
+    console.log('[updateProduct] No files received');
+  }
   try {
+ 
+    if (typeof updates.specs === 'string') {
+      try { updates.specs = JSON.parse(updates.specs); } catch (err) { console.log('[updateProduct] Error parsing specs:', err, 'Value:', updates.specs); }
+    }
+    if (typeof updates.discount === 'string') {
+      try { updates.discount = JSON.parse(updates.discount); } catch (err) { console.log('[updateProduct] Error parsing discount:', err, 'Value:', updates.discount); }
+    }
+    if (typeof updates.thirdPartyData === 'string') {
+      if (updates.thirdPartyData === '[object Object]') {
+        console.log('[updateProduct] thirdPartyData is [object Object] string, removing from update.');
+        updates.thirdPartyData = undefined;
+      } else {
+        try {
+          updates.thirdPartyData = JSON.parse(updates.thirdPartyData);
+        } catch (err) {
+          console.log('[updateProduct] Error parsing thirdPartyData:', err, 'Value:', updates.thirdPartyData);
+          updates.thirdPartyData = undefined;
+        }
+      }
+    }
+    // If thirdPartyData is still a string, forcibly remove it
+    if (typeof updates.thirdPartyData === 'string') {
+      console.log('[updateProduct] Removing invalid thirdPartyData string:', updates.thirdPartyData);
+      updates.thirdPartyData = undefined;
+    }
+    if (typeof updates.imageUrls === 'string') {
+      // If imageUrls is a comma-separated string, convert to array
+      if (updates.imageUrls.includes(',')) {
+        updates.imageUrls = updates.imageUrls.split(',');
+        console.log('[updateProduct] Converted imageUrls string to array:', updates.imageUrls);
+      } else if (updates.imageUrls.startsWith('[') && updates.imageUrls.endsWith(']')) {
+        try {
+          updates.imageUrls = JSON.parse(updates.imageUrls);
+        } catch (err) {
+          console.log('[updateProduct] Error parsing imageUrls:', err, 'Value:', updates.imageUrls);
+        }
+      }
+    }
+    if (typeof updates.featured === 'string') {
+      updates.featured = updates.featured === 'true';
+    }
+    if (typeof updates.preOrder === 'string') {
+      updates.preOrder = updates.preOrder === 'true';
+    }
+
+    // Get the existing product
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    let newImageUrls = [];
+    if (req.files && req.files.length > 0) {
+      console.log('[updateProduct] Uploading new images to Supabase...');
+      const uploadResults = await supabaseStorageService.uploadMultipleFiles(
+        req.files.map(file => ({
+          buffer: file.buffer,
+          originalname: file.originalname
+        })),
+        'products'
+      );
+      newImageUrls = uploadResults.map(result => result.url);
+      updates.imageUrls = newImageUrls;
+      console.log('[updateProduct] Replaced imageUrls:', updates.imageUrls);
+    }
+
+   
+    if (updates._id) {
+      delete updates._id;
+    }
+    console.log('[updateProduct] Final update payload:', updates);
+    // Update the product
     const updatedProduct = await Product.findByIdAndUpdate(id, updates, { new: true });
+    console.log('[updateProduct] Updated product:', updatedProduct);
     res.status(200).json(updatedProduct);
   } catch (error) {
+    console.error('[updateProduct] Error:', error);
     res.status(500).json({ message: error.message });
   }
 };

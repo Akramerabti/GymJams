@@ -178,16 +178,42 @@ const Products = ({ onRefreshDashboard }) => {
 
     try {
       setIsLoading(true);
-      const updatedProduct = await productService.updateProduct(productToEdit._id, productData);
-      
+      console.log('Product data:', productData);
+      const { imagePreviews, images, ...fields } = productData;
+
+      let updatedProduct;
+      // If images is an array of File objects, use FormData
+      if (images && images.length > 0 && images[0] instanceof File) {
+        const formData = new FormData();
+        // Append all fields except images
+        Object.entries(fields).forEach(([key, value]) => {
+          formData.append(key, value);
+        });
+        // Append images
+        for (let i = 0; i < images.length; i++) {
+          formData.append('images', images[i]);
+        }
+        // If specs/discount are objects, stringify them
+        if (typeof productData.specs === 'object') {
+          formData.set('specs', JSON.stringify(productData.specs));
+        }
+        if (typeof productData.discount === 'object') {
+          formData.set('discount', JSON.stringify(productData.discount));
+        }
+        updatedProduct = await productService.updateProduct(productToEdit._id, formData, true); // true = isFormData
+      } else {
+        // No new images, send as JSON
+        updatedProduct = await productService.updateProduct(productToEdit._id, productData);
+      }
+
       setProducts((prevProducts) =>
         prevProducts.map((p) => (p._id === updatedProduct._id ? updatedProduct : p))
       );
-      
+
       setProductToEdit(null);
       setActiveTab("list");
       toast.success('Product updated successfully!');
-      
+
       // Update stats
       calculateProductStats(products.map(p => p._id === updatedProduct._id ? updatedProduct : p));
 
@@ -580,7 +606,10 @@ const Products = ({ onRefreshDashboard }) => {
               <ProductList
                 products={filteredProducts}
                 onDeleteProduct={handleDeleteProduct}
-                onEditProduct={setProductToEdit}
+                onEditProduct={(product) => {
+                  setProductToEdit(product);
+                  setActiveTab('edit-product');
+                }}
                 onPromote={setProductToPromote}
                 bulkSelectMode={bulkSelectMode}
                 selectedProducts={selectedProducts}

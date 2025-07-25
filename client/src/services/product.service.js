@@ -34,6 +34,34 @@ const updateCache = (cacheKey, data) => {
 };
 
 const productService = {
+  async updateProduct(productId, productData) {
+    try {
+      console.log(`Updating product ${productId} with data:`, productData);
+      let response;
+      // Accept optional isFormData flag for clarity
+      const isFormData = arguments.length > 2 ? arguments[2] : (productData instanceof FormData);
+      if (isFormData) {
+        response = await api.put(`/products/${productId}`, productData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+      } else {
+        // Otherwise, send as JSON
+        response = await api.put(`/products/${productId}`, productData);
+      }
+
+      productCache.all.timestamp = 0;
+      productCache.featured.timestamp = 0;
+      if (productCache.products[productId]) {
+        productCache.products[productId].timestamp = 0;
+      }
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to update product ${productId}:`, error);
+      throw error;
+    }
+  },
   // Fetch coaching promos
   async getCoachingPromos() {
     try {
