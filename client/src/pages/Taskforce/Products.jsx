@@ -113,6 +113,7 @@ const Products = ({ onRefreshDashboard }) => {
     try {
       setIsLoading(true);
       const response = await productService.getProducts();
+
       const productsData = response.data || [];
       setProducts(productsData);
       
@@ -575,6 +576,18 @@ const Products = ({ onRefreshDashboard }) => {
                 </TabsTrigger>
               )}
             </TabsList>
+            <TabsContent value="list" className="mt-0">
+              <ProductList
+                products={filteredProducts}
+                onDeleteProduct={handleDeleteProduct}
+                onEditProduct={setProductToEdit}
+                onPromote={setProductToPromote}
+                bulkSelectMode={bulkSelectMode}
+                selectedProducts={selectedProducts}
+                onSelectProduct={handleSelectProduct}
+                viewMode={viewMode}
+              />
+            </TabsContent>
 
             <TabsContent value="coupon-codes" className="mt-0">
               <Card>
