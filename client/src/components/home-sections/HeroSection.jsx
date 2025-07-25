@@ -857,10 +857,8 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                                 onClick={() => navigate(`/product/${product.id}`)}
                                 style={{
                                   flex: '0 0 auto',
-                                  width: 'clamp(`1500px, 20vw, 150px)',
-                                  aspectRatio: '3 / 4',
-                                  minWidth: '90px',
-                                  maxWidth: '150px',
+                                  aspectRatio: '155 / 230',
+                                  maxHeight: '10000px',
                                   contain: 'layout size strict'
                                 }}
                               >
