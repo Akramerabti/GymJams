@@ -4,6 +4,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import productService from '../../services/product.service';
 import { formatImageUrl } from '../../utils/imageUtils';
 import { useTranslation } from 'react-i18next';
+import '../../global.css';
 
 const ShopSection = ({ onNavigate, isActive }) => {
   const { darkMode } = useTheme();
@@ -108,52 +109,70 @@ const ShopSection = ({ onNavigate, isActive }) => {
   const prevAccessories = () => {
     setAccessoriesIndex(prev => (prev - 1 + accessoriesProducts.length) % accessoriesProducts.length);
   };
-  // --- Clamp and Responsive Carousel Card Sizing ---
-  const carouselCardStyle = {
-    aspectRatio: '1 / 1',
-    width: 'clamp(140px, 28vw, 220px)',
-    height: 'clamp(140px, 28vw, 220px)',
-    maxWidth: '100%',
-    maxHeight: '100%',
-    minWidth: '120px',
-    minHeight: '120px',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center'
+
+
+const ProductCarousel = ({
+  products,
+  currentIndex,
+  onNext,
+  onPrev,
+  loading,
+  type,
+  onProductClick
+}) => {
+  const renderStars = (rating) => {
+    const stars = [];
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 !== 0;
+    
+    for (let i = 0; i < 5; i++) {
+      if (i < fullStars) {
+        stars.push(
+          <Star key={i} className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+        );
+      } else if (i === fullStars && hasHalfStar) {
+        stars.push(
+          <div key={i} className="relative w-3 h-3">
+            <Star className="w-3 h-3 text-gray-300 absolute" />
+            <div className="overflow-hidden w-1.5">
+              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400 absolute" />
+            </div>
+          </div>
+        );
+      } else {
+        stars.push(
+          <Star key={i} className="w-3 h-3 text-gray-300" />
+        );
+      }
+    }
+    return stars;
   };
 
-  const ProductCarousel = ({
-    products,
-    currentIndex,
-    onNext,
-    onPrev,
-    loading,
-    type,
-    onProductClick
-  }) => {
-    return (
-      <div className="relative h-full flex items-center justify-center">
-        {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
-              darkMode ? 'border-blue-400' : 'border-blue-600'
-            }`}></div>
-          </div>
-        ) : products.length > 0 ? (
-          <>
-            {/* Product Display */}
+  return (
+    <div className="relative h-full flex items-center justify-center w-full px-4">
+      {loading ? (
+        <div className="flex items-center justify-center h-full">
+          <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
+            darkMode ? 'border-blue-400' : 'border-blue-600'
+          }`}></div>
+        </div>
+      ) : products.length > 0 ? (
+        <>
+          {/* Product Display */}
+          <div className="w-full h-full flex items-center justify-center overflow-hidden">
             <div
-              className="flex h-full items-center justify-center transition-transform duration-300 ease-in-out"
+              className="flex transition-transform duration-500 ease-out h-full"
               style={{
                 transform: `translateX(-${currentIndex * 100}%)`,
-                minHeight: '0',
-                minWidth: '0'
+                width: `${products.length * 100}%`
               }}
             >
               {products.map((product, index) => {
+                // Image URL logic
                 let imageUrl = '/Picture2.png';
-                if (product.images && product.images.length > 0) {
+                if (Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
+                  imageUrl = product.imageUrls[0];
+                } else if (Array.isArray(product.images) && product.images.length > 0) {
                   const imagePath = product.images[0];
                   if (imagePath.startsWith('http')) {
                     imageUrl = imagePath;
@@ -163,129 +182,257 @@ const ShopSection = ({ onNavigate, isActive }) => {
                   }
                 }
 
+                const isDiscounted = product.discount?.percentage && 
+                  (!product.discount.startDate || new Date(product.discount.startDate) <= new Date()) &&
+                  (!product.discount.endDate || new Date(product.discount.endDate) >= new Date());
+
+                const displayPrice = isDiscounted ? product.discountedPrice : product.price;
+                const originalPrice = product.price;
+
                 return (
                   <div
-                    key={product._id}
-                    className="flex-shrink-0 flex flex-col items-center justify-center px-2"
-                    style={carouselCardStyle}
+                    key={product._id || product.id}
+                    className="flex-shrink-0 h-full px-2"
+                    style={{ width: `${100 / products.length}%` }}
                   >
                     <div
-                      className="relative group bg-gradient-to-br from-blue-50 via-white to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-blue-900 rounded-xl shadow-lg border border-blue-200 dark:border-blue-900/40 hover:shadow-2xl hover:scale-105 transition-all duration-300 cursor-pointer"
-                      style={{
-                        ...carouselCardStyle,
-                        padding: 'clamp(0.5rem,2vw,1.2rem)'
-                      }}
-                      onClick={() => onProductClick(product._id)}
-                      tabIndex={0}
-                      role="button"
-                      aria-label={`View ${product.name}`}
-                    >
-                      <img
-                        src={imageUrl}
-                        alt={product.name}
-                        className="w-full h-full object-cover rounded-lg mb-2 transition-all duration-300"
-                        style={{
-                          aspectRatio: '1 / 1',
-                          width: '100%',
-                          height: '100%',
-                          minWidth: '80px',
-                          minHeight: '80px',
-                          maxWidth: '100%',
-                          maxHeight: '100%',
-                          objectFit: 'cover'
-                        }}
-                        onError={e => {
-                          e.target.src = '/Picture2.png';
-                        }}
-                      />
-                      <div className="absolute top-2 right-2 bg-white/80 dark:bg-gray-900/80 rounded-full px-2 py-0.5 text-xs font-bold text-blue-600 dark:text-blue-200 shadow">
-                        {type === 'clothes' ? <Shirt className="inline w-3 h-3 mr-1" /> : <Watch className="inline w-3 h-3 mr-1" />}
-                        {type === 'clothes' ? t('shopsection.clothes') : t('shopsection.accessory')}
-                      </div>
-                    </div>
-                    <h4
-                      className={`font-bold text-xs sm:text-sm lg:text-base mt-2 mb-1 text-center truncate max-w-[90%] ${
-                        darkMode ? 'text-white' : 'text-gray-900'
-                      }`}
-                      title={product.name}
-                    >
-                      {product.name}
-                    </h4>
-                    <p
-                      className={`text-base sm:text-lg font-semibold mb-1 ${
+                      className={`relative group h-full w-full rounded-xl shadow-lg border cursor-pointer overflow-hidden transition-all duration-300 hover:shadow-2xl hover:scale-[1.02] ${
                         type === 'clothes'
-                          ? (darkMode ? 'text-blue-400' : 'text-blue-600')
-                          : (darkMode ? 'text-green-400' : 'text-green-600')
+                          ? (darkMode 
+                              ? 'bg-gradient-to-br from-gray-800 via-gray-700 to-blue-900/30 border-blue-900/40 hover:border-blue-500/60' 
+                              : 'bg-gradient-to-br from-white via-blue-50/50 to-blue-100/80 border-blue-200 hover:border-blue-400')
+                          : (darkMode 
+                              ? 'bg-gradient-to-br from-gray-800 via-gray-700 to-green-900/30 border-green-900/40 hover:border-green-500/60' 
+                              : 'bg-gradient-to-br from-white via-green-50/50 to-green-100/80 border-green-200 hover:border-green-400')
                       }`}
+                      onClick={() => onProductClick(product._id || product.id)}
                     >
-                      ${product.price?.toFixed(2) || '0.00'}
-                    </p>
-                    <div className="flex items-center justify-center gap-0.5 mb-1">
-                      {[1, 2, 3, 4, 5].map(star => (
-                        <Star key={star} className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                      ))}
+                      {/* Image Section - Takes up 60% of height */}
+                      <div className="relative h-[60%] w-full overflow-hidden">
+                        <img
+                          src={imageUrl}
+                          alt={product.name}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                          onError={e => {
+                            e.target.src = '/Picture2.png';
+                          }}
+                        />
+                        
+                        {/* Badges Overlay */}
+                        <div className="absolute top-2 left-2 right-2 flex justify-between items-start">
+                          <div className="flex flex-col gap-2">
+                            {product.featured && (
+                              <div className="bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow-lg animate-pulse hover:animate-none hover:scale-110 transition-all duration-300 border border-yellow-300">
+                                <Star className="w-3 h-3 fill-current animate-spin" style={{animationDuration: '3s'}} />
+                                <span className="tracking-wide">FEATURED</span>
+                                <div className="absolute inset-0 bg-gradient-to-r from-yellow-300/20 to-yellow-600/20 rounded-full animate-ping"></div>
+                              </div>
+                            )}
+                            {product.preOrder && (
+                              <div className={`text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow-lg hover:scale-110 transition-all duration-300 border relative overflow-hidden ${
+                                type === 'clothes' 
+                                  ? 'bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 border-blue-400' 
+                                  : 'bg-gradient-to-r from-green-500 via-green-600 to-green-700 border-green-400'
+                              }`}>
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] animate-shimmer"></div>
+                                <Zap className="w-3 h-3 animate-bounce" />
+                                <span className="tracking-wide">PRE-ORDER</span>
+                              </div>
+                            )}
+                            {isDiscounted && (
+                              <div className="bg-gradient-to-r from-red-500 via-red-600 to-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg hover:scale-110 transition-all duration-300 border border-red-400 animate-bounce">
+                                <span className="tracking-wide">-{product.discount.percentage}% OFF</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Stock Status */}
+                        {product.stockQuantity <= 5 && product.stockQuantity > 0 && (
+                          <div className="absolute bottom-2 left-2 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg animate-pulse border border-orange-300">
+                            <span className="flex items-center gap-1">
+                              <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+                              Only {product.stockQuantity} left!
+                            </span>
+                          </div>
+                        )}
+                        {product.stockQuantity === 0 && (
+                          <div className="absolute bottom-2 left-2 bg-gradient-to-r from-red-600 to-red-800 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg border border-red-400 animate-bounce">
+                            Out of Stock
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Content Section - Takes up 40% of height */}
+                      <div className="h-[40%] p-3 flex flex-col justify-between">
+                        {/* Product Name */}
+                        <h4 className={`font-bold text-sm leading-tight mb-2 line-clamp-2 transition-colors duration-300 group-hover:scale-105 ${
+                          darkMode ? 'text-white group-hover:text-blue-200' : 'text-gray-900 group-hover:text-blue-700'
+                        }`} title={product.name}>
+                          {product.name}
+                        </h4>
+
+                        {/* Rating and Reviews */}
+                        <div className="mb-2">
+                          {product.averageRating > 0 ? (
+                            <div className="flex items-center gap-2 mb-1 group-hover:scale-105 transition-transform duration-300">
+                              <div className="flex animate-fadeIn">
+                                {renderStars(product.averageRating)}
+                              </div>
+                              <span className={`text-xs font-semibold ${
+                                darkMode ? 'text-yellow-400' : 'text-yellow-600'
+                              }`}>
+                                {product.averageRating.toFixed(1)}
+                              </span>
+                              {product.ratings?.length > 0 && (
+                                <span className={`text-xs ${
+                                  darkMode ? 'text-gray-400' : 'text-gray-500'
+                                }`}>
+                                  ({product.ratings.length})
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 mb-1 opacity-60">
+                              <span className={`text-xs ${
+                                darkMode ? 'text-gray-400' : 'text-gray-500'
+                              }`}>
+                                No reviews yet
+                              </span>
+                            </div>
+                          )}
+                          
+                          {/* Important Product Info */}
+                          <div className="flex flex-wrap gap-1">
+                            {product.stockQuantity > 5 && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 animate-fadeIn">
+                                In Stock
+                              </span>
+                            )}
+                            {product.specs?.warranty && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 animate-slideIn">
+                                {product.specs.warranty} Warranty
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Price Section */}
+                        <div className="flex items-center justify-between animate-slideUp">
+                          <div className="flex items-center gap-2">
+                            {isDiscounted ? (
+                              <>
+                                <span className={`font-bold text-lg transition-all duration-300 group-hover:scale-110 ${
+                                  type === 'clothes'
+                                    ? (darkMode ? 'text-blue-400' : 'text-blue-600')
+                                    : (darkMode ? 'text-green-400' : 'text-green-600')
+                                }`}>
+                                  ${typeof displayPrice === 'number' ? displayPrice.toFixed(2) : displayPrice}
+                                </span>
+                                <span className={`text-sm line-through opacity-75 ${
+                                  darkMode ? 'text-gray-400' : 'text-gray-500'
+                                }`}>
+                                  ${typeof originalPrice === 'number' ? originalPrice.toFixed(2) : originalPrice}
+                                </span>
+                              </>
+                            ) : (
+                              <span className={`font-bold text-lg transition-all duration-300 group-hover:scale-110 ${
+                                type === 'clothes'
+                                  ? (darkMode ? 'text-blue-400' : 'text-blue-600')
+                                  : (darkMode ? 'text-green-400' : 'text-green-600')
+                              }`}>
+                                ${typeof displayPrice === 'number' ? displayPrice.toFixed(2) : displayPrice}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Add to Cart Button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Add your cart logic here
+                              console.log('Add to cart:', product._id);
+                            }}
+                            disabled={product.stockQuantity === 0}
+                            className={`p-2.5 rounded-full transition-all duration-300 hover:scale-125 hover:rotate-12 disabled:opacity-50 disabled:cursor-not-allowed group/btn relative overflow-hidden ${
+                              type === 'clothes'
+                                ? (darkMode 
+                                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white' 
+                                    : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white')
+                                : (darkMode 
+                                    ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white' 
+                                    : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white')
+                            } shadow-lg hover:shadow-xl`}
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-500"></div>
+                            <ShoppingBag className="w-4 h-4 relative z-10 group-hover/btn:animate-bounce" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
-
-            {/* Navigation Controls */}
-            {products.length > 1 && (
-              <>
-                <button
-                  onClick={e => { e.stopPropagation(); onPrev(); }}
-                  className={`absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full ${
-                    darkMode ? 'bg-gray-700/90 hover:bg-gray-600 text-white' : 'bg-white/90 hover:bg-gray-100 text-gray-900'
-                  } shadow-lg transition-all duration-200 hover:scale-110 z-10`}
-                  aria-label="Previous product"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); onNext(); }}
-                  className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full ${
-                    darkMode ? 'bg-gray-700/90 hover:bg-gray-600 text-white' : 'bg-white/90 hover:bg-gray-100 text-gray-900'
-                  } shadow-lg transition-all duration-200 hover:scale-110 z-10`}
-                  aria-label="Next product"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-                {/* Dots Indicator */}
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
-                  {products.map((_, index) => (
-                    <button
-                      key={index}
-                      onClick={e => {
-                        e.stopPropagation();
-                        type === 'clothes' ? setClothesIndex(index) : setAccessoriesIndex(index);
-                      }}
-                      className={`w-2.5 h-2.5 rounded-full transition-all duration-200 border ${
-                        index === currentIndex
-                          ? (type === 'clothes'
-                              ? 'bg-blue-500 border-blue-500 scale-125 shadow'
-                              : 'bg-green-500 border-green-500 scale-125 shadow')
-                          : (darkMode
-                              ? 'bg-gray-600 border-gray-500 hover:bg-gray-500'
-                              : 'bg-gray-300 border-gray-300 hover:bg-gray-400')
-                      }`}
-                      aria-label={`Go to product ${index + 1}`}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-          </>
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              {t('shopsection.noProducts')}
-            </p>
           </div>
-        )}
-      </div>
-    );
-  };
+
+          {/* Navigation Controls */}
+          {products.length > 1 && (
+            <>
+              <button
+                onClick={e => { e.stopPropagation(); onPrev(); }}
+                className={`absolute left-2 top-1/2 -translate-y-1/2 p-3 rounded-full ${
+                  darkMode ? 'bg-gray-800/90 hover:bg-gray-700 text-white' : 'bg-white/90 hover:bg-gray-100 text-gray-900'
+                } shadow-xl transition-all duration-200 hover:scale-110 z-20 backdrop-blur-sm`}
+                aria-label="Previous product"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                onClick={e => { e.stopPropagation(); onNext(); }}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 p-3 rounded-full ${
+                  darkMode ? 'bg-gray-800/90 hover:bg-gray-700 text-white' : 'bg-white/90 hover:bg-gray-100 text-gray-900'
+                } shadow-xl transition-all duration-200 hover:scale-110 z-20 backdrop-blur-sm`}
+                aria-label="Next product"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+              
+              {/* Dots Indicator */}
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+                {products.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={e => {
+                      e.stopPropagation();
+                      type === 'clothes' ? setClothesIndex(index) : setAccessoriesIndex(index);
+                    }}
+                    className={`w-3 h-3 rounded-full transition-all duration-200 border-2 ${
+                      index === currentIndex
+                        ? (type === 'clothes'
+                            ? 'bg-blue-500 border-blue-500 scale-125 shadow-lg'
+                            : 'bg-green-500 border-green-500 scale-125 shadow-lg')
+                        : (darkMode
+                            ? 'bg-gray-600/50 border-gray-500 hover:bg-gray-500'
+                            : 'bg-white/50 border-gray-300 hover:bg-gray-200')
+                    } backdrop-blur-sm`}
+                    aria-label={`Go to product ${index + 1}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      ) : (
+        <div className="flex items-center justify-center h-full">
+          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            {t('shopsection.noProducts')}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
 
   return (
     <div className={`absolute inset-0 transition-colors duration-500 ${
@@ -301,7 +448,7 @@ const ShopSection = ({ onNavigate, isActive }) => {
         }`}
       >
         {/* Layout: Video top 1/4, Two components bottom 3/4 */}
-        <div className="h-full flex flex-col pointer-events-none">
+        <div className="h-full flex flex-col">
           {/* Video Section */}
           <div className={`h-[clamp(100px,20vh,160px)] relative z-20 ${
             isActive
@@ -375,16 +522,15 @@ const ShopSection = ({ onNavigate, isActive }) => {
           </div>
           {/* Two Components Section - Clothes & Accessories */}
           <div
-            className="flex-1 flex flex-col md:flex-row relative z-10 pointer-events-none"
+            className="flex-1 flex flex-col md:flex-row relative z-10"
             style={{
-              minHeight: '0',
-              maxHeight: '100%',
+              minHeight: 0,
               height: '100%',
               overflow: 'hidden'
             }}
           >
             {/* Left Component - Clothes */}
-            <div className="w-full md:w-1/2 h-1/2 md:h-full p-2 sm:p-4 lg:p-6 flex items-center justify-center">
+            <div className="w-full md:w-1/2 flex-1 p-2 sm:p-4 lg:p-6 flex items-center justify-center">
               <div className={`h-full w-full rounded-2xl group relative overflow-hidden transition-all duration-800 ${
                 darkMode
                   ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-blue-900/20'
@@ -444,23 +590,10 @@ const ShopSection = ({ onNavigate, isActive }) => {
                     onProductClick={handleProductClick}
                   />
                 </div>
-                {/* Features Footer */}
-                <div className="absolute bottom-4 left-4 right-4">
-                  <div className="flex justify-center gap-4 text-xs">
-                    <div className="flex items-center gap-1">
-                      <Zap className={`w-3 h-3 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                      <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>{t('shopsection.premiumQuality')}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Star className={`w-3 h-3 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                      <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>{t('shopsection.topRated')}</span>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
             {/* Right Component - Accessories */}
-            <div className="w-full md:w-1/2 h-1/2 md:h-full p-2 sm:p-4 lg:p-6 flex items-center justify-center mb-14 md:mb-0">
+            <div className="w-full md:w-1/2 flex-1 p-2 sm:p-4 lg:p-6 flex items-center justify-center mb-14 md:mb-0">
               <div className={`h-full w-full rounded-2xl group relative overflow-hidden transition-all duration-800 ${
                 darkMode
                   ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-green-900/20'
@@ -519,19 +652,6 @@ const ShopSection = ({ onNavigate, isActive }) => {
                     type="accessories"
                     onProductClick={handleProductClick}
                   />
-                </div>
-                {/* Features Footer */}
-                <div className="absolute bottom-4 left-4 right-4">
-                  <div className="flex justify-center gap-4 text-xs">
-                    <div className="flex items-center gap-1">
-                      <Zap className={`w-3 h-3 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
-                      <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>{t('shopsection.durable')}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Star className={`w-3 h-3 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
-                      <span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>{t('shopsection.proEquipment')}</span>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
