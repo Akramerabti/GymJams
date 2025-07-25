@@ -108,13 +108,12 @@ const ProductPage = ({ isPreview = false }) => {
     if (user) {
       setIsWishlist(!isWishlist);
       try {
-        await productService.toggleWishlist(user._id, product._id);
+        await productService.toggleWishlist(user.user.id || user.id, product.id);
       } catch (err) {
         console.error('Error toggling wishlist:', err);
       }
     } else {
-      // Redirect to login page or show a login modal
-      //('User is not logged in');
+      setShowLoginDialog(true);
     }
   };
 
@@ -127,16 +126,18 @@ const ProductPage = ({ isPreview = false }) => {
 
   const handleReviewSubmit = async (rating) => {
     if (user) {
+     
+      const userId = user.user.id || user.id;
+      const alreadyRated = product.ratedBy && product.ratedBy.includes(userId);
       try {
-        await productService.addReview(user._id, product._id, rating);
+        await productService.addReview(product.id, { userId, rating });
         const updatedProduct = await productService.getProduct(productId);
         setProduct(updatedProduct);
       } catch (err) {
         console.error('Error submitting review:', err);
       }
     } else {
-      // Redirect to login page or show a login modal
-      //('User is not logged in');
+      setShowLoginDialog(true);
     }
   };
 
@@ -144,7 +145,7 @@ const ProductPage = ({ isPreview = false }) => {
     // Create a product object with the required properties
     const productToAdd = { 
       ...product, 
-      id: product._id,
+      id: product.id,
       quantity: quantity
     };
     
@@ -221,6 +222,7 @@ const ProductPage = ({ isPreview = false }) => {
                   />
                 ))}
                 <span className="ml-2 text-sm text-gray-500">{hoveredRating !== null ? `${hoveredRating} / 5` : `${product.averageRating || 0} / 5`}</span>
+
               </div>
               <span className="text-sm text-gray-500">({product.ratings?.length || 0} reviews)</span>
               {showReviewSuccess && (
@@ -230,9 +232,9 @@ const ProductPage = ({ isPreview = false }) => {
                 <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
                   <div className="bg-white rounded-lg shadow-lg p-6 w-80 flex flex-col items-center">
                     <h3 className="text-lg font-semibold mb-2">Login Required</h3>
-                    <p className="text-gray-600 mb-4">You must be logged in to leave a review.</p>
+                    <p className="text-gray-600 mb-4">You must be logged in to perform this action.</p>
                     <Button onClick={() => window.location.href = '/login'} className="w-full mb-2">Login</Button>
-                    <Button variant="outline" onClick={() => setShowLoginDialog(false)} className="w-full">Cancel</Button>
+                    <Button variant="outline" onClick={() => setShowLoginDialog(false)} className="w-full">Nevermind</Button>
                   </div>
                 </div>
               )}

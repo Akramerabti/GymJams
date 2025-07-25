@@ -7,8 +7,19 @@ import supabaseStorageService from '../services/supabaseStorage.service.js';
 // Get all products
 export const getProducts = async (req, res) => {
   try {
-    const products = await Product.find({}); 
-    res.status(200).json({ data: products }); 
+    const products = await Product.find({});
+    // Ensure ratedBy is present for frontend
+    products.forEach(product => {
+      if (!product.ratedBy && product.ratings) {
+        product.ratedBy = [];
+        product.ratings.forEach(r => {
+          if (r.user && !product.ratedBy.some(u => u && u.toString() === r.user.toString())) {
+            product.ratedBy.push(r.user);
+          }
+        });
+      }
+    });
+    res.status(200).json({ data: products });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -26,12 +37,42 @@ export const getProductById = async (req, res) => {
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
+    // Ensure ratedBy is present for frontend
+    if (!product.ratedBy && product.ratings) {
+      product.ratedBy = [];
+      product.ratings.forEach(r => {
+        if (r.user && !product.ratedBy.some(u => u && u.toString() === r.user.toString())) {
+          product.ratedBy.push(r.user);
+        }
+      });
+    }
     res.status(200).json(product);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
+export const getProductReviews = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+    // Ensure ratedBy is present for frontend
+    if (!product.ratedBy && product.ratings) {
+      product.ratedBy = [];
+      product.ratings.forEach(r => {
+        if (r.user && !product.ratedBy.some(u => u && u.toString() === r.user.toString())) {
+          product.ratedBy.push(r.user);
+        }
+      });
+    }
+    res.status(200).json({ ratings: product.ratings, ratedBy: product.ratedBy });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 // Add a new product
 export const addProduct = async (req, res) => {
   try {
@@ -234,6 +275,58 @@ export const applyPromotion = async (req, res) => {
     await product.save();
     res.status(200).json(product);
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
+export const addReview = async (req, res) => {
+  const { id } = req.params;
+  const { userId, rating } = req.body;
+  console.log('[addReview] Called for product ID:', id);
+  console.log('[addReview] User ID:', userId, 'Rating:', rating);
+  try {
+    const product = await Product.findById(id);
+    console.log('[addReview] Product found:', !!product);
+    if (!product) {
+      console.error('[addReview] Product not found for ID:', id);
+      return res.status(404).json({ message: 'Product not found' });
+    }
+    console.log('[addReview] Product.ratings:', product.ratings);
+    console.log('[addReview] typeof userId:', typeof userId, 'userId:', userId);
+    // Check if user already rated
+    let existingRating;
+    try {
+      existingRating = product.ratings.find(r => {
+        console.log('[addReview] Checking rating user:', r.user, 'against:', userId);
+        return r.user && r.user.toString() === userId.toString();
+      });
+    } catch (findErr) {
+      console.error('[addReview] Error in ratings find:', findErr);
+      throw findErr;
+    }
+    if (existingRating) {
+      // Update rating
+      console.log('[addReview] Existing rating found, updating.');
+      existingRating.rating = rating;
+      existingRating.date = new Date();
+    } else {
+      // Add new rating
+      console.log('[addReview] No existing rating, adding new.');
+      product.ratings.push({ user: userId, rating, date: new Date() });
+      if (!product.ratedBy) product.ratedBy = [];
+      if (!product.ratedBy.some(u => u && u.toString() === userId.toString())) {
+        product.ratedBy.push(userId);
+      }
+    }
+    // Update average rating
+    const totalRating = product.ratings.reduce((sum, item) => sum + item.rating, 0);
+    product.averageRating = Math.round((totalRating / product.ratings.length) * 10) / 10;
+    await product.save();
+    console.log('[addReview] Review processed successfully.');
+    res.status(201).json(product);
+  } catch (error) {
+    console.error('[addReview] Error:', error);
     res.status(500).json({ message: error.message });
   }
 };
