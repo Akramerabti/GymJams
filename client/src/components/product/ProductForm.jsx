@@ -1047,18 +1047,21 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
           product.images.forEach(file => formData.append('images', file));
         } else if (key === 'specs' || key === 'discount') {
           formData.append(key, JSON.stringify(product[key]));
+        } else if (key === 'ratings') {
+          // Ensure ratings is appended as JSON, not stringified as [object Object]
+          formData.append('ratings', JSON.stringify(product[key]));
         } else if (key !== 'imagePreviews') {
           formData.append(key, product[key]);
         }
       });
-       if (isEditing && initialData?._id) {
+      if (isEditing && initialData?._id) {
         formData.append('_id', initialData._id);
         const existingImagesFromPreviews = product.imagePreviews
-            .filter(p => !p.startsWith('blob:'))
-            .map(url => url.split('/').slice(-2).join('/'));
+          .filter(p => !p.startsWith('blob:'))
+          .map(url => url.split('/').slice(-2).join('/'));
         formData.append('existingImages', JSON.stringify(existingImagesFromPreviews));
       }
-console.log('Submitting Form Data:', Object.fromEntries(formData.entries()));
+      console.log('Submitting Form Data:', Object.fromEntries(formData.entries()));
       await onAddProduct(formData);
       toast.success(isEditing ? 'Product updated successfully!' : 'Product added successfully!');
     } catch (error) {
