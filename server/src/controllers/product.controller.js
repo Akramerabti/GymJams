@@ -157,6 +157,14 @@ export const updateProduct = async (req, res) => {
     if (typeof updates.discount === 'string') {
       try { updates.discount = JSON.parse(updates.discount); } catch (err) { console.log('[updateProduct] Error parsing discount:', err, 'Value:', updates.discount); }
     }
+    if (typeof updates.ratings === 'string') {
+      try {
+        updates.ratings = JSON.parse(updates.ratings);
+      } catch (err) {
+        console.log('[updateProduct] Error parsing ratings:', err, 'Value:', updates.ratings);
+        updates.ratings = undefined;
+      }
+    }
     if (typeof updates.thirdPartyData === 'string') {
       if (updates.thirdPartyData === '[object Object]') {
         console.log('[updateProduct] thirdPartyData is [object Object] string, removing from update.');
