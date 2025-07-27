@@ -47,13 +47,6 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
       setHasAnimationStarted(false);
     }
   }, [isActive, isComponentReady, showContent]);
-
-  const scrollGymBros = (direction) => {
-    if (gymBrosCarouselRef) {
-      const scrollAmount = direction === 'left' ? -200 : 200;
-      gymBrosCarouselRef.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-    }
-  };
   
     useEffect(() => {
     const fetchFeaturedProducts = async () => {
@@ -162,7 +155,6 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   return (
   // The main container for the entire HeroSection
     <div className="absolute inset-0" style={{ marginTop: 'var(--navbar-height, 0px)' }}>
-      {/* Loading Overlays */}
       {!isComponentReady && (
         <div className="absolute inset-0 z-50 bg-black flex items-center justify-center">
           <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
@@ -319,7 +311,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
           </div>
 
           {/* Navigation Circle Buttons - Below video, above GymBros */}
-           <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-50">
+ <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-50">
            <div className={`py-6 px-4 relative z-5 ${darkMode ? 'bg-gray-900' : 'bg-white'}`}>
     <div className="flex justify-center items-center gap-5 sm:gap-6 md:gap-8 lg:gap-6 flex-wrap max-w-lg mx-auto">
       <button
@@ -334,13 +326,13 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
             : 'bg-white text-gray-900 border border-black/30'
         }`}
         style={{
-          width: 'clamp(3rem, 10vw, 4rem)',
-          height: 'clamp(3rem, 10vw, 4rem)',
+         width: 'clamp(1rem, 10vw, 4rem)',
+          height: 'clamp(1rem, 10vw, 4rem)',
           animationDelay: hasAnimationStarted ? '0.2s' : '0s',
           animationFillMode: 'both'
         }}
       >
-        <ShoppingBag style={{ width: 'clamp(1rem, 4vw, 1.5rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
+        <ShoppingBag style={{ width: 'clamp(0.5rem, 4vw, 2rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
         <span className={`absolute -bottom-6 text-xs font-medium transition-all duration-500 ${
           darkMode ? 'text-white' : 'text-gray-900'
         }`}>{t('herosection.shop')}</span>
@@ -357,13 +349,13 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
             : 'bg-white text-gray-900 border border-black/30'
         }`}
         style={{
-          width: 'clamp(3rem, 10vw, 4rem)',
-          height: 'clamp(3rem, 10vw, 4rem)',
+           width: 'clamp(1rem, 10vw, 4rem)',
+          height: 'clamp(1rem, 10vw, 4rem)',
           animationDelay: hasAnimationStarted ? '0.4s' : '0s',
           animationFillMode: 'both'
         }}
       >
-        <Trophy style={{ width: 'clamp(1rem, 4vw, 1.5rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
+        <Trophy style={{ width: 'clamp(0.5rem, 4vw, 2rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
         <span className={`absolute -bottom-6 text-xs font-medium transition-all duration-500 ${
           darkMode ? 'text-white' : 'text-gray-900'
         }`}>{t('herosection.coaching')}</span>
@@ -380,13 +372,13 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
             : 'bg-white text-gray-900 border border-black/30'
         }`}
         style={{
-          width: 'clamp(3rem, 10vw, 4rem)',
-           height: 'clamp(3rem, 10vw, 4rem)',
+         width: 'clamp(1rem, 10vw, 4rem)',
+          height: 'clamp(1rem, 10vw, 4rem)',
           animationDelay: hasAnimationStarted ? '0.6s' : '0s',
           animationFillMode: 'both'
         }}
       >
-        <Users style={{ width: 'clamp(1rem, 4vw, 1.5rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
+        <Users style={{ width: 'clamp(0.5rem, 4vw, 2rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
         <span className={`absolute -bottom-6 text-xs font-medium transition-all duration-500 ${
           darkMode ? 'text-white' : 'text-gray-900'
         }`}>{t('herosection.gains')}</span>
@@ -403,13 +395,13 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
             : 'bg-white text-gray-900 border border-black/30'
         }`}
         style={{
-          width: 'clamp(3rem, 10vw, 4rem)',
-          height: 'clamp(3rem, 10vw, 4rem)',
+         width: 'clamp(1rem, 10vw, 4rem)',
+          height: 'clamp(1rem, 10vw, 4rem)',
           animationDelay: hasAnimationStarted ? '0.8s' : '0s',
           animationFillMode: 'both'
         }}
       >
-        <Gamepad2 style={{ width: 'clamp(1rem, 4vw, 1.5rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
+        <Gamepad2 style={{ width: 'clamp(0.5rem, 4vw, 2rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
         <span className={`absolute -bottom-6 text-xs font-medium transition-all duration-500 ${
           darkMode ? 'text-white' : 'text-gray-900'
         }`}>{t('herosection.games')}</span>
