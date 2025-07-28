@@ -633,12 +633,22 @@ export const handleSubscriptionSuccess = async (req, res) => {
 
       }
 
-      // Mark promo as used after successful subscription creation
+
       if (promoCode && promoDiscount && user) {
         await CouponCode.updateOne(
           { code: promoCode.toUpperCase() },
           { $addToSet: { usedBy: user.id } }
         );
+  
+        const updatedCoupon = await CouponCode.findOne({ code: promoCode.toUpperCase() });
+        if (
+          updatedCoupon &&
+          typeof updatedCoupon.maxUses === 'number' &&
+          updatedCoupon.maxUses > 0 &&
+          updatedCoupon.usedBy.length >= updatedCoupon.maxUses
+        ) {
+          await CouponCode.deleteOne({ code: promoCode.toUpperCase() });
+        }
       }
 
       return {
