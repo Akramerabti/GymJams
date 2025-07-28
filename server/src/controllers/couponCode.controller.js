@@ -1,4 +1,5 @@
-// Edit coupon code discount
+import CouponCode from '../models/CouponCode.js';
+
 export const updateCouponDiscount = async (req, res) => {
   try {
     const { id } = req.params;
@@ -17,7 +18,7 @@ export const updateCouponDiscount = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
-import CouponCode from '../models/CouponCodes.js';
+
 
 
 export const createCouponCode = async (req, res) => {

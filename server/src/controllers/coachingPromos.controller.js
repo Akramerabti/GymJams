@@ -1,4 +1,4 @@
-import CouponCode from '../models/CouponCodes.js';
+import CouponCode from '../models/CouponCode.js';
 
 // Return all coupon codes of type 'coaching'
 export const getCoachingPromos = async (req, res) => {
