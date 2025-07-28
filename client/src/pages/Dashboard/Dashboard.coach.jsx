@@ -412,11 +412,16 @@ const DashboardCoach = () => {
   const handleClientClick = async (client) => {
     try {
       setIsLoading(true);
-      const detailedClient = await clientService.getClientById(client.id);
-      setSelectedClient(detailedClient);
+    
+      const subscription = await subscriptionService.getSubscriptionBySubscriptionId(client.id);
+     
+      setSelectedClient({
+        ...client,
+        subscriptionData: subscription
+      });
     } catch (error) {
-      console.error('Failed to get client details:', error);
-      toast.error('Failed to load client details');
+      console.error('Failed to get subscription details:', error);
+      toast.error('Failed to load subscription details');
       setSelectedClient(client);
     } finally {
       setIsLoading(false);
