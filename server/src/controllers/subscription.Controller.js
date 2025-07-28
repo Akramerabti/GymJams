@@ -635,7 +635,7 @@ export const handleSubscriptionSuccess = async (req, res) => {
 
       // Mark promo as used after successful subscription creation
       if (promoCode && promoDiscount && user) {
-        await CoachingPromo.updateOne(
+        await CouponCode.updateOne(
           { code: promoCode.toUpperCase() },
           { $addToSet: { usedBy: user.id } }
         );
