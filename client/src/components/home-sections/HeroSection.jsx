@@ -835,211 +835,188 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         }`}></div>
       </div>
     ) : featuredProducts.length > 0 ? (
-      <div className="flex-1 overflow-x-auto overflow-y-hidden min-h-0" style={{ contain: 'layout size' }}>
-        <div className="flex flex-row gap-4 h-full p-2 pt-1 min-w-max" style={{ height: 'calc(100% - 8px)' }}>
-          {featuredProducts.map((product) => {
-            const price = getPriceDisplay(product);
-            const isOutOfStock = product.stockQuantity === 0;
-            const lowStock = product.stockQuantity > 0 && product.stockQuantity <= 5;
-            return (
-              <div
-                key={product.id}
-                className={`bg-white dark:bg-gray-900 rounded-xl shadow-lg border-2 ${darkMode ? 'border-gray-950/60 hover:border-blue-500/100' : 'border-gray-950/60 hover:border-blue-400/70'} hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer group relative overflow-hidden`}
-                onClick={() => navigate(`/product/${product.id}`)}
-                style={{
-                  flex: '0 0 auto',
-                  aspectRatio: '150 / 230',
-                  maxHeight: '10000px',
-                  contain: 'layout size strict',
-                  position: 'relative'
-                }}
-              >
-                {/* Image container - takes up top portion - SQUARE 1:1 ratio */}
-                <div 
-                  className="relative overflow-hidden bg-gray-50 dark:bg-gray-800 flex-shrink-0 w-full"
-                  style={{ height: '60%', contain: 'layout size strict', display: 'flex', alignItems: 'stretch', justifyContent: 'center' }}
-                >
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 absolute inset-0"
-                    onError={e => { e.target.src = '/Picture3.png'; }}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      objectPosition: 'center',
-                      display: 'block',
-                      position: 'absolute',
-                      top: 0,
-                      left: 0
-                    }}
-                  />
-                  {/* Status badges */}
-                  <div className="absolute top-2 left-2 flex flex-col gap-1 z-10" style={{ width: '50%' }}>
-                    {isOutOfStock && (
-                      <span className="px-2 py-1 text-xs rounded-full bg-gray-800 text-white font-bold shadow" style={{ width: '100%', textAlign: 'center' }}>
-                        {t('herosection.outOfStock')}
-                      </span>
-                    )}
-                    {product.preOrder && (
-                      <span className="px-2 py-1 text-[10px] rounded-full bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-500 text-amber-900 font-bold border border-amber-900 shadow" style={{ width: '100%', textAlign: 'center' }}>
-                        {t('herosection.preOrder')}
-                      </span>
-                    )}
-                    {/* Red glowing heartbeat alert for low stock */}
-                    {lowStock && (
-                      <button
-                        className="mt-1 px-2 py-1 text-xs rounded-full bg-red-500 text-white font-bold shadow border border-red-700 animate-pulse"
-                        style={{
-                          width: '100%',
-                          textAlign: 'center',
-                          fontSize: 'clamp(0.7rem, 1.8vw, 0.9rem)',
-                          animation: 'heartbeat 1.5s ease-in-out infinite',
-                          boxShadow: '0 0 15px rgba(239, 68, 68, 0.7), 0 0 30px rgba(239, 68, 68, 0.4), 0 0 45px rgba(239, 68, 68, 0.2)',
-                          background: 'linear-gradient(135deg, #dc2626, #ef4444, #f87171)',
-                          borderColor: '#991b1b',
-                        }}
-                        disabled
-                      >
-                        Only {product.stockQuantity} left
-                      </button>
-                    )}
-                  </div>
-                  {/* Add keyframes for heartbeat animation */}
-                  <style jsx>{`
-                    @keyframes heartbeat {
-                      0% {
-                        transform: scale(1);
-                        box-shadow: 0 0 15px rgba(239, 68, 68, 0.7), 0 0 30px rgba(239, 68, 68, 0.4), 0 0 45px rgba(239, 68, 68, 0.2);
-                      }
-                      25% {
-                        transform: scale(1.05);
-                        box-shadow: 0 0 20px rgba(239, 68, 68, 0.8), 0 0 35px rgba(239, 68, 68, 0.5), 0 0 55px rgba(239, 68, 68, 0.3);
-                      }
-                      50% {
-                        transform: scale(1.1);
-                        box-shadow: 0 0 25px rgba(239, 68, 68, 0.9), 0 0 40px rgba(239, 68, 68, 0.6), 0 0 65px rgba(239, 68, 68, 0.4);
-                      }
-                      75% {
-                        transform: scale(1.05);
-                        box-shadow: 0 0 20px rgba(239, 68, 68, 0.8), 0 0 35px rgba(239, 68, 68, 0.5), 0 0 55px rgba(239, 68, 68, 0.3);
-                      }
-                      100% {
-                        transform: scale(1);
-                        box-shadow: 0 0 15px rgba(239, 68, 68, 0.7), 0 0 30px rgba(239, 68, 68, 0.4), 0 0 45px rgba(239, 68, 68, 0.2);
-                      }
-                    }
-                  `}</style>
-                </div>
-                {/* Content container - takes up bottom portion */}
-                <div 
-                  className="flex flex-col p-1.5 overflow-hidden relative"
-                  style={{ height: '40%', contain: 'layout size strict' }}
-                >
-                  {/* Product name with proper clamping */}
-                  <h4
-                    className={`font-semibold mb-0.5 ml-1 leading-tight ${
-                      darkMode ? 'text-white' : 'text-gray-900'
-                    }`}
-                    style={{
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      wordWrap: 'break-word',
-                      overflowWrap: 'break-word',
-                      hyphens: 'auto',
-                      maxWidth: '100%',
-                      fontSize: 'clamp(1rem, 1vw, 1.1rem)',
-                      lineHeight: '1.2',
-                      height: '100%',
-                      maxHeight: '2.4rem',
-                      marginBottom: '0.25rem',
-                      textOverflow: 'ellipsis',
-                    }}
-                    title={product.name}
-                  >
-                    {product.name}
-                  </h4>
-                  
-                  {/* Price section at bottom - fixed positioning */}
-                  <div 
-                    className="absolute bottom-0 left-0 right-0 px-1.5 pb-1.5"
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center',
-                      justifyContent: 'flex-end',
-                      height: 'auto',
-                      minHeight: '1.5rem'
-                    }}
-                  >
-                    {price.discounted ? (
-                      // Discount pricing layout - takes 3/4 width on right
-                      <div 
-                        style={{ 
-                          width: '75%',
-                          maxWidth: '75%',
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'flex-end',
-                          gap: '0.25rem'
-                        }}
-                      >
-                        {/* New discounted price - shrinks more aggressively */}
-                        <span 
-                          className="font-bold text-red-600 dark:text-red-400"
-                          style={{ 
-                            fontSize: 'clamp(0.5rem, 3vw, 1.2rem)',
-                            lineHeight: '1.1',
-                            whiteSpace: 'nowrap',
-                            flex: '0 1 auto'
-                          }}
-                        >
-                          {price.discounted}
-                        </span>
-                        {/* Original price with strikethrough - also shrinks more */}
-                        <span 
-                          className="text-gray-400 dark:text-gray-500 line-through"
-                          style={{ 
-                            fontSize: 'clamp(0.4rem, 2.5vw, 1rem)',
-                            lineHeight: '1.1',
-                            whiteSpace: 'nowrap',
-                            flex: '0 1 auto'
-                          }}
-                        >
-                          {price.original}
-                        </span>
-                      </div>
-                    ) : (
-                      // Regular pricing - takes 1/4 width on right
-                      <div 
-                        style={{ 
-                          width: '25%',
-                          maxWidth: '25%',
-                          display: 'flex',
-                          justifyContent: 'flex-end'
-                        }}
-                      >
-                        <span 
-                          className="font-bold text-gray-900 dark:text-white"
-                          style={{ 
-                            fontSize: 'clamp(0.5rem, 3vw, 1.2rem)',
-                            lineHeight: '1.1',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          {price.original}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+// Replace the featured products container section with this:
+
+<div className="flex-1 overflow-x-auto overflow-y-hidden min-h-0" style={{ contain: 'layout size' }}>
+  <div 
+    className="flex flex-row gap-4 h-full p-2 pt-1" 
+    style={{ 
+      height: 'calc(100% - 8px)',
+      // Fix for iOS - use explicit width calculation
+      width: `${featuredProducts.length * 180 + (featuredProducts.length - 1) * 16 + 16}px`,
+      minWidth: '100%'
+    }}
+  >
+{featuredProducts.map((product) => {
+  const price = getPriceDisplay(product);
+  const isOutOfStock = product.stockQuantity === 0;
+  const lowStock = product.stockQuantity > 0 && product.stockQuantity <= 5;
+  return (
+    <div
+      key={product.id}
+      className={`bg-white dark:bg-gray-900 rounded-xl shadow-lg border-2 ${darkMode ? 'border-gray-950/60 hover:border-blue-500/100' : 'border-gray-950/60 hover:border-blue-400/70'} hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer group relative overflow-hidden`}
+      onClick={() => navigate(`/product/${product.id}`)}
+      style={{
+        // REMOVE aspect-ratio and use fixed dimensions
+        flex: '0 0 auto',
+        width: '140px',        // Fixed width for iOS
+        height: '200px',       // Fixed height for iOS
+        minWidth: '140px',     // Ensure minimum width
+        maxWidth: '140px',     // Ensure maximum width
+        contain: 'layout size strict',
+        position: 'relative',
+        // iOS Safari specific
+        WebkitFlexShrink: 0,
+        WebkitFlexGrow: 0,
+      }}
+    >
+      {/* Image container - FIXED HEIGHT instead of percentage */}
+      <div 
+        className="relative overflow-hidden bg-gray-50 dark:bg-gray-800 flex-shrink-0 w-full rounded-t-xl"
+        style={{ 
+          height: '120px',     // Fixed height instead of 60%
+          width: '100%',
+          contain: 'layout size strict',
+          position: 'relative',
+          overflow: 'hidden'
+        }}
+      >
+        <img
+          src={product.image}
+          alt={product.name}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          onError={e => { e.target.src = '/Picture3.png'; }}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center',
+            display: 'block',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            // iOS specific fixes
+            WebkitTransform: 'translateZ(0)',
+            backfaceVisibility: 'hidden'
+          }}
+        />
+        
+        {/* Status badges - adjusted for smaller card */}
+        <div className="absolute top-1 left-1 flex flex-col gap-1 z-10" style={{ maxWidth: '70%' }}>
+          {isOutOfStock && (
+            <span className="px-1 py-0.5 text-xs rounded-full bg-gray-800 text-white font-bold shadow text-center" style={{ fontSize: '9px' }}>
+              {t('herosection.outOfStock')}
+            </span>
+          )}
+          {product.preOrder && (
+            <span className="px-1 py-0.5 text-xs rounded-full bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-500 text-amber-900 font-bold border border-amber-900 shadow text-center" style={{ fontSize: '9px' }}>
+              {t('herosection.preOrder')}
+            </span>
+          )}
+          {lowStock && (
+            <button
+              className="px-1 py-0.5 text-xs rounded-full bg-red-500 text-white font-bold shadow border border-red-700 animate-pulse text-center"
+              style={{
+                fontSize: '8px',
+                animation: 'heartbeat 1.5s ease-in-out infinite',
+                boxShadow: '0 0 10px rgba(239, 68, 68, 0.5)',
+                background: 'linear-gradient(135deg, #dc2626, #ef4444)',
+                borderColor: '#991b1b',
+              }}
+              disabled
+            >
+              {product.stockQuantity} left
+            </button>
+          )}
         </div>
       </div>
+      
+      {/* Content container - FIXED HEIGHT */}
+      <div 
+        className="flex flex-col p-2 overflow-hidden relative"
+        style={{ 
+          height: '80px',        // Fixed height (200px total - 120px image)
+          contain: 'layout size strict',
+          position: 'relative'
+        }}
+      >
+        {/* Product name - adjusted for smaller space */}
+        <h4
+          className={`font-semibold leading-tight ${
+            darkMode ? 'text-white' : 'text-gray-900'
+          }`}
+          style={{
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            wordWrap: 'break-word',
+            overflowWrap: 'break-word',
+            fontSize: '12px',       // Smaller font for compact card
+            lineHeight: '1.2',
+            maxHeight: '28.8px',    // 2 lines max
+            marginBottom: '4px',
+            flex: '1 1 auto'
+          }}
+          title={product.name}
+        >
+          {product.name}
+        </h4>
+        
+        {/* Price section - fixed at bottom */}
+        <div 
+          className="flex items-center justify-end mt-auto"
+          style={{ 
+            height: '18px',
+            flexShrink: 0,
+            position: 'absolute',
+            bottom: '8px',
+            right: '8px',
+            left: '8px'
+          }}
+        >
+          {price.discounted ? (
+            <div className="flex items-center gap-1 justify-end w-full">
+              <span 
+                className="font-bold text-red-600 dark:text-red-400"
+                style={{ 
+                  fontSize: '12px',
+                  lineHeight: '1.1',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {price.discounted}
+              </span>
+              <span 
+                className="text-gray-400 dark:text-gray-500 line-through"
+                style={{ 
+                  fontSize: '10px',
+                  lineHeight: '1.1',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {price.original}
+              </span>
+            </div>
+          ) : (
+            <span 
+              className="font-bold text-gray-900 dark:text-white w-full text-right"
+              style={{ 
+                fontSize: '12px',
+                lineHeight: '1.1',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {price.original}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+})}
+  </div>
+</div>
     ) : (
       <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-gray-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} p-4 sm:p-6 text-center flex flex-col items-center justify-center shadow-2xl min-h-[190px] border-2 ${darkMode ? 'border-gray-600/30 hover:border-gray-500/50' : 'border-gray-300/50 hover:border-gray-400/70'} relative overflow-hidden hover:shadow-3xl transition-all duration-500 hover:scale-[1.02] group`}>
         <div className={`absolute inset-0 rounded-xl ${darkMode ? 'bg-gradient-to-br from-gray-600/10 via-gray-500/5 to-gray-700/10' : 'bg-gradient-to-br from-gray-400/15 via-gray-300/10 to-gray-500/15'} opacity-60 group-hover:opacity-80 transition-all duration-500`}></div>

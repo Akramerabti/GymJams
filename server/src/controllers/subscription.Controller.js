@@ -2338,3 +2338,35 @@ export const syncAllSubscriptions = async (req, res) => {
     res.status(500).json({ error: 'Failed to sync subscriptions' });
   }
 };
+
+// Update client progress for a subscription
+export const updateClientProgress = async (req, res) => {
+  try {
+    const { subscriptionId } = req.params;
+    const progressData = req.body;
+
+    if (!subscriptionId || !progressData || Object.keys(progressData).length === 0) {
+      return res.status(400).json({ error: 'Missing subscriptionId or progressData' });
+    }
+
+    // Find the subscription
+    const subscription = await Subscription.findById(subscriptionId);
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+
+    // Update the progress field
+    subscription.progress = progressData;
+    subscription.lastUpdated = new Date();
+    await subscription.save();
+
+    res.json({
+      message: 'Client progress updated successfully',
+      progress: subscription.progress,
+      subscriptionId: subscription._id
+    });
+  } catch (error) {
+    logger.error('Error updating client progress:', error);
+    res.status(500).json({ error: 'Failed to update client progress' });
+  }
+};
