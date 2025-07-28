@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { getIoInstance, activeUsers, notifyGoalApproval, notifyGoalRejection } from '../socketServer.js';
 import Session from '../models/Session.js';
+import CoachingPromo from '../models/CoachingPromo.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -555,7 +556,6 @@ export const handleSubscriptionSuccess = async (req, res) => {
       logger.info(`[Subscription] Incoming promoCode:`, promoCode);
       if (promoCode) {
         // Validate promo code in DB
-        const CoachingPromo = (await import('../models/CoachingPromo.js')).default;
         const promo = await CoachingPromo.findOne({ code: promoCode.toUpperCase() });
         logger.info(`[Subscription] Promo DB result:`, promo);
         if (
@@ -635,7 +635,6 @@ export const handleSubscriptionSuccess = async (req, res) => {
 
       // Mark promo as used after successful subscription creation
       if (promoCode && promoDiscount && user) {
-        const CoachingPromo = (await import('../models/CoachingPromo.js')).default;
         await CoachingPromo.updateOne(
           { code: promoCode.toUpperCase() },
           { $addToSet: { usedBy: user.id } }
