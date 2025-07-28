@@ -16,7 +16,7 @@ const PLANS = {
   basic: {
     name: 'Basic',
     price: 39.99,
-    stripePriceId: 'price_1RpucpFGfbnmVSqElwxGeeo6', // <-- Replace with your live price ID
+    stripePriceId: 'price_1RpudmFGfbnmVSqEXiQ15w10', // <-- Replace with your live price ID
     points: 100,
     features: [
       'Access to workout library',
@@ -28,7 +28,7 @@ const PLANS = {
   premium: {
     name: 'Premium',
     price: 69.99,
-    stripePriceId: 'price_1RpucpFGfbnmVSqElwxGeeo6m', // <-- Replace with your live price ID
+    stripePriceId: 'price_1RpucpFGfbnmVSqElwxGeeo6', // <-- Replace with your live price ID
     points: 200,
     features: [
       'All Basic features',
