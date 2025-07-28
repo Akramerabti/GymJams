@@ -353,6 +353,11 @@ const ClientDetailsModal = ({ client, onClose, onSave, onExportData}) => {
                     <User className="w-4 h-4 mr-2" />
                     <span className="min-w-max">Overview</span>
                   </TabsTrigger>
+                  {/* New Questionnaire Tab */}
+                  <TabsTrigger value="questionnaire" onClick={() => setActiveTab('questionnaire')} className="data-[state=active]:bg-white">
+                    <Clipboard className="w-4 h-4 mr-2" />
+                    <span className="min-w-max">Questionnaire Data</span>
+                  </TabsTrigger>
                   <TabsTrigger value="goals" onClick={() => setActiveTab('goals')} className="data-[state=active]:bg-white">
                     <Target className="w-4 h-4 mr-2" />
                     <span className="min-w-max">Goals</span>
@@ -510,6 +515,45 @@ const ClientDetailsModal = ({ client, onClose, onSave, onExportData}) => {
                     <Download className="w-4 h-4 mr-2" />
                     Export Data
                   </Button>
+                </div>
+              </TabsContent>
+
+              {/* Questionnaire Data Tab */}
+              <TabsContent value="questionnaire" className="mt-0">
+                <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center">
+                    <Clipboard className="w-5 h-5 mr-2 text-blue-600" />
+                    Questionnaire Data
+                  </h3>
+                  {client.subscriptionData && client.subscriptionData.questionnaireData ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {Object.entries(client.subscriptionData.questionnaireData).map(([key, value]) => {
+                        // Format key to readable label
+                        const label = key
+                          .replace(/([A-Z])/g, ' $1')
+                          .replace(/^./, str => str.toUpperCase());
+                        // Format value
+                        let displayValue;
+                        if (Array.isArray(value)) {
+                          displayValue = value.length > 0 ? value.join(', ') : 'Empty';
+                        } else if (typeof value === 'boolean') {
+                          displayValue = value ? 'Yes' : 'No';
+                        } else if (value === '' || value === null || value === undefined) {
+                          displayValue = 'Empty';
+                        } else {
+                          displayValue = value;
+                        }
+                        return (
+                          <div key={key} className="bg-gray-50 p-3 rounded-lg flex flex-col">
+                            <span className="text-xs text-gray-500 mb-1">{label}</span>
+                            <span className="font-medium text-gray-800">{displayValue}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-gray-500 italic">No questionnaire data available.</div>
+                  )}
                 </div>
               </TabsContent>
 

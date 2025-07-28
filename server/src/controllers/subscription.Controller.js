@@ -2379,3 +2379,27 @@ export const updateClientProgress = async (req, res) => {
     res.status(500).json({ error: 'Failed to update client progress' });
   }
 };
+
+export const getSubscriptionBySubscriptionId = async (req, res) => {
+  try {
+    const { clientId } = req.params;
+   
+    const subscriptionId = clientId;
+    console.log('Fetching subscription for subscription ID:', subscriptionId);
+    if (!subscriptionId) {
+      return res.status(400).json({ error: 'Subscription ID is required' });
+    }
+    // Find the subscription by its _id (subscriptionId)
+    const subscription = await Subscription.findOne({
+      _id: subscriptionId,
+      status: 'active'
+    }).lean();
+    if (!subscription) {
+      return res.status(404).json({ error: 'No active subscription found for this ID' });
+    }
+    res.json(subscription);
+  } catch (error) {
+    logger.error('Error fetching subscription by subscription ID:', error);
+    res.status(500).json({ error: 'Failed to fetch subscription' });
+  }
+};

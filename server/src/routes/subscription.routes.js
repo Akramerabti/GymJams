@@ -28,7 +28,8 @@ import {
   requestSession,
   syncSubscriptionFromStripe,
   syncAllSubscriptions,
-  updateClientProgress
+  updateClientProgress,
+  getSubscriptionBySubscriptionId
 } from '../controllers/subscription.Controller.js';
 
 import stripe from '../config/stripe.js';
@@ -65,6 +66,7 @@ router.post('/:subscriptionId/goals/:goalId/request-completion', optionalAuthent
 router.post('/:subscriptionId/goals/:goalId/reject', optionalAuthenticate, isCoach, rejectGoalCompletion);
 router.get('/:subscriptionId/sessions', optionalAuthenticate, getClientSessions);
 router.post('/:subscriptionId/request-session', optionalAuthenticate, requestSession);
+router.get('/by-client/:clientId', optionalAuthenticate, getSubscriptionBySubscriptionId);
 
 // Admin routes for syncing subscription data
 router.post('/sync/:subscriptionId', authenticate, syncSubscriptionFromStripe);

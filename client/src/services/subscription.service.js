@@ -539,21 +539,6 @@ async submitQuestionnaire(answers, accessToken = null) {
     }
   },
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   async getClientGoals(subscriptionId) {
     try {
       const response = await api.get(`/subscription/${subscriptionId}/goals`);
@@ -699,6 +684,15 @@ async submitQuestionnaire(answers, accessToken = null) {
     }
   },
 
+  async getSubscriptionBySubscriptionId(clientId) {
+    try {
+      const response = await api.get(`/subscription/by-client/${clientId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch subscription by client ID:', error);
+      throw error;
+    }
+  },
 
   async checkIfUserRatedCoach(coachId) {
     try {
