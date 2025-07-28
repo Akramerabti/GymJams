@@ -664,129 +664,283 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                         </div>
                       )}
                     </div>                  ) : (
-                    <div className={`flex-1 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-850 to-gray-900' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} p-3 sm:p-4 mt-1 flex flex-col shadow-2xl border-2 ${darkMode ? 'border-blue-500/30 hover:border-purple-500/50' : 'border-blue-300/50 hover:border-purple-400/70'} relative overflow-hidden hover:shadow-3xl transition-all duration-500 hover:scale-[1.02] group`}>
-                      {/* Info Button - positioned in top right */}
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <button className={`absolute top-2 right-6 sm:right-2 z-20 p-2 rounded-full transition-all duration-300 hover:scale-110 ${
-                            darkMode
-                              ? 'bg-gradient-to-br from-blue-600/70 to-purple-600/70 hover:from-blue-500/80 hover:to-purple-500/80 text-white shadow-lg hover:shadow-blue-500/30'
-                              : 'bg-gradient-to-br from-blue-500/70 to-purple-500/70 hover:from-blue-600/80 hover:to-purple-600/80 text-white shadow-lg hover:shadow-purple-500/30'
-                          } backdrop-blur-sm hover:shadow-xl transform hover:rotate-12`}
-                          title="What is GymBros?"
-                          >
-                            <Info className="w-4 h-4" />
-                          </button>
-                        </DialogTrigger>
-                        <DialogContent className={`max-w-lg ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-900 text-white border-gray-600' : 'bg-gradient-to-br from-white to-gray-50 text-gray-900 border-gray-200'} shadow-2xl backdrop-blur-sm sm:top-1/2 top-[55%] sm:translate-y-[-50%] translate-y-[-50%]`}>
-                          <DialogHeader className="text-center pb-4">
-                            <DialogTitle className={`text-2xl font-bold bg-gradient-to-r ${darkMode ? 'from-blue-400 to-purple-400' : 'from-blue-600 to-purple-600'} bg-clip-text text-transparent`}>
-                              🏋️ GymBros Network
-                            </DialogTitle>
-                            <DialogDescription className={`text-base ${darkMode ? 'text-gray-300' : 'text-gray-600'} mt-2`}>
-                              Your fitness community awaits! Connect, train, and grow together.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <DialogBody>
-                            <div className="space-y-6">
-                              <div className={`p-4 rounded-xl ${darkMode ? 'bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-700/30' : 'bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200/50'} backdrop-blur-sm`}>
-                                <div className="text-center">
-                                  <div className={`w-16 h-16 mx-auto mb-3 rounded-full ${darkMode ? 'bg-gradient-to-br from-blue-500 to-purple-500' : 'bg-gradient-to-br from-blue-600 to-purple-600'} flex items-center justify-center shadow-lg`}>
-                                    <Dumbbell className="w-8 h-8 text-white" />
-                                  </div>
-                                  <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-2`}>
-                                    {t('gymBrosNetwork.findYourFitnessFamily')}
-                                  </h3>
-                                  <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                                    {t('gymBrosNetwork.connectWithEnthusiasts')}
-                                  </p>
-                                </div>
-                              </div>
+  <div className="flex-1 rounded-2xl p-3 sm:p-4 mt-1 flex flex-col shadow-2xl border-2 relative overflow-hidden transition-all duration-500 hover:scale-[1.02] group"
+       style={{
+         background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 15%, #4338ca 35%, #7c3aed 55%, #c2410c 75%, #ea580c 90%, #fb923c 100%)',
+         borderImage: 'linear-gradient(135deg, #60a5fa, #a855f7, #f97316) 1',
+         borderColor: 'transparent'
+       }}>
+    
+    {/* Floating Gym Icons */}
+    <div className="absolute inset-0 overflow-hidden rounded-2xl">
+      <div className="absolute opacity-20 animate-float-1" style={{ top: '15%', left: '5%', fontSize: '20px' }}>💪</div>
+      <div className="absolute opacity-15 animate-float-2" style={{ top: '70%', left: '85%', fontSize: '16px' }}>🏋️</div>
+      <div className="absolute opacity-25 animate-float-3" style={{ top: '85%', left: '15%', fontSize: '18px' }}>🔥</div>
+      <div className="absolute opacity-20 animate-float-4" style={{ top: '35%', left: '75%', fontSize: '14px' }}>⚡</div>
+      <div className="absolute opacity-15 animate-float-1" style={{ top: '50%', left: '20%', fontSize: '16px', animationDelay: '2s' }}>🎯</div>
+    </div>
 
-                              <div className="grid grid-cols-1 gap-4">
-                                <div className="flex items-center gap-4">
-                                  <div className={`w-12 h-12 rounded-xl ${darkMode ? 'bg-gradient-to-br from-emerald-600 to-teal-600' : 'bg-gradient-to-br from-emerald-500 to-teal-500'} flex items-center justify-center shadow-lg flex-shrink-0`}>
-                                    <UserPlus className="w-6 h-6 text-white" />
-                                  </div>
-                                  <div className="flex-1">
-                                    <h4 className={`font-bold text-base ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                      {t('gymBrosNetwork.buildYourNetwork')}
-                                    </h4>
-                                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                                      {t('gymBrosNetwork.discoverLikeMinded')}
-                                    </p>
-                                  </div>
-                                </div>
+    {/* Info Button - Enhanced */}
+    <Dialog>
+      <DialogTrigger asChild>
+        <button className="absolute top-2 right-2 z-20 p-2 rounded-full transition-all duration-300 hover:scale-110 backdrop-blur-sm hover:shadow-xl transform hover:rotate-12 group-hover:animate-bounce-subtle"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.8), rgba(139, 92, 246, 0.8), rgba(249, 115, 22, 0.6))',
+                  boxShadow: '0 0 20px rgba(59, 130, 246, 0.5), 0 0 40px rgba(139, 92, 246, 0.3)'
+                }}
+                title="What is GymBros?">
+          <Info className="w-4 h-4 text-white drop-shadow-lg" />
+        </button>
+      </DialogTrigger>
+      
+      <DialogContent className="max-w-lg shadow-2xl backdrop-blur-sm sm:top-1/2 top-[55%] sm:translate-y-[-50%] translate-y-[-50%] border-2"
+                     style={{
+                       background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 20%, #4338ca 40%, #7c3aed 60%, #c2410c 80%, #ea580c 100%)',
+                       borderImage: 'linear-gradient(135deg, #60a5fa, #a855f7, #f97316) 1',
+                       borderColor: 'transparent'
+                     }}>
+        <DialogHeader className="text-center pb-4">
+          <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-200 via-purple-200 to-orange-200 bg-clip-text text-transparent animate-shimmer">
+            🏋️ GymBros Network
+          </DialogTitle>
+          <DialogDescription className="text-base text-gray-200 mt-2">
+            Your fitness community awaits! Connect, train, and grow together.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-6">
+            <div className="p-4 rounded-xl backdrop-blur-sm border animate-glow-border"
+                 style={{
+                   background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2), rgba(249, 115, 22, 0.1))',
+                   borderImage: 'linear-gradient(135deg, #60a5fa, #a855f7, #f97316) 1'
+                 }}>
+              <div className="text-center">
+                <div className="w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center shadow-lg animate-pulse-ring"
+                     style={{
+                       background: 'linear-gradient(135deg, #3b82f6, #8b5cf6, #f97316)',
+                       boxShadow: '0 0 30px rgba(59, 130, 246, 0.5)'
+                     }}>
+                  <Dumbbell className="w-8 h-8 text-white drop-shadow-lg" />
+                </div>
+                <h3 className="text-lg font-bold text-white mb-2 animate-fade-in-up">
+                  {t('gymBrosNetwork.findYourFitnessFamily')}
+                </h3>
+                <p className="text-sm text-gray-200">
+                  {t('gymBrosNetwork.connectWithEnthusiasts')}
+                </p>
+              </div>
+            </div>
 
-                                <div className="flex items-center gap-4">
-                                  <div className={`w-12 h-12 rounded-xl ${darkMode ? 'bg-gradient-to-br from-orange-600 to-red-600' : 'bg-gradient-to-br from-orange-500 to-red-500'} flex items-center justify-center shadow-lg flex-shrink-0`}>
-                                    <Target className="w-6 h-6 text-white" />
-                                  </div>
-                                  <div className="flex-1">
-                                    <h4 className={`font-bold text-base ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                      {t('gymBrosNetwork.achieveGoalsTogether')}
-                                    </h4>
-                                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                                      {t('gymBrosNetwork.partnerUpWithBuddies')}
-                                    </p>
-                                  </div>
-                                </div>
+            <div className="grid grid-cols-1 gap-4">
+              <div className="flex items-center gap-4 animate-slide-in-left">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0 animate-pulse-glow"
+                     style={{
+                       background: 'linear-gradient(135deg, #10b981, #06b6d4)',
+                       boxShadow: '0 0 20px rgba(16, 185, 129, 0.4)'
+                     }}>
+                  <UserPlus className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-bold text-base text-white">
+                    {t('gymBrosNetwork.buildYourNetwork')}
+                  </h4>
+                  <p className="text-sm text-gray-300">
+                    {t('gymBrosNetwork.discoverLikeMinded')}
+                  </p>
+                </div>
+              </div>
 
-                                <div className="flex items-center gap-4">
-                                  <div className={`w-12 h-12 rounded-xl ${darkMode ? 'bg-gradient-to-br from-violet-600 to-purple-600' : 'bg-gradient-to-br from-violet-500 to-purple-500'} flex items-center justify-center shadow-lg flex-shrink-0`}>
-                                    <MessageCircle className="w-6 h-6 text-white" />
-                                  </div>
-                                  <div className="flex-1">
-                                    <h4 className={`font-bold text-base ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                      {t('gymBrosNetwork.shareAndSupport')}
-                                    </h4>
-                                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                                      {t('gymBrosNetwork.exchangeTipsCelebrateVictories')}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
+              <div className="flex items-center gap-4 animate-slide-in-right">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0 animate-pulse-glow"
+                     style={{
+                       background: 'linear-gradient(135deg, #ea580c, #dc2626)',
+                       boxShadow: '0 0 20px rgba(234, 88, 12, 0.4)'
+                     }}>
+                  <Target className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-bold text-base text-white">
+                    {t('gymBrosNetwork.achieveGoalsTogether')}
+                  </h4>
+                  <p className="text-sm text-gray-300">
+                    {t('gymBrosNetwork.partnerUpWithBuddies')}
+                  </p>
+                </div>
+              </div>
 
-                              <div className={`p-4 rounded-xl ${darkMode ? 'bg-gradient-to-r from-indigo-900/40 to-purple-900/40 border border-indigo-700/30' : 'bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200/50'} text-center`}>
-                                <div className="flex items-center justify-center gap-2 mb-3">
-                                  <div className={`w-8 h-8 rounded-full ${darkMode ? 'bg-gradient-to-r from-indigo-500 to-purple-500' : 'bg-gradient-to-r from-indigo-600 to-purple-600'} flex items-center justify-center`}>
-                                    <Trophy className="w-4 h-4 text-white" />
-                                  </div>
-                                  <span className={`text-lg font-bold ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>
-                                    {t('gymBrosNetwork.readyToLevelUp')}
-                                  </span>
-                                </div>
-                                <p className={`text-sm ${darkMode ? 'text-indigo-200' : 'text-indigo-600'} mb-4`}>
-                                  {t('gymBrosNetwork.joinThousandsOfEnthusiasts')}
-                                </p>
-                                <button
-                                  onClick={() => {
-                                    window.location.href = '/gymbros';
-                                  }}
-                                  className={`w-full py-3 px-6 rounded-xl font-bold text-white ${darkMode ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500' : 'bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600'} transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-purple-500/25 transform`}
-                                >
-                                  {t('gymBrosNetwork.startYourJourney')} 🚀
-                                </button>
-                              </div>
-                            </div>
-                          </DialogBody>
-                        </DialogContent>
-                      </Dialog>
-                      {/* Subtle inner glow */}
-                      <div className={`absolute inset-0 rounded-2xl ${darkMode ? 'bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-indigo-500/10' : 'bg-gradient-to-br from-blue-400/15 via-purple-400/10 to-indigo-400/15'} opacity-60 group-hover:opacity-80 transition-all duration-500`}></div>
-                      <div className="flex flex-col items-center justify-center h-full py-1 sm:py-2 relative z-10"><div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full ${darkMode ? 'bg-gradient-to-br from-blue-600 to-purple-600' : 'bg-gradient-to-br from-blue-500 to-purple-500'} flex items-center justify-center mb-1 shadow-lg`}>
-                          <Users className={`w-4 h-4 sm:w-4 sm:h-4 text-white`} />
-                        </div>
-                        <p className={`text-xs font-medium text-center mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Connect with GymBros
-                        </p>
-                          <button
-                          onClick={() => window.location.href = '/gymbros'}
-                          className={`text-xs py-1 px-3 rounded-full font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/50 hover:scale-105 ${darkMode ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white' : 'bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white'}`}>
-                          {t('gymBrosNetwork.getStarted')}
-                        </button>
-                      </div>
-                    </div>)}
+              <div className="flex items-center gap-4 animate-slide-in-left">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0 animate-pulse-glow"
+                     style={{
+                       background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                       boxShadow: '0 0 20px rgba(139, 92, 246, 0.4)'
+                     }}>
+                  <MessageCircle className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-bold text-base text-white">
+                    {t('gymBrosNetwork.shareAndSupport')}
+                  </h4>
+                  <p className="text-sm text-gray-300">
+                    {t('gymBrosNetwork.exchangeTipsCelebrateVictories')}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl text-center animate-glow-border"
+                 style={{
+                   background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.3), rgba(139, 92, 246, 0.3), rgba(249, 115, 22, 0.2))',
+                   borderImage: 'linear-gradient(135deg, #4f46e5, #a855f7, #f97316) 1'
+                 }}>
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center animate-spin-slow"
+                     style={{
+                       background: 'linear-gradient(135deg, #4f46e5, #8b5cf6, #f97316)'
+                     }}>
+                  <Trophy className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-lg font-bold text-orange-200 animate-pulse">
+                  {t('gymBrosNetwork.readyToLevelUp')}
+                </span>
+              </div>
+              <p className="text-sm text-blue-200 mb-4">
+                {t('gymBrosNetwork.joinThousandsOfEnthusiasts')}
+              </p>
+              <button
+                onClick={() => {
+                  window.location.href = '/gymbros';
+                }}
+                className="w-full py-3 px-6 rounded-xl font-bold text-white transition-all duration-300 hover:scale-105 transform animate-rainbow-border hover:animate-bounce-subtle"
+                style={{
+                  background: 'linear-gradient(135deg, #4f46e5, #8b5cf6, #f97316)',
+                  boxShadow: '0 0 30px rgba(79, 70, 229, 0.5), 0 0 60px rgba(139, 92, 246, 0.3), 0 0 90px rgba(249, 115, 22, 0.2)'
+                }}
+              >
+                {t('gymBrosNetwork.startYourJourney')} 🚀
+              </button>
+            </div>
+          </div>
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
+
+    {/* Main Content */}
+    <div className="flex flex-col items-center justify-center h-full py-1 sm:py-2 relative z-10">
+      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center mb-1 shadow-lg animate-pulse-ring"
+           style={{
+             background: 'linear-gradient(135deg, #3b82f6, #8b5cf6, #f97316)',
+             boxShadow: '0 0 25px rgba(59, 130, 246, 0.6), 0 0 50px rgba(139, 92, 246, 0.4)'
+           }}>
+        <Users className="w-4 h-4 sm:w-4 sm:h-4 text-white drop-shadow-lg" />
+      </div>
+      <p className="text-xs font-medium text-center mb-1 text-white drop-shadow-md animate-fade-in-up">
+        Connect with GymBros
+      </p>
+      <button
+        onClick={() => window.location.href = '/gymbros'}
+        className="text-xs py-1 px-3 rounded-full font-semibold transition-all duration-300 hover:scale-105 text-white animate-rainbow-border hover:animate-bounce-subtle"
+        style={{
+          background: 'linear-gradient(135deg, #3b82f6, #8b5cf6, #f97316)',
+          boxShadow: '0 0 20px rgba(59, 130, 246, 0.5), 0 0 40px rgba(139, 92, 246, 0.3)'
+        }}>
+        {t('gymBrosNetwork.getStarted')}
+      </button>
+    </div>
+
+    {/* CSS Animations */}
+    <style jsx>{`
+
+      
+      @keyframes float-1 {
+        0%, 100% { transform: translateY(0px) translateX(0px); }
+        33% { transform: translateY(-10px) translateX(5px); }
+        66% { transform: translateY(5px) translateX(-3px); }
+      }
+      
+      @keyframes float-2 {
+        0%, 100% { transform: translateY(0px) translateX(0px); }
+        25% { transform: translateY(8px) translateX(-6px); }
+        75% { transform: translateY(-6px) translateX(4px); }
+      }
+      
+      @keyframes float-3 {
+        0%, 100% { transform: translateY(0px) translateX(0px); }
+        50% { transform: translateY(-12px) translateX(8px); }
+      }
+      
+      @keyframes float-4 {
+        0%, 100% { transform: translateY(0px) translateX(0px); }
+        40% { transform: translateY(6px) translateX(-4px); }
+        80% { transform: translateY(-8px) translateX(6px); }
+      }
+      
+      @keyframes shimmer {
+        0% { background-position: -200% center; }
+        100% { background-position: 200% center; }
+      }
+      
+      @keyframes pulse-ring {
+        0% { box-shadow: 0 0 25px rgba(59, 130, 246, 0.6), 0 0 50px rgba(139, 92, 246, 0.4); }
+        50% { box-shadow: 0 0 35px rgba(59, 130, 246, 0.8), 0 0 70px rgba(139, 92, 246, 0.6), 0 0 100px rgba(249, 115, 22, 0.3); }
+        100% { box-shadow: 0 0 25px rgba(59, 130, 246, 0.6), 0 0 50px rgba(139, 92, 246, 0.4); }
+      }
+      
+      @keyframes glow-border {
+        0%, 100% { border-color: rgba(59, 130, 246, 0.5); }
+        33% { border-color: rgba(139, 92, 246, 0.7); }
+        66% { border-color: rgba(249, 115, 22, 0.6); }
+      }
+      
+      @keyframes rainbow-border {
+        0% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.5), 0 0 40px rgba(139, 92, 246, 0.3); }
+        50% { box-shadow: 0 0 30px rgba(139, 92, 246, 0.7), 0 0 60px rgba(249, 115, 22, 0.5); }
+        100% { box-shadow: 0 0 20px rgba(249, 115, 22, 0.6), 0 0 40px rgba(59, 130, 246, 0.4); }
+      }
+      
+      @keyframes spin-slow {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      
+      @keyframes bounce-subtle {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-5px); }
+      }
+      
+      @keyframes fade-in-up {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      
+      @keyframes slide-in-left {
+        from { opacity: 0; transform: translateX(-20px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      
+      @keyframes slide-in-right {
+        from { opacity: 0; transform: translateX(20px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      
+      .animate-float-1 { animation: float-1 6s ease-in-out infinite; }
+      .animate-float-2 { animation: float-2 8s ease-in-out infinite; }
+      .animate-float-3 { animation: float-3 7s ease-in-out infinite; }
+      .animate-float-4 { animation: float-4 5s ease-in-out infinite; }
+      .animate-shimmer { 
+        background-size: 200% auto;
+        animation: shimmer 3s linear infinite; 
+      }
+      .animate-pulse-ring { animation: pulse-ring 2s ease-in-out infinite; }
+      .animate-glow-border { animation: glow-border 3s ease-in-out infinite; }
+      .animate-rainbow-border { animation: rainbow-border 2s ease-in-out infinite; }
+      .animate-spin-slow { animation: spin-slow 3s linear infinite; }
+      .animate-bounce-subtle { animation: bounce-subtle 1s ease-in-out infinite; }
+      .animate-fade-in-up { animation: fade-in-up 0.8s ease-out; }
+      .animate-slide-in-left { animation: slide-in-left 0.6s ease-out; }
+      .animate-slide-in-right { animation: slide-in-right 0.6s ease-out; }
+    `}</style>
+  </div>
+)}
                 </div>
                
 {/* Featured Products Section */}
@@ -809,7 +963,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   }}
 >
   {/* Add margin-top for small screens */}
-  <div className="flex items-center justify-start gap-2 sm:gap-2 lg:gap-2 mb-1 sm:mb-2 mt-10 sm:mt-0">
+  <div className="flex items-center justify-start sm:gap-2 mb-1 sm:mb-2 mt-3 lg:mt-2 sm:mt-0">
     <h3 className={`text-base sm:text-lg lg:text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
       {t('herosection.featuredProducts')}
     </h3>
@@ -826,7 +980,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
     </button>
   </div>
   {/* Featured products content fills the rest */}
-  <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+  <div className="flex-1 flex flex-col overflow-hidden">
     {productsLoading ? (
       <div className={`flex-1 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} p-4 sm:p-6 flex items-center justify-center shadow-lg border-2 ${darkMode ? 'border-white/30' : 'border-black/30'} relative overflow-hidden`}>
         <div className={`absolute inset-0 rounded-xl ${darkMode ? 'bg-gradient-to-br from-green-500/5 to-blue-500/5' : 'bg-gradient-to-br from-green-500/10 to-blue-500/10'}`}></div>
@@ -839,7 +993,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
 
 <div className="flex-1 overflow-x-auto overflow-y-hidden min-h-0" style={{ contain: 'layout size' }}>
   <div 
-    className="flex flex-row gap-4 h-full p-2 pt-1" 
+    className="flex flex-row gap-4 h-full p-2 pt-0" 
     style={{ 
       height: 'calc(100% - 8px)',
       // Fix for iOS - use explicit width calculation
