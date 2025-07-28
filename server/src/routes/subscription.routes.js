@@ -27,8 +27,10 @@ import {
   getClientSessions,
   requestSession,
   syncSubscriptionFromStripe,
-  syncAllSubscriptions
+  syncAllSubscriptions,
+  updateClientProgress
 } from '../controllers/subscription.Controller.js';
+
 import stripe from '../config/stripe.js';
 import upload from '../config/multer.js';
 
@@ -46,6 +48,7 @@ router.post('/assign-coach', optionalAuthenticate, requireCompleteProfile, assig
 router.post('/:subscriptionId/send-message', requireCompleteProfile, upload.array('files', 10), messaging);
 router.get('/:subscriptionId/messages', requireCompleteProfile, getMessages);
 router.put('/:subscriptionId/mark-read', optionalAuthenticate, requireCompleteProfile, markMessagesAsRead);
+router.put('/:subscriptionId/progress', optionalAuthenticate, updateClientProgress);
 
 router.post('/:subscriptionId/goals', optionalAuthenticate, addGoal);
 router.put('/:subscriptionId/goals/:goalId', optionalAuthenticate, updateGoal);

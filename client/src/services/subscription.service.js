@@ -14,6 +14,16 @@ const subscriptionService = {
     }
   },
 
+  async updateClientProgress(subscriptionId, progressData) {
+    try {
+      const response = await api.put(`/subscription/${subscriptionId}/progress`, progressData);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update client progress:', error);
+      throw error;
+    }
+  },
+
   // Start subscription with payment method
   async startSubscription(paymentMethodId, planType) {
     try {
