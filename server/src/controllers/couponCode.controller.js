@@ -59,9 +59,11 @@ export const validateCouponCode = async (req, res) => {
     console.log('Coupon:', coupon);
 
     // Check max uses
-    if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) {
+    if (coupon.maxUses && coupon.usedBy.length >= coupon.maxUses) {
       console.log('Coupon usage limit reached');
-      return res.status(409).json({ message: 'Coupon code usage limit reached.' });
+      // Delete coupon if maxUses is set and reached
+      await CouponCode.deleteOne({ _id: coupon._id });
+      return res.status(409).json({ valid: false, message: 'Coupon code usage limit reached and deleted.' });
     }
     // If userId is provided, check if user has already used this coupon
     if (userId && coupon.usedBy && coupon.usedBy.some(id => id.toString() === userId)) {
