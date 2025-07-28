@@ -671,13 +671,13 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
          borderColor: 'transparent'
        }}>
     
-    {/* Floating Gym Icons */}
+    {/* Floating Bubble Images */}
     <div className="absolute inset-0 overflow-hidden rounded-2xl">
-      <div className="absolute opacity-20 animate-float-1" style={{ top: '15%', left: '5%', fontSize: '20px' }}>💪</div>
-      <div className="absolute opacity-15 animate-float-2" style={{ top: '70%', left: '85%', fontSize: '16px' }}>🏋️</div>
-      <div className="absolute opacity-25 animate-float-3" style={{ top: '85%', left: '15%', fontSize: '18px' }}>🔥</div>
-      <div className="absolute opacity-20 animate-float-4" style={{ top: '35%', left: '75%', fontSize: '14px' }}>⚡</div>
-      <div className="absolute opacity-15 animate-float-1" style={{ top: '50%', left: '20%', fontSize: '16px', animationDelay: '2s' }}>🎯</div>
+      <img src="/bubble1.png" alt="bubble" className="absolute opacity-20 animate-float-1" style={{ top: '15%', left: '5%', width: '32px', height: '32px' }} />
+      <img src="/bubble2.png" alt="bubble" className="absolute opacity-15 animate-float-2" style={{ top: '70%', left: '85%', width: '24px', height: '24px' }} />
+      <img src="/bubble3.png" alt="bubble" className="absolute opacity-25 animate-float-3" style={{ top: '85%', left: '15%', width: '28px', height: '28px' }} />
+      <img src="/bubble4.png" alt="bubble" className="absolute opacity-20 animate-float-4" style={{ top: '35%', left: '75%', width: '20px', height: '20px' }} />
+      <img src="/bubble5.png" alt="bubble" className="absolute opacity-15 animate-float-1" style={{ top: '50%', left: '20%', width: '24px', height: '24px', animationDelay: '2s' }} />
     </div>
 
     {/* Info Button - Enhanced */}
