@@ -326,7 +326,8 @@ const ClientStatsWidget = ({ clients }) => {
               <div className="bg-green-100 p-1.5 rounded-full">
                 <Dumbbell className="w-4 h-4 text-green-600" />
               </div>
-            </div>            <p className="text-3xl font-bold mb-1" style={{ color: '#000000' }}>{stats.totalWorkouts}</p>
+            </div>
+            <p className="text-3xl font-bold mb-1" style={{ color: '#000000' }}>{stats.totalWorkouts}</p>
             <p className="text-xs mb-2" style={{ color: '#000000' }}>Total workouts completed</p>
             <div className="space-y-2 mt-2">
               <div className="flex justify-between items-center text-xs">
@@ -337,6 +338,21 @@ const ClientStatsWidget = ({ clients }) => {
                 <span style={{ color: '#000000' }}>Most Popular</span>
                 <span className="font-medium capitalize" style={{ color: '#000000' }}>
                   {stats.topWorkoutTypes[0]?.type || 'N/A'}
+                </span>
+              </div>
+              {/* Example: Add more info labels here */}
+              <div className="flex justify-between items-center text-xs">
+                <span style={{ color: '#000000' }}>Streak</span>
+                <span className="font-medium" style={{ color: '#000000' }}>
+                  {/* Replace with actual streak value if available */}
+                  {stats.streak ?? '-'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span style={{ color: '#000000' }}>Weekly Target</span>
+                <span className="font-medium" style={{ color: '#000000' }}>
+                  {/* Replace with actual weekly target value if available */}
+                  {stats.weeklyTarget ?? '-'}
                 </span>
               </div>
             </div>

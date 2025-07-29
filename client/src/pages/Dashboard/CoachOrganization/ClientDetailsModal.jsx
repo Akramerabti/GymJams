@@ -580,7 +580,7 @@ const ClientDetailsModal = ({ client, onClose, onSave, onExportData}) => {
                   <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium mb-1" style={{ color: '#000' }}>
                           Workouts Completed
                         </label>
                         <Input
@@ -593,7 +593,7 @@ const ClientDetailsModal = ({ client, onClose, onSave, onExportData}) => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium mb-1" style={{ color: '#000' }}>
                           Current Streak (days)
                         </label>
                         <Input
@@ -606,7 +606,7 @@ const ClientDetailsModal = ({ client, onClose, onSave, onExportData}) => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium mb-1" style={{ color: '#000' }}>
                           Monthly Progress (%)
                         </label>
                         <Input
@@ -620,7 +620,7 @@ const ClientDetailsModal = ({ client, onClose, onSave, onExportData}) => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium mb-1" style={{ color: '#000' }}>
                           Goals Achieved
                         </label>
                         <Input
@@ -633,7 +633,7 @@ const ClientDetailsModal = ({ client, onClose, onSave, onExportData}) => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium mb-1" style={{ color: '#000' }}>
                           Weekly Target (workouts)
                         </label>
                         <Input
@@ -646,7 +646,7 @@ const ClientDetailsModal = ({ client, onClose, onSave, onExportData}) => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium mb-1" style={{ color: '#000' }}>
                           Nutrition Compliance (%)
                         </label>
                         <Input
@@ -660,7 +660,7 @@ const ClientDetailsModal = ({ client, onClose, onSave, onExportData}) => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium mb-1" style={{ color: '#000' }}>
                           Next Session
                         </label>
                         <Input
@@ -709,16 +709,16 @@ const ClientDetailsModal = ({ client, onClose, onSave, onExportData}) => {
                         </div>
                         <div className="space-y-3">
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Workouts</span>
-                            <span className="font-semibold">{formData.workoutsCompleted}</span>
+                            <span style={{ color: '#000' }}>Workouts</span>
+                            <span className="font-semibold" style={{ color: '#000' }}>{formData.workoutsCompleted}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Streak</span>
-                            <span className="font-semibold">{formData.currentStreak} days</span>
+                            <span style={{ color: '#000' }}>Streak</span>
+                            <span className="font-semibold" style={{ color: '#000' }}>{formData.currentStreak} days</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Weekly Target</span>
-                            <span className="font-semibold">{formData.weeklyTarget}</span>
+                            <span style={{ color: '#000' }}>Weekly Target</span>
+                            <span className="font-semibold" style={{ color: '#000' }}>{formData.weeklyTarget}</span>
                           </div>
                         </div>
                       </div>
@@ -730,16 +730,16 @@ const ClientDetailsModal = ({ client, onClose, onSave, onExportData}) => {
                         </div>
                         <div className="space-y-3">
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Monthly</span>
-                            <span className="font-semibold">{formData.monthlyProgress}%</span>
+                            <span style={{ color: '#000' }}>Monthly</span>
+                            <span className="font-semibold" style={{ color: '#000' }}>{formData.monthlyProgress}%</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Goals Achieved</span>
-                            <span className="font-semibold">{formData.goalsAchieved}</span>
+                            <span style={{ color: '#000' }}>Goals Achieved</span>
+                            <span className="font-semibold" style={{ color: '#000' }}>{formData.goalsAchieved}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Nutrition</span>
-                            <span className="font-semibold">{formData.nutritionCompliance}%</span>
+                            <span style={{ color: '#000' }}>Nutrition</span>
+                            <span className="font-semibold" style={{ color: '#000' }}>{formData.nutritionCompliance}%</span>
                           </div>
                         </div>
                       </div>
@@ -751,19 +751,19 @@ const ClientDetailsModal = ({ client, onClose, onSave, onExportData}) => {
                         </div>
                         <div className="space-y-3">
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Next Session</span>
-                            <span className="font-semibold">
+                            <span style={{ color: '#000' }}>Next Session</span>
+                            <span className="font-semibold" style={{ color: '#000' }}>
                               {formData.nextSession ? new Date(formData.nextSession).toLocaleDateString() : 'Not scheduled'}
                             </span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Last Active</span>
-                            <span className="font-semibold">{client.lastActive || 'Unknown'}</span>
+                            <span style={{ color: '#000' }}>Last Active</span>
+                            <span className="font-semibold" style={{ color: '#000' }}>{client.lastActive || 'Unknown'}</span>
                           </div>
                           {client.fitnessProfile && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Experience</span>
-                              <span className="font-semibold capitalize">{client.fitnessProfile.experience || 'Beginner'}</span>
+                              <span style={{ color: '#000' }}>Experience</span>
+                              <span className="font-semibold capitalize" style={{ color: '#000' }}>{client.fitnessProfile.experience || 'Beginner'}</span>
                             </div>
                           )}
                         </div>
