@@ -615,10 +615,7 @@ const DashboardCoach = () => {
                     <Users className="w-4 h-4 mr-2" />
                     Clients
                   </TabsTrigger>
-                  <TabsTrigger value="messages" className="data-[state=active]:bg-white">
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    Messages
-                  </TabsTrigger>
+                  {/* Removed the Messages tab */}
                   <TabsTrigger value="schedule" className="data-[state=active]:bg-white">
                     <Calendar className="w-4 h-4 mr-2" />
                     Schedule
@@ -828,56 +825,7 @@ const DashboardCoach = () => {
                   </TabsContent>
                   
                   <TabsContent value="messages" className="mt-0">
-                    <div className="space-y-4">
-                      {clients.length > 0 ? (
-                        clients.map((client) => (
-                          <motion.div
-                            key={client.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="flex items-center justify-between p-4 bg-white rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
-                          >
-                            <div className="flex items-center space-x-4">
-                              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                                <User className="w-5 h-5 text-blue-600" />
-                              </div>
-                              <div>
-                                <p className="font-medium text-gray-800">
-                                  {client.firstName} {client.lastName || ''}
-                                </p>
-                                <p className="text-sm text-gray-500">
-                                  Last message: {client.lastMessageTime 
-                                    ? new Date(client.lastMessageTime).toLocaleString() 
-                                    : 'N/A'}
-                                </p>
-                              </div>
-                            </div>
-                            <Button
-                              onClick={() => handleChatClick(client)}
-                              className="bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                              <MessageSquare className="w-4 h-4 mr-2" />
-                              Message
-                              {client.unreadMessages > 0 && (
-                                <span className="ml-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                                  {client.unreadMessages}
-                                </span>
-                              )}
-                            </Button>
-                          </motion.div>
-                        ))
-                      ) : (
-                        <div className="text-center py-16">
-                          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <MessageSquare className="w-8 h-8 text-gray-400" />
-                          </div>
-                          <h3 className="text-lg font-semibold text-gray-600 mb-2">No message threads</h3>
-                          <p className="text-gray-500">
-                            You don't have any active message threads
-                          </p>
-                        </div>
-                      )}
-                    </div>
+                    {/* Removed messages tab content as requested */}
                   </TabsContent>
                 </>
               )}
