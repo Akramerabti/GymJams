@@ -117,13 +117,13 @@ async checkQuestionnaireStatus(accessToken = null) {
   }
 },
 
-async submitQuestionnaire(answers, accessToken = null) {
+async submitQuestionnaire(answers, accessToken = null, isEdit = false) {
   try {
-  
     const token = accessToken || localStorage.getItem('accessToken');
     
     const requestData = {
       answers,
+      isEdit,
       ...(token && { accessToken: token })
     };
     

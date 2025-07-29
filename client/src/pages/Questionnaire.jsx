@@ -289,34 +289,56 @@ const Questionnaire = () => {
     }
   };
 
-  const handleSubmit = async () => {
-    try {
-      setIsSubmitting(true);
+const handleSubmit = async () => {
+  try {
+    setIsSubmitting(true);
+    
+    // Call the API to submit questionnaire with edit flag
+    const response = await subscriptionService.submitQuestionnaire(
+      formData,
+      accessToken,
+      isEditing 
+    );
+    
+    if (response) {
+      toast.success(response.message || 'Profile updated successfully!');
       
-      // Call the API to submit questionnaire
-      const response = await subscriptionService.submitQuestionnaire(
-        formData,
-        accessToken
-      );
-      
-      if (response) {
-        toast.success('Questionnaire submitted successfully!');
-        
-        // Update subscription with latest data from response
-        if (response.subscription) {
-          setSubscription(response.subscription);
-        }
-        
-        // Show coach assignment instead of redirecting to dashboard
-        setShowCoachAssignment(true);
+      // Update subscription with latest data from response
+      if (response.subscription) {
+        setSubscription(response.subscription);
       }
-    } catch (error) {
-      console.error('Error submitting questionnaire:', error);
-      toast.error('Failed to submit questionnaire. Please try again.');
-    } finally {
-      setIsSubmitting(false);
+      
+      // If editing, always go back to dashboard
+      if (isEditing) {
+        navigate('/dashboard', {
+          state: {
+            accessToken: accessToken || null,
+            profileUpdated: true
+          }
+        });
+      } else {
+        // Handle new questionnaire flow based on coach assignment status
+        const updatedSubscription = response.subscription || subscription;
+        
+        if (updatedSubscription?.coachAssignmentStatus === 'pending') {
+          setShowCoachAssignment(true);
+        } else {
+          navigate('/dashboard', {
+            state: {
+              accessToken: accessToken || null,
+              questionnaireCompleted: true
+            }
+          });
+        }
+      }
     }
-  };
+  } catch (error) {
+    console.error('Error submitting questionnaire:', error);
+    toast.error('Failed to submit questionnaire. Please try again.');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const handleCoachAssigned = (coach) => {
     // Coach has been assigned, now redirect to dashboard

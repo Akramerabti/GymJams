@@ -904,7 +904,6 @@ const ClientDashboard = () => {
     }
   };
 
-  // Handle initial data loading
   useEffect(() => {
     // Check if we have cached data to show immediately
     const loadCachedData = () => {
@@ -913,14 +912,11 @@ const ClientDashboard = () => {
       const cachedSubscription = cacheManager.getCache(cacheKey);
       
       if (cachedSubscription) {
-        //('Loading from cache while fetching fresh data');
         setSubscription(cachedSubscription);
         
-        // Load other cached data
         const cachedQuestionnaire = cacheManager.getCache(`questionnaire_${user?.id || accessToken}`);
         if (cachedQuestionnaire) setQuestionnaire(cachedQuestionnaire);
         
-        // If we have cached data, we can show it while fetching fresh data
         setLoading(false);
       }
     };
@@ -946,7 +942,7 @@ const ClientDashboard = () => {
         const now = Date.now();
         // Only refresh if it's been more than 2 minutes since the last refresh
         if (now - lastRefresh > 2 * 60 * 1000) {
-          //('Visibility change triggered refresh');
+     
           fetchDashboardData(false);
         }
       }
@@ -954,14 +950,12 @@ const ClientDashboard = () => {
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
     
-    // Clean up interval and event listener
     return () => {
       clearInterval(refreshInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [user]);
 
-  // Handle socket events with improved error handling
   useEffect(() => {
     const socketInstance = socket?.socket || socket;
     
