@@ -348,7 +348,7 @@ Please review the attached documents carefully. These contain important informat
 To complete the process, please:
 1. Review all attached documents
 2. Sign the agreement document (you can print, sign and scan, or use a digital signature)
-   - **Alternatively, you may take screenshots of the filled-in sections and send those back .**
+   - **Alternatively, you may take screenshots of the filled-in sections and send those back as well.**
    - For digital signing, you may use any free online service such as:
      • DocHub (https://dochub.com/)
      • PDFescape (https://www.pdfescape.com/)
