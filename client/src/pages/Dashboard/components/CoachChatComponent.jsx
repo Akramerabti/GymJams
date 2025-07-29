@@ -939,7 +939,10 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
                   <div key={`date-${groupIndex}`} className="mb-6">
                     {/* Date separator */}
                     <div className="flex justify-center mb-4">
-                      <div className="bg-gray-200 rounded-full px-4 py-1 text-xs text-gray-600">
+                      <div
+                        className="bg-gray-200 rounded-full px-4 py-1 text-xs"
+                        style={{ color: '#000' }}
+                      >
                         {format(group.date, 'MMMM d, yyyy')}
                       </div>
                     </div>
@@ -967,15 +970,12 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
       const fileUrl = file.path
         ? (file.path.startsWith('http') ? file.path : `${import.meta.env.VITE_API_URL}/${file.path.replace(/^\//, '')}`)
         : '';
-      
-      // Enhanced PDF detection
       const isPDF = file.type === 'application/pdf' || 
                     (file.path && file.path.toLowerCase().endsWith('.pdf')) ||
                     (!file.type && file.path && file.path.toLowerCase().includes('.pdf'));
-      
       const isImage = file.type && file.type.startsWith('image/');
       const isVideo = file.type && file.type.startsWith('video/');
-      
+      // Always show PDF filename in black
       return (
         <div key={`${message._id}-file-${idx}`} className="mb-2">
           {isPDF ? (
@@ -986,7 +986,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
+                <p className="text-sm font-medium truncate" style={{ color: '#000' }}>
                   {file.path ? file.path.split('/').pop() : 'PDF Document'}
                 </p>
                 <p className="text-xs text-gray-500">PDF Document</p>
