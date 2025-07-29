@@ -133,6 +133,14 @@ const ClientList = ({ clients, onClientClick, onChatClick }) => {
               {/* Actions */}
               <div className="flex items-center space-x-2">
                 <Button
+                  size="sm"
+                  onClick={() => onClientClick(client)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                  <span className="sr-only sm:not-sr-only sm:ml-1">Details</span>
+                </Button>
+                  <Button
                   variant="outline"
                   size="sm"
                   onClick={() => onChatClick(client)}
@@ -145,14 +153,6 @@ const ClientList = ({ clients, onClientClick, onChatClick }) => {
                       {client.unreadMessages}
                     </span>
                   )}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => onClientClick(client)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                  <span className="sr-only sm:not-sr-only sm:ml-1">Details</span>
                 </Button>
               </div>
             </div>
