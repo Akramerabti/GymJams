@@ -348,7 +348,14 @@ Please review the attached documents carefully. These contain important informat
 To complete the process, please:
 1. Review all attached documents
 2. Sign the agreement document (you can print, sign and scan, or use a digital signature)
-3. Reply to this email with the signed document attached to it.
+   - **Alternatively, you may take screenshots of the filled-in sections and send those back .**
+   - For digital signing, you may use any free online service such as:
+     • DocHub (https://dochub.com/)
+     • PDFescape (https://www.pdfescape.com/)
+     • Adobe Fill & Sign (https://www.adobe.com/acrobat/online/fill-sign-pdf.html)
+   These services allow you to upload, sign, and download your signed PDF easily.
+  
+3. Reply to this email with the signed document (or screenshots) attached to it.
 
 Once we receive and verify your signed document, your account will be updated with the appropriate permissions.
 
