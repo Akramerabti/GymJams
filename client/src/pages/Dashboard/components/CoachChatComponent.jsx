@@ -526,30 +526,40 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
   }, [socket, connected, subscriberId, userId, messages]);
 
   // File upload handling
+  // Supported file types: images (jpg, png, gif, etc.), videos (mp4, webm, etc.), and PDFs
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files);
     const maxSize = 10 * 1024 * 1024; // 10MB per file
     const maxTotalSize = 100 * 1024 * 1024; // 100MB total
-    
+
     let totalSize = 0;
     const validFiles = [];
-    
+
     for (const file of selectedFiles) {
       totalSize += file.size;
-      
+
       if (file.size > maxSize) {
         toast.error(`File ${file.name} exceeds the 10MB limit`);
         continue;
       }
-      
+
       if (totalSize > maxTotalSize) {
         toast.error('Total file size exceeds 100MB');
         break;
       }
-      
-      validFiles.push(file);
+
+      // Accept images, videos, and PDFs
+      if (
+        file.type.startsWith('image') ||
+        file.type.startsWith('video') ||
+        file.type === 'application/pdf'
+      ) {
+        validFiles.push(file);
+      } else {
+        toast.error(`File type not supported: ${file.name}`);
+      }
     }
-    
+
     setFiles(prev => [...prev, ...validFiles]);
   };
 
@@ -951,41 +961,72 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
                                 } ${message.pending ? 'opacity-70' : ''}`}
                               >
                                 {/* File attachments */}
-                                {message.file && message.file.length > 0 && (
-                                  <div className="mb-2">
-                                    {message.file.map((file, idx) => {
-                                      // Create proper URL with fallback
-                                      const fileUrl = file.path ? 
-                                        (file.path.startsWith('http') ? file.path : `${import.meta.env.VITE_API_URL}/${file.path.replace(/^\//, '')}`) : 
-                                        '';
-                                      
-                                      return (
-                                        <div key={`${message._id}-file-${idx}`} className="mb-2">
-                                          {file.type?.startsWith('image') ? (
-                                            <img
-                                              src={fileUrl}
-                                              alt="uploaded"
-                                              className="max-w-full h-auto rounded-lg"
-                                              loading="lazy"
-                                              onError={(e) => {
-                                                e.target.src = 'https://via.placeholder.com/200?text=Image+Error';
-                                              }}
-                                            />
-                                          ) : file.type?.startsWith('video') ? (
-                                            <video controls className="max-w-full h-auto rounded-lg">
-                                              <source src={fileUrl} type={file.type} />
-                                              Your browser does not support the video tag.
-                                            </video>
-                                          ) : (
-                                            <div className="p-2 bg-gray-100 rounded-lg">
-                                              <p className="text-xs">File: {file.path.split('/').pop()}</p>
-                                            </div>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                )}
+                               {message.file && message.file.length > 0 && (
+  <div className="mb-2">
+    {message.file.map((file, idx) => {
+      const fileUrl = file.path
+        ? (file.path.startsWith('http') ? file.path : `${import.meta.env.VITE_API_URL}/${file.path.replace(/^\//, '')}`)
+        : '';
+      
+      // Enhanced PDF detection
+      const isPDF = file.type === 'application/pdf' || 
+                    (file.path && file.path.toLowerCase().endsWith('.pdf')) ||
+                    (!file.type && file.path && file.path.toLowerCase().includes('.pdf'));
+      
+      const isImage = file.type && file.type.startsWith('image/');
+      const isVideo = file.type && file.type.startsWith('video/');
+      
+      return (
+        <div key={`${message._id}-file-${idx}`} className="mb-2">
+          {isPDF ? (
+            <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-lg max-w-sm">
+              <div className="flex-shrink-0">
+                <svg className="w-8 h-8 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {file.path ? file.path.split('/').pop() : 'PDF Document'}
+                </p>
+                <p className="text-xs text-gray-500">PDF Document</p>
+              </div>
+              <a
+                href={fileUrl}
+                download
+                className="flex-shrink-0 p-2 text-red-600 hover:bg-red-100 rounded-full transition-colors"
+                title="Download PDF"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </a>
+            </div>
+          ) : isImage ? (
+            <img
+              src={fileUrl}
+              alt="uploaded"
+              className="max-w-full h-auto rounded-lg"
+              loading="lazy"
+              onError={(e) => {
+                e.target.src = 'https://via.placeholder.com/200?text=Image+Error';
+              }}
+            />
+          ) : isVideo ? (
+            <video controls className="max-w-full h-auto rounded-lg">
+              <source src={fileUrl} type={file.type} />
+              Your browser does not support the video tag.
+            </video>
+          ) : (
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <p className="text-xs">File: {file.path ? file.path.split('/').pop() : 'Unknown file'}</p>
+            </div>
+          )}
+        </div>
+      );
+    })}
+  </div>
+)}
 
                                 {/* Message content */}
                                 {message.content && <p className="text-sm break-words">{message.content}</p>}
@@ -1092,7 +1133,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
                 <Image className="w-5 h-5" />
                 <input
                   type="file"
-                  accept="image/*,video/*"
+                  accept="image/*,video/*,application/pdf"
                   multiple
                   onChange={handleFileChange}
                   className="hidden"
