@@ -200,11 +200,10 @@ export const getQuestionnaireStatus = async (req, res) => {
 
 export const submitQuestionnaire = async (req, res) => {
   try {
-    const { answers, accessToken } = req.body;
+    const { answers, accessToken, isEdit = false } = req.body;
     let subscription;
 
     if (req.user) {
-      // For logged-in users: Find the most recent ACTIVE subscription
       subscription = await Subscription.findOne({ 
         user: req.user.id, 
         status: 'active'
@@ -224,22 +223,29 @@ export const submitQuestionnaire = async (req, res) => {
 
     if (!subscription) {
       return res.status(404).json({ error: 'No active subscription found' });
-    }    // Update questionnaire data
+    }
+
+    // Update questionnaire data
     subscription.hasCompletedQuestionnaire = true;
     subscription.questionnaireData = answers;
     subscription.questionnaireCompletedAt = new Date();
-    subscription.coachAssignmentStatus = 'pending'; // Set to pending for UI assignment flow
+    
+    // Only change coach assignment status if this is NOT an edit
+    if (!isEdit && !subscription.assignedCoach) {
+      subscription.coachAssignmentStatus = 'pending';
+    }
     
     await subscription.save();
 
-    // Don't automatically assign coach here - let the frontend UI handle the assignment flow
-
     res.json({
       success: true,
-      message: 'Questionnaire completed successfully',
+      message: isEdit 
+        ? 'Profile updated successfully' 
+        : 'Questionnaire completed successfully',
       subscriptionStartDate: subscription.startDate,
       coachAssignmentStatus: subscription.coachAssignmentStatus,
-      subscription: subscription // Return updated subscription data for UI
+      subscription: subscription,
+      isEdit: isEdit
     });
   } catch (error) {
     logger.error('Error submitting questionnaire:', error);
