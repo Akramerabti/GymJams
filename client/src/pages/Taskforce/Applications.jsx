@@ -203,7 +203,7 @@ const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignatu
                   : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:bg-gradient-to-r hover:from-blue-100 hover:to-indigo-100'
               }`}>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-5">
                     <div className={`p-2 rounded-full ${
                       isDarkMode ? 'bg-blue-600' : 'bg-blue-100'
                     }`}>
@@ -215,7 +215,7 @@ const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignatu
                       <span className={`text-sm font-semibold ${
                         isDarkMode ? 'text-white' : 'text-gray-900'
                       }`}>
-                        Resume Document
+                        Resume
                       </span>
                     </div>
                   </div>
@@ -223,7 +223,7 @@ const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignatu
                     href={getFileDownloadUrl(application.resume)} 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all duration-200 transform hover:scale-105 active:scale-95 ${
+                    className={` flex items-center px-4 py-2 rounded-md font-medium text-sm transition-all duration-200 transform hover:scale-105 active:scale-95 ${
                       isDarkMode 
                         ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-blue-500/25' 
                         : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-blue-500/25'
@@ -233,7 +233,7 @@ const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignatu
                       // Resume download
                     }}
                   >
-                    <Download className="h-4 w-4" />
+                    <Download className=" h-4 w-4" />
                     Download
                   </a>
                 </div>
@@ -318,7 +318,7 @@ const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignatu
             <MessageSquare className="h-4 w-4 text-gray-500" />
             Message
           </h4>
-          <div className="bg-gray-50 p-4 rounded-md whitespace-pre-wrap">
+          <div className="bg-gray-50 text-black p-4 rounded-md whitespace-pre-wrap">
             {application.message}
           </div>
         </div>
@@ -572,7 +572,7 @@ const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignatu
         {application.status === 'received' && (
           <div className="space-y-4">
             <div className="bg-green-50 p-4 rounded-md">
-              <h4 className="font-medium flex items-center gap-2">
+              <h4 className="font-medium text-gray-600 flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-green-600" />
                 Document Received
               </h4>
@@ -581,7 +581,9 @@ const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignatu
                   ` on ${formatDate(application.signedDocumentReceivedAt)}` : 
                   ''}. Review the documents and provide final approval or rejection.
               </p>
-            </div>            {application.signedDocumentPath && (
+            </div>
+
+            {application.signedDocumentPath && (
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <h4 className="font-medium">
@@ -591,7 +593,6 @@ const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignatu
                     }
                   </h4>
                 </div>
-
                 {application.additionalDocuments?.length > 0 ? (
                   <div className="space-y-3">
                     {application.additionalDocuments.map((doc, index) => (
@@ -667,44 +668,45 @@ const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignatu
                     </div>
                   </div>
                 )}
-                
-                <TextArea
-                  placeholder="Add final approval notes or rejection reason..."
-                  value={feedback}
-                  onChange={(e) => setFeedback(e.target.value)}
-                  className="min-h-[100px]"
-                />
-                
-                <div className="flex justify-end gap-3">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setShowRejectConfirm(true)}
-                    disabled={isProcessing}
-                  >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Reject
-                  </Button>
-                  
-                  <Button 
-                    onClick={() => onFinalApprove(application._id, feedback)}
-                    disabled={isProcessing}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Final Approval
-                      </>
-                    )}
-                  </Button>
-                </div>
               </div>
             )}
+            
+            {/* Always show feedback textarea and buttons for received status */}
+            <TextArea
+              placeholder="Add final approval notes or rejection reason..."
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              className="min-h-[100px]"
+            />
+            
+            <div className="flex justify-end gap-3">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowRejectConfirm(true)}
+                disabled={isProcessing}
+              >
+                <XCircle className="h-4 w-4 mr-2" />
+                Reject
+              </Button>
+              
+              <Button 
+                onClick={() => onFinalApprove(application._id, feedback)}
+                disabled={isProcessing}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Final Approval
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         )}
         
