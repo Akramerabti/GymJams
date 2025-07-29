@@ -838,6 +838,7 @@ const DashboardCoach = () => {
           <ClientStatsWidget clients={clients} />
         )}
       </div>
+      
 
       {/* Client Details Modal */}
       <AnimatePresence>
