@@ -334,27 +334,71 @@ export const dailyCount = async (req, res) => {
 };
 
 export const uploadFile = async (req, res) => {
-  //('Uploaded files:', req.files);
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: 'No files uploaded' });
     }
 
+    console.log('Files received:', req.files.map(f => ({ 
+      originalname: f.originalname, 
+      mimetype: f.mimetype, 
+      size: f.size 
+    })));
+    
     // Upload files to Supabase
     const uploadResults = await supabaseStorageService.uploadMultipleFiles(
       req.files.map(file => ({
         buffer: file.buffer,
-        originalname: file.originalname
+        originalname: file.originalname // ✅ CRITICAL: Pass original name to Supabase
       })),
-      'user-uploads' // folder name
+      'user-uploads'
     );
 
-    // Map results to expected format
-    const files = uploadResults.map((result) => ({
-      path: result.url, // Use Supabase URL instead of local path
-      type: result.url.includes('image') || /\.(jpg|jpeg|png|gif|webp)$/i.test(result.url) ? 'image' : 'video',
-    }));
+    // Map results to expected format with original filename preserved
+    const files = uploadResults.map((result, index) => {
+      const originalFile = req.files[index];
+      
+      // Determine file type more accurately
+      let fileType;
+      if (originalFile.mimetype) {
+        if (originalFile.mimetype.startsWith('image/')) {
+          fileType = 'image';
+        } else if (originalFile.mimetype.startsWith('video/')) {
+          fileType = 'video';
+        } else if (originalFile.mimetype === 'application/pdf') {
+          fileType = 'application/pdf';
+        } else {
+          fileType = originalFile.mimetype;
+        }
+      } else {
+        // Fallback to extension-based detection
+        const extension = originalFile.originalname.toLowerCase().split('.').pop();
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension)) {
+          fileType = 'image';
+        } else if (['mp4', 'webm', 'avi', 'mov'].includes(extension)) {
+          fileType = 'video';
+        } else if (extension === 'pdf') {
+          fileType = 'application/pdf';
+        } else {
+          fileType = 'file';
+        }
+      }
 
+      const fileResult = {
+        path: result.url, // Use Supabase URL
+        type: fileType, // More accurate file type
+        originalName: originalFile.originalname, // ✅ CRITICAL: Preserve original filename
+        size: originalFile.size,
+        mimetype: originalFile.mimetype
+      };
+      
+      // DEBUG: Log the file result
+      console.log('File upload result:', fileResult);
+      
+      return fileResult;
+    });
+    
+    console.log('Final files response:', files);
     res.status(200).json({ files });
   } catch (error) {
     console.error('Error uploading files:', error);

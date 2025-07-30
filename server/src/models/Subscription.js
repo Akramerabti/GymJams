@@ -25,8 +25,11 @@ const messageSchema = new mongoose.Schema({
   },
   file: [
     {
-      path: { type: String, required: true }, // File path on the server
-      type: { type: String, required: true }, // File type (e.g., 'image' or 'video')
+      path: { type: String, required: true }, // File path/URL on the server
+      type: { type: String, required: true }, // File type (e.g., 'image', 'video', 'application/pdf')
+      originalName: { type: String }, // Original filename uploaded by user
+      size: { type: Number }, // File size in bytes
+      mimetype: { type: String } // MIME type of the file
     },
   ],
 });
