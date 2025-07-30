@@ -433,18 +433,12 @@ const handleSendMessage = async () => {
     let uploadedFiles = [];
     if (files.length > 0) {
       try {
-        console.log('📤 Uploading files:', files.map(f => ({ name: f.name, type: f.type, size: f.size })));
-        
-        const onProgress = (progress) => {
-          console.log(`Upload progress: ${progress}%`);
-        };
-        
+
         uploadedFiles = await subscriptionService.uploadFiles(files, onProgress);
-        
-        console.log('✅ Files uploaded successfully:', uploadedFiles);
+ 
         
         const fileAttachments = uploadedFiles.map(file => {
-          console.log('📎 Processing uploaded file:', file);
+  
           
           return {
             path: file.path,
@@ -455,7 +449,6 @@ const handleSendMessage = async () => {
           };
         });
 
-        console.log('📎 Final file attachments:', fileAttachments);
 
         setMessages(prev => 
           prev.map(msg => 
@@ -476,11 +469,10 @@ const handleSendMessage = async () => {
       timestamp,
       subscriptionId: subscription._id, // or subscription._id for Chat.jsx
       file: uploadedFiles.map(file => {
-        console.log('🔄 Mapping file for socket:', file);
         return {
           path: file.path,
           type: file.type,
-          originalName: file.originalName, // ✅ CRITICAL: Preserve originalName
+          originalName: file.originalName,
           size: file.size,
           mimetype: file.mimetype
         };
@@ -490,7 +482,6 @@ const handleSendMessage = async () => {
     // Send via socket for real-time delivery if connected
     if (socket && connected) {
       try {
-        console.log('📡 Sending socket message:', socketMessageData);
         socket.emit('sendMessage', socketMessageData);
       } catch (socketError) {
         console.error('❌ Error sending message via socket:', socketError);
@@ -499,17 +490,16 @@ const handleSendMessage = async () => {
 
     // Prepare API message data
     const apiFileData = uploadedFiles.map(file => {
-      console.log('🌐 Mapping file for API:', file);
       return {
         path: file.path,
         type: file.type,
-        originalName: file.originalName, // ✅ CRITICAL: Preserve originalName
+        originalName: file.originalName, 
         size: file.size,
         mimetype: file.mimetype
       };
     });
 
-    console.log('🌐 Sending API message with files:', apiFileData);
+
 
     const response = await subscriptionService.sendMessage(
       subscription._id, // or subscription._id for Chat.jsx
@@ -520,8 +510,7 @@ const handleSendMessage = async () => {
       apiFileData
     );
     
-    console.log('✅ API response received:', response);
-    
+
     // Replace temporary message with actual message
     if (response) {
       let serverMessage = null;
@@ -539,8 +528,7 @@ const handleSendMessage = async () => {
       }
       
       if (serverMessage) {
-        console.log('🔄 Replacing temp message with server message:', serverMessage);
-        console.log('📎 Server message files:', serverMessage.file);
+ 
         
         processedMessageIds.current.add(serverMessage._id);
         
@@ -554,7 +542,6 @@ const handleSendMessage = async () => {
           );
           
           if (hasDuplicate) {
-            console.log('⚠️ Server message appears to be a duplicate, just removing temp message');
             return prev.filter(msg => msg._id !== tempId);
           }
           
@@ -563,7 +550,6 @@ const handleSendMessage = async () => {
             .concat(serverMessage);
         });
       } else {
-        console.log('⚠️ No server message returned, keeping temp message');
         setMessages(prev => 
           prev.map(msg => 
             msg._id === tempId ? { ...msg, pending: false } : msg
@@ -789,6 +775,7 @@ const handleSendMessage = async () => {
 {message.file && message.file.length > 0 && (
   <div className="mb-2">
     {message.file.map((file, idx) => {
+
       let displayName = file.originalName;
       
       // Only use fallbacks if originalName is truly missing or corrupted
@@ -836,7 +823,7 @@ const handleSendMessage = async () => {
         ? (file.path.startsWith('http') ? file.path : `${import.meta.env.VITE_API_URL}/${file.path.replace(/^\//, '')}`)
         : '';
 
-      // Type checks
+      console
       const isPDF = fileType === 'application/pdf' || displayName.toLowerCase().endsWith('.pdf');
       const isImage = fileType && fileType.startsWith('image/');
       const isVideo = fileType && fileType.startsWith('video/');

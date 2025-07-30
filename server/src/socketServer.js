@@ -160,7 +160,7 @@ socket.on('sendMessage', async (messageData) => {
       // DEBUG: Log the file metadata being sent
       console.log('File metadata being forwarded to receiver:', messageForReceiver.file);
       
-      // Send to the receiver
+      
       ioInstance.to(receiverSocketId).emit('receiveMessage', messageForReceiver);
       logger.debug(`Message forwarded to receiver ${receiverId} (socket: ${receiverSocketId})`);
     } else {

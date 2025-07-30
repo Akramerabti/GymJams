@@ -1101,13 +1101,14 @@ export const messaging = async (req, res) => {
     const { subscriptionId } = req.params;
     const { senderId, receiverId, content, timestamp, file } = req.body;
 
-    logger.info('Received message request:', {
+
+    console.log('Received message request:', {
       subscriptionId,
       senderId,
       receiverId,
       hasContent: !!content,
       timestamp: timestamp ? new Date(timestamp).toISOString() : 'not provided',
-      hasFiles: Array.isArray(file) ? file.length : 0
+      file
     });
 
     // Validate required fields
@@ -1147,22 +1148,26 @@ export const messaging = async (req, res) => {
       timestamp: parsedTimestamp,
       read: false, // Initially unread
       file: Array.isArray(file) ? file.map((fileItem) => {
-        // Handle file type
         let fileType = 'unknown';
         if (fileItem.type) {
           fileType = fileItem.type;
         } else if (fileItem.path) {
-          // Try to infer type from path if needed
           const path = fileItem.path.toLowerCase();
           if (path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.png') || path.endsWith('.gif')) {
             fileType = 'image';
           } else if (path.endsWith('.mp4') || path.endsWith('.mov') || path.endsWith('.avi')) {
             fileType = 'video';
+          } else if (path.endsWith('.pdf')) {
+            fileType = 'application/pdf';
           }
         }
         return {
-          path: fileItem.path, // File path
-          type: fileType, // File type
+          path: fileItem.path,
+          type: fileType,
+          originalName: fileItem.originalName || '',
+          size: fileItem.size,
+          mimetype: fileItem.mimetype,
+          _id: fileItem._id
         };
       }) : [],
     };
