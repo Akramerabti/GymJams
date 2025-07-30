@@ -569,7 +569,6 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Send message
   const handleSendMessage = async () => {
   if ((!newMessage.trim() && files.length === 0)) return;
   if (!connected) {
@@ -577,189 +576,203 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
     return;
   }
   
-  let tempId; // Declare tempId here
-    try {
-      const timestamp = new Date().toISOString();
-      tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const messageContent = newMessage.trim();
-      
-      // Create temporary message
-      const tempMessage = {
-        _id: tempId,
-        sender: userId,
-        content: messageContent,
-        timestamp: timestamp,
-        read: false,
-        pending: true,
-        file: []
-      };
-      
-      // Check for duplicate message prevention (avoid double-sends)
-      const isDuplicateSend = messages.some(msg => 
-        msg.sender === userId &&
-        msg.content === messageContent &&
-        msg.pending &&
-        (new Date() - new Date(msg.timestamp)) < 10000 // Sent in last 10 seconds
-      );
-      
-      if (isDuplicateSend) {
-        //('Preventing duplicate message send within 10 seconds');
-        toast.info('Message already being sent');
-        return;
-      }
-      
-      // Add to messages immediately and to processed IDs
-      setMessages(prev => [...prev, tempMessage]);
-      processedMessageIds.current.add(tempId);
-      
-      // Clear input and reset typing
-      setNewMessage('');
-      if (isTyping) {
-        setIsTyping(false);
-        if (socket && connected) {
-          try {
-            socket.emit('typing', {
-              senderId: userId,
-              receiverId: clientId,
-              isTyping: false,
-              subscriptionId: selectedClient._id
-            });
-          } catch (err) {
-            console.error('Error sending typing stop indicator:', err);
-          }
-        }
-      }
-      
-      // Upload files if any
-      let uploadedFiles = [];
-      if (files.length > 0) {
-        try {
-          const onProgress = (progress) => {
-            //(`Upload progress: ${progress}%`);
-          };
-          
-          uploadedFiles = await subscriptionService.uploadFiles(files, onProgress);
-          
-          // Update temporary message with files
-          const fileAttachments = uploadedFiles.map(file => ({
-            path: file.path,
-            type: file.type
-          }));
-          
-          setMessages(prev => 
-            prev.map(msg => 
-              msg._id === tempId ? { ...msg, file: fileAttachments } : msg
-            )
-          );
-        } catch (error) {
-          console.error('Failed to upload files:', error);
-          toast.error('Failed to upload files');
-        }
-      }
-      
-      // Send via socket for real-time delivery if connected
+  let tempId;
+  try {
+    const timestamp = new Date().toISOString();
+    tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const messageContent = newMessage.trim();
+    
+    // Create temporary message
+    const tempMessage = {
+      _id: tempId,
+      sender: userId,
+      content: messageContent,
+      timestamp: timestamp,
+      read: false,
+      pending: true,
+      file: []
+    };
+    
+    // Add to messages immediately and to processed IDs
+    setMessages(prev => [...prev, tempMessage]);
+    processedMessageIds.current.add(tempId);
+    
+    // Clear input and reset typing
+    setNewMessage('');
+    if (isTyping) {
+      setIsTyping(false);
       if (socket && connected) {
         try {
-          socket.emit('sendMessage', {
+          socket.emit('typing', {
             senderId: userId,
-            receiverId: clientId,
-            content: messageContent,
-            timestamp,
-            subscriptionId: selectedClient._id,
-            file: uploadedFiles.map(file => ({
-              path: file.path,
-              type: file.type
-            }))
+            receiverId: clientId, // or coachId for Chat.jsx
+            isTyping: false,
+            subscriptionId: subscriberId // or subscription._id for Chat.jsx
           });
-          //('Message sent via socket for real-time delivery');
-        } catch (socketError) {
-          console.error('Error sending message via socket:', socketError);
-          // Continue with API call even if socket fails
+        } catch (err) {
+          console.error('Error sending typing stop indicator:', err);
         }
       }
-      
-      // Make API call to ensure message is stored in database
-      const response = await subscriptionService.sendMessage(
-        subscriberId,  
-        userId,
-        clientId,
-        messageContent,
-        timestamp,
-        uploadedFiles.map(file => ({
-          path: file.path,
-          type: file.type
-        }))
-      );
-      
-      // Replace temporary message with actual message
-      if (response) {
-        let serverMessage = null;
+    }
+    
+    // Upload files if any
+    let uploadedFiles = [];
+    if (files.length > 0) {
+      try {
+        console.log('📤 Uploading files:', files.map(f => ({ name: f.name, type: f.type, size: f.size })));
         
-        // Handle different response formats
-        if (response.messages && Array.isArray(response.messages)) {
-          // Get the latest message from the API response
-          const sortedMessages = [...response.messages].sort(
-            (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
-          );
-          serverMessage = sortedMessages[0];
-        } else if (response.message) {
-          serverMessage = response.message;
-        } else if (response._id) {
-          // Response is the message itself
-          serverMessage = response;
-        }
+        const onProgress = (progress) => {
+          console.log(`Upload progress: ${progress}%`);
+        };
         
-        if (serverMessage) {
-          //('Replacing temp message with server message:', serverMessage._id);
-          processedMessageIds.current.add(serverMessage._id);
+        uploadedFiles = await subscriptionService.uploadFiles(files, onProgress);
+        
+        console.log('✅ Files uploaded successfully:', uploadedFiles);
+        
+        const fileAttachments = uploadedFiles.map(file => {
+          console.log('📎 Processing uploaded file:', file);
           
-          // Update messages state
-          setMessages(prev => {
-            // Find if message with same content/sender/timestamp already exists (duplicates)
-            const hasDuplicate = prev.some(msg => 
-              msg._id !== tempId && // Not the temp message
-              !msg.pending && // Not pending
-              msg.sender === serverMessage.sender &&
-              msg.content === serverMessage.content &&
-              Math.abs(new Date(msg.timestamp) - new Date(serverMessage.timestamp)) < 3000 // Within 3 seconds
-            );
-            
-            if (hasDuplicate) {
-              //('Server message appears to be a duplicate, just removing temp message');
-              return prev.filter(msg => msg._id !== tempId);
-            }
-            
-            // Otherwise replace temp with confirmed message
-            return prev
-              .filter(msg => msg._id !== tempId)
-              .concat(serverMessage);
-          });
-        } else {
-          //('No server message returned, but API call succeeded');
-          // Update the pending status on the temporary message
-          setMessages(prev => 
-            prev.map(msg => 
-              msg._id === tempId ? { ...msg, pending: false } : msg
-            )
-          );
-        }
+          return {
+            path: file.path,
+            type: file.type,
+            originalName: file.originalName, // ✅ CRITICAL: Ensure this is preserved
+            size: file.size,
+            mimetype: file.mimetype
+          };
+        });
+
+        console.log('📎 Final file attachments:', fileAttachments);
+
+        setMessages(prev => 
+          prev.map(msg => 
+            msg._id === tempId ? { ...msg, file: fileAttachments } : msg
+          )
+        );
+      } catch (error) {
+        console.error('❌ Failed to upload files:', error);
+        toast.error('Failed to upload files');
+      }
+    }
+    
+    // Prepare socket message data
+    const socketMessageData = {
+      senderId: userId,
+      receiverId: clientId, // or coachId for Chat.jsx
+      content: messageContent,
+      timestamp,
+      subscriptionId: subscriberId, // or subscription._id for Chat.jsx
+      file: uploadedFiles.map(file => {
+        console.log('🔄 Mapping file for socket:', file);
+        return {
+          path: file.path,
+          type: file.type,
+          originalName: file.originalName, // ✅ CRITICAL: Preserve originalName
+          size: file.size,
+          mimetype: file.mimetype
+        };
+      })
+    };
+    
+    // Send via socket for real-time delivery if connected
+    if (socket && connected) {
+      try {
+        console.log('📡 Sending socket message:', socketMessageData);
+        socket.emit('sendMessage', socketMessageData);
+      } catch (socketError) {
+        console.error('❌ Error sending message via socket:', socketError);
+      }
+    }
+
+    // Prepare API message data
+    const apiFileData = uploadedFiles.map(file => {
+      console.log('🌐 Mapping file for API:', file);
+      return {
+        path: file.path,
+        type: file.type,
+        originalName: file.originalName, // ✅ CRITICAL: Preserve originalName
+        size: file.size,
+        mimetype: file.mimetype
+      };
+    });
+
+    console.log('🌐 Sending API message with files:', apiFileData);
+
+    const response = await subscriptionService.sendMessage(
+      subscriberId, // or subscription._id for Chat.jsx
+      userId,
+      clientId, // or coachId for Chat.jsx
+      messageContent,
+      timestamp,
+      apiFileData
+    );
+    
+    console.log('✅ API response received:', response);
+    
+    // Replace temporary message with actual message
+    if (response) {
+      let serverMessage = null;
+      
+      // Handle different response formats
+      if (response.messages && Array.isArray(response.messages)) {
+        const sortedMessages = [...response.messages].sort(
+          (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+        );
+        serverMessage = sortedMessages[0];
+      } else if (response.message) {
+        serverMessage = response.message;
+      } else if (response._id) {
+        serverMessage = response;
       }
       
-      // Clear files
-      setFiles([]);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      
-      // Scroll to bottom
-      scrollToBottom();
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      toast.error('Failed to send message. Please try again.');
-      
-      if (tempId) {
+      if (serverMessage) {
+        console.log('🔄 Replacing temp message with server message:', serverMessage);
+        console.log('📎 Server message files:', serverMessage.file);
+        
+        processedMessageIds.current.add(serverMessage._id);
+        
+        setMessages(prev => {
+          const hasDuplicate = prev.some(msg => 
+            msg._id !== tempId &&
+            !msg.pending &&
+            msg.sender === serverMessage.sender &&
+            msg.content === serverMessage.content &&
+            Math.abs(new Date(msg.timestamp) - new Date(serverMessage.timestamp)) < 3000
+          );
+          
+          if (hasDuplicate) {
+            console.log('⚠️ Server message appears to be a duplicate, just removing temp message');
+            return prev.filter(msg => msg._id !== tempId);
+          }
+          
+          return prev
+            .filter(msg => msg._id !== tempId)
+            .concat(serverMessage);
+        });
+      } else {
+        console.log('⚠️ No server message returned, keeping temp message');
+        setMessages(prev => 
+          prev.map(msg => 
+            msg._id === tempId ? { ...msg, pending: false } : msg
+          )
+        );
+      }
+    }
+    
+    // Clear files
+    setFiles([]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    
+    // Scroll to bottom
+    scrollToBottom();
+  } catch (error) {
+    console.error('❌ Failed to send message:', error);
+    toast.error('Failed to send message. Please try again.');
+    
+    if (tempId) {
       setMessages(prev => prev.filter(msg => msg._id !== tempId));
     }
-    }
-  };
+  }
+};
 
   // Sort and group messages by date
   const groupedMessages = React.useMemo(() => {
@@ -964,18 +977,64 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
                                 } ${message.pending ? 'opacity-70' : ''}`}
                               >
                                 {/* File attachments */}
-                               {message.file && message.file.length > 0 && (
+{message.file && message.file.length > 0 && (
   <div className="mb-2">
     {message.file.map((file, idx) => {
+      console.log('Rendering file:', file); // DEBUG: Log file object
+      
+      // ✅ PRIORITY: Use originalName first, with smart fallbacks
+      let displayName = file.originalName;
+      
+      // Only use fallbacks if originalName is truly missing or corrupted
+      if (!displayName || displayName.trim() === '' || /^[a-f0-9\-]{32,}$/.test(displayName)) {
+        console.warn('originalName missing or corrupted for file:', file);
+        
+        // Try to extract from path as last resort
+        if (file.path) {
+          const pathParts = file.path.split('/');
+          const lastPart = pathParts[pathParts.length - 1];
+          
+          // If the last part of path looks like a filename with extension, use it
+          if (lastPart.includes('.') && !(/^[a-f0-9\-]{32,}\.[a-z0-9]+$/i.test(lastPart))) {
+            displayName = lastPart;
+          } else {
+            // Extract just the extension if available
+            const extension = lastPart.split('.').pop();
+            displayName = `File.${extension}`;
+          }
+        } else {
+          displayName = 'Unknown file';
+        }
+      }
+
+      // Fix type detection
+      let fileType = file.type;
+      if (!fileType && file.mimetype) {
+        fileType = file.mimetype;
+      }
+      
+      // Enhanced type detection fallback
+      if (!fileType || fileType === 'image' || fileType === 'video') {
+        const extension = displayName.split('.').pop().toLowerCase();
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(extension)) {
+          fileType = `image/${extension === 'jpg' ? 'jpeg' : extension}`;
+        } else if (['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(extension)) {
+          fileType = `video/${extension}`;
+        } else if (extension === 'pdf') {
+          fileType = 'application/pdf';
+        }
+      }
+
+      // File URL logic
       const fileUrl = file.path
         ? (file.path.startsWith('http') ? file.path : `${import.meta.env.VITE_API_URL}/${file.path.replace(/^\//, '')}`)
         : '';
-      const isPDF = file.type === 'application/pdf' || 
-                    (file.path && file.path.toLowerCase().endsWith('.pdf')) ||
-                    (!file.type && file.path && file.path.toLowerCase().includes('.pdf'));
-      const isImage = file.type && file.type.startsWith('image/');
-      const isVideo = file.type && file.type.startsWith('video/');
-      // Always show PDF filename in black
+
+      // Type checks
+      const isPDF = fileType === 'application/pdf' || displayName.toLowerCase().endsWith('.pdf');
+      const isImage = fileType && fileType.startsWith('image/');
+      const isVideo = fileType && fileType.startsWith('video/');
+
       return (
         <div key={`${message._id}-file-${idx}`} className="mb-2">
           {isPDF ? (
@@ -986,16 +1045,16 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate" style={{ color: '#000' }}>
-                  {file.path ? file.path.split('/').pop() : 'PDF Document'}
+                <p className="text-sm font-medium truncate" style={{ color: '#000' }} title={displayName}>
+                  {displayName}
                 </p>
                 <p className="text-xs text-gray-500">PDF Document</p>
               </div>
               <a
                 href={fileUrl}
-                download
+                download={displayName}
                 className="flex-shrink-0 p-2 text-red-600 hover:bg-red-100 rounded-full transition-colors"
-                title="Download PDF"
+                title={`Download ${displayName}`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -1003,23 +1062,39 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
               </a>
             </div>
           ) : isImage ? (
-            <img
-              src={fileUrl}
-              alt="uploaded"
-              className="max-w-full h-auto rounded-lg"
-              loading="lazy"
-              onError={(e) => {
-                e.target.src = 'https://via.placeholder.com/200?text=Image+Error';
-              }}
-            />
+            <div>
+              <img
+                src={fileUrl}
+                alt={displayName}
+                className="max-w-full h-auto rounded-lg"
+                loading="lazy"
+                onError={(e) => {
+                  console.error('Image load error for:', displayName, fileUrl);
+                  e.target.src = 'https://via.placeholder.com/200?text=Image+Error';
+                }}
+                title={displayName}
+              />
+              
+            </div>
           ) : isVideo ? (
-            <video controls className="max-w-full h-auto rounded-lg">
-              <source src={fileUrl} type={file.type} />
-              Your browser does not support the video tag.
-            </video>
+            <div>
+              <video controls className="max-w-full h-auto rounded-lg" title={displayName}>
+                <source src={fileUrl} type={fileType} />
+                Your browser does not support the video tag.
+              </video>
+            </div>
           ) : (
             <div className="p-2 bg-gray-100 rounded-lg">
-              <p className="text-xs">File: {file.path ? file.path.split('/').pop() : 'Unknown file'}</p>
+              <p className="text-xs" title={displayName}>
+                📄 {displayName}
+              </p>
+              <a
+                href={fileUrl}
+                download={displayName}
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                Download
+              </a>
             </div>
           )}
         </div>
@@ -1094,32 +1169,56 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
           {/* Message Input Area */}
           <div className="p-4 border-t bg-white">
             {/* Selected files preview */}
-            {files.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-4 overflow-x-auto">
-                {files.map((file, index) => (
-                  <div key={`file-preview-${index}`} className="relative">
-                    {file.type.startsWith('image') ? (
-                      <img src={URL.createObjectURL(file)} alt="preview" className="w-24 h-24 object-cover rounded-lg" />
-                    ) : file.type.startsWith('video') ? (
-                      <video className="w-24 h-24 object-cover rounded-lg">
-                        <source src={URL.createObjectURL(file)} type={file.type} />
-                        Your browser does not support the video tag.
-                      </video>
-                    ) : (
-                      <div className="w-24 h-24 flex items-center justify-center bg-gray-100 rounded-lg">
-                        <span className="text-xs text-center p-2">{file.name}</span>
-                      </div>
-                    )}
-                    <button
-                      onClick={() => handleRemoveFile(index)}
-                      className="absolute top-1 right-1 bg-white/80 p-1 rounded-full hover:bg-white transition-colors"
-                    >
-                      <X className="w-4 h-4 text-gray-800" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+{files.length > 0 && (
+  <div className="flex flex-wrap gap-2 mb-4 overflow-x-auto">
+    {files.map((file, index) => {
+      const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+      
+      return (
+        <div key={`file-preview-${index}`} className="relative">
+          {isImage ? (
+            <img src={URL.createObjectURL(file)} alt="preview" className="w-24 h-24 object-cover rounded-lg" />
+          ) : isVideo ? (
+            <video className="w-24 h-24 object-cover rounded-lg">
+              <source src={URL.createObjectURL(file)} type={file.type} />
+              Your browser does not support the video tag.
+            </video>
+          ) : isPDF ? (
+            <div className="w-24 h-24 flex flex-col items-center justify-center bg-red-100 rounded-lg border-2 border-red-200">
+              <svg className="w-8 h-8 text-red-600 mb-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+              </svg>
+              <span className="text-xs text-center px-1 font-medium text-red-800">
+                {file.name.length > 12 ? file.name.substring(0, 12) + '...' : file.name}
+              </span>
+            </div>
+          ) : (
+            <div className="w-24 h-24 flex items-center justify-center bg-gray-100 rounded-lg">
+              <span className="text-xs text-center p-2 break-words">
+                {file.name.length > 15 ? file.name.substring(0, 15) + '...' : file.name}
+              </span>
+            </div>
+          )}
+          <button
+            onClick={() => handleRemoveFile(index)}
+            className="absolute top-1 right-1 bg-white/80 p-1 rounded-full hover:bg-white transition-colors"
+          >
+            <X className="w-4 h-4 text-gray-800" />
+          </button>
+          
+          {/* Tooltip with full filename on hover */}
+          <div className="absolute bottom-0 left-0 right-0 bg-black/75 text-white text-xs p-1 rounded-b-lg opacity-0 hover:opacity-100 transition-opacity duration-200">
+            <div className="truncate text-center">
+              {file.name}
+            </div>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+)}
             
             {/* Message form */}
             <form

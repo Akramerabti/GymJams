@@ -363,12 +363,17 @@ async submitQuestionnaire(answers, accessToken = null, isEdit = false) {
 
   async sendMessage(subscriptionId, senderId, receiverId, content, timestamp, file) {
     try {
-      // Validate required parameters
+  
       if (!subscriptionId || !senderId || !receiverId) {
+        console.error('Missing required fields in sendMessage:', {
+          subscriptionId, senderId, receiverId, content, timestamp, file
+        });
         throw new Error('Missing required parameters for sendMessage');
       }
 
-
+      console.log('Sending message with params:', {
+        subscriptionId, senderId, receiverId, content, timestamp, file
+      });
       // Make API request with retry logic
       let retryCount = 0;
       const maxRetries = 3;

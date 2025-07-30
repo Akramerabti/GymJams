@@ -104,70 +104,73 @@ export const initializeSocket = (server) => {
       socket.userId = userIdStr;
     });
 
-    // Handle sending messages - unified to handle both subscription and match messages
-    socket.on('sendMessage', async (messageData) => {
-
-      const { senderId, receiverId, content, timestamp, file, subscriptionId, matchId } = messageData;
-      
-      // Basic validation
-      if (!senderId || !receiverId || (!subscriptionId && !matchId)) {
-        logger.error('Missing required fields in sendMessage event');
-        socket.emit('messageError', { error: 'Missing required fields' });
-        return;
-      }
-
-      try {
-        // Determine context type (subscription or match)
-        const isSubscriptionMessage = !!subscriptionId;
-        const isMatchMessage = !!matchId;
-        
-        // Log what type of message is being sent
-        logger.debug(`Processing ${isSubscriptionMessage ? 'subscription' : 'match'} message 
-                     from ${senderId} to ${receiverId} for ${isSubscriptionMessage ? 'subscription' : 'match'} 
-                     ${isSubscriptionMessage ? subscriptionId : matchId}`);
-
-        // NOTE: We're not creating or saving messages here anymore
-        // Message creation will only happen through the API to avoid duplicates
-        
-        // Send acknowledgment to the sender
-        socket.emit('messageSent', {
-          status: 'received',
-          subscriptionId: isSubscriptionMessage ? subscriptionId : undefined,
-          matchId: isMatchMessage ? matchId : undefined,
-          timestamp: new Date().toISOString()
-        });
-        
-        // Forward message to receiver if they are online
-        const receiverSocketId = activeUsers.get(receiverId.toString());
-        if (receiverSocketId) {
-          // Create a message object for the receiver without the pending flag
-          const messageForReceiver = {
-            _id: messageData._id || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            sender: senderId,
-            content: content || '',
-            timestamp: timestamp || new Date().toISOString(),
-            read: false,
-            file: Array.isArray(file) ? file : []
-          };
-          
-          // Include the appropriate ID (subscription or match)
-          if (isSubscriptionMessage) {
-            messageForReceiver.subscriptionId = subscriptionId;
-          } else if (isMatchMessage) {
-            messageForReceiver.matchId = matchId;
-          }
-          
-          // Send to the receiver
-          ioInstance.to(receiverSocketId).emit('receiveMessage', messageForReceiver);
-          logger.debug(`Message forwarded to receiver ${receiverId} (socket: ${receiverSocketId})`);
-        } else {
-          logger.debug(`Receiver ${receiverId} is offline, message will be delivered when they connect`);
-        }
-      } catch (error) {
-        logger.error('Error in sendMessage socket event:', error);
-        socket.emit('messageError', { error: error.message });
-      }
+socket.on('sendMessage', async (messageData) => {
+  const { senderId, receiverId, content, timestamp, file, subscriptionId, matchId } = messageData;
+  
+  console.log('Received sendMessage event:', {
+    senderId, receiverId, content, timestamp, file, subscriptionId, matchId
+  });
+  
+  // Basic validation
+  if (!senderId || !receiverId || (!subscriptionId && !matchId)) {
+    logger.error('Missing required fields in sendMessage event');
+    socket.emit('messageError', { error: 'Missing required fields' });
+    return;
+  }
+  
+  try {
+    // Determine context type (subscription or match)
+    const isSubscriptionMessage = !!subscriptionId;
+    const isMatchMessage = !!matchId;
+    
+    // Send acknowledgment to the sender
+    socket.emit('messageSent', {
+      status: 'received',
+      subscriptionId: isSubscriptionMessage ? subscriptionId : undefined,
+      matchId: isMatchMessage ? matchId : undefined,
+      timestamp: new Date().toISOString()
     });
+    
+    // Forward message to receiver if they are online
+    const receiverSocketId = activeUsers.get(receiverId.toString());
+    if (receiverSocketId) {
+      // Create a message object for the receiver, preserving ALL file metadata
+      const messageForReceiver = {
+        _id: messageData._id || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        sender: senderId,
+        content: content || '',
+        timestamp: timestamp || new Date().toISOString(),
+        read: false,
+        file: Array.isArray(file) ? file.map(f => ({
+          path: f.path,
+          type: f.type,
+          originalName: f.originalName, // ✅ CRITICAL: Ensure this is preserved
+          size: f.size,
+          mimetype: f.mimetype
+        })) : []
+      };
+      
+      // Include the appropriate ID (subscription or match)
+      if (isSubscriptionMessage) {
+        messageForReceiver.subscriptionId = subscriptionId;
+      } else if (isMatchMessage) {
+        messageForReceiver.matchId = matchId;
+      }
+      
+      // DEBUG: Log the file metadata being sent
+      console.log('File metadata being forwarded to receiver:', messageForReceiver.file);
+      
+      // Send to the receiver
+      ioInstance.to(receiverSocketId).emit('receiveMessage', messageForReceiver);
+      logger.debug(`Message forwarded to receiver ${receiverId} (socket: ${receiverSocketId})`);
+    } else {
+      logger.debug(`Receiver ${receiverId} is offline, message will be delivered when they connect`);
+    }
+  } catch (error) {
+    logger.error('Error in sendMessage socket event:', error);
+    socket.emit('messageError', { error: error.message });
+  }
+});
 
     // Handle typing indicators
     socket.on('typing', (data) => {
