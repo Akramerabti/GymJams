@@ -287,15 +287,15 @@ const MetricEntryDialog = ({
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] z-[110000]">
         <DialogHeader>
-          <DialogTitle>Add {label || 'Metric'} Entry</DialogTitle>
+          <DialogTitle className="text-black">Add {label || 'Metric'} Entry</DialogTitle>
         </DialogHeader>
         
         <div className="py-4">
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="metric-value">Value ({unit})</Label>
+              <Label htmlFor="metric-value" className="text-black">Value ({unit})</Label>
               <Input
                 id="metric-value"
                 type="number"
@@ -307,7 +307,7 @@ const MetricEntryDialog = ({
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="metric-date">Date</Label>
+              <Label htmlFor="metric-date" className="text-black">Date</Label>
               <Input
                 id="metric-date"
                 type="date"
@@ -318,7 +318,7 @@ const MetricEntryDialog = ({
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="metric-notes">Notes (Optional)</Label>
+              <Label htmlFor="metric-notes" className="text-black">Notes (Optional)</Label>
               <Textarea
                 id="metric-notes"
                 value={notes}
@@ -331,7 +331,11 @@ const MetricEntryDialog = ({
         </div>
         
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button 
+            variant="outline" 
+            onClick={onClose}
+            className="text-black hover:text-white hover:bg-black border-gray-300"
+          >
             Cancel
           </Button>
           <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700">
@@ -374,15 +378,15 @@ const StatsUpdateDialog = ({
   
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] z-[100]">
+      <DialogContent className="sm:max-w-[500px] z-[110000]">
         <DialogHeader>
-          <DialogTitle>Update Your Stats</DialogTitle>
+          <DialogTitle className="text-black">Update Your Stats</DialogTitle>
         </DialogHeader>
         
         <div className="py-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="workouts-completed">Workouts Completed</Label>
+              <Label htmlFor="workouts-completed" className="text-black">Workouts Completed</Label>
               <Input
                 id="workouts-completed"
                 type="number"
@@ -393,7 +397,7 @@ const StatsUpdateDialog = ({
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="current-streak">Current Streak (days)</Label>
+              <Label htmlFor="current-streak" className="text-black">Current Streak (days)</Label>
               <Input
                 id="current-streak"
                 type="number"
@@ -404,7 +408,7 @@ const StatsUpdateDialog = ({
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="monthly-progress">Monthly Progress (%)</Label>
+              <Label htmlFor="monthly-progress" className="text-black">Monthly Progress (%)</Label>
               <Input
                 id="monthly-progress"
                 type="number"
@@ -416,7 +420,7 @@ const StatsUpdateDialog = ({
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="weekly-target">Weekly Target</Label>
+              <Label htmlFor="weekly-target" className="text-black">Weekly Target</Label>
               <Input
                 id="weekly-target"
                 type="number"
@@ -428,7 +432,7 @@ const StatsUpdateDialog = ({
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="nutrition-compliance">Nutrition Compliance (%)</Label>
+              <Label htmlFor="nutrition-compliance" className="text-black">Nutrition Compliance (%)</Label>
               <Input
                 id="nutrition-compliance"
                 type="number"
@@ -442,7 +446,11 @@ const StatsUpdateDialog = ({
         </div>
         
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button 
+            variant="outline" 
+            onClick={onClose}
+            className="text-black hover:text-white hover:bg-black border-gray-300"
+          >
             Cancel
           </Button>
           <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700">
@@ -455,7 +463,6 @@ const StatsUpdateDialog = ({
   );
 };
 
-// Main Progress Section Component
 const ProgressSection = ({ 
   stats, 
   healthMetrics, 
