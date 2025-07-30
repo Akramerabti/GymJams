@@ -434,16 +434,18 @@ const handleSendMessage = async () => {
     if (files.length > 0) {
       try {
 
+        const onProgress = (progress) => {
+        };
+        
         uploadedFiles = await subscriptionService.uploadFiles(files, onProgress);
- 
+        
         
         const fileAttachments = uploadedFiles.map(file => {
-  
           
           return {
             path: file.path,
             type: file.type,
-            originalName: file.originalName, // ✅ CRITICAL: Ensure this is preserved
+            originalName: file.originalName, 
             size: file.size,
             mimetype: file.mimetype
           };
@@ -461,7 +463,6 @@ const handleSendMessage = async () => {
       }
     }
     
-    // Prepare socket message data
     const socketMessageData = {
       senderId: userId,
       receiverId: coachId, // or coachId for Chat.jsx
@@ -472,7 +473,7 @@ const handleSendMessage = async () => {
         return {
           path: file.path,
           type: file.type,
-          originalName: file.originalName,
+          originalName: file.originalName, // ✅ CRITICAL: Preserve originalName
           size: file.size,
           mimetype: file.mimetype
         };
@@ -493,12 +494,11 @@ const handleSendMessage = async () => {
       return {
         path: file.path,
         type: file.type,
-        originalName: file.originalName, 
+        originalName: file.originalName, // ✅ CRITICAL: Preserve originalName
         size: file.size,
         mimetype: file.mimetype
       };
     });
-
 
 
     const response = await subscriptionService.sendMessage(
@@ -510,7 +510,7 @@ const handleSendMessage = async () => {
       apiFileData
     );
     
-
+    
     // Replace temporary message with actual message
     if (response) {
       let serverMessage = null;
@@ -528,7 +528,6 @@ const handleSendMessage = async () => {
       }
       
       if (serverMessage) {
- 
         
         processedMessageIds.current.add(serverMessage._id);
         
@@ -823,7 +822,6 @@ const handleSendMessage = async () => {
         ? (file.path.startsWith('http') ? file.path : `${import.meta.env.VITE_API_URL}/${file.path.replace(/^\//, '')}`)
         : '';
 
-      console
       const isPDF = fileType === 'application/pdf' || displayName.toLowerCase().endsWith('.pdf');
       const isImage = fileType && fileType.startsWith('image/');
       const isVideo = fileType && fileType.startsWith('video/');
@@ -862,7 +860,6 @@ const handleSendMessage = async () => {
                 className="max-w-full h-auto rounded-lg"
                 loading="lazy"
                 onError={(e) => {
-                  console.error('Image load error for:', displayName, fileUrl);
                   e.target.src = 'https://via.placeholder.com/200?text=Image+Error';
                 }}
                 title={displayName}

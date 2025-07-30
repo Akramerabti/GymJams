@@ -620,7 +620,9 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
     if (files.length > 0) {
       try {
 
-        
+        const onProgress = (progress) => {
+        };
+
         uploadedFiles = await subscriptionService.uploadFiles(files, onProgress);
         
         
