@@ -91,7 +91,7 @@ const SubscriptionManagement = () => {
   // If subscriptionDetails is not yet fetched, show a loading state
   if (!subscriptionDetails) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 mt-20">
         <div className="max-w-4xl mx-auto">
           <Card>
             <CardHeader>
@@ -109,7 +109,7 @@ const SubscriptionManagement = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8 mt-20">
       <div className="max-w-4xl mx-auto">
         <Card className="shadow-lg">
           <CardHeader>
