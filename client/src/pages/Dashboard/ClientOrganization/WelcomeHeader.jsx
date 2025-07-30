@@ -288,7 +288,7 @@ const WelcomeHeader = ({
       
       {/* Rating Modal */}
       <Dialog open={showRatingModal} onOpenChange={setShowRatingModal}>
-        <DialogContent className="sm:max-w-[425px] z-[1000]">
+        <DialogContent className="sm:max-w-[425px] z-[100000]">
           <DialogHeader>
             <DialogTitle>Rate Your Coach</DialogTitle>
           </DialogHeader>
