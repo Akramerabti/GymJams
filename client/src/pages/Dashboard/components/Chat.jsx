@@ -764,7 +764,7 @@ const handleSendMessage = async () => {
                   <div key={`date-${groupIndex}`} className="mb-6">
                     {/* Date separator */}
                     <div className="flex justify-center mb-4">
-                      <div className="bg-gray-200 rounded-full px-4 py-1 text-xs text-gray-600">
+                      <div className="bg-gray-200 rounded-full px-4 py-1 text-xs text-black">
                         {format(group.date, 'MMMM d, yyyy')}
                       </div>
                     </div>
