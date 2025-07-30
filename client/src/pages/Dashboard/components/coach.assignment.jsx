@@ -619,7 +619,7 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
   }
   if (isBasicPlan) {
     return (
-      <Card className="w-full bg-white border-gray-200 shadow-lg">
+      <Card className="w-full bg-white border-gray-200 shadow-lg mt-10">
         <CardHeader className="border-b border-gray-200">
           <CardTitle className="flex items-center text-gray-800">
             <Clock className="w-5 h-5 mr-2 text-blue-500" />
@@ -835,7 +835,9 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
         </CardContent>
       </Card>
     );
-  }  return (    <Card className="w-full bg-gradient-to-br from-purple-100 via-blue-50 to-indigo-100 border-purple-200 shadow-xl mt-8">
+  }  
+  
+  return (    <Card className="w-full bg-gradient-to-br from-purple-100 via-blue-50 to-indigo-100 border-purple-200 shadow-xl mt-10">
       <CardHeader className="border-b border-purple-200 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-indigo-500/10 backdrop-blur-sm">
         <CardTitle className="flex items-center text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
           <User className="w-6 h-6 mr-3 text-blue-500" />

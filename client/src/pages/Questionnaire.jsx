@@ -460,16 +460,6 @@ const handleSubmit = async () => {
                 {isEditing ? 'Update Your Fitness Profile' : 'Complete Your Fitness Profile'}
               </motion.h1>
               
-              <motion.p 
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.4 }}
-                className="text-xs sm:text-sm lg:text-base text-white/90 max-w-2xl mx-auto leading-relaxed drop-shadow-md hidden sm:block"
-              >
-                This information helps us create a personalized plan to achieve your fitness goals.
-                {subscriptionTier === 'elite' && 
-                  ' Your Elite plan includes our most comprehensive assessment.'}
-              </motion.p>
             </div>
 
             {/* Progress indicator - Compact for mobile */}
@@ -653,7 +643,7 @@ const BasicInformationForm = ({ formData, onChange }) => {
   ];
 
   return (
-    <div className="h-full flex flex-col space-y-2 sm:space-y-3 overflow-hidden">
+    <div className="h-full flex flex-col space-y-2 sm:space-y-3 overflow-y-auto scrollbar-auto min-h-0">
       {/* Physical Stats */}      <div className="bg-gradient-to-r from-blue-900/20 to-indigo-900/20 p-2 sm:p-3 lg:p-4 rounded-lg sm:rounded-xl border border-blue-800 flex-shrink-0">
         <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-white mb-2 sm:mb-3 flex items-center">
           <div className="w-5 sm:w-6 lg:w-7 h-5 sm:h-6 lg:h-7 bg-blue-500 rounded-full flex items-center justify-center mr-2">
@@ -725,7 +715,7 @@ const BasicInformationForm = ({ formData, onChange }) => {
             <motion.div
               key={option.value}
               whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}              className={`relative cursor-pointer rounded-lg p-2 sm:p-3 border-2 transition-all duration-300 flex flex-col justify-center ${
+              whileTap={{ scale: 0.98 }}              className={`relative cursor-pointer rounded-lg p-2 sm:p-3 border-2 transition-all duration-300 ${
                 formData.gender === option.value
                   ? `bg-gradient-to-br ${option.color} text-white border-transparent shadow-xl`
                   : 'bg-gray-800 border-gray-700 hover:border-purple-400 hover:shadow-lg text-white'
