@@ -320,7 +320,7 @@ const WelcomeHeader = ({
                 </div>
                 
                 <div className="text-center">
-                  <h3 className="text-lg font-semibold">
+                  <h3 className="text-lg font-semibold text-black">
                     {assignedCoach?.firstName} {assignedCoach?.lastName}
                   </h3>
                   <p className="text-sm text-gray-500">

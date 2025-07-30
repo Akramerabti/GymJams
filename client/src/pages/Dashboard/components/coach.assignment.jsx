@@ -836,7 +836,7 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
       </Card>
     );
   }  
-  
+
   return (    <Card className="w-full bg-gradient-to-br from-purple-100 via-blue-50 to-indigo-100 border-purple-200 shadow-xl mt-10">
       <CardHeader className="border-b border-purple-200 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-indigo-500/10 backdrop-blur-sm">
         <CardTitle className="flex items-center text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
