@@ -498,7 +498,7 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
                     </h3>
                     <Award className="w-8 h-8 text-purple-500" />
                   </motion.div>
-                    <h4 className="text-2xl font-bold text-gray-800">
+                  <h4 className="text-2xl font-bold" style={{ color: '#000' }}>
                     {selectedCoach.firstName} {selectedCoach.lastName}
                   </h4>
                   
@@ -781,7 +781,8 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -10 }}
                           transition={{ duration: 0.4, ease: "easeOut" }}
-                          className="text-lg font-medium text-gray-700"
+                          className="text-lg font-medium"
+                          style={{ color: '#000' }}
                         >
                           {loadingPhrases[currentPhraseIndex].phrase}
                         </motion.p>
