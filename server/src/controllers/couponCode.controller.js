@@ -23,7 +23,7 @@ export const updateCouponDiscount = async (req, res) => {
 
 export const createCouponCode = async (req, res) => {
   try {
-    const { code, discount, type, subscription, products, categories, maxUses } = req.body;
+    const { code, discount, type, subscription, products, categories, maxUses, duration, duration_in_months } = req.body;
     if (!code || !discount || !type) {
       return res.status(400).json({ message: 'Code, discount, and type are required.' });
     }
@@ -31,7 +31,7 @@ export const createCouponCode = async (req, res) => {
     if (exists) {
       return res.status(409).json({ message: 'Coupon code already exists.' });
     }
-    const coupon = await CouponCode.create({
+    let couponData = {
       code: code.toUpperCase(),
       discount: Number(discount),
       type,
@@ -39,7 +39,17 @@ export const createCouponCode = async (req, res) => {
       products: type === 'product' || type === 'both' ? products : [],
       categories: type === 'product' || type === 'both' ? categories : [],
       maxUses: maxUses ? Number(maxUses) : undefined
-    });
+    };
+ 
+    if (type === 'coaching') {
+      couponData.duration = duration;
+      if (duration === 'repeating' && duration_in_months) {
+        couponData.duration_in_months = Number(duration_in_months);
+      }
+    } else if (type === 'both') {
+      couponData.duration = 'once';
+    }
+    const coupon = await CouponCode.create(couponData);
     res.status(201).json(coupon);
   } catch (err) {
     res.status(500).json({ message: err.message });

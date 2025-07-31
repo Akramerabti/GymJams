@@ -571,11 +571,23 @@ export const handleSubscriptionSuccess = async (req, res) => {
         ) {
           promoDiscount = promo.discount;
           logger.info(`[Subscription] Promo valid, discount:`, promoDiscount);
-          // Create a one-time coupon in Stripe for this user
-          const coupon = await stripe.coupons.create({
-            percent_off: promo.discount,
-            duration: 'once' // <--- This is the key: only the first invoice is discounted
-          });
+
+
+          let stripeCouponParams = {
+            percent_off: promo.discount
+          };
+          if (promo.type === 'coaching') {
+            stripeCouponParams.duration = promo.duration || 'once';
+            if (promo.duration === 'repeating' && promo.duration_in_months) {
+              stripeCouponParams.duration_in_months = promo.duration_in_months;
+            }
+          } else if (promo.type === 'both') {
+            stripeCouponParams.duration = 'once';
+          } else {
+            stripeCouponParams.duration = 'once';
+          }
+
+          const coupon = await stripe.coupons.create(stripeCouponParams);
           logger.info(`[Subscription] Stripe coupon created:`, coupon);
           couponId = coupon.id;
         } else {
@@ -594,7 +606,6 @@ export const handleSubscriptionSuccess = async (req, res) => {
         }
       }
 
-      // Create the subscription in Stripe
       const subscriptionParams = {
         customer: stripeCustomerId,
         items: [{ price: PLANS[planType].stripePriceId }],
@@ -603,7 +614,6 @@ export const handleSubscriptionSuccess = async (req, res) => {
         metadata: { planType },
       };
 
-      // If couponId exists, apply it to the subscription (Stripe will apply to first invoice only if duration: 'once')
       if (couponId) {
         subscriptionParams.coupon = couponId;
         logger.info(`[Subscription] Coupon added to subscriptionParams:`, couponId);
