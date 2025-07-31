@@ -35,12 +35,17 @@ export const createCouponCode = async (req, res) => {
       code: code.toUpperCase(),
       discount: Number(discount),
       type,
-      subscription: type === 'coaching' || type === 'both' ? subscription : undefined,
       products: type === 'product' || type === 'both' ? products : [],
       categories: type === 'product' || type === 'both' ? categories : [],
       maxUses: maxUses ? Number(maxUses) : undefined
     };
- 
+    console.log('subscription:', subscription, 'type:', type);
+
+    // Always set subscription to 'all' if type is coaching or both and subscription is empty
+    if (type === 'coaching' || type === 'both') {
+      couponData.subscription = subscription && subscription !== '' ? subscription : 'all';
+    }
+
     if (type === 'coaching') {
       couponData.duration = duration;
       if (duration === 'repeating' && duration_in_months) {
