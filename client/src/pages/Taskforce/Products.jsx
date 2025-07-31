@@ -433,11 +433,12 @@ const Products = ({ onRefreshDashboard }) => {
       return;
     }
     try {
+      let subscriptionValue = couponForm.subscription === 'All' ? 'all' : couponForm.subscription;
       let payload = {
         code: couponForm.code,
         discount: couponForm.discount,
         type: couponForm.type,
-        subscription: couponForm.subscription,
+        subscription: subscriptionValue,
         products: couponForm.products,
         categories: couponForm.categories,
         maxUses: couponForm.maxUses
@@ -691,12 +692,15 @@ const Products = ({ onRefreshDashboard }) => {
                         <label className="block text-sm font-medium mb-1" htmlFor="coupon-subscription">Subscription</label>
                         <select
                           id="coupon-subscription"
-                          value={couponForm.subscription}
-                          onChange={e => setCouponForm({ ...couponForm, subscription: e.target.value })}
+                          value={couponForm.subscription === '' ? 'all' : couponForm.subscription}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setCouponForm({ ...couponForm, subscription: val === 'all' ? 'all' : val });
+                          }}
                           className="w-full border rounded px-2 py-2"
                         >
-                          <option value="">All</option>
-                          {subscriptionOptions.map(opt => (
+                          <option value="all">All</option>
+                          {subscriptionOptions.filter(opt => opt.value !== 'all').map(opt => (
                             <option key={opt.value} value={opt.value}>{opt.label}</option>
                           ))}
                         </select>
@@ -828,7 +832,7 @@ const Products = ({ onRefreshDashboard }) => {
                           </AlertDialog>
                           <span className="font-mono text-base font-bold mr-2">{coupon.code}</span>
                           <span className="text-lg font-bold text-blue-700 mr-2">{coupon.discount}%</span>
-                          <span className="bg-gray-200 px-2 py-1 rounded text-xs font-semibold mr-2">{coupon.type}</span>
+                          <span className="bg-gray-200 px-2 py-1 rounded text-xs font-semibold mr-2 text-black">{coupon.type}</span>
                           <div className="flex flex-col gap-1 ml-2">
                             {coupon.subscription && coupon.type !== 'product' && (
                               <span className="bg-white border px-2 py-1 rounded text-xs">Subscription: <b>{coupon.subscription}</b></span>

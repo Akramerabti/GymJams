@@ -135,11 +135,17 @@ const Register = () => {
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      console.log('Form validation failed:', errors);
+      toast.error('Please fix the errors in the form.');
+      return;
+    }
     setLoading(true);
     try {
       const { confirmPassword, ...registrationData } = formData;
+      console.log('Submitting registration:', registrationData);
       const response = await register(registrationData);
+      console.log('Registration response:', response);
       if (response && (response.token || response.user)) {
         toast.success('Registration successful!', {
           description: 'Please check your email to verify your account.'
@@ -153,11 +159,12 @@ const Register = () => {
         window.location.href = `/email-verification-notification?email=${encodedEmail}`;
         return;
       }
+      toast.error('Registration unsuccessful. No token or user returned.');
       throw new Error('Registration unsuccessful');
     } catch (error) {
       console.error('Registration error:', error);
       toast.error('Registration failed', {
-        description: error.response?.data?.message || 'Registration failed. Please try again.'
+        description: error?.response?.data?.message || error?.message || 'Registration failed. Please try again.'
       });
     } finally {
       setLoading(false);
@@ -362,18 +369,26 @@ const Register = () => {
                   <Eye className="w-5 h-5 icon" />
                 )}
               </button>
+              {errors.password && (
+                <p className="mt-1 text-sm text-red-500">{errors.password}</p>
+              )}
             </div>
 
-            <Input
-              icon={<Lock className="w-5 h-5 icon" />}
-              name="confirmPassword"
-              type="password"
-              placeholder="Confirm Password"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              error={errors.confirmPassword}
-              className="input-field"
-            />
+            <div className="relative">
+              <Input
+                icon={<Lock className="w-5 h-5 icon" />}
+                name="confirmPassword"
+                type="password"
+                placeholder="Confirm Password"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                error={errors.confirmPassword}
+                className="input-field"
+              />
+              {errors.confirmPassword && (
+                <p className="mt-1 text-sm text-red-500">{errors.confirmPassword}</p>
+              )}
+            </div>
 
             <Button
               type="submit"
