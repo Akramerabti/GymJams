@@ -15,6 +15,7 @@ const ResetPassword = () => {
     password: '',
     confirmPassword: ''
   });
+  const [passwordError, setPasswordError] = useState('');
   const navigate = useNavigate();
   const token = searchParams.get('token');
 
@@ -28,15 +29,32 @@ const ResetPassword = () => {
     e.preventDefault();
     //('Form submitted');
     
-    if (formData.password !== formData.confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
-
+    // Password requirements
+    const requirements = [];
     if (formData.password.length < 8) {
-      toast.error('Password must be at least 8 characters long');
+      requirements.push('at least 8 characters');
+    }
+    if (!/[A-Z]/.test(formData.password)) {
+      requirements.push('an uppercase letter');
+    }
+    if (!/[a-z]/.test(formData.password)) {
+      requirements.push('a lowercase letter');
+    }
+    if (!/[0-9]/.test(formData.password)) {
+      requirements.push('a number');
+    }
+    if (!/[^A-Za-z0-9]/.test(formData.password)) {
+      requirements.push('a special character');
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setPasswordError('Passwords do not match');
       return;
     }
+    if (requirements.length > 0) {
+      setPasswordError('Password must contain ' + requirements.join(', '));
+      return;
+    }
+    setPasswordError('');
 
     setLoading(true);
 
@@ -108,13 +126,16 @@ const ResetPassword = () => {
                 <Input
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    password: e.target.value
-                  })}
+                  onChange={(e) => {
+                    setFormData({
+                      ...formData,
+                      password: e.target.value
+                    });
+                    setPasswordError('');
+                  }}
                   placeholder="New password"
                   required
-                  className="w-full pr-10" // Add padding for the eye icon
+                  className={`w-full pr-10 ${passwordError ? 'border-red-500 focus:border-red-500' : ''}`}
                 />
                 <button
                   type="button"
@@ -129,8 +150,11 @@ const ResetPassword = () => {
                 </button>
               </div>
               <p className="text-sm text-gray-500">
-                Password must be at least 8 characters long
+                Password must be at least 8 characters and include uppercase, lowercase, number, and special character.
               </p>
+              {passwordError && (
+                <p className="text-sm text-red-500 mt-1">{passwordError}</p>
+              )}
             </div>
 
             <Input
