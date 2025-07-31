@@ -399,7 +399,17 @@ const Products = ({ onRefreshDashboard }) => {
   const [coachingPromo, setCoachingPromo] = useState({ code: '', discount: '', subscription: '' });
   const [coachingPromos, setCoachingPromos] = useState([]);
   // Coupon code form and list state
-  const [couponForm, setCouponForm] = useState({ code: '', discount: '', type: '', subscription: '', products: [], categories: [], maxUses: '' });
+  const [couponForm, setCouponForm] = useState({
+    code: '',
+    discount: '',
+    type: '',
+    subscription: '',
+    products: [],
+    categories: [],
+    maxUses: '',
+    duration: '',
+    duration_in_months: ''
+  });
   const [couponCodes, setCouponCodes] = useState([]);
   // Fetch coupon codes
   useEffect(() => {
@@ -423,7 +433,7 @@ const Products = ({ onRefreshDashboard }) => {
       return;
     }
     try {
-      await productService.createCouponCode({
+      let payload = {
         code: couponForm.code,
         discount: couponForm.discount,
         type: couponForm.type,
@@ -431,9 +441,19 @@ const Products = ({ onRefreshDashboard }) => {
         products: couponForm.products,
         categories: couponForm.categories,
         maxUses: couponForm.maxUses
-      });
+      };
+      // Only pass duration for coaching type
+      if (couponForm.type === 'coaching') {
+        payload.duration = couponForm.duration;
+        if (couponForm.duration === 'repeating' && couponForm.duration_in_months) {
+          payload.duration_in_months = couponForm.duration_in_months;
+        }
+      } else if (couponForm.type === 'both') {
+        payload.duration = 'once';
+      }
+      await productService.createCouponCode(payload);
       toast.success(`Coupon code "${couponForm.code}" created!`);
-      setCouponForm({ code: '', discount: '', type: '', subscription: '', products: [], categories: [], maxUses: '' });
+      setCouponForm({ code: '', discount: '', type: '', subscription: '', products: [], categories: [], maxUses: '', duration: '', duration_in_months: '' });
       fetchCouponCodes();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to create coupon code');
@@ -712,6 +732,39 @@ const Products = ({ onRefreshDashboard }) => {
                         </div>
                       </>
                     ) : null}
+                    {/* Duration only for coaching type */}
+                    {couponForm.type === 'coaching' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium mb-1" htmlFor="coupon-duration">Duration</label>
+                          <select
+                            id="coupon-duration"
+                            value={couponForm.duration}
+                            onChange={e => setCouponForm({ ...couponForm, duration: e.target.value })}
+                            className="w-full border rounded px-2 py-2"
+                            required
+                          >
+                            <option value="once">Once (first charge only)</option>
+                            <option value="forever">Forever (all charges)</option>
+                            <option value="repeating">Repeating (for X months)</option>
+                          </select>
+                        </div>
+                        {couponForm.duration === 'repeating' && (
+                          <div>
+                            <label className="block text-sm font-medium mb-1" htmlFor="coupon-duration-months">Duration in Months</label>
+                            <Input
+                              id="coupon-duration-months"
+                              type="number"
+                              min={1}
+                              value={couponForm.duration_in_months}
+                              onChange={e => setCouponForm({ ...couponForm, duration_in_months: e.target.value })}
+                              placeholder="e.g. 3"
+                              required
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
                     <div>
                       <label className="block text-sm font-medium mb-1" htmlFor="coupon-max-uses">Max Uses</label>
                       <Input

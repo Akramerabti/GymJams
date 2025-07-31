@@ -18,6 +18,16 @@ const couponCodeSchema = new mongoose.Schema({
   // For product coupons
   products: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
   categories: [{ type: String }],
+  duration: {
+    type: String,
+    enum: ['once', 'forever', 'repeating'],
+    default: undefined
+  },
+  duration_in_months: {
+    type: Number,
+    min: 1,
+    default: undefined
+  },
   // Usage limits
   maxUses: { type: Number, min: 1 },
   usedCount: { type: Number, default: 0 },
