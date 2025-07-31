@@ -16,7 +16,7 @@ const PLANS = {
   basic: {
     name: 'Basic',
     price: 39.99,
-    stripePriceId: 'price_1RpudmFGfbnmVSqEXiQ15w10', // <-- Replace with your live price ID
+    stripePriceId: process.env.NODE_ENV === 'development' ? 'price_1Qj4nqFGfbnmVSqEuxLNYQr2' : 'price_1RpudmFGfbnmVSqEXiQ15w10',
     points: 100,
     features: [
       'Access to workout library',
@@ -28,7 +28,7 @@ const PLANS = {
   premium: {
     name: 'Premium',
     price: 69.99,
-    stripePriceId: 'price_1RpucpFGfbnmVSqElwxGeeo6', // <-- Replace with your live price ID
+    stripePriceId: process.env.NODE_ENV === 'development' ? 'price_1Qi0q2FGfbnmVSqEiDg7Z4cK' : 'price_1RpucpFGfbnmVSqElwxGeeo6',
     points: 200,
     features: [
       'All Basic features',
@@ -42,7 +42,7 @@ const PLANS = {
   elite: {
     name: 'Elite',
     price: 89.99,
-    stripePriceId: 'price_1RpueFFGfbnmVSqE5z2GdOYF', // <-- Replace with your live price ID
+    stripePriceId: process.env.NODE_ENV === 'development' ? 'price_1Qi0noFGfbnmVSqEdkYZHCiM' : 'price_1RpueFFGfbnmVSqE5z2GdOYF',
     points: 500,
     features: [
       'All Premium features',
@@ -493,7 +493,7 @@ export const handleSubscriptionSuccess = async (req, res) => {
   let result = null;
 
   try {
-    const { planType, paymentMethodId, email, promoCode } = req.body; // Accept promoCode from frontend
+    const { planType, paymentMethodId, email, promoCode } = req.body; 
 
     if (!planType || !paymentMethodId || !email) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -566,7 +566,7 @@ export const handleSubscriptionSuccess = async (req, res) => {
         logger.info(`[Subscription] Promo DB result:`, promo);
         if (
           promo &&
-          promo.subscription === planType && // Only allow promo for correct plan
+          (promo.subscription === planType || promo.subscription === 'all') && // Allow 'all' to match any plan
           (!user || !promo.usedBy.some(id => id.toString() === (user?.id || '')))
         ) {
           promoDiscount = promo.discount;
@@ -580,6 +580,17 @@ export const handleSubscriptionSuccess = async (req, res) => {
           couponId = coupon.id;
         } else {
           logger.info(`[Subscription] Promo invalid, not for this plan, or already used by user.`);
+        
+          if (typeof subscription !== 'undefined' && subscription && subscription.id) {
+            try {
+              await stripe.subscriptions.cancel(subscription.id);
+              logger.info(`[Subscription] Cancelled Stripe subscription due to invalid promo code: ${subscription.id}`);
+            } catch (cancelError) {
+              logger.error(`[Subscription] Failed to cancel Stripe subscription:`, cancelError);
+            }
+          }
+
+          throw new Error('Invalid discount code: not for this plan or already used');
         }
       }
 
