@@ -209,13 +209,91 @@ function getFilesToAttachByType(applicationType) {
   }
 }
 
+// Helper function to validate attachment size
+function validateAttachmentSize(buffer, filename, maxSizeMB = 8) {
+  const maxSizeBytes = maxSizeMB * 1024 * 1024;
+  if (buffer.length > maxSizeBytes) {
+    logger.warn(`Attachment ${filename} is too large: ${(buffer.length / 1024 / 1024).toFixed(2)}MB (max: ${maxSizeMB}MB)`);
+    return false;
+  }
+  return true;
+}
+
+// Helper function to create a proper PDF fallback
+function createPDFFallback(fileInfo, application) {
+  // Create a minimal PDF structure
+  const pdfContent = `%PDF-1.4
+1 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+>>
+endobj
+
+2 0 obj
+<<
+/Type /Pages
+/Kids [3 0 R]
+/Count 1
+>>
+endobj
+
+3 0 obj
+<<
+/Type /Page
+/Parent 2 0 R
+/MediaBox [0 0 612 792]
+/Contents 4 0 R
+>>
+endobj
+
+4 0 obj
+<<
+/Length 200
+>>
+stream
+BT
+/F1 12 Tf
+50 700 Td
+(GymTonic ${fileInfo.title}) Tj
+0 -20 Td
+(This is a fallback document) Tj
+0 -20 Td
+(Name: ${application.name}) Tj
+0 -20 Td
+(Type: ${capitalizeFirstLetter(application.applicationType)}) Tj
+0 -20 Td
+(Please contact support@gymtonic.com) Tj
+ET
+endstream
+endobj
+
+xref
+0 5
+0000000000 65535 f 
+0000000010 00000 n 
+0000000079 00000 n 
+0000000173 00000 n 
+0000000301 00000 n 
+trailer
+<<
+/Size 5
+/Root 1 0 R
+>>
+startxref
+554
+%%EOF`;
+  
+  return Buffer.from(pdfContent);
+}
+
 // Update application status
 export const updateApplicationStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, feedback, signedDocumentReceived } = req.body;
     
-    //(`[DEBUG] updateApplicationStatus - Request received to update application ${id} to status: ${status}`);
+    logger.info(`[DEBUG] updateApplicationStatus - Request received to update application ${id} to status: ${status}`);
       // Validate status
     if (!['pending', 'awaiting', 'received', 'approved', 'rejected'].includes(status)) {
       return res.status(400).json({
@@ -227,13 +305,13 @@ export const updateApplicationStatus = async (req, res) => {
     const application = await Application.findById(id);
     
     if (!application) {
-      //(`[DEBUG] Application with ID ${id} not found`);
+      logger.warn(`[DEBUG] Application with ID ${id} not found`);
       return res.status(404).json({
         success: false,
         message: 'Application not found'
       });
     }
-      //(`[DEBUG] Application found: ${application.name} (${application.email}), current status: ${application.status}, new status: ${status}`);
+      logger.info(`[DEBUG] Application found: ${application.name} (${application.email}), current status: ${application.status}, new status: ${status}`);
     
     // Store the original status before updating
     const originalStatus = application.status;
@@ -259,87 +337,111 @@ export const updateApplicationStatus = async (req, res) => {
     
     // Handle the approval process based on the original status and the new status
     if (originalStatus === 'pending' && status === 'awaiting') {
-      //(`[DEBUG] Processing transition from 'pending' to 'awaiting' for application ${id}`);
+      logger.info(`[DEBUG] Processing transition from 'pending' to 'awaiting' for application ${id}`);
       // Initial approval - Send documents to sign
       try {
         // Create the templates directory if it doesn't exist
         const templatesDir = path.join(__dirname, '../../templates');
-        //(`[DEBUG] Templates directory path: ${templatesDir}`);
+        logger.info(`[DEBUG] Templates directory path: ${templatesDir}`);
         
         try {
           await fs.mkdir(templatesDir, { recursive: true });
-          //(`[DEBUG] Templates directory created or already exists`);
+          logger.info(`[DEBUG] Templates directory created or already exists`);
         } catch (mkdirError) {
-          console.error(`[ERROR] Failed to create templates directory: ${mkdirError.message}`);
+          logger.error(`[ERROR] Failed to create templates directory: ${mkdirError.message}`);
         }
         
-        // Prepare files for email attachments
+        // Prepare files for email attachments with better error handling
         const attachments = [];
-        const filePromises = [];
         const filesToAttach = getFilesToAttachByType(application.applicationType);
-        //(`[DEBUG] Files to attach for type '${application.applicationType}': ${JSON.stringify(filesToAttach)}`);
+        logger.info(`[DEBUG] Files to attach for type '${application.applicationType}': ${JSON.stringify(filesToAttach)}`);
         
+        // Process each file with proper error handling
         for (const fileInfo of filesToAttach) {
           const filePath = path.join(templatesDir, fileInfo.filename);
-          //(`[DEBUG] Preparing to attach file: ${filePath}`);
-          filePromises.push(
-            fs.readFile(filePath)
-              .then(buffer => {
-                //(`[DEBUG] Successfully read file: ${fileInfo.filename}, size: ${buffer.length} bytes`);
-                attachments.push({
-                  filename: fileInfo.filename,
-                  content: buffer,
-                  contentType: 'application/pdf'
-                });
-              })
-              .catch(async (err) => {
-                console.error(`[ERROR] Failed to read file ${fileInfo.filename}: ${err.message}`);
-                
-                // Create fallback content for missing files
-                const fallbackContent = `
-GymTonic ${fileInfo.title}
-------------------------------------------------------
-
-THIS IS A FALLBACK DOCUMENT - Template was not found
-
-This document should contain the ${fileInfo.title} for ${application.name}.
-
-Date: ${new Date().toLocaleDateString()}
-Name: ${application.name}
-Application Type: ${capitalizeFirstLetter(application.applicationType)}
-
-Please contact support@gymtonic.com for the official document.
-
-------------------------------------------------------
-                `;
-                
-                const fallbackBuffer = Buffer.from(fallbackContent);
-                
-                // Try to save the fallback file
-                try {
-                  await fs.writeFile(filePath, fallbackBuffer);
-                  //(`[DEBUG] Created fallback file: ${fileInfo.filename}`);
-                } catch (writeError) {
-                  console.error(`[ERROR] Failed to write fallback file: ${writeError.message}`);
-                }
-                
-                attachments.push({
-                  filename: fileInfo.filename,
-                  content: fallbackBuffer,
-                  contentType: 'application/pdf'
-                });
-              })
-          );
+          logger.info(`[DEBUG] Preparing to attach file: ${filePath}`);
+          
+          try {
+            // Check if file exists first
+            await fs.access(filePath);
+            const buffer = await fs.readFile(filePath);
+            
+            // Validate file size
+            if (!validateAttachmentSize(buffer, fileInfo.filename)) {
+              logger.warn(`[WARNING] Skipping ${fileInfo.filename} due to size limit`);
+              continue;
+            }
+            
+            // Validate it's actually a PDF (basic check)
+            if (!buffer.toString('binary', 0, 4).startsWith('%PDF')) {
+              logger.warn(`[WARNING] File ${fileInfo.filename} doesn't appear to be a valid PDF`);
+              // Create a proper PDF fallback
+              const fallbackBuffer = createPDFFallback(fileInfo, application);
+              attachments.push({
+                filename: fileInfo.filename,
+                content: fallbackBuffer,
+                contentType: 'application/pdf'
+              });
+            } else {
+              logger.info(`[DEBUG] Successfully read valid PDF file: ${fileInfo.filename}, size: ${buffer.length} bytes`);
+              attachments.push({
+                filename: fileInfo.filename,
+                content: buffer,
+                contentType: 'application/pdf'
+              });
+            }
+          } catch (fileError) {
+            logger.error(`[ERROR] Failed to read file ${fileInfo.filename}: ${fileError.message}`);
+            
+            // Create a proper PDF fallback for missing files
+            const fallbackBuffer = createPDFFallback(fileInfo, application);
+            
+            // Try to save the fallback file for future use
+            try {
+              await fs.writeFile(filePath, fallbackBuffer);
+              logger.info(`[DEBUG] Created fallback PDF file: ${fileInfo.filename}`);
+            } catch (writeError) {
+              logger.error(`[ERROR] Failed to write fallback file: ${writeError.message}`);
+            }
+            
+            attachments.push({
+              filename: fileInfo.filename,
+              content: fallbackBuffer,
+              contentType: 'application/pdf'
+            });
+          }
         }
         
-        await Promise.all(filePromises);
-        //(`[DEBUG] Prepared ${attachments.length} attachments for email`);
+        logger.info(`[DEBUG] Prepared ${attachments.length} attachments for email`);
         
-        // Send email with attachments using Brevo
-        const emailResult = await sendEmail({
-          email: application.email,
-          subject: `Your ${capitalizeFirstLetter(application.applicationType)} Application - Documents Required`,
-          message: `Dear ${application.name},
+        // Validate total attachment size
+        const totalSize = attachments.reduce((sum, att) => sum + att.content.length, 0);
+        const totalSizeMB = (totalSize / 1024 / 1024).toFixed(2);
+        logger.info(`[DEBUG] Total attachment size: ${totalSizeMB}MB`);
+        
+        if (totalSize > 8 * 1024 * 1024) { // 8MB limit
+          logger.error(`[ERROR] Total attachment size too large: ${totalSizeMB}MB`);
+          return res.status(500).json({
+            success: false,
+            message: 'Attachment files are too large to send via email',
+            error: `Total size: ${totalSizeMB}MB (max: 8MB)`
+          });
+        }
+        
+        // Send email with attachments using Brevo - with retry logic
+        let emailResult;
+        let emailAttempts = 0;
+        const maxEmailAttempts = 3;
+        
+        while (emailAttempts < maxEmailAttempts) {
+          try {
+            emailAttempts++;
+            logger.info(`[DEBUG] Email attempt ${emailAttempts}/${maxEmailAttempts}`);
+            
+            emailResult = await sendEmail({
+              email: application.email,
+              subject: `Your ${capitalizeFirstLetter(application.applicationType)} Application - Documents Required`,
+              message: `Dear ${application.name},
 
 We are pleased to inform you that your application to join GymTonic as a ${capitalizeFirstLetter(application.applicationType)} has been initially approved!
 
@@ -363,18 +465,55 @@ If you have any questions about the documents or the process, please don't hesit
 
 Best regards,
 The GymTonic Team`,
-          attachments: attachments
-        });
+              attachments: attachments.length > 0 ? attachments : undefined
+            });
+            
+            // If we get here, email was successful
+            break;
+          } catch (emailError) {
+            logger.error(`[ERROR] Email attempt ${emailAttempts} failed: ${emailError.message}`);
+            
+            if (emailAttempts >= maxEmailAttempts) {
+              // If all attempts failed, try sending without attachments as fallback
+              logger.warn(`[WARNING] All email attempts with attachments failed, trying without attachments`);
+              
+              try {
+                emailResult = await sendEmail({
+                  email: application.email,
+                  subject: `Your ${capitalizeFirstLetter(application.applicationType)} Application - Initially Approved`,
+                  message: `Dear ${application.name},
+
+We are pleased to inform you that your application to join GymTonic as a ${capitalizeFirstLetter(application.applicationType)} has been initially approved!
+
+Due to technical issues with our email system, we were unable to attach the required documents to this email. 
+
+Please contact us at support@gymtonic.com and we will send you the documents through an alternative method.
+
+Best regards,
+The GymTonic Team`
+                });
+                
+                logger.info(`[DEBUG] Fallback email (without attachments) sent successfully`);
+              } catch (fallbackError) {
+                logger.error(`[ERROR] Even fallback email failed: ${fallbackError.message}`);
+                throw new Error(`Failed to send email after ${maxEmailAttempts} attempts: ${emailError.message}`);
+              }
+            } else {
+              // Wait before retry
+              await new Promise(resolve => setTimeout(resolve, 1000 * emailAttempts));
+            }
+          }
+        }
         
-        //(`[DEBUG] Email sent to ${application.email} with ${attachments.length} attachments. Result: ${JSON.stringify(emailResult)}`);
+        logger.info(`[DEBUG] Email sent to ${application.email} with ${attachments.length} attachments. Result: ${JSON.stringify(emailResult)}`);
         
         // Set document sent fields
         application.documentSent = true;
         application.documentSentAt = new Date();
       } catch (emailError) {
-        console.error(`[ERROR] Error sending document for signing: ${emailError.message}`);
-        console.error(`[ERROR] Full error: ${JSON.stringify(emailError)}`);
-        console.error(`[ERROR] Error stack: ${emailError.stack}`);
+        logger.error(`[ERROR] Error in email sending process: ${emailError.message}`);
+        logger.error(`[ERROR] Full error: ${JSON.stringify(emailError)}`);
+        logger.error(`[ERROR] Error stack: ${emailError.stack}`);
         return res.status(500).json({
           success: false,
           message: 'Failed to send document for signing',
@@ -456,7 +595,7 @@ GymTonic Team`
     
     await application.save();
     
-    //(`[DEBUG] Application ${id} successfully updated to status: ${status}`);
+    logger.info(`[DEBUG] Application ${id} successfully updated to status: ${status}`);
     
     res.status(200).json({
       success: true,
@@ -464,8 +603,8 @@ GymTonic Team`
       data: application
     });
   } catch (error) {
-    console.error(`[ERROR] Unhandled error in updateApplicationStatus: ${error.message}`);
-    console.error(`[ERROR] Error stack: ${error.stack}`);
+    logger.error(`[ERROR] Unhandled error in updateApplicationStatus: ${error.message}`);
+    logger.error(`[ERROR] Error stack: ${error.stack}`);
     res.status(500).json({
       success: false,
       message: 'Failed to update application status',
@@ -539,7 +678,7 @@ export const receiveSignedDocument = async (req, res) => {
       
       await application.save();
       
-      //(`[APPLICATION] Signed document uploaded to Supabase: ${uploadResult.url}`);
+      logger.info(`[APPLICATION] Signed document uploaded to Supabase: ${uploadResult.url}`);
       
       res.status(200).json({
         success: true,
@@ -547,7 +686,7 @@ export const receiveSignedDocument = async (req, res) => {
         data: application
       });
     } catch (uploadError) {
-      console.error('[APPLICATION] Error uploading signed document to Supabase:', uploadError);
+      logger.error('[APPLICATION] Error uploading signed document to Supabase:', uploadError);
       return res.status(500).json({
         success: false,
         message: 'Failed to upload signed document',
