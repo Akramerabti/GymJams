@@ -1,4 +1,3 @@
-
 import mongoose from 'mongoose';
 
 const couponCodeSchema = new mongoose.Schema({
@@ -10,29 +9,38 @@ const couponCodeSchema = new mongoose.Schema({
     enum: ['product', 'coaching', 'both'],
     default: 'product',
   },
-  // For coaching coupons
   subscription: {
     type: String,
     enum: ['all', 'basic', 'premium', 'elite'],
   },
-  // For product coupons
   products: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
   categories: [{ type: String }],
   duration: {
     type: String,
     enum: ['once', 'forever', 'repeating'],
-    default: undefined
   },
   duration_in_months: {
     type: Number,
     min: 1,
-    default: undefined
   },
-  // Usage limits
   maxUses: { type: Number, min: 1 },
   usedCount: { type: Number, default: 0 },
   usedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   createdAt: { type: Date, default: Date.now }
+});
+
+couponCodeSchema.pre('save', function() {
+  if (this.type !== 'coaching' && this.type !== 'both') {
+    this.duration = undefined;
+    this.duration_in_months = undefined;
+  } else {
+    if (!this.duration) {
+      this.duration = 'once';
+    }
+    if (this.duration !== 'repeating') {
+      this.duration_in_months = undefined;
+    }
+  }
 });
 
 const CouponCode = mongoose.model('CouponCode', couponCodeSchema);
