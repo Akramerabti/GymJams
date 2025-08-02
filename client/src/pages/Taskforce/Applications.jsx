@@ -50,7 +50,7 @@ import {
 import TextArea from "@/components/ui/TextArea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignature, onFinalApprove, onClose, isProcessing }) => {
+const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignature, onFinalApprove, onUploadSignedDocument, onClose, isProcessing }) => {
   const [feedback, setFeedback] = useState('');
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [signedDocument, setSignedDocument] = useState(null);
@@ -75,7 +75,9 @@ const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignatu
     });
 
     return () => observer.disconnect();
-  }, []);  // Helper function to create download URL for uploaded files
+  }, []);
+
+  // Helper function to create download URL for uploaded files
   const getFileDownloadUrl = (filePath) => {
     if (!filePath) {
       return null;
@@ -98,7 +100,8 @@ const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignatu
     
     return fullUrl;
   };
-    const formatDate = (dateString) => {
+
+  const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
@@ -196,7 +199,9 @@ const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignatu
                   {application.portfolioUrl}
                 </a>
               </div>
-            )}            {application.resume && (
+            )}
+
+            {application.resume && (
               <div className={`relative p-4 rounded-lg border-2 border-dashed transition-all duration-200 hover:border-blue-400 ${
                 isDarkMode 
                   ? 'bg-gray-800 border-gray-600 hover:bg-gray-750' 
@@ -391,7 +396,8 @@ const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignatu
                   ' Waiting for the applicant to return signed documents.'}
               </p>
             </div>
-              {application.signedDocumentPath ? (              
+
+            {application.signedDocumentPath ? (              
               // Show signed document and option to approve
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
@@ -567,7 +573,8 @@ const ApplicationDetails = ({ application, onApprove, onReject, onRequestSignatu
                 )}
               </div>
             )}
-          </div>        )}
+          </div>
+        )}
         
         {application.status === 'received' && (
           <div className="space-y-4">
@@ -814,12 +821,14 @@ const Applications = () => {
     
     setFilteredApplications(result);
   }, [applications, searchTerm, statusFilter, typeFilter]);
+
   const fetchApplications = async () => {
     if (getUserRole(user) !== 'taskforce' && getUserRole(user) !== 'admin') {
       setLoading(false);
       return;
     }
-      try {
+    
+    try {
       setLoading(true);
       const response = await applicationService.getApplications({ 
         excludeType: 'support' 
@@ -831,7 +840,8 @@ const Applications = () => {
       
       setApplications(activeApps);
       setFilteredApplications(activeApps);
-        // Calculate stats with the updated list
+      
+      // Calculate stats with the updated list
       const stats = {
         pending: activeApps.filter(app => app.status === 'pending').length,
         awaiting: activeApps.filter(app => app.status === 'awaiting').length,
@@ -848,6 +858,7 @@ const Applications = () => {
       setLoading(false);
     }
   };
+
   const handleViewDetails = (application) => {
     setSelectedApplication(application);
     setShowDetails(true);
@@ -1028,6 +1039,7 @@ const Applications = () => {
     link.click();
     document.body.removeChild(link);
   };
+
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'short', day: 'numeric' };
     return new Date(dateString).toLocaleDateString(undefined, options);
@@ -1085,7 +1097,8 @@ const Applications = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">        <div>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
           <h2 className={`text-xl md:text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Applications</h2>
           <p className={`mt-1 text-sm md:text-base ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Manage and review incoming applications</p>
         </div>
@@ -1110,7 +1123,9 @@ const Applications = () => {
             <span className="hidden sm:inline">Export CSV</span>
           </Button>
         </div>
-      </div>      {/* Statistics Cards */}
+      </div>
+
+      {/* Statistics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <Card>
           <CardContent className="p-4 flex flex-col items-center justify-center">
@@ -1150,7 +1165,8 @@ const Applications = () => {
         </Card>
       </div>
 
-      <Card>        <CardHeader className="pb-2">
+      <Card>
+        <CardHeader className="pb-2">
           <CardTitle className={isDarkMode ? 'text-white' : 'text-gray-900'}>Applications</CardTitle>
           <CardDescription className={isDarkMode ? 'text-gray-300' : 'text-gray-500'}>
             Review and manage all applications submitted through the platform
@@ -1171,7 +1187,8 @@ const Applications = () => {
               </div>
             </div>
             
-            <div className="flex flex-1 gap-4">              <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <div className="flex flex-1 gap-4">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="Filter by Status" />
                 </SelectTrigger>
@@ -1220,7 +1237,8 @@ const Applications = () => {
             <div className="flex justify-center items-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-          ) : filteredApplications.length === 0 ? (            <div className="text-center py-12">
+          ) : filteredApplications.length === 0 ? (
+            <div className="text-center py-12">
               <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
                 <File className={`h-8 w-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-400'}`} />
               </div>
