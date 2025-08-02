@@ -132,6 +132,7 @@ export const markCouponAsUsed = async (req, res) => {
     const coupon = await CouponCode.findOne({ code: code.toUpperCase() });
     if (!coupon) return res.status(404).json({ message: 'Coupon code not found.' });
 
+    // Only add user if not already present
     if (!coupon.usedBy.some(id => id.toString() === userId)) {
       coupon.usedBy.push(userId);
       coupon.usedCount = (coupon.usedCount || 0) + 1;
@@ -153,6 +154,7 @@ export const getCouponCodes = async (req, res) => {
   }
 };
 
+// Delete coupon code
 export const deleteCouponCode = async (req, res) => {
   try {
     const { id } = req.params;
