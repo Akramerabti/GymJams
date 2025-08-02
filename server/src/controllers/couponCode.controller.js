@@ -19,8 +19,6 @@ export const updateCouponDiscount = async (req, res) => {
   }
 };
 
-
-
 export const createCouponCode = async (req, res) => {
   try {
     const { code, discount, type, subscription, products, categories, maxUses, duration, duration_in_months } = req.body;
@@ -31,29 +29,34 @@ export const createCouponCode = async (req, res) => {
     if (exists) {
       return res.status(409).json({ message: 'Coupon code already exists.' });
     }
+    
     let couponData = {
       code: code.toUpperCase(),
       discount: Number(discount),
       type,
-      products: type === 'product' || type === 'both' ? products : [],
-      categories: type === 'product' || type === 'both' ? categories : [],
+      products: type === 'product' || type === 'both' ? (products || []) : [],
+      categories: type === 'product' || type === 'both' ? (categories || []) : [],
       maxUses: maxUses ? Number(maxUses) : undefined
     };
+
     console.log('subscription:', subscription, 'type:', type);
 
-    // Always set subscription to 'all' if type is coaching or both and subscription is empty
+    // Handle subscription field for coaching/both types
     if (type === 'coaching' || type === 'both') {
       couponData.subscription = subscription && subscription !== '' ? subscription : 'all';
-    }
-
-    if (type === 'coaching') {
-      couponData.duration = duration;
-      if (duration === 'repeating' && duration_in_months) {
-        couponData.duration_in_months = Number(duration_in_months);
+      
+      // Handle duration for coaching/both types
+      if (type === 'coaching') {
+        couponData.duration = duration || 'once'; // Default to 'once' if not specified
+        if (duration === 'repeating' && duration_in_months) {
+          couponData.duration_in_months = Number(duration_in_months);
+        }
+      } else if (type === 'both') {
+        couponData.duration = 'once'; // Always 'once' for both type
       }
-    } else if (type === 'both') {
-      couponData.duration = 'once';
     }
+    // For 'product' type, don't set duration or duration_in_months at all
+    
     const coupon = await CouponCode.create(couponData);
     res.status(201).json(coupon);
   } catch (err) {
@@ -104,7 +107,16 @@ export const validateCouponCode = async (req, res) => {
       }
     }
     console.log('Coupon valid!');
-    res.status(200).json({ valid: true, discount: coupon.discount, type: coupon.type, subscription: coupon.subscription, products: coupon.products, categories: coupon.categories });
+    res.status(200).json({ 
+      valid: true, 
+      discount: coupon.discount, 
+      type: coupon.type, 
+      subscription: coupon.subscription, 
+      products: coupon.products, 
+      categories: coupon.categories,
+      duration: coupon.duration,
+      duration_in_months: coupon.duration_in_months
+    });
   } catch (err) {
     console.error('Coupon validation error:', err);
     res.status(500).json({ message: err.message });
@@ -120,7 +132,6 @@ export const markCouponAsUsed = async (req, res) => {
     const coupon = await CouponCode.findOne({ code: code.toUpperCase() });
     if (!coupon) return res.status(404).json({ message: 'Coupon code not found.' });
 
-    // Only add user if not already present
     if (!coupon.usedBy.some(id => id.toString() === userId)) {
       coupon.usedBy.push(userId);
       coupon.usedCount = (coupon.usedCount || 0) + 1;
@@ -142,7 +153,6 @@ export const getCouponCodes = async (req, res) => {
   }
 };
 
-// Delete coupon code
 export const deleteCouponCode = async (req, res) => {
   try {
     const { id } = req.params;
