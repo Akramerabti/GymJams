@@ -304,7 +304,102 @@ export const handleEmailWebhook = async (req, res) => {
       senderEmail = sender?.toLowerCase();
     }
     
+    // Comprehensive email normalization function
+    const normalizeEmail = (email) => {
+      if (!email || !email.includes('@')) return email;
+      
+      const [localPart, domain] = email.split('@');
+      
+      // Define normalization rules by domain patterns
+      const normalizationRules = {
+        // Gmail and Google Workspace - remove dots and plus aliases
+        'gmail.com': (local) => local.replace(/\./g, '').split('+')[0],
+        'googlemail.com': (local) => local.replace(/\./g, '').split('+')[0],
+        
+        // Outlook/Hotmail - remove plus aliases but keep dots
+        'outlook.com': (local) => local.split('+')[0],
+        'hotmail.com': (local) => local.split('+')[0],
+        'live.com': (local) => local.split('+')[0],
+        
+        // Yahoo - remove plus aliases but keep dots
+        'yahoo.com': (local) => local.split('+')[0],
+        'yahoo.ca': (local) => local.split('+')[0],
+        'yahoo.co.uk': (local) => local.split('+')[0],
+        
+        // Educational domains - normalize dots and common variations
+        'mcgill.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+        'mail.mcgill.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+        'student.mcgill.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+        'concordia.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+        'uqam.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+        'umontreal.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+        
+        // Generic educational pattern (.edu, .ac.*, etc.)
+        'edu': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+        'ac.uk': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+        'ac.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+      };
+      
+      // Apply specific domain rules
+      let normalizedLocal = localPart;
+      let ruleApplied = false;
+      
+      // Check exact domain matches first
+      if (normalizationRules[domain]) {
+        normalizedLocal = normalizationRules[domain](localPart);
+        ruleApplied = true;
+      }
+      // Check for educational domain patterns
+      else if (domain.endsWith('.edu') || domain.includes('.ac.') || domain.endsWith('.ca')) {
+        normalizedLocal = localPart.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, '');
+        ruleApplied = true;
+      }
+      // Google Workspace domains (any domain using Gmail infrastructure)
+      else if (domain.includes('gmail') || domain.includes('googlemail')) {
+        normalizedLocal = localPart.replace(/\./g, '').split('+')[0];
+        ruleApplied = true;
+      }
+      
+      // Generic normalization for unknown domains
+      if (!ruleApplied) {
+        // Remove plus aliases and normalize consecutive dots
+        normalizedLocal = localPart.split('+')[0].replace(/\.+/g, '.').replace(/^\.+|\.+$/g, '');
+      }
+      
+      return `${normalizedLocal}@${domain}`;
+    };
+    
+    // Generate multiple normalized variations for lookup
+    const generateEmailVariations = (email) => {
+      if (!email) return [];
+      
+      const variations = new Set([email]); // Use Set to avoid duplicates
+      const [localPart, domain] = email.split('@');
+      
+      // Add normalized version
+      variations.add(normalizeEmail(email));
+      
+      // For Gmail specifically, also add version without dots
+      if (domain === 'gmail.com' || domain === 'googlemail.com') {
+        variations.add(`${localPart.replace(/\./g, '')}@${domain}`);
+      }
+      
+      // For educational domains, add version with single dots
+      if (domain.endsWith('.edu') || domain.includes('.ac.') || domain.endsWith('.ca')) {
+        variations.add(`${localPart.replace(/\.+/g, '.')}@${domain}`);
+        // Also add version without dots for very dot-heavy addresses
+        if (localPart.split('.').length > 3) {
+          variations.add(`${localPart.replace(/\./g, '')}@${domain}`);
+        }
+      }
+      
+      return Array.from(variations);
+    };
+    
+    const emailVariations = generateEmailVariations(senderEmail);
+    
     console.log('Extracted sender email:', senderEmail);
+    console.log('Email variations for lookup:', emailVariations);
     
     if (!senderEmail) {
       console.log('No sender email found in webhook data');
@@ -318,17 +413,39 @@ export const handleEmailWebhook = async (req, res) => {
       });
     }
 
-    // Enhanced application lookup
-    const application = await Application.findOne({ 
-      email: senderEmail,
+    // Enhanced application lookup with comprehensive email normalization
+    let application = await Application.findOne({ 
+      email: { $in: emailVariations },
       status: { $in: ['awaiting', 'received'] }
     }).sort({ updatedAt: -1 });
 
+    // If no application found with awaiting/received status, check for any application
+    if (!application) {
+      const allApplications = await Application.find({ 
+        email: { $in: emailVariations }
+      }).sort({ updatedAt: -1 });
+      
+      console.log('All applications for these email variations:', allApplications.map(app => ({
+        id: app._id,
+        email: app.email,
+        status: app.status,
+        updatedAt: app.updatedAt
+      })));
+      
+      // Use the most recent application regardless of status for debugging
+      application = allApplications[0];
+      if (application && !['awaiting', 'received'].includes(application.status)) {
+        console.log(`Found application with status '${application.status}' - considering for processing`);
+      }
+    }
+
     console.log('Application lookup result:', {
-      email: senderEmail,
+      originalEmail: senderEmail,
+      emailVariations: emailVariations,
       found: !!application,
       applicationId: application?._id,
-      currentStatus: application?.status
+      currentStatus: application?.status,
+      applicationEmail: application?.email
     });
 
     // Check for signed documents
@@ -374,7 +491,7 @@ export const handleEmailWebhook = async (req, res) => {
           
           // Send confirmation email to applicant
           await sendEmail({
-            email: senderEmail,
+            email: application.email, // Use the email from database, not the normalized one
             subject: `Document Received - Application #${application._id}`,
             message: `Dear ${application.name},
 
@@ -420,6 +537,7 @@ View Application: ${process.env.CLIENT_URL}/taskforce/applications`
             debug: {
               event: eventType,
               senderEmail,
+              emailVariations,
               applicationFound: true,
               hasSignedDocuments: hasSignedDocs,
               savedFiles: savedFiles.map(f => ({ name: f.originalName, path: f.savedPath }))
