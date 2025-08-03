@@ -1,5 +1,5 @@
 // server/src/controllers/emailWebhook.controller.js
-// ONLY processes signed documents for applications - NO SUPPORT TICKETS
+// FIXED VERSION - properly handles 'delivered' and 'accepted' events
 import Application from '../models/Application.js';
 import User from '../models/User.js';
 import { sendEmail } from '../utils/email.js';
@@ -13,13 +13,13 @@ import supabaseStorageService from '../services/supabaseStorage.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const hasSignedDocuments = (attachments, bodyPlain, strippedText) => {
+const hasSignedDocuments = (attachments, bodyPlain, strippedText, subject = '') => {
   if (!attachments || attachments.length === 0) {
     return false;
   }
   
-  const text = (strippedText || bodyPlain || '').toLowerCase();
-  const signatureKeywords = ['signed', 'completed', 'document', 'agreement', 'contract', 'form'];
+  const text = (strippedText || bodyPlain || subject || '').toLowerCase();
+  const signatureKeywords = ['signed', 'completed', 'document', 'agreement', 'contract', 'form', 'docusign'];
   
   const hasKeywords = signatureKeywords.some(keyword => text.includes(keyword));
   
@@ -145,8 +145,6 @@ may need to be contacted to resend the attachment.`;
   
   return savedFiles;
 };
-// server/src/controllers/emailWebhook.controller.js
-// Updated to handle both 'delivered' and 'accepted' events
 
 export const handleEmailWebhook = async (req, res) => {
   try {
@@ -158,18 +156,24 @@ export const handleEmailWebhook = async (req, res) => {
       return res.status(200).end();
     }
 
+    // Log the entire request body for debugging
+    console.log('Full webhook request body:', JSON.stringify(req.body, null, 2));
+
     // FIXED: Handle both 'delivered' and 'accepted' events for incoming emails
     const validEvents = ['delivered', 'accepted'];
-    if (req.body.event && !validEvents.includes(req.body.event)) {
+    const eventType = req.body.event;
+    
+    if (eventType && !validEvents.includes(eventType)) {
+      console.log(`Ignoring event type: ${eventType}`);
       return res.status(200).json({ 
         status: 'ignored', 
-        message: `Event type '${req.body.event}' ignored - only processing 'delivered' and 'accepted' events for incoming emails` 
+        message: `Event type '${eventType}' ignored - only processing 'delivered' and 'accepted' events for incoming emails` 
       });
     }
 
     // Log the event for debugging
     console.log('Processing email webhook event:', {
-      event: req.body.event,
+      event: eventType,
       sender: req.body.envelope?.sender,
       recipient: req.body.recipient,
       hasStorage: !!req.body.storage,
@@ -180,7 +184,7 @@ export const handleEmailWebhook = async (req, res) => {
     let sender, recipient, subject, bodyPlain, strippedText, attachments = [], messageUrl = '';
 
     // FIXED: Handle the 'delivered' event format from Mailgun
-    if (req.body.event === 'delivered' || req.body.event === 'accepted') {
+    if (eventType === 'delivered' || eventType === 'accepted') {
       // Extract data from Mailgun webhook format
       sender = req.body.envelope?.sender || req.body.message?.headers?.from;
       recipient = req.body.recipient || req.body.message?.headers?.to;
@@ -198,6 +202,14 @@ export const handleEmailWebhook = async (req, res) => {
         }));
       }
       
+      console.log('Extracted from delivered/accepted event:', {
+        sender,
+        recipient,
+        subject,
+        messageUrl,
+        attachmentCount: attachments.length
+      });
+      
       // For delivered/accepted events, we need to fetch the message body from storage
       if (messageUrl && process.env.MAILGUN_API_KEY) {
         try {
@@ -212,6 +224,9 @@ export const handleEmailWebhook = async (req, res) => {
             const messageData = await response.json();
             bodyPlain = messageData['body-plain'] || messageData.bodyPlain || '';
             strippedText = messageData['stripped-text'] || messageData.strippedText || bodyPlain;
+            console.log('Fetched message body from storage successfully');
+          } else {
+            console.warn('Failed to fetch message body from storage:', response.status, response.statusText);
           }
         } catch (fetchError) {
           console.warn('Could not fetch message body from storage:', fetchError.message);
@@ -219,11 +234,14 @@ export const handleEmailWebhook = async (req, res) => {
           bodyPlain = '';
           strippedText = '';
         }
+      } else {
+        console.log('No message URL or API key available for fetching body');
+        bodyPlain = '';
+        strippedText = '';
       }
     }
     // Handle multipart/form-data format (keep existing logic)
-    else if (req.body.event === 'accepted' || req.files?.length > 0) {
-      // ... keep your existing multipart handling code
+    else if (req.files?.length > 0) {
       sender = req.body.sender || req.body.from || req.body.From;
       recipient = req.body.recipient || req.body.to || req.body.To;
       subject = req.body.subject || req.body.Subject;
@@ -240,10 +258,10 @@ export const handleEmailWebhook = async (req, res) => {
       }
       
       messageUrl = 'multipart-form-data';
+      console.log('Processed multipart form data');
     }
     // Handle legacy format (keep existing logic)
     else if (req.body.From || req.body.from) {
-      // ... keep your existing legacy handling code
       sender = req.body.From || req.body.from;
       recipient = req.body.To || req.body.to;
       subject = req.body.Subject || req.body.subject;
@@ -264,16 +282,18 @@ export const handleEmailWebhook = async (req, res) => {
           attachments.push(attachment);
         }
       }
+      console.log('Processed legacy format');
     }
-    // Test data format
+    // Test data format or fallback
     else {
       sender = req.body.sender;
       recipient = req.body.recipient;
       subject = req.body.subject;
       bodyPlain = req.body['body-plain'] || req.body.bodyPlain;
       strippedText = req.body['stripped-text'] || req.body.strippedText;
-      attachments = req.body.attachments;
+      attachments = req.body.attachments || [];
       messageUrl = req.body.messageUrl || 'test-message-url';
+      console.log('Processed test/fallback format');
     }
 
     // Extract sender's email - handle both formats
@@ -287,11 +307,13 @@ export const handleEmailWebhook = async (req, res) => {
     console.log('Extracted sender email:', senderEmail);
     
     if (!senderEmail) {
+      console.log('No sender email found in webhook data');
       return res.status(400).json({ 
         error: 'No sender email found',
         debug: {
           rawSender: sender,
-          extractedEmail: senderEmail
+          extractedEmail: senderEmail,
+          fullBody: req.body
         }
       });
     }
@@ -310,12 +332,13 @@ export const handleEmailWebhook = async (req, res) => {
     });
 
     // Check for signed documents
-    const hasSignedDocs = hasSignedDocuments(attachments, bodyPlain, strippedText);
+    const hasSignedDocs = hasSignedDocuments(attachments, bodyPlain, strippedText, subject);
     
     console.log('Document detection result:', {
       hasSignedDocs,
       attachmentCount: attachments?.length,
-      attachments: attachments?.map(a => a.filename)
+      attachments: attachments?.map(a => a.filename),
+      subject
     });
 
     if (application && hasSignedDocs) {
@@ -395,7 +418,7 @@ View Application: ${process.env.CLIENT_URL}/taskforce/applications`
             applicationId: application._id,
             filesProcessed: savedFiles.length,
             debug: {
-              event: req.body.event,
+              event: eventType,
               senderEmail,
               applicationFound: true,
               hasSignedDocuments: hasSignedDocs,
@@ -407,7 +430,7 @@ View Application: ${process.env.CLIENT_URL}/taskforce/applications`
             success: false,
             message: 'No valid attachments found or failed to save',
             debug: {
-              event: req.body.event,
+              event: eventType,
               senderEmail,
               applicationFound: true,
               hasSignedDocuments: hasSignedDocs,
@@ -422,7 +445,7 @@ View Application: ${process.env.CLIENT_URL}/taskforce/applications`
           message: 'Error processing signed documents',
           error: error.message,
           debug: {
-            event: req.body.event,
+            event: eventType,
             senderEmail,
             applicationId: application._id
           }
@@ -437,18 +460,21 @@ View Application: ${process.env.CLIENT_URL}/taskforce/applications`
         senderEmail,
         applicationFound: !!application,
         hasSignedDocuments: hasSignedDocs,
-        attachmentCount: attachments?.length
+        attachmentCount: attachments?.length,
+        subject
       });
       
       return res.status(200).json({
         success: false,
         message: reason,
         debug: {
-          event: req.body.event,
+          event: eventType,
           senderEmail,
           applicationFound: !!application,
           hasSignedDocuments: hasSignedDocs,
-          reason
+          reason,
+          subject,
+          attachments: attachments?.map(a => a.filename)
         }
       });
     }
