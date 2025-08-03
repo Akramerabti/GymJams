@@ -10,27 +10,215 @@ import supabaseStorageService from '../services/supabaseStorage.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Comprehensive email normalization function
+const normalizeEmail = (email) => {
+  if (!email || typeof email !== 'string' || !email.includes('@')) return email;
+  
+  // Convert to lowercase and trim whitespace
+  email = email.toLowerCase().trim();
+  
+  // Remove any surrounding quotes or brackets
+  email = email.replace(/^["'<\[\(]+|["'>\]\)]+$/g, '');
+  
+  // Split email into local and domain parts
+  const atIndex = email.lastIndexOf('@'); // Use lastIndexOf to handle edge cases
+  if (atIndex === -1) return email;
+  
+  let localPart = email.substring(0, atIndex);
+  const domain = email.substring(atIndex + 1);
+  
+  // Remove any leading/trailing dots, underscores, hyphens from local part
+  localPart = localPart.replace(/^[._-]+|[._-]+$/g, '');
+  
+  // Define normalization rules by domain patterns
+  const normalizationRules = {
+    // Gmail and Google Workspace - remove dots and plus aliases
+    'gmail.com': (local) => local.replace(/\./g, '').split('+')[0],
+    'googlemail.com': (local) => local.replace(/\./g, '').split('+')[0],
+    
+    // Outlook/Hotmail - remove plus aliases but keep dots
+    'outlook.com': (local) => local.split('+')[0],
+    'hotmail.com': (local) => local.split('+')[0],
+    'live.com': (local) => local.split('+')[0],
+    'msn.com': (local) => local.split('+')[0],
+    
+    // Yahoo - remove plus aliases but keep dots
+    'yahoo.com': (local) => local.split('+')[0],
+    'yahoo.ca': (local) => local.split('+')[0],
+    'yahoo.co.uk': (local) => local.split('+')[0],
+    'yahoo.fr': (local) => local.split('+')[0],
+    'ymail.com': (local) => local.split('+')[0],
+    
+    // Educational domains - normalize dots and common variations
+    'mcgill.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+    'mail.mcgill.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+    'student.mcgill.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+    'concordia.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+    'uqam.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+    'umontreal.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+    'polymtl.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+    'hec.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+    
+    // More Canadian universities
+    'utoronto.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+    'ubc.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+    'uwaterloo.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+    'carleton.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+    'uottawa.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+    
+    // Generic educational pattern (.edu, .ac.*, etc.)
+    'edu': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+    'ac.uk': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+    'ac.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
+  };
+  
+  // Apply specific domain rules
+  let normalizedLocal = localPart;
+  let ruleApplied = false;
+  
+  // Check exact domain matches first
+  if (normalizationRules[domain]) {
+    normalizedLocal = normalizationRules[domain](localPart);
+    ruleApplied = true;
+  }
+  // Check for educational domain patterns
+  else if (domain.endsWith('.edu') || domain.includes('.ac.') || domain.endsWith('.ca')) {
+    // For educational domains, normalize consecutive dots but preserve structure
+    normalizedLocal = localPart.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, '');
+    ruleApplied = true;
+  }
+  // Google Workspace domains (any domain using Gmail infrastructure)
+  else if (domain.includes('gmail') || domain.includes('googlemail')) {
+    normalizedLocal = localPart.replace(/\./g, '').split('+')[0];
+    ruleApplied = true;
+  }
+  
+  // Generic normalization for unknown domains
+  if (!ruleApplied) {
+    // Remove plus aliases and normalize consecutive dots
+    normalizedLocal = localPart.split('+')[0].replace(/\.+/g, '.').replace(/^\.+|\.+$/g, '');
+  }
+  
+  // Final cleanup - ensure no leading/trailing special characters
+  normalizedLocal = normalizedLocal.replace(/^[._-]+|[._-]+$/g, '');
+  
+  return `${normalizedLocal}@${domain}`;
+};
+
+// Generate multiple normalized variations for lookup
+const generateEmailVariations = (email) => {
+  if (!email || typeof email !== 'string') return [];
+  
+  const variations = new Set(); // Use Set to avoid duplicates
+  const cleanEmail = email.toLowerCase().trim();
+  
+  // Add original email
+  variations.add(cleanEmail);
+  
+  // Add normalized version
+  const normalized = normalizeEmail(cleanEmail);
+  variations.add(normalized);
+  
+  // Extract parts for additional variations
+  const atIndex = cleanEmail.lastIndexOf('@');
+  if (atIndex === -1) return Array.from(variations);
+  
+  let localPart = cleanEmail.substring(0, atIndex);
+  const domain = cleanEmail.substring(atIndex + 1);
+  
+  // For Gmail specifically, add multiple variations
+  if (domain === 'gmail.com' || domain === 'googlemail.com') {
+    // Version without dots
+    variations.add(`${localPart.replace(/\./g, '')}@${domain}`);
+    // Version without plus aliases
+    variations.add(`${localPart.split('+')[0]}@${domain}`);
+    // Version without dots AND plus aliases
+    variations.add(`${localPart.replace(/\./g, '').split('+')[0]}@${domain}`);
+  }
+  
+  // For educational domains, add comprehensive variations
+  if (domain.endsWith('.edu') || domain.includes('.ac.') || domain.endsWith('.ca')) {
+    // Version with single dots (normalize consecutive dots)
+    const singleDots = localPart.replace(/\.+/g, '.');
+    variations.add(`${singleDots}@${domain}`);
+    
+    // Version without leading/trailing dots
+    const trimmedDots = localPart.replace(/^\.+|\.+$/g, '');
+    variations.add(`${trimmedDots}@${domain}`);
+    
+    // Combination of both
+    const cleanDots = localPart.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, '');
+    variations.add(`${cleanDots}@${domain}`);
+    
+    // For very dot-heavy addresses, also add version without dots
+    if (localPart.split('.').length > 3) {
+      variations.add(`${localPart.replace(/\./g, '')}@${domain}`);
+    }
+    
+    // Handle common educational email patterns
+    // Remove common prefixes/suffixes that might be inconsistent
+    const withoutNumbers = localPart.replace(/\d+$/, ''); // Remove trailing numbers
+    if (withoutNumbers !== localPart) {
+      variations.add(`${withoutNumbers}@${domain}`);
+      variations.add(`${withoutNumbers.replace(/\./g, '')}@${domain}`);
+    }
+  }
+  
+  // For all domains, add version without plus aliases
+  if (localPart.includes('+')) {
+    const withoutPlus = localPart.split('+')[0];
+    variations.add(`${withoutPlus}@${domain}`);
+    
+    // If it's educational, also add dot variations
+    if (domain.endsWith('.edu') || domain.includes('.ac.') || domain.endsWith('.ca')) {
+      variations.add(`${withoutPlus.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, '')}@${domain}`);
+    }
+  }
+  
+  // Remove any empty or invalid variations
+  const validVariations = Array.from(variations).filter(email => 
+    email && 
+    email.includes('@') && 
+    email.indexOf('@') > 0 && 
+    email.indexOf('@') < email.length - 1 &&
+    !email.startsWith('@') &&
+    !email.endsWith('@')
+  );
+  
+  return validVariations;
+};
+
 export const submitApplication = async (req, res) => {
   try {
     const { name, email, phone, applicationType, message, portfolioUrl } = req.body;
-      // Remove any existing applications with the same email AND applicationType
+    
+    // Normalize the email for consistent storage and lookup
+    const normalizedEmail = normalizeEmail(email);
+    const emailVariations = generateEmailVariations(email);
+    
+    logger.info(`[APPLICATION] Submitting application with email: ${email}, normalized: ${normalizedEmail}, variations: ${emailVariations.join(', ')}`);
+    
+    // Remove any existing applications with the same email variations AND applicationType
     const existingApplications = await Application.find({ 
-      email: email, 
+      email: { $in: emailVariations }, 
       applicationType: applicationType 
     });
     
     if (existingApplications.length > 0) {
+      logger.info(`[APPLICATION] Found ${existingApplications.length} existing applications to remove for email variations`);
       
       const removedIds = existingApplications.map(app => app._id);
       await Application.deleteMany({ 
-        email: email, 
+        email: { $in: emailVariations }, 
         applicationType: applicationType 
       });
-
+      
+      logger.info(`[APPLICATION] Removed existing applications: ${removedIds.join(', ')}`);
     }
-      const newApplication = new Application({
+    
+    const newApplication = new Application({
       name,
-      email,
+      email: normalizedEmail, // Store the normalized email
       phone,
       applicationType,
       message,
@@ -48,9 +236,9 @@ export const submitApplication = async (req, res) => {
         
         // Store Supabase URL in database
         newApplication.resume = uploadResult.url;
-        //(`[APPLICATION] Resume uploaded to Supabase: ${uploadResult.url}`);
+        logger.info(`[APPLICATION] Resume uploaded to Supabase: ${uploadResult.url}`);
       } catch (uploadError) {
-        console.error('[APPLICATION] Error uploading resume to Supabase:', uploadError);
+        logger.error('[APPLICATION] Error uploading resume to Supabase:', uploadError);
         return res.status(500).json({
           success: false,
           message: 'Failed to upload resume',
@@ -71,8 +259,9 @@ export const submitApplication = async (req, res) => {
     try {
       emailStatus.attempted = true;
       
+      // Send email to the original email address (not normalized) for user-facing communication
       const emailResult = await sendEmail({
-        email,
+        email: email, // Use original email for sending
         subject: 'Application Received - GymTonic',
         message: `Dear ${name},\n\nThank you for submitting your application. We have received it and will review it shortly. You will be notified of any updates.\n\nBest regards,\nGymTonic Team`
       });
@@ -89,13 +278,14 @@ export const submitApplication = async (req, res) => {
       data: {
         id: newApplication._id,
         name: newApplication.name,
-        email: newApplication.email,
+        email: newApplication.email, // Return normalized email
         type: newApplication.applicationType,
         status: newApplication.status
       },
       emailStatus
     });
   } catch (error) {
+    logger.error('[APPLICATION] Error submitting application:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to submit application',
@@ -120,7 +310,8 @@ export const getApplications = async (req, res) => {
         filter.applicationType = { $ne: excludeType };
       }
     }
-      const applications = await Application.find(filter)
+    
+    const applications = await Application.find(filter)
       .sort({ createdAt: -1 }); 
     
     res.status(200).json({
@@ -129,6 +320,7 @@ export const getApplications = async (req, res) => {
       data: applications
     });
   } catch (error) {
+    logger.error('[APPLICATION] Error fetching applications:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch applications',
@@ -294,7 +486,8 @@ export const updateApplicationStatus = async (req, res) => {
     const { status, feedback, signedDocumentReceived } = req.body;
     
     logger.info(`[DEBUG] updateApplicationStatus - Request received to update application ${id} to status: ${status}`);
-      // Validate status
+    
+    // Validate status
     if (!['pending', 'awaiting', 'received', 'approved', 'rejected'].includes(status)) {
       return res.status(400).json({
         success: false,
@@ -311,7 +504,8 @@ export const updateApplicationStatus = async (req, res) => {
         message: 'Application not found'
       });
     }
-      logger.info(`[DEBUG] Application found: ${application.name} (${application.email}), current status: ${application.status}, new status: ${status}`);
+    
+    logger.info(`[DEBUG] Application found: ${application.name} (${application.email}), current status: ${application.status}, new status: ${status}`);
     
     // Store the original status before updating
     const originalStatus = application.status;
@@ -439,7 +633,7 @@ export const updateApplicationStatus = async (req, res) => {
             logger.info(`[DEBUG] Email attempt ${emailAttempts}/${maxEmailAttempts}`);
             
             emailResult = await sendEmail({
-              email: application.email,
+              email: application.email, // Use the normalized email from database
               subject: `Your ${capitalizeFirstLetter(application.applicationType)} Application - Documents Required`,
               message: `Dear ${application.name},
 
@@ -523,7 +717,12 @@ The GymTonic Team`
     } else if (status === 'approved' && application.signedDocumentPath) {
       // Final approval after document is signed - Update user role
       try {
-        const user = await User.findOne({ email: application.email });
+        // Generate email variations to find the user account
+        const emailVariations = generateEmailVariations(application.email);
+        
+        const user = await User.findOne({ 
+          email: { $in: emailVariations }
+        });
         
         if (user) {
           // Determine role based on application type
@@ -549,7 +748,7 @@ The GymTonic Team`
             logger.info(`Updated user ${user._id} (${user.email}) role to ${newRole} based on approved application`);
           }
         } else {
-          logger.warn(`Approved application for ${application.email} but no matching user found to update role`);
+          logger.warn(`Approved application for ${application.email} but no matching user found to update role. Checked variations: ${emailVariations.join(', ')}`);
         }
         
         // Send final confirmation email
@@ -727,5 +926,108 @@ export const deleteApplication = async (req, res) => {
       success: false,
       message: 'Failed to delete application',
       error: error.message
-    });  }
+    });
+  }
 };
+
+// Helper function to find application by email with comprehensive normalization
+export const findApplicationByEmail = async (email, applicationType = null) => {
+  try {
+    const emailVariations = generateEmailVariations(email);
+    
+    const query = { 
+      email: { $in: emailVariations }
+    };
+    
+    if (applicationType) {
+      query.applicationType = applicationType;
+    }
+    
+    const application = await Application.findOne(query).sort({ updatedAt: -1 });
+    
+    logger.info(`[APPLICATION] Email lookup for ${email}: found ${application ? 'YES' : 'NO'}, variations checked: ${emailVariations.join(', ')}`);
+    
+    return application;
+  } catch (error) {
+    logger.error(`[APPLICATION] Error finding application by email ${email}:`, error);
+    return null;
+  }
+};
+
+// Utility function to get all applications for a user by email (useful for admin views)
+export const getApplicationsByEmail = async (req, res) => {
+  try {
+    const { email } = req.params;
+    
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email parameter is required'
+      });
+    }
+    
+    const emailVariations = generateEmailVariations(email);
+    
+    const applications = await Application.find({
+      email: { $in: emailVariations }
+    }).sort({ createdAt: -1 });
+    
+    res.status(200).json({
+      success: true,
+      count: applications.length,
+      emailVariations,
+      data: applications
+    });
+  } catch (error) {
+    logger.error('[APPLICATION] Error fetching applications by email:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch applications by email',
+      error: error.message
+    });
+  }
+};
+
+// Utility function to update existing applications when email normalization rules change
+export const migrateEmailNormalization = async (req, res) => {
+  try {
+    // Only allow this for admin users
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required'
+      });
+    }
+    
+    const applications = await Application.find({});
+    let updatedCount = 0;
+    
+    for (const application of applications) {
+      const originalEmail = application.email;
+      const normalizedEmail = normalizeEmail(originalEmail);
+      
+      if (originalEmail !== normalizedEmail) {
+        application.email = normalizedEmail;
+        await application.save();
+        updatedCount++;
+        logger.info(`[MIGRATION] Updated application ${application._id}: ${originalEmail} -> ${normalizedEmail}`);
+      }
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: `Migration completed. Updated ${updatedCount} applications.`,
+      totalApplications: applications.length,
+      updatedCount
+    });
+  } catch (error) {
+    logger.error('[MIGRATION] Error migrating email normalization:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to migrate email normalization',
+      error: error.message
+    });
+  }
+};
+
+export { normalizeEmail, generateEmailVariations };
