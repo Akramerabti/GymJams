@@ -165,34 +165,101 @@ export const checkPayoutSetup = async (req, res) => {
 
     // Check if the user has a Stripe account ID
     if (!user.stripeAccountId) {
-      return res.json({ payoutSetupComplete: false });
+      return res.json({ payoutSetupComplete: false, reason: 'No Stripe account ID' });
     }
+
+    console.log(`=== DIAGNOSTIC: Checking payout setup for user ${req.user.id} ===`);
+    console.log(`Stripe Account ID: ${user.stripeAccountId}`);
 
     // Retrieve the Stripe account to check if payouts are enabled
     const account = await stripe.accounts.retrieve(user.stripeAccountId);
 
-    //('Account Requirements:', account.requirements);
+    // Log EVERYTHING for debugging
+    console.log('=== STRIPE ACCOUNT DETAILS ===');
+    console.log('Account ID:', account.id);
+    console.log('Charges enabled:', account.charges_enabled);
+    console.log('Payouts enabled:', account.payouts_enabled);
+    console.log('Details submitted:', account.details_submitted);
+    console.log('Business type:', account.business_type);
+    console.log('Country:', account.country);
+    console.log('Default currency:', account.default_currency);
+    console.log('Type:', account.type);
+    
+    // Log requirements in detail
+    console.log('=== REQUIREMENTS ===');
+    console.log('Currently due:', account.requirements?.currently_due);
+    console.log('Eventually due:', account.requirements?.eventually_due);
+    console.log('Past due:', account.requirements?.past_due);
+    console.log('Pending verification:', account.requirements?.pending_verification);
+    console.log('Disabled reason:', account.requirements?.disabled_reason);
 
-    if (account.charges_enabled && account.payouts_enabled) {
+    // Log capabilities
+    console.log('=== CAPABILITIES ===');
+    console.log('Transfers:', account.capabilities?.transfers);
+    console.log('Card payments:', account.capabilities?.card_payments);
+    console.log('Legacy payments:', account.capabilities?.legacy_payments);
+
+    // Check the exact condition
+    const isSetupComplete = account.charges_enabled && account.payouts_enabled;
+    
+    console.log('=== SETUP CHECK ===');
+    console.log('charges_enabled:', account.charges_enabled);
+    console.log('payouts_enabled:', account.payouts_enabled);
+    console.log('Combined check (charges_enabled && payouts_enabled):', isSetupComplete);
+
+    if (isSetupComplete) {
+      console.log('✅ Setup appears complete, updating database...');
+      
       // Update the coach's payout setup status in the database
-      await User.findByIdAndUpdate(req.user.id, {
+      const updateResult = await User.findByIdAndUpdate(
+        req.user.id, 
+        { payoutSetupComplete: true },
+        { new: true } // Return the updated document
+      );
+      
+      console.log('Database update result:', updateResult.payoutSetupComplete);
+      console.log('🎉 Payout setup marked as complete for user:', req.user.id);
+      
+      return res.json({ 
         payoutSetupComplete: true,
+        debug: {
+          stripeAccountId: account.id,
+          charges_enabled: account.charges_enabled,
+          payouts_enabled: account.payouts_enabled,
+          details_submitted: account.details_submitted,
+          updatedInDb: updateResult.payoutSetupComplete
+        }
       });
-
-      //('Payout setup complete:', user.stripeAccountId);
-      return res.json({ payoutSetupComplete: true });
     } else {
-      // Log the missing requirements for debugging
-      //('Missing requirements:', account.requirements.currently_due);
+      console.log('❌ Setup not complete');
+      
+      // Also update the database to reflect current status
+      await User.findByIdAndUpdate(req.user.id, { payoutSetupComplete: false });
+      
       return res.json({
         payoutSetupComplete: false,
-        missingRequirements: account.requirements.currently_due,
-        pendingVerification: account.requirements.pending_verification,
+        debug: {
+          stripeAccountId: account.id,
+          charges_enabled: account.charges_enabled,
+          payouts_enabled: account.payouts_enabled,
+          details_submitted: account.details_submitted,
+        },
+        missingRequirements: account.requirements?.currently_due || [],
+        pendingVerification: account.requirements?.pending_verification || [],
+        reason: `charges_enabled: ${account.charges_enabled}, payouts_enabled: ${account.payouts_enabled}`
       });
     }
   } catch (error) {
+    console.error('=== ERROR in checkPayoutSetup ===');
+    console.error('Error message:', error.message);
+    console.error('Error type:', error.type);
+    console.error('Full error:', error);
+    
     logger.error('Error checking payout setup:', error);
-    res.status(500).json({ error: 'Failed to check payout setup status' });
+    res.status(500).json({ 
+      error: 'Failed to check payout setup status',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 

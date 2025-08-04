@@ -75,7 +75,7 @@ const Profile = () => {
           specialties: userData.specialties || [],
           stripeAccountId: userData.stripeAccountId || null,
           payoutSetupComplete: payoutSetupResponse.data.payoutSetupComplete || false,
-          pendingVerification: payoutSetupResponse.data.pendingVerification || [], // Add pendingVerification to state
+          pendingVerification: payoutSetupResponse.data.pendingVerification || [], 
         });
   
         if (subscriptionResponse.data) {
