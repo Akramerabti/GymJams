@@ -309,7 +309,7 @@ const CoachingHome = () => {
                 whileTap={{ scale: 0.98 }}
                 onClick={() => handleVideoClick({
                   title: t('coachinghome.videoOverviewTitle'),
-                  thumbnail: '/GymTonic.mp4',
+                  thumbnail: '/coaching_review.mp4',
                   description: t('coachinghome.videoOverviewDesc')
                 })}
               >
@@ -319,7 +319,7 @@ const CoachingHome = () => {
                     muted
                     preload="metadata"
                   >
-                    <source src="/GymTonic.mp4" type="video/mp4" />
+                    <source src="/coaching_preview.mp4" type="video/mp4" />
                   </video>                  {/* Play Button Overlay */}
                   <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-300 flex items-center justify-center">
                     <div className="bg-white/95 rounded-full p-6 shadow-xl group-hover:scale-110 transition-transform duration-300">

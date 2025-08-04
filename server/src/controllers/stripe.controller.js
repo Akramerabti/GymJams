@@ -206,6 +206,21 @@ export const checkPayoutSetup = async (req, res) => {
     console.log('charges_enabled:', account.charges_enabled);
     console.log('payouts_enabled:', account.payouts_enabled);
     console.log('Combined check (charges_enabled && payouts_enabled):', isSetupComplete);
+    console.log('Current user payoutSetupComplete in DB:', user.payoutSetupComplete);
+    
+    // Additional checks for debugging
+    console.log('=== ADDITIONAL DEBUGGING ===');
+    console.log('Account type:', account.type);
+    console.log('Account email:', account.email);
+    console.log('Account country:', account.country);
+    console.log('Account created:', account.created);
+    console.log('Account tos_acceptance:', account.tos_acceptance);
+    console.log('Account external_accounts:', account.external_accounts);
+    
+    // Force update if Stripe shows account is ready but DB shows false
+    if (account.charges_enabled && account.payouts_enabled && !user.payoutSetupComplete) {
+      console.log('🔧 FORCE UPDATE: Stripe account is ready but DB shows false, forcing update...');
+    }
 
     if (isSetupComplete) {
       console.log('✅ Setup appears complete, updating database...');
