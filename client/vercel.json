@@ -1,3 +1,11 @@
 {
-    "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+    "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+    "git": {
+      "lfs": true
+    },
+    "build": {
+      "env": {
+        "GIT_LFS_SKIP_SMUDGE": "0"
+      }
+    }
   }
