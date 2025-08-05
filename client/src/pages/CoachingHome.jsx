@@ -369,7 +369,7 @@ const CoachingHome = () => {
                     </video>
                   ) : null}
                   
-                  {/* Fallback content when video fails, is not available, or in production */}
+                  {/* Fallback content when video fails or is not available */}
                   <div className={`video-fallback absolute inset-0 ${videoLoadError || !getVideoUrl() ? 'flex' : 'hidden'} items-center justify-center bg-gradient-to-br from-blue-600 to-purple-600`}>
                     <div className="text-center text-white p-6">
                       <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/20 flex items-center justify-center">
@@ -378,6 +378,11 @@ const CoachingHome = () => {
                       <h4 className="text-lg font-semibold mb-2">Coaching Overview</h4>
                       <p className="text-sm opacity-90">Click to watch our detailed coaching process</p>
                       <p className="text-xs opacity-75 mt-2">See how our expert coaches help you achieve your goals</p>
+                      {videoLoadError && (
+                        <p className="text-xs opacity-60 mt-3 italic">
+                          Video currently unavailable - contact support if this persists
+                        </p>
+                      )}
                     </div>
                   </div>                  {/* Play Button Overlay */}
                   <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-300 flex items-center justify-center">
@@ -1141,27 +1146,39 @@ const CoachingHome = () => {
               </button>
 
               <div className="aspect-video w-full">
-                <video 
-                  className="w-full h-full"
-                  controls
-                  autoPlay
-                  muted
-                  onError={(e) => {
-                    console.error('Modal video failed to load:', e);
-                    toast.error('Video failed to load. Please try again later.');
-                  }}
-                  onLoadStart={() => {
-                    console.log('Modal video started loading...');
-                  }}
-                  onCanPlay={() => {
-                    console.log('Modal video can start playing');
-                  }}
-                >
-                  <source src={selectedVideo.thumbnail} type="video/mp4" />
-                  <p className="text-gray-600 dark:text-gray-300 p-4">
-                    Your browser does not support the video tag or the video failed to load.
-                  </p>
-                </video>
+                {selectedVideo && selectedVideo.thumbnail ? (
+                  <video 
+                    className="w-full h-full"
+                    controls
+                    autoPlay
+                    muted
+                    onError={(e) => {
+                      console.error('Modal video failed to load:', e);
+                      console.error('This is likely because the video is stored in Git LFS and not properly deployed to Vercel');
+                      toast.error('Video failed to load. This may be due to deployment configuration.');
+                    }}
+                    onLoadStart={() => {
+                      console.log('Modal video started loading...');
+                    }}
+                    onCanPlay={() => {
+                      console.log('Modal video can start playing');
+                    }}
+                  >
+                    <source src={selectedVideo.thumbnail} type="video/mp4" />
+                    <p className="text-gray-600 dark:text-gray-300 p-4">
+                      Your browser does not support the video tag or the video failed to load.
+                      <br />
+                      <span className="text-sm italic">This may be due to the video being stored in Git LFS.</span>
+                    </p>
+                  </video>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                    <div className="text-center">
+                      <Play className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                      <p className="text-gray-600 dark:text-gray-300">Video not available</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="p-6">
