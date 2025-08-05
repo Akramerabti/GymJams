@@ -309,7 +309,7 @@ const CoachingHome = () => {
                 whileTap={{ scale: 0.98 }}
                 onClick={() => handleVideoClick({
                   title: t('coachinghome.videoOverviewTitle'),
-                  thumbnail: '/coaching_review.mp4',
+                  thumbnail: '/coaching_preview.mp4',
                   description: t('coachinghome.videoOverviewDesc')
                 })}
               >

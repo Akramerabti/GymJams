@@ -46,7 +46,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
   // Handle play video (for both desktop and mobile)
   const handlePlayVideo = () => {
     const video = {
-      src: '/GymTonic.mp4',
+      src: '/coaching_preview.mp4',
       title: t('coachingsection.videoTitle'),
       description: t('coachingsection.videoDescription')
     };
@@ -196,12 +196,12 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     muted
                     playsInline
                     preload="metadata"
-                    poster="/Picture3.png"
+                    poster="/coachingthumbnail.png"
                     onTouchStart={handleTouchStart}
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEndVideo}
                   >
-                    <source src="/GymTonic.mp4" type="video/mp4" />
+                    <source src="/coaching_preview.mp4" type="video/mp4" />
                   </video>
                   
                   {/* Play Button Overlay */}
@@ -426,10 +426,10 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                   muted
                   playsInline
                   preload="metadata"
-                  poster="/Picture3.png"
+                  poster="/coachingthumbnail.png"
                   onClick={handlePlayVideo}
                 >
-                  <source src="/GymTonic.mp4" type="video/mp4" />
+                  <source src="/coaching_preview.mp4" type="video/mp4" />
                 </video>
                 
                 {/* Play Button Overlay */}
@@ -461,50 +461,48 @@ const CoachingSection = ({ onNavigate, isActive }) => {
 
       {/* Video Modal */}
       {videoModalOpen && selectedVideo && (
-        <>
-          {/* Backdrop */}
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm bg-black/70"
+          onClick={closeVideoModal}
+        >
           <div 
-            className="fixed inset-0 bg-black/80 z-[999999]"
-            onClick={closeVideoModal}
-          ></div>
-          
-          {/* Modal */}
-          <div className="fixed inset-0 flex items-center justify-center p-4 z-[999999] pointer-events-none">
-            <div 
-              className="bg-gray-900 rounded-lg shadow-2xl w-full max-w-2xl pointer-events-auto"
-              onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden relative border border-gray-200 dark:border-gray-700"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={closeVideoModal}
+              className="absolute top-4 right-4 z-50 p-2 rounded-full bg-gray-700 text-gray-400 hover:text-white hover:bg-gray-600 transition-colors duration-200"
             >
-              {/* Header with close button */}
-              <div className="flex justify-between items-center p-4 border-b border-gray-700">
-                <h3 className="text-lg font-semibold text-white">{selectedVideo.title}</h3>
-                <button
-                  onClick={closeVideoModal}
-                  className="text-gray-400 hover:text-white p-1"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-              
-              {/* Video */}
-              <div className="aspect-video bg-black">
-                <video 
-                  className="w-full h-full"
-                  controls
-                  autoPlay
-                  muted
-                  playsInline
-                >
-                  <source src={selectedVideo.src} type="video/mp4" />
-                </video>
-              </div>
-              
-              {/* Footer */}
-              <div className="p-4 bg-gray-800">
-                <p className="text-gray-300 text-sm">{selectedVideo.description}</p>
-              </div>
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="aspect-video w-full">
+              <video 
+                className="w-full h-full"
+                controls
+                autoPlay
+                playsInline
+                onLoadedData={(e) => {
+                  // Unmute the video when it loads
+                  e.target.muted = false;
+                  e.target.volume = 0.7;
+                }}
+              >
+                <source src={selectedVideo.src} type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+            </div>
+
+            <div className="p-6">
+              <h3 className="text-xl font-bold mb-2 text-white">
+                {selectedVideo.title}
+              </h3>
+              <p className="text-gray-300">
+                {selectedVideo.description}
+              </p>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* CSS for floating animation */}

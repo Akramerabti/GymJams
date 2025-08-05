@@ -23,7 +23,6 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-// Draggable image item component
 const SortableImageItem = ({ url, index, onRemove, onEdit, isPlaceholder, selectFile }) => {
   const {
     attributes,
@@ -254,16 +253,19 @@ const ImageCropperModal = ({ image, onSave, onCancel }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] flex flex-col">
-        <div className="p-4 border-b flex justify-between items-center">
-          <h2 className="text-lg font-semibold">Crop Image</h2>
-          <button onClick={onCancel} className="p-2 rounded-full hover:bg-gray-100">
-            <X size={20} />
+    <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col border border-gray-200">
+        <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+          <h2 className="text-lg font-semibold text-gray-900">Crop Image</h2>
+          <button 
+            onClick={onCancel} 
+            className="p-2 rounded-full hover:bg-gray-100 transition-colors duration-200"
+          >
+            <X size={20} className="text-gray-500" />
           </button>
         </div>
         
-        <div className="relative h-[400px] w-full bg-gray-900">
+        <div className="relative h-[350px] w-full bg-gray-900 overflow-hidden">
           <Cropper
             image={image}
             crop={crop}

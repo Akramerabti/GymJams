@@ -5,10 +5,11 @@ import { toast } from 'sonner';
 import api from '../../services/api';
 import { getPlaceholderUrl, getFallbackAvatarUrl } from '../../utils/imageUtils';
 
-const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
+const ProfileImageUpload = ({ currentImage, onUploadSuccess, onShowCropModal }) => {
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
-  const [loading, setLoading] = useState(false);  const [imageUrl, setImageUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
   // Define the base URL
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   // Get fallback image URL from centralized function
@@ -51,10 +52,42 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
         return;
       }
 
-      setFile(selectedFile);
-      setPreviewUrl(URL.createObjectURL(selectedFile));
+      // Create URL for cropping modal and pass to parent
+      const imageUrl = URL.createObjectURL(selectedFile);
+      
+      if (onShowCropModal) {
+        onShowCropModal({
+          image: imageUrl,
+          onCropComplete: (croppedImageBlob) => handleCropComplete(croppedImageBlob, imageUrl),
+          onClose: () => handleCropCancel(imageUrl)
+        });
+      }
     }
   };
+
+  const handleCropComplete = (croppedImageBlob, originalImageUrl) => {
+    // Convert blob to file
+    const croppedFile = new File([croppedImageBlob], 'cropped-image.jpg', {
+      type: 'image/jpeg',
+      lastModified: Date.now(),
+    });
+    
+    setFile(croppedFile);
+    setPreviewUrl(URL.createObjectURL(croppedImageBlob));
+    
+    // Clean up the temporary URL
+    if (originalImageUrl) {
+      URL.revokeObjectURL(originalImageUrl);
+    }
+  };
+
+  const handleCropCancel = (originalImageUrl) => {
+    // Clean up the temporary URL
+    if (originalImageUrl) {
+      URL.revokeObjectURL(originalImageUrl);
+    }
+  };
+
   const handleUpload = async () => {
     if (!file) {
       toast.error('Please select a file first!');
@@ -143,6 +176,20 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess }) => {
           htmlFor="profileImageUpload"
           className="absolute bottom-0 right-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full p-3 cursor-pointer hover:from-blue-600 hover:to-purple-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-110"
           style={{ touchAction: 'manipulation' }} // Ensure touch events work properly
+          onClick={() => {
+            // Clear the file input value to allow selecting the same file again
+            const input = document.getElementById('profileImageUpload');
+            if (input) {
+              input.value = '';
+            }
+            // Clean up previous preview URL to prevent memory leaks
+            if (previewUrl) {
+              URL.revokeObjectURL(previewUrl);
+            }
+            // Clear current file and preview when clicking to change image
+            setFile(null);
+            setPreviewUrl('');
+          }}
         >
           <Camera className="w-5 h-5 text-white" />
           <input

@@ -13,6 +13,7 @@ import {
 import { toast } from 'sonner';
 import api from '../services/api';
 import ProfileImageUpload from '../components/layout/ProfileImageUpload';
+import ImageCropModal from '../components/layout/ImageCropModal';
 import subscriptionService from '../services/subscription.service';
 import StripeOnboardingForm from '../pages/StripeOnboardingForm'; // Import the StripeOnboardingForm
 
@@ -26,6 +27,7 @@ const Profile = () => {
   const [redirecting, setRedirecting] = useState(false);
   const [showStripeOnboarding, setShowStripeOnboarding] = useState(false);
   const [verificationSessionId, setVerificationSessionId] = useState(null);
+  const [cropModalProps, setCropModalProps] = useState(null); // Add state for crop modal
 
   const [profileData, setProfileData] = useState({
     firstName: '',
@@ -189,6 +191,17 @@ const Profile = () => {
     }));
   };
 
+  const handleShowCropModal = (cropModalProps) => {
+    setCropModalProps(cropModalProps);
+  };
+
+  const handleCloseCropModal = () => {
+    if (cropModalProps && cropModalProps.onClose) {
+      cropModalProps.onClose();
+    }
+    setCropModalProps(null);
+  };
+
   const isCoachProfileComplete = () => {
     // Implement your logic to check if the coach profile is complete
     return profileData.firstName && profileData.lastName && profileData.bio && profileData.profileImage;
@@ -262,7 +275,7 @@ const Profile = () => {
   };
 
   return (
-    <div className="min-h-screen mt-10 bg-gray-50">
+    <div className="min-h-screen mt-10 bg-gray-50 relative">
       <div className="container mx-auto px-4 py-8">        <form onSubmit={handleSubmit} className="space-y-6">
           {isCoach ? (
             <div className="relative bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-800 h-48">
@@ -282,6 +295,7 @@ const Profile = () => {
                 <ProfileImageUpload
                   currentImage={profileData.profileImage}
                   onUploadSuccess={handleImageUploadSuccess}
+                  onShowCropModal={handleShowCropModal}
                 />              </div>
             </div>
             
@@ -801,6 +815,16 @@ const Profile = () => {
               />
             </div>
           </div>
+        )}
+
+        {/* Crop Modal */}
+        {cropModalProps && (
+          <ImageCropModal
+            image={cropModalProps.image}
+            onCropComplete={cropModalProps.onCropComplete}
+            onClose={handleCloseCropModal}
+            aspectRatio={1} // Square crop for profile images
+          />
         )}
       </div>
     </div>
