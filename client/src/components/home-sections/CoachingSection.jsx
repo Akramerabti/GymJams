@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowRight, Users, MessageCircle, Calendar, UserCheck, Play, X, Target, Award } from 'lucide-react';
 import subscriptionService from '../../services/subscription.service';
 import { formatImageUrl } from '../../utils/imageUtils';
+import { getCloudinaryVideoUrl, getCloudinaryVideoPoster } from '../../utils/cloudinary';
 import { useTranslation } from 'react-i18next';
 
 const CoachingSection = ({ onNavigate, isActive }) => {
@@ -32,6 +33,26 @@ const CoachingSection = ({ onNavigate, isActive }) => {
     }
   }, [isActive]);
 
+  // Handle ESC key to close video modal
+  useEffect(() => {
+    const handleKeyPress = (event) => {
+      if (event.key === 'Escape' && videoModalOpen) {
+        closeVideoModal();
+      }
+    };
+
+    if (videoModalOpen) {
+      document.addEventListener('keydown', handleKeyPress);
+      // Prevent body scroll when modal is open
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyPress);
+      document.body.style.overflow = 'unset';
+    };
+  }, [videoModalOpen]);
+
   // Handle video click/tap to open modal
   const handleVideoClick = (video) => {
     setSelectedVideo(video);
@@ -46,7 +67,10 @@ const CoachingSection = ({ onNavigate, isActive }) => {
   // Handle play video (for both desktop and mobile)
   const handlePlayVideo = () => {
     const video = {
-      src: '/coaching_preview.mp4',
+      src: getCloudinaryVideoUrl('coaching_preview', { 
+        quality: 'auto:good',
+        format: 'auto'
+      }),
       title: t('coachingsection.videoTitle'),
       description: t('coachingsection.videoDescription')
     };
@@ -88,7 +112,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
   };
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center p-[clamp(1rem,4vw,3rem)] pointer-events-none overflow-hidden">
+    <div className={`absolute inset-0 flex items-center justify-center p-[clamp(1rem,4vw,3rem)] overflow-hidden ${videoModalOpen ? 'pointer-events-auto' : 'pointer-events-auto'}`}>
       {/* Floating Coach Bubbles */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {coaches.map((coach, index) => (
@@ -178,7 +202,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
 
               {/* Mobile Video - Right below description */}
               <div 
-                className="lg:hidden"
+                className="lg:hidden pointer-events-auto"
                 style={{
                   marginBottom: 'clamp(1.5rem,4vw,2.5rem)'
                 }}
@@ -196,18 +220,76 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     muted
                     playsInline
                     preload="metadata"
-                    poster="/coachingthumbnail.png"
-                    onTouchStart={handleTouchStart}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEndVideo}
+                    poster={getCloudinaryVideoPoster('coaching_preview', { 
+                      width: 800, 
+                      height: 450 
+                    })}
+                    onTouchStart={(e) => {
+                      if (videoModalOpen) {
+                        console.log('🚫 Mobile video touch blocked - modal is open');
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
+                      handleTouchStart(e);
+                    }}
+                    onTouchMove={(e) => {
+                      if (videoModalOpen) {
+                        console.log('🚫 Mobile video touch move blocked - modal is open');
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
+                      handleTouchMove(e);
+                    }}
+                    onTouchEnd={(e) => {
+                      if (videoModalOpen) {
+                        console.log('🚫 Mobile video touch end blocked - modal is open');
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
+                      handleTouchEndVideo(e);
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handlePlayVideo();
+                    }}
                   >
-                    <source src="/coaching_preview.mp4" type="video/mp4" />
+                    <source src={getCloudinaryVideoUrl('coaching_preview', { 
+                      quality: 'auto:good',
+                      format: 'auto'
+                    })} type="video/mp4" />
                   </video>
                   
                   {/* Play Button Overlay */}
                   <div 
                     className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-900/40 via-purple-900/30 to-blue-900/40 cursor-pointer transition-all duration-300 hover:from-gray-800/30 hover:via-purple-800/20 hover:to-blue-800/30"
-                    onClick={handlePlayVideo}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handlePlayVideo();
+                    }}
+                    onTouchStart={(e) => {
+                      if (videoModalOpen) {
+                        console.log('🚫 Mobile play button touch blocked - modal is open');
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
+                    }}
+                    onTouchEnd={(e) => {
+                      if (videoModalOpen) {
+                        console.log('🚫 Mobile play button touch end blocked - modal is open');
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handlePlayVideo();
+                    }}
                   >
                     <div 
                       className="bg-gradient-to-r from-purple-400/30 to-blue-400/30 backdrop-blur-sm rounded-full group-hover:scale-110 transition-transform duration-300 border border-purple-300/50"
@@ -408,7 +490,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
             
             {/* Right Side - Desktop Video Only */}
             <div 
-              className="hidden lg:block w-full"
+              className={`hidden lg:block w-full pointer-events-auto`}
               style={{
                 padding: 'clamp(1.5rem,4vw,3rem)'
               }}
@@ -426,16 +508,30 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                   muted
                   playsInline
                   preload="metadata"
-                  poster="/coachingthumbnail.png"
-                  onClick={handlePlayVideo}
+                  poster={getCloudinaryVideoPoster('coaching_preview', { 
+                    width: 800, 
+                    height: 450 
+                  })}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handlePlayVideo();
+                  }}
                 >
-                  <source src="/coaching_preview.mp4" type="video/mp4" />
+                  <source src={getCloudinaryVideoUrl('coaching_preview', { 
+                    quality: 'auto:good',
+                    format: 'auto'
+                  })} type="video/mp4" />
                 </video>
                 
                 {/* Play Button Overlay */}
                 <div 
                   className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-900/40 via-purple-900/30 to-blue-900/40 cursor-pointer transition-all duration-300 hover:from-gray-800/30 hover:via-purple-800/20 hover:to-blue-800/30"
-                  onClick={handlePlayVideo}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handlePlayVideo();
+                  }}
                 >
                   <div 
                     className="bg-gradient-to-r from-purple-400/30 to-blue-400/30 backdrop-blur-sm rounded-full group-hover:scale-110 transition-transform duration-300 border border-purple-300/50"
@@ -462,44 +558,98 @@ const CoachingSection = ({ onNavigate, isActive }) => {
       {/* Video Modal */}
       {videoModalOpen && selectedVideo && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm bg-black/70"
-          onClick={closeVideoModal}
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 backdrop-blur-md bg-black/80"
+          onClick={(e) => {
+            console.log('🎭 Modal backdrop clicked - target:', e.target);
+            console.log('🎭 Modal backdrop clicked - currentTarget:', e.currentTarget);
+            console.log('🎭 Modal backdrop clicked - are they same?', e.target === e.currentTarget);
+            // Only close if clicking the backdrop, not the modal content
+            if (e.target === e.currentTarget) {
+              console.log('🎭 Closing modal from backdrop click');
+              closeVideoModal();
+            } else {
+              console.log('🎭 Not closing - clicked on modal content');
+            }
+          }}
+          onTouchStart={(e) => {
+            console.log('🎭 Modal backdrop touched');
+            // Prevent touch events from bubbling to elements behind modal
+            e.stopPropagation();
+          }}
+          onTouchEnd={(e) => {
+            console.log('🎭 Modal backdrop touch end');
+            // Prevent touch events from bubbling to elements behind modal
+            e.stopPropagation();
+            // Try to close on touch end if touching backdrop directly
+            if (e.target === e.currentTarget) {
+              console.log('🎭 Closing modal from backdrop touch');
+              closeVideoModal();
+            }
+          }}
         >
-          <div 
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden relative border border-gray-200 dark:border-gray-700"
-            onClick={(e) => e.stopPropagation()}
+          <div             className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden relative border border-gray-200 dark:border-gray-700"
+            style={{
+              // Responsive sizing: larger on small screens, 50% on large screens
+              width: 'clamp(320px, 90vw, 50vw)',
+              height: 'clamp(240px, 60vh, 50vh)',
+              maxWidth: '800px',
+              maxHeight: '600px'
+            }}
+            onClick={(e) => {
+              console.log('🎭 Modal content clicked - stopping propagation');
+              e.stopPropagation();
+            }}
           >
             <button
-              onClick={closeVideoModal}
-              className="absolute top-4 right-4 z-50 p-2 rounded-full bg-gray-700 text-gray-400 hover:text-white hover:bg-gray-600 transition-colors duration-200"
+              onClick={(e) => {
+                console.log('❌ Close button clicked - calling closeVideoModal');
+                e.stopPropagation();
+                closeVideoModal();
+              }}
+              onTouchEnd={(e) => {
+                console.log('❌ Close button touched - calling closeVideoModal');
+                e.stopPropagation();
+                closeVideoModal();
+              }}
+              className="absolute top-4 right-4 z-[110] p-2 rounded-full bg-gray-700/90 text-gray-300 hover:text-white hover:bg-gray-600 transition-all duration-200 backdrop-blur-sm border border-gray-600/50 shadow-lg"
+              style={{ 
+                minWidth: '40px', 
+                minHeight: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="aspect-video w-full">
-              <video 
-                className="w-full h-full"
-                controls
-                autoPlay
-                playsInline
-                onLoadedData={(e) => {
-                  // Unmute the video when it loads
-                  e.target.muted = false;
-                  e.target.volume = 0.7;
-                }}
-              >
-                <source src={selectedVideo.src} type="video/mp4" />
-                Your browser does not support the video tag.
-              </video>
-            </div>
+            <div className="w-full h-full flex flex-col">
+              <div className="flex-1 min-h-0">
+                <video 
+                  className="w-full h-full object-contain"
+                  controls
+                  autoPlay
+                  playsInline
+                  onLoadedData={(e) => {
+                    console.log('📹 Video loaded in modal');
+                    // Unmute the video when it loads
+                    e.target.muted = false;
+                    e.target.volume = 0.7;
+                  }}
+                >
+                  <source src={selectedVideo.src} type="video/mp4" />
+                  Your browser does not support the video tag.
+                </video>
+              </div>
 
-            <div className="p-6">
-              <h3 className="text-xl font-bold mb-2 text-white">
-                {selectedVideo.title}
-              </h3>
-              <p className="text-gray-300">
-                {selectedVideo.description}
-              </p>
+              <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-bold mb-2 text-black dark:text-white">
+                  {selectedVideo.title}
+                </h3>
+                <p className="text-sm text-gray-800 dark:text-gray-200">
+                  {selectedVideo.description}
+                </p>
+              </div>
             </div>
           </div>
         </div>

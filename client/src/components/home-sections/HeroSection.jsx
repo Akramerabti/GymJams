@@ -4,6 +4,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import productService from '../../services/product.service';
 import gymBrosService from '../../services/gymbros.service';
 import { formatImageUrl, getFallbackAvatarUrl } from '../../utils/imageUtils';
+import { getCloudinaryVideoUrl } from '../../utils/cloudinary';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogTrigger } from '../ui/dialog';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -190,7 +191,10 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
           }}
           onCanPlay={() => setBackgroundVideoLoaded(true)}
         >
-          <source src="/GymTonic.mp4" type="video/mp4" />
+          <source src={getCloudinaryVideoUrl('gymtonic', { 
+            quality: 'auto:eco',
+            format: 'auto'
+          })} type="video/mp4" />
         </video>
       ) : null}
       <style>{`
@@ -271,7 +275,10 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   x5-video-player-type="h5"
                   x5-video-player-fullscreen="true"
                 >
-                  <source src="/GymTonic.mp4" type="video/mp4" />
+                  <source src={getCloudinaryVideoUrl('gymtonic', { 
+                    quality: 'auto:good',
+                    format: 'auto'
+                  })} type="video/mp4" />
                 </video>
               ) : null}
               {/* Show fallback image only while video is loading or during retry */}

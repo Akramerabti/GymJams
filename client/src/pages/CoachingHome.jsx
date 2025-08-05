@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../stores/authStore';
+import { getCloudinaryVideoUrl } from '../utils/cloudinary';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import api from '../services/api';
@@ -52,13 +53,11 @@ const CoachingHome = () => {
 
   // Helper function to get video URL with fallbacks
   const getVideoUrl = () => {
-    // The video file is stored in Git LFS, which may not work properly on Vercel
-    // We'll try the path but expect it might fail in production due to LFS
-    const videoPath = '/coaching_preview.mp4';
-    
-    console.log('Attempting to load video from:', videoPath);
-    console.log('Note: Video is stored in Git LFS - may not work in production deployment');
-    return videoPath;
+    // Using Cloudinary for optimized video delivery
+    return getCloudinaryVideoUrl('coaching_preview', { 
+      quality: 'auto:good',
+      format: 'auto'
+    });
   };
 
   // Function to handle video errors and try alternatives
