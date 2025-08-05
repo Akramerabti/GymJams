@@ -27,7 +27,8 @@ const CoachingHome = () => {
   const [coaches, setCoaches] = useState([]);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
-  const [selectedVideo, setSelectedVideo] = useState(null);  // Define the base URL
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [videoLoadError, setVideoLoadError] = useState(false);  // Define the base URL
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   const { t } = useTranslation();
 
@@ -47,6 +48,34 @@ const CoachingHome = () => {
     
     // For relative paths
     return `${baseUrl}/${imageUrl}`;
+  };
+
+  // Helper function to get video URL with fallbacks
+  const getVideoUrl = () => {
+    // The video file is stored in Git LFS, which may not work properly on Vercel
+    // We'll try the path but expect it might fail in production due to LFS
+    const videoPath = '/coaching_preview.mp4';
+    
+    console.log('Attempting to load video from:', videoPath);
+    console.log('Note: Video is stored in Git LFS - may not work in production deployment');
+    return videoPath;
+  };
+
+  // Function to handle video errors and try alternatives
+  const handleVideoError = (videoElement) => {
+    setVideoLoadError(true);
+    console.error('Video failed to load. Trying alternative approaches...');
+    
+    // Hide video and show fallback
+    if (videoElement) {
+      videoElement.style.display = 'none';
+    }
+    
+    // Show fallback content
+    const fallback = videoElement?.parentNode?.querySelector('.video-fallback');
+    if (fallback) {
+      fallback.style.display = 'flex';
+    }
   };
 
   useEffect(() => {
@@ -309,30 +338,48 @@ const CoachingHome = () => {
                 whileTap={{ scale: 0.98 }}
                 onClick={() => handleVideoClick({
                   title: t('coachinghome.videoOverviewTitle'),
-                  thumbnail: '/coaching_preview.mp4',
+                  thumbnail: getVideoUrl(), // Use the proper video URL function
                   description: t('coachinghome.videoOverviewDesc')
                 })}
               >
                 <div className="aspect-video relative">
-                  <video 
-                    className="w-full h-full object-cover"
-                    muted
-                    preload="metadata"
-                    onError={(e) => {
-                      console.error('Video failed to load:', e);
-                      // Hide the video element and show fallback
-                      e.target.style.display = 'none';
-                    }}
-                    onLoadStart={() => {
-                      console.log('Video started loading...');
-                    }}
-                    onCanPlay={() => {
-                      console.log('Video can start playing');
-                    }}
-                  >
-                    <source src="/coaching_preview.mp4" type="video/mp4" />
-                    <p className="text-white p-4">Your browser does not support the video tag or the video failed to load.</p>
-                  </video>                  {/* Play Button Overlay */}
+                  {getVideoUrl() ? (
+                    <video 
+                      className="w-full h-full object-cover"
+                      muted
+                      preload="metadata"
+                      onError={(e) => {
+                        console.error('Video failed to load:', e);
+                        console.error('Video source:', e.target.src || 'No src found');
+                        console.error('Attempted video URL:', getVideoUrl());
+                        handleVideoError(e.target);
+                      }}
+                      onLoadStart={(e) => {
+                        console.log('Video started loading...', e.target.src);
+                      }}
+                      onCanPlay={() => {
+                        console.log('Video can start playing');
+                      }}
+                      onLoadedData={() => {
+                        console.log('Video data loaded successfully');
+                      }}
+                    >
+                      <source src={getVideoUrl()} type="video/mp4" />
+                      <p className="text-white p-4">Your browser does not support the video tag or the video failed to load.</p>
+                    </video>
+                  ) : null}
+                  
+                  {/* Fallback content when video fails, is not available, or in production */}
+                  <div className={`video-fallback absolute inset-0 ${videoLoadError || !getVideoUrl() ? 'flex' : 'hidden'} items-center justify-center bg-gradient-to-br from-blue-600 to-purple-600`}>
+                    <div className="text-center text-white p-6">
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/20 flex items-center justify-center">
+                        <Play className="w-8 h-8" />
+                      </div>
+                      <h4 className="text-lg font-semibold mb-2">Coaching Overview</h4>
+                      <p className="text-sm opacity-90">Click to watch our detailed coaching process</p>
+                      <p className="text-xs opacity-75 mt-2">See how our expert coaches help you achieve your goals</p>
+                    </div>
+                  </div>                  {/* Play Button Overlay */}
                   <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-300 flex items-center justify-center">
                     <div className="bg-white/95 rounded-full p-6 shadow-xl group-hover:scale-110 transition-transform duration-300">
                       <Play className="w-10 h-10 text-gray-900 ml-1" style={{ color: '#1f2937' }} />

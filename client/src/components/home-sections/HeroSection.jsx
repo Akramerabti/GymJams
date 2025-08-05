@@ -479,7 +479,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                       <div
                         className={`absolute inset-0 w-full h-full animate-gradient-move z-0`}
                         style={{
-                          background: darkMode
+                          backgroundImage: darkMode
                             ? 'conic-gradient(at top left, #7c3aed 0%, #06b6d4 25%, #f59e42 50%, #f43f5e 75%, #7c3aed 100%)'
                             : 'conic-gradient(at top left, #f472b6 0%, #60a5fa 25%, #34d399 50%, #fbbf24 75%, #f472b6 100%)',
                           opacity: 0.9,
@@ -488,9 +488,6 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                           animation: 'gradient-move 8s ease-in-out infinite',
                           pointerEvents: 'none',
                           zIndex: 0,
-                          // Add !important to background and filter
-                          backgroundImage: `$${darkMode ? 'conic-gradient(at top left, #7c3aed 0%, #06b6d4 25%, #f59e42 50%, #f43f5e 75%, #7c3aed 100%)' : 'conic-gradient(at top left, #f472b6 0%, #60a5fa 25%, #34d399 50%, #fbbf24 75%, #f472b6 100%)'} !important`,
-                          filter: 'blur(2px) !important',
                         }}
                       ></div>
                       <style>{`
