@@ -288,7 +288,8 @@ const CoachingHome = () => {
         animate={{ opacity: 1 }}
         transition={{ duration: 1 }}
       >
-        <div className="absolute inset-0 bg-[url('/images/gym-hero.jpg')] bg-cover bg-center opacity-50 dark:opacity-30"></div>
+        {/* Remove the missing background image for now */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-800/20 to-blue-900/30"></div>
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-blue-900/70 dark:to-blue-950/70"></div>
         <div className="container mx-auto px-4 max-w-6xl relative z-10">
           <div className="text-center mb-16">
