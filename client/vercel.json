@@ -1,11 +1,14 @@
 {
     "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
-    "git": {
-      "lfs": true
-    },
     "build": {
       "env": {
-        "GIT_LFS_SKIP_SMUDGE": "0"
+        "GIT_LFS_SKIP_SMUDGE": "0",
+        "GIT_LFS_SKIP_DOWNLOAD_ERRORS": "1"
+      }
+    },
+    "functions": {
+      "client/src/**": {
+        "maxDuration": 30
       }
     }
   }
