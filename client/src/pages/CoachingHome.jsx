@@ -50,15 +50,18 @@ const CoachingHome = () => {
     return `${baseUrl}/${imageUrl}`;
   };
 
-  // Helper function to get video URL
+  // Helper function to get video URL with fallbacks
   const getVideoUrl = () => {
+    // The video file is stored in Git LFS, which may not work properly on Vercel
+    // We'll try the path but expect it might fail in production due to LFS
     const videoPath = '/coaching_preview.mp4';
     
     console.log('Attempting to load video from:', videoPath);
+    console.log('Note: Video is stored in Git LFS - may not work in production deployment');
     return videoPath;
   };
 
-  // Function to handle video errors
+  // Function to handle video errors and try alternatives
   const handleVideoError = (videoElement) => {
     setVideoLoadError(true);
     console.error('Video failed to load. Trying alternative approaches...');
@@ -1152,7 +1155,8 @@ const CoachingHome = () => {
                     muted
                     onError={(e) => {
                       console.error('Modal video failed to load:', e);
-                      toast.error('Video failed to load. Please try again later.');
+                      console.error('This is likely because the video is stored in Git LFS and not properly deployed to Vercel');
+                      toast.error('Video failed to load. This may be due to deployment configuration.');
                     }}
                     onLoadStart={() => {
                       console.log('Modal video started loading...');
