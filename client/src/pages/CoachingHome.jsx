@@ -52,19 +52,12 @@ const CoachingHome = () => {
 
   // Helper function to get video URL with fallbacks
   const getVideoUrl = () => {
-    // Check if we're in production environment
-    const isProduction = import.meta.env.PROD;
+    // The video file is stored in Git LFS, which may not work properly on Vercel
+    // We'll try the path but expect it might fail in production due to LFS
     const videoPath = '/coaching_preview.mp4';
     
-    console.log('Environment:', isProduction ? 'Production' : 'Development');
     console.log('Attempting to load video from:', videoPath);
-    
-    if (isProduction) {
-      console.log('Note: Video is stored in Git LFS - may not be available in Vercel production deployment');
-      // In production, we'll try the path but expect it to fail due to LFS limitations
-      // The error handling will show the fallback content
-    }
-    
+    console.log('Note: Video is stored in Git LFS - may not work in production deployment');
     return videoPath;
   };
 
