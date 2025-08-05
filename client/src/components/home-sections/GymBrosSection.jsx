@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowRight, Users, MessageCircle, Target, Play, X, UserPlus, Dumbbell, MapPin, Calendar, Zap } from 'lucide-react';
-import { getCloudinaryVideoUrl, getCloudinaryVideoPoster } from '../../utils/cloudinary';
+import { getCloudinaryVideoUrl, getCloudinaryVideoPoster, getCloudinaryThumbnail } from '../../utils/cloudinary';
 import { useTranslation } from 'react-i18next';
 
 const GymBrosSection = ({ onNavigate, isActive }) => {

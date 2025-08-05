@@ -81,11 +81,40 @@ export const getCloudinaryVideoPoster = (publicId, options = {}) => {
     quality: imageQuality = 'auto'
   } = options;
 
-  // Use the full path including folder structure from Cloudinary
   const fullPublicId = publicId.includes('/') ? publicId : `gymtonic/videos/${publicId}`;
   const image = cld.image(fullPublicId)
     .resize(fill().width(width).height(height))
     .delivery(format('auto'))
+    .delivery(quality(imageQuality));
+
+  return image.toURL();
+};
+
+/**
+ * Get video thumbnail image URL from Cloudinary (for dedicated thumbnail images)
+ * @param {string} publicId - The public ID of the thumbnail image in Cloudinary
+ * @param {object} options - Transformation options
+ * @returns {string} - Thumbnail image URL
+ */
+export const getCloudinaryThumbnail = (publicId, options = {}) => {
+  const {
+    width = 800,
+    height = 450,
+    quality: imageQuality = 'auto',
+    format: formatType = 'auto'
+  } = options;
+  
+  // Use the full path including folder structure from Cloudinary
+  const fullPublicId = publicId.includes('/') ? publicId : `gymtonic/${publicId}`;
+  let image = cld.image(fullPublicId);
+
+  // Apply transformations
+  if (width || height) {
+    image = image.resize(fill().width(width).height(height));
+  }
+  
+  image = image
+    .delivery(format(formatType))
     .delivery(quality(imageQuality));
 
   return image.toURL();

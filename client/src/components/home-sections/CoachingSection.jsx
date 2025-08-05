@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowRight, Users, MessageCircle, Calendar, UserCheck, Play, X, Target, Award } from 'lucide-react';
 import subscriptionService from '../../services/subscription.service';
 import { formatImageUrl } from '../../utils/imageUtils';
-import { getCloudinaryVideoUrl, getCloudinaryVideoPoster } from '../../utils/cloudinary';
+import { getCloudinaryVideoUrl, getCloudinaryVideoPoster, getCloudinaryThumbnail } from '../../utils/cloudinary';
 import { useTranslation } from 'react-i18next';
 
 const CoachingSection = ({ onNavigate, isActive }) => {
@@ -220,7 +220,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     muted
                     playsInline
                     preload="metadata"
-                    poster={getCloudinaryVideoPoster('coaching_preview', { 
+                    poster={getCloudinaryThumbnail('coaching_thumbnail', { 
                       width: 800, 
                       height: 450 
                     })}
@@ -508,7 +508,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                   muted
                   playsInline
                   preload="metadata"
-                  poster={getCloudinaryVideoPoster('coaching_preview', { 
+                  poster={getCloudinaryThumbnail('coaching_thumbnail', { 
                     width: 800, 
                     height: 450 
                   })}
