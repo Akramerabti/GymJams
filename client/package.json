@@ -5,8 +5,8 @@
  "type": "module",
  "scripts": {
   "dev": "vite",
-  "build": "git lfs pull && vite build",
-  "build:vercel": "git lfs install && git lfs pull && vite build",
+  "build": "(git lfs pull 2>/dev/null || echo 'LFS pull failed, continuing build...') && vite build",
+  "build:vercel": "(git lfs install 2>/dev/null || echo 'LFS install failed') && (git lfs pull 2>/dev/null || echo 'LFS pull failed, building without LFS files') && vite build",
   "preview": "vite preview"
  },
  "dependencies": {
