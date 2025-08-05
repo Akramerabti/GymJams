@@ -318,8 +318,20 @@ const CoachingHome = () => {
                     className="w-full h-full object-cover"
                     muted
                     preload="metadata"
+                    onError={(e) => {
+                      console.error('Video failed to load:', e);
+                      // Hide the video element and show fallback
+                      e.target.style.display = 'none';
+                    }}
+                    onLoadStart={() => {
+                      console.log('Video started loading...');
+                    }}
+                    onCanPlay={() => {
+                      console.log('Video can start playing');
+                    }}
                   >
                     <source src="/coaching_preview.mp4" type="video/mp4" />
+                    <p className="text-white p-4">Your browser does not support the video tag or the video failed to load.</p>
                   </video>                  {/* Play Button Overlay */}
                   <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-300 flex items-center justify-center">
                     <div className="bg-white/95 rounded-full p-6 shadow-xl group-hover:scale-110 transition-transform duration-300">
@@ -1087,9 +1099,21 @@ const CoachingHome = () => {
                   controls
                   autoPlay
                   muted
+                  onError={(e) => {
+                    console.error('Modal video failed to load:', e);
+                    toast.error('Video failed to load. Please try again later.');
+                  }}
+                  onLoadStart={() => {
+                    console.log('Modal video started loading...');
+                  }}
+                  onCanPlay={() => {
+                    console.log('Modal video can start playing');
+                  }}
                 >
                   <source src={selectedVideo.thumbnail} type="video/mp4" />
-                  Your browser does not support the video tag.
+                  <p className="text-gray-600 dark:text-gray-300 p-4">
+                    Your browser does not support the video tag or the video failed to load.
+                  </p>
                 </video>
               </div>
 
