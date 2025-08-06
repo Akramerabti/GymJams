@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Search, CheckCircle, Clock, RefreshCw, Mail, Star, Info, X, Sparkles, Award, Target, Heart, Trophy } from 'lucide-react';
+import { User, Search, CheckCircle, Clock, RefreshCw, Mail, Star, Info, X, Sparkles, Award, Target, Heart, Trophy, MapPin } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -59,6 +59,13 @@ const CoachProfileModal = ({ coach, onClose }) => {
             icon: Clock, 
             label: 'Time Zone', 
             value: coach.timeZone 
+          },
+          { 
+            icon: MapPin, 
+            label: 'Location', 
+            value: coach.distance ? 
+              `${coach.locationDisplay} (${coach.distance} miles away)` : 
+              coach.locationDisplay 
           }
         ]
       },
@@ -279,16 +286,31 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
           }, 8000);
         } else {
           console.log('🏋️ Fetching coaches for assignment...');
-          const response = await subscriptionService.getCoaches();
+          
+          // Get user's location from localStorage for distance-based matching
+          let userLocation = null;
+          try {
+            const storedLocation = localStorage.getItem('userLocation');
+            if (storedLocation) {
+              userLocation = JSON.parse(storedLocation);
+              console.log('📍 Using stored user location for coach matching:', userLocation);
+            }
+          } catch (error) {
+            console.log('⚠️ Could not parse stored user location:', error);
+          }
+          
+          const response = await subscriptionService.getCoaches(null, userLocation);
           console.log('📊 Coach assignment fetch results:', {
             totalCoaches: Array.isArray(response) ? response.length : 'Not array',
             responseType: typeof response,
+            userLocationUsed: !!userLocation,
             coaches: Array.isArray(response) ? response.map(coach => ({
               id: coach._id,
               name: `${coach.firstName} ${coach.lastName}`,
               locationDisplay: coach.locationDisplay,
               hasLocation: coach.hasLocation,
-              location: coach.location
+              location: coach.location,
+              distance: coach.distance
             })) : response
           });
           //('Coaches Response:', response); // Debugging log          // Ensure response is an array
@@ -974,6 +996,19 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
                                   </span>
                                 </div>
                               )}
+
+                              {/* Location Display */}
+                              {coach.locationDisplay && (
+                                <div className="flex items-center justify-center space-x-1 mt-2">
+                                  <MapPin className="w-3 h-3 text-white/80 drop-shadow-sm" />
+                                  <span className="text-xs text-white/90 drop-shadow-sm">
+                                    {coach.distance ? 
+                                      `${coach.locationDisplay} (${coach.distance} mi)` : 
+                                      coach.locationDisplay
+                                    }
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -1111,6 +1146,17 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
                         <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
                         <span className="text-sm text-gray-700">
                           {tempSelectedCoach.rating.toFixed(1)}
+                        </span>
+                      </div>
+                    )}
+                    {tempSelectedCoach.locationDisplay && (
+                      <div className="flex items-center mt-1 space-x-1">
+                        <MapPin className="w-4 h-4 text-blue-500" />
+                        <span className="text-sm text-gray-700">
+                          {tempSelectedCoach.distance ? 
+                            `${tempSelectedCoach.locationDisplay} (${tempSelectedCoach.distance} mi)` : 
+                            tempSelectedCoach.locationDisplay
+                          }
                         </span>
                       </div>
                     )}

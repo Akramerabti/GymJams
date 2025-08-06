@@ -68,7 +68,6 @@ const useAuthStore = create(
       // Validate phone
       validatePhone: async (phone) => {
         const { user } = get();
-        //('Validating phone:', phone); // Log the phone number
         try {
           const response = await api.post('/auth/validate-phone', {
             phone: phone,
@@ -76,7 +75,7 @@ const useAuthStore = create(
           });
           return response.data.isValid;
         } catch (error) {
-          console.error('Error validating phone:', error); // Log any errors
+          console.error('Error validating phone:', error);
           throw error;
         }
       },
@@ -197,7 +196,6 @@ const useAuthStore = create(
           if (user.points !== undefined) {
             usePoints.getState().setBalance(user.points);
           }
-          //('has received login bonus', user.hasReceivedFirstLoginBonus)
           if (!(user.hasReceivedFirstLoginBonus)) {
             set({ showOnboarding: true }); 
             usePoints.getState().updatePointsInBackend((user.points)+100);
@@ -336,8 +334,6 @@ const useAuthStore = create(
       // New method to sync location data on login
       syncLocationOnLogin: async (user) => {
         try {
-          console.log('🔄 AuthStore: Starting location sync on login for user:', user.id);
-          
           // Helper function to check if location data is complete
           const hasCompleteLocationData = (location) => {
             return location && location.lat && location.lng && location.city;
@@ -347,15 +343,11 @@ const useAuthStore = create(
           const localLocation = localStorage.getItem('userLocation');
           const parsedLocalLocation = localLocation ? JSON.parse(localLocation) : null;
           
-          console.log('📍 AuthStore: Local location:', parsedLocalLocation);
-          console.log('🏠 AuthStore: Backend location:', user.location);
-          
           // Check if user has given location permission before
           const hasLocationPermission = parsedLocalLocation || hasCompleteLocationData(user.location);
           
           if (hasLocationPermission) {
             // User has provided location before - fetch fresh location
-            console.log('🔄 AuthStore: User has location permission, fetching fresh location...');
             await get().refreshUserLocation(user);
           } else {
             // Handle first-time location sync scenarios:
@@ -366,12 +358,9 @@ const useAuthStore = create(
             
             if (hasCompleteLocationData(parsedLocalLocation) && !hasCompleteLocationData(user.location)) {
               // Case 1: Upload localStorage location to backend
-              console.log('⬆️ AuthStore: Uploading localStorage location to backend');
               
               const response = await api.put('/user/location', parsedLocalLocation);
               if (response.status === 200) {
-                console.log('✅ AuthStore: Successfully synced localStorage location to backend');
-                
                 // Update user in store
                 const updatedUser = {
                   ...user,
@@ -383,7 +372,6 @@ const useAuthStore = create(
               }
             } else if (hasCompleteLocationData(user.location) && !hasCompleteLocationData(parsedLocalLocation)) {
               // Case 2: Download backend location to localStorage
-              console.log('⬇️ AuthStore: Downloading backend location to localStorage');
               
               const locationData = {
                 lat: user.location.lat,
@@ -394,7 +382,6 @@ const useAuthStore = create(
               };
               
               localStorage.setItem('userLocation', JSON.stringify(locationData));
-              console.log('✅ AuthStore: Successfully synced backend location to localStorage');
               
               // Update user flags since they now have complete location
               const updatedUser = {
@@ -408,14 +395,8 @@ const useAuthStore = create(
               const localTime = new Date(parsedLocalLocation.timestamp || 0);
               const backendTime = new Date(user.location.updatedAt || 0);
               
-              console.log('🔄 AuthStore: Both locations exist, comparing timestamps:', {
-                local: localTime,
-                backend: backendTime
-              });
-              
               // If backend is more recent, update localStorage
               if (backendTime > localTime) {
-                console.log('⬇️ AuthStore: Backend location is newer, updating localStorage');
                 const locationData = {
                   lat: user.location.lat,
                   lng: user.location.lng,
@@ -437,7 +418,6 @@ const useAuthStore = create(
             }
           }
           
-          console.log('✅ AuthStore: Location sync completed');
         } catch (error) {
           console.error('❌ AuthStore: Error syncing location on login:', error);
           // Don't throw error to avoid breaking login flow
@@ -447,11 +427,8 @@ const useAuthStore = create(
       // New method to refresh user location on login/reload
       refreshUserLocation: async (user) => {
         try {
-          console.log('🔄 AuthStore: Refreshing user location...');
-          
           // Check if geolocation is available
           if (!navigator.geolocation) {
-            console.log('❌ AuthStore: Geolocation not supported');
             return;
           }
           
@@ -469,11 +446,9 @@ const useAuthStore = create(
           });
           
           const { latitude, longitude } = position.coords;
-          console.log('📍 AuthStore: Fresh GPS coordinates:', { lat: latitude, lng: longitude });
           
           // Reverse geocode to get current city
           const cityName = await get().reverseGeocode(latitude, longitude);
-          console.log('🏙️ AuthStore: Current city:', cityName);
           
           const freshLocationData = {
             lat: latitude,
@@ -489,12 +464,9 @@ const useAuthStore = create(
           
           // Update backend if user is logged in
           if (user?.id) {
-            console.log('⬆️ AuthStore: Uploading fresh location to backend...');
             const response = await api.put('/user/location', freshLocationData);
             
             if (response.status === 200) {
-              console.log('✅ AuthStore: Fresh location updated successfully');
-              
               // Update user in store
               const updatedUser = {
                 ...user,
@@ -507,7 +479,6 @@ const useAuthStore = create(
           }
           
         } catch (error) {
-          console.log('⚠️ AuthStore: Could not refresh location (user may have denied permission):', error.message);
           // Don't throw error - user might have revoked location permission
         }
       },

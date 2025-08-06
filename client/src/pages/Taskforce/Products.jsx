@@ -407,7 +407,7 @@ const Products = ({ onRefreshDashboard }) => {
     products: [],
     categories: [],
     maxUses: '',
-    duration: '',
+    duration: 'once', // Default to 'once' to avoid empty string enum validation error
     duration_in_months: ''
   });
   const [couponCodes, setCouponCodes] = useState([]);
@@ -445,18 +445,22 @@ const Products = ({ onRefreshDashboard }) => {
       };
       // Only pass duration for coaching type
       if (couponForm.type === 'coaching') {
-        payload.duration = couponForm.duration;
+        payload.duration = couponForm.duration || 'once'; // Ensure default value
         if (couponForm.duration === 'repeating' && couponForm.duration_in_months) {
           payload.duration_in_months = couponForm.duration_in_months;
         }
       } else if (couponForm.type === 'both') {
         payload.duration = 'once';
       }
+      
+      console.log('Products.jsx: Submitting coupon payload:', payload);
+      
       await productService.createCouponCode(payload);
       toast.success(`Coupon code "${couponForm.code}" created!`);
-      setCouponForm({ code: '', discount: '', type: '', subscription: '', products: [], categories: [], maxUses: '', duration: '', duration_in_months: '' });
+      setCouponForm({ code: '', discount: '', type: '', subscription: '', products: [], categories: [], maxUses: '', duration: 'once', duration_in_months: '' });
       fetchCouponCodes();
     } catch (err) {
+      console.error('Products.jsx: Coupon creation error:', err);
       toast.error(err.response?.data?.message || 'Failed to create coupon code');
     }
   };
@@ -677,7 +681,25 @@ const Products = ({ onRefreshDashboard }) => {
                       <label className="block text-sm font-medium mb-1">Coupon Type</label>
                       <select
                         value={couponForm.type}
-                        onChange={e => setCouponForm({ ...couponForm, type: e.target.value })}
+                        onChange={e => {
+                          const newType = e.target.value;
+                          const updates = { ...couponForm, type: newType };
+                          
+                          // Set appropriate defaults based on type
+                          if (newType === 'coaching') {
+                            updates.duration = couponForm.duration || 'once';
+                            updates.subscription = couponForm.subscription || '';
+                          } else if (newType === 'both') {
+                            updates.duration = 'once'; // Always 'once' for both type
+                            updates.subscription = couponForm.subscription || '';
+                          } else {
+                            // For product type, clear coaching-specific fields
+                            updates.duration = 'once';
+                            updates.subscription = '';
+                          }
+                          
+                          setCouponForm(updates);
+                        }}
                         className="w-full border rounded px-2 py-2"
                         required
                       >

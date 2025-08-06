@@ -185,7 +185,7 @@ async submitQuestionnaire(answers, accessToken = null, isEdit = false) {
       if (userLocation && userLocation.lat && userLocation.lng) {
         params.userLat = userLocation.lat;
         params.userLng = userLocation.lng;
-        params.maxDistance = 50; // Default 50 mile radius
+        params.maxDistance = 100; // Updated to 100 mile radius for expanded search
       }
       
       console.log('📤 Making API request to /auth/coach with params:', params);

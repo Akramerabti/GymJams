@@ -798,16 +798,46 @@ export const getCoach = async (req, res) => {
       // Import location service
       const { getCoachesWithinRadius, formatLocationForDisplay } = await import('../services/location.service.js');
       
-      // Filter coaches with location by distance
-      const nearbyCoaches = getCoachesWithinRadius(userLocation, coachesWithLocation, parseFloat(maxDistance));
+      // Try 50 miles first, then expand to 100 miles if needed
+      let nearbyCoaches = getCoachesWithinRadius(userLocation, coachesWithLocation, 50);
+      let searchRadius = 50;
       
-      // Format location for display
-      processedCoaches = nearbyCoaches.map(coach => ({
-        ...coach.toObject(),
-        locationDisplay: formatLocationForDisplay(coach.location, coach.distance),
-        distance: coach.distance,
-        hasLocation: true
-      }));
+      if (nearbyCoaches.length === 0) {
+        nearbyCoaches = getCoachesWithinRadius(userLocation, coachesWithLocation, 100);
+        searchRadius = 100;
+        logger.info(`No coaches within 50 miles, expanded to 100 miles: found ${nearbyCoaches.length} coaches`);
+      } else {
+        logger.info(`Found ${nearbyCoaches.length} coaches within 50 miles`);
+      }
+      
+      if (nearbyCoaches.length > 0) {
+        // Sort by distance (closest first), then by rating
+        nearbyCoaches.sort((a, b) => {
+          if (a.distance !== b.distance) {
+            return a.distance - b.distance; // Closest first
+          }
+          return (b.rating || 0) - (a.rating || 0); // Higher rating if same distance
+        });
+        
+        // Format location for display with distance
+        processedCoaches = nearbyCoaches.map(coach => ({
+          ...coach.toObject(),
+          locationDisplay: formatLocationForDisplay(coach.location, coach.distance),
+          distance: Math.round(coach.distance * 10) / 10, // Round to 1 decimal place
+          hasLocation: true,
+          searchRadius: searchRadius
+        }));
+      } else {
+        // No coaches within 100 miles - show all coaches without distance info
+        logger.info('No coaches within 100 miles, showing all available coaches');
+        processedCoaches = coachesWithLocation.map(coach => ({
+          ...coach.toObject(),
+          locationDisplay: coach.location.city,
+          distance: null,
+          hasLocation: true,
+          searchRadius: null
+        }));
+      }
     } else {
       // No user location provided - show all coaches with location data
       processedCoaches = coachesWithLocation.map(coach => ({

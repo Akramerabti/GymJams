@@ -2177,18 +2177,24 @@ const automaticCoachAssignment = async (subscription) => {
     if (userLocation && userLocation.lat && userLocation.lng && coachesWithLocation.length > 0) {
       const { getCoachesWithinRadius, calculateLocationCompatibilityScore } = await import('../services/location.service.js');
       
-      // Get coaches within 50 miles first
-      const nearbyCoaches = getCoachesWithinRadius(userLocation, coachesWithLocation, 50);
+      // Try 50 miles first, then expand to 100 miles if needed
+      let nearbyCoaches = getCoachesWithinRadius(userLocation, coachesWithLocation, 50);
+      let searchRadius = 50;
+      
+      if (nearbyCoaches.length === 0) {
+        nearbyCoaches = getCoachesWithinRadius(userLocation, coachesWithLocation, 100);
+        searchRadius = 100;
+        logger.info(`No coaches within 50 miles for assignment, expanded to 100 miles: found ${nearbyCoaches.length} coaches`);
+      } else {
+        logger.info(`Found ${nearbyCoaches.length} coaches within 50 miles for assignment`);
+      }
       
       if (nearbyCoaches.length > 0) {
-        // Sort nearby coaches by location compatibility, client load, and rating
+        // Sort nearby coaches by distance (closest first), then client load, then rating
         const sortedNearbyCoaches = nearbyCoaches.sort((a, b) => {
-          const locationScoreA = calculateLocationCompatibilityScore(userLocation, a.location, 50);
-          const locationScoreB = calculateLocationCompatibilityScore(userLocation, b.location, 50);
-          
-          // Primary sort: location compatibility (higher is better)
-          if (locationScoreA !== locationScoreB) {
-            return locationScoreB - locationScoreA;
+          // Primary sort: distance (closer is better)
+          if (a.distance !== b.distance) {
+            return a.distance - b.distance;
           }
           
           // Secondary sort: fewer clients (lower is better)
@@ -2203,10 +2209,10 @@ const automaticCoachAssignment = async (subscription) => {
         // Combine prioritized nearby coaches with remaining coaches
         availableCoaches = [...sortedNearbyCoaches, ...coachesWithoutLocation];
         
-        logger.info(`Found ${nearbyCoaches.length} coaches within 50 miles for location-based assignment`);
+        logger.info(`Using distance-based assignment within ${searchRadius} miles`);
       } else {
-        // No coaches within 50 miles, use all available coaches sorted by rating and client load
-        logger.info('No coaches within 50 miles, using all available coaches');
+        // No coaches within 100 miles, use all available coaches sorted by rating and client load
+        logger.info('No coaches within 100 miles for assignment, using all available coaches');
         availableCoaches = [...coachesWithLocation, ...coachesWithoutLocation].sort((a, b) => {
           // Sort by client load, then rating
           if (a.availability.currentClients !== b.availability.currentClients) {

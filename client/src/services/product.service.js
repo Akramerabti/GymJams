@@ -312,6 +312,7 @@ const productService = {
   // Coupon code APIs
   async createCouponCode(data) {
     try {
+      console.log('product.service.js: Creating coupon code with data:', data);
       const response = await api.post('/products/coupon-codes', data);
       return response.data;
     } catch (error) {
