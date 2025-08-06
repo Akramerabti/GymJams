@@ -17,7 +17,6 @@ const LocationBanner = ({ onLocationSet }) => {
     
     // Migrate legacy users: If they permanently dismissed before, convert to 24h rejection
     if (bannerDismissed && !bannerRejectedData) {
-      console.log('🔄 LocationBanner: Migrating legacy dismissal to 24h rejection system');
       const rejection = {
         timestamp: Date.now(),
         expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
@@ -36,28 +35,15 @@ const LocationBanner = ({ onLocationSet }) => {
         // Clean up expired rejection
         if (!bannerRejected) {
           localStorage.removeItem('locationBannerRejected');
-          console.log('🧹 LocationBanner: Cleaned up expired rejection');
         }
       } catch (e) {
         localStorage.removeItem('locationBannerRejected');
       }
     }
     
-    console.log('🌍 LocationBanner: Checking if should show banner', {
-      userId: user?.id || 'guest',
-      role: user?.role || 'guest',
-      hasCompleteLocation: user?.hasCompleteLocation,
-      needsLocationUpdate: user?.needsLocationUpdate,
-      hasLocation: !!hasLocation,
-      bannerRejected,
-      isDismissed
-    });
-
     // Auto-fetch location if user has given permission before (for guests and users)
     const checkAndFetchLocation = async () => {
       if (hasLocation && navigator.geolocation) {
-        console.log('🔄 LocationBanner: User has location data, checking if we can fetch fresh location...');
-        
         try {
           // Try to get current position to check if permission is still granted
           const position = await new Promise((resolve, reject) => {
@@ -72,7 +58,6 @@ const LocationBanner = ({ onLocationSet }) => {
             );
           });
 
-          console.log('✅ LocationBanner: Got fresh location, updating...');
           const { latitude, longitude } = position.coords;
           const cityName = await reverseGeocode(latitude, longitude);
 
@@ -91,10 +76,8 @@ const LocationBanner = ({ onLocationSet }) => {
           // Call parent callback if available
           onLocationSet?.(freshLocationData);
           
-          console.log('🎯 LocationBanner: Location auto-updated, banner will not show');
           return true; // Location successfully updated
         } catch (error) {
-          console.log('⚠️ LocationBanner: Could not auto-fetch location, permission may be revoked:', error.message);
           return false; // Location fetch failed
         }
       }
@@ -103,23 +86,6 @@ const LocationBanner = ({ onLocationSet }) => {
 
     // Execute the location check
     checkAndFetchLocation().then((locationFetched) => {
-      console.log('🌍 LocationBanner: Final banner decision', {
-        userId: user?.id || 'guest',
-        role: user?.role || 'guest',
-        hasCompleteLocation: user?.hasCompleteLocation,
-        needsLocationUpdate: user?.needsLocationUpdate,
-        hasLocation: !!hasLocation,
-        bannerRejected,
-        isDismissed,
-        locationFetched
-      });
-
-      // Show banner logic:
-      // - If location was successfully fetched, don't show banner
-      // - If user is logged in: Show if needsLocationUpdate AND location fetch failed
-      // - If user is guest: Show if no location data AND location fetch failed
-      // - Always respect 24h rejection period
-      
       const userNeedsLocation = user ? user.needsLocationUpdate : !hasLocation;
       const shouldShow = userNeedsLocation && 
                         !locationFetched && 
@@ -127,9 +93,6 @@ const LocationBanner = ({ onLocationSet }) => {
                         !bannerRejected;
       
       if (shouldShow) {
-        const userType = user ? `${user.role} user` : 'guest';
-        console.log(`🎯 LocationBanner: Showing for ${userType} (location needed for coaching system)`);
-        
         // Reset success state when showing banner again
         setLocationSuccess(false);
         setLocationCity('');
@@ -223,11 +186,6 @@ const LocationBanner = ({ onLocationSet }) => {
     setIsVisible(false);
     setIsDismissed(true);
     
-    console.log('❌ LocationBanner: User dismissed banner', {
-      role: user?.role,
-      userId: user?.id || 'guest'
-    });
-    
     // For ALL users (including guests): Set rejection flag with 24-hour expiration
     // Location is important for the coaching matching system for everyone
     const rejection = {
@@ -235,7 +193,6 @@ const LocationBanner = ({ onLocationSet }) => {
       expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
     };
     localStorage.setItem('locationBannerRejected', JSON.stringify(rejection));
-    console.log('⏰ LocationBanner: Set 24h rejection for user (will show again in 24h if no location)');
   };
 
   if (!isVisible) return null;

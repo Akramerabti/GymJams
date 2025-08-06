@@ -64,11 +64,8 @@ const App = () => {
 
   const refreshGuestLocation = async () => {
     try {
-      console.log('🔄 App.jsx: Refreshing guest location...');
-      
       // Check if geolocation is available
       if (!navigator.geolocation) {
-        console.log('❌ App.jsx: Geolocation not supported');
         return;
       }
       
@@ -86,11 +83,9 @@ const App = () => {
       });
       
       const { latitude, longitude } = position.coords;
-      console.log('📍 App.jsx: Fresh guest GPS coordinates:', { lat: latitude, lng: longitude });
       
       // Reverse geocode to get current city
       const cityName = await reverseGeocode(latitude, longitude);
-      console.log('🏙️ App.jsx: Current guest city:', cityName);
       
       const freshLocationData = {
         lat: latitude,
@@ -103,23 +98,17 @@ const App = () => {
       
       // Update localStorage for guest
       localStorage.setItem('userLocation', JSON.stringify(freshLocationData));
-      console.log('✅ App.jsx: Guest location refreshed successfully');
       
     } catch (error) {
-      console.log('⚠️ App.jsx: Could not refresh guest location (user may have denied permission):', error.message);
       // Don't throw error - user might have revoked location permission
     }
   };
 
   const handleLocationSet = async (locationData) => {
-    console.log('🔄 App.jsx: handleLocationSet called with:', locationData);
-    
     try {
       const token = localStorage.getItem('token');
-      console.log('🔑 App.jsx: Token exists:', !!token);
       
       if (token) {
-        console.log('📤 App.jsx: Making API request to /api/user/location');
         const response = await fetch('/api/user/location', {
           method: 'PUT',
           headers: {
@@ -129,11 +118,8 @@ const App = () => {
           body: JSON.stringify(locationData)
         });
         
-        console.log('📨 App.jsx: API response status:', response.status);
-        
         if (response.ok) {
           const result = await response.json();
-          console.log('✅ App.jsx: User location updated successfully:', result);
           
           // Also update the auth store if possible
           const authStore = useAuthStore.getState();
@@ -157,8 +143,6 @@ const App = () => {
             // Not JSON, just log the text
           }
         }
-      } else {
-        console.warn('⚠️ App.jsx: No token found, user not authenticated');
       }
     } catch (error) {
       console.error('❌ App.jsx: Error updating user location:', error);
@@ -179,11 +163,10 @@ const App = () => {
           // For guest users, also refresh location if they have given permission before
           const hasLocation = localStorage.getItem('userLocation');
           if (hasLocation) {
-            console.log('🔄 App.jsx: Refreshing guest location on page load...');
             try {
               await refreshGuestLocation();
             } catch (error) {
-              console.log('⚠️ App.jsx: Could not refresh guest location:', error.message);
+              // Ignore guest location errors
             }
           }
         }

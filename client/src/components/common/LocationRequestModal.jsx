@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, X, Navigation, AlertCircle, CheckCircle } from 'lucide-react';
+import { MapPin, X, Navigation, AlertCircle, CheckCircle, Search, Globe } from 'lucide-react';
 import { toast } from 'sonner';
+import locationService from '../../services/location.service';
 
 const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable Location Access" }) => {
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [locationSuccess, setLocationSuccess] = useState(false);
   const [locationCity, setLocationCity] = useState('');
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [manualLocation, setManualLocation] = useState('');
+  const [error, setError] = useState('');
+  const [availableMethods, setAvailableMethods] = useState([]);
 
   // Reset success state when modal opens
   useEffect(() => {
@@ -14,87 +19,139 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
       setLocationSuccess(false);
       setLocationCity('');
       setIsGettingLocation(false);
+      setShowManualInput(false);
+      setManualLocation('');
+      setError('');
+      
+      // Check available location methods
+      checkAvailableMethods();
     }
   }, [isOpen]);
 
-  const getCurrentLocation = async () => {
-    console.log('🗺️ LocationRequestModal: Starting location request...');
+  const checkAvailableMethods = async () => {
+    const methods = [];
+    
+    // IP-based location (always available)
+    methods.push({
+      id: 'ip',
+      name: 'Detect Automatically',
+      description: 'Uses your internet connection (no popup)',
+      icon: Globe,
+      primary: true
+    });
+
+    // GPS location (if geolocation is supported)
+    if (navigator.geolocation) {
+      methods.push({
+        id: 'gps',
+        name: 'Use Precise Location',
+        description: 'Uses GPS for accuracy (requires permission)',
+        icon: Navigation,
+        primary: false
+      });
+    }
+
+    // Manual input (always available)
+    methods.push({
+      id: 'manual',
+      name: 'Enter Manually',
+      description: 'Type your city or area',
+      icon: Search,
+      primary: false
+    });
+
+    setAvailableMethods(methods);
+  };
+
+  // Handle automatic location detection (IP-based, no popup)
+  const handleAutoDetect = async () => {
     setIsGettingLocation(true);
+    setError('');
 
     try {
-      if (!navigator.geolocation) {
-        throw new Error('Geolocation is not supported by this browser');
+      const locationData = await locationService.getLocationByIP();
+      
+      if (locationData) {
+        handleLocationSuccess(locationData);
+      } else {
+        throw new Error('Unable to detect location automatically');
       }
-
-      console.log('📡 LocationRequestModal: Requesting GPS coordinates...');
-      const position = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          resolve,
-          reject,
-          {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 600000
-          }
-        );
-      });
-
-      const { latitude, longitude } = position.coords;
-      console.log('📍 LocationRequestModal: GPS coordinates received:', { lat: latitude, lng: longitude });
-
-      // Reverse geocode to get city name
-      console.log('🌍 LocationRequestModal: Starting reverse geocoding...');
-      const cityName = await reverseGeocode(latitude, longitude);
-      console.log('🏙️ LocationRequestModal: City name resolved:', cityName);
-
-      const locationData = {
-        lat: latitude,
-        lng: longitude,
-        city: cityName,
-        address: '',
-        source: 'gps',
-        timestamp: new Date().toISOString()
-      };
-
-      console.log('📍 LocationRequestModal: Location data prepared:', {
-        locationData,
-        source: 'GPS',
-        coordinates: { lat: latitude, lng: longitude },
-        city: cityName
-      });
-
-      // Store in localStorage for guests
-      localStorage.setItem('userLocation', JSON.stringify(locationData));
-      
-      console.log('🔄 LocationRequestModal: Calling onLocationSet callback...');
-      // Call parent callback
-      onLocationSet?.(locationData);
-      
-      // Show success state with city name
-      setLocationCity(cityName);
-      setLocationSuccess(true);
-      
-      // Auto-close after showing success animation
-      setTimeout(() => {
-        onClose();
-      }, 2000);
-
     } catch (error) {
-      console.error('Geolocation error:', error);
-      let errorMessage = 'Unable to get your location';
-      
-      if (error.code === 1) {
-        errorMessage = 'Please allow location access in your browser settings';
-      } else if (error.code === 2) {
-        errorMessage = 'Location unavailable';
-      } else if (error.code === 3) {
-        errorMessage = 'Location request timed out';
-      }
-      
-      toast.error(errorMessage);
+      console.error('Auto location detection failed:', error);
+      setError('Auto-detection failed. Try using precise location or enter manually.');
+      toast.error('Auto-detection failed');
     } finally {
       setIsGettingLocation(false);
     }
+  };
+
+  // Handle GPS location (with popup)
+  const handleGPSLocation = async () => {
+    setIsGettingLocation(true);
+    setError('');
+
+    try {
+      const locationData = await locationService.getLocationByGPS();
+      handleLocationSuccess(locationData);
+    } catch (error) {
+      console.error('GPS location failed:', error);
+      let errorMessage = 'Unable to get your precise location';
+      
+      if (error.message.includes('denied')) {
+        errorMessage = 'Location access denied. Try auto-detect or enter manually.';
+      } else if (error.message.includes('unavailable')) {
+        errorMessage = 'Location unavailable. Try auto-detect or enter manually.';
+      } else if (error.message.includes('timeout')) {
+        errorMessage = 'Location request timed out. Try auto-detect or enter manually.';
+      }
+      
+      setError(errorMessage);
+      toast.error('GPS location failed');
+    } finally {
+      setIsGettingLocation(false);
+    }
+  };
+
+  // Handle successful location detection
+  const handleLocationSuccess = (locationData) => {
+    // Store in localStorage for guests
+    locationService.storeLocation(locationData);
+    
+    // Call parent callback
+    onLocationSet?.(locationData);
+    
+    // Show success state with city name
+    setLocationCity(locationData.city);
+    setLocationSuccess(true);
+    
+    // Auto-close after showing success animation
+    setTimeout(() => {
+      onClose();
+    }, 2000);
+  };
+
+  // Handle manual location entry
+  const handleManualSubmit = async (e) => {
+    e.preventDefault();
+    if (!manualLocation.trim()) return;
+
+    setIsGettingLocation(true);
+    setError('');
+
+    try {
+      const locationData = await locationService.geocodeManualLocation(manualLocation);
+      handleLocationSuccess(locationData);
+    } catch (error) {
+      console.error('Manual location entry error:', error);
+      setError('Unable to process location. Please try again.');
+      toast.error('Location processing failed');
+    } finally {
+      setIsGettingLocation(false);
+    }
+  };
+
+  const getCurrentLocation = async () => {
+    return handleGPSLocation();
   };
 
   const reverseGeocode = async (lat, lng) => {
@@ -192,6 +249,63 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
                   {locationCity}
                 </motion.p>
               </motion.div>
+            ) : showManualInput ? (
+              /* Manual Input State */
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="py-2"
+              >
+                <div className="text-center mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                    <Search className="w-6 h-6 text-white" />
+                  </div>
+                  <h4 className="text-lg font-semibold text-gray-800 dark:text-white mb-1">
+                    Enter Your Location
+                  </h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    Type your city or area to find nearby coaches
+                  </p>
+                </div>
+
+                <form onSubmit={handleManualSubmit} className="space-y-4">
+                  <div>
+                    <input
+                      type="text"
+                      value={manualLocation}
+                      onChange={(e) => setManualLocation(e.target.value)}
+                      placeholder="e.g. New York, NY or Los Angeles"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      autoFocus
+                      disabled={isGettingLocation}
+                    />
+                  </div>
+
+                  {error && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-2">
+                      <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-red-700">{error}</p>
+                    </div>
+                  )}
+
+                  <div className="flex space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowManualInput(false)}
+                      className="flex-1 border-2 border-gray-300 text-gray-700 py-2 px-3 rounded-lg text-sm font-medium hover:border-gray-400 transition-colors"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!manualLocation.trim() || isGettingLocation}
+                      className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:from-blue-700 hover:to-purple-700 transition-colors disabled:opacity-50"
+                    >
+                      {isGettingLocation ? 'Processing...' : 'Continue'}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
             ) : (
               /* Default State */
               <>
@@ -202,21 +316,38 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
                 {/* Actions */}
                 <div className="space-y-3">
                   <button
-                    onClick={getCurrentLocation}
+                    onClick={handleAutoDetect}
                     disabled={isGettingLocation}
                     className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-2 px-3 rounded-lg text-sm font-medium flex items-center justify-center space-x-2 hover:from-blue-700 hover:to-purple-700 transition-colors disabled:opacity-50"
                   >
                     {isGettingLocation ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                        <span>Getting Location...</span>
+                        <span>Detecting...</span>
                       </>
                     ) : (
                       <>
-                        <Navigation className="w-4 h-4" />
-                        <span>Allow Location Access</span>
+                        <Globe className="w-4 h-4" />
+                        <span>Detect Automatically (No Popup)</span>
                       </>
                     )}
+                  </button>
+                  
+                  <button
+                    onClick={handleGPSLocation}
+                    disabled={isGettingLocation || !navigator.geolocation}
+                    className="w-full border-2 border-blue-300 text-blue-700 py-2 px-3 rounded-lg text-sm font-medium flex items-center justify-center space-x-2 hover:border-blue-400 hover:bg-blue-50 transition-colors disabled:opacity-50"
+                  >
+                    <Navigation className="w-4 h-4" />
+                    <span>Use Precise Location</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => setShowManualInput(true)}
+                    className="w-full border-2 border-gray-300 text-gray-700 py-2 px-3 rounded-lg text-sm font-medium flex items-center justify-center space-x-2 hover:border-gray-400 transition-colors"
+                  >
+                    <Search className="w-4 h-4" />
+                    <span>Enter Location Manually</span>
                   </button>
                   
                   <button
@@ -226,6 +357,13 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
                     Maybe Later
                   </button>
                 </div>
+
+                {error && (
+                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-2">
+                    <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-red-700">{error}</p>
+                  </div>
+                )}
 
                 {/* Privacy Note */}
                 <div className="flex items-center space-x-1 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">

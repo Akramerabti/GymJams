@@ -26,10 +26,8 @@ const CoachProfileCompletionModal = () => {
       }
 
       try {
-        console.log('🔄 CoachProfileCompletionModal: Fetching fresh profile data...');
         const response = await api.get('/auth/profile');
         setProfileData(response.data);
-        console.log('✅ CoachProfileCompletionModal: Fresh profile data loaded');
       } catch (error) {
         console.error('❌ CoachProfileCompletionModal: Error fetching profile data:', error);
         // Fallback to auth store user data
@@ -44,23 +42,13 @@ const CoachProfileCompletionModal = () => {
   }, [user]);
 
   useEffect(() => {
-    console.log('🚀 CoachProfileCompletionModal: Checking modal visibility conditions...', {
-      isLoadingProfile,
-      hasProfileData: !!profileData,
-      currentPath: location.pathname,
-      userRole: user?.user?.role || user?.role,
-      hasUser: !!user
-    });
-
     // Don't check until profile data is loaded
     if (isLoadingProfile || !profileData) {
-      console.log('⏳ CoachProfileCompletionModal: Waiting for profile data to load...');
       return;
     }
 
     // Don't show on profile page
     if (location.pathname === '/profile') {
-      console.log('🚫 CoachProfileCompletionModal: On profile page, not showing modal');
       return;
     }
 
@@ -69,39 +57,18 @@ const CoachProfileCompletionModal = () => {
     
     // Only show for coaches
     if (!user || userRole !== 'coach') {
-      console.log('🚫 CoachProfileCompletionModal: User is not a coach, not showing modal', { userRole });
       return;
     }
     
     // Check if user has dismissed this warning recently
     const dismissedUntil = localStorage.getItem('coachWarningDismissed');
-    console.log('🔍 CoachProfileCompletionModal: Checking dismissal status...', {
-      dismissedUntil,
-      currentTime: new Date().toISOString(),
-      isDismissed: dismissedUntil && new Date() < new Date(dismissedUntil)
-    });
     
     if (dismissedUntil && new Date() < new Date(dismissedUntil)) {
-      console.log('⏰ CoachProfileCompletionModal: Modal was dismissed until:', dismissedUntil);
       return;
     }
 
     // Check which fields are missing using fresh profile data
     const missing = [];
-    
-    console.log('🔍 CoachProfileCompletionModal: Checking profile completion with fresh data:', {
-      userId: profileData._id || profileData.id,
-      bio: profileData.bio ? `"${profileData.bio.substring(0, 50)}..."` : 'MISSING',
-      bioLength: profileData.bio?.length || 0,
-      specialties: profileData.specialties?.length || 0,
-      location: profileData.location ? 
-        { lat: profileData.location.lat, lng: profileData.location.lng, city: profileData.location.city } : 
-        'MISSING',
-      profileImage: profileData.profileImage ? 'HAS_IMAGE' : 'MISSING',
-      profileImageUrl: profileData.profileImage,
-      payoutSetupComplete: profileData.payoutSetupComplete,
-      stripeAccountId: profileData.stripeAccountId ? 'HAS_STRIPE_ID' : 'MISSING'
-    });
     
     if (!profileData.bio || profileData.bio.trim().length < 50) {
       missing.push({
@@ -111,7 +78,6 @@ const CoachProfileCompletionModal = () => {
         icon: FileText,
         severity: 'high'
       });
-      console.log('❌ Missing: Professional Bio');
     }
 
     if (!profileData.specialties || profileData.specialties.length === 0) {
@@ -122,7 +88,6 @@ const CoachProfileCompletionModal = () => {
         icon: Award,
         severity: 'high'
       });
-      console.log('❌ Missing: Training Specialties');
     }
 
     if (!profileData.location || !profileData.location.lat || !profileData.location.lng || !profileData.location.city) {
@@ -133,7 +98,6 @@ const CoachProfileCompletionModal = () => {
         icon: MapPin,
         severity: 'critical'
       });
-      console.log('❌ Missing: Location');
     }
 
     if (!profileData.profileImage || profileData.profileImage === '/fallback-avatar.jpg' || profileData.profileImage.includes('fallback')) {
@@ -144,7 +108,6 @@ const CoachProfileCompletionModal = () => {
         icon: User,
         severity: 'medium'
       });
-      console.log('❌ Missing: Profile Photo');
     }
 
     // Check payout setup completion
@@ -156,33 +119,21 @@ const CoachProfileCompletionModal = () => {
         icon: CreditCard,
         severity: 'critical'
       });
-      console.log('❌ Missing: Payout Setup');
     }
-
-    console.log('📊 CoachProfileCompletionModal: Missing fields summary:', {
-      totalMissing: missing.length,
-      missingFields: missing.map(f => f.field),
-      currentModalState: { isVisible, isDismissed }
-    });
 
     // NOTE: Certifications are no longer required for profile completion
     // If all main fields are complete, the profile is considered complete
 
     if (missing.length > 0) {
-      console.log('⚠️ CoachProfileCompletionModal: Profile incomplete, preparing to show modal...');
       setMissingFields(missing);
       // Show modal after a brief delay
       setTimeout(() => {
-        console.log('🎯 CoachProfileCompletionModal: Setting modal visible to true');
         setIsVisible(true);
       }, 1500);
-    } else {
-      console.log('✅ CoachProfileCompletionModal: Profile is complete, no modal needed');
     }
   }, [user, location.pathname, isLoadingProfile, profileData]);
 
   const handleDismiss = (duration = '1day') => {
-    console.log('🚫 CoachProfileCompletionModal: Dismissing modal for:', duration);
     setIsVisible(false);
     setIsDismissed(true);
     
@@ -205,12 +156,10 @@ const CoachProfileCompletionModal = () => {
         dismissUntil.setDate(dismissUntil.getDate() + 1);
     }
     
-    console.log('⏰ CoachProfileCompletionModal: Modal dismissed until:', dismissUntil.toISOString());
     localStorage.setItem('coachWarningDismissed', dismissUntil.toISOString());
   };
 
   const handleCompleteProfile = () => {
-    console.log('🔄 CoachProfileCompletionModal: Redirecting to profile page...');
     setIsVisible(false);
     // Navigate to profile page
     window.location.href = '/profile';
@@ -244,23 +193,7 @@ const CoachProfileCompletionModal = () => {
 
   const criticalMissing = missingFields.filter(f => f.severity === 'critical').length;
 
-  console.log('🎨 CoachProfileCompletionModal: Render decision...', {
-    isVisible,
-    missingFieldsCount: missingFields.length,
-    shouldRender: isVisible && missingFields.length > 0
-  });
-
-  if (!isVisible || missingFields.length === 0) {
-    if (!isVisible && missingFields.length > 0) {
-      console.log('👻 CoachProfileCompletionModal: Modal not visible but has missing fields');
-    }
-    if (isVisible && missingFields.length === 0) {
-      console.log('🔄 CoachProfileCompletionModal: Modal visible but no missing fields');
-    }
-    return null;
-  }
-
-  console.log('🎪 CoachProfileCompletionModal: Rendering modal with', missingFields.length, 'missing fields');
+  if (!isVisible || missingFields.length === 0) return null;
 
   return (
     <AnimatePresence>

@@ -572,7 +572,7 @@ const Profile = () => {
                       onClick={handleActivateLocation}
                       variant="outline"
                       size="sm"
-                      className="bg-white/90 hover:bg-white text-gray-700 border-gray-200 shadow-md backdrop-blur-sm"
+                      className="bg-white hover:bg-gray-50 text-gray-700 border-gray-200 shadow-md"
                       disabled={profileData.location?.lat && profileData.location?.lng && profileData.location?.city}
                     >
                       {(profileData.location?.lat && profileData.location?.lng && profileData.location?.city) ? (
@@ -601,11 +601,11 @@ const Profile = () => {
                         onClick={handleRefreshLocation}
                         variant="outline"
                         size="sm"
-                        className="bg-white/90 hover:bg-white text-gray-600 border-gray-200 shadow-md backdrop-blur-sm p-2"
+                        className="bg-white hover:bg-gray-50 text-black border-gray-200 shadow-md p-2"
                         disabled={isRefreshingLocation}
                         title="Refresh location"
                       >
-                        <RotateCcw className={`w-3 h-3 ${isRefreshingLocation ? 'animate-spin' : ''}`} />
+                        <RotateCcw className={`w-3 h-3 text-black ${isRefreshingLocation ? 'animate-spin' : ''}`} />
                       </Button>
                     )}
                   </div>
