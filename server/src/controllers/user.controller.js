@@ -41,6 +41,82 @@ export const updateProfile = async (req, res) => {
   }
 };
 
+export const updateLocation = async (req, res) => {
+  try {
+    const { lat, lng, city, address, source } = req.body;
+
+    logger.info('📍 Location update request received:', {
+      userId: req.user.id,
+      requestBody: req.body,
+      hasLat: !!lat,
+      hasLng: !!lng,
+      hasCity: !!city,
+      source: source || 'unknown'
+    });
+
+    // Validate required fields
+    if (!lat || !lng || !city) {
+      logger.warn('❌ Location update validation failed:', {
+        userId: req.user.id,
+        missingFields: {
+          lat: !lat,
+          lng: !lng,
+          city: !city
+        }
+      });
+      return res.status(400).json({ 
+        message: 'Latitude, longitude, and city are required' 
+      });
+    }
+
+    // Validate coordinate ranges
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      logger.warn('❌ Invalid coordinates provided:', {
+        userId: req.user.id,
+        lat,
+        lng
+      });
+      return res.status(400).json({ 
+        message: 'Invalid coordinates provided' 
+      });
+    }
+
+    const locationData = {
+      lat: parseFloat(lat),
+      lng: parseFloat(lng),
+      city: city.trim(),
+      address: address ? address.trim() : '',
+      isVisible: true, // Default to visible, user can change in settings
+      updatedAt: new Date()
+    };
+
+    logger.info('💾 Saving location data:', {
+      userId: req.user.id,
+      locationData
+    });
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { location: locationData },
+      { new: true }
+    ).select('-password');
+
+    logger.info(`✅ User ${req.user.id} location updated successfully:`, {
+      city: locationData.city,
+      coordinates: `${locationData.lat}, ${locationData.lng}`,
+      previousLocation: user.location ? 'had location' : 'new location'
+    });
+    
+    res.json({ 
+      message: 'Location updated successfully',
+      location: user.location
+    });
+  } catch (error) {
+    logger.error('❌ Error updating location:', error);
+    res.status(500).json({ message: 'Error updating location' });
+  }
+};
+
 export const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;

@@ -129,8 +129,22 @@ const CoachingHome = () => {
       }
     };    const fetchCoaches = async () => {
       try {
+        console.log('🏋️ Fetching coaches from API...');
         const response = await subscriptionService.getCoaches();
-        const originalCoaches = response || [];        // Shuffle function to randomize array order
+        const originalCoaches = response || [];
+        
+        console.log('📊 Coach fetch results:', {
+          totalCoaches: originalCoaches.length,
+          coaches: originalCoaches.map(coach => ({
+            id: coach._id,
+            name: `${coach.firstName} ${coach.lastName}`,
+            locationDisplay: coach.locationDisplay,
+            hasLocation: coach.hasLocation,
+            location: coach.location
+          }))
+        });
+        
+        // Shuffle function to randomize array order
         const shuffleArray = (array) => {
           const shuffled = [...array];
           for (let i = shuffled.length - 1; i > 0; i--) {
@@ -143,9 +157,15 @@ const CoachingHome = () => {
         // Shuffle the coaches array to randomize the order
         const shuffledCoaches = shuffleArray(originalCoaches);
         setCoaches(shuffledCoaches);
+        console.log('✅ Coaches set in state');
         //('Original Coaches:', originalCoaches);
       } catch (error) {
-        console.error('Error fetching coaches:', error);
+        console.error('❌ Error fetching coaches:', error);
+        console.error('Error details:', {
+          status: error.response?.status,
+          data: error.response?.data,
+          message: error.message
+        });
         setCoaches([]);
       }
     };

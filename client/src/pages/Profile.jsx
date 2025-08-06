@@ -8,12 +8,13 @@ import { Button } from '../components/ui/button';
 import { 
   User, Package, LogOut, Loader2, Coins, AlertCircle, CheckCircle, 
   Clock, Star, Instagram, Twitter, Youtube, Crown, Settings, 
-  Trash2
+  Trash2, MapPin, Navigation, RotateCcw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../services/api';
 import ProfileImageUpload from '../components/layout/ProfileImageUpload';
 import ImageCropModal from '../components/layout/ImageCropModal';
+import LocationRequestModal from '../components/common/LocationRequestModal';
 import subscriptionService from '../services/subscription.service';
 import StripeOnboardingForm from '../pages/StripeOnboardingForm'; // Import the StripeOnboardingForm
 
@@ -27,7 +28,9 @@ const Profile = () => {
   const [redirecting, setRedirecting] = useState(false);
   const [showStripeOnboarding, setShowStripeOnboarding] = useState(false);
   const [verificationSessionId, setVerificationSessionId] = useState(null);
-  const [cropModalProps, setCropModalProps] = useState(null); // Add state for crop modal
+  const [cropModalProps, setCropModalProps] = useState(null);
+  const [showLocationModal, setShowLocationModal] = useState(false); // Add state for crop modal
+  const [isRefreshingLocation, setIsRefreshingLocation] = useState(false); // Add state for location refresh
 
   const [profileData, setProfileData] = useState({
     firstName: '',
@@ -44,7 +47,8 @@ const Profile = () => {
     },
     specialties: [],
     stripeAccountId: null,
-    payoutSetupComplete: false
+    payoutSetupComplete: false,
+    location: null
   });
 
   const isCoach = user?.user?.role === 'coach' || user?.role === 'coach';
@@ -53,6 +57,11 @@ const Profile = () => {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
+        console.log('👤 Profile.jsx: Fetching user profile data...', {
+          userId: user?.user?.id || user?.id,
+          isCoach: isCoach
+        });
+
         const [profileResponse, subscriptionResponse, payoutSetupResponse] = await Promise.all([
           api.get('/auth/profile'),
           api.get('/subscription/current'),
@@ -60,6 +69,14 @@ const Profile = () => {
         ]);
   
         const userData = profileResponse.data;
+        
+        console.log('📊 Profile.jsx: User profile data received:', {
+          userId: userData._id,
+          hasLocation: !!userData.location,
+          location: userData.location,
+          locationComplete: !!(userData.location?.lat && userData.location?.lng && userData.location?.city),
+          isCoach: userData.role === 'coach'
+        });
   
         setProfileData({
           firstName: userData.firstName || '',
@@ -77,7 +94,8 @@ const Profile = () => {
           specialties: userData.specialties || [],
           stripeAccountId: userData.stripeAccountId || null,
           payoutSetupComplete: payoutSetupResponse.data.payoutSetupComplete || false,
-          pendingVerification: payoutSetupResponse.data.pendingVerification || [], 
+          pendingVerification: payoutSetupResponse.data.pendingVerification || [],
+          location: userData.location || null
         });
   
         if (subscriptionResponse.data) {
@@ -85,12 +103,20 @@ const Profile = () => {
         }
   
         fetchPoints();
+        
+        console.log('✅ Profile data loaded successfully');
+        
+        // Check and update location if coach has location enabled
+        if (isCoach && userData.location?.isVisible) {
+          console.log('🗺️ Coach has location enabled, checking for updates...');
+          setTimeout(checkAndUpdateLocation, 1000); // Small delay to ensure state is set
+        }
       } catch (error) {
         if (error.response?.status === 401) {
           localStorage.removeItem('token');
           navigate('/login');
         } else {
-          console.error('Error fetching user data:', error);
+          console.error('❌ Profile.jsx: Error fetching user data:', error);
           toast.error('Failed to load profile data');
         }
       }
@@ -99,7 +125,7 @@ const Profile = () => {
     if (user) {
       fetchUserData();
     }
-  }, [user, fetchPoints, navigate]);
+  }, [user, fetchPoints, navigate, isCoach]);
 
   const handleDeleteAccount = async () => {
     const confirmed = window.confirm(
@@ -169,7 +195,7 @@ const Profile = () => {
       setEditing(false);
 
       if (user?.role === 'coach' && !isCoachProfileComplete()) {
-        toast.warning('Your profile is incomplete. Your name will not be shown until all fields are filled.');
+        toast.warning('Your profile is incomplete. Complete your bio, photo, specialties, and location to start receiving coaching requests.');
       }
     } catch (error) {
       console.error('Failed to update profile:', error);
@@ -203,8 +229,247 @@ const Profile = () => {
   };
 
   const isCoachProfileComplete = () => {
-    // Implement your logic to check if the coach profile is complete
-    return profileData.firstName && profileData.lastName && profileData.bio && profileData.profileImage;
+    // Core requirements for a complete coach profile:
+    // 1. Basic info: firstName, lastName, bio (minimum 50 chars)
+    // 2. Profile image (not default fallback)
+    // 3. At least one specialty selected
+    // 4. Location set (if location sharing is enabled)
+    // NOTE: Certifications are NOT required if all other fields are complete
+    
+    const hasBasicInfo = profileData.firstName && profileData.lastName;
+    const hasBio = profileData.bio && profileData.bio.trim().length >= 50;
+    const hasProfileImage = profileData.profileImage && 
+      profileData.profileImage !== '/fallback-avatar.jpg' && 
+      !profileData.profileImage.includes('fallback');
+    const hasSpecialties = profileData.specialties && profileData.specialties.length > 0;
+    
+    // Location is only required if the coach has enabled location sharing
+    const locationComplete = !profileData.location?.isVisible || 
+      (profileData.location?.lat && profileData.location?.lng && profileData.location?.city);
+    
+    // Debug logging to identify the missing field
+    console.log('🔍 Profile completion check:', {
+      userId: user?.user?.id || user?.id,
+      hasBasicInfo,
+      firstName: profileData.firstName,
+      lastName: profileData.lastName,
+      hasBio,
+      bioLength: profileData.bio?.length || 0,
+      hasProfileImage,
+      profileImage: profileData.profileImage,
+      hasSpecialties,
+      specialtiesCount: profileData.specialties?.length || 0,
+      locationComplete,
+      locationData: profileData.location,
+      isComplete: hasBasicInfo && hasBio && hasProfileImage && hasSpecialties && locationComplete
+    });
+    
+    return hasBasicInfo && hasBio && hasProfileImage && hasSpecialties && locationComplete;
+  };
+
+  const handleActivateLocation = () => {
+    console.log('🗺️ Location activation clicked by coach:', {
+      userId: user?.user?.id || user?.id,
+      currentLocation: profileData.location,
+      isCoach: isCoach
+    });
+    setShowLocationModal(true);
+  };
+
+  const handleRefreshLocation = async () => {
+    console.log('🔄 Manual location refresh requested by coach:', {
+      userId: user?.user?.id || user?.id,
+      currentLocation: profileData.location,
+      isCoach: isCoach
+    });
+    
+    setIsRefreshingLocation(true);
+    
+    try {
+      if (!navigator.geolocation) {
+        console.log('❌ Geolocation not supported');
+        toast.error('Geolocation is not supported by your browser');
+        return;
+      }
+
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          reject,
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0 // Force fresh location
+          }
+        );
+      });
+
+      const { latitude, longitude } = position.coords;
+      
+      // Reverse geocode to get city
+      const response = await fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+      );
+      
+      let cityName = 'Unknown City';
+      if (response.ok) {
+        const data = await response.json();
+        cityName = data.city || data.locality || data.principalSubdivision || 'Unknown City';
+      }
+
+      const locationData = {
+        lat: latitude,
+        lng: longitude,
+        city: cityName,
+        address: '',
+        source: 'manual-refresh'
+      };
+
+      console.log('🔄 Manually refreshing coach location:', locationData);
+      
+      // Update via API
+      const updateResponse = await api.put('/user/location', locationData);
+      
+      if (updateResponse.data) {
+        setProfileData(prev => ({
+          ...prev,
+          location: locationData
+        }));
+        console.log('✅ Coach location manually refreshed successfully');
+        toast.success(`Location updated to ${cityName}!`);
+      }
+
+    } catch (error) {
+      console.log('❌ Manual location refresh failed:', error.message);
+      if (error.code === 1) {
+        toast.error('Location access denied. Please enable location permissions.');
+      } else if (error.code === 2) {
+        toast.error('Location unavailable. Please try again.');
+      } else if (error.code === 3) {
+        toast.error('Location request timed out. Please try again.');
+      } else {
+        toast.error('Failed to refresh location. Please try again.');
+      }
+    } finally {
+      setIsRefreshingLocation(false);
+    }
+  };
+
+  const handleLocationSet = async (locationData) => {
+    console.log('📍 Location set attempt:', {
+      userId: user?.user?.id || user?.id,
+      locationData,
+      isCoach: isCoach
+    });
+    
+    try {
+      // Update location via API for authenticated users
+      const token = localStorage.getItem('token');
+      if (token) {
+        console.log('🔄 Updating location via API...');
+        const updateResponse = await api.put('/user/location', locationData);
+        
+        console.log('✅ Location update response:', updateResponse.data);
+        
+        if (updateResponse.data) {
+          setProfileData(prev => ({
+            ...prev,
+            location: locationData
+          }));
+          console.log('✅ Local profile data updated with location');
+          toast.success(`Location updated to ${locationData.city}!`);
+        }
+      } else {
+        console.error('❌ No auth token found');
+      }
+    } catch (error) {
+      console.error('❌ Error updating user location:', error);
+      console.error('Error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      toast.error('Failed to save location');
+    } finally {
+      setShowLocationModal(false);
+    }
+  };
+
+  // Function to check and update location if coach has location enabled
+  const checkAndUpdateLocation = async () => {
+    if (!isCoach || !profileData.location?.isVisible) {
+      return;
+    }
+
+    console.log('🗺️ Checking if location needs update for coach (on login/reload)...', {
+      userId: user?.user?.id || user?.id,
+      hasLocation: !!(profileData.location?.lat && profileData.location?.lng),
+      locationEnabled: profileData.location?.isVisible,
+      lastUpdated: profileData.location?.updatedAt
+    });
+
+    // Only auto-update if location is visible but coordinates are missing
+    if (!profileData.location?.lat || !profileData.location?.lng) {
+      console.log('🔍 Location coordinates missing, attempting auto-update...');
+      
+      try {
+        if (!navigator.geolocation) {
+          console.log('❌ Geolocation not supported');
+          return;
+        }
+
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            resolve,
+            reject,
+            {
+              enableHighAccuracy: true, // Use high accuracy for login/reload updates
+              timeout: 10000,
+              maximumAge: 60000 // 1 minute cache
+            }
+          );
+        });
+
+        const { latitude, longitude } = position.coords;
+        
+        // Reverse geocode to get city
+        const response = await fetch(
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+        );
+        
+        let cityName = 'Unknown City';
+        if (response.ok) {
+          const data = await response.json();
+          cityName = data.city || data.locality || data.principalSubdivision || 'Unknown City';
+        }
+
+        const locationData = {
+          lat: latitude,
+          lng: longitude,
+          city: cityName,
+          address: '',
+          source: 'login-update'
+        };
+
+        console.log('🔄 Auto-updating coach location on login/reload:', locationData);
+        
+        // Update via API
+        const updateResponse = await api.put('/user/location', locationData);
+        
+        if (updateResponse.data) {
+          setProfileData(prev => ({
+            ...prev,
+            location: locationData
+          }));
+          console.log('✅ Coach location auto-updated successfully on login/reload');
+        }
+
+      } catch (error) {
+        console.log('⚠️ Auto-location update failed (this is normal if user denied permission):', error.message);
+      }
+    } else {
+      console.log('✅ Coach location is already complete, no update needed');
+    }
   };
 
   const handlePayoutSetup = async (onboardingData) => {
@@ -296,7 +561,56 @@ const Profile = () => {
                   currentImage={profileData.profileImage}
                   onUploadSuccess={handleImageUploadSuccess}
                   onShowCropModal={handleShowCropModal}
-                />              </div>
+                />
+              </div>
+              
+              {/* Location Activation Button */}
+              {isCoach && (
+                <div className="absolute -bottom-28 left-1/2 transform -translate-x-1/2">
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      onClick={handleActivateLocation}
+                      variant="outline"
+                      size="sm"
+                      className="bg-white/90 hover:bg-white text-gray-700 border-gray-200 shadow-md backdrop-blur-sm"
+                      disabled={profileData.location?.lat && profileData.location?.lng && profileData.location?.city}
+                    >
+                      {(profileData.location?.lat && profileData.location?.lng && profileData.location?.city) ? (
+                        <>
+                          <MapPin className="w-4 h-4 mr-2 text-green-600" />
+                          <span className="text-green-600">
+                            {profileData.location.city}
+                          </span>
+                        </>
+                      ) : profileData.location?.isVisible ? (
+                        <>
+                          <Navigation className="w-4 h-4 mr-2 text-orange-500" />
+                          <span className="text-orange-500">Set Location</span>
+                        </>
+                      ) : (
+                        <>
+                          <Navigation className="w-4 h-4 mr-2" />
+                          Activate Location
+                        </>
+                      )}
+                    </Button>
+                    
+                    {/* Location Refresh Button - only show when location is complete */}
+                    {(profileData.location?.lat && profileData.location?.lng && profileData.location?.city) && (
+                      <Button
+                        onClick={handleRefreshLocation}
+                        variant="outline"
+                        size="sm"
+                        className="bg-white/90 hover:bg-white text-gray-600 border-gray-200 shadow-md backdrop-blur-sm p-2"
+                        disabled={isRefreshingLocation}
+                        title="Refresh location"
+                      >
+                        <RotateCcw className={`w-3 h-3 ${isRefreshingLocation ? 'animate-spin' : ''}`} />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
             
           ) : (
@@ -312,20 +626,20 @@ const Profile = () => {
           )}
 
           <div className="max-w-4xl mx-auto">
-            <div className={`grid grid-cols-2 gap-4 mb-8 ${isCoach ? 'mt-20' : ''}`}>
+            <div className={`grid grid-cols-2 gap-4 mb-8 ${isCoach ? 'mt-32' : ''}`}>
               <Card className='bg-gradient-to-br from-blue-50 to-white p-4'>
                 <CardContent className="flex flex-col items-center p-4">
                   <User className="w-8 h-8 text-blue-500 mb-2" />
-                  <p className={`text-sm font-semibold`}>{isCoach ? 'Coach' : 'Member'}</p>
-                  <p className={`text-lg font-semibold`}>{`${profileData.firstName} ${profileData.lastName}`}</p>
+                  <p className="text-sm font-semibold text-black">{isCoach ? 'Coach' : 'Member'}</p>
+                  <p className="text-lg font-semibold text-black">{`${profileData.firstName} ${profileData.lastName}`}</p>
                 </CardContent>
               </Card>
 
               <Card className='bg-gradient-to-br from-purple-50 to-white p-4'>
                 <CardContent className="flex flex-col items-center p-4">
                   <Coins className="w-8 h-8 text-purple-500 mb-2" /> 
-                  <p className={`text-sm font-semibold`}>Points</p>
-                  <p className={`text-lg font-semibold`}>{balance}</p>
+                  <p className="text-sm font-semibold text-black">Points</p>
+                  <p className="text-lg font-semibold text-black">{balance}</p>
                 </CardContent>
               </Card>
             </div>
@@ -826,6 +1140,14 @@ const Profile = () => {
             aspectRatio={1} // Square crop for profile images
           />
         )}
+
+        {/* Location Request Modal */}
+        <LocationRequestModal
+          isOpen={showLocationModal}
+          onClose={() => setShowLocationModal(false)}
+          onLocationSet={handleLocationSet}
+          title="Activate Coach Location"
+        />
       </div>
     </div>
   );

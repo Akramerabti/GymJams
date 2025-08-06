@@ -788,12 +788,16 @@ export const assignCoach = async (req, res) => {
         role: 'coach',
         isEmailVerified: true,
         coachStatus: 'available',
-        payoutSetupComplete: true
+        payoutSetupComplete: true,
+        // Require complete location data for coach assignment
+        'location.lat': { $exists: true, $ne: null },
+        'location.lng': { $exists: true, $ne: null },
+        'location.city': { $exists: true, $ne: null, $ne: '' }
       }).session(session);
       
       if (!coach) {
         await session.abortTransaction();
-        return res.status(404).json({ error: 'Coach not found or unavailable' });
+        return res.status(404).json({ error: 'Coach not found, unavailable, or missing required location data' });
       }
 
       // Only verify Stripe account on first attempt
@@ -2131,23 +2135,95 @@ const automaticCoachAssignment = async (subscription) => {
   try {
     logger.info(`Starting automatic coach assignment for subscription ${subscription._id}`);
     
-    // Find available coaches with completed payout setup
-    const availableCoaches = await User.find({
+    // Get user/guest location if available for location-based matching
+    let userLocation = null;
+    if (subscription.user) {
+      const user = await User.findById(subscription.user).select('location');
+      userLocation = user?.location;
+    }
+    // For guest users, location might be stored in questionnaire data
+    else if (subscription.questionnaireData && subscription.questionnaireData.location) {
+      userLocation = subscription.questionnaireData.location;
+    }
+    
+    // Build coach query - start with basic requirements
+    const coachQuery = {
       role: 'coach',
       isEmailVerified: true,
       coachStatus: 'available',
       payoutSetupComplete: true,
       'availability.currentClients': { $lt: 10 } // Max 10 clients per coach
-    }).sort({ 
-      'availability.currentClients': 1, // Prefer coaches with fewer clients
-      'stats.rating': -1 // Then by rating
-    }).limit(5);
+    };
+
+    let availableCoaches = await User.find(coachQuery);
 
     if (!availableCoaches || availableCoaches.length === 0) {
       logger.warn('No available coaches found for automatic assignment');
       subscription.coachAssignmentStatus = 'no_coaches_available';
       await subscription.save();
       return;
+    }
+
+    // Separate coaches with and without location data
+    const coachesWithLocation = availableCoaches.filter(coach => 
+      coach.location && coach.location.lat && coach.location.lng && coach.location.city
+    );
+    
+    const coachesWithoutLocation = availableCoaches.filter(coach => 
+      !coach.location || !coach.location.lat || !coach.location.lng || !coach.location.city
+    );
+
+    // If user has location and there are coaches with location, prioritize nearby coaches
+    if (userLocation && userLocation.lat && userLocation.lng && coachesWithLocation.length > 0) {
+      const { getCoachesWithinRadius, calculateLocationCompatibilityScore } = await import('../services/location.service.js');
+      
+      // Get coaches within 50 miles first
+      const nearbyCoaches = getCoachesWithinRadius(userLocation, coachesWithLocation, 50);
+      
+      if (nearbyCoaches.length > 0) {
+        // Sort nearby coaches by location compatibility, client load, and rating
+        const sortedNearbyCoaches = nearbyCoaches.sort((a, b) => {
+          const locationScoreA = calculateLocationCompatibilityScore(userLocation, a.location, 50);
+          const locationScoreB = calculateLocationCompatibilityScore(userLocation, b.location, 50);
+          
+          // Primary sort: location compatibility (higher is better)
+          if (locationScoreA !== locationScoreB) {
+            return locationScoreB - locationScoreA;
+          }
+          
+          // Secondary sort: fewer clients (lower is better)
+          if (a.availability.currentClients !== b.availability.currentClients) {
+            return a.availability.currentClients - b.availability.currentClients;
+          }
+          
+          // Tertiary sort: rating (higher is better)
+          return (b.rating || 0) - (a.rating || 0);
+        });
+        
+        // Combine prioritized nearby coaches with remaining coaches
+        availableCoaches = [...sortedNearbyCoaches, ...coachesWithoutLocation];
+        
+        logger.info(`Found ${nearbyCoaches.length} coaches within 50 miles for location-based assignment`);
+      } else {
+        // No coaches within 50 miles, use all available coaches sorted by rating and client load
+        logger.info('No coaches within 50 miles, using all available coaches');
+        availableCoaches = [...coachesWithLocation, ...coachesWithoutLocation].sort((a, b) => {
+          // Sort by client load, then rating
+          if (a.availability.currentClients !== b.availability.currentClients) {
+            return a.availability.currentClients - b.availability.currentClients;
+          }
+          return (b.rating || 0) - (a.rating || 0);
+        });
+      }
+    } else {
+      // No user location or no coaches with location - use all available coaches
+      availableCoaches = [...coachesWithLocation, ...coachesWithoutLocation].sort((a, b) => {
+        // Sort by client load, then rating
+        if (a.availability.currentClients !== b.availability.currentClients) {
+          return a.availability.currentClients - b.availability.currentClients;
+        }
+        return (b.rating || 0) - (a.rating || 0);
+      });
     }
 
     // Select the best available coach (first in the sorted list)

@@ -170,16 +170,76 @@ async submitQuestionnaire(answers, accessToken = null, isEdit = false) {
     }
   },
 
-  async getCoaches(accessToken = null) {
+  async getCoaches(accessToken = null, userLocation = null) {
     try {
+      console.log('🔄 subscriptionService.getCoaches called with:', {
+        hasAccessToken: !!accessToken,
+        hasUserLocation: !!(userLocation && userLocation.lat && userLocation.lng),
+        userLocation
+      });
+      
+      // Build params with location data if available
       const params = accessToken ? { accessToken } : {};
+      
+      // Add user location for distance-based filtering
+      if (userLocation && userLocation.lat && userLocation.lng) {
+        params.userLat = userLocation.lat;
+        params.userLng = userLocation.lng;
+        params.maxDistance = 50; // Default 50 mile radius
+      }
+      
+      console.log('📤 Making API request to /auth/coach with params:', params);
       const response = await api.get('/auth/coach', { params });
-      //('All coaches:', response.data);
-      // Filter coaches to only include those with payout setup complete
-      const coaches = response.data.filter(coach => coach.payoutSetupComplete);
-      return coaches ;
+      
+      console.log('📨 Raw API response:', {
+        totalCoaches: response.data?.length,
+        allCoaches: response.data?.map(coach => ({
+          id: coach._id,
+          name: `${coach.firstName} ${coach.lastName}`,
+          payoutSetupComplete: coach.payoutSetupComplete,
+          hasLocation: !!(coach.location?.city),
+          location: coach.location
+        }))
+      });
+      
+      //('All coaches with location data:', response.data);
+      
+      // Filter coaches to ONLY include those with:
+      // 1. Complete payout setup
+      // 2. Valid location data (city must be present)
+      const coaches = response.data.filter(coach => 
+        coach.payoutSetupComplete && 
+        coach.location?.city && 
+        coach.location.city.trim().length > 0
+      );
+      
+      console.log('✅ Strictly filtered coaches (payout + location required):', {
+        totalFromAPI: response.data?.length,
+        filteredCount: coaches.length,
+        excludedCoaches: response.data?.filter(coach => 
+          !coach.payoutSetupComplete || !coach.location?.city || coach.location.city.trim().length === 0
+        )?.map(coach => ({
+          id: coach._id,
+          name: `${coach.firstName} ${coach.lastName}`,
+          reason: !coach.payoutSetupComplete ? 'No payout setup' : 'No city location',
+          location: coach.location
+        })),
+        includedCoaches: coaches.map(coach => ({
+          id: coach._id,
+          name: `${coach.firstName} ${coach.lastName}`,
+          city: coach.location.city,
+          locationDisplay: coach.locationDisplay
+        }))
+      });
+      
+      return coaches;
     } catch (error) {
-      console.error('Error fetching coaches:', error);
+      console.error('❌ Error fetching coaches:', error);
+      console.error('Error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
       throw error;
     }
   },
@@ -188,17 +248,39 @@ async submitQuestionnaire(answers, accessToken = null, isEdit = false) {
     try {
       // Get access token if available
       const accessToken = localStorage.getItem('accessToken');
-      // Get all available coaches with payout setup complete
-      const coaches = await this.getCoaches(accessToken); // Directly assign the array
-      //('All coaches:', coaches);
+      
+      // Get user location for better matching
+      const userLocation = JSON.parse(localStorage.getItem('userLocation') || 'null');
+      
+      // Get all available coaches with location-based filtering
+      const coaches = await this.getCoaches(accessToken, userLocation);
+      //('All coaches with location filtering:', coaches);
   
       if (!coaches || coaches.length === 0) {
-        throw new Error('No coaches available with payout setup complete');
+        throw new Error('No coaches available with payout setup complete and location data');
       }
   
-      // Randomly select a coach
-      const randomIndex = Math.floor(Math.random() * coaches.length);
-      const selectedCoach = coaches[randomIndex];
+      // If user has location, prioritize nearby coaches
+      let selectedCoach;
+      if (userLocation && userLocation.lat && userLocation.lng) {
+        // Sort by distance if available
+        const coachesWithDistance = coaches.filter(coach => coach.distance !== undefined);
+        if (coachesWithDistance.length > 0) {
+          // Select randomly from the closest 3 coaches
+          const nearbyCoaches = coachesWithDistance.slice(0, 3);
+          const randomIndex = Math.floor(Math.random() * nearbyCoaches.length);
+          selectedCoach = nearbyCoaches[randomIndex];
+        } else {
+          // No distance data, select randomly
+          const randomIndex = Math.floor(Math.random() * coaches.length);
+          selectedCoach = coaches[randomIndex];
+        }
+      } else {
+        // No user location, select randomly
+        const randomIndex = Math.floor(Math.random() * coaches.length);
+        selectedCoach = coaches[randomIndex];
+      }
+      
       //('Selected coach:', selectedCoach);
   
       if (!selectedCoach) {

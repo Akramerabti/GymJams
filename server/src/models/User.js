@@ -221,6 +221,45 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'GymBrosProfile',
   },
+  location: {
+    lat: {
+      type: Number,
+      validate: {
+        validator: function(lat) {
+          // Only validate if value is provided
+          return lat === undefined || lat === null || (lat >= -90 && lat <= 90);
+        },
+        message: 'Latitude must be between -90 and 90'
+      }
+    },
+    lng: {
+      type: Number,
+      validate: {
+        validator: function(lng) {
+          // Only validate if value is provided
+          return lng === undefined || lng === null || (lng >= -180 && lng <= 180);
+        },
+        message: 'Longitude must be between -180 and 180'
+      }
+    },
+    city: {
+      type: String,
+      trim: true
+    },
+    address: {
+      type: String,
+      trim: true,
+      select: false 
+    },
+    isVisible: {
+      type: Boolean,
+      default: true 
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now
+    }
+  },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

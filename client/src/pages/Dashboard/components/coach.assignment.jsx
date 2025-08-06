@@ -278,13 +278,26 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
             onCoachAssigned(response.coach);
           }, 8000);
         } else {
+          console.log('🏋️ Fetching coaches for assignment...');
           const response = await subscriptionService.getCoaches();
+          console.log('📊 Coach assignment fetch results:', {
+            totalCoaches: Array.isArray(response) ? response.length : 'Not array',
+            responseType: typeof response,
+            coaches: Array.isArray(response) ? response.map(coach => ({
+              id: coach._id,
+              name: `${coach.firstName} ${coach.lastName}`,
+              locationDisplay: coach.locationDisplay,
+              hasLocation: coach.hasLocation,
+              location: coach.location
+            })) : response
+          });
           //('Coaches Response:', response); // Debugging log          // Ensure response is an array
           if (Array.isArray(response)) {
+            console.log('✅ Setting coaches in assignment component');
             //('Number of Coaches:', response.length); // Debugging log
             setCoaches(response); // Set the coaches array directly
           } else {
-            console.error('Invalid coaches data:', response);
+            console.error('❌ Invalid coaches data:', response);
             setError('No coaches available. Please try again later.');
             setCoaches([]);
           }

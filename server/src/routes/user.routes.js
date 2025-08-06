@@ -2,6 +2,7 @@ import express from 'express';
 import {
   getProfile,
   updateProfile,
+  updateLocation,
   changePassword,
   getPoints,
   getUserDashboardData,
@@ -35,6 +36,7 @@ router.post('/change-password',  validatePasswordReset, changePassword);
 router.get('/profile', getProfile);
 router.get('/points', getPoints);
 router.put('/profile', validateProfileUpdate, updateProfile);
+router.put('/location', updateLocation);
 router.post('/upload', upload.array('files'), uploadFile);
 router.post('/:coachId/user-rating', authenticate, checkUserRating);
 router.post('/:coachId/rate', authenticate, rateCoach);

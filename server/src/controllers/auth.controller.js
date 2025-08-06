@@ -45,9 +45,20 @@ export const logout = async (req, res) => {
 export const register = async (req, res) => {
   try {
     const { email, password, firstName, lastName, phone } = req.body;
+    
+    console.log('📝 REGISTRATION ATTEMPT:', {
+      email: email ? email.toLowerCase() : 'NO EMAIL PROVIDED',
+      hasPassword: !!password,
+      passwordLength: password ? password.length : 0,
+      firstName,
+      lastName,
+      phone,
+      timestamp: new Date().toISOString()
+    });
 
     // Check if all required fields are provided
     if (!email || !password || !firstName || !lastName || !phone) {
+      console.log('❌ REGISTRATION FAILED: Missing required fields');
       return res.status(400).json({ message: 'All fields are required' });
     }
 
@@ -61,20 +72,36 @@ export const register = async (req, res) => {
 
     if (existingUser) {
       if (existingUser.email === email.toLowerCase()) {
+        console.log('❌ REGISTRATION FAILED: Email already exists:', email.toLowerCase());
         return res.status(400).json({ message: 'This email is already registered' });
       }
       if (existingUser.phone === phone) {
+        console.log('❌ REGISTRATION FAILED: Phone already exists:', phone);
         return res.status(400).json({ message: 'This phone number is already registered' });
       }
     }
+    
+    console.log('🔐 Hashing password for registration...');
     // Hash the password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
+    
+    console.log('🔑 Registration password hash details:', {
+      originalPassword: password,
+      salt: salt,
+      hashedPassword: hashedPassword,
+      hashLength: hashedPassword.length
+    });
+    
+    // Test the hash immediately to verify it works
+    const testMatch = await bcrypt.compare(password, hashedPassword);
+    console.log('🧪 Registration hash verification test:', testMatch);
 
     // Generate verification token
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
+    console.log('💳 Creating Stripe customer...');
     // Create Stripe customer
     const stripeCustomer = await createCustomer({
       email,
@@ -82,6 +109,7 @@ export const register = async (req, res) => {
       metadata: { userId: email }
     });
 
+    console.log('👤 Creating user in database...');
     // Create user in the database
     const user = await User.create({
       email: email.toLowerCase(),
@@ -93,7 +121,15 @@ export const register = async (req, res) => {
       verificationToken,
       verificationTokenExpires
     });
+    
+    console.log('✅ User created successfully:', {
+      userId: user._id,
+      email: user.email,
+      hasPassword: !!user.password,
+      passwordLength: user.password ? user.password.length : 0
+    });
 
+    console.log('📧 Sending verification email...');
     // Send verification email
     await sendVerificationEmail(user, verificationToken);
 
@@ -126,43 +162,128 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     
+    console.log('🔐 LOGIN ATTEMPT:', {
+      email: email ? email.toLowerCase() : 'NO EMAIL PROVIDED',
+      hasPassword: !!password,
+      passwordLength: password ? password.length : 0,
+      timestamp: new Date().toISOString(),
+      userAgent: req.headers['user-agent'],
+      ip: req.ip || req.connection.remoteAddress
+    });
+    
     // Email and password validation
     if (!email || !password) {
+      console.log('❌ LOGIN FAILED: Missing email or password', { email: !!email, password: !!password });
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
+    console.log('🔍 Searching for user with email:', email.toLowerCase());
     const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+    
     if (!user) {
+      console.log('❌ LOGIN FAILED: User not found for email:', email.toLowerCase());
       return res.status(401).json({ message: 'Invalid credentials' });
     }
+    
+    console.log('✅ User found with email:', user.email);
 
+    console.log('👤 User found:', {
+      userId: user._id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      isEmailVerified: user.isEmailVerified,
+      hasStoredPassword: !!user.password,
+      storedPasswordLength: user.password ? user.password.length : 0,
+      lastLogin: user.lastLogin
+    });
+
+    console.log('🔑 Comparing passwords...');
+    console.log('  - Provided password:', password);
+    console.log('  - Stored password hash:', user.password);
+    
     const isMatch = await bcrypt.compare(password, user.password);
+    console.log('🔑 Password comparison result:', isMatch);
+    
     if (!isMatch) {
+      console.log('❌ LOGIN FAILED: Password mismatch for user:', user.email);
+      
+      // Additional debugging - let's test the hash
+      console.log('🧪 Testing password hash generation:');
+      const testHash = await bcrypt.hash(password, 10);
+      console.log('  - Test hash for provided password:', testHash);
+      const testMatch = await bcrypt.compare(password, testHash);
+      console.log('  - Test hash matches provided password:', testMatch);
+      
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     if (!user.isEmailVerified) {
+      console.log('❌ LOGIN FAILED: Email not verified for user:', user.email);
       return res.status(403).json({ message: 'Please verify your email before logging in' });
     }
 
+    console.log('✅ Password verified successfully for user:', user.email);
+
     // Handle first login bonus and onboarding
     const isFirstLogin = !user.hasReceivedFirstLoginBonus;
+    console.log('🎁 First login bonus check:', { isFirstLogin, currentPoints: user.points });
+    
     if (isFirstLogin) {
       user.points += 100;
       user.hasReceivedFirstLoginBonus = true;
+      console.log('🎁 First login bonus awarded! New points:', user.points);
       await user.save();
     }
 
+    // Check if user has complete location data (especially for coaches)
+    const hasCompleteLocation = !!(user.location?.lat && user.location?.lng && user.location?.city);
+    const needsLocationUpdate = (user.role === 'coach' || user.role === 'taskforce') && !hasCompleteLocation;
+    
+    console.log('🗺️ Location check:', {
+      role: user.role,
+      hasCompleteLocation,
+      needsLocationUpdate,
+      location: user.location
+    });
+
     // Update last login
     user.lastLogin = new Date();
+    
+    // Initialize empty location object for coaches/taskforce without location
+    if (needsLocationUpdate && !user.location) {
+      console.log('🗺️ Initializing empty location for coach/taskforce');
+      user.location = {
+        isVisible: true,
+        updatedAt: new Date()
+      };
+    }
+    
+    console.log('💾 Saving user updates...');
     await user.save();
+    console.log('✅ User saved successfully');
 
+    logger.info(`User ${user.firstName} ${user.lastName} (${user.role}) logged in`, {
+      userId: user._id,
+      hasCompleteLocation,
+      needsLocationUpdate,
+      locationData: user.location ? {
+        hasCoordinates: !!(user.location.lat && user.location.lng),
+        hasCity: !!user.location.city,
+        isVisible: user.location.isVisible
+      } : null
+    });
+
+    console.log('🔐 Generating JWT token...');
     const token = jwt.sign(
       { id: user._id },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
+    console.log('✅ JWT token generated successfully');
 
+    console.log('📤 Sending successful login response...');
     res.json({
       token,
       user: {
@@ -175,10 +296,19 @@ export const login = async (req, res) => {
         isEmailVerified: user.isEmailVerified,
         hasReceivedFirstLoginBonus: user.hasReceivedFirstLoginBonus,
         role: user.role,
-        subscription: user.subscription
+        subscription: user.subscription,
+        location: user.location,
+        hasCompleteLocation,
+        needsLocationUpdate
       }
     });
   } catch (error) {
+    console.log('💥 LOGIN ERROR:', {
+      error: error.message,
+      stack: error.stack,
+      name: error.name,
+      timestamp: new Date().toISOString()
+    });
     logger.error('Login error:', error);
     res.status(500).json({ message: 'Error logging in' });
   }
@@ -533,6 +663,14 @@ export const forgotPassword = async (req, res) => {
 export const resetPassword = async (req, res) => {
   try {
     const { token, password } = req.body;
+    
+    console.log('🔑 PASSWORD RESET ATTEMPT:', {
+      hasToken: !!token,
+      tokenLength: token ? token.length : 0,
+      hasPassword: !!password,
+      passwordLength: password ? password.length : 0,
+      timestamp: new Date().toISOString()
+    });
 
     // Find user by reset token and check if token is still valid
     const user = await User.findOne({
@@ -541,20 +679,43 @@ export const resetPassword = async (req, res) => {
     });
 
     if (!user) {
+      console.log('❌ PASSWORD RESET FAILED: Invalid or expired token');
       return res.status(400).json({ 
         message: 'Password reset token is invalid or has expired' 
       });
     }
+    
+    console.log('👤 User found for password reset:', {
+      userId: user._id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName
+    });
 
+    console.log('🔐 Hashing new password...');
     // Hash new password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
+    
+    console.log('🔑 Password hash details:', {
+      originalPassword: password,
+      salt: salt,
+      hashedPassword: hashedPassword,
+      hashLength: hashedPassword.length
+    });
+
+    // Test the hash immediately to verify it works
+    const testMatch = await bcrypt.compare(password, hashedPassword);
+    console.log('🧪 Hash verification test:', testMatch);
 
     // Update user's password and clear reset token
     user.password = hashedPassword;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
+    
+    console.log('💾 Saving user with new password...');
     await user.save();
+    console.log('✅ Password reset completed successfully');
 
     // You might want to invalidate all existing sessions here
     // depending on your security requirements
@@ -570,18 +731,116 @@ export const resetPassword = async (req, res) => {
 
 export const getCoach = async (req, res) => {
   try {
-    const coaches = await User.find({ role: 'coach' })
-      .select('firstName lastName profileImage bio rating socialLinks payoutSetupComplete specialties')
+    const { userLat, userLng, maxDistance = 50 } = req.query;
+    
+    logger.info('Coach fetch request:', { userLat, userLng, maxDistance });
+    
+    // Build query for coaches - include all active coaches
+    const query = { 
+      role: 'coach',
+      isEmailVerified: true,
+      coachStatus: 'available'
+    };
+
+    const coaches = await User.find(query)
+      .select('firstName lastName profileImage bio rating socialLinks payoutSetupComplete specialties location')
       .sort({ rating: -1 }); // Sort by rating in descending order
 
+    logger.info(`Found ${coaches.length} total coaches`);
+    
     if (!coaches.length) {
       return res.status(404).json({ message: 'No coaches found' });
     }
 
-    // Profile images are already full URLs from Supabase, no need to modify
-    // (Legacy code that was adding base URL to relative paths has been removed)
+    // Debug: Log coach location data
+    coaches.forEach(coach => {
+      logger.info(`Coach ${coach._id} (${coach.firstName} ${coach.lastName}) location:`, {
+        hasLocation: !!coach.location,
+        locationData: coach.location,
+        hasCoordinates: !!(coach.location?.lat && coach.location?.lng),
+        hasCity: !!coach.location?.city
+      });
+    });
+
+    // ONLY include coaches with complete location data (lat, lng, city)
+    const coachesWithLocation = coaches.filter(coach => 
+      coach.location && 
+      coach.location.lat && 
+      coach.location.lng && 
+      coach.location.city
+    );
     
-    res.json(coaches);
+    const coachesWithoutLocation = coaches.filter(coach => 
+      !coach.location || 
+      !coach.location.lat || 
+      !coach.location.lng || 
+      !coach.location.city
+    );
+
+    logger.info(`Coaches with complete location: ${coachesWithLocation.length}`);
+    logger.info(`Coaches without complete location: ${coachesWithoutLocation.length} (EXCLUDED)`);
+
+    // Only return coaches with complete location data
+    if (coachesWithLocation.length === 0) {
+      logger.warn('No coaches with complete location data found');
+      return res.status(404).json({ message: 'No coaches with valid location data available' });
+    }
+
+    let processedCoaches = [];
+
+    // If user provided location, filter coaches by distance
+    if (userLat && userLng) {
+      const userLocation = {
+        lat: parseFloat(userLat),
+        lng: parseFloat(userLng)
+      };
+      
+      // Import location service
+      const { getCoachesWithinRadius, formatLocationForDisplay } = await import('../services/location.service.js');
+      
+      // Filter coaches with location by distance
+      const nearbyCoaches = getCoachesWithinRadius(userLocation, coachesWithLocation, parseFloat(maxDistance));
+      
+      // Format location for display
+      processedCoaches = nearbyCoaches.map(coach => ({
+        ...coach.toObject(),
+        locationDisplay: formatLocationForDisplay(coach.location, coach.distance),
+        distance: coach.distance,
+        hasLocation: true
+      }));
+    } else {
+      // No user location provided - show all coaches with location data
+      processedCoaches = coachesWithLocation.map(coach => ({
+        ...coach.toObject(),
+        locationDisplay: coach.location.city,
+        distance: null,
+        hasLocation: true
+      }));
+    }
+
+    // Remove sensitive location data before sending to client
+    processedCoaches = processedCoaches.map(coach => {
+      const coachData = { ...coach };
+      if (coachData.location) {
+        // Only keep city and isVisible flag, remove exact coordinates
+        coachData.location = {
+          city: coachData.location.city || null,
+          isVisible: coachData.location.isVisible || false
+        };
+      }
+      return coachData;
+    });
+
+    logger.info(`Returning ${processedCoaches.length} processed coaches`);
+    logger.info('Sample coach data:', processedCoaches[0] ? {
+      id: processedCoaches[0]._id,
+      name: `${processedCoaches[0].firstName} ${processedCoaches[0].lastName}`,
+      locationDisplay: processedCoaches[0].locationDisplay,
+      hasLocation: processedCoaches[0].hasLocation,
+      location: processedCoaches[0].location
+    } : 'No coaches to sample');
+
+    res.json(processedCoaches);
   } catch (error) {
     logger.error('Error fetching coaches:', error);
     res.status(500).json({ message: 'Error fetching coaches' });
@@ -599,14 +858,26 @@ export const getCoachById = async (req, res) => {
 
     // Find the coach by ID
     const coach = await User.findOne({ _id: coachId, role: 'coach' })
-      .select('firstName lastName profileImage bio rating socialLinks specialties payoutSetupComplete');
+      .select('firstName lastName profileImage bio rating socialLinks specialties payoutSetupComplete location');
 
     if (!coach) {
       return res.status(404).json({ message: 'Coach not found' });
-    }    // Profile image is already a full URL from Supabase, no need to modify
+    }
+
+    // Remove sensitive location data before sending to client
+    const coachData = coach.toObject();
+    if (coachData.location) {
+      // Only keep city and isVisible flag, remove exact coordinates
+      coachData.location = {
+        city: coachData.location.city || null,
+        isVisible: coachData.location.isVisible || false
+      };
+    }
+
+    // Profile image is already a full URL from Supabase, no need to modify
     // (Legacy code that was adding base URL to relative paths has been removed)
 
-    res.json(coach);
+    res.json(coachData);
   } catch (error) {
     logger.error('Error fetching coach by ID:', error);
     res.status(500).json({ message: 'Error fetching coach details' });

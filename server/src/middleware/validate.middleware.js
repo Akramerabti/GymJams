@@ -19,7 +19,6 @@ const validate = (validations) => {
 export const validateRegistration = validate([
   body('email')
     .isEmail()
-    .normalizeEmail()
     .withMessage('Please enter a valid email'),
   body('password')
     .isLength({ min: 8 })
@@ -43,7 +42,6 @@ export const validateRegistration = validate([
 export const validateLogin = validate([
   body('email')
     .isEmail()
-    .normalizeEmail()
     .withMessage('Please enter a valid email'),
   body('password')
     .notEmpty()

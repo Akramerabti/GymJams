@@ -202,6 +202,9 @@ const useAuthStore = create(
             set({ showOnboarding: true }); 
             usePoints.getState().updatePointsInBackend((user.points)+100);
           }
+
+          // Sync location data after successful login
+          await get().syncLocationOnLogin(user);
       
           return response.data;
         } catch (error) {
@@ -242,6 +245,9 @@ const useAuthStore = create(
             set({ showOnboarding: true });
             usePoints.getState().updatePointsInBackend((user.points)+100);
           }
+
+          // Sync location data after successful token login
+          await get().syncLocationOnLogin(user);
           
           return { token, user };
         } catch (error) {
@@ -317,10 +323,211 @@ const useAuthStore = create(
             usePoints.getState().updatePointsInBackend((user.user.points)+100);
           }
 
+          // Sync location data on auth check
+          await get().syncLocationOnLogin(user.user);
+
           return true;
         } catch (error) {
           console.error('Token validation failed:', error);
           return false;
+        }
+      },
+
+      // New method to sync location data on login
+      syncLocationOnLogin: async (user) => {
+        try {
+          console.log('🔄 AuthStore: Starting location sync on login for user:', user.id);
+          
+          // Helper function to check if location data is complete
+          const hasCompleteLocationData = (location) => {
+            return location && location.lat && location.lng && location.city;
+          };
+          
+          // Get location from localStorage
+          const localLocation = localStorage.getItem('userLocation');
+          const parsedLocalLocation = localLocation ? JSON.parse(localLocation) : null;
+          
+          console.log('📍 AuthStore: Local location:', parsedLocalLocation);
+          console.log('🏠 AuthStore: Backend location:', user.location);
+          
+          // Check if user has given location permission before
+          const hasLocationPermission = parsedLocalLocation || hasCompleteLocationData(user.location);
+          
+          if (hasLocationPermission) {
+            // User has provided location before - fetch fresh location
+            console.log('🔄 AuthStore: User has location permission, fetching fresh location...');
+            await get().refreshUserLocation(user);
+          } else {
+            // Handle first-time location sync scenarios:
+            // 1. User has location in localStorage but not in backend -> Upload to backend
+            // 2. User has location in backend but not in localStorage -> Download to localStorage  
+            // 3. User has different locations -> Use the more recent one
+            // 4. User has no location anywhere -> Do nothing (LocationBanner will handle)
+            
+            if (hasCompleteLocationData(parsedLocalLocation) && !hasCompleteLocationData(user.location)) {
+              // Case 1: Upload localStorage location to backend
+              console.log('⬆️ AuthStore: Uploading localStorage location to backend');
+              
+              const response = await api.put('/user/location', parsedLocalLocation);
+              if (response.status === 200) {
+                console.log('✅ AuthStore: Successfully synced localStorage location to backend');
+                
+                // Update user in store
+                const updatedUser = {
+                  ...user,
+                  location: parsedLocalLocation,
+                  hasCompleteLocation: true,
+                  needsLocationUpdate: false
+                };
+                get().setUser(updatedUser);
+              }
+            } else if (hasCompleteLocationData(user.location) && !hasCompleteLocationData(parsedLocalLocation)) {
+              // Case 2: Download backend location to localStorage
+              console.log('⬇️ AuthStore: Downloading backend location to localStorage');
+              
+              const locationData = {
+                lat: user.location.lat,
+                lng: user.location.lng,
+                city: user.location.city,
+                address: user.location.address || '',
+                source: 'backend'
+              };
+              
+              localStorage.setItem('userLocation', JSON.stringify(locationData));
+              console.log('✅ AuthStore: Successfully synced backend location to localStorage');
+              
+              // Update user flags since they now have complete location
+              const updatedUser = {
+                ...user,
+                hasCompleteLocation: true,
+                needsLocationUpdate: false
+              };
+              get().setUser(updatedUser);
+            } else if (hasCompleteLocationData(parsedLocalLocation) && hasCompleteLocationData(user.location)) {
+              // Case 3: Both exist - compare timestamps or coordinates
+              const localTime = new Date(parsedLocalLocation.timestamp || 0);
+              const backendTime = new Date(user.location.updatedAt || 0);
+              
+              console.log('🔄 AuthStore: Both locations exist, comparing timestamps:', {
+                local: localTime,
+                backend: backendTime
+              });
+              
+              // If backend is more recent, update localStorage
+              if (backendTime > localTime) {
+                console.log('⬇️ AuthStore: Backend location is newer, updating localStorage');
+                const locationData = {
+                  lat: user.location.lat,
+                  lng: user.location.lng,
+                  city: user.location.city,
+                  address: user.location.address || '',
+                  source: 'backend',
+                  timestamp: user.location.updatedAt
+                };
+                localStorage.setItem('userLocation', JSON.stringify(locationData));
+              }
+              
+              // Both locations exist, so user has complete location
+              const updatedUser = {
+                ...user,
+                hasCompleteLocation: true,
+                needsLocationUpdate: false
+              };
+              get().setUser(updatedUser);
+            }
+          }
+          
+          console.log('✅ AuthStore: Location sync completed');
+        } catch (error) {
+          console.error('❌ AuthStore: Error syncing location on login:', error);
+          // Don't throw error to avoid breaking login flow
+        }
+      },
+
+      // New method to refresh user location on login/reload
+      refreshUserLocation: async (user) => {
+        try {
+          console.log('🔄 AuthStore: Refreshing user location...');
+          
+          // Check if geolocation is available
+          if (!navigator.geolocation) {
+            console.log('❌ AuthStore: Geolocation not supported');
+            return;
+          }
+          
+          // Get fresh GPS coordinates
+          const position = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(
+              resolve,
+              reject,
+              {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0 // Don't use cached position
+              }
+            );
+          });
+          
+          const { latitude, longitude } = position.coords;
+          console.log('📍 AuthStore: Fresh GPS coordinates:', { lat: latitude, lng: longitude });
+          
+          // Reverse geocode to get current city
+          const cityName = await get().reverseGeocode(latitude, longitude);
+          console.log('🏙️ AuthStore: Current city:', cityName);
+          
+          const freshLocationData = {
+            lat: latitude,
+            lng: longitude,
+            city: cityName,
+            address: '',
+            source: 'fresh-gps',
+            timestamp: new Date().toISOString()
+          };
+          
+          // Update localStorage
+          localStorage.setItem('userLocation', JSON.stringify(freshLocationData));
+          
+          // Update backend if user is logged in
+          if (user?.id) {
+            console.log('⬆️ AuthStore: Uploading fresh location to backend...');
+            const response = await api.put('/user/location', freshLocationData);
+            
+            if (response.status === 200) {
+              console.log('✅ AuthStore: Fresh location updated successfully');
+              
+              // Update user in store
+              const updatedUser = {
+                ...user,
+                location: freshLocationData,
+                hasCompleteLocation: true,
+                needsLocationUpdate: false
+              };
+              get().setUser(updatedUser);
+            }
+          }
+          
+        } catch (error) {
+          console.log('⚠️ AuthStore: Could not refresh location (user may have denied permission):', error.message);
+          // Don't throw error - user might have revoked location permission
+        }
+      },
+
+      // Helper method for reverse geocoding
+      reverseGeocode: async (lat, lng) => {
+        try {
+          const response = await fetch(
+            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
+          );
+          
+          if (response.ok) {
+            const data = await response.json();
+            return data.city || data.locality || data.principalSubdivision || 'Unknown City';
+          }
+          
+          return 'Unknown City';
+        } catch (error) {
+          console.error('❌ AuthStore: Reverse geocoding error:', error);
+          return 'Unknown City';
         }
       },
     }),
@@ -359,6 +566,9 @@ export const useAuth = () => {
     registerResetCallback: store.registerResetCallback,
     showOnboarding: store.showOnboarding,
     setShowOnboarding: store.setShowOnboarding,
+    syncLocationOnLogin: store.syncLocationOnLogin,
+    refreshUserLocation: store.refreshUserLocation,
+    reverseGeocode: store.reverseGeocode,
   };
 };
 

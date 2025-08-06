@@ -54,9 +54,116 @@ import BlogPost from './components/blog/BlogPost';
 import { SocketProvider } from './SocketContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 
+// Location and Profile Components
+import LocationBanner from './components/common/LocationBanner';
+import CoachProfileCompletionModal from './components/common/CoachProfileCompletionModal';
+
 
 const App = () => {
-  const { checkAuth, logout, showOnboarding, setShowOnboarding } = useAuthStore();
+  const { checkAuth, logout, showOnboarding, setShowOnboarding, refreshUserLocation, reverseGeocode } = useAuthStore();
+
+  const refreshGuestLocation = async () => {
+    try {
+      console.log('🔄 App.jsx: Refreshing guest location...');
+      
+      // Check if geolocation is available
+      if (!navigator.geolocation) {
+        console.log('❌ App.jsx: Geolocation not supported');
+        return;
+      }
+      
+      // Get fresh GPS coordinates
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          reject,
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0 // Don't use cached position
+          }
+        );
+      });
+      
+      const { latitude, longitude } = position.coords;
+      console.log('📍 App.jsx: Fresh guest GPS coordinates:', { lat: latitude, lng: longitude });
+      
+      // Reverse geocode to get current city
+      const cityName = await reverseGeocode(latitude, longitude);
+      console.log('🏙️ App.jsx: Current guest city:', cityName);
+      
+      const freshLocationData = {
+        lat: latitude,
+        lng: longitude,
+        city: cityName,
+        address: '',
+        source: 'fresh-gps-guest',
+        timestamp: new Date().toISOString()
+      };
+      
+      // Update localStorage for guest
+      localStorage.setItem('userLocation', JSON.stringify(freshLocationData));
+      console.log('✅ App.jsx: Guest location refreshed successfully');
+      
+    } catch (error) {
+      console.log('⚠️ App.jsx: Could not refresh guest location (user may have denied permission):', error.message);
+      // Don't throw error - user might have revoked location permission
+    }
+  };
+
+  const handleLocationSet = async (locationData) => {
+    console.log('🔄 App.jsx: handleLocationSet called with:', locationData);
+    
+    try {
+      const token = localStorage.getItem('token');
+      console.log('🔑 App.jsx: Token exists:', !!token);
+      
+      if (token) {
+        console.log('📤 App.jsx: Making API request to /api/user/location');
+        const response = await fetch('/api/user/location', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(locationData)
+        });
+        
+        console.log('📨 App.jsx: API response status:', response.status);
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log('✅ App.jsx: User location updated successfully:', result);
+          
+          // Also update the auth store if possible
+          const authStore = useAuthStore.getState();
+          if (authStore.user) {
+            authStore.setUser({
+              ...authStore.user,
+              location: locationData,
+              hasCompleteLocation: true,
+              needsLocationUpdate: false
+            });
+          }
+        } else {
+          const errorText = await response.text();
+          console.error('❌ App.jsx: API error response:', response.status, errorText);
+          
+          // Try to parse as JSON for more details
+          try {
+            const errorJson = JSON.parse(errorText);
+            console.error('❌ App.jsx: Detailed error:', errorJson);
+          } catch (e) {
+            // Not JSON, just log the text
+          }
+        }
+      } else {
+        console.warn('⚠️ App.jsx: No token found, user not authenticated');
+      }
+    } catch (error) {
+      console.error('❌ App.jsx: Error updating user location:', error);
+    }
+  };
 
   useEffect(() => {
     const validateTokenOnLoad = async () => {
@@ -67,6 +174,17 @@ const App = () => {
           if (!isValid) {
             //('Token validation failed, logging out');
             logout();
+          }
+        } else {
+          // For guest users, also refresh location if they have given permission before
+          const hasLocation = localStorage.getItem('userLocation');
+          if (hasLocation) {
+            console.log('🔄 App.jsx: Refreshing guest location on page load...');
+            try {
+              await refreshGuestLocation();
+            } catch (error) {
+              console.log('⚠️ App.jsx: Could not refresh guest location:', error.message);
+            }
           }
         }
       } catch (error) {
@@ -161,6 +279,10 @@ const App = () => {
                 {showOnboarding && (
                   <Onboarding onClose={() => setShowOnboarding(false)} />
                 )}
+
+                {/* Global Components */}
+                <LocationBanner onLocationSet={handleLocationSet} />
+                <CoachProfileCompletionModal />
 
                 <Toaster />
                 {process.env.NODE_ENV !== 'production' && <AdDebugger />}

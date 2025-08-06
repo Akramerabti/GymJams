@@ -536,7 +536,7 @@ export const updateApplicationStatus = async (req, res) => {
       try {
         // Create the templates directory if it doesn't exist
         const templatesDir = path.join(__dirname, '../../templates');
-        logger.info(`[DEBUG] Templates directory path: ${templatesDir}`);
+       logger.info(`[DEBUG] Templates directory path: ${templatesDir}`);
         
         try {
           await fs.mkdir(templatesDir, { recursive: true });
