@@ -798,12 +798,15 @@ export const getCoach = async (req, res) => {
       // Import location service
       const { getCoachesWithinRadius, formatLocationForDisplay } = await import('../services/location.service.js');
       
+      // Convert coaches to plain objects before processing with location service
+      const coachPlainObjects = coachesWithLocation.map(coach => coach.toObject());
+      
       // Try 50 miles first, then expand to 100 miles if needed
-      let nearbyCoaches = getCoachesWithinRadius(userLocation, coachesWithLocation, 50);
+      let nearbyCoaches = getCoachesWithinRadius(userLocation, coachPlainObjects, 50);
       let searchRadius = 50;
       
       if (nearbyCoaches.length === 0) {
-        nearbyCoaches = getCoachesWithinRadius(userLocation, coachesWithLocation, 100);
+        nearbyCoaches = getCoachesWithinRadius(userLocation, coachPlainObjects, 100);
         searchRadius = 100;
         logger.info(`No coaches within 50 miles, expanded to 100 miles: found ${nearbyCoaches.length} coaches`);
       } else {
@@ -821,12 +824,20 @@ export const getCoach = async (req, res) => {
         
         // Format location for display with distance
         processedCoaches = nearbyCoaches.map(coach => ({
-          ...coach.toObject(),
+          ...coach, // coach is already a plain object from location service
           locationDisplay: formatLocationForDisplay(coach.location, coach.distance),
           distance: Math.round(coach.distance * 10) / 10, // Round to 1 decimal place
           hasLocation: true,
           searchRadius: searchRadius
         }));
+        
+        logger.info(`Returning ${processedCoaches.length} processed coaches`);
+        logger.info('Sample coach data:', {
+          hasLocation: processedCoaches[0]?.hasLocation,
+          locationDisplay: processedCoaches[0]?.locationDisplay,
+          name: `${processedCoaches[0]?.firstName} ${processedCoaches[0]?.lastName}`,
+          distance: processedCoaches[0]?.distance
+        });
       } else {
         // No coaches within 100 miles - show all coaches without distance info
         logger.info('No coaches within 100 miles, showing all available coaches');

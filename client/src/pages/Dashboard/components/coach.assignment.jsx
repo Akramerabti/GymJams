@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Search, CheckCircle, Clock, RefreshCw, Mail, Star, Info, X, Sparkles, Award, Target, Heart, Trophy, MapPin } from 'lucide-react';
+import { User, Search, CheckCircle, Clock, RefreshCw, Mail, Star, Info, X, Sparkles, Target, Heart, Trophy, MapPin } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -228,6 +228,8 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [selectedCoachForProfile, setSelectedCoachForProfile] = useState(null);
   const [retryCount, setRetryCount] = useState(0); // Track retry attempts
+  const [sortBy, setSortBy] = useState('distance'); // New sort state
+  const [filterBySpecialty, setFilterBySpecialty] = useState('all'); // New specialty filter
   const navigate = useNavigate();
 
   const isBasicPlan = subscription?.subscription === 'basic';
@@ -385,6 +387,62 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
   const handleContactSupport = () => {
     navigate('/contact');
   };
+
+  // Function to sort coaches based on selected criteria
+  const sortCoaches = (coachesToSort, sortCriteria) => {
+    if (!coachesToSort || coachesToSort.length === 0) return [];
+    
+    const sortedCoaches = [...coachesToSort];
+    
+    switch (sortCriteria) {
+      case 'distance':
+        return sortedCoaches.sort((a, b) => {
+          // Coaches with distance come first, sorted by distance
+          if (a.distance !== undefined && b.distance !== undefined) {
+            return a.distance - b.distance;
+          }
+          // Coaches with distance come before those without
+          if (a.distance !== undefined && b.distance === undefined) return -1;
+          if (a.distance === undefined && b.distance !== undefined) return 1;
+          // If both have no distance, sort by rating as secondary
+          return (b.rating || 0) - (a.rating || 0);
+        });
+        
+      case 'rating':
+        return sortedCoaches.sort((a, b) => {
+          // Sort by rating (highest first), then by distance if available
+          const ratingDiff = (b.rating || 0) - (a.rating || 0);
+          if (ratingDiff !== 0) return ratingDiff;
+          // Secondary sort by distance if ratings are equal
+          if (a.distance !== undefined && b.distance !== undefined) {
+            return a.distance - b.distance;
+          }
+          return 0;
+        });
+        
+      default:
+        return sortedCoaches;
+    }
+  };
+
+  // Function to filter coaches by specialty
+  const filterCoachesBySpecialty = (coachesToFilter, specialty) => {
+    if (!coachesToFilter || specialty === 'all') return coachesToFilter;
+    
+    return coachesToFilter.filter(coach => 
+      coach.specialties && coach.specialties.includes(specialty)
+    );
+  };
+
+  // Get filtered and sorted coaches
+  const filteredCoaches = filterCoachesBySpecialty(coaches, filterBySpecialty);
+  const sortedCoaches = sortCoaches(filteredCoaches, sortBy);
+
+  // Available specialties from the User model
+  const availableSpecialties = [
+    'HIIT', 'Cardio', 'Weight Training', 'Nutrition', 'Bodybuilding', 
+    'Sports Performance', 'Yoga', 'Weight Loss', 'CrossFit', 'Powerlifting'
+  ];
   const CoachReveal = ({ selectedCoach }) => {
     const [showConfetti, setShowConfetti] = useState(false);
 
@@ -580,6 +638,24 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
                         {selectedCoach.rating.toFixed(1)}
                       </span>
                     </motion.div>                  )}
+
+                  {/* Location Display */}
+                  {selectedCoach.locationDisplay && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 2.7 }}
+                      className="flex items-center justify-center mt-3 space-x-1"
+                    >
+                      <MapPin className="w-4 h-4 text-blue-500" />
+                      <span className="text-sm font-medium text-gray-600">
+                        {selectedCoach.distance ? 
+                          `${selectedCoach.locationDisplay} (${selectedCoach.distance} mi away)` : 
+                          selectedCoach.locationDisplay
+                        }
+                      </span>
+                    </motion.div>
+                  )}
                 </motion.div>
               </div>
             </motion.div>
@@ -874,11 +950,65 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
 
   return (    <Card className="w-full bg-gradient-to-br from-purple-100 via-blue-50 to-indigo-100 border-purple-200 shadow-xl mt-10">
       <CardHeader className="border-b border-purple-200 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-indigo-500/10 backdrop-blur-sm">
-        <CardTitle className="flex items-center text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
-          <User className="w-6 h-6 mr-3 text-blue-500" />
-          Choose Your Personal Coach
-          <Sparkles className="w-5 h-5 ml-2 text-yellow-500" />
-        </CardTitle>
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <CardTitle className="flex items-center text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
+            <User className="w-6 h-6 mr-3 text-blue-500" />
+            Choose Your Personal Coach
+            <Sparkles className="w-5 h-5 ml-2 text-yellow-500" />
+          </CardTitle>
+          
+          {/* Filters moved to header */}
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+            {/* Sort Options */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-black font-medium">Sort:</span>
+              <div className="flex gap-1">
+                {[
+                  { value: 'distance', label: 'Distance', icon: MapPin },
+                  { value: 'rating', label: 'Rating', icon: Star }
+                ].map(({ value, label, icon: Icon }) => (
+                  <button
+                    key={value}
+                    onClick={() => setSortBy(value)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all duration-200 ${
+                      sortBy === value
+                        ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-sm'
+                        : 'bg-white/80 dark:bg-gray-700/80 text-black dark:text-white hover:bg-white dark:hover:bg-gray-700 hover:text-black dark:hover:text-white border border-gray-200 dark:border-gray-600'
+                    }`}
+                  >
+                    <Icon className={`w-3 h-3 ${sortBy === value ? 'text-white' : 'text-black dark:text-white'}`} />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Specialty Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-black font-medium">Specialty:</span>
+              <select
+                value={filterBySpecialty}
+                onChange={(e) => setFilterBySpecialty(e.target.value)}
+                className="px-3 py-1 text-xs font-medium text-black dark:text-white rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              >
+                <option value="all" className="text-black dark:text-white bg-white dark:bg-gray-800">All Specialties</option>
+                {availableSpecialties.map(specialty => (
+                  <option key={specialty} value={specialty} className="text-black dark:text-white bg-white dark:bg-gray-800">{specialty}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Results Count */}
+            {coaches.length > 0 && (
+              <div className="text-xs text-black whitespace-nowrap">
+                {sortedCoaches.length} of {coaches.length} coaches
+                {filterBySpecialty !== 'all' && (
+                  <span className="text-black ml-1">• {filterBySpecialty}</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="p-6 bg-gradient-to-br from-blue-50/50 via-purple-50/50 to-indigo-50/50">
         {/* Show CoachReveal animation for premium/elite users when coach is assigned */}
@@ -890,8 +1020,8 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
             <div className="max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gradient bg-gradient-to-br from-cyan-100/30 via-blue-100/30 to-purple-100/30 rounded-2xl p-4 backdrop-blur-sm border border-white/20 shadow-inner">
               {/* Responsive Grid - 2 cols on mobile, 2 on tablet, 3 on large tablet+, 4 on desktop, 5 on large desktop */}
               <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 lg:gap-6">
-                {coaches && coaches.length > 0 ? (
-                  coaches.map((coach, index) => {
+                {sortedCoaches && sortedCoaches.length > 0 ? (
+                  sortedCoaches.map((coach, index) => {
                     const gradientClass = gradientCombinations[index % gradientCombinations.length];
                     
                     return (
@@ -926,6 +1056,24 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
                           >
                             <Info className="w-4 h-4 text-white" />
                           </button>
+
+                          {/* Sort Indicator Badge */}
+                          {index < 3 && (
+                            <div className="absolute top-3 left-3 flex items-center gap-1 px-2 py-1 bg-white/90 rounded-full text-xs font-medium text-black shadow-sm">
+                              {sortBy === 'distance' && coach.distance !== undefined && (
+                                <>
+                                  <MapPin className="w-3 h-3 text-blue-500" />
+                                  <span>#{index + 1}</span>
+                                </>
+                              )}
+                              {sortBy === 'rating' && coach.rating && (
+                                <>
+                                  <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                                  <span>#{index + 1}</span>
+                                </>
+                              )}
+                            </div>
+                          )}
 
                           {/* Coach Card Content */}
                           <div className="flex flex-col items-center space-y-4">
