@@ -121,12 +121,11 @@ class LocationService {
    */
   async getLocationSmart() {
     try {
-      // First try IP-based location (no popup)
-      console.log('🌐 Attempting IP-based location detection...');
+
       const ipLocation = await this.getLocationByIP();
       
       if (ipLocation) {
-        console.log('✅ IP-based location detected:', ipLocation.city);
+
         return {
           location: ipLocation,
           method: 'ip',
@@ -134,8 +133,7 @@ class LocationService {
         };
       }
 
-      // If IP fails, return GPS option for user to choose
-      console.log('⚠️ IP-based location failed, GPS option available');
+
       return {
         location: null,
         method: 'gps-available',
@@ -282,7 +280,6 @@ class LocationService {
     // Check for fresh stored location first
     const stored = this.getStoredLocation();
     if (stored && this.isLocationFresh(stored)) {
-      console.log('Using stored location:', stored.city);
       return stored;
     }
 

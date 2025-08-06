@@ -129,22 +129,11 @@ const CoachingHome = () => {
       }
     };    const fetchCoaches = async () => {
       try {
-        console.log('🏋️ Fetching coaches from API...');
+
         const response = await subscriptionService.getCoaches();
         const originalCoaches = response || [];
         
-        console.log('📊 Coach fetch results:', {
-          totalCoaches: originalCoaches.length,
-          coaches: originalCoaches.map(coach => ({
-            id: coach._id,
-            name: `${coach.firstName} ${coach.lastName}`,
-            locationDisplay: coach.locationDisplay,
-            hasLocation: coach.hasLocation,
-            location: coach.location
-          }))
-        });
-        
-        // Shuffle function to randomize array order
+
         const shuffleArray = (array) => {
           const shuffled = [...array];
           for (let i = shuffled.length - 1; i > 0; i--) {
@@ -157,8 +146,6 @@ const CoachingHome = () => {
         // Shuffle the coaches array to randomize the order
         const shuffledCoaches = shuffleArray(originalCoaches);
         setCoaches(shuffledCoaches);
-        console.log('✅ Coaches set in state');
-        //('Original Coaches:', originalCoaches);
       } catch (error) {
         console.error('❌ Error fetching coaches:', error);
         console.error('Error details:', {
@@ -373,15 +360,6 @@ const CoachingHome = () => {
                         console.error('Video source:', e.target.src || 'No src found');
                         console.error('Attempted video URL:', getVideoUrl());
                         handleVideoError(e.target);
-                      }}
-                      onLoadStart={(e) => {
-                        console.log('Video started loading...', e.target.src);
-                      }}
-                      onCanPlay={() => {
-                        console.log('Video can start playing');
-                      }}
-                      onLoadedData={() => {
-                        console.log('Video data loaded successfully');
                       }}
                     >
                       <source src={getVideoUrl()} type="video/mp4" />
@@ -1176,12 +1154,6 @@ const CoachingHome = () => {
                       console.error('Modal video failed to load:', e);
                       console.error('This is likely because the video is stored in Git LFS and not properly deployed to Vercel');
                       toast.error('Video failed to load. This may be due to deployment configuration.');
-                    }}
-                    onLoadStart={() => {
-                      console.log('Modal video started loading...');
-                    }}
-                    onCanPlay={() => {
-                      console.log('Modal video can start playing');
                     }}
                   >
                     <source src={selectedVideo.thumbnail} type="video/mp4" />
