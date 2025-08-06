@@ -244,62 +244,225 @@ async submitQuestionnaire(answers, accessToken = null, isEdit = false) {
     }
   },
 
-  async assignRandomCoach() {
+  async assignRandomCoach(specialtyPreference = null) {
     try {
+      console.log('🔧 [DEBUG] assignRandomCoach called with:', { specialtyPreference });
+      
       // Get access token if available
       const accessToken = localStorage.getItem('accessToken');
+      console.log('🔑 [DEBUG] Access token found:', !!accessToken);
       
       // Get user location for better matching
       const userLocation = JSON.parse(localStorage.getItem('userLocation') || 'null');
+      console.log('📍 [DEBUG] User location:', userLocation);
       
       // Get all available coaches with location-based filtering
+      console.log('🌐 [DEBUG] Fetching coaches from API...');
       const coaches = await this.getCoaches(accessToken, userLocation);
+      console.log('👥 [DEBUG] All coaches fetched:', {
+        count: coaches?.length || 0,
+        coaches: coaches?.map(c => ({
+          id: c._id,
+          name: `${c.firstName} ${c.lastName}`,
+          specialties: c.specialties,
+          distance: c.distance,
+          hasLocation: c.hasLocation
+        }))
+      });
       //('All coaches with location filtering:', coaches);
   
       if (!coaches || coaches.length === 0) {
+        console.error('❌ [DEBUG] No coaches available');
         throw new Error('No coaches available with payout setup complete and location data');
+      }
+
+      let filteredCoaches = coaches;
+      console.log('🔄 [DEBUG] Starting coach filtering process...');
+      
+      // Filter by specialty preference if provided
+      if (specialtyPreference && specialtyPreference.trim() !== '') {
+        console.log('🎯 [DEBUG] Filtering by specialty preference:', specialtyPreference);
+        
+        const coachesWithSpecialty = coaches.filter(coach => 
+          coach.specialties && coach.specialties.includes(specialtyPreference)
+        );
+        
+        console.log('🎯 [DEBUG] Coaches with specialty found:', {
+          count: coachesWithSpecialty.length,
+          coaches: coachesWithSpecialty.map(c => ({
+            id: c._id,
+            name: `${c.firstName} ${c.lastName}`,
+            specialties: c.specialties,
+            distance: c.distance
+          }))
+        });
+        
+        // Use specialty-matched coaches if available, otherwise fall back to all coaches
+        if (coachesWithSpecialty.length > 0) {
+          filteredCoaches = coachesWithSpecialty;
+          console.log(`✅ [DEBUG] Found ${coachesWithSpecialty.length} coaches with specialty: ${specialtyPreference}`);
+        } else {
+          console.log(`⚠️ [DEBUG] No coaches found with specialty: ${specialtyPreference}, using all available coaches`);
+        }
+      } else {
+        console.log('🔀 [DEBUG] No specialty preference provided, using all coaches');
       }
   
       // If user has location, prioritize nearby coaches
       let selectedCoach;
+      console.log('📍 [DEBUG] Coach selection logic starting...');
+      console.log('🗺️ [DEBUG] User location available:', !!(userLocation && userLocation.lat && userLocation.lng));
+      
       if (userLocation && userLocation.lat && userLocation.lng) {
+        console.log('📏 [DEBUG] User has location, applying distance-based logic');
+        
         // Sort by distance if available
-        const coachesWithDistance = coaches.filter(coach => coach.distance !== undefined);
+        const coachesWithDistance = filteredCoaches.filter(coach => coach.distance !== undefined);
+        console.log('📊 [DEBUG] Coaches with distance data:', {
+          count: coachesWithDistance.length,
+          coaches: coachesWithDistance.map(c => ({
+            id: c._id,
+            name: `${c.firstName} ${c.lastName}`,
+            distance: c.distance
+          }))
+        });
+        
         if (coachesWithDistance.length > 0) {
-          // Select randomly from the closest 3 coaches
-          const nearbyCoaches = coachesWithDistance.slice(0, 3);
-          const randomIndex = Math.floor(Math.random() * nearbyCoaches.length);
-          selectedCoach = nearbyCoaches[randomIndex];
+          // For specialty preference, prioritize specialty over distance but still consider location
+          if (specialtyPreference && specialtyPreference.trim() !== '') {
+            console.log('🎯 [DEBUG] Applying specialty preference with distance logic');
+            
+            // If we have coaches with the preferred specialty, select from them
+            const specialtyCoachesWithDistance = coachesWithDistance.filter(coach => 
+              coach.specialties && coach.specialties.includes(specialtyPreference)
+            );
+            
+            console.log('🏆 [DEBUG] Specialty coaches with distance:', {
+              count: specialtyCoachesWithDistance.length,
+              coaches: specialtyCoachesWithDistance.map(c => ({
+                id: c._id,
+                name: `${c.firstName} ${c.lastName}`,
+                specialties: c.specialties,
+                distance: c.distance
+              }))
+            });
+            
+            if (specialtyCoachesWithDistance.length > 0) {
+              // Select randomly from specialty coaches (location already considered)
+              const randomIndex = Math.floor(Math.random() * specialtyCoachesWithDistance.length);
+              selectedCoach = specialtyCoachesWithDistance[randomIndex];
+              console.log('✅ [DEBUG] Selected specialty coach:', {
+                id: selectedCoach._id,
+                name: `${selectedCoach.firstName} ${selectedCoach.lastName}`,
+                specialty: specialtyPreference,
+                distance: selectedCoach.distance,
+                randomIndex
+              });
+            } else {
+              // Select randomly from the closest 3 coaches
+              const nearbyCoaches = coachesWithDistance.slice(0, 3);
+              const randomIndex = Math.floor(Math.random() * nearbyCoaches.length);
+              selectedCoach = nearbyCoaches[randomIndex];
+              console.log('🏃‍♂️ [DEBUG] No specialty coaches, selected nearby coach:', {
+                id: selectedCoach._id,
+                name: `${selectedCoach.firstName} ${selectedCoach.lastName}`,
+                distance: selectedCoach.distance,
+                randomIndex,
+                nearbyCount: nearbyCoaches.length
+              });
+            }
+          } else {
+            console.log('🎲 [DEBUG] No specialty preference, selecting from nearby coaches');
+            // No specialty preference, select from closest coaches
+            const nearbyCoaches = coachesWithDistance.slice(0, 3);
+            const randomIndex = Math.floor(Math.random() * nearbyCoaches.length);
+            selectedCoach = nearbyCoaches[randomIndex];
+            console.log('🏃‍♂️ [DEBUG] Selected nearby coach:', {
+              id: selectedCoach._id,
+              name: `${selectedCoach.firstName} ${selectedCoach.lastName}`,
+              distance: selectedCoach.distance,
+              randomIndex,
+              nearbyCount: nearbyCoaches.length
+            });
+          }
         } else {
-          // No distance data, select randomly
-          const randomIndex = Math.floor(Math.random() * coaches.length);
-          selectedCoach = coaches[randomIndex];
+          console.log('⚠️ [DEBUG] No distance data available, selecting randomly');
+          // No distance data, select randomly from filtered coaches
+          const randomIndex = Math.floor(Math.random() * filteredCoaches.length);
+          selectedCoach = filteredCoaches[randomIndex];
+          console.log('🎲 [DEBUG] Random selection (no distance):', {
+            id: selectedCoach._id,
+            name: `${selectedCoach.firstName} ${selectedCoach.lastName}`,
+            randomIndex
+          });
         }
       } else {
-        // No user location, select randomly
-        const randomIndex = Math.floor(Math.random() * coaches.length);
-        selectedCoach = coaches[randomIndex];
+        console.log('🌍 [DEBUG] No user location, selecting randomly from filtered coaches');
+        // No user location, select randomly from filtered coaches
+        const randomIndex = Math.floor(Math.random() * filteredCoaches.length);
+        selectedCoach = filteredCoaches[randomIndex];
+        console.log('🎲 [DEBUG] Random selection (no location):', {
+          id: selectedCoach._id,
+          name: `${selectedCoach.firstName} ${selectedCoach.lastName}`,
+          randomIndex
+        });
       }
       
+      console.log('🏆 [DEBUG] Final selected coach:', {
+        id: selectedCoach?._id,
+        name: selectedCoach ? `${selectedCoach.firstName} ${selectedCoach.lastName}` : 'None',
+        specialties: selectedCoach?.specialties,
+        distance: selectedCoach?.distance,
+        locationDisplay: selectedCoach?.locationDisplay
+      });
       //('Selected coach:', selectedCoach);
   
       if (!selectedCoach) {
+        console.error('❌ [DEBUG] No coach was selected');
         throw new Error('Failed to select a coach');
       }
   
-      // Assign the selected coach with access token
+      console.log('📤 [DEBUG] Preparing API request to assign coach');
+      // Assign the selected coach with access token and specialty preference
+      const requestBody = { coachId: selectedCoach._id };
+      if (specialtyPreference && specialtyPreference.trim() !== '') {
+        requestBody.specialtyPreference = specialtyPreference;
+        console.log('🎯 [DEBUG] Including specialty preference in request:', specialtyPreference);
+      }
+
+      console.log('🌐 [DEBUG] Making API call to /subscription/assign-coach', {
+        requestBody,
+        hasAccessToken: !!accessToken
+      });
+
       const response = await api.post(
         '/subscription/assign-coach',
-        { coachId: selectedCoach._id },
+        requestBody,
         { params: accessToken ? { accessToken } : {} }
       );
-  
-      return {
+      
+      console.log('✅ [DEBUG] API response received:', response.data);
+
+      const result = {
         coach: selectedCoach,
         assignment: response.data,
       };
+      
+      console.log('🎉 [DEBUG] assignRandomCoach completed successfully:', {
+        coachId: result.coach._id,
+        coachName: `${result.coach.firstName} ${result.coach.lastName}`,
+        assignmentId: result.assignment._id || result.assignment.id
+      });
+      
+      return result;
     } catch (error) {
-      console.error('Error assigning random coach:', error);
+      console.error('❌ [DEBUG] Error in assignRandomCoach:', error);
+      console.error('📝 [DEBUG] Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        stack: error.stack
+      });
       throw error;
     }
   },

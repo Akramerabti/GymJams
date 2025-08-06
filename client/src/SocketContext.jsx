@@ -102,7 +102,6 @@ export const SocketProvider = ({ children }) => {
             const successSound = new Audio('/sounds/success.mp3');
             successSound.play().catch(e => console.log('Sound play failed:', e));
           } catch (e) {
-            console.log('Sound initialization failed:', e);
           }
         }
         

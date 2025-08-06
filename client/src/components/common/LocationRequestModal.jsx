@@ -10,7 +10,6 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
   const [locationCity, setLocationCity] = useState('');
   const [error, setError] = useState('');
 
-  // Reset success state when modal opens
   useEffect(() => {
     if (isOpen) {
       setLocationSuccess(false);
@@ -20,29 +19,6 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
     }
   }, [isOpen]);
 
-  // Handle automatic location detection (IP-based, no popup)
-  const handleAutoDetect = async () => {
-    setIsGettingLocation(true);
-    setError('');
-
-    try {
-      const locationData = await locationService.getLocationByIP();
-      
-      if (locationData) {
-        handleLocationSuccess(locationData);
-      } else {
-        throw new Error('Unable to detect location automatically');
-      }
-    } catch (error) {
-      console.error('Auto location detection failed:', error);
-      setError('Auto-detection failed. Try using precise location instead.');
-      toast.error('Auto-detection failed');
-    } finally {
-      setIsGettingLocation(false);
-    }
-  };
-
-  // Handle GPS location (with popup)
   const handleGPSLocation = async () => {
     setIsGettingLocation(true);
     setError('');
@@ -69,19 +45,14 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
     }
   };
 
-  // Handle successful location detection
   const handleLocationSuccess = (locationData) => {
-    // Store in localStorage for guests
     locationService.storeLocation(locationData);
     
-    // Call parent callback
     onLocationSet?.(locationData);
     
-    // Show success state with city name
     setLocationCity(locationData.city);
     setLocationSuccess(true);
     
-    // Auto-close after showing success animation
     setTimeout(() => {
       onClose();
     }, 2000);
@@ -93,7 +64,6 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
 
   const reverseGeocode = async (lat, lng) => {
     try {
-      console.log('🌍 LocationRequestModal: Starting reverse geocoding:', { lat, lng });
       const response = await fetch(
         `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
       );
@@ -101,14 +71,6 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
       if (response.ok) {
         const data = await response.json();
         const city = data.city || data.locality || data.principalSubdivision || 'Unknown City';
-        console.log('🏙️ LocationRequestModal: Reverse geocoding successful:', { 
-          lat, lng, city, 
-          rawData: { 
-            city: data.city, 
-            locality: data.locality, 
-            principalSubdivision: data.principalSubdivision 
-          } 
-        });
         return city;
       }
       
@@ -137,7 +99,6 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
           exit={{ scale: 0.9, opacity: 0, y: 20 }}
           className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full"
         >
-          {/* Header */}
           <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-4 text-white relative rounded-t-xl">
             <button
               onClick={onClose}
@@ -152,10 +113,8 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
             </div>
           </div>
 
-          {/* Content */}
           <div className="p-4">
             {locationSuccess ? (
-              /* Success State */
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -187,13 +146,11 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
                 </motion.p>
               </motion.div>
             ) : (
-              /* Default State */
               <>
                 <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">
                   Share your location to connect with nearby coaches and improve your experience. We only store your city, never your exact location.
                 </p>
 
-                {/* Actions */}
                 <div className="space-y-3">
                   <button
                     onClick={handleAutoDetect}
@@ -237,7 +194,6 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
                   </div>
                 )}
 
-                {/* Privacy Note */}
                 <div className="flex items-center space-x-1 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
                   <AlertCircle className="w-3 h-3 text-gray-400" />
                   <span className="text-xs text-gray-500 dark:text-gray-400">

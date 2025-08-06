@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Search, CheckCircle, Clock, RefreshCw, Mail, Star, Info, X, Sparkles, Target, Heart, Trophy, MapPin } from 'lucide-react';
+import { User, Search, CheckCircle, Clock, RefreshCw, Mail, Star, Info, X, Sparkles, Award, Target, Heart, Trophy, MapPin } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -217,6 +217,14 @@ const CoachProfileModal = ({ coach, onClose }) => {
 
 const MAX_RETRIES = 2; // Maximum number of retry attempts
 
+// Define loading phrases outside component to prevent recreating on every render
+const loadingPhrases = [
+  { phrase: "Analyzing your fitness goals...", duration: 2000 },
+  { phrase: "Matching with expert coaches...", duration: 2000 },
+  { phrase: "Finding your perfect mentor...", duration: 2000 },
+  { phrase: "Almost there...", duration: 2000 },
+];
+
 const CoachAssignment = ({ subscription, onCoachAssigned }) => {
   const [loading, setLoading] = useState(true);
   const [coaches, setCoaches] = useState([]);
@@ -230,15 +238,17 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
   const [retryCount, setRetryCount] = useState(0); // Track retry attempts
   const [sortBy, setSortBy] = useState('distance'); // New sort state
   const [filterBySpecialty, setFilterBySpecialty] = useState('all'); // New specialty filter
+  // Basic plan specialty preference states
+  const [showSpecialtySelection, setShowSpecialtySelection] = useState(false);
+  const [selectedSpecialtyPreference, setSelectedSpecialtyPreference] = useState('');
   const navigate = useNavigate();
 
   const isBasicPlan = subscription?.subscription === 'basic';
-  const loadingPhrases = [
-    { phrase: "Analyzing your fitness goals...", duration: 1000 },
-    { phrase: "Matching with expert coaches...", duration: 2500 },
-    { phrase: "Finding your perfect mentor...", duration: 2000 },
-    { phrase: "Almost there...", duration: 3500 },
-  ];
+
+  // Debug logging for state changes (throttled to prevent spam)
+  useEffect(() => {
+    // Removed debug logging
+  }, [loading, assignmentStatus, showSpecialtySelection, selectedSpecialtyPreference, selectedCoach, coaches.length]);
 
   // Define vibrant gradient combinations for coach cards
   const gradientCombinations = [
@@ -255,83 +265,73 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
   ];
 
   useEffect(() => {
-    if (assignmentStatus === 'pending') {
+    // Only run phrase cycling if we're in loading state and NOT showing specialty selection
+    if (assignmentStatus === 'pending' && !showSpecialtySelection) {
       let currentIndex = 0;
+      let timeoutId;
 
       const showNextPhrase = () => {
         setCurrentPhraseIndex(currentIndex);
 
         if (currentIndex < loadingPhrases.length - 1) {
           currentIndex++;
-          setTimeout(showNextPhrase, loadingPhrases[currentIndex].duration);
+          timeoutId = setTimeout(showNextPhrase, loadingPhrases[currentIndex - 1].duration);
+        } else {
+          // Reset to loop the phrases
+          currentIndex = 0;
+          timeoutId = setTimeout(showNextPhrase, loadingPhrases[loadingPhrases.length - 1].duration);
         }
       };
 
-      setTimeout(showNextPhrase, loadingPhrases[currentIndex].duration);
+      // Start immediately
+      showNextPhrase();
 
-      return () => clearTimeout(showNextPhrase);
+      return () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      };
     }
-  }, [assignmentStatus]);
+  }, [assignmentStatus, showSpecialtySelection]); // Added showSpecialtySelection dependency
 
   useEffect(() => {
     const initializeCoachAssignment = async () => {
       try {
         setLoading(true);
         if (isBasicPlan) {
-          setTimeout(async () => {
-            const response = await subscriptionService.assignRandomCoach();
-            //('Random Coach Response:', response);
-            setSelectedCoach(response.coach);
-            setAssignmentStatus('assigned');
-            await new Promise(resolve => setTimeout(resolve, 7000));
-            onCoachAssigned(response.coach);
-          }, 8000);
+          // For basic plan, show specialty selection first
+          setShowSpecialtySelection(true);
+          setLoading(false);
         } else {
-          console.log('🏋️ Fetching coaches for assignment...');
-          
           // Get user's location from localStorage for distance-based matching
           let userLocation = null;
           try {
             const storedLocation = localStorage.getItem('userLocation');
             if (storedLocation) {
               userLocation = JSON.parse(storedLocation);
-              console.log('📍 Using stored user location for coach matching:', userLocation);
             }
           } catch (error) {
-            console.log('⚠️ Could not parse stored user location:', error);
           }
           
           const response = await subscriptionService.getCoaches(null, userLocation);
-          console.log('📊 Coach assignment fetch results:', {
-            totalCoaches: Array.isArray(response) ? response.length : 'Not array',
-            responseType: typeof response,
-            userLocationUsed: !!userLocation,
-            coaches: Array.isArray(response) ? response.map(coach => ({
-              id: coach._id,
-              name: `${coach.firstName} ${coach.lastName}`,
-              locationDisplay: coach.locationDisplay,
-              hasLocation: coach.hasLocation,
-              location: coach.location,
-              distance: coach.distance
-            })) : response
-          });
-          //('Coaches Response:', response); // Debugging log          // Ensure response is an array
+          
+          // Ensure response is an array
           if (Array.isArray(response)) {
-            console.log('✅ Setting coaches in assignment component');
-            //('Number of Coaches:', response.length); // Debugging log
             setCoaches(response); // Set the coaches array directly
           } else {
-            console.error('❌ Invalid coaches data:', response);
+            console.error('Invalid coaches data:', response);
             setError('No coaches available. Please try again later.');
             setCoaches([]);
           }
         }
       } catch (error) {
-        console.error('Error fetching coaches:', error);
+        console.error('Error in initializeCoachAssignment:', error);
         setError('Failed to assign coach. Please try again.');
         setCoaches([]);
       } finally {
-        setLoading(false);
+        if (!isBasicPlan) {
+          setLoading(false);
+        }
       }
     };
 
@@ -386,6 +386,39 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
 
   const handleContactSupport = () => {
     navigate('/contact');
+  };
+
+  // Handle basic plan specialty selection and coach assignment
+  const handleBasicPlanSpecialtySelection = async () => {
+    try {
+      // Step 1: Hide specialty selection and show loading animation
+      setShowSpecialtySelection(false);
+      setAssignmentStatus('pending');
+      setLoading(false); // Keep loading false so we show the animation
+      setCurrentPhraseIndex(0); // Reset phrase index
+      
+      setTimeout(async () => {
+        try {
+          const response = await subscriptionService.assignRandomCoach(selectedSpecialtyPreference);
+          
+          setSelectedCoach(response.coach);
+          setAssignmentStatus('assigned');
+          setLoading(false);
+          
+          // Step 3: Wait 7 seconds for CoachReveal animation to play
+          setTimeout(() => {
+            onCoachAssigned(response.coach);
+          }, 7000);
+        } catch (innerError) {
+          throw innerError;
+        }
+      }, 8000);
+    } catch (error) {
+      console.error('Error in handleBasicPlanSpecialtySelection:', error);
+      setError('Failed to assign coach. Please try again.');
+      setAssignmentStatus('pending');
+      setShowSpecialtySelection(true); // Go back to specialty selection on error
+    }
   };
 
   // Function to sort coaches based on selected criteria
@@ -551,7 +584,6 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
                     alt={`Coach ${selectedCoach.firstName} ${selectedCoach.lastName}`}
                     className="relative w-36 h-36 rounded-full object-cover ring-4 ring-white shadow-2xl"
                     onError={(e) => {
-                      console.error('Image load error for selected coach:', selectedCoach.profileImage);
                       e.target.onerror = null;
                       e.target.src = getFallbackAvatarUrl(); 
                     }}
@@ -729,6 +761,92 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
     );
   }
   if (isBasicPlan) {
+    // Show specialty selection modal first
+    if (showSpecialtySelection) {
+      return (
+        <Card className="w-full bg-white border-gray-200 shadow-lg mt-10">
+          <CardHeader className="border-b border-gray-200 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-indigo-500/10">
+            <CardTitle className="flex items-center text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
+              <Target className="w-6 h-6 mr-3 text-blue-500" />
+              Choose Your Fitness Focus
+              <Sparkles className="w-5 h-5 ml-2 text-yellow-500" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-8">
+            <div className="max-w-2xl mx-auto space-y-6">
+              <div className="text-center space-y-4">
+               
+                <h3 className="text-2xl font-bold text-gray-800">
+                  What's your main fitness goal?
+                </h3>
+              </div>
+
+              <div className="space-y-4">
+                <label className="text-sm font-medium text-gray-700">
+                  Select your preferred specialty:
+                </label>
+                
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {availableSpecialties.map(specialty => (
+                    <motion.button
+                      key={specialty}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setSelectedSpecialtyPreference(specialty);
+                      }}
+                      className={`p-4 rounded-xl border-2 text-left transition-all duration-200 ${
+                        selectedSpecialtyPreference === specialty
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 text-gray-700'
+                      }`}
+                    >
+                      <div className="font-medium text-sm">
+                        {specialty}
+                      </div>
+                    </motion.button>
+                  ))}
+                </div>
+
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    setSelectedSpecialtyPreference('');
+                  }}
+                  className={`w-full p-4 rounded-xl border-2 text-center transition-all duration-200 ${
+                    selectedSpecialtyPreference === ''
+                      ? 'border-purple-500 bg-purple-50 text-purple-700'
+                      : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 text-gray-700'
+                  }`}
+                >
+                  <div className="font-medium">
+                    🎯 No Preference - Match me with any available coach
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    We'll find you a great coach based on location and availability
+                  </div>
+                </motion.button>
+              </div>
+
+              <div className="pt-6">
+                <Button
+                  onClick={() => {
+                    handleBasicPlanSpecialtySelection();
+                  }}
+                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-4 text-lg font-medium rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  <Heart className="w-5 h-5 mr-2" />
+                  Find My Perfect Coach Match
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    // Show the beautiful loading animation with phrases and coach reveal (same as previous version)
     return (
       <Card className="w-full bg-white border-gray-200 shadow-lg mt-10">
         <CardHeader className="border-b border-gray-200">
@@ -883,20 +1001,24 @@ const CoachAssignment = ({ subscription, onCoachAssigned }) => {
                       <h3 className="text-3xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 text-transparent bg-clip-text">
                         Finding Your Perfect Coach Match
                       </h3>
-                    </motion.div>                    {/* Enhanced Cycling loading phrases */}
+                    </motion.div>
+
+                    {/* Enhanced Cycling loading phrases */}
                     <div className="relative h-8 flex items-center justify-center w-full">
                       <div className="px-4 py-2 rounded-lg bg-white/80 backdrop-blur-sm shadow-lg">
-                        <motion.p 
-                          key={currentPhraseIndex}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          transition={{ duration: 0.4, ease: "easeOut" }}
-                          className="text-lg font-medium"
-                          style={{ color: '#000' }}
-                        >
-                          {loadingPhrases[currentPhraseIndex].phrase}
-                        </motion.p>
+                        <AnimatePresence mode="wait">
+                          <motion.p 
+                            key={currentPhraseIndex}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            transition={{ duration: 0.4, ease: "easeOut" }}
+                            className="text-lg font-medium"
+                            style={{ color: '#000' }}
+                          >
+                            {loadingPhrases[currentPhraseIndex]?.phrase || "Finding your coach..."}
+                          </motion.p>
+                        </AnimatePresence>
                       </div>
                     </div>
                   </motion.div>

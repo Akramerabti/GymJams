@@ -350,8 +350,7 @@ const ProductCarousel = ({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              // Add your cart logic here
-                              console.log('Add to cart:', product._id);
+
                             }}
                             disabled={product.stockQuantity === 0}
                             className={`p-2.5 rounded-full transition-all duration-300 hover:scale-125 hover:rotate-12 disabled:opacity-50 disabled:cursor-not-allowed group/btn relative overflow-hidden ${

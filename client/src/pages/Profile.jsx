@@ -57,10 +57,6 @@ const Profile = () => {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        console.log('👤 Profile.jsx: Fetching user profile data...', {
-          userId: user?.user?.id || user?.id,
-          isCoach: isCoach
-        });
 
         const [profileResponse, subscriptionResponse, payoutSetupResponse] = await Promise.all([
           api.get('/auth/profile'),
@@ -69,14 +65,6 @@ const Profile = () => {
         ]);
   
         const userData = profileResponse.data;
-        
-        console.log('📊 Profile.jsx: User profile data received:', {
-          userId: userData._id,
-          hasLocation: !!userData.location,
-          location: userData.location,
-          locationComplete: !!(userData.location?.lat && userData.location?.lng && userData.location?.city),
-          isCoach: userData.role === 'coach'
-        });
   
         setProfileData({
           firstName: userData.firstName || '',
@@ -103,13 +91,10 @@ const Profile = () => {
         }
   
         fetchPoints();
-        
-        console.log('✅ Profile data loaded successfully');
-        
-        // Check and update location if coach has location enabled
+
         if (isCoach && userData.location?.isVisible) {
-          console.log('🗺️ Coach has location enabled, checking for updates...');
-          setTimeout(checkAndUpdateLocation, 1000); // Small delay to ensure state is set
+
+          setTimeout(checkAndUpdateLocation, 1000); 
         }
       } catch (error) {
         if (error.response?.status === 401) {
@@ -229,12 +214,6 @@ const Profile = () => {
   };
 
   const isCoachProfileComplete = () => {
-    // Core requirements for a complete coach profile:
-    // 1. Basic info: firstName, lastName, bio (minimum 50 chars)
-    // 2. Profile image (not default fallback)
-    // 3. At least one specialty selected
-    // 4. Location set (if location sharing is enabled)
-    // NOTE: Certifications are NOT required if all other fields are complete
     
     const hasBasicInfo = profileData.firstName && profileData.lastName;
     const hasBio = profileData.bio && profileData.bio.trim().length >= 50;
@@ -243,51 +222,23 @@ const Profile = () => {
       !profileData.profileImage.includes('fallback');
     const hasSpecialties = profileData.specialties && profileData.specialties.length > 0;
     
-    // Location is only required if the coach has enabled location sharing
     const locationComplete = !profileData.location?.isVisible || 
       (profileData.location?.lat && profileData.location?.lng && profileData.location?.city);
-    
-    // Debug logging to identify the missing field
-    console.log('🔍 Profile completion check:', {
-      userId: user?.user?.id || user?.id,
-      hasBasicInfo,
-      firstName: profileData.firstName,
-      lastName: profileData.lastName,
-      hasBio,
-      bioLength: profileData.bio?.length || 0,
-      hasProfileImage,
-      profileImage: profileData.profileImage,
-      hasSpecialties,
-      specialtiesCount: profileData.specialties?.length || 0,
-      locationComplete,
-      locationData: profileData.location,
-      isComplete: hasBasicInfo && hasBio && hasProfileImage && hasSpecialties && locationComplete
-    });
-    
+
     return hasBasicInfo && hasBio && hasProfileImage && hasSpecialties && locationComplete;
   };
 
   const handleActivateLocation = () => {
-    console.log('🗺️ Location activation clicked by coach:', {
-      userId: user?.user?.id || user?.id,
-      currentLocation: profileData.location,
-      isCoach: isCoach
-    });
+
     setShowLocationModal(true);
   };
 
   const handleRefreshLocation = async () => {
-    console.log('🔄 Manual location refresh requested by coach:', {
-      userId: user?.user?.id || user?.id,
-      currentLocation: profileData.location,
-      isCoach: isCoach
-    });
     
     setIsRefreshingLocation(true);
     
     try {
       if (!navigator.geolocation) {
-        console.log('❌ Geolocation not supported');
         toast.error('Geolocation is not supported by your browser');
         return;
       }
@@ -325,9 +276,6 @@ const Profile = () => {
         source: 'manual-refresh'
       };
 
-      console.log('🔄 Manually refreshing coach location:', locationData);
-      
-      // Update via API
       const updateResponse = await api.put('/user/location', locationData);
       
       if (updateResponse.data) {
@@ -335,12 +283,11 @@ const Profile = () => {
           ...prev,
           location: locationData
         }));
-        console.log('✅ Coach location manually refreshed successfully');
         toast.success(`Location updated to ${cityName}!`);
       }
 
     } catch (error) {
-      console.log('❌ Manual location refresh failed:', error.message);
+  
       if (error.code === 1) {
         toast.error('Location access denied. Please enable location permissions.');
       } else if (error.code === 2) {
@@ -356,27 +303,19 @@ const Profile = () => {
   };
 
   const handleLocationSet = async (locationData) => {
-    console.log('📍 Location set attempt:', {
-      userId: user?.user?.id || user?.id,
-      locationData,
-      isCoach: isCoach
-    });
     
     try {
       // Update location via API for authenticated users
       const token = localStorage.getItem('token');
       if (token) {
-        console.log('🔄 Updating location via API...');
-        const updateResponse = await api.put('/user/location', locationData);
-        
-        console.log('✅ Location update response:', updateResponse.data);
+        const updateResponse = await api.put('/user/location', locationData);      
         
         if (updateResponse.data) {
           setProfileData(prev => ({
             ...prev,
             location: locationData
           }));
-          console.log('✅ Local profile data updated with location');
+
           toast.success(`Location updated to ${locationData.city}!`);
         }
       } else {
@@ -395,26 +334,16 @@ const Profile = () => {
     }
   };
 
-  // Function to check and update location if coach has location enabled
   const checkAndUpdateLocation = async () => {
     if (!isCoach || !profileData.location?.isVisible) {
       return;
     }
 
-    console.log('🗺️ Checking if location needs update for coach (on login/reload)...', {
-      userId: user?.user?.id || user?.id,
-      hasLocation: !!(profileData.location?.lat && profileData.location?.lng),
-      locationEnabled: profileData.location?.isVisible,
-      lastUpdated: profileData.location?.updatedAt
-    });
-
-    // Only auto-update if location is visible but coordinates are missing
     if (!profileData.location?.lat || !profileData.location?.lng) {
-      console.log('🔍 Location coordinates missing, attempting auto-update...');
+
       
       try {
         if (!navigator.geolocation) {
-          console.log('❌ Geolocation not supported');
           return;
         }
 
@@ -423,16 +352,15 @@ const Profile = () => {
             resolve,
             reject,
             {
-              enableHighAccuracy: true, // Use high accuracy for login/reload updates
+              enableHighAccuracy: true, 
               timeout: 10000,
-              maximumAge: 60000 // 1 minute cache
+              maximumAge: 60000 
             }
           );
         });
 
         const { latitude, longitude } = position.coords;
         
-        // Reverse geocode to get city
         const response = await fetch(
           `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
         );
@@ -450,8 +378,6 @@ const Profile = () => {
           address: '',
           source: 'login-update'
         };
-
-        console.log('🔄 Auto-updating coach location on login/reload:', locationData);
         
         // Update via API
         const updateResponse = await api.put('/user/location', locationData);
@@ -461,14 +387,13 @@ const Profile = () => {
             ...prev,
             location: locationData
           }));
-          console.log('✅ Coach location auto-updated successfully on login/reload');
         }
 
       } catch (error) {
-        console.log('⚠️ Auto-location update failed (this is normal if user denied permission):', error.message);
+
       }
     } else {
-      console.log('✅ Coach location is already complete, no update needed');
+
     }
   };
 

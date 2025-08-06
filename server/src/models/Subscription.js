@@ -228,6 +228,11 @@ const subscriptionSchema = new mongoose.Schema(
     },
     coachDeclineReason: String,
     coachDeclineDate: Date,
+    specialtyPreference: {
+      type: String,
+      enum: ['HIIT', 'Cardio', 'Weight Training', 'Nutrition', 'Bodybuilding', 'Sports Performance', 'Yoga', 'Weight Loss', 'CrossFit', 'Powerlifting'],
+      required: false,
+    },
     coachPreferences: {
       specialties: [String],
       preferredGender: String,

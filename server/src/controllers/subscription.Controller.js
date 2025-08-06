@@ -748,12 +748,15 @@ export const assignCoach = async (req, res) => {
   async function attemptAssignment() {
     const session = await mongoose.startSession();
     try {
-      const { coachId } = req.body;
+      const { coachId, specialtyPreference } = req.body;
       let subscription;
       let clientName;
       let clientEmail;
 
       //('Assigning coach:', coachId);
+      if (specialtyPreference) {
+        console.log('Specialty preference for basic plan:', specialtyPreference);
+      }
     
       const subscriptionQuery = req.user ? 
         { user: req.user.id, status: 'active' } : 
@@ -841,20 +844,27 @@ export const assignCoach = async (req, res) => {
       }
 
       const plan = PLANS[subscription.subscription];
+      const updateData = {
+        assignedCoach: coachId,
+        coachAssignmentDate: new Date(),
+        coachAssignmentStatus: subscription.coachAssignmentStatus,
+        coachPaymentDetails: {
+          weeklyAmount: coachShare,
+          startDate: new Date(),
+          lastPayoutDate: null,
+          subscriptionPrice: plan.price,
+          isRefundable: true
+        }
+      };
+      
+      // Add specialty preference for basic plans
+      if (subscription.subscription === 'basic' && specialtyPreference) {
+        updateData.specialtyPreference = specialtyPreference;
+      }
+      
       const updatedSubscription = await Subscription.findByIdAndUpdate(
         subscription._id,
-        {
-          assignedCoach: coachId,
-          coachAssignmentDate: new Date(),
-          coachAssignmentStatus: subscription.coachAssignmentStatus,
-          coachPaymentDetails: {
-            weeklyAmount: coachShare,
-            startDate: new Date(),
-            lastPayoutDate: null,
-            subscriptionPrice: plan.price,
-            isRefundable: true
-          }
-        },
+        updateData,
         { session, new: true }
       );
 

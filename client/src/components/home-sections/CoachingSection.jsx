@@ -226,7 +226,6 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     })}
                     onTouchStart={(e) => {
                       if (videoModalOpen) {
-                        console.log('🚫 Mobile video touch blocked - modal is open');
                         e.preventDefault();
                         e.stopPropagation();
                         return;
@@ -235,7 +234,6 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     }}
                     onTouchMove={(e) => {
                       if (videoModalOpen) {
-                        console.log('🚫 Mobile video touch move blocked - modal is open');
                         e.preventDefault();
                         e.stopPropagation();
                         return;
@@ -244,7 +242,6 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     }}
                     onTouchEnd={(e) => {
                       if (videoModalOpen) {
-                        console.log('🚫 Mobile video touch end blocked - modal is open');
                         e.preventDefault();
                         e.stopPropagation();
                         return;
@@ -273,7 +270,6 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     }}
                     onTouchStart={(e) => {
                       if (videoModalOpen) {
-                        console.log('🚫 Mobile play button touch blocked - modal is open');
                         e.preventDefault();
                         e.stopPropagation();
                         return;
@@ -281,7 +277,6 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     }}
                     onTouchEnd={(e) => {
                       if (videoModalOpen) {
-                        console.log('🚫 Mobile play button touch end blocked - modal is open');
                         e.preventDefault();
                         e.stopPropagation();
                         return;
@@ -560,54 +555,43 @@ const CoachingSection = ({ onNavigate, isActive }) => {
         <div 
           className="fixed inset-0 z-[99999] flex items-center justify-center p-4 backdrop-blur-md bg-black/80"
           onClick={(e) => {
-            console.log('🎭 Modal backdrop clicked - target:', e.target);
-            console.log('🎭 Modal backdrop clicked - currentTarget:', e.currentTarget);
-            console.log('🎭 Modal backdrop clicked - are they same?', e.target === e.currentTarget);
-            // Only close if clicking the backdrop, not the modal content
+
             if (e.target === e.currentTarget) {
-              console.log('🎭 Closing modal from backdrop click');
               closeVideoModal();
             } else {
-              console.log('🎭 Not closing - clicked on modal content');
+
             }
           }}
           onTouchStart={(e) => {
-            console.log('🎭 Modal backdrop touched');
-            // Prevent touch events from bubbling to elements behind modal
             e.stopPropagation();
           }}
           onTouchEnd={(e) => {
-            console.log('🎭 Modal backdrop touch end');
-            // Prevent touch events from bubbling to elements behind modal
             e.stopPropagation();
-            // Try to close on touch end if touching backdrop directly
+
             if (e.target === e.currentTarget) {
-              console.log('🎭 Closing modal from backdrop touch');
               closeVideoModal();
             }
           }}
         >
           <div             className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden relative border border-gray-200 dark:border-gray-700"
             style={{
-              // Responsive sizing: larger on small screens, 50% on large screens
+         
               width: 'clamp(320px, 90vw, 50vw)',
               height: 'clamp(240px, 60vh, 50vh)',
               maxWidth: '800px',
               maxHeight: '600px'
             }}
             onClick={(e) => {
-              console.log('🎭 Modal content clicked - stopping propagation');
+
               e.stopPropagation();
             }}
           >
             <button
               onClick={(e) => {
-                console.log('❌ Close button clicked - calling closeVideoModal');
                 e.stopPropagation();
                 closeVideoModal();
               }}
               onTouchEnd={(e) => {
-                console.log('❌ Close button touched - calling closeVideoModal');
                 e.stopPropagation();
                 closeVideoModal();
               }}
@@ -631,8 +615,6 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                   autoPlay
                   playsInline
                   onLoadedData={(e) => {
-                    console.log('📹 Video loaded in modal');
-                    // Unmute the video when it loads
                     e.target.muted = false;
                     e.target.volume = 0.7;
                   }}
