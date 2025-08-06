@@ -408,8 +408,8 @@ const CoachingHome = () => {
       `}>
         {/* Background Elements */}
         <div className="absolute inset-0 overflow-hidden opacity-10">
-          <div className="absolute top-1/4 left-1/6 w-64 h-64 rounded-full bg-blue-400 blur-3xl"></div>
-          <div className="absolute bottom-1/3 right-1/4 w-96 h-96 rounded-full bg-indigo-500 blur-3xl"></div>
+          <div className="absolute top-1/4 left-1/6 w-128 h-64 rounded-full bg-blue-400 blur-3xl"></div>
+          <div className="absolute bottom-1/3 right-1/4 w-128 h-128 rounded-full bg-indigo-500 blur-3xl"></div>
         </div>
 
         <div className="container mx-auto px-4 relative z-10">
@@ -435,7 +435,7 @@ const CoachingHome = () => {
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <Lock className="w-5 h-5 group-hover:rotate-12 transition-transform duration-300" />
+                  <Lock className="w-8 h-8 group-hover:rotate-12 transition-transform duration-300" />
                   <span className="font-medium">{t('coachinghome.alreadyHaveSubscription')}</span>
                   <ChevronDown className="w-4 h-4 group-hover:translate-y-1 transition-transform duration-300" />
                 </motion.button>

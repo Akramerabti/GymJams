@@ -134,6 +134,7 @@
 "coachinghome.planBasic": "Basic",
 "coachinghome.planPremium": "Premium",
 "coachinghome.planElite": "Elite",
+
 "coachinghome.trainingNutritionPlan": "Training/Nutrition plan",
 "coachinghome.monthlyPlanUpdates": "Monthly plan updates",
 "coachinghome.textSupport": "Text support",
@@ -146,7 +147,7 @@
 "coachinghome.weeklyVideoConsultations": "Weekly video/call consultations",
 "coachinghome.enhancedQuestionnaire": "Enhanced questionnaire",
 "coachinghome.tailoredCoach": "Tailored coach",
-"coachinghome.alreadyHaveSubscription": "Already have a subscription? Access it here",
+"coachinghome.alreadyHaveSubscription": "Already have a subscription as a guest? Access it here",
 "coachinghome.accessYourSubscription": "Access Your Subscription",
 "coachinghome.enterAccessToken": "Enter your access token to continue with your existing subscription.",
 "coachinghome.accessToken": "Access Token",
