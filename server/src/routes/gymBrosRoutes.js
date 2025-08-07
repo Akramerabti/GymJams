@@ -4,6 +4,7 @@ import express from 'express';
 import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
 import { handleGuestUser } from '../middleware/guestUser.middleware.js';
 import upload from '../config/multer.js';
+import gymBrosLocationRoutes from './gymBrosLocation.routes.js';
 
 const router = express.Router();
 
@@ -156,5 +157,8 @@ router.get('/memberships/active', optionalAuthenticate, getActiveMembership);
 router.put('/memberships/:membershipId/cancel', optionalAuthenticate, cancelMembership);
 router.get('/membership-types', getMembershipTypes);
 router.get('/membership-history', optionalAuthenticate, getMembershipHistory);
+
+// Location and gym management routes
+router.use('/', gymBrosLocationRoutes);
 
 export default router;

@@ -12,6 +12,9 @@ import './global.css';
 // Import providers
 import { GuestFlowProvider } from './components/gymBros/components/GuestFlowContext';
 
+// Import hooks
+import useAutoLocationSync from './hooks/useAutoLocationSync';
+
 // Layout Components
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -61,6 +64,9 @@ import CoachProfileCompletionModal from './components/common/CoachProfileComplet
 
 const App = () => {
   const { checkAuth, logout, showOnboarding, setShowOnboarding, refreshUserLocation, reverseGeocode } = useAuthStore();
+  
+  // Start automatic location syncing like Snapchat
+  useAutoLocationSync();
 
   const refreshGuestLocation = async () => {
     try {

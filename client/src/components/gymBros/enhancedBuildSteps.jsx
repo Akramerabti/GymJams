@@ -1,4 +1,4 @@
-
+// Enhanced buildSteps with responsive design and condensed questions
 import React from 'react';
 import { 
   Dumbbell, CheckCircle, Award, Clock, 
@@ -7,8 +7,6 @@ import {
 import PhoneVerification from './PhoneVerification';
 import ImageUploader from './ImageUploader';
 import LocationPicker from './LocationPicker';
-import NearbyGymsPreview from './NearbyGymsPreview';
-import GymSelector from './GymSelector';
 import { useScreenType } from '../../hooks/useScreenType';
 
 // Constants for the form options
@@ -112,7 +110,7 @@ const WelcomeStep = ({ goToNextStep, handleLoginWithPhone, isAuthenticated, show
       <div className={`space-y-4 w-full mx-auto ${
         screenType === 'mobile' ? 'max-w-sm' : 'max-w-md'
       }`}>
-        {!isAuthenticated && (
+        {!isAuthenticated && showPhoneLogin && (
           <button
             onClick={handleLoginWithPhone}
             className="w-full bg-white/15 backdrop-blur-sm border-2 border-white/40 text-white py-3 px-6 rounded-2xl font-medium hover:bg-white/25 transition-all duration-300 transform hover:scale-105 flex items-center justify-center group"
@@ -148,7 +146,7 @@ const WelcomeStep = ({ goToNextStep, handleLoginWithPhone, isAuthenticated, show
 );
 
 // Combined Basic Info Step (name + age + gender)
-const BasicInfoStep = ({ profileData, handleChange, handleInputBlur, goToNextStep, handleLoginWithPhone, isAuthenticated, showPhoneLogin, screenType }) => (
+const BasicInfoStep = ({ profileData, handleChange, goToNextStep, handleLoginWithPhone, isAuthenticated, showPhoneLogin, screenType }) => (
   <div className="w-full space-y-6">
     {/* Name Input */}
     <div className="space-y-2">
@@ -157,7 +155,7 @@ const BasicInfoStep = ({ profileData, handleChange, handleInputBlur, goToNextSte
         type="text" 
         value={profileData.name} 
         onChange={(e) => handleChange('name', e.target.value)}
-        className={`w-full bg-white border-2 border-gray-300 rounded-xl text-black placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:bg-white transition-all duration-300 ${
+        className={`w-full bg-white/10 backdrop-blur-sm border-2 border-white/20 rounded-xl text-white placeholder-white/60 focus:outline-none focus:border-white/40 focus:bg-white/20 transition-all duration-300 ${
           screenType === 'mobile' ? 'p-3 text-lg' : 'p-4 text-xl'
         }`}
         placeholder="Enter your name"
@@ -174,8 +172,7 @@ const BasicInfoStep = ({ profileData, handleChange, handleInputBlur, goToNextSte
           type="number" 
           value={profileData.age} 
           onChange={(e) => handleChange('age', e.target.value)}
-          onBlur={(e) => handleInputBlur('age', e.target.value)}
-          className="w-full p-3 bg-white border-2 border-gray-300 rounded-xl text-black placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:bg-white transition-all duration-300" 
+          className="w-full p-3 bg-white/10 backdrop-blur-sm border-2 border-white/20 rounded-xl text-white placeholder-white/60 focus:outline-none focus:border-white/40 focus:bg-white/20 transition-all duration-300" 
           placeholder="Age"
           min="18"
           max="99"
@@ -188,11 +185,11 @@ const BasicInfoStep = ({ profileData, handleChange, handleInputBlur, goToNextSte
         <select
           value={profileData.gender}
           onChange={(e) => handleChange('gender', e.target.value)}
-          className="w-full p-3 bg-white border-2 border-gray-300 rounded-xl text-black focus:outline-none focus:border-blue-500 transition-all duration-300"
+          className="w-full p-3 bg-white/10 backdrop-blur-sm border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40 focus:bg-white/20 transition-all duration-300"
         >
-          <option value="" className="text-gray-500">Select gender</option>
+          <option value="" className="bg-gray-800">Select gender</option>
           {genders.map(gender => (
-            <option key={gender} value={gender} className="text-black">{gender}</option>
+            <option key={gender} value={gender} className="bg-gray-800">{gender}</option>
           ))}
         </select>
       </div>
@@ -206,21 +203,31 @@ const BasicInfoStep = ({ profileData, handleChange, handleInputBlur, goToNextSte
           type="number" 
           value={profileData.height} 
           onChange={(e) => handleChange('height', e.target.value)}
-          onBlur={(e) => handleInputBlur('height', e.target.value)}
-          className="flex-1 p-3 bg-white border-2 border-gray-300 rounded-xl text-black placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all duration-300" 
+          className="flex-1 p-3 bg-white/10 backdrop-blur-sm border-2 border-white/20 rounded-xl text-white placeholder-white/60 focus:outline-none focus:border-white/40 focus:bg-white/20 transition-all duration-300" 
           placeholder="Height"
         />
         <select
           value={profileData.heightUnit}
           onChange={(e) => handleChange('heightUnit', e.target.value)}
-          className="p-3 bg-white border-2 border-gray-300 rounded-xl text-black focus:outline-none focus:border-blue-500 transition-all duration-300"
+          className="p-3 bg-white/10 backdrop-blur-sm border-2 border-white/20 rounded-xl text-white focus:outline-none focus:border-white/40 focus:bg-white/20 transition-all duration-300"
         >
           {heightUnits.map(unit => (
-            <option key={unit} value={unit} className="text-black">{unit}</option>
+            <option key={unit} value={unit} className="bg-gray-800">{unit}</option>
           ))}
         </select>
       </div>
     </div>
+
+    {/* Login option for non-authenticated users */}
+    {!isAuthenticated && !showPhoneLogin && (
+      <button
+        onClick={handleLoginWithPhone}
+        className="w-full mt-4 bg-white/20 backdrop-blur-sm border-2 border-white/30 text-white py-3 px-4 rounded-xl hover:bg-white/30 transition-all duration-300 flex items-center justify-center transform hover:scale-105"
+      >
+        <LogIn className="w-5 h-5 mr-2" />
+        Already have an account? Log in
+      </button>
+    )}
   </div>
 );
 
@@ -306,7 +313,6 @@ export const buildSteps = ({
   showPhoneLogin,
   isPhoneVerified,
   handleChange,
-  handleInputBlur,
   handleLoginWithPhone,
   handlePhoneChange,
   handlePhoneVerified,
@@ -399,7 +405,6 @@ export const buildSteps = ({
           <BasicInfoStep
             profileData={profileData}
             handleChange={handleChange}
-            handleInputBlur={handleInputBlur}
             goToNextStep={goToNextStep}
             handleLoginWithPhone={handleLoginWithPhone}
             isAuthenticated={isAuthenticated}
@@ -493,7 +498,7 @@ export const buildSteps = ({
               <textarea 
                 value={profileData.goals} 
                 onChange={(e) => handleChange('goals', e.target.value)}
-                className="w-full p-3 bg-white border-2 border-gray-300 rounded-xl text-black placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all duration-300 resize-none"
+                className="w-full p-3 bg-white/10 backdrop-blur-sm border-2 border-white/20 rounded-xl text-white placeholder-white/60 focus:outline-none focus:border-white/40 focus:bg-white/20 transition-all duration-300 resize-none"
                 placeholder="e.g., Lose weight, build muscle, train for marathon..."
                 rows="3"
               />
@@ -506,7 +511,7 @@ export const buildSteps = ({
                   type="text" 
                   value={profileData.work} 
                   onChange={(e) => handleChange('work', e.target.value)}
-                  className="w-full p-3 bg-white border-2 border-gray-300 rounded-xl text-black placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all duration-300"
+                  className="w-full p-3 bg-white/10 backdrop-blur-sm border-2 border-white/20 rounded-xl text-white placeholder-white/60 focus:outline-none focus:border-white/40 focus:bg-white/20 transition-all duration-300"
                   placeholder="Your profession"
                 />
               </div>
@@ -517,7 +522,7 @@ export const buildSteps = ({
                   type="text" 
                   value={profileData.studies} 
                   onChange={(e) => handleChange('studies', e.target.value)}
-                  className="w-full p-3 bg-white border-2 border-gray-300 rounded-xl text-black placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all duration-300"
+                  className="w-full p-3 bg-white/10 backdrop-blur-sm border-2 border-white/20 rounded-xl text-white placeholder-white/60 focus:outline-none focus:border-white/40 focus:bg-white/20 transition-all duration-300"
                   placeholder="Your field of study"
                 />
               </div>
@@ -530,48 +535,12 @@ export const buildSteps = ({
         title: "Where are you located?",
         subtitle: "Find gym partners nearby",
         icon: <MapPin size={24} />,
-        isValid: () => profileData.location.lat !== null && profileData.location.lng !== null && profileData.location.address,
-        canSkip: () => {
-          // This step can be skipped if user already has location data
-          return profileData.hasExistingLocation || false;
-        },
+        isValid: () => profileData.location.lat !== null && profileData.location.lng !== null,
         component: (
           <div className="w-full">
             <LocationPicker
               location={profileData.location}
               onLocationChange={(location) => handleChange('location', location)}
-              showSkipOption={profileData.hasExistingLocation}
-              existingLocationMessage={profileData.existingLocationMessage}
-            />
-            
-            {/* Show nearby gyms if location is set */}
-            {profileData.location.lat && profileData.location.lng && (
-              <div className="mt-6">
-                <h3 className="text-white font-medium text-sm mb-3">
-                  🏋️ Gyms near you
-                </h3>
-                <NearbyGymsPreview 
-                  location={profileData.location}
-                  onGymSelect={(gym) => handleChange('selectedGym', gym)}
-                />
-              </div>
-            )}
-          </div>
-        )
-      },
-      {
-        id: 'gym_selection',
-        title: "Where do you workout?",
-        subtitle: "Connect with people at your gym",
-        icon: <Dumbbell size={24} />,
-        isValid: () => true, // Optional step
-        component: (
-          <div className="w-full">
-            <GymSelector
-              location={profileData.location}
-              selectedGym={profileData.selectedGym}
-              onGymSelect={(gym) => handleChange('selectedGym', gym)}
-              onCreateGym={(gymData) => handleChange('newGym', gymData)}
             />
           </div>
         )

@@ -72,7 +72,7 @@ const PhoneInput = ({
       const e164Value = formatE164(inputValue, countryCode);
       onChange(e164Value);
     }
-  }, [inputValue, countryCode, onChange, onValidChange]);
+  }, [inputValue, countryCode]); // Remove onChange and onValidChange from dependencies
 
   // Handle click outside to close dropdown
   useEffect(() => {
@@ -119,9 +119,9 @@ const PhoneInput = ({
 
   return (
     <div className={`relative ${className}`}>
-      <div className={`flex items-center border rounded-lg overflow-hidden ${
+      <div className={`flex items-center border rounded-lg overflow-hidden bg-white ${
         isFocused ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-300'
-      } ${isValid ? 'bg-white' : 'bg-gray-50'}`}>
+      }`}>
         {/* Country dropdown button */}
         <div className="relative" ref={dropdownRef}>
           <button
@@ -175,7 +175,7 @@ const PhoneInput = ({
             type="tel"
             value={formattedValue}
             onChange={handleInputChange}
-            className="w-full pl-10 pr-3 py-2 bg-transparent focus:outline-none"
+            className="w-full pl-10 pr-3 py-2 bg-transparent focus:outline-none text-black placeholder-gray-500"
             placeholder="(555) 123-4567"
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}

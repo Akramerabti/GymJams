@@ -37,7 +37,55 @@ const GymBrosProfileSchema = new mongoose.Schema({
     lat: { type: Number, required: true },
     lng: { type: Number, required: true },
     address: { type: String, required: true },
+    city: { type: String, required: true },
+    state: { type: String },
+    country: { type: String, default: 'US' },
+    zipCode: { type: String },
+    source: { 
+      type: String, 
+      enum: ['gps', 'ip-geolocation', 'manual', 'imported'],
+      default: 'manual'
+    },
+    accuracy: {
+      type: String,
+      enum: ['high', 'medium', 'low', 'approximate'],
+      default: 'medium'
+    },
+    lastUpdated: {
+      type: Date,
+      default: Date.now
+    }
   },
+  // Primary gym where user works out
+  primaryGym: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Gym'
+  },
+  // Other gyms user has access to
+  gyms: [{
+    gym: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Gym'
+    },
+    membershipType: {
+      type: String,
+      enum: ['member', 'day_pass', 'guest', 'trial'],
+      default: 'member'
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    },
+    addedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  // Groups user belongs to
+  groups: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'GymBrosGroup'
+  }],
   // Image handling fields
   profileImage: { 
     type: String, 

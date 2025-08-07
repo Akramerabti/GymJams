@@ -11,6 +11,7 @@ import useAuthStore from '../stores/authStore';
 import { useGuestFlow } from '../components/gymBros/components/GuestFlowContext';
 import gymbrosService from '../services/gymbros.service';
 import useApiOptimization from '../hooks/useApiOptimization';
+import gymBrosLocationService from '../services/gymBrosLocation.service';
 
 import DiscoverTab from '../components/gymBros/components/DiscoverTab';
 import GymBrosSetup from '../components/gymBros/GymBrosSetup';
@@ -112,11 +113,39 @@ const GymBros = () => {
   const profileRef = useRef(null);
   // Check for user profile when the component loads
   useEffect(() => {
-    if (isAuthenticated || isGuest || verifiedPhone) {
+    // If user is authenticated, clear any guest state first to avoid conflicts
+    if (isAuthenticated) {
+      console.log('🔄 GYMBROS: User is authenticated, clearing any guest state');
+      clearGuestState();
+      checkUserProfile();
+    } else if (isGuest || verifiedPhone) {
       checkUserProfile();
     } else {
       setLoading(false);
     }
+    
+    // Add debugging helpers to window for console access
+    if (typeof window !== 'undefined') {
+      window.gymBrosDebug = {
+        forceSyncLocation: () => gymBrosLocationService.forceSyncNow(),
+        checkLocalStorage: () => {
+          console.log('🔍 DEBUG: localStorage userLocation:', localStorage.getItem('userLocation'));
+          console.log('🔍 DEBUG: localStorage gymBrosLocation:', localStorage.getItem('gymBrosLocation'));
+        },
+        getCurrentUser: () => {
+          console.log('🔍 DEBUG: Current user:', user);
+          console.log('🔍 DEBUG: isAuthenticated:', isAuthenticated);
+        }
+      };
+      console.log('🔍 GYMBROS DEBUG: Added debug helpers to window.gymBrosDebug');
+      console.log('🔍 GYMBROS DEBUG: Try window.gymBrosDebug.forceSyncLocation()');
+    }
+    
+    // Cleanup: Stop auto location sync when component unmounts
+    return () => {
+      console.log('🛑 GYMBROS: Component unmounting, stopping auto location sync');
+      gymBrosLocationService.stopAutoLocationSync();
+    };
   }, [isAuthenticated, isGuest, verifiedPhone, guestProfile]);
 
   // Prevent scrolling on discover tab
@@ -186,14 +215,30 @@ useEffect(() => {
   
       debugGuestToken();
       
-      // If user is authenticated, check via regular API
+      // PRIORITY 1: If user is authenticated, use authenticated API (ignore guest state)
       if (isAuthenticated) {
-        //('[GymBros] Checking profile for authenticated user');
+        console.log('🔄 GYMBROS: Checking profile for authenticated user:', user?.email || user?.firstName);
+        
+        // Clear any lingering guest state to avoid conflicts
+        if (isGuest) {
+          console.log('🔄 GYMBROS: Clearing guest state for authenticated user');
+          clearGuestState();
+        }
+        
+        // Also clear guest token from service to ensure clean API calls
+        gymbrosService.clearGuestState();
+        
         const response = await gymbrosService.getGymBrosProfile();
         
         if (response.hasProfile) {
           setHasProfile(true);
           setUserProfile(response.profile);
+          
+          console.log('🚀 GYMBROS DEBUG: User has profile, starting auto location sync');
+          console.log('🚀 GYMBROS DEBUG: User data:', user);
+          
+          // Start automatic location syncing like Snapchat
+          gymBrosLocationService.startAutoLocationSync(user, user?.phone);
           
           // Initialize filters from profile preferences
           const initialFilters = {
@@ -216,14 +261,14 @@ useEffect(() => {
           await fetchProfilesWithFilters(initialFilters);
           fetchMatches();
         } else {
-          //('[GymBros] No profile found for authenticated user, showing setup');
+          console.log('🔄 GYMBROS: No profile found for authenticated user, showing setup');
           setHasProfile(false);
           setUserProfile(null);
         }
       } 
-      // If user is a guest, use the guest profile
+      // PRIORITY 2: If user is a guest (not authenticated), use the guest profile
       else if (isGuest) {
-        //('[GymBros] Checking profile for guest user');
+        console.log('🔄 GYMBROS: Checking profile for guest user');
         
         try {
           const response = await gymbrosService.getGymBrosProfile();
@@ -232,6 +277,11 @@ useEffect(() => {
             //('[GymBros] Found profile for guest');
             setHasProfile(true);
             setUserProfile(response.profile);
+            
+            console.log('🚀 GYMBROS DEBUG: Guest has profile, starting auto location sync');
+            
+            // Start automatic location syncing like Snapchat for guest users
+            gymBrosLocationService.startAutoLocationSync(null, response.profile.phone);
             
             // Initialize filters from guest profile 
             const initialFilters = {
@@ -814,8 +864,9 @@ useEffect(() => {
     );
   }
 
-  // If no user context (authenticated, guest or verified phone), show login prompt
-  if (showLoginPrompt && !isAuthenticated && !isGuest && !verifiedPhone) {
+  // If no valid user context AND no profile, show login prompt
+  // Note: Authenticated users without GymBros profile should go directly to profile setup
+  if (showLoginPrompt && !isAuthenticated && !isGuest && !verifiedPhone && !hasProfile) {
     return renderLoginPrompt();
   }
 

@@ -158,7 +158,7 @@ const EnhancedProfileCard = ({ profile, onLike, onDislike, onOpen, isActive, onN
           
           <div className="flex items-center mt-1">
             <MapPin size={16} className="mr-1" />
-            <span className="text-sm">{profile.location.distance} miles away</span>
+            <span className="text-sm">{profile.location.distance} miles away • {profile.location.country === 'CA' ? 'Canada' : profile.location.country === 'US' ? 'United States' : profile.location.country}</span>
           </div>
           
           {/* Workout Types Tags */}
@@ -246,7 +246,7 @@ const EnhancedProfileCard = ({ profile, onLike, onDislike, onOpen, isActive, onN
                   <div className="flex items-center">
                     <MapPin size={18} className="mr-2 text-gray-500" />
                     <p className="text-gray-700">
-                      Lives in <span className="font-medium">{profile.location.address.split(',')[0]}</span>
+                      Lives in <span className="font-medium">{profile.location.city}, {profile.location.country === 'CA' ? 'Canada' : profile.location.country === 'US' ? 'United States' : profile.location.country}</span>
                     </p>
                   </div>
                   

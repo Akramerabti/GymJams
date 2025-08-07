@@ -53,6 +53,41 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     }
   }, [userProfile]);
 
+  // Listen for location updates from localStorage
+  useEffect(() => {
+    const handleLocationUpdate = () => {
+      try {
+        const currentLocation = JSON.parse(localStorage.getItem('gymBrosLocation') || localStorage.getItem('userLocation') || '{}');
+        if (currentLocation && currentLocation.city && formData.location) {
+          console.log('🔄 PROFILE EDITOR: Location updated, refreshing display...', currentLocation);
+          // Force re-render by updating formData if location changed
+          setFormData(prev => ({
+            ...prev,
+            location: {
+              ...prev.location,
+              city: currentLocation.city,
+              country: currentLocation.country,
+              address: currentLocation.address
+            }
+          }));
+        }
+      } catch (e) {
+        console.warn('Failed to handle location update:', e);
+      }
+    };
+
+    // Listen for storage events (location updates)
+    window.addEventListener('storage', handleLocationUpdate);
+    
+    // Also check on interval for same-tab updates
+    const locationCheckInterval = setInterval(handleLocationUpdate, 3000);
+
+    return () => {
+      window.removeEventListener('storage', handleLocationUpdate);
+      clearInterval(locationCheckInterval);
+    };
+  }, [formData.location]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -357,11 +392,43 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
   };
 
   const renderMainProfile = () => {
-    const getLocationSummary = (address) => {
-      if (!address) return '';
-      const parts = address.split(',').map(part => part.trim());
-      if (parts.length <= 3) return address;
-      return parts.slice(-3).join(', ');
+    const getLocationSummary = (location) => {
+      if (!location) return '';
+      
+      // Check if we have current localStorage location (most up-to-date)
+      try {
+        const currentLocation = JSON.parse(localStorage.getItem('gymBrosLocation') || localStorage.getItem('userLocation') || '{}');
+        if (currentLocation && currentLocation.city) {
+          const country = currentLocation.country === 'CA' ? 'Canada' : 
+                         currentLocation.country === 'US' ? 'United States' : 
+                         currentLocation.country || '';
+          return currentLocation.city + (country ? ', ' + country : '');
+        }
+      } catch (e) {
+        console.warn('Failed to parse localStorage location:', e);
+      }
+      
+      // Fallback to profile location
+      if (typeof location === 'string') {
+        const parts = location.split(',').map(part => part.trim());
+        if (parts.length <= 3) return location;
+        return parts.slice(-3).join(', ');
+      }
+      
+      if (location.city) {
+        const country = location.country === 'CA' ? 'Canada' : 
+                       location.country === 'US' ? 'United States' : 
+                       location.country || '';
+        return location.city + (country ? ', ' + country : '');
+      }
+      
+      if (location.address) {
+        const parts = location.address.split(',').map(part => part.trim());
+        if (parts.length <= 3) return location.address;
+        return parts.slice(-3).join(', ');
+      }
+      
+      return '';
     };
 
     const calculateProfileCompleteness = () => {
@@ -484,10 +551,10 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
 
           <div className="text-center mt-4">
             <h1 className="text-3xl font-extrabold text-gray-900 leading-tight">{formData.name || 'Your Name'}{formData.age ? `, ${formData.age}` : ''}</h1>
-            {formData.location?.address && (
+            {formData.location && (
               <div className="flex items-center justify-center text-gray-600 mt-2">
                 <MapPin size={18} className="mr-1.5 text-gray-500" />
-                <span className="text-lg">{getLocationSummary(formData.location.address)}</span>
+                <span className="text-lg">{getLocationSummary(formData.location)}</span>
               </div>
             )}
           </div>

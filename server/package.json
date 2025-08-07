@@ -10,7 +10,8 @@
     "test": "jest",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "migration:cleanup-phones": "node src/utils/cleanupEmptyPhones.js"
+    "migration:cleanup-phones": "node src/utils/cleanupEmptyPhones.js",
+    "cleanup:orphaned-profiles": "node src/cleanup-orphaned-profiles.js"
   },
   "keywords": [],
   "author": "",

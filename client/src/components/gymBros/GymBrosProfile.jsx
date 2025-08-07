@@ -20,7 +20,7 @@ const GymBrosProfile = ({ profile, onLike, onDislike }) => {
           <h2 className="text-2xl font-bold text-white">{profile.name}, {profile.age}</h2>
           <div className="flex items-center text-white">
             <MapPin size={16} className="mr-1" />
-            <span className="text-sm">{profile.location.distance} miles away</span>
+            <span className="text-sm">{profile.location.distance} miles away • {profile.location.country === 'CA' ? 'Canada' : profile.location.country === 'US' ? 'United States' : profile.location.country}</span>
           </div>
         </div>
       </div>

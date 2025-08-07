@@ -962,6 +962,34 @@ export const deleteAccount = async (req, res) => {
     // Delete any subscriptions associated with the user
     await Subscription.deleteMany({ user: userId }).session(session);
 
+    // Delete GymBros profile and related data
+    try {
+      // Import GymBros models
+      const { default: GymBrosProfile } = await import('../models/GymBrosProfile.js');
+      const { default: GymBrosPreference } = await import('../models/GymBrosPreference.js');
+      const { default: GymBrosMatch } = await import('../models/GymBrosMatch.js');
+
+      // Delete the GymBros profile
+      const gymBrosProfile = await GymBrosProfile.findOneAndDelete({ userId }).session(session);
+      if (gymBrosProfile) {
+        logger.info(`Deleted GymBros profile for user: ${userId}`);
+        
+        // Also delete related GymBros data
+        await GymBrosPreference.findOneAndDelete({ userId }).session(session);
+        
+        // Deactivate matches involving this user
+        await GymBrosMatch.updateMany(
+          { users: userId },
+          { $set: { active: false } }
+        ).session(session);
+        
+        logger.info(`Cleaned up GymBros related data for user: ${userId}`);
+      }
+    } catch (gymBrosError) {
+      logger.error('Error deleting GymBros profile during account deletion:', gymBrosError);
+      // Don't abort transaction for GymBros deletion failures
+    }
+
     // If the user is a coach, remove them from any client's assigned coach
     if (user.role === 'coach') {
       await Subscription.updateMany(
