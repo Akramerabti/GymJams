@@ -473,6 +473,10 @@ class GymBrosLocationService {
         return exactMatch;
       }
 
+      // DEBUG: Log what is being sent as createdByUserId
+      console.log('[GYM DEBUG] Creating new gym. createdByUserId:', createdByUserId, 'typeof:', typeof createdByUserId);
+      console.log('[GYM DEBUG] Full gymData:', JSON.stringify(gymData));
+
       // Create new gym
       const newGym = new Gym({
         name: gymData.name,
@@ -491,7 +495,7 @@ class GymBrosLocationService {
         website: gymData.website || '',
         phone: gymData.phone || '',
         hours: gymData.hours || {},
-        createdBy: createdByUserId,
+        createdBy: createdByUserId || null,
         isVerified: false // Require manual verification
       });
 

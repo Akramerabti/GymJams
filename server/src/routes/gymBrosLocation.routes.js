@@ -1,6 +1,7 @@
+
 import express from 'express';
-import { authenticate } from '../middleware/auth.middleware.js';
-import { getEffectiveUser } from '../middleware/guestUser.middleware.js';
+import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
+import { getEffectiveUser, generateGuestToken } from '../middleware/guestUser.middleware.js';
 import gymBrosLocationService from '../services/gymBrosLocation.service.js';
 import Gym from '../models/Gym.js';
 import GymBrosGroup from '../models/GymBrosGroup.js';
@@ -184,6 +185,14 @@ router.get('/gyms/search', async (req, res) => {
       parseFloat(radius)
     );
 
+    // Debug: Log all gyms returned
+    logger.info('[GYM DEBUG] /gyms/search returned gyms:', gyms.map(g => ({
+      _id: g._id,
+      name: g.name,
+      location: g.location,
+      createdBy: g.createdBy
+    })));
+
     // Filter by search query if provided
     if (query && query.trim()) {
       const searchTerm = query.toLowerCase().trim();
@@ -210,25 +219,69 @@ router.get('/gyms/search', async (req, res) => {
  * Create a new gym
  * POST /gym-bros/gyms
  */
-router.post('/gyms', authenticate, async (req, res) => {
+router.post('/gyms', optionalAuthenticate, async (req, res) => {
   try {
     const gymData = req.body;
-    const userId = req.user.id;
+    const effectiveUser = getEffectiveUser(req);
+
+    // Debug logging for incoming request
+    logger.info('[GYM DEBUG] /gyms route - effectiveUser:', effectiveUser);
+    logger.info('[GYM DEBUG] /gyms route - gymData:', gymData);
+
+    // Require at least one form of user identification
+    if (!effectiveUser.userId && !effectiveUser.profileId && !effectiveUser.phone && !effectiveUser.email) {
+      logger.warn('[GYM DEBUG] /gyms route - missing userId/profileId/phone/email');
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication, verified phone, or email required to create gym'
+      });
+    }
 
     if (!gymData.name || !gymData.location) {
+      logger.warn('[GYM DEBUG] /gyms route - missing gym name or location');
       return res.status(400).json({
         success: false,
         message: 'Gym name and location are required'
       });
     }
 
-    const gym = await gymBrosLocationService.createOrFindGym(gymData, userId);
-    
-    res.json({
+    // Determine createdBy: userId for logged-in, phone/email for guest
+    let createdByValue = null;
+    if (effectiveUser.userId) {
+      createdByValue = effectiveUser.userId;
+    } else if (effectiveUser.phone) {
+      createdByValue = effectiveUser.phone;
+    } else if (effectiveUser.email) {
+      createdByValue = effectiveUser.email;
+    } else if (effectiveUser.profileId) {
+      createdByValue = effectiveUser.profileId;
+    }
+
+    logger.info('[GYM DEBUG] /gyms route - createdByValue:', createdByValue, 'typeof:', typeof createdByValue, 'effectiveUser:', effectiveUser);
+
+    // Defensive: If still no createdByValue, block
+    if (!createdByValue) {
+      logger.error('[GYM DEBUG] /gyms route - could not determine createdByValue');
+      return res.status(400).json({
+        success: false,
+        message: 'Could not determine creator for gym.'
+      });
+    }
+
+    const gym = await gymBrosLocationService.createOrFindGym(gymData, createdByValue);
+
+    let responseData = {
       success: true,
       gym: gym,
-      message: gym.createdBy.toString() === userId ? 'Gym created successfully' : 'Found existing gym'
-    });
+      message: gym.createdBy && gym.createdBy.toString() === String(createdByValue) ? 'Gym created successfully' : 'Found existing gym'
+    };
+
+    // Add guest token for guest users (phone or email, not logged in)
+    if (effectiveUser.isGuest && (effectiveUser.phone || effectiveUser.email)) {
+      responseData.guestToken = generateGuestToken(effectiveUser.phone || effectiveUser.email, effectiveUser.profileId);
+    }
+
+    res.json(responseData);
   } catch (error) {
     logger.error('Error creating gym:', error);
     handleError(error, req, res);

@@ -85,13 +85,33 @@ const GymSchema = new mongoose.Schema({
     default: false
   },
   verifiedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    type: mongoose.Schema.Types.Mixed, // Accept ObjectId (user) or String (guest email)
+    ref: 'User',
+    validate: {
+      validator: function(v) {
+        // Accept valid ObjectId or non-empty string (email)
+        return (
+          v == null || // allow null/undefined (not required)
+          (typeof v === 'string' && v.length > 0) ||
+          (v && typeof v === 'object' && mongoose.Types.ObjectId.isValid(v))
+        );
+      },
+      message: 'verifiedBy must be a valid user ObjectId or guest email.'
+    }
   },
   createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+    type: mongoose.Schema.Types.Mixed, // Accept ObjectId (user) or String (guest email)
+    required: true,
+    validate: {
+      validator: function(v) {
+        // Accept valid ObjectId or non-empty string (email)
+        return (
+          (typeof v === 'string' && v.length > 0) ||
+          (v && typeof v === 'object' && mongoose.Types.ObjectId.isValid(v))
+        );
+      },
+      message: 'createdBy must be a valid user ObjectId or guest email.'
+    }
   },
   // Analytics
   memberCount: {
