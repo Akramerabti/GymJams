@@ -12,8 +12,18 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables
-config({ path: path.join(__dirname, '../../.env') });
+// Load environment variables with explicit path
+const envPath = path.join(__dirname, '../.env');
+config({ path: envPath });
+
+console.log('Environment loaded from:', envPath);
+console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI);
+
+if (!process.env.MONGODB_URI) {
+  console.error('❌ MONGODB_URI not found in environment variables');
+  console.log('Available environment variables:', Object.keys(process.env).filter(key => key.includes('MONGO')));
+  process.exit(1);
+}
 
 // Import models
 import GymBrosProfile from './models/GymBrosProfile.js';

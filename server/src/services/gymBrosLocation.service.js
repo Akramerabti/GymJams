@@ -167,6 +167,11 @@ class GymBrosLocationService {
         }, { phone: 1, name: 1, userId: 1 });
         console.log('🔄 SERVER DEBUG: Profiles with similar phone endings:', similarPhones);
         
+        // DEBUG: Let's see exactly what query is being run
+        console.log('🔄 SERVER DEBUG: Exact phone being searched:', JSON.stringify(phone));
+        console.log('🔄 SERVER DEBUG: Phone type:', typeof phone);
+        console.log('🔄 SERVER DEBUG: Phone length:', phone.length);
+        
         // Only search for profiles that have a userId (not orphaned)
         // Guest users should not be able to update existing authenticated profiles
         if (!user) {
