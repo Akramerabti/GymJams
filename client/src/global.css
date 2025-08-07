@@ -57,6 +57,11 @@ html.dark-mode {
   --text-navbar: #ffffff;
 }
 
+.leaflet-container {
+  height: 100% !important;
+  width: 100% !important;
+}
+
 /* Ensure navbar maintains correct colors during theme transitions */
 .navbar,
 nav {

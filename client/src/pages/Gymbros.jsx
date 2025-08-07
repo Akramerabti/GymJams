@@ -20,6 +20,7 @@ import GymBrosSettings from '../components/gymBros/GymBrosSettings';
 import EnhancedGymBrosProfile from '../components/gymBros/ProfileEditor';
 import GymBrosShop from '../components/gymBros/GymBrosShop';
 import GymBrosMatchesList from '../components/gymBros/GymbrosMatchesList';
+import GymBrosMap from '../components/gymBros/GymBrosMap';
 import { Link } from 'react-router-dom';
 
 import { useLocation } from 'react-router-dom';
@@ -99,7 +100,8 @@ const GymBros = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [matches, setMatches] = useState([]);
-  const [viewStartTime, setViewStartTime] = useState(null);  const [activeTab, setActiveTab] = useState('discover'); // discover, matches, shop, profile
+  const [viewStartTime, setViewStartTime] = useState(null);
+  const [activeTab, setActiveTab] = useState('discover'); // discover, map, matches, shop, profile
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [filters, setFilters] = useState({
     workoutTypes: [],
@@ -109,8 +111,18 @@ const GymBros = () => {
     ageRange: { min: 18, max: 99 },
     maxDistance: 50
   });
-    const swipeRef = useRef(null);
+  const swipeRef = useRef(null);
   const profileRef = useRef(null);
+
+  // Set default tab to 'map' if user has a profile
+  useEffect(() => {
+    if (hasProfile) {
+      setActiveTab('map');
+    } else {
+      setActiveTab('discover');
+    }
+  }, [hasProfile]);
+
   // Check for user profile when the component loads
   useEffect(() => {
     // If user is authenticated, clear any guest state first to avoid conflicts
@@ -150,7 +162,7 @@ const GymBros = () => {
 
   // Prevent scrolling on discover tab
   useEffect(() => {
-    if (activeTab === 'discover') {
+    if (activeTab === 'discover' && hasProfile) {
       document.body.style.overflow = 'hidden';
       document.body.style.touchAction = 'none';
     } else {
@@ -172,43 +184,40 @@ const GymBros = () => {
       //('[GymBros] Viewing profile:', profiles[currentIndex].name, 'at index:', currentIndex);
     }
   }, [currentIndex, profiles]);
-  // Header visibility is now always true for mobile - removed scroll hiding behavior
 
-
-useEffect(() => {
-  const handleNavigateToMatches = (event) => {
-    // Switch to the matches tab
-    setActiveTab('matches');
+  useEffect(() => {
+    const handleNavigateToMatches = (event) => {
+      // Switch to the matches tab
+      setActiveTab('matches');
+      
+      // Clear matches cache and refresh to ensure the new match is included
+      clearCache('matches-with-preview');
+      
+      // Optionally scroll to or highlight the new match
+      const matchedProfileId = event.detail?.matchedProfile?._id;
+      if (matchedProfileId) {
+        // You could set a state to indicate which match to highlight
+        // Or use DOM methods to scroll to the match element
+        setTimeout(() => {
+          const matchElement = document.getElementById(`match-${matchedProfileId}`);
+          if (matchElement) {
+            matchElement.scrollIntoView({ behavior: 'smooth' });
+            matchElement.classList.add('highlight-match'); // Add a CSS class for highlighting
+            setTimeout(() => {
+              matchElement.classList.remove('highlight-match');
+            }, 3000);
+          }
+        }, 300);
+      }
+    };
     
-    // Clear matches cache and refresh to ensure the new match is included
-    clearCache('matches-with-preview');
+    window.addEventListener('navigateToMatches', handleNavigateToMatches);
     
-    // Optionally scroll to or highlight the new match
-    const matchedProfileId = event.detail?.matchedProfile?._id;
-    if (matchedProfileId) {
-      // You could set a state to indicate which match to highlight
-      // Or use DOM methods to scroll to the match element
-      setTimeout(() => {
-        const matchElement = document.getElementById(`match-${matchedProfileId}`);
-        if (matchElement) {
-          matchElement.scrollIntoView({ behavior: 'smooth' });
-          matchElement.classList.add('highlight-match'); // Add a CSS class for highlighting
-          setTimeout(() => {
-            matchElement.classList.remove('highlight-match');
-          }, 3000);
-        }
-      }, 300);
-    }
-  };
-  
-  window.addEventListener('navigateToMatches', handleNavigateToMatches);
-  
-  return () => {
-    window.removeEventListener('navigateToMatches', handleNavigateToMatches);
-  };
-}, [clearCache]);
+    return () => {
+      window.removeEventListener('navigateToMatches', handleNavigateToMatches);
+    };
+  }, [clearCache]);
 
-  
   const checkUserProfile = async () => {
     try {
       setLoading(true);
@@ -460,7 +469,8 @@ useEffect(() => {
     //('Verification token:', localStorage.getItem('verificationToken')?.substring(0, 15) + '...');
     //('Auth token:', localStorage.getItem('token')?.substring(0, 15) + '...');
   }
-    const fetchProfiles = async () => {
+
+  const fetchProfiles = async () => {
     try {
       //('[GymBros] Fetching profiles with filters:', filters);
       setLoading(true);
@@ -558,7 +568,6 @@ useEffect(() => {
     }
   };
 
-
   const handleProfileCreated = (profile) => {
     //('[GymBros] New profile created:', profile);
     setUserProfile(profile);
@@ -585,6 +594,7 @@ useEffect(() => {
       fetchProfiles();
     }, 500);
   };
+
   const fetchProfilesWithFilters = async (filterValues) => {
     try {
       //('[GymBros] Fetching profiles with filters:', filterValues);
@@ -647,6 +657,7 @@ useEffect(() => {
       setLoading(false);
     }
   };
+
   const handleFilterChange = (newFilters) => {
     //('[GymBros] Filters updated:', newFilters);
     setFilters(newFilters);
@@ -661,7 +672,8 @@ useEffect(() => {
     // Use helper function with the new filters directly
     fetchProfilesWithFilters(newFilters);
   };
-    const updateUserPreferences = async (newFilters) => {
+
+  const updateUserPreferences = async (newFilters) => {
     try {
       //('[GymBros] Updating user preferences with new filters:', newFilters);
       
@@ -760,11 +772,12 @@ useEffect(() => {
       </p>
     </div>
   );
+
   const renderHeader = () => {
-    // Common header title with logo
     const headerTitle = (
       <h1 className="text-xl font-bold flex items-center">
         <Dumbbell className="mr-2 text-blue-500" />
+        GymBros
       </h1>
     );
 
@@ -798,6 +811,20 @@ useEffect(() => {
               </div>
             </div>
           );
+
+        case 'map':
+          return (
+            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+              {headerTitle}
+              <button
+                onClick={() => setShowSettings(true)}
+                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
+              >
+                <Settings size={20} />
+              </button>
+            </div>
+          );
+
         case 'matches':
           return (
             <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
@@ -810,6 +837,7 @@ useEffect(() => {
               </button>
             </div>
           );
+
         case 'shop':
           return (
             <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
@@ -824,6 +852,7 @@ useEffect(() => {
               </button>
             </div>
           );
+
         case 'profile':
           return (
             <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
@@ -836,6 +865,7 @@ useEffect(() => {
               </button>
             </div>
           );
+
         default:
           return (
             <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
@@ -852,6 +882,120 @@ useEffect(() => {
     );
   };
 
+  // Render tab content function
+  const renderTabContent = () => {
+    // Only show setup if user has no profile AND is on discover tab
+    if (!hasProfile && activeTab === 'discover') {
+      return <GymBrosSetup onProfileCreated={handleProfileCreated} />;
+    }
+    
+    switch (activeTab) {
+      case 'discover':
+        // If no profile, show setup here too
+        if (!hasProfile) {
+          return <GymBrosSetup onProfileCreated={handleProfileCreated} />;
+        }
+        return (
+          <div className="h-full overflow-hidden relative">
+            <DiscoverTab
+              fetchProfiles={fetchProfiles}
+              loading={loading}
+              filters={filters}
+              setShowFilters={setShowFilters}
+              distanceUnit="miles"
+              isPremium={false}
+              initialProfiles={profiles}
+              initialIndex={currentIndex}
+              userProfile={userProfile}
+              onNavigateToMatches={(matchedProfile) => {
+                setActiveTab('matches');
+                fetchMatches();
+              }}
+            />
+          </div>
+        );
+
+      case 'map':
+        // MAP SHOULD ALWAYS BE ACCESSIBLE - even without a profile
+        return (
+          <div className="h-full w-full">
+            {!hasProfile ? (
+              // Show a limited map view with a prompt to create profile
+              <div className="relative h-full">
+                <GymBrosMap userProfile={null} />
+                <div className="absolute top-20 left-4 right-4 bg-white rounded-lg shadow-lg p-4 z-30">
+                  <p className="text-sm text-gray-600 mb-2">
+                    Create a profile to see gym partners and join the community!
+                  </p>
+                  <button
+                    onClick={() => setActiveTab('discover')}
+                    className="w-full bg-blue-500 text-white py-2 px-4 rounded text-sm hover:bg-blue-600"
+                  >
+                    Create Profile
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <GymBrosMap userProfile={userProfile} />
+            )}
+          </div>
+        );
+
+      case 'matches':
+        if (!hasProfile) {
+          return (
+            <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+              <MessageCircle size={64} className="text-gray-400 mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No Matches Yet</h3>
+              <p className="text-gray-600 mb-4">Create a profile to start matching with gym partners!</p>
+              <button
+                onClick={() => setActiveTab('discover')}
+                className="bg-blue-500 text-white py-2 px-6 rounded-lg hover:bg-blue-600"
+              >
+                Create Profile
+              </button>
+            </div>
+          );
+        }
+        return <GymBrosMatchesList />;
+        
+      case 'shop':
+        return (
+          <div className="h-full overflow-y-auto pb-16">
+            <GymBrosShop />
+          </div>
+        );
+      
+      case 'profile':
+        if (!hasProfile) {
+          return (
+            <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+              <User size={64} className="text-gray-400 mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No Profile Yet</h3>
+              <p className="text-gray-600 mb-4">Create your GymBros profile to get started!</p>
+              <button
+                onClick={() => setActiveTab('discover')}
+                className="bg-blue-500 text-white py-2 px-6 rounded-lg hover:bg-blue-600"
+              >
+                Create Profile
+              </button>
+            </div>
+          );
+        }
+        return (
+          <div className="h-full overflow-y-auto pb-16">
+            <EnhancedGymBrosProfile
+              userProfile={userProfile}
+              onProfileUpdated={handleProfileUpdated}
+              isGuest={isGuest}
+            />
+          </div>
+        );
+      
+      default:
+        return null;
+    }
+  };
 
   if (loading || guestLoading) {
     return (
@@ -876,58 +1020,7 @@ useEffect(() => {
     return <GymBrosSetup onProfileCreated={handleProfileCreated} />;
   }
 
-  // Different content based on active tab
-  const renderTabContent = () => {
-    switch(activeTab) {      case 'discover':
-      //('[GymBros] Rendering DiscoverTab with', profiles.length, 'profiles, currentIndex:', currentIndex);
-      return (
-        <div className="h-full overflow-hidden relative">
-        <DiscoverTab
-          fetchProfiles={fetchProfiles}
-          loading={loading}
-          filters={filters}
-          setShowFilters={setShowFilters}
-          distanceUnit="miles"
-          isPremium={false}
-          initialProfiles={profiles}
-          initialIndex={currentIndex}
-          userProfile={userProfile}
-          onNavigateToMatches={(matchedProfile) => {
-            // Switch to matches tab
-            setActiveTab('matches');
-            
-            // Refresh matches
-            fetchMatches();
-          }}
-        />
-      </div>
-    
-      );
-
-      case 'matches':
-        return <GymBrosMatchesList />;
-        case 'shop':
-        return (
-          <div className="h-full overflow-y-auto pb-16">
-            <GymBrosShop />
-          </div>
-        );
-      
-      case 'profile':
-        return (
-          <div className="h-full overflow-y-auto pb-16">
-            <EnhancedGymBrosProfile
-              userProfile={userProfile}
-              onProfileUpdated={handleProfileUpdated}
-              isGuest={isGuest}
-            />
-          </div>
-        );
-      
-      default:
-        return null;
-    }
-  };  // The main return part of the GymBros component, focused on the layout structure
+  // The main return part of the GymBros component, focused on the layout structure
   return (
     <>
       <FooterHider />
@@ -943,7 +1036,8 @@ useEffect(() => {
         }`}>
           {renderTabContent()}
         </div>
-          {/* Fixed Navigation Tabs */}
+        
+        {/* Fixed Navigation Tabs */}
         <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t border-gray-200 z-20">
           <div className="max-w-2xl mx-auto px-6 py-3 flex justify-between items-center">
             <button 
@@ -955,7 +1049,17 @@ useEffect(() => {
               <Heart size={24} />
               <span className="text-xs mt-1">Discover</span>
             </button>
-            
+
+            <button
+              onClick={() => setActiveTab('map')}
+              className={`flex flex-col items-center p-2 ${
+                activeTab === 'map' ? 'text-blue-500' : 'text-gray-500'
+              }`}
+            >
+              <MapPin size={22} />
+              <span className="text-xs mt-1">Map</span>
+            </button>
+
             <button 
               onClick={() => {
                 fetchMatches();
@@ -965,10 +1069,10 @@ useEffect(() => {
                 activeTab === 'matches' ? 'text-blue-500' : 'text-gray-500'
               }`}
             >
-              <MessageCircle size={24} />
+              <MessageCircle size={22} />
               <span className="text-xs mt-1">Matches</span>
             </button>
-            
+
             <button 
               onClick={() => setActiveTab('shop')}
               className={`flex flex-col items-center p-2 ${
@@ -978,7 +1082,7 @@ useEffect(() => {
               <ShoppingBag size={24} />
               <span className="text-xs mt-1">Shop</span>
             </button>
-            
+
             <button 
               onClick={() => setActiveTab('profile')}
               className={`flex flex-col items-center p-2 ${
@@ -1010,7 +1114,6 @@ useEffect(() => {
       />
     </>
   );
- 
 };
 
 export default GymBros;
