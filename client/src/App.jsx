@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import adService from './services/adsense';
@@ -11,9 +11,11 @@ import './global.css';
 
 // Import providers
 import { GuestFlowProvider } from './components/gymBros/components/GuestFlowContext';
+import { SocketProvider } from './SocketContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 
-// Import hooks
-import useAutoLocationSync from './hooks/useAutoLocationSync';
+// Import stores
+import { useAuth } from './stores/authStore';
 
 // Layout Components
 import Layout from './components/layout/Layout';
@@ -35,10 +37,9 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Orders from './pages/Orders';
 import SubscriptionManagement from './pages/SubscriptionManagement';
-import useAuthStore from './stores/authStore';
 import Dashboard from './pages/Dashboard';
 import Questionnaire from './pages/Questionnaire';
-import Games from './pages/Games'; 
+import Games from './pages/Games';
 import HiddenGames from './pages/HiddenGames';
 import Onboarding from './pages/Onboarding';
 import TaskforceDashboard from './pages/TaskforceDashboard';
@@ -52,108 +53,53 @@ import Returns from './pages/CustomerService/returns';
 import ApplicationForm from './pages/CustomerService/application';
 import OAuthCallback from './pages/OAuthCallback';
 import Blog from './pages/Blog';
-import BlogPost from './components/blog/BlogPost'; 
+import BlogPost from './components/blog/BlogPost';
 
-import { SocketProvider } from './SocketContext';
-import { ThemeProvider } from './contexts/ThemeContext';
-
-// Location and Profile Components
+// Common Components
 import LocationBanner from './components/common/LocationBanner';
 import CoachProfileCompletionModal from './components/common/CoachProfileCompletionModal';
 
+// Constants
+const FIVE_MINUTES = 5 * 60 * 1000;
 
-const App = () => {
-  const { checkAuth, logout, showOnboarding, setShowOnboarding, refreshUserLocation, reverseGeocode } = useAuthStore();
-  
-  // Start automatic location syncing like Snapchat
-  useAutoLocationSync();
+// Modal manager component (must be inside Router)
+function CoachProfileModalManager() {
+  const [showCoachProfileModal, setShowCoachProfileModal] = useState(false);
+  const location = useLocation();
+  const timerRef = useRef(null);
 
-  const refreshGuestLocation = async () => {
-    try {
-      // Check if geolocation is available
-      if (!navigator.geolocation) {
-        return;
+  useEffect(() => {
+    const maybeShowModal = () => {
+      if (location.pathname !== '/profile') {
+        setShowCoachProfileModal(true);
+      } else {
+        setShowCoachProfileModal(false);
       }
-      
-      // Get fresh GPS coordinates
-      const position = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          resolve,
-          reject,
-          {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0 // Don't use cached position
-          }
-        );
-      });
-      
-      const { latitude, longitude } = position.coords;
-      
-      // Reverse geocode to get current city
-      const cityName = await reverseGeocode(latitude, longitude);
-      
-      const freshLocationData = {
-        lat: latitude,
-        lng: longitude,
-        city: cityName,
-        address: '',
-        source: 'fresh-gps-guest',
-        timestamp: new Date().toISOString()
-      };
-      
-      // Update localStorage for guest
-      localStorage.setItem('userLocation', JSON.stringify(freshLocationData));
-      
-    } catch (error) {
-      // Don't throw error - user might have revoked location permission
+    };
+    maybeShowModal();
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
     }
-  };
-
-  const handleLocationSet = async (locationData) => {
-    try {
-      const token = localStorage.getItem('token');
-      
-      if (token) {
-        const response = await fetch('/api/user/location', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify(locationData)
-        });
-        
-        if (response.ok) {
-          const result = await response.json();
-          
-          // Also update the auth store if possible
-          const authStore = useAuthStore.getState();
-          if (authStore.user) {
-            authStore.setUser({
-              ...authStore.user,
-              location: locationData,
-              hasCompleteLocation: true,
-              needsLocationUpdate: false
-            });
-          }
-        } else {
-          const errorText = await response.text();
-          console.error('❌ App.jsx: API error response:', response.status, errorText);
-          
-          // Try to parse as JSON for more details
-          try {
-            const errorJson = JSON.parse(errorText);
-            console.error('❌ App.jsx: Detailed error:', errorJson);
-          } catch (e) {
-            // Not JSON, just log the text
-          }
-        }
+    timerRef.current = setInterval(() => {
+      if (location.pathname !== '/profile') {
+        setShowCoachProfileModal(true);
       }
-    } catch (error) {
-      console.error('❌ App.jsx: Error updating user location:', error);
-    }
-  };
+    }, FIVE_MINUTES);
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [location.pathname]);
+
+  return <CoachProfileCompletionModal isOpen={showCoachProfileModal} onClose={() => setShowCoachProfileModal(false)} />;
+}
+
+// Main App component
+function App() {
+  const { checkAuth, logout } = useAuth();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [location, setLocation] = useState(null);
 
   useEffect(() => {
     const validateTokenOnLoad = async () => {
@@ -162,19 +108,11 @@ const App = () => {
         if (token) {
           const isValid = await checkAuth();
           if (!isValid) {
-            //('Token validation failed, logging out');
             logout();
           }
         } else {
-          // For guest users, also refresh location if they have given permission before
-          const hasLocation = localStorage.getItem('userLocation');
-          if (hasLocation) {
-            try {
-              await refreshGuestLocation();
-            } catch (error) {
-              // Ignore guest location errors
-            }
-          }
+          // For guest users, if they have a location, just update localStorage (no API call)
+          // No need to refresh location here, just keep the value
         }
       } catch (error) {
         console.error('Auth check error:', error);
@@ -184,21 +122,16 @@ const App = () => {
 
     const initGAM = async (retryCount = 0) => {
       try {
-
         await adService.init();
-        
       } catch (error) {
         console.error('Google Ad Manager initialization error:', error);
-        // Retry initialization a few times with exponential backoff
         if (retryCount < 3) {
           const delay = Math.pow(2, retryCount) * 1000;
-          //(`Retrying GAM initialization in ${delay}ms...`);
           setTimeout(() => initGAM(retryCount + 1), delay);
         }
       }
     };
 
-    // Run initializations in parallel
     Promise.all([
       validateTokenOnLoad(),
       initGAM()
@@ -236,14 +169,12 @@ const App = () => {
                   <Route path="/gymbros" element={<GymBros />} />
                   <Route path="/orders" element={<Orders />} />
                   <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
-                  <Route path="/contact" element={<Contact />} />
                   <Route path="/about" element={<AboutUs />} />
                   <Route path="/faq" element={<FAQ />} />
                   <Route path="/returns" element={<Returns />} />
                   <Route path="/application" element={<ApplicationForm />} />
                   <Route path="/oauth-callback" element={<OAuthCallback />} />
                   <Route path="/blog" element={<Blog />} />
-
                   <Route path="/blog/:slug" element={<BlogPost />} />
                   
                   {/* Protected Routes */}
@@ -270,8 +201,8 @@ const App = () => {
                 )}
 
                 {/* Global Components */}
-                <LocationBanner onLocationSet={handleLocationSet} />
-                <CoachProfileCompletionModal />
+                <LocationBanner onLocationSet={setLocation} />
+                <CoachProfileModalManager />
 
                 <Toaster />
                 {process.env.NODE_ENV !== 'production' && <AdDebugger />}
@@ -282,6 +213,6 @@ const App = () => {
       </ThemeProvider>
     </I18nextProvider>
   );
-};
+}
 
 export default App;

@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import 'dotenv/config';
 import { initializeCoachPayouts, initializeSubcleanupJobs } from './services/coach.service.js';
+import setupGeospatialIndexes from './utils/setupGeospatialIndexes.js';
 
 // Import configurations
 import connectDB from './config/database.js';
@@ -50,6 +51,16 @@ app.set('trust proxy', true);
 
 // Connect to MongoDB
 connectDB();
+
+// Setup geospatial indexes after database connection
+setTimeout(async () => {
+  try {
+    await setupGeospatialIndexes();
+    console.log('✅ Geospatial indexes verified/created on startup');
+  } catch (error) {
+    console.warn('⚠️ Warning: Could not setup geospatial indexes:', error.message);
+  }
+}, 2000); // Wait 2 seconds for DB connection to stabilize
 
 // Initialize Stripe
 initStripe();

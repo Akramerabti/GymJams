@@ -77,8 +77,8 @@ const SortableImageItem = ({ url, index, onRemove, onEdit, isPlaceholder, select
             onChange={(e) => selectFile(e, index)}
             className="hidden"
           />
-          <Upload size={32} className="text-gray-400 mb-2" />
-          <span className="text-sm text-gray-500">Add Photo</span>
+          <Upload size={20} className="text-gray-400 mb-1" />
+          <span className="text-xs text-gray-500">Add Photo</span>
         </label>
       </div>
     );
@@ -270,7 +270,7 @@ const ImageCropperModal = ({ image, onSave, onCancel }) => {
             image={image}
             crop={crop}
             zoom={zoom}
-            aspect={7/10} // Square crops for consistency
+            aspect={7/10} // 7:10 aspect ratio for consistency
             onCropChange={setCrop}
             onZoomChange={setZoom}
             onCropComplete={onCropComplete}
@@ -597,31 +597,33 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, maxPhotos
   }
 
   return (
-    <div className="w-full">
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext 
-          items={displayImages.map((_, i) => `image-${i}`)} 
-          strategy={rectSortingStrategy}
+    <div className="w-full flex justify-center">
+      {/* Container that constrains width and height on larger screens */}
+      <div className="w-full lg:1/3 lg:max-w-1/3">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
         >
-          <div className="grid grid-cols-3 gap-4">
-            {displayImages.map((url, index) => (
-              <SortableImageItem
-                key={`image-${index}`}
-                url={url}
-                index={index}
-                onRemove={handleRemoveImage}
-                onEdit={handleEditImage}
-                isPlaceholder={!url}
-                selectFile={handleFileSelect}
-              />
-            ))}
-          </div>
-        </SortableContext>
+          <SortableContext 
+            items={displayImages.map((_, i) => `image-${i}`)} 
+            strategy={rectSortingStrategy}
+          >
+            <div className="grid grid-cols-3 gap-2 lg:gap-3">
+              {displayImages.map((url, index) => (
+                <SortableImageItem
+                  key={`image-${index}`}
+                  url={url}
+                  index={index}
+                  onRemove={handleRemoveImage}
+                  onEdit={handleEditImage}
+                  isPlaceholder={!url}
+                  selectFile={handleFileSelect}
+                />
+              ))}
+            </div>
+          </SortableContext>
         
         <DragOverlay>
           {activeId && activeDragItemIndex !== null && localImages[activeDragItemIndex] ? (
@@ -639,7 +641,7 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, maxPhotos
           {photoFiles.length} image{photoFiles.length !== 1 ? 's' : ''} ready to upload
         </p>
       )}
-    
+      
       {cropImage && (
         <ImageCropperModal
           image={cropImage}
@@ -650,6 +652,7 @@ const ImageUploader = React.forwardRef(({ images = [], onImagesChange, maxPhotos
           }}
         />
       )}
+      </div>
     </div>
   );
 });

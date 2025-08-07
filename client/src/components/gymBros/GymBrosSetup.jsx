@@ -143,8 +143,8 @@ const GymBrosSetup = ({ onProfileCreated }) => {
             }));
           }
 
-          // Start automatic location syncing like Snapchat
-          gymBrosLocationService.startAutoLocationSync(userData, userData.phone);
+          // NOTE: Removed startAutoLocationSync from here to prevent API spam
+          // Auto-sync will be started from the main Gymbros component
           
         } catch (error) {
           console.warn('Failed to check existing location:', error);
@@ -628,8 +628,8 @@ const GymBrosSetup = ({ onProfileCreated }) => {
           )}
 
           {/* Animated Step Content */}
-          <div className="flex-1 flex items-center justify-center p-4">
-            <div className="w-full max-w-2xl">
+          <div className="flex-1 flex flex-col justify-center p-4 min-h-0">
+            <div className="w-full max-w-2xl mx-auto h-full flex flex-col">
               <AnimatePresence mode="wait" custom={direction}>
                 <motion.div
                   key={currentStep}
@@ -642,7 +642,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
                     x: { type: "spring", stiffness: 300, damping: 30 },
                     opacity: { duration: 0.2 },
                   }}
-                  className="w-full"
+                  className="w-full h-full flex flex-col"
                 >
                   {steps[currentStep].component}
                 </motion.div>

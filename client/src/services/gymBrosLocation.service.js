@@ -2,6 +2,45 @@ import locationService from './location.service.js';
 import api from './api.js';
 
 class GymBrosLocationService {
+  constructor() {
+    this.isAutoSyncActive = false;
+    this.lastSyncTime = 0;
+    this.syncCooldown = 30000; // 30 seconds minimum between syncs
+    this.requestQueue = new Map(); // To prevent duplicate requests
+  }
+  
+  /**
+   * Check if we're in cooldown period to prevent API spam
+   * @returns {boolean} True if we should skip API calls
+   */
+  isInCooldown() {
+    const now = Date.now();
+    const timeSinceLastSync = now - this.lastSyncTime;
+    return timeSinceLastSync < this.syncCooldown;
+  }
+
+  /**
+   * Debounced API call to prevent duplicate requests
+   * @param {string} key - Unique key for the request
+   * @param {Function} apiCall - The API call function
+   * @returns {Promise} The API call result or existing promise
+   */
+  async debouncedApiCall(key, apiCall) {
+    // If we already have this request in progress, return the existing promise
+    if (this.requestQueue.has(key)) {
+      console.log(`🔄 Request "${key}" already in progress, returning existing promise`);
+      return await this.requestQueue.get(key);
+    }
+
+    // Create new promise and add to queue
+    const promise = apiCall().finally(() => {
+      // Remove from queue when done
+      this.requestQueue.delete(key);
+    });
+
+    this.requestQueue.set(key, promise);
+    return await promise;
+  }
   
   /**
    * Check if we should skip location step during setup
@@ -13,20 +52,37 @@ class GymBrosLocationService {
     try {
       console.log('🔍 Starting location check for setup step...');
       
+      // If we're in cooldown, just use localStorage data
+      if (this.isInCooldown()) {
+        console.log('⏱️ In cooldown period, using localStorage only');
+        const localLocation = this.getStoredLocation();
+        if (localLocation && this.isLocationComplete(localLocation)) {
+          return {
+            skipStep: true,
+            locationData: localLocation,
+            source: 'localStorage',
+            message: 'Using cached location (cooldown active)'
+          };
+        }
+      }
+
       // 1. Check localStorage first (fastest and most recent)
       const localLocation = this.getStoredLocation();
       console.log('📱 localStorage location:', localLocation);
       
-      // 2. Check backend for existing locations
+      // 2. Check backend for existing locations (with debouncing)
       let serverLocation = null;
       try {
-        const response = await api.post('/gym-bros-location/check', {
-          user: user,
-          phone: phone
+        const userKey = user?.id || user?.phone || phone || 'guest';
+        serverLocation = await this.debouncedApiCall(`check-location-${userKey}`, async () => {
+          const response = await api.post('/gym-bros-location/check', {
+            user: user,
+            phone: phone
+          });
+          return response.data.hasLocation ? response.data.locationData : null;
         });
         
-        if (response.data.hasLocation) {
-          serverLocation = response.data.locationData;
+        if (serverLocation) {
           console.log('🗄️ Server location:', serverLocation);
         }
       } catch (error) {
@@ -80,17 +136,20 @@ class GymBrosLocationService {
         this.storeLocation(serverLocation);
       }
 
-      // 5. If we have a good location, sync to server if needed
+      // 5. If we have a good location, sync to server if needed (but not during cooldown)
       if (bestLocation) {
-        if (needsServerUpdate) {
+        if (needsServerUpdate && !this.isInCooldown()) {
           console.log('🔄 Syncing localStorage location to server...');
           try {
             const normalizedLocation = this.normalizeLocationData(bestLocation);
             await this.updateLocation(normalizedLocation, user, phone);
             console.log('✅ Location synced to server successfully');
+            this.lastSyncTime = Date.now(); // Update sync time
           } catch (error) {
             console.warn('⚠️ Failed to sync location to server:', error);
           }
+        } else if (needsServerUpdate) {
+          console.log('⏱️ Server sync needed but in cooldown, will sync later');
         }
         
         return {
@@ -564,6 +623,12 @@ class GymBrosLocationService {
    * @param {string} phone - Phone for guest users
    */
   startAutoLocationSync(user = null, phone = null) {
+    // Prevent multiple auto-sync instances
+    if (this.isAutoSyncActive) {
+      console.log('🔄 AUTO-SYNC: Already active, skipping duplicate start');
+      return;
+    }
+
     // Clear any existing interval
     if (this.locationSyncInterval) {
       clearInterval(this.locationSyncInterval);
@@ -573,9 +638,15 @@ class GymBrosLocationService {
     console.log('🔄 AUTO-SYNC: User:', user);
     console.log('🔄 AUTO-SYNC: Phone:', phone);
 
-    // Initial sync (run immediately)
-    console.log('🔄 AUTO-SYNC: Running initial sync...');
-    this.syncLocationIfNeeded(user, phone);
+    this.isAutoSyncActive = true;
+
+    // Skip initial sync if we're in cooldown (likely just ran shouldSkipLocationStep)
+    if (!this.isInCooldown()) {
+      console.log('🔄 AUTO-SYNC: Running initial sync...');
+      this.syncLocationIfNeeded(user, phone);
+    } else {
+      console.log('🔄 AUTO-SYNC: Skipping initial sync (in cooldown)');
+    }
 
     // Set up periodic sync every 5 minutes (like Snapchat)
     this.locationSyncInterval = setInterval(() => {
@@ -593,6 +664,7 @@ class GymBrosLocationService {
     if (this.locationSyncInterval) {
       clearInterval(this.locationSyncInterval);
       this.locationSyncInterval = null;
+      this.isAutoSyncActive = false;
       console.log('🛑 Stopped automatic location sync');
     }
   }
@@ -605,6 +677,13 @@ class GymBrosLocationService {
   async syncLocationIfNeeded(user = null, phone = null) {
     try {
       console.log('🔍 AUTO-SYNC DEBUG: Starting syncLocationIfNeeded...');
+      
+      // Check cooldown first
+      if (this.isInCooldown()) {
+        console.log('⏱️ AUTO-SYNC: In cooldown, skipping sync');
+        return;
+      }
+      
       console.log('🔍 AUTO-SYNC DEBUG: User:', user);
       console.log('🔍 AUTO-SYNC DEBUG: Phone:', phone);
       
@@ -622,6 +701,7 @@ class GymBrosLocationService {
             // Normalize before updating
             const normalizedFreshLocation = this.normalizeLocationData(freshLocation);
             await this.updateLocation(normalizedFreshLocation, user, phone);
+            this.lastSyncTime = Date.now(); // Update sync time
           }
         } catch (error) {
           console.warn('Auto-sync: Failed to get fresh location:', error);
@@ -631,11 +711,14 @@ class GymBrosLocationService {
 
       console.log('🔍 AUTO-SYNC DEBUG: Valid localStorage found, checking server...');
 
-      // Check if we need to sync with server
+      // Check if we need to sync with server (with debouncing)
       try {
-        const serverCheck = await api.post('/gym-bros-location/check', {
-          user: user,
-          phone: phone
+        const userKey = user?.id || user?.phone || phone || 'guest';
+        const serverCheck = await this.debouncedApiCall(`auto-sync-check-${userKey}`, async () => {
+          return await api.post('/gym-bros-location/check', {
+            user: user,
+            phone: phone
+          });
         });
 
         console.log('🔍 AUTO-SYNC DEBUG: Server check response:', serverCheck.data);
@@ -685,6 +768,7 @@ class GymBrosLocationService {
           
           const syncResult = await this.updateLocation(normalizedLocation, user, phone);
           console.log('✅ AUTO-SYNC: Location synced successfully:', syncResult);
+          this.lastSyncTime = Date.now(); // Update sync time
           
           // FORCE UPDATE: Also manually trigger a profile refresh
           if (user && typeof window !== 'undefined') {

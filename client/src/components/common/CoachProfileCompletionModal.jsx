@@ -6,25 +6,22 @@ import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import api from '../../services/api';
 
-const CoachProfileCompletionModal = () => {
+const CoachProfileCompletionModal = ({ isOpen, onClose }) => {
   const { user } = useAuth();
   const location = useLocation();
-  const [isVisible, setIsVisible] = useState(false);
   const [missingFields, setMissingFields] = useState([]);
-  const [isDismissed, setIsDismissed] = useState(false);
   const [profileData, setProfileData] = useState(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 
   // Fetch fresh profile data
   useEffect(() => {
+    if (!isOpen) return;
     const fetchProfileData = async () => {
-      // Handle both possible user structures: user.role or user.user.role
       const userRole = user?.user?.role || user?.role;
       if (!user || userRole !== 'coach') {
         setIsLoadingProfile(false);
         return;
       }
-
       try {
         const response = await api.get('/auth/profile');
         setProfileData(response.data);
@@ -37,39 +34,19 @@ const CoachProfileCompletionModal = () => {
         setIsLoadingProfile(false);
       }
     };
-
+    setIsLoadingProfile(true);
     fetchProfileData();
-  }, [user]);
+  }, [user, isOpen]);
 
   useEffect(() => {
-    // Don't check until profile data is loaded
-    if (isLoadingProfile || !profileData) {
-      return;
-    }
-
-    // Don't show on profile page
-    if (location.pathname === '/profile') {
-      return;
-    }
-
-    // Handle both possible user structures: user.role or user.user.role
+    if (!isOpen) return;
+    if (isLoadingProfile || !profileData) return;
+    // Only show for coaches, not on /profile
     const userRole = user?.user?.role || user?.role;
-    
-    // Only show for coaches
-    if (!user || userRole !== 'coach') {
-      return;
-    }
-    
-    // Check if user has dismissed this warning recently
-    const dismissedUntil = localStorage.getItem('coachWarningDismissed');
-    
-    if (dismissedUntil && new Date() < new Date(dismissedUntil)) {
-      return;
-    }
-
+    if (!user || userRole !== 'coach') return;
+    if (location.pathname === '/profile') return;
     // Check which fields are missing using fresh profile data
     const missing = [];
-    
     if (!profileData.bio || profileData.bio.trim().length < 50) {
       missing.push({
         field: 'bio',
@@ -79,7 +56,6 @@ const CoachProfileCompletionModal = () => {
         severity: 'high'
       });
     }
-
     if (!profileData.specialties || profileData.specialties.length === 0) {
       missing.push({
         field: 'specialties',
@@ -89,7 +65,6 @@ const CoachProfileCompletionModal = () => {
         severity: 'high'
       });
     }
-
     if (!profileData.location || !profileData.location.lat || !profileData.location.lng || !profileData.location.city) {
       missing.push({
         field: 'location',
@@ -99,7 +74,6 @@ const CoachProfileCompletionModal = () => {
         severity: 'critical'
       });
     }
-
     if (!profileData.profileImage || profileData.profileImage === '/fallback-avatar.jpg' || profileData.profileImage.includes('fallback')) {
       missing.push({
         field: 'profileImage',
@@ -109,8 +83,6 @@ const CoachProfileCompletionModal = () => {
         severity: 'medium'
       });
     }
-
-    // Check payout setup completion
     if (profileData.payoutSetupComplete === false || !profileData.stripeAccountId) {
       missing.push({
         field: 'payoutSetup',
@@ -120,48 +92,15 @@ const CoachProfileCompletionModal = () => {
         severity: 'critical'
       });
     }
+    setMissingFields(missing);
+  }, [user, location.pathname, isLoadingProfile, profileData, isOpen]);
 
-    // NOTE: Certifications are no longer required for profile completion
-    // If all main fields are complete, the profile is considered complete
-
-    if (missing.length > 0) {
-      setMissingFields(missing);
-      // Show modal after a brief delay
-      setTimeout(() => {
-        setIsVisible(true);
-      }, 1500);
-    }
-  }, [user, location.pathname, isLoadingProfile, profileData]);
-
-  const handleDismiss = (duration = '1day') => {
-    setIsVisible(false);
-    setIsDismissed(true);
-    
-    // Set dismissal time based on duration
-    const dismissUntil = new Date();
-    switch (duration) {
-      case '5minutes':
-        dismissUntil.setMinutes(dismissUntil.getMinutes() + 5);
-        break;
-      case '1hour':
-        dismissUntil.setHours(dismissUntil.getHours() + 1);
-        break;
-      case '1day':
-        dismissUntil.setDate(dismissUntil.getDate() + 1);
-        break;
-      case '1week':
-        dismissUntil.setDate(dismissUntil.getDate() + 7);
-        break;
-      default:
-        dismissUntil.setDate(dismissUntil.getDate() + 1);
-    }
-    
-    localStorage.setItem('coachWarningDismissed', dismissUntil.toISOString());
+  const handleDismiss = () => {
+    onClose?.();
   };
 
   const handleCompleteProfile = () => {
-    setIsVisible(false);
-    // Navigate to profile page
+    onClose?.();
     window.location.href = '/profile';
   };
 
@@ -193,7 +132,7 @@ const CoachProfileCompletionModal = () => {
 
   const criticalMissing = missingFields.filter(f => f.severity === 'critical').length;
 
-  if (!isVisible || missingFields.length === 0) return null;
+  if (!isOpen || missingFields.length === 0) return null;
 
   return (
     <AnimatePresence>
@@ -217,7 +156,7 @@ const CoachProfileCompletionModal = () => {
                 <h3 className="font-semibold text-sm text-white">Complete Your Profile</h3>
               </div>
               <button
-                onClick={() => handleDismiss('5minutes')}
+                onClick={handleDismiss}
                 className="text-white hover:text-gray-200 transition-colors p-1"
               >
                 <X className="w-4 h-4" />
@@ -269,10 +208,10 @@ const CoachProfileCompletionModal = () => {
               </button>
               
               <button
-                onClick={() => handleDismiss('1day')}
+                onClick={handleDismiss}
                 className="w-full py-2 px-3 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
               >
-                Remind me tomorrow
+                Close
               </button>
             </div>
           </div>

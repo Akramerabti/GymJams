@@ -21,6 +21,7 @@ const Home = () => {
   const [scrollVelocity, setScrollVelocity] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
   const [activeSection, setActiveSection] = useState(0);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   
   const sectionRefs = useRef([]);
   const containerRef = useRef(null);

@@ -8,6 +8,8 @@ const LocationBanner = ({ onLocationSet }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
+  const [locationSuccess, setLocationSuccess] = useState(false);
+  const [locationCity, setLocationCity] = useState('');
   const { user } = useAuth();
 
   useEffect(() => {

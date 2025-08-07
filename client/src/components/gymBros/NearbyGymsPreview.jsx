@@ -1,16 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MapPin, Clock, Users, Plus, Search, Star } from 'lucide-react';
 import gymBrosLocationService from '../../services/gymBrosLocation.service.js';
 
 const NearbyGymsPreview = ({ location, onGymSelect, maxResults = 3 }) => {
   const [gyms, setGyms] = useState([]);
   const [loading, setLoading] = useState(false);
+  const lastLocationRef = useRef(null);
 
   useEffect(() => {
+    // Only fetch if location changed significantly and has valid coordinates
     if (location && location.lat && location.lng) {
-      fetchNearbyGyms();
+      const lastLocation = lastLocationRef.current;
+      
+      // Check if this is a new location or significantly different
+      const locationChanged = !lastLocation || 
+        Math.abs(lastLocation.lat - location.lat) > 0.001 ||
+        Math.abs(lastLocation.lng - location.lng) > 0.001;
+      
+      if (locationChanged) {
+        lastLocationRef.current = { lat: location.lat, lng: location.lng };
+        fetchNearbyGyms();
+      }
     }
-  }, [location]);
+  }, [location?.lat, location?.lng]); // Only depend on coordinates
 
   const fetchNearbyGyms = async () => {
     try {

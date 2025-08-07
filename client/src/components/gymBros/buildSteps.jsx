@@ -7,6 +7,7 @@ import {
 import PhoneVerification from './PhoneVerification';
 import ImageUploader from './ImageUploader';
 import LocationPicker from './LocationPicker';
+import AutoLocationStep from './AutoLocationStep';
 import NearbyGymsPreview from './NearbyGymsPreview';
 import GymSelector from './GymSelector';
 import { useScreenType } from '../../hooks/useScreenType';
@@ -52,8 +53,7 @@ const WelcomeStep = ({ goToNextStep, handleLoginWithPhone, isAuthenticated, show
       {/* Hero Icon */}
       <div className="relative mb-8">
         <div className="absolute inset-0 bg-white/20 rounded-full blur-2xl scale-150 animate-pulse"></div>
-        <div className="relative bg-gradient-to-br from-white/20 to-white/10 backdrop-blur-lg rounded-full p-6 border border-white/30 mx-auto w-fit shadow-2xl">
-          <Dumbbell size={screenType === 'mobile' ? 40 : 56} className="text-white drop-shadow-lg" />
+        <div className="relative bg-gradient-to-br from-white/20 to-white/10 backdrop-blur-lg rounded-full p-6 border border-white/30 mx-auto w-fit shadow-2xl mt-10">
         </div>
       </div>
       
@@ -150,6 +150,12 @@ const WelcomeStep = ({ goToNextStep, handleLoginWithPhone, isAuthenticated, show
 // Combined Basic Info Step (name + age + gender)
 const BasicInfoStep = ({ profileData, handleChange, handleInputBlur, goToNextStep, handleLoginWithPhone, isAuthenticated, showPhoneLogin, screenType }) => (
   <div className="w-full space-y-6">
+    {/* Main Title */}
+    <div className="text-center space-y-1 mb-4">
+      <h2 className="text-xl font-bold text-white">Tell us about yourself</h2>
+      <p className="text-white/80 text-sm">Basic information to get started</p>
+    </div>
+    
     {/* Name Input */}
     <div className="space-y-2">
       <label className="text-white font-medium text-sm">What's your name?</label>
@@ -226,11 +232,17 @@ const BasicInfoStep = ({ profileData, handleChange, handleInputBlur, goToNextSte
 
 // Combined Fitness Info Step (workout types + experience + time preference)
 const FitnessInfoStep = ({ profileData, handleWorkoutTypeToggle, handleChange, screenType }) => (
-  <div className="w-full space-y-6">
+  <div className="w-full space-y-4">
+    {/* Main Title */}
+    <div className="text-center space-y-1 mb-4">
+      <h2 className="text-xl font-bold text-white">Your Fitness Profile</h2>
+      <p className="text-white/80 text-sm">Help us find compatible workout partners</p>
+    </div>
+    
     {/* Workout Types */}
-    <div className="space-y-3">
+    <div className="space-y-2">
       <label className="text-white font-medium text-sm">What workouts do you enjoy?</label>
-      <div className={`grid gap-2 max-h-40 overflow-y-auto ${
+      <div className={`grid gap-2 ${
         screenType === 'mobile' ? 'grid-cols-2' : 'grid-cols-3'
       }`}>
         {workoutTypes.map(type => (
@@ -238,9 +250,9 @@ const FitnessInfoStep = ({ profileData, handleWorkoutTypeToggle, handleChange, s
             key={type}
             type="button"
             onClick={() => handleWorkoutTypeToggle(type)}
-            className={`px-3 py-2 rounded-full text-xs font-medium transition-all ${
+            className={`px-2 py-1.5 rounded-full text-xs font-medium transition-colors ${
               profileData.workoutTypes.includes(type)
-                ? 'bg-white/30 text-white border-2 border-white/40 scale-105 backdrop-blur-sm'
+                ? 'bg-white/30 text-white border-2 border-white/40 backdrop-blur-sm'
                 : 'bg-white/10 text-white border-2 border-white/20 hover:bg-white/20 backdrop-blur-sm'
             }`}
           >
@@ -261,13 +273,13 @@ const FitnessInfoStep = ({ profileData, handleWorkoutTypeToggle, handleChange, s
               key={level}
               type="button"
               onClick={() => handleChange('experienceLevel', level)}
-              className={`px-4 py-3 rounded-xl text-sm flex items-center transition-all ${
+              className={`px-3 py-2 rounded-xl text-sm flex items-center transition-colors ${
                 profileData.experienceLevel === level
-                  ? 'bg-white/30 text-white border-2 border-white/40 scale-105 backdrop-blur-sm'
+                  ? 'bg-white/30 text-white border-2 border-white/40 backdrop-blur-sm'
                   : 'bg-white/10 text-white border-2 border-white/20 hover:bg-white/20 backdrop-blur-sm'
               }`}
             >
-              <Award size={16} className="mr-2" />
+              <Award size={14} className="mr-2" />
               {level}
             </button>
           ))}
@@ -283,9 +295,9 @@ const FitnessInfoStep = ({ profileData, handleWorkoutTypeToggle, handleChange, s
               key={time}
               type="button"
               onClick={() => handleChange('preferredTime', time)}
-              className={`px-3 py-2 rounded-full text-xs font-medium transition-all ${
+              className={`px-2 py-1.5 rounded-full text-xs font-medium transition-colors ${
                 profileData.preferredTime === time
-                  ? 'bg-white/30 text-white border-2 border-white/40 scale-105 backdrop-blur-sm'
+                  ? 'bg-white/30 text-white border-2 border-white/40 backdrop-blur-sm'
                   : 'bg-white/10 text-white border-2 border-white/20 hover:bg-white/20 backdrop-blur-sm'
               }`}
             >
@@ -414,16 +426,32 @@ export const buildSteps = ({
         subtitle: 'Show your personality - add at least 2 photos',
         icon: <Camera className="h-5 w-5 text-blue-500" />,
         component: (
-          <div className="w-full">
-            <ImageUploader
-              key="photo-uploader"
-              ref={imageUploaderRef}
-              images={profileData.photos || []}
-              onImagesChange={(newImages) => {
-                handleChange('photos', newImages);
-              }}
-              uploadAfterCompletion={true}
-            />
+          <div className="w-full flex flex-col space-y-3">
+            {/* Title and Instructions */}
+            <div className="text-center space-y-1 flex-shrink-0">
+              <h2 className="text-xl font-bold text-white">Add Your Photos</h2>
+              <p className="text-white/80 text-sm">Show your personality - add at least 2 photos</p>
+            </div>
+            
+            {/* Image Uploader - compact version */}
+            <div className="flex justify-center">
+              <ImageUploader
+                key="photo-uploader"
+                ref={imageUploaderRef}
+                images={profileData.photos || []}
+                onImagesChange={(newImages) => {
+                  handleChange('photos', newImages);
+                }}
+                uploadAfterCompletion={true}
+              />
+            </div>
+            
+            {/* Progress indicator */}
+            <div className="text-center flex-shrink-0">
+              <p className="text-white/70 text-xs">
+                {profileData.photos?.filter(Boolean).length || 0} / 2 photos minimum
+              </p>
+            </div>
           </div>
         ),
         isValid: () => {
@@ -453,8 +481,14 @@ export const buildSteps = ({
         icon: <Heart size={24} />,
         isValid: () => profileData.interests.length > 0,
         component: (
-          <div className="w-full space-y-4">
-            <div className={`grid gap-2 max-h-56 overflow-y-auto ${
+          <div className="w-full space-y-3">
+            {/* Main Title */}
+            <div className="text-center space-y-1 mb-4">
+              <h2 className="text-xl font-bold text-white">What interests you?</h2>
+              <p className="text-white/80 text-sm">Find partners with similar hobbies</p>
+            </div>
+            
+            <div className={`grid gap-2 ${
               screenType === 'mobile' ? 'grid-cols-3' : 'grid-cols-4'
             }`}>
               {interests.map(interest => (
@@ -462,9 +496,9 @@ export const buildSteps = ({
                   key={interest}
                   type="button"
                   onClick={() => handleInterestToggle(interest)}
-                  className={`px-3 py-2 rounded-full text-xs font-medium transition-all ${
+                  className={`px-2 py-1.5 rounded-full text-xs font-medium transition-colors ${
                     profileData.interests.includes(interest)
-                      ? 'bg-white/30 text-white border-2 border-white/40 scale-105 backdrop-blur-sm'
+                      ? 'bg-white/30 text-white border-2 border-white/40 backdrop-blur-sm'
                       : 'bg-white/10 text-white border-2 border-white/20 hover:bg-white/20 backdrop-blur-sm'
                   }`}
                 >
@@ -488,6 +522,12 @@ export const buildSteps = ({
         isValid: () => true, // Optional step
         component: (
           <div className="w-full space-y-4">
+            {/* Main Title */}
+            <div className="text-center space-y-1 mb-4">
+              <h2 className="text-xl font-bold text-white">Complete Your Profile</h2>
+              <p className="text-white/80 text-sm">Optional: Tell us more about yourself</p>
+            </div>
+            
             <div className="space-y-2">
               <label className="text-white font-medium text-sm">Fitness Goals (Optional)</label>
               <textarea 
@@ -530,22 +570,30 @@ export const buildSteps = ({
         title: "Where are you located?",
         subtitle: "Find gym partners nearby",
         icon: <MapPin size={24} />,
-        isValid: () => profileData.location.lat !== null && profileData.location.lng !== null && profileData.location.address,
+        isValid: () => profileData.location && profileData.location.lat !== null && profileData.location.lng !== null && profileData.location.city,
         canSkip: () => {
           // This step can be skipped if user already has location data
           return profileData.hasExistingLocation || false;
         },
         component: (
           <div className="w-full">
-            <LocationPicker
+            {/* Main Title */}
+            <div className="text-center space-y-1 mb-6">
+              <h2 className="text-xl font-bold text-white">Where are you located?</h2>
+              <p className="text-white/80 text-sm">Find gym partners nearby</p>
+            </div>
+            
+            <AutoLocationStep
               location={profileData.location}
               onLocationChange={(location) => handleChange('location', location)}
-              showSkipOption={profileData.hasExistingLocation}
+              showSkipOption={true}
               existingLocationMessage={profileData.existingLocationMessage}
+              user={user}
+              phone={profileData.phone || (user && user.phone)}
             />
             
-            {/* Show nearby gyms if location is set */}
-            {profileData.location.lat && profileData.location.lng && (
+            {/* Show nearby gyms if location is set - temporarily disabled to prevent API spam */}
+            {false && profileData.location && profileData.location.lat && profileData.location.lng && (
               <div className="mt-6">
                 <h3 className="text-white font-medium text-sm mb-3">
                   🏋️ Gyms near you
@@ -567,6 +615,12 @@ export const buildSteps = ({
         isValid: () => true, // Optional step
         component: (
           <div className="w-full">
+            {/* Main Title */}
+            <div className="text-center space-y-1 mb-6">
+              <h2 className="text-xl font-bold text-white">Where do you workout?</h2>
+              <p className="text-white/80 text-sm">Connect with people at your gym</p>
+            </div>
+            
             <GymSelector
               location={profileData.location}
               selectedGym={profileData.selectedGym}
