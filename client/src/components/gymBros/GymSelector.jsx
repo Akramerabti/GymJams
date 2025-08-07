@@ -5,7 +5,8 @@ import {
 } from 'lucide-react';
 import gymBrosLocationService from '../../services/gymBrosLocation.service.js';
 
-const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym }) => {
+// Accept userId, isGuest, and guestEmail as props
+const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym, userId, isGuest }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [gyms, setGyms] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -15,7 +16,8 @@ const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym }) => {
     address: '',
     gymChain: '',
     amenities: [],
-    description: ''
+    description: '',
+    guestEmail: ''
   });
 
   const commonAmenities = [
@@ -36,7 +38,7 @@ const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym }) => {
       const nearbyGyms = await gymBrosLocationService.searchNearbyGyms(
         location,
         query,
-        25 // 25 mile radius
+        25 
       );
       setGyms(nearbyGyms);
     } catch (error) {
@@ -64,6 +66,14 @@ const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym }) => {
         alert('Gym name is required');
         return;
       }
+      let createdByUserId = userId;
+      if (isGuest) {
+        if (!createFormData.guestEmail || !createFormData.guestEmail.includes('@')) {
+          alert('Please enter a valid email to add a gym as a guest.');
+          return;
+        }
+        createdByUserId = createFormData.guestEmail.trim();
+      }
 
       const gymData = {
         name: createFormData.name.trim(),
@@ -77,7 +87,8 @@ const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym }) => {
         },
         description: createFormData.description,
         gymChain: createFormData.gymChain,
-        amenities: createFormData.amenities
+        amenities: createFormData.amenities,
+        createdByUserId // Pass to backend (ObjectId for logged in, email for guest)
       };
 
       const result = await gymBrosLocationService.createGym(gymData);
@@ -91,7 +102,8 @@ const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym }) => {
           address: '',
           gymChain: '',
           amenities: [],
-          description: ''
+          description: '',
+          guestEmail: ''
         });
         // Refresh gym list
         fetchNearbyGyms(searchQuery);
@@ -337,6 +349,20 @@ const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym }) => {
                 />
               </div>
 
+              {isGuest && (
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">
+                    Your Email (Required for guests)
+                  </label>
+                  <input
+                    type="email"
+                    value={createFormData.guestEmail}
+                    onChange={e => setCreateFormData(prev => ({ ...prev, guestEmail: e.target.value }))}
+                    placeholder="Enter your email"
+                    className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              )}
               <div className="flex space-x-3 pt-4">
                 <button
                   type="button"

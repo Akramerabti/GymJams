@@ -371,6 +371,10 @@ export const buildSteps = ({
       isValid: () => isPhoneVerified || hasVerifiedPhone,
       component: hasVerifiedPhone ? (
         <div className="w-full space-y-4">
+          <div className="text-center space-y-1 mb-10">
+            <h2 className="text-xl font-bold text-white mt-10">{authMode === 'login' ? 'Log in with your phone' : 'Verify your phone number'}</h2>
+            <p className="text-white/80 text-sm">{authMode === 'login' ? "We'll verify your identity" : "We'll send a verification code"}</p>
+          </div>
           <div className="flex items-center justify-center mb-4">
             <div className="bg-green-500/20 backdrop-blur-sm rounded-full p-3 border border-green-400/30">
               <CheckCircle className="w-8 h-8 text-green-300" />
@@ -380,19 +384,25 @@ export const buildSteps = ({
           <p className="text-center font-semibold text-white">{profileData.phone}</p>
         </div>
       ) : (
-        <PhoneVerification
-          phone={profileData.phone}
-          onChange={handlePhoneChange}
-          onVerified={(verified, userData, token, profileData) => {
-            if (verified && userData?.phone) {
-              handleChange('phone', userData.phone);
-            }
-            handlePhoneVerified(verified, userData, token, profileData);
-          }}
-          isLoginFlow={authMode === 'login'}
-          onExistingAccountFound={handleExistingAccountFound}
-          onContinueWithNewAccount={handleContinueWithNewAccount}
-        />
+        <div className="w-full space-y-4">
+          <div className="text-center space-y-1 mb-4">
+            <h2 className="text-xl font-bold text-white">{authMode === 'login' ? 'Log in with your phone' : 'Verify your phone number'}</h2>
+            <p className="text-white/80 text-sm">{authMode === 'login' ? "We'll verify your identity" : "We'll send a verification code"}</p>
+          </div>
+          <PhoneVerification
+            phone={profileData.phone}
+            onChange={handlePhoneChange}
+            onVerified={(verified, userData, token, profileData) => {
+              if (verified && userData?.phone) {
+                handleChange('phone', userData.phone);
+              }
+              handlePhoneVerified(verified, userData, token, profileData);
+            }}
+            isLoginFlow={authMode === 'login'}
+            onExistingAccountFound={handleExistingAccountFound}
+            onContinueWithNewAccount={handleContinueWithNewAccount}
+          />
+        </div>
       )
     });
   }
@@ -620,12 +630,13 @@ export const buildSteps = ({
               <h2 className="text-xl font-bold text-white">Where do you workout?</h2>
               <p className="text-white/80 text-sm">Connect with people at your gym</p>
             </div>
-            
             <GymSelector
               location={profileData.location}
               selectedGym={profileData.selectedGym}
               onGymSelect={(gym) => handleChange('selectedGym', gym)}
               onCreateGym={(gymData) => handleChange('newGym', gymData)}
+              isGuest={!isAuthenticated}
+              userId={user && user._id}
             />
           </div>
         )
