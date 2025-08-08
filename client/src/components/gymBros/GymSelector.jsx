@@ -1,23 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Search, Plus, MapPin, Users, Star, Clock, Dumbbell,
-  Building, ChevronRight, X
+  Building, ChevronRight, X, AlertCircle
 } from 'lucide-react';
 import gymBrosLocationService from '../../services/gymBrosLocation.service.js';
 
-// Accept userId, isGuest, and guestEmail as props
 const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym, userId, isGuest }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [gyms, setGyms] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [useCurrentLocation, setUseCurrentLocation] = useState(true);
   const [createFormData, setCreateFormData] = useState({
     name: '',
     address: '',
     gymChain: '',
     amenities: [],
     description: '',
-    guestEmail: ''
+    guestEmail: '',
+    // Gym's actual location (different from user's location)
+    gymLocation: {
+      address: '',
+      city: '',
+      state: '',
+      country: 'US'
+    }
   });
 
   const commonAmenities = [
@@ -66,6 +73,13 @@ const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym, userId, 
         alert('Gym name is required');
         return;
       }
+
+      // Validate location data
+      if (!useCurrentLocation && !createFormData.gymLocation.address.trim()) {
+        alert('Please enter the gym\'s address or use your current location');
+        return;
+      }
+
       let createdByUserId = userId;
       if (isGuest) {
         if (!createFormData.guestEmail || !createFormData.guestEmail.includes('@')) {
@@ -75,20 +89,42 @@ const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym, userId, 
         createdByUserId = createFormData.guestEmail.trim();
       }
 
-      const gymData = {
-        name: createFormData.name.trim(),
-        location: {
+      let gymLocationData;
+      
+      if (useCurrentLocation) {
+        // Use user's current location as gym location
+        gymLocationData = {
           lat: location.lat,
           lng: location.lng,
-          address: createFormData.address || location.address,
+          address: location.address,
           city: location.city,
           state: location.state,
           country: location.country || 'US'
-        },
+        };
+      } else {
+        // Parse the entered address to get coordinates
+        // In a real app, you'd use a geocoding service here
+        // For now, we'll create it at user location but with the entered address
+        alert('Note: Geocoding service not configured. The gym will be created at your current location with the address you provided.');
+        
+        gymLocationData = {
+          lat: location.lat,
+          lng: location.lng,
+          address: createFormData.gymLocation.address.trim(),
+          city: createFormData.gymLocation.city.trim() || location.city,
+          state: createFormData.gymLocation.state.trim() || location.state,
+          country: createFormData.gymLocation.country || 'US'
+        };
+      }
+
+      const gymData = {
+        name: createFormData.name.trim(),
+        location: gymLocationData,
+        userLocation: location, // User's current location for distance calculation
         description: createFormData.description,
         gymChain: createFormData.gymChain,
         amenities: createFormData.amenities,
-        createdByUserId // Pass to backend (ObjectId for logged in, email for guest)
+        createdByUserId
       };
 
       const result = await gymBrosLocationService.createGym(gymData);
@@ -103,8 +139,15 @@ const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym, userId, 
           gymChain: '',
           amenities: [],
           description: '',
-          guestEmail: ''
+          guestEmail: '',
+          gymLocation: {
+            address: '',
+            city: '',
+            state: '',
+            country: 'US'
+          }
         });
+        setUseCurrentLocation(true);
         // Refresh gym list
         fetchNearbyGyms(searchQuery);
       }
@@ -197,7 +240,7 @@ const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym, userId, 
                     </span>
                   </div>
                   <div className="flex items-center space-x-4 mt-2">
-                    {gym.distanceMiles !== undefined && (
+                    {gym.distanceMiles !== undefined && gym.distanceMiles !== null && (
                       <span className="text-white/70 text-xs">
                         {gym.distanceMiles.toFixed(1)} mi away
                       </span>
@@ -283,22 +326,56 @@ const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym, userId, 
                   type="text"
                   value={createFormData.name}
                   onChange={(e) => setCreateFormData(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="e.g. Planet Fitness"
+                  placeholder="e.g. Planet Fitness Downtown"
                   className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
-              <div>
-                <label className="block text-white text-sm font-medium mb-2">
-                  Address
-                </label>
-                <input
-                  type="text"
-                  value={createFormData.address}
-                  onChange={(e) => setCreateFormData(prev => ({ ...prev, address: e.target.value }))}
-                  placeholder={location.address || "Enter gym address"}
-                  className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                />
+              {/* Location Toggle */}
+              <div className="bg-gray-800 p-3 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-white text-sm font-medium">
+                    Gym Location
+                  </label>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useCurrentLocation}
+                      onChange={(e) => setUseCurrentLocation(e.target.checked)}
+                      className="mr-2"
+                    />
+                    <span className="text-white text-sm">Use my current location</span>
+                  </label>
+                </div>
+                
+                {!useCurrentLocation && (
+                  <>
+                    <div className="bg-yellow-900/30 border border-yellow-600/50 rounded p-2 mb-3">
+                      <div className="flex items-start">
+                        <AlertCircle size={16} className="text-yellow-500 mt-0.5 mr-2 flex-shrink-0" />
+                        <p className="text-yellow-200 text-xs">
+                          Note: Geocoding is not configured. The gym will be created at your current location with the address you provide.
+                        </p>
+                      </div>
+                    </div>
+                    <input
+                      type="text"
+                      value={createFormData.gymLocation.address}
+                      onChange={(e) => setCreateFormData(prev => ({ 
+                        ...prev, 
+                        gymLocation: { ...prev.gymLocation, address: e.target.value }
+                      }))}
+                      placeholder="Enter gym's actual address"
+                      className="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500"
+                    />
+                  </>
+                )}
+                
+                {useCurrentLocation && (
+                  <p className="text-gray-400 text-xs">
+                    Current: {location.address || `${location.city}, ${location.state}`}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -363,6 +440,7 @@ const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym, userId, 
                   />
                 </div>
               )}
+
               <div className="flex space-x-3 pt-4">
                 <button
                   type="button"

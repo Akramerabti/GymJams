@@ -7,18 +7,25 @@ const GymSchema = new mongoose.Schema({
     trim: true
   },
   location: {
-    lat: { 
-      type: Number, 
-      required: true,
-      min: -90,
-      max: 90
+    // GeoJSON Point format for proper geospatial queries
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
     },
-    lng: { 
-      type: Number, 
+    coordinates: {
+      type: [Number], // [longitude, latitude]
       required: true,
-      min: -180,
-      max: 180
+      validate: {
+        validator: function(coords) {
+          return coords.length === 2 && 
+                 coords[0] >= -180 && coords[0] <= 180 && // longitude
+                 coords[1] >= -90 && coords[1] <= 90; // latitude
+        },
+        message: 'Invalid coordinates format [lng, lat]'
+      }
     },
+    // Keep these fields for display/reference purposes
     address: { 
       type: String, 
       required: true,
@@ -41,6 +48,19 @@ const GymSchema = new mongoose.Schema({
     zipCode: {
       type: String,
       trim: true
+    }
+  },
+  // Legacy lat/lng fields for backward compatibility (virtual getters)
+  lat: {
+    type: Number,
+    get: function() {
+      return this.location?.coordinates?.[1];
+    }
+  },
+  lng: {
+    type: Number,
+    get: function() {
+      return this.location?.coordinates?.[0];
     }
   },
   // Gym details
@@ -85,13 +105,12 @@ const GymSchema = new mongoose.Schema({
     default: false
   },
   verifiedBy: {
-    type: mongoose.Schema.Types.Mixed, // Accept ObjectId (user) or String (guest email)
+    type: mongoose.Schema.Types.Mixed,
     ref: 'User',
     validate: {
       validator: function(v) {
-        // Accept valid ObjectId or non-empty string (email)
         return (
-          v == null || // allow null/undefined (not required)
+          v == null ||
           (typeof v === 'string' && v.length > 0) ||
           (v && typeof v === 'object' && mongoose.Types.ObjectId.isValid(v))
         );
@@ -100,11 +119,10 @@ const GymSchema = new mongoose.Schema({
     }
   },
   createdBy: {
-    type: mongoose.Schema.Types.Mixed, // Accept ObjectId (user) or String (guest email)
+    type: mongoose.Schema.Types.Mixed,
     required: true,
     validate: {
       validator: function(v) {
-        // Accept valid ObjectId or non-empty string (email)
         return (
           (typeof v === 'string' && v.length > 0) ||
           (v && typeof v === 'object' && mongoose.Types.ObjectId.isValid(v))
@@ -133,8 +151,10 @@ const GymSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Indexes for location-based queries
-GymSchema.index({ 'location.lat': 1, 'location.lng': 1 });
+// IMPORTANT: Only ONE 2dsphere index for location
+GymSchema.index({ location: '2dsphere' });
+
+// Other non-geospatial indexes
 GymSchema.index({ 'location.city': 1 });
 GymSchema.index({ name: 'text', description: 'text' });
 GymSchema.index({ gymChain: 1 });
@@ -148,15 +168,29 @@ GymSchema.virtual('activeMembers', {
   count: true
 });
 
+// Helper method to get lat/lng for backward compatibility
+GymSchema.methods.getLatLng = function() {
+  if (this.location && this.location.coordinates) {
+    return {
+      lat: this.location.coordinates[1],
+      lng: this.location.coordinates[0]
+    };
+  }
+  return { lat: null, lng: null };
+};
+
 // Method to calculate distance from a point
 GymSchema.methods.distanceFrom = function(lat, lng) {
   const R = 3958.8; // Earth's radius in miles
-  const dLat = toRadians(lat - this.location.lat);
-  const dLon = toRadians(lng - this.location.lng);
+  const gymLat = this.location.coordinates[1];
+  const gymLng = this.location.coordinates[0];
+  
+  const dLat = toRadians(lat - gymLat);
+  const dLon = toRadians(lng - gymLng);
   
   const a = 
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(this.location.lat)) * Math.cos(toRadians(lat)) * 
+    Math.cos(toRadians(gymLat)) * Math.cos(toRadians(lat)) * 
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
@@ -168,26 +202,82 @@ function toRadians(degrees) {
 }
 
 // Static method to find gyms within radius
-GymSchema.statics.findNearby = function(lat, lng, radiusMiles = 25) {
-  return this.aggregate([
-    {
-      $geoNear: {
-        near: { type: "Point", coordinates: [lng, lat] },
-        distanceField: "distance",
-        maxDistance: radiusMiles * 1609.34, // Convert miles to meters
-        spherical: true,
-        query: { isActive: true }
+GymSchema.statics.findNearby = async function(lat, lng, radiusMiles = 25) {
+  try {
+    const results = await this.aggregate([
+      {
+        $geoNear: {
+          near: {
+            type: "Point",
+            coordinates: [lng, lat] // GeoJSON uses [lng, lat] order
+          },
+          distanceField: "distance",
+          maxDistance: radiusMiles * 1609.34, // Convert miles to meters
+          spherical: true,
+          query: { isActive: true }
+        }
+      },
+      {
+        $addFields: {
+          distanceMiles: { $divide: ["$distance", 1609.34] }
+        }
+      },
+      {
+        $sort: { distance: 1 }
       }
-    },
-    {
-      $addFields: {
-        distanceMiles: { $divide: ["$distance", 1609.34] }
-      }
-    },
-    {
-      $sort: { distance: 1 }
+    ]);
+    
+    return results;
+  } catch (error) {
+    console.error('Error in findNearby:', error);
+    // Fallback to simple query if geospatial fails
+    return this.find({ isActive: true }).limit(20);
+  }
+};
+
+// Pre-save middleware to ensure GeoJSON format
+GymSchema.pre('save', function(next) {
+  // If old format data exists, convert it
+  if (this.isNew && !this.location.coordinates && this.lat !== undefined && this.lng !== undefined) {
+    this.location.coordinates = [this.lng, this.lat];
+  }
+  next();
+});
+
+// Static method to migrate existing gyms to new format
+GymSchema.statics.migrateToGeoJSON = async function() {
+  const gyms = await this.find({
+    $or: [
+      { 'location.coordinates': { $exists: false } },
+      { 'location.type': { $ne: 'Point' } }
+    ]
+  });
+  
+  for (const gym of gyms) {
+    // Look for lat/lng in various places
+    let lat, lng;
+    
+    if (gym.location && typeof gym.location.lat === 'number' && typeof gym.location.lng === 'number') {
+      lat = gym.location.lat;
+      lng = gym.location.lng;
+    } else if (typeof gym.lat === 'number' && typeof gym.lng === 'number') {
+      lat = gym.lat;
+      lng = gym.lng;
     }
-  ]);
+    
+    if (lat && lng) {
+      gym.location = {
+        type: 'Point',
+        coordinates: [lng, lat],
+        address: gym.location?.address || '',
+        city: gym.location?.city || '',
+        state: gym.location?.state || '',
+        country: gym.location?.country || 'US',
+        zipCode: gym.location?.zipCode || ''
+      };
+      await gym.save();
+    }
+  }
 };
 
 const Gym = mongoose.model('Gym', GymSchema);

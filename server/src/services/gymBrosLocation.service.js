@@ -314,36 +314,62 @@ class GymBrosLocationService {
    * @returns {Array} Nearby gyms
    */
   async findNearbyGyms(lat, lng, radiusMiles = 25) {
+  try {
+    // Use the static method from the Gym model
+    const gyms = await Gym.findNearby(lat, lng, radiusMiles);
+    
+    // Transform the results to include backward-compatible fields
+    return gyms.map(gym => ({
+      ...gym,
+      _id: gym._id,
+      name: gym.name,
+      location: {
+        lat: gym.location.coordinates[1],
+        lng: gym.location.coordinates[0],
+        address: gym.location.address,
+        city: gym.location.city,
+        state: gym.location.state,
+        country: gym.location.country,
+        zipCode: gym.location.zipCode
+      },
+      distanceMiles: gym.distanceMiles,
+      amenities: gym.amenities,
+      gymChain: gym.gymChain,
+      memberCount: gym.memberCount,
+      rating: gym.rating,
+      isVerified: gym.isVerified
+    }));
+  } catch (error) {
+    logger.error('Error finding nearby gyms:', error);
+    // Fallback to finding gyms without distance calculation
     try {
-      // Try to use the geographic aggregation pipeline first
-      let nearbyGyms = await Gym.findNearby(lat, lng, radiusMiles);
-      
-      // If no results or aggregation fails, fall back to manual calculation
-      if (!nearbyGyms || nearbyGyms.length === 0) {
-        const allGyms = await Gym.find({ isActive: true }).limit(100);
-        
-        nearbyGyms = allGyms
-          .map(gym => {
-            const distance = locationService.calculateDistance(
-              lat, lng, 
-              gym.location.lat, gym.location.lng
-            );
-            return {
-              ...gym.toObject(),
-              distance: distance,
-              distanceMiles: distance
-            };
-          })
-          .filter(gym => gym.distance <= radiusMiles)
-          .sort((a, b) => a.distance - b.distance);
-      }
-
-      return nearbyGyms;
-    } catch (error) {
-      logger.error('Error finding nearby gyms:', error);
+      const gyms = await Gym.find({ isActive: true }).limit(20);
+      return gyms.map(gym => ({
+        _id: gym._id,
+        name: gym.name,
+        location: {
+          lat: gym.location?.coordinates?.[1] || 0,
+          lng: gym.location?.coordinates?.[0] || 0,
+          address: gym.location?.address || '',
+          city: gym.location?.city || '',
+          state: gym.location?.state || '',
+          country: gym.location?.country || 'US',
+          zipCode: gym.location?.zipCode || ''
+        },
+        distanceMiles: null,
+        amenities: gym.amenities,
+        gymChain: gym.gymChain,
+        memberCount: gym.memberCount,
+        rating: gym.rating,
+        isVerified: gym.isVerified
+      }));
+    } catch (fallbackError) {
+      logger.error('Error in fallback gym search:', fallbackError);
       return [];
     }
   }
+}
+
 
   /**
    * Auto-join user to relevant location-based groups
@@ -447,67 +473,93 @@ class GymBrosLocationService {
     }
   }
 
-  /**
-   * Create or find a gym entry
-   * @param {Object} gymData - Gym information
-   * @param {string} createdByUserId - User creating the gym entry
-   * @returns {Object} Gym object
-   */
-  async createOrFindGym(gymData, createdByUserId) {
-    try {
-      // First, try to find existing gym nearby (within 0.1 miles)
-      const existingGyms = await this.findNearbyGyms(
-        gymData.location.lat,
-        gymData.location.lng,
-        0.1
-      );
-
-      // Look for exact or very close match
-      const exactMatch = existingGyms.find(gym => 
-        gym.name.toLowerCase().trim() === gymData.name.toLowerCase().trim() ||
-        gym.distanceMiles < 0.05 // Within ~250 feet
-      );
-
-      if (exactMatch) {
-        logger.info(`Found existing gym: ${exactMatch.name}`);
-        return exactMatch;
-      }
-
-      // DEBUG: Log what is being sent as createdByUserId
-      console.log('[GYM DEBUG] Creating new gym. createdByUserId:', createdByUserId, 'typeof:', typeof createdByUserId);
-      console.log('[GYM DEBUG] Full gymData:', JSON.stringify(gymData));
-
-      // Create new gym
-      const newGym = new Gym({
-        name: gymData.name,
-        location: {
-          lat: gymData.location.lat,
-          lng: gymData.location.lng,
-          address: gymData.location.address,
-          city: gymData.location.city || 'Unknown City',
-          state: gymData.location.state || '',
-          country: gymData.location.country || 'US',
-          zipCode: gymData.location.zipCode || ''
-        },
-        description: gymData.description || '',
-        amenities: gymData.amenities || [],
-        gymChain: gymData.gymChain || '',
-        website: gymData.website || '',
-        phone: gymData.phone || '',
-        hours: gymData.hours || {},
-        createdBy: createdByUserId || null,
-        isVerified: false // Require manual verification
-      });
-
-      await newGym.save();
-      logger.info(`Created new gym: ${newGym.name}`);
-      return newGym;
-
-    } catch (error) {
-      logger.error('Error creating/finding gym:', error);
-      throw error;
+  async createOrFindGym(gymData, createdBy) {
+  try {
+    // Validate required fields
+    if (!gymData.name || !gymData.location) {
+      throw new Error('Gym name and location are required');
     }
+    
+    const { lat, lng } = gymData.location;
+    if (!lat || !lng) {
+      throw new Error('Valid latitude and longitude are required');
+    }
+    
+    // Check if gym already exists at this location (within 100 meters)
+    const nearbyGyms = await Gym.findNearby(lat, lng, 0.062); // ~100 meters in miles
+    
+    const existingGym = nearbyGyms.find(gym => 
+      gym.name.toLowerCase() === gymData.name.toLowerCase()
+    );
+    
+    if (existingGym) {
+      logger.info(`Found existing gym: ${existingGym.name}`);
+      // Transform to backward-compatible format
+      return {
+        ...existingGym,
+        location: {
+          lat: existingGym.location.coordinates[1],
+          lng: existingGym.location.coordinates[0],
+          address: existingGym.location.address,
+          city: existingGym.location.city,
+          state: existingGym.location.state,
+          country: existingGym.location.country,
+          zipCode: existingGym.location.zipCode
+        }
+      };
+    }
+    
+    // Create new gym with GeoJSON format
+    const newGym = new Gym({
+      name: gymData.name,
+      location: {
+        type: 'Point',
+        coordinates: [lng, lat], // GeoJSON uses [lng, lat] order
+        address: gymData.location.address || '',
+        city: gymData.location.city || '',
+        state: gymData.location.state || '',
+        country: gymData.location.country || 'US',
+        zipCode: gymData.location.zipCode || ''
+      },
+      description: gymData.description,
+      amenities: gymData.amenities || [],
+      gymChain: gymData.gymChain,
+      website: gymData.website,
+      phone: gymData.phone,
+      createdBy: createdBy,
+      isActive: true
+    });
+    
+    await newGym.save();
+    logger.info(`Created new gym: ${newGym.name}`);
+    
+    // Return in backward-compatible format
+    return {
+      _id: newGym._id,
+      name: newGym.name,
+      location: {
+        lat: lat,
+        lng: lng,
+        address: newGym.location.address,
+        city: newGym.location.city,
+        state: newGym.location.state,
+        country: newGym.location.country,
+        zipCode: newGym.location.zipCode
+      },
+      description: newGym.description,
+      amenities: newGym.amenities,
+      gymChain: newGym.gymChain,
+      website: newGym.website,
+      phone: newGym.phone,
+      createdBy: newGym.createdBy,
+      isActive: newGym.isActive,
+      createdAt: newGym.createdAt
+    };
+  } catch (error) {
+    logger.error('Error creating/finding gym:', error);
+    throw error;
   }
+}
 
   /**
    * Associate user with a gym
@@ -585,6 +637,18 @@ class GymBrosLocationService {
       logger.error('Error updating gym member count:', error);
     }
   }
+
+  async migrateExistingGyms() {
+  try {
+    logger.info('Starting gym migration to GeoJSON format...');
+    await Gym.migrateToGeoJSON();
+    logger.info('Gym migration completed successfully');
+  } catch (error) {
+    logger.error('Error migrating gyms:', error);
+    throw error;
+  }
+}
+
 
   /**
    * Get smart location for setup step
