@@ -172,31 +172,82 @@ class GymBrosLocationService {
   }
 
   async searchNearbyGyms(locationData, query = '', radiusMiles = 25) {
-    try {
-      const response = await api.get('/gym-bros/gyms/search', {
-        params: {
-          lat: locationData.lat,
-          lng: locationData.lng,
-          query: query,
-          radius: radiusMiles
-        }
-      });
-
-      return response.data.gyms || [];
-
-    } catch (error) {
+  try {
+    if (!locationData || !locationData.lat || !locationData.lng) {
+      logger.warn('searchNearbyGyms called without valid location data');
       return [];
     }
+
+    const userLat = parseFloat(locationData.lat);
+    const userLng = parseFloat(locationData.lng);
+
+    logger.info(`Searching for gyms near: ${userLat}, ${userLng} within ${radiusMiles} miles`);
+
+    // Call the backend API which will handle the search
+    const response = await api.get('/gym-bros/gyms/search', {
+      params: {
+        lat: userLat,
+        lng: userLng,
+        radius: radiusMiles,
+        query: query
+      }
+    });
+
+    const gyms = response.data.gyms || [];
+    
+    logger.info(`Found ${gyms.length} gyms`);
+    
+    // Ensure all gyms have distance calculated
+    return gyms.map(gym => ({
+      ...gym,
+      distanceMiles: gym.distanceMiles !== undefined ? gym.distanceMiles : 
+        this.calculateDistance(userLat, userLng, gym.location.lat, gym.location.lng)
+    }));
+
+  } catch (error) {
+    logger.error('Error searching nearby gyms:', error);
+    return [];
   }
+}
 
   async createGym(gymData) {
-    try {
-      const response = await api.post('/gym-bros/gyms', gymData);
-      return response.data;
-    } catch (error) {
-      throw error;
+  try {
+    if (!gymData.name || !gymData.location) {
+      throw new Error('Gym name and location are required');
     }
+
+    // Pass all the location data to the backend for geocoding
+    const requestData = {
+      name: gymData.name,
+      location: {
+        address: gymData.location.address || '',
+        city: gymData.location.city || '',
+        state: gymData.location.state || '',
+        country: gymData.location.country || '',
+        zipCode: gymData.location.zipCode || '',
+        // Include fallback coordinates if geocoding fails
+        lat: gymData.location.lat,
+        lng: gymData.location.lng
+      },
+      userLocation: gymData.userLocation, // User's current location for distance calc
+      description: gymData.description || '',
+      amenities: gymData.amenities || [],
+      gymChain: gymData.gymChain || '',
+      website: gymData.website || '',
+      phone: gymData.phone || '',
+      createdByUserId: gymData.createdByUserId,
+      shouldGeocode: gymData.shouldGeocode // Whether to geocode or use provided coords
+    };
+
+    const response = await api.post('/gym-bros/gyms', requestData);
+    
+    return response.data;
+  } catch (error) {
+    logger.error('Error creating gym:', error);
+    throw error;
   }
+}
+
 
   async associateWithGym(gymId, isPrimary = false, membershipType = 'member') {
     try {

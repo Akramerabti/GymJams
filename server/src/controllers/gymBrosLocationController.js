@@ -4,6 +4,8 @@ import User from '../models/User.js';
 import GymBrosProfile from '../models/GymBrosProfile.js';
 import GymBrosGroup from '../models/GymBrosGroup.js';
 import logger from '../utils/logger.js';
+import geocodingService from '../services/geocoding.service.js';
+import Gym from '../models/Gym.js';
 
 export const checkLocation = async (req, res) => {
   try {
@@ -173,6 +175,8 @@ export const createGym = async (req, res) => {
     const gymData = req.body;
     const effectiveUser = getEffectiveUser(req);
 
+    logger.info('Creating gym with data:', JSON.stringify(gymData));
+
     if (!effectiveUser.userId && !effectiveUser.profileId && !effectiveUser.phone && !effectiveUser.email) {
       return res.status(401).json({
         success: false,
@@ -205,12 +209,141 @@ export const createGym = async (req, res) => {
       });
     }
 
-    const gym = await gymBrosLocationService.createOrFindGym(gymData, createdByValue);
+    // Determine the gym's actual coordinates
+    let gymLat, gymLng;
+    let geocoded = false;
+    
+    // Check if we should geocode the address
+    if (gymData.shouldGeocode && gymData.location.address && gymData.location.city && gymData.location.country) {
+      logger.info(`Attempting to geocode gym address: ${gymData.location.address}, ${gymData.location.city}, ${gymData.location.country}`);
+      
+      try {
+        const geocodeResult = await geocodingService.geocodeAddress(
+          gymData.location.address,
+          gymData.location.city,
+          gymData.location.state || '',
+          gymData.location.country,
+          gymData.location.zipCode || ''
+        );
+        
+        if (geocodeResult) {
+          gymLat = geocodeResult.lat;
+          gymLng = geocodeResult.lng;
+          geocoded = true;
+          logger.info(`Geocoding successful - Gym coordinates: ${gymLat}, ${gymLng}`);
+        } else {
+          // Geocoding failed, fall back to user's location
+          logger.warn('Geocoding failed, using user location as fallback');
+          gymLat = parseFloat(gymData.location.lat);
+          gymLng = parseFloat(gymData.location.lng);
+        }
+      } catch (geocodeError) {
+        logger.error('Geocoding error:', geocodeError);
+        // Fall back to user's location
+        gymLat = parseFloat(gymData.location.lat);
+        gymLng = parseFloat(gymData.location.lng);
+      }
+    } else {
+      // Use the provided coordinates (user is at the gym)
+      gymLat = parseFloat(gymData.location.lat);
+      gymLng = parseFloat(gymData.location.lng);
+      logger.info('Using provided coordinates (user at gym location)');
+    }
+
+    // Check if a gym already exists at this location
+    try {
+      const nearbyGyms = await Gym.findNearby(gymLat, gymLng, 0.1); // Within ~160 meters
+      const existingGym = nearbyGyms.find(gym => 
+        gym.name.toLowerCase() === gymData.name.toLowerCase()
+      );
+      
+      if (existingGym) {
+        logger.info(`Gym already exists: ${existingGym.name}`);
+        
+        // Calculate distance from user
+        let distanceFromUser = 0;
+        if (gymData.userLocation && gymData.userLocation.lat && gymData.userLocation.lng) {
+          const userLat = parseFloat(gymData.userLocation.lat);
+          const userLng = parseFloat(gymData.userLocation.lng);
+          distanceFromUser = geocodingService.calculateDistance(userLat, userLng, gymLat, gymLng);
+        }
+        
+        return res.json({
+          success: true,
+          gym: {
+            ...existingGym.toObject(),
+            distanceMiles: parseFloat(distanceFromUser.toFixed(1))
+          },
+          message: 'Gym already exists',
+          geocoded: geocoded
+        });
+      }
+    } catch (nearbyError) {
+      logger.warn('Could not check for nearby gyms:', nearbyError.message);
+    }
+
+    // Create the new gym with correct coordinates
+    const newGym = await Gym.create({
+      name: gymData.name,
+      location: {
+        type: 'Point',
+        coordinates: [gymLng, gymLat], // GeoJSON format: [lng, lat]
+        address: gymData.location.address || '',
+        city: gymData.location.city || '',
+        state: gymData.location.state || '',
+        country: gymData.location.country || '',
+        zipCode: gymData.location.zipCode || ''
+      },
+      description: gymData.description || '',
+      amenities: gymData.amenities || [],
+      gymChain: gymData.gymChain || '',
+      website: gymData.website || '',
+      phone: gymData.phone || '',
+      createdBy: createdByValue,
+      isActive: true
+    });
+
+    logger.info(`Created new gym: ${newGym.name} at coordinates [${gymLng}, ${gymLat}]`);
+
+    // Calculate distance from user's current location
+    let distanceFromUser = 0;
+    if (gymData.userLocation && gymData.userLocation.lat && gymData.userLocation.lng) {
+      const userLat = parseFloat(gymData.userLocation.lat);
+      const userLng = parseFloat(gymData.userLocation.lng);
+      distanceFromUser = geocodingService.calculateDistance(userLat, userLng, gymLat, gymLng);
+      logger.info(`Distance from user to gym: ${distanceFromUser.toFixed(1)} miles`);
+    }
+
+    // Return the gym with proper distance calculated
+    const responseGym = {
+      _id: newGym._id,
+      name: newGym.name,
+      location: {
+        lat: gymLat,
+        lng: gymLng,
+        address: newGym.location.address,
+        city: newGym.location.city,
+        state: newGym.location.state,
+        country: newGym.location.country,
+        zipCode: newGym.location.zipCode
+      },
+      distanceMiles: parseFloat(distanceFromUser.toFixed(1)),
+      description: newGym.description,
+      amenities: newGym.amenities,
+      gymChain: newGym.gymChain,
+      website: newGym.website,
+      phone: newGym.phone,
+      memberCount: 0,
+      rating: { average: 0, count: 0 },
+      isVerified: false,
+      createdAt: newGym.createdAt
+    };
 
     let responseData = {
       success: true,
-      gym: gym,
-      message: gym.createdBy && gym.createdBy.toString() === String(createdByValue) ? 'Gym created successfully' : 'Found existing gym'
+      gym: responseGym,
+      geocoded: geocoded,
+      message: geocoded ? 'Gym created successfully with accurate location' : 'Gym created (approximate location)'
     };
 
     if (effectiveUser.isGuest && (effectiveUser.phone || effectiveUser.email)) {
@@ -220,7 +353,11 @@ export const createGym = async (req, res) => {
     res.json(responseData);
   } catch (error) {
     logger.error('Error creating gym:', error);
-    res.status(500).json({ message: 'Error creating gym' });
+    res.status(500).json({ 
+      success: false,
+      message: 'Error creating gym',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
