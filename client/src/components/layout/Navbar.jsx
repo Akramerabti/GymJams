@@ -35,22 +35,22 @@ const Navbar = () => {
     return user?.user?.role || user?.role || '';
   };
 
-    const isTaskforceOrAdmin = () => {
-    const role = getUserrole(user);
-    return ['taskforce', 'admin', 'marketing', 'affiliate'].includes(role);
-  };
+const isTaskforceOrAdmin = () => {
+  const role = getUserrole(user);
+  return ['taskforce', 'admin', 'marketing', 'affiliate'].includes(role);
+};
 
-  const navigationItems = [
-    { name: t('navbar.shop'), path: '/shop' },
-    {
-      name: t('navbar.gains'),
-      path: '/gymbros',
-    },
-    { name: t('navbar.coaching'), path: '/coaching' },
-    { name: t('navbar.games'), path: '/games' },
-    ...(!isTaskforceOrAdmin() ? [{ name: t('navbar.blog'), path: '/blog' }] : []),
-    { name: t('navbar.contact'), path: '/contact' },
-  ];
+const navigationItems = [
+  { name: t('navbar.shop'), path: '/shop' },
+  { name: t('navbar.gains'), path: '/gymbros' },
+  { name: t('navbar.coaching'), path: '/coaching' },
+  { name: t('navbar.games'), path: '/games' },
+  ...(isTaskforceOrAdmin()
+    ? [{ name: t('navbar.taskforceDashboard'), path: '/taskforce-dashboard' }]
+    : [{ name: t('navbar.blog'), path: '/blog' }]
+  ),
+  { name: t('navbar.contact'), path: '/contact' },
+];
 
   useEffect(() => {
     if (user && !isTokenValid()) {

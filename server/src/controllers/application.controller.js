@@ -7,6 +7,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
 import supabaseStorageService from '../services/supabaseStorage.service.js';
+import taskforceNotificationService from '../services/taskforceNotification.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -271,6 +272,32 @@ export const submitApplication = async (req, res) => {
     } catch (emailError) {
       emailStatus.error = emailError.message;
     }
+
+    // **NEW: Notify taskforce about new application**
+    let taskforceNotificationStatus = {
+      attempted: false,
+      success: false,
+      notified: 0,
+      error: null
+    };
+
+    try {
+      taskforceNotificationStatus.attempted = true;
+      
+      const notificationResult = await taskforceNotificationService.notifyNewApplication(newApplication);
+      
+      taskforceNotificationStatus.success = notificationResult.success;
+      taskforceNotificationStatus.notified = notificationResult.notified;
+      
+      if (!notificationResult.success) {
+        taskforceNotificationStatus.error = notificationResult.error;
+      }
+      
+      logger.info(`[APPLICATION] Taskforce notification result: ${JSON.stringify(notificationResult)}`);
+    } catch (notificationError) {
+      taskforceNotificationStatus.error = notificationError.message;
+      logger.error('[APPLICATION] Error notifying taskforce:', notificationError);
+    }
     
     res.status(201).json({
       success: true,
@@ -282,7 +309,8 @@ export const submitApplication = async (req, res) => {
         type: newApplication.applicationType,
         status: newApplication.status
       },
-      emailStatus
+      emailStatus,
+      taskforceNotificationStatus // Include taskforce notification status
     });
   } catch (error) {
     logger.error('[APPLICATION] Error submitting application:', error);
@@ -354,21 +382,6 @@ export const getApplicationById = async (req, res) => {
   }
 };
 
-// Helper function to get document template based on application type
-function getDocumentTemplate(applicationType) {
-  switch(applicationType) {
-    case 'coach':
-      return { filename: 'coach_agreement.pdf', title: 'Coaching Agreement' };
-    case 'taskforce':
-      return { filename: 'taskforce_agreement.pdf', title: 'TaskForce Member Agreement' };
-    case 'affiliate':
-      return { filename: 'affiliate_agreement.pdf', title: 'Affiliate Partner Agreement' };
-    case 'general':
-    default:
-      return { filename: 'general_agreement.pdf', title: 'General Employment Agreement' };
-  }
-}
-
 // Helper function to determine which files to attach based on application type
 function getFilesToAttachByType(applicationType) {
   const commonDocs = [];
@@ -401,7 +414,6 @@ function getFilesToAttachByType(applicationType) {
   }
 }
 
-// Helper function to validate attachment size
 function validateAttachmentSize(buffer, filename, maxSizeMB = 8) {
   const maxSizeBytes = maxSizeMB * 1024 * 1024;
   if (buffer.length > maxSizeBytes) {
@@ -479,7 +491,7 @@ startxref
   return Buffer.from(pdfContent);
 }
 
-// Update application status
+
 export const updateApplicationStatus = async (req, res) => {
   try {
     const { id } = req.params;

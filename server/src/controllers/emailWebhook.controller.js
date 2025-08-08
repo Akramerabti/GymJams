@@ -3,6 +3,7 @@
 import Application from '../models/Application.js';
 import User from '../models/User.js';
 import { sendEmail } from '../utils/email.js';
+import taskforceNotificationService from '../services/taskforceNotification.service.js';
 import logger from '../utils/logger.js';
 import fs from 'fs/promises';
 import path from 'path';
@@ -508,26 +509,7 @@ Best regards,
 GymTonic Team`
           });
           
-          // Notify taskforce members
-          const taskforceUsers = await User.find({ 
-            role: { $in: ['taskforce', 'admin'] } 
-          });
-          
-          for (const user of taskforceUsers) {
-            await sendEmail({
-              email: user.email,
-              subject: `Signed Documents Received - Application #${application._id}`,
-              message: `A signed document has been received for application #${application._id}.
-
-Applicant: ${application.name} (${application.email})
-Application Type: ${application.applicationType}
-Documents Received: ${savedFiles.length}
-
-Please review the documents in the applications dashboard to make the final approval decision.
-
-View Application: ${process.env.CLIENT_URL}/taskforce/applications`
-            });
-          }
+          await taskforceNotificationService.notifyDocumentReceived(application);
           
           return res.status(200).json({ 
             success: true, 

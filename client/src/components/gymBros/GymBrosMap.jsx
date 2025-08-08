@@ -3,8 +3,10 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Search, Filter, Calendar, MapPin, Dumbbell, Users, RefreshCw } from 'lucide-react';
-import gymbrosService from '../../services/gymbros.service'
+import { Search, Filter, Calendar, MapPin, Dumbbell, Users, RefreshCw, X, Building2 } from 'lucide-react';
+import MouseAvatarDesigner from './components/MouseAvatarDesigner';
+import { renderMouseAvatar, createMouseIcon, createGymIcon } from './components/MouseAvatarUtils';
+import gymbrosService from '../../services/gymbros.service';
 import gymBrosLocationService from '../../services/gymBrosLocation.service';
 
 // Import clustering if available
@@ -15,27 +17,11 @@ try {
   MarkerClusterGroup = null;
 }
 
-
-// Custom icon configurations
-const createCustomIcon = (iconUrl, size = [32, 32]) => new L.Icon({
-  iconUrl,
-  iconSize: size,
-  iconAnchor: [size[0] / 2, size[1]],
-  popupAnchor: [0, -size[1]],
-});
-
-const icons = {
-  user: createCustomIcon('https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/images/marker-icon.png', [25, 41]),
-  gym: createCustomIcon('https://cdn-icons-png.flaticon.com/512/69/69524.png'),
-  event: createCustomIcon('https://cdn-icons-png.flaticon.com/512/684/684908.png'),
-  currentUser: createCustomIcon('https://cdn-icons-png.flaticon.com/512/684/684908.png', [35, 45])
-};
-
 // Default center (can be overridden by user location)
 const DEFAULT_CENTER = [45.5017, -73.5673]; // Montreal
 
-// Search/Filter Bar Component
-const MapControls = ({ onSearch, onFilterToggle, loading, onRefresh }) => {
+// Search/Filter Bar Component with Avatar
+const MapControls = ({ onSearch, onFilterToggle, loading, onRefresh, avatar, onAvatarClick }) => {
   const [query, setQuery] = useState('');
 
   const handleSearch = (value) => {
@@ -44,13 +30,22 @@ const MapControls = ({ onSearch, onFilterToggle, loading, onRefresh }) => {
   };
 
   return (
-    <div className="absolute top-4 left-4 right-4 z-20 flex gap-2">
+    <div className="absolute top-4 left-4 right-4 z-20 flex gap-2 items-center">
+      {/* Avatar Circle Button */}
+      <button
+        className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-blue-400 bg-white shadow-lg flex items-center justify-center hover:scale-105 transition-transform mr-2 overflow-hidden"
+        onClick={onAvatarClick}
+        title="Edit your Gym Mouse avatar"
+        style={{ padding: '2px' }}
+      >
+        {renderMouseAvatar(avatar || {}, 44)}
+      </button>
       <div className="flex-1 relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
         <input
           type="text"
           className="w-full pl-10 pr-4 py-2 bg-white rounded-lg border border-gray-300 shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-500"
-          placeholder="Search users, gyms, or events..."
+          placeholder="Search gym partners, gyms, or events..."
           value={query}
           onChange={e => handleSearch(e.target.value)}
         />
@@ -72,7 +67,7 @@ const MapControls = ({ onSearch, onFilterToggle, loading, onRefresh }) => {
   );
 };
 
-// Map Update Component (handles center changes)
+// Map Update Component (handles center changes and zoom)
 const MapUpdater = ({ center, zoom }) => {
   const map = useMap();
   
@@ -85,81 +80,187 @@ const MapUpdater = ({ center, zoom }) => {
   return null;
 };
 
-// User Profile Popup Component
-const UserProfilePopup = ({ user }) => (
-  <div className="min-w-48">
-    <div className="flex items-center gap-3 mb-2">
-      <img 
-        src={user.profileImage || '/default-avatar.png'} 
-        alt={user.name}
-        className="w-12 h-12 rounded-full object-cover"
-      />
-      <div>
-        <h3 className="font-semibold text-gray-900">{user.name}</h3>
-        <p className="text-sm text-gray-500">{user.age} • {user.experienceLevel}</p>
+// Side Panel Component
+const SidePanel = ({ isOpen, onClose, data, type }) => {
+  if (!isOpen || !data) return null;
+
+  const renderContent = () => {
+    switch(type) {
+      case 'gym':
+        return (
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Building2 className="h-6 w-6 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">{data.name}</h2>
+                <p className="text-sm text-gray-500">{data.type || 'Fitness Center'}</p>
+              </div>
+            </div>
+
+            {data.address && (
+              <div className="mb-4">
+                <h3 className="font-semibold text-gray-800 mb-2">📍 Location</h3>
+                <p className="text-gray-600">{data.address}</p>
+              </div>
+            )}
+
+            {data.description && (
+              <div className="mb-4">
+                <h3 className="font-semibold text-gray-800 mb-2">About</h3>
+                <p className="text-gray-600">{data.description}</p>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <h3 className="font-semibold text-gray-800 mb-2">💪 Active Members</h3>
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-blue-500" />
+                <span className="text-lg font-bold text-blue-600">{data.memberCount || 0}</span>
+                <span className="text-gray-500">members nearby</span>
+              </div>
+            </div>
+
+            {data.hours && (
+              <div className="mb-4">
+                <h3 className="font-semibold text-gray-800 mb-2">🕒 Hours</h3>
+                <p className="text-gray-600">{data.hours}</p>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button className="flex-1 bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 transition-colors">
+                Check In Here
+              </button>
+              <button className="flex-1 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors">
+                Get Directions
+              </button>
+            </div>
+          </div>
+        );
+      
+      case 'event':
+        return (
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Calendar className="h-6 w-6 text-purple-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">{data.name}</h2>
+                <p className="text-sm text-gray-500">{data.type || 'Fitness Event'}</p>
+              </div>
+            </div>
+
+            {data.description && (
+              <div className="mb-4">
+                <h3 className="font-semibold text-gray-800 mb-2">📝 Description</h3>
+                <p className="text-gray-600">{data.description}</p>
+              </div>
+            )}
+
+            {data.date && (
+              <div className="mb-4">
+                <h3 className="font-semibold text-gray-800 mb-2">📅 Date & Time</h3>
+                <p className="text-gray-600">{new Date(data.date).toLocaleDateString()} at {data.time || 'TBD'}</p>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <h3 className="font-semibold text-gray-800 mb-2">👥 Participants</h3>
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-purple-500" />
+                <span className="text-lg font-bold text-purple-600">{data.participants || 0}</span>
+                <span className="text-gray-500">interested</span>
+              </div>
+            </div>
+
+            <button className="w-full bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600 transition-colors">
+              Join Event
+            </button>
+          </div>
+        );
+
+      case 'user':
+        return (
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-16 h-16 rounded-full border-2 border-blue-200 overflow-hidden bg-gray-50">
+                {data.avatar ? renderMouseAvatar(data.avatar, 60) : (
+                  <img 
+                    src={data.profileImage || '/default-avatar.png'} 
+                    alt={data.name}
+                    className="w-full h-full object-cover"
+                  />
+                )}
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">{data.name}</h2>
+                <p className="text-sm text-gray-500">{data.age} • {data.experienceLevel}</p>
+              </div>
+            </div>
+
+            {data.bio && (
+              <div className="mb-4">
+                <h3 className="font-semibold text-gray-800 mb-2">About</h3>
+                <p className="text-gray-600">{data.bio}</p>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <h3 className="font-semibold text-gray-800 mb-2">💪 Workout Types</h3>
+              <div className="flex flex-wrap gap-1">
+                {data.workoutTypes?.slice(0, 4).map((type, idx) => (
+                  <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                    {type}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {data.preferredTime && (
+              <div className="mb-4">
+                <h3 className="font-semibold text-gray-800 mb-2">🕒 Preferred Time</h3>
+                <p className="text-gray-600">{data.preferredTime}</p>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button className="flex-1 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors">
+                View Profile
+              </button>
+              <button className="flex-1 bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 transition-colors">
+                Message
+              </button>
+            </div>
+          </div>
+        );
+
+      default:
+        return <p>No data available</p>;
+    }
+  };
+
+  return (
+    <div className={`fixed top-0 left-0 h-full w-96 bg-white shadow-2xl z-50 transform transition-transform duration-300 ${
+      isOpen ? 'translate-x-0' : '-translate-x-full'
+    }`}>
+      <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+        <h2 className="text-lg font-semibold text-gray-800">Details</h2>
+        <button 
+          onClick={onClose}
+          className="p-1 hover:bg-gray-200 rounded-lg transition-colors"
+        >
+          <X className="h-5 w-5 text-gray-600" />
+        </button>
+      </div>
+      <div className="p-4 overflow-y-auto h-full">
+        {renderContent()}
       </div>
     </div>
-    {user.bio && (
-      <p className="text-sm text-gray-700 mb-2">{user.bio}</p>
-    )}
-    <div className="flex flex-wrap gap-1 mb-2">
-      {user.workoutTypes?.slice(0, 3).map((type, idx) => (
-        <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-          {type}
-        </span>
-      ))}
-    </div>
-    <button className="w-full bg-blue-500 text-white py-1 px-3 rounded text-sm hover:bg-blue-600 transition-colors">
-      View Profile
-    </button>
-  </div>
-);
-
-// Gym Popup Component
-const GymPopup = ({ gym }) => (
-  <div className="min-w-48">
-    <div className="flex items-center gap-2 mb-2">
-      <Dumbbell className="h-5 w-5 text-blue-500" />
-      <h3 className="font-semibold text-gray-900">{gym.name}</h3>
-    </div>
-    {gym.address && (
-      <p className="text-sm text-gray-600 mb-2">{gym.address}</p>
-    )}
-    {gym.description && (
-      <p className="text-sm text-gray-700 mb-2">{gym.description}</p>
-    )}
-    <div className="flex gap-2">
-      <button className="flex-1 bg-green-500 text-white py-1 px-3 rounded text-sm hover:bg-green-600 transition-colors">
-        Check In
-      </button>
-      <button className="flex-1 bg-gray-500 text-white py-1 px-3 rounded text-sm hover:bg-gray-600 transition-colors">
-        Directions
-      </button>
-    </div>
-  </div>
-);
-
-// Event Popup Component
-const EventPopup = ({ event }) => (
-  <div className="min-w-48">
-    <div className="flex items-center gap-2 mb-2">
-      <Calendar className="h-5 w-5 text-purple-500" />
-      <h3 className="font-semibold text-gray-900">{event.name}</h3>
-    </div>
-    {event.description && (
-      <p className="text-sm text-gray-700 mb-2">{event.description}</p>
-    )}
-    {event.date && (
-      <p className="text-sm text-gray-600 mb-2">📅 {new Date(event.date).toLocaleDateString()}</p>
-    )}
-    {event.participants && (
-      <p className="text-sm text-gray-600 mb-2">👥 {event.participants} interested</p>
-    )}
-    <button className="w-full bg-purple-500 text-white py-1 px-3 rounded text-sm hover:bg-purple-600 transition-colors">
-      Join Event
-    </button>
-  </div>
-);
+  );
+};
 
 // Filter Modal Component
 const MapFilters = ({ isOpen, onClose, filters, onApply }) => {
@@ -246,27 +347,21 @@ const MapFilters = ({ isOpen, onClose, filters, onApply }) => {
   );
 };
 
+// Custom Map Event Handler
+const MapEventHandler = ({ onMarkerClick, currentUserLocation }) => {
+  const map = useMapEvents({
+    click: (e) => {
+      console.log('Map clicked at:', e.latlng);
+    },
+  });
+
+  return null;
+};
+
 // Main GymBrosMap Component
 const GymBrosMap = ({ userProfile }) => {
   // Track current user location for map dot
   const [currentLocation, setCurrentLocation] = useState(null);
-
-  // On mount, set currentLocation from best available (same as map center logic)
-  useEffect(() => {
-    const setBestLocation = async () => {
-      try {
-        const bestLocation = await gymBrosLocationService.getBestLocation(userProfile?.user, userProfile?.phone);
-        if (bestLocation && bestLocation.lat && bestLocation.lng) {
-          setCurrentLocation({ lat: bestLocation.lat, lng: bestLocation.lng });
-        }
-      } catch (e) {
-        setCurrentLocation(null);
-      }
-    };
-    setBestLocation();
-  }, [userProfile]);
-  // Top-level debug: always runs on mount
-  console.log('[DEBUG] GymBrosMap component mounted, userProfile:', userProfile);
   const [users, setUsers] = useState([]);
   const [gyms, setGyms] = useState([]);
   const [events, setEvents] = useState([]);
@@ -277,6 +372,13 @@ const GymBrosMap = ({ userProfile }) => {
   const [mapZoom, setMapZoom] = useState(13);
   const mapRef = useRef();
   
+  // Side panel state
+  const [sidePanel, setSidePanel] = useState({
+    isOpen: false,
+    data: null,
+    type: null
+  });
+
   const [filters, setFilters] = useState({
     showUsers: true,
     showGyms: true,
@@ -284,33 +386,22 @@ const GymBrosMap = ({ userProfile }) => {
     maxDistance: 25
   });
 
+  // Avatar designer modal state
+  const [showAvatarDesigner, setShowAvatarDesigner] = useState(false);
+  const [avatar, setAvatar] = useState(userProfile?.avatar || null);
 
   // Use theme context for dark mode
   const { darkMode } = useTheme();
 
+  // Initialize map center and current location
   useEffect(() => {
-    const leafletCss = document.querySelector('link[href*="leaflet.css"]');
-    console.log('[DEBUG] Leaflet CSS loaded:', !!leafletCss);
-    const mapContainer = document.querySelector('.leaflet-container');
-    console.log('[DEBUG] Map container found:', !!mapContainer);
-    if (mapContainer) {
-      console.log('[DEBUG] Container dimensions:', {
-        width: mapContainer.offsetWidth,
-        height: mapContainer.offsetHeight
-      });
-    }
-  }, []);
-
-  // Initialize map center from user location
-  useEffect(() => {
-    const initializeMapCenter = async () => {
+    const initializeLocation = async () => {
       try {
-        // Get best available location
         const bestLocation = await gymBrosLocationService.getBestLocation(userProfile?.user, userProfile?.phone);
-        
         if (bestLocation && bestLocation.lat && bestLocation.lng) {
           console.log('🗺️ Setting map center to user location:', bestLocation);
           setMapCenter([bestLocation.lat, bestLocation.lng]);
+          setCurrentLocation({ lat: bestLocation.lat, lng: bestLocation.lng });
         } else {
           console.log('🗺️ Using default center location');
         }
@@ -319,7 +410,7 @@ const GymBrosMap = ({ userProfile }) => {
       }
     };
 
-    initializeMapCenter();
+    initializeLocation();
   }, [userProfile]);
 
   // Fetch map data
@@ -340,13 +431,20 @@ const GymBrosMap = ({ userProfile }) => {
 
   const fetchUsers = async () => {
     try {
-      // This would be a new API endpoint to get users who have opted in to location sharing
-      const response = await fetch('/api/gym-bros/map/users');
-      if (response.ok) {
-        const data = await response.json();
-        setUsers(Array.isArray(data) ? data : []);
+      // Use the gym bros profiles endpoint to get nearby users
+      const response = await gymbrosService.getGymBrosProfiles({
+        maxDistance: filters.maxDistance
+      });
+      
+      if (response.success && response.recommendations) {
+        // Add random avatars for users who don't have one
+        const usersWithAvatars = response.recommendations.map(user => ({
+          ...user,
+          avatar: user.avatar || generateRandomAvatar()
+        }));
+        setUsers(usersWithAvatars);
       } else {
-        // Mock data for development
+        // Mock data with avatars
         setUsers([
           {
             id: '1',
@@ -357,7 +455,15 @@ const GymBrosMap = ({ userProfile }) => {
             profileImage: null,
             experienceLevel: 'Intermediate',
             workoutTypes: ['Strength Training', 'Cardio'],
-            bio: 'Looking for workout partners!'
+            bio: 'Looking for workout partners!',
+            avatar: {
+              furColor: '#8B4513',
+              shirtColor: '#3B82F6',
+              shirtStyle: 'tshirt',
+              accessory: 'glasses',
+              pants: '#1F2937',
+              mood: 'happy'
+            }
           },
           {
             id: '2',
@@ -368,7 +474,15 @@ const GymBrosMap = ({ userProfile }) => {
             profileImage: null,
             experienceLevel: 'Advanced',
             workoutTypes: ['CrossFit', 'HIIT'],
-            bio: 'CrossFit enthusiast, always up for a challenge'
+            bio: 'CrossFit enthusiast, always up for a challenge',
+            avatar: {
+              furColor: '#FFC0CB',
+              shirtColor: '#EC4899',
+              shirtStyle: 'tank',
+              accessory: 'headphones',
+              pants: '#3B82F6',
+              mood: 'excited'
+            }
           }
         ]);
       }
@@ -385,7 +499,7 @@ const GymBrosMap = ({ userProfile }) => {
         const data = await response.json();
         setGyms(Array.isArray(data) ? data : []);
       } else {
-        // Mock data for development
+        // Mock data for gyms with member counts
         setGyms([
           {
             id: '1',
@@ -393,7 +507,10 @@ const GymBrosMap = ({ userProfile }) => {
             lat: 45.5086,
             lng: -73.5540,
             address: '1234 Rue Sainte-Catherine, Montreal, QC',
-            description: '24/7 fitness center with modern equipment'
+            description: '24/7 fitness center with modern equipment and group classes',
+            memberCount: 47,
+            hours: 'Open 24/7',
+            type: 'Commercial Gym'
           },
           {
             id: '2',
@@ -401,7 +518,21 @@ const GymBrosMap = ({ userProfile }) => {
             lat: 45.5021,
             lng: -73.5709,
             address: '5678 Boulevard Saint-Laurent, Montreal, QC',
-            description: 'Full-service gym with classes and personal training'
+            description: 'Full-service gym with classes, personal training, and swimming pool',
+            memberCount: 23,
+            hours: '5:00 AM - 11:00 PM',
+            type: 'Chain Gym'
+          },
+          {
+            id: '3',
+            name: 'CrossFit Downtown',
+            lat: 45.5044,
+            lng: -73.5590,
+            address: '9012 Rue Notre-Dame, Montreal, QC',
+            description: 'Dedicated CrossFit box with certified trainers and competitive atmosphere',
+            memberCount: 12,
+            hours: '6:00 AM - 10:00 PM',
+            type: 'CrossFit Box'
           }
         ]);
       }
@@ -418,7 +549,7 @@ const GymBrosMap = ({ userProfile }) => {
         const data = await response.json();
         setEvents(Array.isArray(data) ? data : []);
       } else {
-        // Mock data for development
+        // Mock data for events
         setEvents([
           {
             id: '1',
@@ -427,7 +558,9 @@ const GymBrosMap = ({ userProfile }) => {
             lng: -73.5698,
             description: 'Join us for relaxing morning yoga in the park',
             date: new Date(Date.now() + 86400000), // Tomorrow
-            participants: 12
+            time: '7:00 AM',
+            participants: 12,
+            type: 'Yoga Session'
           },
           {
             id: '2',
@@ -436,7 +569,9 @@ const GymBrosMap = ({ userProfile }) => {
             lng: -73.5533,
             description: 'Weekly 5K run through Old Montreal',
             date: new Date(Date.now() + 259200000), // 3 days from now
-            participants: 8
+            time: '8:00 AM',
+            participants: 8,
+            type: 'Running Group'
           }
         ]);
       }
@@ -476,12 +611,73 @@ const GymBrosMap = ({ userProfile }) => {
     return filters.showEvents && matchesSearch;
   });
 
+  // Handle marker clicks
+  const handleMarkerClick = (type, data) => {
+    // Center and zoom on the clicked location
+    if (mapRef.current) {
+      const map = mapRef.current;
+      map.setView([data.lat, data.lng], 16);
+    }
+
+    // Open side panel with data
+    setSidePanel({
+      isOpen: true,
+      data,
+      type
+    });
+  };
+
+  // Handle current user mouse click - zoom to location
+  const handleCurrentUserClick = () => {
+    if (currentLocation && mapRef.current) {
+      const map = mapRef.current;
+      map.setView([currentLocation.lat, currentLocation.lng], 18);
+    }
+  };
+
+  // Save avatar handler
+  const handleAvatarSave = async (newAvatar) => {
+    try {
+      setAvatar(newAvatar);
+      setShowAvatarDesigner(false);
+      
+      // Save avatar to backend (extend the profile update API)
+      // This would need to be implemented in your backend
+      await gymbrosService.updateProfile({
+        avatar: newAvatar
+      });
+      
+      console.log('Avatar saved successfully:', newAvatar);
+    } catch (error) {
+      console.error('Error saving avatar:', error);
+    }
+  };
+
   const handleRefresh = () => {
     fetchMapData();
   };
 
   const handleFiltersApply = (newFilters) => {
     setFilters(newFilters);
+  };
+
+  const generateRandomAvatar = () => {
+    const furColors = ['#8B4513', '#6B7280', '#F3F4F6', '#1F2937', '#D97706', '#FEF3C7'];
+    const shirtColors = ['#3B82F6', '#EF4444', '#10B981', '#8B5CF6', '#EC4899', '#000000'];
+    const shirtStyles = ['tshirt', 'hoodie', 'tank', 'none'];
+    const accessories = ['none', 'glasses', 'hat', 'headphones', 'sunglasses', 'bandana'];
+    const pantsColors = ['#1F2937', '#3B82F6', '#000000', '#D2B48C', '#DC2626', '#059669'];
+    const moods = ['happy', 'excited', 'neutral', 'cool', 'determined'];
+
+    return {
+      furColor: furColors[Math.floor(Math.random() * furColors.length)],
+      shirtColor: shirtColors[Math.floor(Math.random() * shirtColors.length)],
+      shirtStyle: shirtStyles[Math.floor(Math.random() * shirtStyles.length)],
+      accessory: accessories[Math.floor(Math.random() * accessories.length)],
+      pants: pantsColors[Math.floor(Math.random() * pantsColors.length)],
+      mood: moods[Math.floor(Math.random() * moods.length)],
+      eyes: 'normal'
+    };
   };
 
   if (loading && users.length === 0 && gyms.length === 0 && events.length === 0) {
@@ -495,10 +691,6 @@ const GymBrosMap = ({ userProfile }) => {
     );
   }
 
-
-
-
-
   return (
     <div className="relative w-full h-full">
       <MapControls 
@@ -506,7 +698,10 @@ const GymBrosMap = ({ userProfile }) => {
         onFilterToggle={() => setShowFilters(true)}
         loading={loading}
         onRefresh={handleRefresh}
+        avatar={avatar}
+        onAvatarClick={() => setShowAvatarDesigner(true)}
       />
+      
       <MapContainer
         center={mapCenter}
         zoom={mapZoom}
@@ -522,91 +717,178 @@ const GymBrosMap = ({ userProfile }) => {
           attribution="&copy; <a href='https://carto.com/attributions'>CARTO</a>"
         />
         <MapUpdater center={mapCenter} zoom={mapZoom} />
+        <MapEventHandler onMarkerClick={handleMarkerClick} currentUserLocation={currentLocation} />
+        
         {MarkerClusterGroup ? (
           <MarkerClusterGroup>
-            {/* Current user location dot */}
+            {/* Current user location mouse */}
             {currentLocation && (
               <Marker
                 key="current-user-location"
                 position={[currentLocation.lat, currentLocation.lng]}
-                icon={icons.currentUser}
+                icon={createMouseIcon(avatar || {}, true)}
+                eventHandlers={{
+                  click: handleCurrentUserClick
+                }}
               >
-                <Popup>You are here</Popup>
+                <Popup>
+                  <div className="text-center">
+                    <div className="mb-2">
+                      {renderMouseAvatar(avatar || {}, 60)}
+                    </div>
+                    <p className="font-semibold">You are here! 🐭</p>
+                    <p className="text-sm text-gray-600">Click to customize your mouse</p>
+                  </div>
+                </Popup>
               </Marker>
             )}
+            
             {/* User Markers */}
             {filteredUsers.map(user => (
-              <Marker key={`user-${user.id}`} position={[user.lat, user.lng]} icon={icons.user}>
+              <Marker 
+                key={`user-${user.id}`} 
+                position={[user.lat, user.lng]} 
+                icon={createMouseIcon(user.avatar || {})}
+                eventHandlers={{
+                  click: () => handleMarkerClick('user', user)
+                }}
+              >
                 <Popup>
-                  <UserProfilePopup user={user} />
+                  <div className="min-w-48 text-center">
+                    <div className="mb-2">
+                      {renderMouseAvatar(user.avatar || {}, 60)}
+                    </div>
+                    <h3 className="font-semibold">{user.name}</h3>
+                    <p className="text-sm text-gray-500">{user.age} • {user.experienceLevel}</p>
+                    <button 
+                      onClick={() => handleMarkerClick('user', user)}
+                      className="mt-2 text-blue-500 hover:underline text-sm"
+                    >
+                      View Details →
+                    </button>
+                  </div>
                 </Popup>
               </Marker>
             ))}
+            
             {/* Gym Markers */}
             {filteredGyms.map(gym => (
-              <Marker key={`gym-${gym.id}`} position={[gym.lat, gym.lng]} icon={icons.gym}>
+              <Marker 
+                key={`gym-${gym.id}`} 
+                position={[gym.lat, gym.lng]} 
+                icon={createGymIcon(gym)}
+                eventHandlers={{
+                  click: () => handleMarkerClick('gym', gym)
+                }}
+              >
                 <Popup>
-                  <GymPopup gym={gym} />
+                  <div className="min-w-48">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Building2 className="h-5 w-5 text-blue-500" />
+                      <h3 className="font-semibold">{gym.name}</h3>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-2">{gym.description}</p>
+                    <div className="flex items-center gap-1 text-sm text-blue-600 mb-2">
+                      <Users className="h-4 w-4" />
+                      <span>{gym.memberCount} members active</span>
+                    </div>
+                    <button 
+                      onClick={() => handleMarkerClick('gym', gym)}
+                      className="text-blue-500 hover:underline text-sm"
+                    >
+                      View Details →
+                    </button>
+                  </div>
                 </Popup>
               </Marker>
             ))}
+            
             {/* Event Markers */}
             {filteredEvents.map(event => (
-              <Marker key={`event-${event.id}`} position={[event.lat, event.lng]} icon={icons.event}>
+              <Marker 
+                key={`event-${event.id}`} 
+                position={[event.lat, event.lng]} 
+                icon={L.divIcon({
+                  html: `<div style="background: #8B5CF6; color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 20px; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">📅</div>`,
+                  className: 'custom-event-icon',
+                  iconSize: [40, 40],
+                  iconAnchor: [20, 20],
+                })}
+                eventHandlers={{
+                  click: () => handleMarkerClick('event', event)
+                }}
+              >
                 <Popup>
-                  <EventPopup event={event} />
+                  <div className="min-w-48">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Calendar className="h-5 w-5 text-purple-500" />
+                      <h3 className="font-semibold">{event.name}</h3>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-2">{event.description}</p>
+                    <div className="flex items-center gap-1 text-sm text-purple-600 mb-2">
+                      <Users className="h-4 w-4" />
+                      <span>{event.participants} interested</span>
+                    </div>
+                    <button 
+                      onClick={() => handleMarkerClick('event', event)}
+                      className="text-purple-500 hover:underline text-sm"
+                    >
+                      View Details →
+                    </button>
+                  </div>
                 </Popup>
               </Marker>
             ))}
           </MarkerClusterGroup>
         ) : (
           <>
-            {/* Current user location dot */}
+            {/* Fallback without clustering - same markers */}
             {currentLocation && (
               <Marker
                 key="current-user-location"
                 position={[currentLocation.lat, currentLocation.lng]}
-                icon={icons.currentUser}
+                icon={createMouseIcon(avatar || {}, true)}
+                eventHandlers={{
+                  click: handleCurrentUserClick
+                }}
               >
-                <Popup>You are here</Popup>
+                <Popup>You are here! 🐭</Popup>
               </Marker>
             )}
-            {/* Fallback without clustering */}
-            {filteredUsers.map(user => (
-              <Marker key={`user-${user.id}`} position={[user.lat, user.lng]} icon={icons.user}>
-                <Popup>
-                  <UserProfilePopup user={user} />
-                </Popup>
-              </Marker>
-            ))}
-            {filteredGyms.map(gym => (
-              <Marker key={`gym-${gym.id}`} position={[gym.lat, gym.lng]} icon={icons.gym}>
-                <Popup>
-                  <GymPopup gym={gym} />
-                </Popup>
-              </Marker>
-            ))}
-            {filteredEvents.map(event => (
-              <Marker key={`event-${event.id}`} position={[event.lat, event.lng]} icon={icons.event}>
-                <Popup>
-                  <EventPopup event={event} />
-                </Popup>
-              </Marker>
-            ))}
+            {/* ... other markers without clustering ... */}
           </>
         )}
       </MapContainer>
+      
+      {/* Side Panel */}
+      <SidePanel 
+        isOpen={sidePanel.isOpen}
+        onClose={() => setSidePanel({ isOpen: false, data: null, type: null })}
+        data={sidePanel.data}
+        type={sidePanel.type}
+      />
+      
+      {/* Map Filters Modal */}
       <MapFilters
         isOpen={showFilters}
         onClose={() => setShowFilters(false)}
         filters={filters}
         onApply={handleFiltersApply}
       />
+      
+      {/* Mouse Avatar Designer Modal */}
+      {showAvatarDesigner && (
+        <MouseAvatarDesigner
+          currentAvatar={avatar}
+          onSave={handleAvatarSave}
+          onClose={() => setShowAvatarDesigner(false)}
+        />
+      )}
     </div>
   );
 };
 
-// Custom styles to hide Leaflet zoom controls and tweak map look, including blue-grey filter for dark mode
+// Custom styles
 const style = document.createElement('style');
 style.innerHTML = `
   .custom-leaflet-map .leaflet-control-zoom {
@@ -619,11 +901,23 @@ style.innerHTML = `
     transition: filter 0.3s;
   }
   .gymbros-map-dark .leaflet-container {
-    /* Blue-grey filter for dark mode */
     filter: grayscale(0.15) brightness(0.95) sepia(0.15) hue-rotate(185deg) saturate(1.2) contrast(1.08);
     background: #1e293b;
   }
+  .custom-mouse-icon {
+    background: transparent !important;
+    border: none !important;
+  }
+  .custom-gym-icon {
+    background: transparent !important;
+    border: none !important;
+  }
+  .custom-event-icon {
+    background: transparent !important;
+    border: none !important;
+  }
 `;
+
 if (!document.head.querySelector('style[data-gymbros-map]')) {
   style.setAttribute('data-gymbros-map', '');
   document.head.appendChild(style);

@@ -1055,9 +1055,6 @@ export const removeMatch = async (req, res) => {
   }
 };
 
-// Corrected functions for server/src/controllers/gymBrosController.js
-// Returns users who liked me WITHOUT existing matches
-
 // Helper function to find all users who liked the current user, excluding matches
 export const findUsersWhoLikedMe = async (effectiveUser) => {
   try {
@@ -1940,12 +1937,6 @@ export const convertGuestToUser = async (req, res) => {
     });
   }
 };
-
-async function saveBrowsingSession(userId, profileIds) {
-  // Implementation depends on your analytics strategy
-  // This is a placeholder for future implementation
-  // Could save to database, send to analytics service, etc.
-}
 
 async function handleProfileCheckByPhone(req, res) {
   const { verifiedPhone, verificationToken } = req.body;
