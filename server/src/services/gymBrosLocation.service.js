@@ -1,4 +1,5 @@
 import locationService from './location.service.js';
+import geocodingService from './geocoding.service.js'; // Import geocoding service
 import User from '../models/User.js';
 import Gym from '../models/Gym.js';
 import GymBrosProfile from '../models/GymBrosProfile.js';
@@ -91,6 +92,78 @@ class GymBrosLocationService {
   }
 
   /**
+   * Enhance location data with full address if missing
+   * @param {Object} locationData - Raw location data with lat/lng
+   * @returns {Object} Enhanced location data with address
+   */
+  async enhanceLocationWithAddress(locationData) {
+    try {
+      // If we already have a complete address, return as is
+      if (locationData.address && locationData.address.trim() && locationData.address !== '') {
+        return locationData;
+      }
+
+      // If we have coordinates, geocode to get the full address
+      if (locationData.lat && locationData.lng) {
+        console.log('🔍 Geocoding coordinates to get full address:', { lat: locationData.lat, lng: locationData.lng });
+        
+        const geocodedResult = await geocodingService.reverseGeocode(locationData.lat, locationData.lng);
+        
+        if (geocodedResult) {
+          console.log('✅ Geocoding successful:', geocodedResult);
+          
+          // Build a comprehensive location object
+          const enhancedLocation = {
+            ...locationData,
+            address: geocodedResult.address || geocodedResult.display_name || `${locationData.city || 'Unknown City'}`,
+            city: geocodedResult.city || locationData.city || 'Unknown City',
+            state: geocodedResult.state || locationData.state || '',
+            country: geocodedResult.country || locationData.country || 'US',
+            zipCode: geocodedResult.postcode || locationData.zipCode || ''
+          };
+          
+          console.log('🚀 Enhanced location data:', enhancedLocation);
+          return enhancedLocation;
+        } else {
+          console.warn('❌ Geocoding failed, using fallback address');
+          // Fallback: use city as address if geocoding fails
+          return {
+            ...locationData,
+            address: locationData.city || 'Unknown Location',
+            city: locationData.city || 'Unknown City',
+            state: locationData.state || '',
+            country: locationData.country || 'US',
+            zipCode: locationData.zipCode || ''
+          };
+        }
+      }
+
+      // Final fallback if no coordinates
+      console.warn('⚠️ No coordinates available for geocoding, using minimal address');
+      return {
+        ...locationData,
+        address: locationData.city || 'Unknown Location',
+        city: locationData.city || 'Unknown City',
+        state: locationData.state || '',
+        country: locationData.country || 'US',
+        zipCode: locationData.zipCode || ''
+      };
+
+    } catch (error) {
+      logger.error('Error enhancing location with address:', error);
+      // Return with fallback address to prevent validation errors
+      return {
+        ...locationData,
+        address: locationData.city || locationData.address || 'Unknown Location',
+        city: locationData.city || 'Unknown City',
+        state: locationData.state || '',
+        country: locationData.country || 'US',
+        zipCode: locationData.zipCode || ''
+      };
+    }
+  }
+
+  /**
    * Update user location across all relevant models
    * @param {Object} locationData - Location data to save
    * @param {Object} user - User object (optional)
@@ -107,21 +180,28 @@ class GymBrosLocationService {
         throw new Error(`Invalid location data: ${validation.errors.join(', ')}`);
       }
 
-      // Prepare standardized location object
+      // STEP 1: Enhance location data with full address using geocoding
+      console.log('🔄 SERVER DEBUG: Original location data:', locationData);
+      const enhancedLocationData = await this.enhanceLocationWithAddress(locationData);
+      console.log('🔄 SERVER DEBUG: Enhanced location data:', enhancedLocationData);
+
+      // STEP 2: Prepare standardized location object
       const standardLocation = {
-        lat: parseFloat(locationData.lat),
-        lng: parseFloat(locationData.lng),
-        address: locationData.address || '',
-        city: locationData.city || 'Unknown City',
-        state: locationData.state || '',
-        country: locationData.country || 'US',
-        zipCode: locationData.zipCode || '',
-        source: locationData.source || 'manual',
-        accuracy: locationData.accuracy || 'medium',
+        lat: parseFloat(enhancedLocationData.lat),
+        lng: parseFloat(enhancedLocationData.lng),
+        address: enhancedLocationData.address || enhancedLocationData.city || 'Unknown Location',
+        city: enhancedLocationData.city || 'Unknown City',
+        state: enhancedLocationData.state || '',
+        country: enhancedLocationData.country || 'US',
+        zipCode: enhancedLocationData.zipCode || '',
+        source: enhancedLocationData.source || 'manual',
+        accuracy: enhancedLocationData.accuracy || 'medium',
         lastUpdated: new Date()
       };
 
-      // 1. Update main User model location if authenticated
+      console.log('🔄 SERVER DEBUG: Final standard location:', standardLocation);
+
+      // 3. Update main User model location if authenticated
       if (user) {
         const User = (await import('../models/User.js')).default;
         await User.findByIdAndUpdate(user._id, {
@@ -138,7 +218,7 @@ class GymBrosLocationService {
         logger.info(`Updated User location for user ${user._id}`);
       }
 
-      // 2. Update GymBros profile location
+      // 4. Update GymBros profile location
       let gymBrosProfile = null;
       
       console.log('🔄 SERVER DEBUG: Looking for GymBros profile...');
@@ -276,10 +356,10 @@ class GymBrosLocationService {
           // Continue with other updates even if this fails
         }
 
-        // 3. Find and suggest nearby gyms
+        // 5. Find and suggest nearby gyms
         const nearbyGyms = await this.findNearbyGyms(standardLocation.lat, standardLocation.lng);
         
-        // 4. Auto-join relevant location-based groups
+        // 6. Auto-join relevant location-based groups
         await this.autoJoinLocationGroups(gymBrosProfile._id, standardLocation);
 
         return {
@@ -306,6 +386,8 @@ class GymBrosLocationService {
     }
   }
 
+  // ... rest of the methods remain the same ...
+  
   /**
    * Find nearby gyms based on coordinates
    * @param {number} lat - Latitude

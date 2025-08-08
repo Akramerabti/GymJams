@@ -102,7 +102,7 @@ const userSchema = new mongoose.Schema({
   }],
   role: {
     type: String,
-    enum: ['user', 'admin', 'coach', 'affiliate', 'taskforce'],
+    enum: ['user', 'admin', 'coach', 'affiliate', 'taskforce', 'marketing'],
     default: 'user'
   },
   points: {

@@ -35,21 +35,20 @@ const Navbar = () => {
     return user?.user?.role || user?.role || '';
   };
 
+    const isTaskforceOrAdmin = () => {
+    const role = getUserrole(user);
+    return ['taskforce', 'admin', 'marketing', 'affiliate'].includes(role);
+  };
+
   const navigationItems = [
     { name: t('navbar.shop'), path: '/shop' },
     {
-      name:
-        getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin'
-          ? t('navbar.taskforceDashboard')
-          : t('navbar.gains'),
-      path:
-        getUserrole(user) === 'taskforce' || getUserrole(user) === 'admin'
-          ? '/taskforce-dashboard'
-          : '/gymbros',
+      name: t('navbar.gains'),
+      path: '/gymbros',
     },
     { name: t('navbar.coaching'), path: '/coaching' },
     { name: t('navbar.games'), path: '/games' },
-    { name: t('navbar.blog'), path: '/blog' },
+    ...(!isTaskforceOrAdmin() ? [{ name: t('navbar.blog'), path: '/blog' }] : []),
     { name: t('navbar.contact'), path: '/contact' },
   ];
 

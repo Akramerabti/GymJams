@@ -381,7 +381,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
     }
 
     // Check location
-    if (!profileData.location || !profileData.location.lat || !profileData.location.lng || !profileData.location.address) {
+    if (!profileData.location || !profileData.location.lat || !profileData.location.lng || !profileData.location.city) {
       missingFields.push('Location');
     }
 

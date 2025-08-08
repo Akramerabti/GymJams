@@ -174,16 +174,12 @@ class GymBrosLocationService {
   async searchNearbyGyms(locationData, query = '', radiusMiles = 25) {
   try {
     if (!locationData || !locationData.lat || !locationData.lng) {
-      logger.warn('searchNearbyGyms called without valid location data');
       return [];
     }
 
     const userLat = parseFloat(locationData.lat);
     const userLng = parseFloat(locationData.lng);
 
-    logger.info(`Searching for gyms near: ${userLat}, ${userLng} within ${radiusMiles} miles`);
-
-    // Call the backend API which will handle the search
     const response = await api.get('/gym-bros/gyms/search', {
       params: {
         lat: userLat,
@@ -195,9 +191,6 @@ class GymBrosLocationService {
 
     const gyms = response.data.gyms || [];
     
-    logger.info(`Found ${gyms.length} gyms`);
-    
-    // Ensure all gyms have distance calculated
     return gyms.map(gym => ({
       ...gym,
       distanceMiles: gym.distanceMiles !== undefined ? gym.distanceMiles : 
@@ -205,7 +198,6 @@ class GymBrosLocationService {
     }));
 
   } catch (error) {
-    logger.error('Error searching nearby gyms:', error);
     return [];
   }
 }
@@ -243,7 +235,6 @@ class GymBrosLocationService {
     
     return response.data;
   } catch (error) {
-    logger.error('Error creating gym:', error);
     throw error;
   }
 }

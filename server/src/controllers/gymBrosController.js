@@ -18,6 +18,7 @@ import {
   checkForMatch,
   findPotentialMatches
 } from '../services/gymBrosMatchingService.js';
+import gymBrosLocationService from '../services/gymBrosLocation.service.js';
 import mongoose from 'mongoose';
 
 export const initializeGymBros = async (req, res) => {
@@ -304,9 +305,6 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
     let profileData = req.body;
     const verificationToken = req.body.verificationToken;
     
-    //('Creating/updating GymBros profile:', profileData);
-    //('Guest token from request:', req.headers['x-gymbros-guest-token'] || req.query.guestToken);
-    
     // Validate profile data
     if (!profileData || typeof profileData !== 'object') {
       return res.status(400).json({ message: 'Invalid profile data' });
@@ -316,6 +314,25 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
     if (profileData._id) {
       const { _id, ...dataWithoutId } = profileData;
       profileData = dataWithoutId;
+    }
+
+    // ENHANCEMENT: Process location data if present
+    if (profileData.location && profileData.location.lat && profileData.location.lng) {
+      try {
+        
+        profileData.location = await gymBrosLocationService.enhanceLocationWithAddress(profileData.location);
+        
+        console.log('✅ Enhanced location data for profile creation:', profileData.location);
+      } catch (locationError) {
+        console.error('❌ Error enhancing location data:', locationError);
+        
+        // Fallback: ensure we have at least a basic address to prevent validation error
+        if (!profileData.location.address || profileData.location.address.trim() === '') {
+          profileData.location.address = profileData.location.city || 'Unknown Location';
+        }
+        
+        console.log('⚠️ Using fallback address:', profileData.location.address);
+      }
     }
 
     // Get the effective user (authenticated or guest)
@@ -341,7 +358,10 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
             politicalStandpoint: profileData.politicalStandpoint,
             sexualOrientation: profileData.sexualOrientation
           }, 
-          { new: true }
+          { 
+            new: true,
+            runValidators: true 
+          }
         );
       } else {
         // Create new profile with new fields
@@ -379,7 +399,10 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
           politicalStandpoint: profileData.politicalStandpoint,
           sexualOrientation: profileData.sexualOrientation
         },
-        { new: true }
+        { 
+          new: true,
+          runValidators: true 
+        }
       );
       
       // Generate a guest token for future requests
@@ -424,7 +447,6 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
         
         // Generate a guest token for future requests with the profile ID
         const guestToken = generateGuestToken(profileData.phone, profile._id);
-        //(`Created guest token for profile ${profile._id}:`, guestToken);
         
         return res.status(201).json({
           success: true,
@@ -450,6 +472,21 @@ export const createOrUpdateGymBrosProfile = async (req, res) => {
     }
   } catch (error) {
     console.error('Error in createOrUpdateGymBrosProfile:', error);
+    
+    // Enhanced error handling for validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.keys(error.errors).map(key => ({
+        field: key,
+        message: error.errors[key].message
+      }));
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: validationErrors
+      });
+    }
+    
     handleError(error, req, res);
   }
 };
@@ -1488,27 +1525,45 @@ export const updateUserSettings = async (req, res) => {
   }
 };
 
-// Delete user's GymBros profile
 export const deleteGymBrosProfile = async (req, res) => {
   try {
-    const userId = req.user.id;
-    //('Deleting GymBros profile for user:', userId);
+    const effectiveUser = getEffectiveUser(req);
 
-    // Delete the profile
-    const deleteResult = await GymBrosProfile.findOneAndDelete({ userId });
-    
-    if (!deleteResult) {
-      return res.status(404).json({ message: 'Profile not found' });
+    // Prefer profileId (guest or user), fallback to userId
+    let profile;
+    if (effectiveUser.profileId) {
+      profile = await GymBrosProfile.findByIdAndDelete(effectiveUser.profileId);
+      // Also delete related preferences
+      await GymBrosPreference.findOneAndDelete({ profileId: effectiveUser.profileId });
+      // Remove from matches
+      await GymBrosMatch.updateMany(
+        { users: effectiveUser.profileId },
+        { $set: { active: false } }
+      );
+    } else if (effectiveUser.userId) {
+      profile = await GymBrosProfile.findOneAndDelete({ userId: effectiveUser.userId });
+      await GymBrosPreference.findOneAndDelete({ userId: effectiveUser.userId });
+      await GymBrosMatch.updateMany(
+        { users: effectiveUser.userId },
+        { $set: { active: false } }
+      );
+    } else if (effectiveUser.phone) {
+      // Fallback: delete by phone (very rare, only if no profileId/userId)
+      profile = await GymBrosProfile.findOneAndDelete({ phone: effectiveUser.phone });
+      await GymBrosPreference.findOneAndDelete({ phone: effectiveUser.phone });
+      if (profile) {
+        await GymBrosMatch.updateMany(
+          { users: profile._id },
+          { $set: { active: false } }
+        );
+      }
+    } else {
+      return res.status(400).json({ message: 'No valid identifier for profile deletion' });
     }
 
-    // Also delete related data
-    await GymBrosPreference.findOneAndDelete({ userId });
-    
-    // Remove this user from active matches
-    await GymBrosMatch.updateMany(
-      { users: userId },
-      { $set: { active: false } }
-    );
+    if (!profile) {
+      return res.status(404).json({ message: 'Profile not found' });
+    }
 
     res.status(200).json({ message: 'Profile and related data deleted successfully' });
   } catch (error) {
