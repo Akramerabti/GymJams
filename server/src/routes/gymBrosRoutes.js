@@ -8,7 +8,6 @@ import gymBrosLocationRoutes from './gymBrosLocation.routes.js';
 
 const router = express.Router();
 
-// Import controllers
 import { 
   checkGymBrosProfile, 
   createOrUpdateGymBrosProfile,
@@ -31,7 +30,7 @@ import {
   convertGuestToUser,
   getWhoLikedMeCount,
   getWhoLikedMeProfiles,
-  
+  initializeGymBros
 } from '../controllers/gymBrosController.js';
 
 // Import message controllers
@@ -69,6 +68,8 @@ import {
 
 // Apply guest user middleware to all routes
 router.use(handleGuestUser);
+
+router.get('/initialize', optionalAuthenticate, initializeGymBros);
 
 // Check if user has a GymBros profile (works for authenticated users and guests)
 router.get('/profile', optionalAuthenticate, checkGymBrosProfile);

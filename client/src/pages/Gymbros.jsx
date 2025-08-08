@@ -22,19 +22,15 @@ import GymBrosShop from '../components/gymBros/GymBrosShop';
 import GymBrosMatchesList from '../components/gymBros/GymbrosMatchesList';
 import GymBrosMap from '../components/gymBros/GymBrosMap';
 import { Link } from 'react-router-dom';
-
 import { useLocation } from 'react-router-dom';
 
-// Tell Layout component to hide footer when on this route
 const FooterHider = () => {
   const location = useLocation();
   
   useEffect(() => {
-    // When component mounts, add multiple classes to ensure footer is hidden
     document.body.classList.add('hide-footer');
     document.documentElement.classList.add('hide-footer');
     
-    // Also set inline styles as fallback
     const footers = document.querySelectorAll('footer, [role="contentinfo"]');
     footers.forEach(footer => {
       footer.style.display = 'none';
@@ -45,16 +41,13 @@ const FooterHider = () => {
       footer.style.pointerEvents = 'none';
     });
     
-    // Force a re-render of the layout
     const event = new CustomEvent('footerHidden', { detail: true });
     window.dispatchEvent(event);
     
-    // When component unmounts, remove the classes and restore styles
     return () => {
       document.body.classList.remove('hide-footer');
       document.documentElement.classList.remove('hide-footer');
       
-      // Restore footer styles
       const footers = document.querySelectorAll('footer, [role="contentinfo"]');
       footers.forEach(footer => {
         footer.style.display = '';
@@ -65,7 +58,6 @@ const FooterHider = () => {
         footer.style.pointerEvents = '';
       });
       
-      // Dispatch event to notify layout
       const event = new CustomEvent('footerShown', { detail: false });
       window.dispatchEvent(event);
     };
@@ -75,7 +67,6 @@ const FooterHider = () => {
 };
 
 const GymBros = () => {
-  // Auth and guest flow state
   const { user, isAuthenticated } = useAuthStore();
   const { 
     isGuest, 
@@ -87,10 +78,8 @@ const GymBros = () => {
     clearGuestState
   } = useGuestFlow();
   
-  // API optimization
   const { optimizedApiCall, clearCache } = useApiOptimization();
   
-  // Component state
   const [profiles, setProfiles] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -101,7 +90,7 @@ const GymBros = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [matches, setMatches] = useState([]);
   const [viewStartTime, setViewStartTime] = useState(null);
-  const [activeTab, setActiveTab] = useState('discover'); // discover, map, matches, shop, profile
+  const [activeTab, setActiveTab] = useState('discover');
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [filters, setFilters] = useState({
     workoutTypes: [],
@@ -113,8 +102,9 @@ const GymBros = () => {
   });
   const swipeRef = useRef(null);
   const profileRef = useRef(null);
+  const hasInitializedRef = useRef(false);
+  const locationSyncStartedRef = useRef(false);
 
-  // Set default tab to 'map' if user has a profile
   useEffect(() => {
     if (hasProfile) {
       setActiveTab('map');
@@ -123,44 +113,39 @@ const GymBros = () => {
     }
   }, [hasProfile]);
 
-  // Check for user profile when the component loads
   useEffect(() => {
-    // If user is authenticated, clear any guest state first to avoid conflicts
-    if (isAuthenticated) {
-      console.log('🔄 GYMBROS: User is authenticated, clearing any guest state');
-      clearGuestState();
-      checkUserProfile();
-    } else if (isGuest || verifiedPhone) {
-      checkUserProfile();
-    } else {
-      setLoading(false);
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      
+      if (isAuthenticated) {
+        clearGuestState();
+        initializeWithSingleCall();
+      } else if (isGuest || verifiedPhone) {
+        initializeWithSingleCall();
+      } else {
+        setLoading(false);
+      }
     }
     
-    // Add debugging helpers to window for console access
     if (typeof window !== 'undefined') {
       window.gymBrosDebug = {
         forceSyncLocation: () => gymBrosLocationService.forceSyncNow(),
         checkLocalStorage: () => {
-          console.log('🔍 DEBUG: localStorage userLocation:', localStorage.getItem('userLocation'));
-          console.log('🔍 DEBUG: localStorage gymBrosLocation:', localStorage.getItem('gymBrosLocation'));
+          console.log('localStorage userLocation:', localStorage.getItem('userLocation'));
+          console.log('localStorage gymBrosLocation:', localStorage.getItem('gymBrosLocation'));
         },
         getCurrentUser: () => {
-          console.log('🔍 DEBUG: Current user:', user);
-          console.log('🔍 DEBUG: isAuthenticated:', isAuthenticated);
+          console.log('Current user:', user);
+          console.log('isAuthenticated:', isAuthenticated);
         }
       };
-      console.log('🔍 GYMBROS DEBUG: Added debug helpers to window.gymBrosDebug');
-      console.log('🔍 GYMBROS DEBUG: Try window.gymBrosDebug.forceSyncLocation()');
     }
     
-    // Cleanup: Stop auto location sync when component unmounts
     return () => {
-      console.log('🛑 GYMBROS: Component unmounting, stopping auto location sync');
       gymBrosLocationService.stopAutoLocationSync();
     };
-  }, [isAuthenticated, isGuest, verifiedPhone, guestProfile]);
+  }, [isAuthenticated, isGuest, verifiedPhone]);
 
-  // Prevent scrolling on discover tab
   useEffect(() => {
     if (activeTab === 'discover' && hasProfile) {
       document.body.style.overflow = 'hidden';
@@ -170,39 +155,30 @@ const GymBros = () => {
       document.body.style.touchAction = '';
     }
     
-    // Cleanup when component unmounts
     return () => {
       document.body.style.overflow = '';
       document.body.style.touchAction = '';
     };
-  }, [activeTab]);
+  }, [activeTab, hasProfile]);
 
-  // Set view start time when profile changes
   useEffect(() => {
     if (profiles.length > 0 && currentIndex < profiles.length) {
       setViewStartTime(Date.now());
-      //('[GymBros] Viewing profile:', profiles[currentIndex].name, 'at index:', currentIndex);
     }
   }, [currentIndex, profiles]);
 
   useEffect(() => {
     const handleNavigateToMatches = (event) => {
-      // Switch to the matches tab
       setActiveTab('matches');
-      
-      // Clear matches cache and refresh to ensure the new match is included
       clearCache('matches-with-preview');
       
-      // Optionally scroll to or highlight the new match
       const matchedProfileId = event.detail?.matchedProfile?._id;
       if (matchedProfileId) {
-        // You could set a state to indicate which match to highlight
-        // Or use DOM methods to scroll to the match element
         setTimeout(() => {
           const matchElement = document.getElementById(`match-${matchedProfileId}`);
           if (matchElement) {
             matchElement.scrollIntoView({ behavior: 'smooth' });
-            matchElement.classList.add('highlight-match'); // Add a CSS class for highlighting
+            matchElement.classList.add('highlight-match');
             setTimeout(() => {
               matchElement.classList.remove('highlight-match');
             }, 3000);
@@ -218,270 +194,124 @@ const GymBros = () => {
     };
   }, [clearCache]);
 
-  const checkUserProfile = async () => {
+  const initializeWithSingleCall = async () => {
     try {
       setLoading(true);
-  
+      
       debugGuestToken();
       
-      // PRIORITY 1: If user is authenticated, use authenticated API (ignore guest state)
-      if (isAuthenticated) {
-        console.log('🔄 GYMBROS: Checking profile for authenticated user:', user?.email || user?.firstName);
+      const initData = await optimizedApiCall(
+        'gymbros-init',
+        () => gymbrosService.initializeGymBros(),
+        {
+          cacheTime: 10 * 60 * 1000,
+          minInterval: 60 * 1000,
+        }
+      );
+      
+      if (initData.hasProfile && initData.profile) {
+        setHasProfile(true);
+        setUserProfile(initData.profile);
         
-        // Clear any lingering guest state to avoid conflicts
-        if (isGuest) {
-          console.log('🔄 GYMBROS: Clearing guest state for authenticated user');
-          clearGuestState();
+        if (!locationSyncStartedRef.current) {
+          locationSyncStartedRef.current = true;
+          gymBrosLocationService.startAutoLocationSync(user, user?.phone || initData.profile.phone);
         }
         
-        // Also clear guest token from service to ensure clean API calls
-        gymbrosService.clearGuestState();
+        const initialFilters = {
+          workoutTypes: [],
+          experienceLevel: 'Any',
+          preferredTime: 'Any',
+          genderPreference: 'All',
+          ageRange: { min: 18, max: 99 },
+          maxDistance: 50
+        };
         
-        const response = await gymbrosService.getGymBrosProfile();
+        setFilters(initialFilters);
         
-        if (response.hasProfile) {
-          setHasProfile(true);
-          setUserProfile(response.profile);
-          
-          console.log('🚀 GYMBROS DEBUG: User has profile, starting auto location sync');
-          console.log('🚀 GYMBROS DEBUG: User data:', user);
-          
-          // Start automatic location syncing like Snapchat
-          gymBrosLocationService.startAutoLocationSync(user, user?.phone);
-          
-          // Initialize filters from profile preferences
-          const initialFilters = {
-            workoutTypes: [],
-            experienceLevel:  'Any',
-            preferredTime: 'Any',
-            genderPreference: 'All',
-            ageRange: { 
-              min: 18, 
-              max: 99 
-            },
-            maxDistance: 50
-          };
-          
-          // Set filters state for UI
-          //('[GymBros] Setting initial filters from profile:', initialFilters);
-          setFilters(initialFilters);
-          
-          // IMPORTANT: Use filters directly rather than relying on state to update
-          await fetchProfilesWithFilters(initialFilters);
-          fetchMatches();
+        if (initData.profiles && Array.isArray(initData.profiles)) {
+          setProfiles(initData.profiles);
         } else {
-          console.log('🔄 GYMBROS: No profile found for authenticated user, showing setup');
-          setHasProfile(false);
-          setUserProfile(null);
+          await fetchProfilesWithFilters(initialFilters);
         }
-      } 
-      // PRIORITY 2: If user is a guest (not authenticated), use the guest profile
-      else if (isGuest) {
-        console.log('🔄 GYMBROS: Checking profile for guest user');
         
-        try {
-          const response = await gymbrosService.getGymBrosProfile();
-          
-          if (response.hasProfile) {
-            //('[GymBros] Found profile for guest');
-            setHasProfile(true);
-            setUserProfile(response.profile);
-            
-            console.log('🚀 GYMBROS DEBUG: Guest has profile, starting auto location sync');
-            
-            // Start automatic location syncing like Snapchat for guest users
-            gymBrosLocationService.startAutoLocationSync(null, response.profile.phone);
-            
-            // Initialize filters from guest profile 
-            const initialFilters = {
-              workoutTypes: [],
-              experienceLevel:'Any',
-              preferredTime: 'Any',
-              genderPreference: 'All',
-              ageRange: { 
-                min: 18, 
-                max: 99 
-              },
-              maxDistance: 50
-            };
-            
-            // Set filters state for UI
-            //('[GymBros] Setting initial filters from profile:', initialFilters);
-            setFilters(initialFilters);
-            
-            // Fetch profiles and matches - Use direct values
-            await fetchProfilesWithFilters(initialFilters);
-            fetchMatches();
-          } else {
-            //('[GymBros] No profile found for guest, showing setup');
-            setHasProfile(false);
-            setUserProfile(null);
-          }
-        } catch (guestError) {
-          console.error('[GymBros] Error checking guest profile:', guestError);
-          
-          // If there was an authentication error, check if we need to fetch the guest profile
-          if (guestError.response?.status === 401) {
-            // Try to refetch the guest profile in case the token wasn't properly applied
-            await fetchGuestProfile();
-            
-            // Check if we now have a guest profile
-            if (guestProfile) {
-              setHasProfile(true);
-              setUserProfile(guestProfile);
-              
-              // Initialize filters from guest profile
-              const initialFilters = {
-                workoutTypes: guestProfile.workoutTypes || [],
-                experienceLevel: guestProfile.experienceLevel || 'Any',
-                preferredTime: guestProfile.preferredTime || 'Any',
-                genderPreference: guestProfile.genderPreference || 'All',
-                ageRange: { 
-                  min: guestProfile.ageRange?.min || 18, 
-                  max: guestProfile.ageRange?.max || 99 
-                },
-                maxDistance: guestProfile.maxDistance || 50
-              };
-              
-              // Set filters for UI updates
-              //('[GymBros] Setting initial filters from profile:', initialFilters);
-              setFilters(initialFilters);
-              
-              // Fetch profiles and matches - Use direct values
-              await fetchProfilesWithFilters(initialFilters);
-              fetchMatches();
-            } else {
-              setHasProfile(false);
-              setUserProfile(null);
-            }
-          } else {
-            setHasProfile(false);
-            setUserProfile(null);
-          }
+        if (initData.matches && Array.isArray(initData.matches)) {
+          setMatches(initData.matches);
         }
-      }
-      // If user has a verified phone but no profile yet
-      else if (verifiedPhone) {
-        //('[GymBros] User has verified phone but no profile yet');
+      } else {
         setHasProfile(false);
         setUserProfile(null);
-      }
-      // Check for a guest token in localStorage that might not be loaded into context yet
-      else {
-        const guestToken = localStorage.getItem('gymbros_guest_token');
-        if (guestToken) {
-          //('[GymBros] Found guest token in storage, loading guest profile');
-          
-          // Set the token explicitly
-          gymbrosService.setGuestToken(guestToken);
-          
-          try {
-            // Try to fetch the guest profile using the token
+        
+        if (!isAuthenticated && !isGuest && !verifiedPhone) {
+          const guestToken = localStorage.getItem('gymbros_guest_token');
+          if (guestToken) {
+            gymbrosService.setGuestToken(guestToken);
             await fetchGuestProfile();
             
-            // Check if we got a profile
             if (guestProfile) {
               setHasProfile(true);
               setUserProfile(guestProfile);
               
-              // Initialize filters from guest profile
               const initialFilters = {
-                workoutTypes: guestProfile.workoutTypes || [],
-                experienceLevel: guestProfile.experienceLevel || 'Any',
-                preferredTime: guestProfile.preferredTime || 'Any',
-                genderPreference: guestProfile.genderPreference || 'All',
-                ageRange: { 
-                  min: guestProfile.ageRange?.min || 18, 
-                  max: guestProfile.ageRange?.max || 99 
-                },
-                maxDistance: guestProfile.maxDistance || 50
+                workoutTypes: [],
+                experienceLevel: 'Any',
+                preferredTime: 'Any',
+                genderPreference: 'All',
+                ageRange: { min: 18, max: 99 },
+                maxDistance: 50
               };
               
-              // Set filters for UI
-              //('[GymBros] Setting initial filters from profile:', initialFilters);
               setFilters(initialFilters);
-              
-              // Fetch profiles and matches - Use direct values
               await fetchProfilesWithFilters(initialFilters);
-              fetchMatches();
             } else {
-              //('[GymBros] Guest token exists but no profile found');
-              setHasProfile(false);
-              setUserProfile(null);
               setShowLoginPrompt(true);
             }
-          } catch (tokenError) {
-            console.error('[GymBros] Error using stored guest token:', tokenError);
-            
-            // Check if token is invalid
-            if (tokenError.response?.status === 401) {
-              //('[GymBros] Guest token is invalid, clearing');
-              gymbrosService.clearGuestState();
-            }
-            
-            setHasProfile(false);
-            setUserProfile(null);
+          } else {
             setShowLoginPrompt(true);
           }
-        } else {
-          // No user context at all
-          //('[GymBros] No user context, showing login prompt');
-          setHasProfile(false);
-          setUserProfile(null);
-          setShowLoginPrompt(true);
         }
       }
     } catch (error) {
-      console.error('[GymBros] Error checking profile:', error);
+      console.error('Error initializing profile:', error);
       setHasProfile(false);
       setUserProfile(null);
       
-      // Show login prompt if completely unauthenticated
       if (!isAuthenticated && !isGuest && !verifiedPhone) {
         setShowLoginPrompt(true);
       }
     } finally {
       setLoading(false);
     }
-  };  
+  };
+
+  const checkUserProfile = async () => {
+    await initializeWithSingleCall();
+  };
 
   function debugGuestToken() {
     const guestToken = localStorage.getItem('gymbros_guest_token');
-    //('Current guest token:', guestToken ? guestToken.substring(0, 15) + '...' : 'none');
     
     if (guestToken) {
-      // Try to decode the token (not secure, just for debugging)
       try {
         const base64Url = guestToken.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
           return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
         }).join(''));
-    
-        //('Decoded token payload:', JSON.parse(jsonPayload));
-      } catch (error) {
-        console.error('Error decoding token:', error);
-      }
+      } catch (error) {}
     }
-    
-    // Check other related storage
-    //('Verified phone:', localStorage.getItem('verifiedPhone'));
-    //('Verification token:', localStorage.getItem('verificationToken')?.substring(0, 15) + '...');
-    //('Auth token:', localStorage.getItem('token')?.substring(0, 15) + '...');
   }
 
   const fetchProfiles = async () => {
     try {
-      //('[GymBros] Fetching profiles with filters:', filters);
       setLoading(true);
       
-      // Use optimized API call for fetching profiles
       const fetchedProfiles = await optimizedApiCall(
         'recommended-profiles',
         () => gymbrosService.getRecommendedProfiles(filters),
         {
-          cacheTime: 60 * 1000, // Cache for 1 minute
-          minInterval: 5 * 1000, // Minimum 5 seconds between requests
+          cacheTime: 5 * 60 * 1000,
+          minInterval: 30 * 1000,
         }
       );
       
@@ -489,41 +319,33 @@ const GymBros = () => {
         setProfiles(fetchedProfiles);
         setCurrentIndex(0);
       } else {
-        console.warn('[GymBros] Received empty profiles array or invalid data:', fetchedProfiles);
         setProfiles([]);
       }
     } catch (error) {
-      console.error('[GymBros] Error fetching profiles:', error);
+      console.error('Error fetching profiles:', error);
       
-      // If 401 error and we have a guest token, try refreshing the guest state
       if (error.response?.status === 401 && gymbrosService.getGuestToken()) {
-        //('[GymBros] Authentication error, attempting to refresh guest state');
-        
         try {
-          // Try to refresh the guest profile
           await fetchGuestProfile();
           
-          // Clear cache and retry with fresh request
           clearCache('recommended-profiles');
           const retryProfiles = await optimizedApiCall(
             'recommended-profiles',
             () => gymbrosService.getRecommendedProfiles(filters),
             {
-              bypassCache: true, // Force fresh request on retry
-              minInterval: 0,    // Allow immediate retry
+              bypassCache: true,
+              minInterval: 0,
             }
           );
           
           if (Array.isArray(retryProfiles) && retryProfiles.length > 0) {
-            //('[GymBros] Retry successful, got', retryProfiles.length, 'profiles');
             setProfiles(retryProfiles);
             setCurrentIndex(0);
           } else {
-            console.warn('[GymBros] Retry returned empty or invalid profiles');
             setProfiles([]);
           }
         } catch (retryError) {
-          console.error('[GymBros] Error on retry fetch profiles:', retryError);
+          console.error('Error on retry fetch profiles:', retryError);
           toast.error('Failed to load gym profiles');
           setProfiles([]);
         }
@@ -538,28 +360,18 @@ const GymBros = () => {
 
   const fetchMatches = async () => {
     try {
-      //('[GymBros] Fetching matches');
-      // Use the service function to get matches
       const matchesData = await gymbrosService.getMatches();
-      
-      //('[GymBros] Matches received:', matchesData.length);
       setMatches(matchesData);
     } catch (error) {
-      console.error('[GymBros] Error fetching matches:', error);
+      console.error('Error fetching matches:', error);
       
-      // If 401 error and we have a guest token, try refreshing the guest state
       if (error.response?.status === 401 && gymbrosService.getGuestToken()) {
-        //('[GymBros] Authentication error, attempting to refresh guest state');
-        
         try {
-          // Try to refresh the guest profile
           await fetchGuestProfile();
-          
-          // Try fetching matches again
           const retryMatches = await gymbrosService.getMatches();
           setMatches(retryMatches);
         } catch (retryError) {
-          console.error('[GymBros] Error on retry fetch matches:', retryError);
+          console.error('Error on retry fetch matches:', retryError);
           toast.error('Failed to load matches');
         }
       } else {
@@ -569,27 +381,22 @@ const GymBros = () => {
   };
 
   const handleProfileCreated = (profile) => {
-    //('[GymBros] New profile created:', profile);
     setUserProfile(profile);
     setHasProfile(true);
     
-    // Initialize filters from newly created profile
     setFilters({
-      workoutTypes:  [],
+      workoutTypes: [],
       experienceLevel: 'Any',
-      preferredTime:  'Any',
-      genderPreference: 'All',  
-      ageRange: { min: 18, max: 99 },  
-      maxDistance: 50  
+      preferredTime: 'Any',
+      genderPreference: 'All',
+      ageRange: { min: 18, max: 99 },
+      maxDistance: 50
     });
     
-    // IMPORTANT: Ensure guest token is saved if included in response
     if (profile.guestToken) {
       gymbrosService.setGuestToken(profile.guestToken);
-      //('[GymBros] Saved guest token from profile creation:', profile.guestToken);
     }
     
-    // Slight delay to ensure token is properly set in headers before making new requests
     setTimeout(() => {
       fetchProfiles();
     }, 500);
@@ -597,55 +404,43 @@ const GymBros = () => {
 
   const fetchProfilesWithFilters = async (filterValues) => {
     try {
-      //('[GymBros] Fetching profiles with filters:', filterValues);
       setLoading(true);
       
-      // Clear cache when filters change to ensure fresh results
       clearCache('recommended-profiles');
       
-      // Use optimized API call with filter-specific cache key
       const cacheKey = `recommended-profiles-${JSON.stringify(filterValues)}`;
       const fetchedProfiles = await optimizedApiCall(
         cacheKey,
         () => gymbrosService.getRecommendedProfiles(filterValues),
         {
-          cacheTime: 60 * 1000, // Cache for 1 minute
-          minInterval: 5 * 1000, // Minimum 5 seconds between requests
+          cacheTime: 5 * 60 * 1000,
+          minInterval: 30 * 1000,
         }
       );
-
       
       if (Array.isArray(fetchedProfiles) && fetchedProfiles.length > 0) {
         setProfiles(fetchedProfiles);
         setCurrentIndex(0);
       } else {
-        console.warn('[GymBros] Received empty profiles array or invalid data:', fetchedProfiles);
         setProfiles([]);
       }
     } catch (error) {
-      console.error('[GymBros] Error fetching profiles:', error);
+      console.error('Error fetching profiles:', error);
       
-      // If 401 error and we have a guest token, try refreshing the guest state
       if (error.response?.status === 401 && gymbrosService.getGuestToken()) {
-        //('[GymBros] Authentication error, attempting to refresh guest state');
-        
         try {
-          // Try to refresh the guest profile
           await fetchGuestProfile();
           
-          // Try fetching profiles again
           const retryProfiles = await gymbrosService.getRecommendedProfiles(filterValues);
           
           if (Array.isArray(retryProfiles) && retryProfiles.length > 0) {
-            //('[GymBros] Retry successful, got', retryProfiles.length, 'profiles');
             setProfiles(retryProfiles);
             setCurrentIndex(0);
           } else {
-            console.warn('[GymBros] Retry returned empty or invalid profiles');
             setProfiles([]);
           }
         } catch (retryError) {
-          console.error('[GymBros] Error on retry fetch profiles:', retryError);
+          console.error('Error on retry fetch profiles:', retryError);
           toast.error('Failed to load gym profiles');
           setProfiles([]);
         }
@@ -659,25 +454,18 @@ const GymBros = () => {
   };
 
   const handleFilterChange = (newFilters) => {
-    //('[GymBros] Filters updated:', newFilters);
     setFilters(newFilters);
     setShowFilters(false);
     
-    // Also update user preferences in the database with optimization
     updateUserPreferences(newFilters);
     
-    // Clear all profile caches when filters change
     clearCache('recommended-profiles');
     
-    // Use helper function with the new filters directly
     fetchProfilesWithFilters(newFilters);
   };
 
   const updateUserPreferences = async (newFilters) => {
     try {
-      //('[GymBros] Updating user preferences with new filters:', newFilters);
-      
-      // Use optimized API call for updating preferences
       await optimizedApiCall(
         `update-preferences-${JSON.stringify(newFilters)}`,
         () => gymbrosService.updateUserPreferences({
@@ -689,52 +477,37 @@ const GymBros = () => {
           maxDistance: newFilters.maxDistance
         }),
         {
-          cacheTime: 0, // Don't cache preference updates
-          minInterval: 2 * 1000, // Minimum 2 seconds between preference updates
+          cacheTime: 0,
+          minInterval: 10 * 1000,
         }
       );
-      
-      //('[GymBros] User preferences updated successfully');
     } catch (error) {
-      console.error('[GymBros] Error updating user preferences:', error);
+      console.error('Error updating user preferences:', error);
       toast.error('Failed to update preferences');
     }
   };
   
   const handleProfileUpdated = async (updatedData) => {
-    //('[GymBros] Data updated:', updatedData);
-    
-    // Don't directly set userProfile to the settings data
-    // Instead, merge it with the existing profile or fetch the complete profile
-    
     if (updatedData) {
-      // Option 1: Merge with existing profile (preserves all fields)
       setUserProfile(prevProfile => ({
-        ...prevProfile,  // Keep all existing profile data
-        ...updatedData   // Update with new settings data
+        ...prevProfile,
+        ...updatedData
       }));
       
-      // Option 2 (more reliable): Refetch the complete profile
-      // This ensures we have the latest data from the server
       try {
-        // Fetch the full profile again
         await checkUserProfile();
-        //('[GymBros] Profile refreshed after update');
       } catch (error) {
-        console.error('[GymBros] Error refreshing profile:', error);
+        console.error('Error refreshing profile:', error);
         toast.error('Profile updated but display may be incomplete');
       }
     }
     
     setShowSettings(false);
     
-    // Refresh profiles with updated preferences
     fetchProfiles();
   };
 
-  // Handle logging in as a guest (phone verification path)
   const handleGuestStart = () => {
-    // Reset any existing guest state
     clearGuestState();
     setShowLoginPrompt(false);
     setActiveTab('discover');
@@ -882,23 +655,20 @@ const GymBros = () => {
     );
   };
 
-  // Render tab content function
   const renderTabContent = () => {
-    // Only show setup if user has no profile AND is on discover tab
     if (!hasProfile && activeTab === 'discover') {
       return <GymBrosSetup onProfileCreated={handleProfileCreated} />;
     }
     
     switch (activeTab) {
       case 'discover':
-        // If no profile, show setup here too
         if (!hasProfile) {
           return <GymBrosSetup onProfileCreated={handleProfileCreated} />;
         }
         return (
           <div className="h-full overflow-hidden relative">
             <DiscoverTab
-              fetchProfiles={fetchProfiles}
+              fetchProfiles={() => fetchProfilesWithFilters(filters)}
               loading={loading}
               filters={filters}
               setShowFilters={setShowFilters}
@@ -916,11 +686,9 @@ const GymBros = () => {
         );
 
       case 'map':
-        // MAP SHOULD ALWAYS BE ACCESSIBLE - even without a profile
         return (
           <div className="h-full w-full">
             {!hasProfile ? (
-              // Show a limited map view with a prompt to create profile
               <div className="relative h-full">
                 <GymBrosMap userProfile={null} />
                 <div className="absolute top-20 left-4 right-4 bg-white rounded-lg shadow-lg p-4 z-30">
@@ -1008,36 +776,28 @@ const GymBros = () => {
     );
   }
 
-  // If no valid user context AND no profile, show login prompt
-  // Note: Authenticated users without GymBros profile should go directly to profile setup
   if (showLoginPrompt && !isAuthenticated && !isGuest && !verifiedPhone && !hasProfile) {
     return renderLoginPrompt();
   }
 
-  // For authenticated/verified/guest users without a profile, show the profile setup form
   if (!hasProfile) {
-    //('[GymBros] User has no profile, showing setup form');
     return <GymBrosSetup onProfileCreated={handleProfileCreated} />;
   }
 
-  // The main return part of the GymBros component, focused on the layout structure
   return (
     <>
       <FooterHider />
       <div className="fixed inset-0 top-16 flex flex-col max-w-2xl mx-auto bg-white overflow-hidden">
-        {/* Fixed Header Bar - Always visible at top */}
         <div className="flex-shrink-0 z-30 sticky top-0">
           {renderHeader()}
         </div>
         
-        {/* Main Content Area - Takes remaining height with proper spacing for header */}
         <div className={`flex-1 relative bg-gray-50 overflow-hidden ${
           activeTab === 'discover' ? 'no-scroll' : ''
         }`}>
           {renderTabContent()}
         </div>
         
-        {/* Fixed Navigation Tabs */}
         <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t border-gray-200 z-20">
           <div className="max-w-2xl mx-auto px-6 py-3 flex justify-between items-center">
             <button 
@@ -1062,7 +822,6 @@ const GymBros = () => {
 
             <button 
               onClick={() => {
-                fetchMatches();
                 setActiveTab('matches');
               }}
               className={`flex flex-col items-center p-2 ${
@@ -1096,7 +855,6 @@ const GymBros = () => {
         </div>
       </div>
       
-      {/* Modals */}
       <GymBrosFilters
         isOpen={showFilters}
         onClose={() => setShowFilters(false)}

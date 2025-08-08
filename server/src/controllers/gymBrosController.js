@@ -18,7 +18,99 @@ import {
   checkForMatch,
   findPotentialMatches
 } from '../services/gymBrosMatchingService.js';
+import mongoose from 'mongoose';
 
+export const initializeGymBros = async (req, res) => {
+  try {
+    const effectiveUser = getEffectiveUser(req);
+    
+    let responseData = {
+      hasProfile: false,
+      profile: null,
+      profiles: [],
+      matches: []
+    };
+    
+    if (!effectiveUser.userId && !effectiveUser.profileId && !effectiveUser.phone) {
+      return res.json(responseData);
+    }
+    
+    let profile;
+    if (effectiveUser.isGuest) {
+      if (effectiveUser.profileId) {
+        profile = await GymBrosProfile.findById(effectiveUser.profileId);
+      } else if (effectiveUser.phone) {
+        profile = await GymBrosProfile.findOne({ phone: effectiveUser.phone });
+      }
+    } else {
+      profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+    }
+    
+    if (profile) {
+      responseData.hasProfile = true;
+      responseData.profile = profile;
+      
+      const filters = {
+        workoutTypes: [],
+        experienceLevel: 'Any',
+        preferredTime: 'Any',
+        genderPreference: 'All',
+        ageRange: { min: 18, max: 99 },
+        maxDistance: 50
+      };
+      
+      responseData.profiles = await getRecommendedProfiles(profile, filters);
+      
+      const userIdentifier = effectiveUser.userId || effectiveUser.profileId;
+      let possibleUserIds = [userIdentifier];
+      
+      if (effectiveUser.userId) {
+        const userProfile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+        if (userProfile) {
+          possibleUserIds.push(userProfile._id.toString());
+        }
+      }
+      
+      const matches = await GymBrosMatch.find({
+        users: { $in: possibleUserIds },
+        active: true
+      });
+      
+      const matchedUserIds = [];
+      matches.forEach(match => {
+        const otherUserIds = match.users.filter(id => 
+          !possibleUserIds.includes(id.toString())
+        );
+        otherUserIds.forEach(id => matchedUserIds.push(id));
+      });
+      
+      const matchedProfiles = await GymBrosProfile.find({
+        $or: [
+          { userId: { $in: matchedUserIds } },
+          { _id: { $in: matchedUserIds } }
+        ]
+      });
+      
+      responseData.matches = matchedProfiles;
+    }
+    
+    if (effectiveUser.isGuest) {
+      responseData.guestToken = generateGuestToken(effectiveUser.phone, effectiveUser.profileId);
+      responseData.isGuest = true;
+    }
+    
+    res.json(responseData);
+  } catch (error) {
+    logger.error('Error initializing GymBros:', error);
+    res.status(500).json({ 
+      hasProfile: false,
+      profile: null,
+      profiles: [],
+      matches: [],
+      error: 'Failed to initialize'
+    });
+  }
+};
 
 export const checkGymBrosProfile = async (req, res) => {
   try {
