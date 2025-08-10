@@ -431,48 +431,33 @@ export const getMapUsers = async (req, res) => {
 // Enhanced getGymsForMap with zoom-level awareness and type filtering
 export const getGymsForMap = async (req, res) => {
   try {
-    const { 
-      type, 
-      bbox, 
-      zoom = 13, 
-      limit = 500, 
-      offset = 0, 
-      search,
-      types // Array of gym types to include
-    } = req.query;
+    const { type, search, types, limit = 500, offset = 0 } = req.query;
+    let query = { isActive: true };
 
-    const zoomLevel = parseInt(zoom);
-    const config = mapCache.getConfig(zoomLevel);
-
-    // Parse bbox if provided
-    let geoQuery = { isActive: true };
-    let bounds = null;
-
-    if (bbox) {
-      const [lng1, lat1, lng2, lat2] = bbox.split(',').map(Number);
-      bounds = { north: Math.max(lat1, lat2), south: Math.min(lat1, lat2), east: Math.max(lng1, lng2), west: Math.min(lng1, lng2) };
-      
-      geoQuery['location.coordinates'] = {
-        $geoWithin: {
-          $box: [
-            [Math.min(lng1, lng2), Math.min(lat1, lat2)],
-            [Math.max(lng1, lng2), Math.max(lat1, lat2)]
-          ]
-        }
-      };
+    logger.info('[getGymsForMap][DEBUG] --- START ---');
+    // Log all gyms in the database before any filtering
+    try {
+      const allGyms = await Gym.find({});
+      logger.info(`[getGymsForMap][DEBUG] Total gyms in DB: ${allGyms.length}`);
+      logger.info('[getGymsForMap][DEBUG] All gyms content:', JSON.stringify(allGyms, null, 2));
+    } catch (allGymsError) {
+      logger.error('[getGymsForMap][DEBUG] Error fetching all gyms:', allGymsError);
     }
 
     // Apply type filters
     if (type) {
-      geoQuery.type = type;
+      logger.info(`[getGymsForMap][DEBUG] Filtering by type: ${type}`);
+      query.type = type;
     } else if (types) {
       const typeArray = Array.isArray(types) ? types : types.split(',');
-      geoQuery.type = { $in: typeArray };
+      logger.info(`[getGymsForMap][DEBUG] Filtering by types: ${typeArray}`);
+      query.type = { $in: typeArray };
     }
 
     // Apply search filter
     if (search) {
-      geoQuery.$or = [
+      logger.info(`[getGymsForMap][DEBUG] Filtering by search: ${search}`);
+      query.$or = [
         { name: { $regex: search, $options: 'i' } },
         { description: { $regex: search, $options: 'i' } },
         { 'location.city': { $regex: search, $options: 'i' } },
@@ -480,112 +465,24 @@ export const getGymsForMap = async (req, res) => {
       ];
     }
 
-    // Check cache
-    const cacheKey = mapCache.generateCacheKey('gyms', bounds || {}, zoomLevel, { type, types, search });
-    const cached = mapCache.get(cacheKey, 'gyms');
-    
-    if (cached) {
-      return res.json({
-        success: true,
-        gyms: cached.gyms.slice(Number(offset), Number(offset) + Number(limit)),
-        total: cached.total,
-        zoom: zoomLevel,
-        cached: true
-      });
-    }
+  logger.info('[getGymsForMap][DEBUG] Query object content:', JSON.stringify(query, null, 2));
 
-    // Build aggregation pipeline for zoom-aware filtering
-    const pipeline = [
-      { $match: geoQuery }
-    ];
+    const gyms = await Gym.find(query)
+      .sort({ isVerified: -1, memberCount: -1, type: 1 })
+      .skip(Number(offset))
+      .limit(Number(limit));
 
-    // Add sampling for world/continent views
-    if (config.minDistance > 0 && bounds) {
-      const gridSize = config.minDistance / 111000; // Convert meters to degrees (approximate)
-      
-      pipeline.push(
-        {
-          $addFields: {
-            gridLat: {
-              $floor: {
-                $divide: [{ $arrayElemAt: ['$location.coordinates', 1] }, gridSize]
-              }
-            },
-            gridLng: {
-              $floor: {
-                $divide: [{ $arrayElemAt: ['$location.coordinates', 0] }, gridSize]
-              }
-            }
-          }
-        },
-        {
-          $group: {
-            _id: { gridLat: '$gridLat', gridLng: '$gridLng', type: '$type' },
-            gyms: { $push: '$$ROOT' },
-            count: { $sum: 1 }
-          }
-        },
-        {
-          $addFields: {
-            // Prioritize verified gyms, then by member count
-            representative: {
-              $arrayElemAt: [
-                {
-                  $sortArray: {
-                    input: '$gyms',
-                    sortBy: { isVerified: -1, memberCount: -1 }
-                  }
-                },
-                0
-              ]
-            }
-          }
-        },
-        { $replaceRoot: { newRoot: '$representative' } }
-      );
-    }
-
-    // Add final projection and sorting
-    pipeline.push(
-      {
-        $addFields: {
-          lat: { $arrayElemAt: ['$location.coordinates', 1] },
-          lng: { $arrayElemAt: ['$location.coordinates', 0] }
-        }
-      },
-      {
-        $sort: { 
-          isVerified: -1, 
-          memberCount: -1, 
-          type: 1 
-        }
-      },
-      {
-        $limit: config.gymLimit
-      }
-    );
-
-    const gyms = await Gym.aggregate(pipeline);
-
-    const result = {
-      gyms,
-      total: gyms.length,
-      zoom: zoomLevel,
-      config: config
-    };
-
-    // Cache the result
-    mapCache.set(cacheKey, result, 'gyms');
+  logger.info(`[getGymsForMap][DEBUG] Query result count: ${gyms.length}`);
+  logger.info('[getGymsForMap][DEBUG] Gyms returned content:', JSON.stringify(gyms, null, 2));
 
     res.json({
       success: true,
-      gyms: gyms.slice(Number(offset), Number(offset) + Number(limit)),
-      total: gyms.length,
-      zoom: zoomLevel
+      gyms,
+      total: gyms.length
     });
-
+    logger.info('[getGymsForMap][DEBUG] --- END ---');
   } catch (error) {
-    logger.error('Error fetching gyms for map:', error);
+    logger.error('[getGymsForMap][DEBUG] Error:', error);
     res.status(500).json({ error: 'Failed to fetch gyms' });
   }
 };
@@ -1187,6 +1084,8 @@ export const updateLocation = async (req, res) => {
     const user = effectiveUser.userId ? 
       await User.findById(effectiveUser.userId) : 
       clientUser;
+
+      console.log('Updating location for user:', user);
 
     const result = await gymBrosLocationService.updateUserLocation(
       locationData, 

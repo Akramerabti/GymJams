@@ -1030,6 +1030,23 @@ const gymbrosService = {
     }
   },
 
+  async getGymBrosProfiles() {
+    try {
+      const config = this.configWithGuestToken();
+      const response = await api.get('/gym-bros/profiles', config);
+      
+      if (response.data.guestToken) {
+        this.setGuestToken(response.data.guestToken);
+      }
+      
+      console.log('Fetched GymBros profiles:', response);
+      return response.data.profiles || [];
+    } catch (error) {
+      return [];
+    }
+
+  },
+
   async removeMatch(matchId) {
     try {
       const config = this.configWithGuestToken();

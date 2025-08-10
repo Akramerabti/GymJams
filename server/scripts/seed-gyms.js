@@ -55,7 +55,10 @@ const gyms =[
       "sunday": {"open":"00:00","close":"23:59"}
     },
     "isVerified": true,
+    "isActive": true,
+    "type": "gym",
     "createdBy": "GymTonic"
+    
   },
   {
     "name": "Mega Fitness Gym 24hr",
@@ -83,6 +86,8 @@ const gyms =[
       "sunday":{"open":"00:00","close":"23:59"}
     },
     "isVerified": true,
+    "isActive": true,
+    "type": "gym",
     "createdBy": "GymTonic"
   },
   {
@@ -103,6 +108,8 @@ const gyms =[
     "phone": "+1 418-260-9888",
     "hours": {},
     "isVerified": true,
+    "isActive": true,
+    "type": "gym",
     "createdBy": "GymTonic"
   },
   {
@@ -123,6 +130,8 @@ const gyms =[
     "phone": "",
     "hours": {},
     "isVerified": true,
+    "isActive": true,
+    "type": "gym",
     "createdBy": "GymTonic"
   },
   {
@@ -143,6 +152,8 @@ const gyms =[
     "phone": "+1 418-260-9552",
     "hours": {},
     "isVerified": true,
+    "isActive": true,
+    "type": "gym",
     "createdBy": "GymTonic"
   },
   {
@@ -163,7 +174,10 @@ const gyms =[
     "phone": "+1 418-661-0200",
     "hours": {},
     "isVerified": true,
-    "createdBy": "GymTonic"
+    "isActive": true,
+    "type": "gym",
+    "createdBy": "GymTonic",
+    
   },
   {
     "name": "Le Podium (Powerlifting & Athletic Performance)",
@@ -183,6 +197,8 @@ const gyms =[
     "phone": "",
     "hours": {},
     "isVerified": true,
+    "isActive": true,
+    "type": "gym",
     "createdBy": "GymTonic"
   },
   {
@@ -203,6 +219,8 @@ const gyms =[
     "phone": "",
     "hours": {},
     "isVerified": true,
+    "isActive": true,
+    "type": "gym",
     "createdBy": "GymTonic"
   },
   {
@@ -223,6 +241,8 @@ const gyms =[
     "phone": "",
     "hours": {},
     "isVerified": true,
+    "isActive": true,
+    "type": "gym",
     "createdBy": "GymTonic"
   }
 ]

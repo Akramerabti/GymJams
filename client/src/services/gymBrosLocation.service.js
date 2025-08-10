@@ -2,12 +2,13 @@ import api from './api';
 import { toast } from 'sonner';
 
 class EnhancedGymBrosLocationService {
-  constructor() {
-    this.lastLocationUpdate = null;
-    this.locationCache = new Map();
-    this.watchId = null;
-  }
-
+ constructor() {
+  this.lastLocationUpdate = null;
+  this.locationCache = new Map();
+  this.watchId = null;
+  this.locationSyncInterval = null;
+  this.isAutoSyncActive = false;
+}
   // Get user's best known location with fallbacks
   async getBestLocation(user, phone) {
     try {
@@ -31,6 +32,78 @@ class EnhancedGymBrosLocationService {
       return await this.getCurrentLocation();
     }
   }
+
+  startAutoLocationSync(user, phone) {
+  console.log('🔄 STARTING AUTO LOCATION SYNC FOR USER:', user, phone);
+  
+  if (this.isAutoSyncActive) {
+    console.log('⚠️ AUTO SYNC ALREADY ACTIVE - STOPPING EXISTING');
+    this.stopAutoLocationSync();
+  }
+  
+  this.isAutoSyncActive = true;
+  
+  // Start watching location
+  this.watchLocation((location, error) => {
+    if (error) {
+      console.error('❌ AUTO SYNC LOCATION ERROR:', error);
+      return;
+    }
+    
+    if (location) {
+      console.log('📍 AUTO SYNC GOT NEW LOCATION:', location);
+      // Update location automatically
+      this.updateUserLocation(location, user, phone);
+    }
+  });
+  
+  // Also set up periodic sync every 5 minutes
+  this.locationSyncInterval = setInterval(() => {
+    console.log('⏰ PERIODIC LOCATION SYNC');
+    this.getCurrentLocation()
+      .then(location => {
+        if (location) {
+          this.updateUserLocation(location, user, phone);
+        }
+      })
+      .catch(error => {
+        console.error('❌ PERIODIC SYNC ERROR:', error);
+      });
+  }, 5 * 60 * 1000); // 5 minutes
+}
+
+// ADD THIS METHOD
+stopAutoLocationSync() {
+  console.log('🛑 STOPPING AUTO LOCATION SYNC');
+  
+  this.isAutoSyncActive = false;
+  
+  // Stop watching location
+  this.stopWatchingLocation();
+  
+  // Clear interval
+  if (this.locationSyncInterval) {
+    clearInterval(this.locationSyncInterval);
+    this.locationSyncInterval = null;
+  }
+}
+
+// ADD THIS METHOD
+forceSyncNow() {
+  console.log('⚡ FORCE SYNC NOW');
+  return this.getCurrentLocation()
+    .then(location => {
+      if (location) {
+        console.log('📍 FORCE SYNC GOT LOCATION:', location);
+        // You'll need to store user info to sync
+        return location;
+      }
+    })
+    .catch(error => {
+      console.error('❌ FORCE SYNC ERROR:', error);
+      throw error;
+    });
+}
 
   // Get current location using browser geolocation
   getCurrentLocation(options = {}) {
@@ -200,26 +273,25 @@ class EnhancedGymBrosLocationService {
     }
   }
 
-  // Get gyms for map with enhanced filtering
-  async getGymsForMap(bounds, zoom, filters = {}) {
+  // Get gyms for map with backend-aligned filtering (no bbox/zoom)
+  async getGymsForMap(filters = {}) {
     try {
       const params = {
-        bbox: `${bounds.west},${bounds.south},${bounds.east},${bounds.north}`,
-        zoom: zoom,
         limit: filters.limit || 1000,
         offset: filters.offset || 0
       };
 
+      if (filters.type) {
+        params.type = filters.type;
+      }
       if (filters.types && filters.types.length > 0) {
         params.types = filters.types.join(',');
       }
-
       if (filters.search) {
         params.search = filters.search;
       }
 
       const response = await api.get('/gym-bros/gyms', { params });
-
       return response.data;
     } catch (error) {
       console.error('Error fetching gyms for map:', error);

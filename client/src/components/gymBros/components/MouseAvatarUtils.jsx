@@ -117,98 +117,125 @@ export const renderMouseAvatar = (avatar, size = 40, showRealtimeIndicator = fal
 // Create enhanced mouse icon for map markers
 export const createMouseIcon = (avatar, isCurrentUser = false, isRealtime = false) => {
   const size = isCurrentUser ? 50 : 40;
-  const iconHtml = `
-    <div class="relative ${isRealtime ? 'realtime-marker' : ''}">
-      ${createMouseSVG(avatar, size)}
-      ${isCurrentUser ? `
-        <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-blue-500 border-2 border-white rounded-full flex items-center justify-center">
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="white">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-          </svg>
-        </div>
-      ` : ''}
-      ${isRealtime ? `
-        <div class="absolute -top-1 -right-1 w-3 h-3 bg-green-400 border border-white rounded-full">
-          <div class="w-full h-full bg-green-400 rounded-full animate-ping"></div>
-        </div>
-      ` : ''}
-    </div>
-  `;
+  
+  try {
+    const iconHtml = `
+      <div class="relative ${isRealtime ? 'realtime-marker' : ''}" style="width: ${size + 10}px; height: ${size + 10}px;">
+        ${createMouseSVG(avatar, size)}
+        ${isCurrentUser ? `
+          <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-blue-500 border-2 border-white rounded-full flex items-center justify-center">
+            <svg width="8" height="8" viewBox="0 0 24 24" fill="white">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+        ` : ''}
+        ${isRealtime ? `
+          <div class="absolute -top-1 -right-1 w-3 h-3 bg-green-400 border border-white rounded-full">
+            <div class="w-full h-full bg-green-400 rounded-full animate-ping"></div>
+          </div>
+        ` : ''}
+      </div>
+    `;
 
-  return L.divIcon({
-    html: iconHtml,
-    className: 'custom-mouse-icon',
-    iconSize: [size + 10, size + 10],
-    iconAnchor: [(size + 10) / 2, (size + 10) / 2],
-    popupAnchor: [0, -(size + 10) / 2]
-  });
+    return L.divIcon({
+      html: iconHtml,
+      className: 'custom-mouse-icon',
+      iconSize: [size + 10, size + 10],
+      iconAnchor: [(size + 10) / 2, (size + 10) / 2],
+      popupAnchor: [0, -(size + 10) / 2]
+    });
+  } catch (error) {
+    console.error('Error creating mouse icon:', error);
+    
+    // Fallback to a simple div icon
+    return L.divIcon({
+      html: `<div style="width: ${size}px; height: ${size}px; background: #3B82F6; border-radius: 50%; border: 2px solid white;"></div>`,
+      className: 'custom-mouse-icon-fallback',
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+      popupAnchor: [0, -size / 2]
+    });
+  }
 };
 
 // Create enhanced gym icon with type-specific styling
 export const createGymIcon = (gym, isRealtime = false) => {
-  const getGymTypeIcon = (type) => {
-    switch (type) {
-      case 'gym':
-        return { icon: '🏋️', color: '#3B82F6', bgColor: '#EBF8FF' };
-      case 'community':
-        return { icon: '🏘️', color: '#10B981', bgColor: '#ECFDF5' };
-      case 'event':
-        return { icon: '📅', color: '#F59E0B', bgColor: '#FFFBEB' };
-      case 'sport_center':
-        return { icon: '⚽', color: '#EF4444', bgColor: '#FEF2F2' };
-      case 'other':
-        return { icon: '📍', color: '#8B5CF6', bgColor: '#F5F3FF' };
-      default:
-        return { icon: '🏋️', color: '#3B82F6', bgColor: '#EBF8FF' };
-    }
-  };
+  try {
+    const getGymTypeIcon = (type) => {
+      switch (type) {
+        case 'gym':
+          return { icon: '🏋️', color: '#3B82F6', bgColor: '#EBF8FF' };
+        case 'community':
+          return { icon: '🏘️', color: '#10B981', bgColor: '#ECFDF5' };
+        case 'event':
+          return { icon: '📅', color: '#F59E0B', bgColor: '#FFFBEB' };
+        case 'sport_center':
+          return { icon: '⚽', color: '#EF4444', bgColor: '#FEF2F2' };
+        case 'other':
+          return { icon: '📍', color: '#8B5CF6', bgColor: '#F5F3FF' };
+        default:
+          return { icon: '🏋️', color: '#3B82F6', bgColor: '#EBF8FF' };
+      }
+    };
 
-  const typeInfo = getGymTypeIcon(gym.type);
-  const verified = gym.verified || gym.isVerified;
-  const isNew = gym.isNew;
+    const typeInfo = getGymTypeIcon(gym.type);
+    const verified = gym.verified || gym.isVerified;
+    const isNew = gym.isNew;
 
-  const iconHtml = `
-    <div class="relative ${isRealtime ? 'realtime-marker' : ''}" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">
-      <div class="w-10 h-10 rounded-full flex items-center justify-center border-2 border-white" 
-           style="background-color: ${typeInfo.bgColor}; border-color: ${typeInfo.color};">
-        <span style="font-size: 18px; line-height: 1;">${typeInfo.icon}</span>
+    const iconHtml = `
+      <div class="relative ${isRealtime ? 'realtime-marker' : ''}" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); width: 50px; height: 50px;">
+        <div class="w-10 h-10 rounded-full flex items-center justify-center border-2 border-white" 
+             style="background-color: ${typeInfo.bgColor}; border-color: ${typeInfo.color};">
+          <span style="font-size: 18px; line-height: 1;">${typeInfo.icon}</span>
+        </div>
+        
+        ${verified ? `
+          <div class="absolute -top-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full flex items-center justify-center">
+            <svg width="8" height="8" viewBox="0 0 24 24" fill="white">
+              <path d="M9 12l2 2 4-4" stroke="white" stroke-width="2" fill="none"/>
+            </svg>
+          </div>
+        ` : ''}
+        
+        ${isNew ? `
+          <div class="absolute -top-2 -left-2 bg-green-500 text-white text-xs px-1 rounded-full" style="font-size: 8px;">
+            NEW
+          </div>
+        ` : ''}
+        
+        ${isRealtime ? `
+          <div class="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-400 border border-white rounded-full">
+            <div class="w-full h-full bg-blue-400 rounded-full animate-ping"></div>
+          </div>
+        ` : ''}
+        
+        ${gym.memberCount > 0 ? `
+          <div class="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-white border border-gray-200 text-xs px-1 rounded-full text-gray-700" style="font-size: 10px;">
+            ${gym.memberCount}
+          </div>
+        ` : ''}
       </div>
-      
-      ${verified ? `
-        <div class="absolute -top-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full flex items-center justify-center">
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="white">
-            <path d="M9 12l2 2 4-4"/>
-          </svg>
-        </div>
-      ` : ''}
-      
-      ${isNew ? `
-        <div class="absolute -top-2 -left-2 bg-green-500 text-white text-xs px-1 rounded-full">
-          NEW
-        </div>
-      ` : ''}
-      
-      ${isRealtime ? `
-        <div class="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-400 border border-white rounded-full">
-          <div class="w-full h-full bg-blue-400 rounded-full animate-ping"></div>
-        </div>
-      ` : ''}
-      
-      ${gym.memberCount > 0 ? `
-        <div class="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-white border border-gray-200 text-xs px-1 rounded-full text-gray-700">
-          ${gym.memberCount}
-        </div>
-      ` : ''}
-    </div>
-  `;
+    `;
 
-  return L.divIcon({
-    html: iconHtml,
-    className: 'custom-gym-icon',
-    iconSize: [50, 50],
-    iconAnchor: [25, 25],
-    popupAnchor: [0, -25]
-  });
+    return L.divIcon({
+      html: iconHtml,
+      className: 'custom-gym-icon',
+      iconSize: [50, 50],
+      iconAnchor: [25, 25],
+      popupAnchor: [0, -25]
+    });
+  } catch (error) {
+    console.error('Error creating gym icon:', error);
+    
+    // Fallback to a simple icon
+    return L.divIcon({
+      html: `<div style="width: 40px; height: 40px; background: #10B981; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; font-size: 18px;">🏋️</div>`,
+      className: 'custom-gym-icon-fallback',
+      iconSize: [40, 40],
+      iconAnchor: [20, 20],
+      popupAnchor: [0, -20]
+    });
+  }
 };
 
 // Helper function to create mouse SVG string
