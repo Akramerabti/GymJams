@@ -75,9 +75,7 @@ export const renderMouseAvatar = (avatar, size = 40, showRealtimeIndicator = fal
       <ellipse cx={size*0.25} cy={size*0.55} rx={size*0.08} ry={size*0.15} fill={furColor} />
       <ellipse cx={size*0.75} cy={size*0.55} rx={size*0.08} ry={size*0.15} fill={furColor} />
       
-      {/* Legs */}
-      <ellipse cx={size*0.35} cy={size*0.8} rx={size*0.08} ry={size*0.12} fill={furColor} />
-      <ellipse cx={size*0.65} cy={size*0.8} rx={size*0.08} ry={size*0.12} fill={furColor} />
+  {/* Legs removed (pants) */}
       
       {/* Accessories */}
       {accessories.includes('workout_band') && (

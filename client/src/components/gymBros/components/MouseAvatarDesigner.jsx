@@ -9,7 +9,7 @@ const MouseAvatarDesigner = ({ currentAvatar, onSave, onClose }) => {
     shirtColor: '#3B82F6', // blue
     shirtStyle: 'tshirt', // tshirt, hoodie, tank, none
     accessory: 'none', // none, glasses, hat, headphones
-    pants: '#1F2937', // dark gray
+  // pants removed
     eyes: 'normal', // normal, wink, closed
     mood: 'happy' // happy, neutral, excited
   });
@@ -54,14 +54,7 @@ const MouseAvatarDesigner = ({ currentAvatar, onSave, onClose }) => {
     { name: 'Bandana', value: 'bandana', icon: '🏴‍☠️' }
   ];
 
-  const pantsColors = [
-    { name: 'Dark Gray', value: '#1F2937' },
-    { name: 'Blue Jeans', value: '#3B82F6' },
-    { name: 'Black', value: '#000000' },
-    { name: 'Khaki', value: '#D2B48C' },
-    { name: 'Red', value: '#DC2626' },
-    { name: 'Green', value: '#059669' }
-  ];
+  // pantsColors removed
 
   const moods = [
     { name: 'Happy', value: 'happy', icon: '😊' },
@@ -221,33 +214,7 @@ const MouseAvatarDesigner = ({ currentAvatar, onSave, onClose }) => {
                 </div>
               )}
 
-              {/* Pants Color */}
-              <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4">
-                <label className="block text-sm font-semibold mb-3 text-gray-700 dark:text-gray-200">
-                  👖 Pants Color
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {pantsColors.map(color => (
-                    <button
-                      key={color.value}
-                      onClick={() => setAvatar({...avatar, pants: color.value})}
-                      className={`p-3 rounded-lg border-2 transition-all hover:scale-105 ${
-                        avatar.pants === color.value 
-                          ? 'border-blue-500 shadow-lg' 
-                          : 'border-gray-200 dark:border-gray-600'
-                      }`}
-                    >
-                      <div 
-                        className="w-12 h-6 rounded shadow-inner mx-auto" 
-                        style={{ backgroundColor: color.value }} 
-                      />
-                      <span className="text-xs mt-1 block text-gray-600 dark:text-gray-300">
-                        {color.name}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* Pants Color removed */}
               
               {/* Accessories */}
               <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4">
