@@ -105,65 +105,45 @@ const LocationBanner = ({ onLocationSet }) => {
   }, [isDismissed, user, onLocationSet]);
 
   const getCurrentLocation = async () => {
-    setIsGettingLocation(true);
+  setIsGettingLocation(true);
 
-    try {
-      if (!navigator.geolocation) {
-        throw new Error('Geolocation is not supported by this browser');
-      }
+  try {
+    // Import the enhanced service at the top of the file
+    const { default: enhancedGymBrosLocationService } = await import('../../services/gymBrosLocation.service');
+    
+    const location = await enhancedGymBrosLocationService.getCurrentLocation({
+      priority: 'balanced'
+    });
+    
+    // Store in localStorage
+    localStorage.setItem('userLocation', JSON.stringify(location));
+    
+    // Call parent callback
+    onLocationSet?.(location);
 
-      const position = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          resolve,
-          reject,
-          {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 600000 // Cache for 10 minutes
-          }
-        );
-      });
+    setLocationCity(location.city || 'Your location');
+    setLocationSuccess(true);
 
-      const { latitude, longitude } = position.coords;
-
-      // Reverse geocode to get city name
-      const cityName = await reverseGeocode(latitude, longitude);
-
-      const locationData = {
-        lat: latitude,
-        lng: longitude,
-        city: cityName,
-        address: '', // Don't store full address
-        source: 'gps',
-        timestamp: new Date().toISOString()
-      };
-
-      // Store in localStorage
-      localStorage.setItem('userLocation', JSON.stringify(locationData));
-      
-      // Call parent callback
-      onLocationSet?.(locationData);
-      
-      // Hide banner immediately after setting location
+    setTimeout(() => {
       setIsVisible(false);
+    }, 2000);
 
-    } catch (error) {
-      console.error('Geolocation error:', error);
-      let errorMessage = 'Unable to get your location';
-      
-      if (error.code === 1) {
-        errorMessage = 'Please allow location access in your browser settings';
-      } else if (error.code === 2) {
-        errorMessage = 'Location unavailable';
-      } else if (error.code === 3) {
-        errorMessage = 'Location request timed out';
-      }
-      
-      toast.error(errorMessage);
-    } finally {
-      setIsGettingLocation(false);
+  } catch (error) {
+    console.error('Location error:', error);
+    
+    if (error.code === 1) {
+      toast.error('Location access denied');
+    } else if (error.code === 3) {
+      toast.error('Location request timed out');
+    } else {
+      toast.error('Could not get your location');
     }
-  };
+    
+    setIsVisible(false);
+  } finally {
+    setIsGettingLocation(false);
+  }
+};
 
   // Reverse geocode coordinates to get city name
   const reverseGeocode = async (lat, lng) => {

@@ -20,30 +20,37 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
   }, [isOpen]);
 
   const handleGPSLocation = async () => {
-    setIsGettingLocation(true);
-    setError('');
+  setIsGettingLocation(true);
+  setError('');
 
-    try {
-      const locationData = await locationService.getLocationByGPS();
-      handleLocationSuccess(locationData);
-    } catch (error) {
-      console.error('GPS location failed:', error);
-      let errorMessage = 'Unable to get your precise location';
-      
-      if (error.message.includes('denied')) {
-        errorMessage = 'Location access denied. Try auto-detect instead.';
-      } else if (error.message.includes('unavailable')) {
-        errorMessage = 'Location unavailable. Try auto-detect instead.';
-      } else if (error.message.includes('timeout')) {
-        errorMessage = 'Location request timed out. Try auto-detect instead.';
-      }
-      
-      setError(errorMessage);
-      toast.error('GPS location failed');
-    } finally {
-      setIsGettingLocation(false);
+  try {
+    // Import the enhanced service
+    const { default: enhancedGymBrosLocationService } = await import('../../services/gymBrosLocation.service');
+    
+    const locationData = await enhancedGymBrosLocationService.getCurrentLocation({
+      priority: 'precise', // Use precise for manual requests
+      force: true
+    });
+    
+    handleLocationSuccess(locationData);
+  } catch (error) {
+    console.error('GPS location failed:', error);
+    let errorMessage = 'Unable to get your precise location';
+    
+    if (error.code === 1) {
+      errorMessage = 'Location access denied. Try auto-detect instead.';
+    } else if (error.code === 2) {
+      errorMessage = 'Location unavailable. Try auto-detect instead.';
+    } else if (error.code === 3) {
+      errorMessage = 'Location request timed out. Try auto-detect instead.';
     }
-  };
+    
+    setError(errorMessage);
+    toast.error('GPS location failed');
+  } finally {
+    setIsGettingLocation(false);
+  }
+};
 
   const handleLocationSuccess = (locationData) => {
     locationService.storeLocation(locationData);

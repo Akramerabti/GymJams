@@ -358,20 +358,25 @@ const GymBrosMap = ({ userProfile }) => {
   // Initialize map center and current location
   useEffect(() => {
     const initializeLocation = async () => {
-      try {
-        const bestLocation = await gymBrosLocationService.getBestLocation(userProfile?.user, userProfile?.phone);
-        
-        if (bestLocation && bestLocation.lat && bestLocation.lng) {
-          setMapCenter([bestLocation.lat, bestLocation.lng]);
-          setCurrentLocation({ lat: bestLocation.lat, lng: bestLocation.lng });
-          setErrors(prev => ({ ...prev, location: null }));
-        } else {
-          setErrors(prev => ({ ...prev, location: 'Could not determine your location' }));
-        }
-      } catch (error) {
-        setErrors(prev => ({ ...prev, location: error.message }));
-      }
-    };
+  try {
+    // Use the enhanced service
+    const bestLocation = await gymBrosLocationService.getBestLocation(
+      userProfile?.user, 
+      userProfile?.phone
+    );
+    
+    if (bestLocation && bestLocation.lat && bestLocation.lng) {
+      setMapCenter([bestLocation.lat, bestLocation.lng]);
+      setCurrentLocation({ lat: bestLocation.lat, lng: bestLocation.lng });
+      setErrors(prev => ({ ...prev, location: null }));
+    } else {
+      setErrors(prev => ({ ...prev, location: 'Could not determine your location' }));
+    }
+  } catch (error) {
+    console.error('Error initializing location:', error);
+    setErrors(prev => ({ ...prev, location: error.message }));
+  }
+};
 
     initializeLocation();
   }, [userProfile]);
@@ -398,18 +403,24 @@ const GymBrosMap = ({ userProfile }) => {
 };
 
   const requestLocationPermission = async () => {
-    try {
-      const position = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 600000
-        });
-      });
-      
+  try {
+    // Check permission first
+    const permissionState = await gymBrosLocationService.checkLocationPermission();
+    
+    if (permissionState === 'denied') {
+      toast.error('Location access was denied. Please enable in browser settings.');
+      return;
+    }
+    
+    const location = await gymBrosLocationService.getCurrentLocation({
+      priority: 'balanced',
+      force: true // Force new request for manual permission request
+    });
+    
+    if (location) {
       const newLocation = {
-        lat: position.coords.latitude,
-        lng: position.coords.longitude
+        lat: location.lat,
+        lng: location.lng
       };
       
       setCurrentLocation(newLocation);
@@ -427,10 +438,29 @@ const GymBrosMap = ({ userProfile }) => {
           timestamp: Date.now()
         });
       }
-    } catch (error) {
-      toast.error('Location access denied');
     }
-  };
+  } catch (error) {
+    console.error('Location request failed:', error);
+    
+    if (error.code === 1) {
+      toast.error('Location access denied');
+    } else if (error.code === 3) {
+      toast.error('Location request timed out. Using fallback location.');
+      
+      // Try to use cached/stored location as fallback
+      const fallback = gymBrosLocationService.getCachedLocation() || 
+                      gymBrosLocationService.getStoredLocation();
+
+      if (fallback) {
+        setCurrentLocation({ lat: fallback.lat, lng: fallback.lng });
+        setMapCenter([fallback.lat, fallback.lng]);
+        toast.info('Using last known location');
+      }
+    } else {
+      toast.error('Could not get your location. Using default location.');
+    }
+  }
+};
 
   const fetchEvents = async () => {
     try {

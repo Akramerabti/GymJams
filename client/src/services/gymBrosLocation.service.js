@@ -3,229 +3,390 @@ import { toast } from 'sonner';
 
 const convertAccuracyToEnum = (numericAccuracy) => {
   if (typeof numericAccuracy !== 'number' || isNaN(numericAccuracy)) {
-    return 'medium'; // default
+    return 'medium';
   }
   
-  // Convert GPS accuracy (in meters) to enum
-  if (numericAccuracy < 10) return 'high';        // Very precise GPS
-  if (numericAccuracy < 100) return 'medium';     // Good GPS
-  if (numericAccuracy < 500) return 'low';        // Approximate GPS  
-  return 'approximate';                           // Poor accuracy
+  if (numericAccuracy < 10) return 'high';
+  if (numericAccuracy < 100) return 'medium';
+  if (numericAccuracy < 500) return 'low';
+  return 'approximate';
 };
 
-class EnhancedGymBrosLocationService {
- constructor() {
-  this.lastLocationUpdate = null;
-  this.locationCache = new Map();
-  this.watchId = null;
-  this.locationSyncInterval = null;
-  this.isAutoSyncActive = false;
-}
-  // Get user's best known location with fallbacks
-  async getBestLocation(user, phone) {
-    try {
-      // Try to get saved location from backend first
-      const response = await api.post('/gym-bros/check', {
-        user,
-        phone
-      });
-
-      if (response.data && response.data.location) {
-        console.log('📍 Got saved location from backend:', response.data.location);
-        return response.data.location;
-      }
-
-      // Fallback to browser geolocation
-      return await this.getCurrentLocation();
-    } catch (error) {
-      console.error('Error getting best location:', error);
-      
-      // Final fallback to browser geolocation
-      return await this.getCurrentLocation();
-    }
-  }
-
-  startAutoLocationSync(user, phone) {
-  console.log('🔄 STARTING AUTO LOCATION SYNC FOR USER:', user, phone);
-  
-  if (this.isAutoSyncActive) {
-    console.log('⚠️ AUTO SYNC ALREADY ACTIVE - STOPPING EXISTING');
-    this.stopAutoLocationSync();
-  }
-  
-  this.isAutoSyncActive = true;
-  
-  // Start watching location
-  this.watchLocation((location, error) => {
-    if (error) {
-      console.error('❌ AUTO SYNC LOCATION ERROR:', error);
-      return;
-    }
-    
-    if (location) {
-      console.log('📍 AUTO SYNC GOT NEW LOCATION:', location);
-      // Update location automatically
-      this.updateUserLocation(location, user, phone);
-    }
-  });
-  
-  // Also set up periodic sync every 5 minutes
-  this.locationSyncInterval = setInterval(() => {
-    console.log('⏰ PERIODIC LOCATION SYNC');
-    this.getCurrentLocation()
-      .then(location => {
-        if (location) {
-          this.updateUserLocation(location, user, phone);
-        }
-      })
-      .catch(error => {
-        console.error('❌ PERIODIC SYNC ERROR:', error);
-      });
-  }, 5 * 60 * 1000); // 5 minutes
-}
-
-// ADD THIS METHOD
-stopAutoLocationSync() {
-  console.log('🛑 STOPPING AUTO LOCATION SYNC');
-  
-  this.isAutoSyncActive = false;
-  
-  // Stop watching location
-  this.stopWatchingLocation();
-  
-  // Clear interval
-  if (this.locationSyncInterval) {
-    clearInterval(this.locationSyncInterval);
+class GymBrosLocationService {
+  constructor() {
+    this.lastLocationUpdate = null;
+    this.locationCache = new Map();
+    this.watchId = null;
     this.locationSyncInterval = null;
+    this.isAutoSyncActive = false;
+    this.pendingLocationRequest = null; // Prevent concurrent requests
+    this.lastRequestTime = 0;
+    this.minRequestInterval = 10000; // 10 seconds minimum between requests
   }
-}
 
-// ADD THIS METHOD
-forceSyncNow() {
-  console.log('⚡ FORCE SYNC NOW');
-  return this.getCurrentLocation()
-    .then(location => {
-      if (location) {
-        console.log('📍 FORCE SYNC GOT LOCATION:', location);
-        // You'll need to store user info to sync
-        return location;
+  // Smart timeout configuration based on device capabilities
+  getLocationOptions(priority = 'balanced') {
+    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isSlowConnection = navigator.connection && navigator.connection.effectiveType === 'slow-2g';
+    
+    const configs = {
+      // Quick attempt for UI responsiveness
+      quick: {
+        enableHighAccuracy: false,
+        timeout: 5000,
+        maximumAge: 300000 // 5 minutes
+      },
+      
+      // Balanced for most use cases
+      balanced: {
+        enableHighAccuracy: true,
+        timeout: isMobile ? 12000 : 8000, // Mobile devices need more time
+        maximumAge: 120000 // 2 minutes
+      },
+      
+      // High accuracy for critical operations
+      precise: {
+        enableHighAccuracy: true,
+        timeout: isSlowConnection ? 20000 : 15000,
+        maximumAge: 60000 // 1 minute
+      },
+      
+      // For background sync (less aggressive)
+      background: {
+        enableHighAccuracy: false,
+        timeout: 15000,
+        maximumAge: 600000 // 10 minutes
       }
-    })
-    .catch(error => {
-      console.error('❌ FORCE SYNC ERROR:', error);
-      throw error;
-    });
-}
+    };
+    
+    return configs[priority] || configs.balanced;
+  }
 
-  // FIXED: Get current location with city information
-getCurrentLocation(options = {}) {
-  const defaultOptions = {
-    enableHighAccuracy: true,
-    timeout: 15000, // Increased timeout to 15 seconds
-    maximumAge: 60000,
-    ...options
-  };
-
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('Geolocation is not supported by this browser'));
-      return;
+  // Improved getCurrentLocation with multiple fallback strategies
+  async getCurrentLocation(options = {}) {
+    const now = Date.now();
+    
+    // Prevent too frequent requests
+    if (now - this.lastRequestTime < this.minRequestInterval && !options.force) {
+      const cached = this.getCachedLocation();
+      if (cached) {
+        console.log('📍 Using cached location (too frequent requests)');
+        return cached;
+      }
     }
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const basicLocation = {
+    // Return existing pending request if one is in progress
+    if (this.pendingLocationRequest && !options.force) {
+      console.log('📍 Using existing location request');
+      return this.pendingLocationRequest;
+    }
+
+    this.lastRequestTime = now;
+    
+    // Strategy 1: Try quick GPS first
+    this.pendingLocationRequest = this._attemptLocationWithFallbacks(options);
+    
+    try {
+      const result = await this.pendingLocationRequest;
+      return result;
+    } finally {
+      this.pendingLocationRequest = null;
+    }
+  }
+
+  async _attemptLocationWithFallbacks(options = {}) {
+    const strategies = [
+      // Strategy 1: Quick attempt
+      { name: 'quick', config: this.getLocationOptions('quick') },
+      // Strategy 2: Balanced attempt
+      { name: 'balanced', config: this.getLocationOptions('balanced') },
+      // Strategy 3: High accuracy attempt (last resort)
+      { name: 'precise', config: this.getLocationOptions('precise') }
+    ];
+
+    let lastError = null;
+
+    for (const strategy of strategies) {
+      try {
+        console.log(`📍 Trying ${strategy.name} location strategy`);
+        const location = await this._getGPSLocation({ ...strategy.config, ...options });
+        
+        if (location) {
+          console.log(`📍 Success with ${strategy.name} strategy`);
+          const enhanced = await this.enhanceLocationWithAddress(location);
+          this.cacheLocation(enhanced);
+          return enhanced;
+        }
+      } catch (error) {
+        console.warn(`📍 ${strategy.name} strategy failed:`, error.message);
+        lastError = error;
+        
+        // If it's a permission error, don't try other strategies
+        if (error.code === 1) {
+          break;
+        }
+      }
+    }
+
+    // All GPS strategies failed, try fallbacks
+    console.log('📍 All GPS strategies failed, trying fallbacks');
+    
+    // Fallback 1: Use cached location
+    const cached = this.getCachedLocation();
+    if (cached) {
+      console.log('📍 Using cached location as fallback');
+      return cached;
+    }
+
+    // Fallback 2: Use localStorage
+    const stored = this.getStoredLocation();
+    if (stored) {
+      console.log('📍 Using stored location as fallback');
+      return stored;
+    }
+
+    // Fallback 3: Try IP-based location
+    try {
+      const ipLocation = await this.getLocationByIP();
+      if (ipLocation) {
+        console.log('📍 Using IP-based location as fallback');
+        this.cacheLocation(ipLocation);
+        return ipLocation;
+      }
+    } catch (ipError) {
+      console.warn('📍 IP location fallback failed:', ipError);
+    }
+
+    // All fallbacks failed
+    throw lastError || new Error('All location methods failed');
+  }
+
+  // Core GPS location function with proper error handling
+  _getGPSLocation(options) {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation is not supported by this browser'));
+        return;
+      }
+
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Location request timed out'));
+      }, options.timeout + 1000); // Add buffer to browser timeout
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          clearTimeout(timeoutId);
+          
+          const location = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
             accuracy: convertAccuracyToEnum(position.coords.accuracy),
             source: 'gps',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            coords: {
+              accuracy: position.coords.accuracy,
+              altitude: position.coords.altitude,
+              altitudeAccuracy: position.coords.altitudeAccuracy,
+              heading: position.coords.heading,
+              speed: position.coords.speed
+            }
           };
           
-          console.log('📍 Got basic browser location:', basicLocation);
+          resolve(location);
+        },
+        (error) => {
+          clearTimeout(timeoutId);
           
-          try {
-            const enhancedLocation = await this.enhanceLocationWithAddress(basicLocation);
-            console.log('📍 Enhanced location with city:', enhancedLocation);
-
-            localStorage.setItem('userLocation', JSON.stringify(enhancedLocation));
-            
-            resolve(enhancedLocation);
-          } catch (geocodeError) {
-            console.warn('⚠️ Reverse geocoding failed, using fallback city');
-            
-            // Fallback: try to get city from localStorage or use default
-            const savedLocation = localStorage.getItem('userLocation');
-            let fallbackCity = 'Montreal'; // Default for your area
-            
-            if (savedLocation) {
-              try {
-                const parsed = JSON.parse(savedLocation);
-                if (parsed.city) {
-                  fallbackCity = parsed.city;
-                }
-              } catch (e) {
-                console.warn('Failed to parse saved location');
-              }
-            }
-            
-            const locationWithFallback = {
-              ...basicLocation,
-              city: fallbackCity,
-              address: fallbackCity,
-              state: 'Quebec',
-              country: 'Canada',
-              zipCode: ''
-            };
-            
-            console.log('📍 Using fallback location:', locationWithFallback);
-            resolve(locationWithFallback);
+          let errorMessage = 'Failed to get location';
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = 'Location access denied';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = 'Location information unavailable';
+              break;
+            case error.TIMEOUT:
+              errorMessage = 'Location request timed out';
+              break;
           }
-        } catch (error) {
-          console.error('Error processing location:', error);
-          reject(error);
-        }
-      },
-      (error) => {
-        console.error('Geolocation error:', error);
+          
+          const locationError = new Error(errorMessage);
+          locationError.code = error.code;
+          reject(locationError);
+        },
+        options
+      );
+    });
+  }
+
+  // IP-based location fallback
+  async getLocationByIP() {
+    try {
+      const response = await fetch('https://ipapi.co/json/', {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(5000) // 5 second timeout for IP API
+      });
+
+      if (response.ok) {
+        const data = await response.json();
         
-        let errorMessage = 'Could not get your location';
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            errorMessage = 'Location access denied. Please enable location permissions.';
-            break;
-          case error.POSITION_UNAVAILABLE:
-            errorMessage = 'Location information unavailable.';
-            break;
-          case error.TIMEOUT:
-            errorMessage = 'Location request timed out.';
-            break;
+        if (data.latitude && data.longitude) {
+          return {
+            lat: parseFloat(data.latitude),
+            lng: parseFloat(data.longitude),
+            city: data.city || 'Unknown City',
+            address: `${data.city || 'Unknown City'}, ${data.region || ''} ${data.postal || ''}`.trim(),
+            source: 'ip-geolocation',
+            accuracy: 'low',
+            timestamp: new Date().toISOString()
+          };
         }
-        
-        // Try to use saved location as fallback
-        const savedLocation = localStorage.getItem('userLocation');
-        if (savedLocation) {
-          try {
-            const parsed = JSON.parse(savedLocation);
-            console.log('📍 Using saved location due to GPS error:', parsed);
-            resolve(parsed);
-            return;
-          } catch (e) {
-            console.warn('Failed to parse saved location');
+      }
+      
+      throw new Error('IP geolocation failed');
+    } catch (error) {
+      throw new Error(`IP location failed: ${error.message}`);
+    }
+  }
+
+  // Improved location caching
+  cacheLocation(location) {
+    if (!location || !location.lat || !location.lng) return;
+    
+    const cacheKey = 'current_location';
+    this.locationCache.set(cacheKey, {
+      ...location,
+      cachedAt: Date.now()
+    });
+    
+    // Also store in localStorage
+    try {
+      localStorage.setItem('userLocation', JSON.stringify(location));
+    } catch (e) {
+      console.warn('Failed to store location in localStorage:', e);
+    }
+  }
+
+  getCachedLocation() {
+    const cached = this.locationCache.get('current_location');
+    if (cached) {
+      const age = Date.now() - cached.cachedAt;
+      // Use cached location if less than 5 minutes old
+      if (age < 5 * 60 * 1000) {
+        return cached;
+      }
+    }
+    return null;
+  }
+
+  getStoredLocation() {
+    try {
+      const stored = localStorage.getItem('userLocation');
+      if (stored) {
+        const location = JSON.parse(stored);
+        // Check if not too old (1 hour)
+        if (location.timestamp) {
+          const age = Date.now() - new Date(location.timestamp).getTime();
+          if (age < 60 * 60 * 1000) {
+            return location;
           }
         }
-        
-        reject(new Error(errorMessage));
-      },
-      defaultOptions
-    );
-  });
-}
+      }
+    } catch (e) {
+      console.warn('Failed to get stored location:', e);
+    }
+    return null;
+  }
 
+  // Get user's best known location with improved fallbacks
+  async getBestLocation(user, phone) {
+    try {
+      // Try cached first
+      const cached = this.getCachedLocation();
+      if (cached) {
+        console.log('📍 Using cached location');
+        return cached;
+      }
 
+      // Try backend
+      const response = await api.post('/gym-bros/check', { user, phone });
+      if (response.data && response.data.location) {
+        console.log('📍 Got saved location from backend:', response.data.location);
+        this.cacheLocation(response.data.location);
+        return response.data.location;
+      }
 
-  // Watch user's location for real-time updates
+      // Fallback to GPS with quick priority
+      return await this.getCurrentLocation({ priority: 'quick' });
+    } catch (error) {
+      console.error('Error getting best location:', error);
+      
+      // Final fallback to stored location
+      const stored = this.getStoredLocation();
+      if (stored) {
+        return stored;
+      }
+      
+      throw error;
+    }
+  }
+
+  // Improved auto location sync with better error handling
+  startAutoLocationSync(user, phone) {
+    console.log('🔄 STARTING AUTO LOCATION SYNC FOR USER:', user, phone);
+    
+    if (this.isAutoSyncActive) {
+      console.log('⚠️ AUTO SYNC ALREADY ACTIVE - STOPPING EXISTING');
+      this.stopAutoLocationSync();
+    }
+    
+    this.isAutoSyncActive = true;
+    
+    // Start with a less aggressive approach
+    this.locationSyncInterval = setInterval(() => {
+      console.log('⏰ PERIODIC LOCATION SYNC');
+      
+      // Use background priority for auto-sync
+      this.getCurrentLocation({ priority: 'background' })
+        .then(location => {
+          if (location) {
+            this.updateUserLocation(location, user, phone);
+          }
+        })
+        .catch(error => {
+          console.error('❌ PERIODIC SYNC ERROR:', error);
+          // Don't toast errors for background sync
+        });
+    }, 10 * 60 * 1000); // Increased to 10 minutes for less aggressive sync
+  }
+
+  stopAutoLocationSync() {
+    console.log('🛑 STOPPING AUTO LOCATION SYNC');
+    
+    this.isAutoSyncActive = false;
+    
+    if (this.locationSyncInterval) {
+      clearInterval(this.locationSyncInterval);
+      this.locationSyncInterval = null;
+    }
+  }
+
+  forceSyncNow() {
+    console.log('⚡ FORCE SYNC NOW');
+    return this.getCurrentLocation({ priority: 'balanced', force: true })
+      .then(location => {
+        if (location) {
+          console.log('📍 FORCE SYNC GOT LOCATION:', location);
+          return location;
+        }
+      })
+      .catch(error => {
+        console.error('❌ FORCE SYNC ERROR:', error);
+        throw error;
+      });
+  }
+
+  // Watch user's location for real-time updates (IMPROVED)
   watchLocation(callback, options = {}) {
     if (!navigator.geolocation) {
       console.warn('Geolocation not supported');
@@ -233,12 +394,11 @@ getCurrentLocation(options = {}) {
     }
 
     const defaultOptions = {
-      enableHighAccuracy: true,
-      timeout: 30000,
-      maximumAge: 30000, // Update every 30 seconds max
+      enableHighAccuracy: false, // CHANGED: Less aggressive for watching
+      timeout: 20000, // CHANGED: Longer timeout for watching
+      maximumAge: 60000, // CHANGED: 1 minute cache for watching
       ...options
     };
-
 
     this.watchId = navigator.geolocation.watchPosition(
       async (position) => {
@@ -334,6 +494,146 @@ getCurrentLocation(options = {}) {
       console.error('Error updating location:', error);
       throw error;
     }
+  }
+
+  // Enhanced location with address (with better error handling)
+  async enhanceLocationWithAddress(locationData) {
+    if (locationData.address && locationData.address.trim() !== '') {
+      return locationData;
+    }
+
+    try {
+      const address = await this.reverseGeocode(locationData.lat, locationData.lng);
+      
+      return {
+        ...locationData,
+        address: address.address || 'Unknown location',
+        city: address.city || locationData.city || '',
+        state: address.state || locationData.state || '',
+        country: address.country || locationData.country || '',
+        zipCode: address.zipCode || locationData.zipCode || ''
+      };
+    } catch (error) {
+      console.warn('⚠️ Reverse geocoding failed, using fallback:', error);
+      
+      return {
+        ...locationData,
+        address: locationData.address || 'Location coordinates',
+        city: locationData.city || 'Unknown City'
+      };
+    }
+  }
+
+  async reverseGeocode(lat, lng) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+        {
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'GymBros-App/1.0'
+          },
+          signal: controller.signal
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error('Reverse geocoding failed');
+      }
+
+      const data = await response.json();
+      
+      if (data && data.address) {
+        return {
+          address: data.display_name || 'Unknown location',
+          city: data.address.city || data.address.town || data.address.village || '',
+          state: data.address.state || data.address.province || '',
+          country: data.address.country || '',
+          zipCode: data.address.postcode || ''
+        };
+      }
+
+      throw new Error('No address data found');
+    } catch (error) {
+      throw new Error(`Reverse geocoding failed: ${error.message}`);
+    }
+  }
+
+  // Calculate distance between two points in meters
+  calculateDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371000; // Earth's radius in meters
+    const dLat = this.toRadians(lat2 - lat1);
+    const dLng = this.toRadians(lng2 - lng1);
+    
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.toRadians(lat1)) * Math.cos(this.toRadians(lat2)) * 
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in meters
+  }
+
+  // Convert degrees to radians
+  toRadians(degrees) {
+    return degrees * (Math.PI / 180);
+  }
+
+  // Validate coordinates
+  isValidCoordinates(lat, lng) {
+    return (
+      typeof lat === 'number' && 
+      typeof lng === 'number' &&
+      lat >= -90 && lat <= 90 &&
+      lng >= -180 && lng <= 180
+    );
+  }
+
+  // Check existing location (legacy)
+  async checkExistingLocation(user, phone) {
+    try {
+      const response = await api.post('/gym-bros/check', {
+        user,
+        phone
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error checking existing location:', error);
+      throw error;
+    }
+  }
+
+  // NEW: Check if location permissions are granted
+  async checkLocationPermission() {
+    if (!navigator.permissions) {
+      return 'unsupported';
+    }
+    
+    try {
+      const permission = await navigator.permissions.query({ name: 'geolocation' });
+      return permission.state; // 'granted', 'denied', or 'prompt'
+    } catch (error) {
+      console.warn('Failed to check location permission:', error);
+      return 'unknown';
+    }
+  }
+
+  // NEW: Clear all location data
+  clearLocationCache() {
+    this.locationCache.clear();
+    this.lastLocationUpdate = null;
+    try {
+      localStorage.removeItem('userLocation');
+    } catch (e) {
+      console.warn('Failed to clear stored location:', e);
+    }
+    console.log('📍 Location cache cleared');
   }
 
   // Send real-time location update (for live tracking)
@@ -562,118 +862,6 @@ getCurrentLocation(options = {}) {
     }
   }
 
-  // Enhanced location data with address lookup
-  async enhanceLocationWithAddress(locationData) {
-    // If we already have a good address, return as-is
-    if (locationData.address && locationData.address.trim() !== '') {
-      return locationData;
-    }
-
-    try {
-      // Use reverse geocoding to get address
-      const address = await this.reverseGeocode(locationData.lat, locationData.lng);
-      
-      return {
-        ...locationData,
-        address: address.address || 'Unknown location',
-        city: address.city || locationData.city || '',
-        state: address.state || locationData.state || '',
-        country: address.country || locationData.country || '',
-        zipCode: address.zipCode || locationData.zipCode || ''
-      };
-    } catch (error) {
-      console.error('Error enhancing location with address:', error);
-      
-      // Return original data with fallback address
-      return {
-        ...locationData,
-        address: locationData.address || 'Location coordinates'
-      };
-    }
-  }
-
-  // Simple reverse geocoding using a free service
-  async reverseGeocode(lat, lng) {
-    try {
-      // Using Nominatim (OpenStreetMap) for free reverse geocoding
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-        {
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'GymBros-App/1.0'
-          }
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Reverse geocoding failed');
-      }
-
-      const data = await response.json();
-      
-      if (data && data.address) {
-        return {
-          address: data.display_name || 'Unknown location',
-          city: data.address.city || data.address.town || data.address.village || '',
-          state: data.address.state || data.address.province || '',
-          country: data.address.country || '',
-          zipCode: data.address.postcode || ''
-        };
-      }
-
-      throw new Error('No address data found');
-    } catch (error) {
-      console.error('Reverse geocoding error:', error);
-      throw error;
-    }
-  }
-
-  // Calculate distance between two points in meters
-  calculateDistance(lat1, lng1, lat2, lng2) {
-    const R = 6371000; // Earth's radius in meters
-    const dLat = this.toRadians(lat2 - lat1);
-    const dLng = this.toRadians(lng2 - lng1);
-    
-    const a = 
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(this.toRadians(lat1)) * Math.cos(this.toRadians(lat2)) * 
-      Math.sin(dLng / 2) * Math.sin(dLng / 2);
-    
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c; // Distance in meters
-  }
-
-  // Convert degrees to radians
-  toRadians(degrees) {
-    return degrees * (Math.PI / 180);
-  }
-
-  // Validate coordinates
-  isValidCoordinates(lat, lng) {
-    return (
-      typeof lat === 'number' && 
-      typeof lng === 'number' &&
-      lat >= -90 && lat <= 90 &&
-      lng >= -180 && lng <= 180
-    );
-  }
-
-  // Check if location exists (legacy)
-  async checkExistingLocation(user, phone) {
-    try {
-      const response = await api.post('/gym-bros/check', {
-        user,
-        phone
-      });
-
-      return response.data;
-    } catch (error) {
-      console.error('Error checking existing location:', error);
-      throw error;
-    }
-  }
-
   // Format location for display
   formatLocationForDisplay(location) {
     if (!location) return 'Unknown location';
@@ -698,14 +886,7 @@ getCurrentLocation(options = {}) {
     if (accuracy < 500) return 'Approximate';
     return 'Low accuracy';
   }
-
-  // Clear location cache
-  clearLocationCache() {
-    this.locationCache.clear();
-    this.lastLocationUpdate = null;
-    console.log('📍 Location cache cleared');
-  }
 }
 
-const enhancedGymBrosLocationService = new EnhancedGymBrosLocationService();
-export default enhancedGymBrosLocationService;
+const gymBrosLocationService = new GymBrosLocationService();
+export default gymBrosLocationService;

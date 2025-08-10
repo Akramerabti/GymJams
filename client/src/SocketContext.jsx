@@ -4,6 +4,7 @@ import { useAuth } from './stores/authStore';
 import { toast } from 'sonner';
 import { Award, AlertTriangle, MapPin, Users } from 'lucide-react';
 import useGymBrosData from '../src/hooks/useGymBrosData';
+import gymBrosLocationService from './services/gymBrosLocation.service';
 
 const SocketContext = createContext({
   socket: null,
@@ -35,11 +36,13 @@ export const SocketProvider = ({ children }) => {
     gyms: new Map(),
     lastUpdate: null
   });
-   const { invalidate } = useGymBrosData();
+  
+  const { invalidate } = useGymBrosData();
   const socketRef = useRef(null);
   const mapSubscriptionsRef = useRef(new Set());
   const lastLocationUpdateRef = useRef(null);
   const locationUpdateIntervalRef = useRef(null);
+  const locationTimeoutRef = useRef(null); // MOVED HERE - OUTSIDE useEffect!
   
   const { user, isAuthenticated } = useAuth();
 
@@ -148,7 +151,7 @@ export const SocketProvider = ({ children }) => {
         ]);
       });
 
-        socketInstance.on('userLocationUpdate', (data) => {
+      socketInstance.on('userLocationUpdate', (data) => {
         console.log('📍 Received user location update:', data);
         setMapUpdates(prev => {
           const newUsers = new Map(prev.users);
@@ -274,6 +277,17 @@ export const SocketProvider = ({ children }) => {
         setConnected(false);
         setConnecting(false);
       }
+      
+      // Clear location tracking
+      if (locationUpdateIntervalRef.current) {
+        clearInterval(locationUpdateIntervalRef.current);
+        locationUpdateIntervalRef.current = null;
+      }
+      
+      if (locationTimeoutRef.current) {
+        clearTimeout(locationTimeoutRef.current);
+        locationTimeoutRef.current = null;
+      }
     };
   }, [isAuthenticated, user]);
 
@@ -326,13 +340,14 @@ export const SocketProvider = ({ children }) => {
     mapSubscriptionsRef.current.clear();
   }, [connected]);
 
-  // Send real-time location update
+  // Send real-time location update with better throttling
   const updateUserLocation = useCallback((location, accuracy = 'medium') => {
     if (!socketRef.current || !connected || !user) return;
 
-    // Throttle location updates to prevent spam (max once per 30 seconds)
+    // More aggressive throttling to prevent spam (max once per 2 minutes)
     const now = Date.now();
-    if (lastLocationUpdateRef.current && now - lastLocationUpdateRef.current < 30000) {
+    if (lastLocationUpdateRef.current && now - lastLocationUpdateRef.current < 120000) {
+      console.log('📍 Location update skipped (too recent)');
       return;
     }
 
@@ -346,11 +361,6 @@ export const SocketProvider = ({ children }) => {
     console.log('📍 Sending location update:', locationData);
     socketRef.current.emit('locationUpdate', locationData);
     lastLocationUpdateRef.current = now;
-
-    // Also send to our REST API for persistence
-    if (typeof updateUserLocationRealtime === 'function') {
-      updateUserLocationRealtime(locationData);
-    }
   }, [connected, user]);
 
   // Get current real-time users in map area
@@ -427,38 +437,58 @@ export const SocketProvider = ({ children }) => {
     return () => clearInterval(cleanup);
   }, []);
 
-  // Auto-send location updates when user is active
+  // IMPROVED: Auto-send location updates with smarter logic
   useEffect(() => {
     if (!connected || !user) return;
 
-    // Get user location and send updates every 2 minutes when active
-    if (navigator.geolocation) {
-      const startLocationTracking = () => {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            updateUserLocation({
-              lat: position.coords.latitude,
-              lng: position.coords.longitude
-            }, position.coords.accuracy < 100 ? 'high' : 'medium');
-          },
-          (error) => {
-            console.warn('📍 Location access denied or failed:', error);
-          },
-          { enableHighAccuracy: false, timeout: 10000, maximumAge: 120000 }
-        );
-      };
+    // Function to attempt location update
+    const attemptLocationUpdate = async () => {
+      try {
+        // Check if we have permission first
+        const permissionState = await gymBrosLocationService.checkLocationPermission();
+        
+        if (permissionState === 'denied') {
+          console.log('📍 Location permission denied, skipping auto-update');
+          return;
+        }
 
-      // Send initial location
-      startLocationTracking();
+        // Use the enhanced service with background priority
+        const location = await gymBrosLocationService.getCurrentLocation({ 
+          priority: 'background',
+          force: false // Don't force if cached location is available
+        });
+        
+        if (location) {
+          updateUserLocation({
+            lat: location.lat,
+            lng: location.lng
+          }, location.accuracy);
+        }
+      } catch (error) {
+        // Only log significant errors, not timeouts for background sync
+        if (error.code !== 3) { // Not a timeout error
+          console.warn('📍 Background location update failed:', error.message);
+        }
+      }
+    };
 
-      // Set up interval for periodic updates
-      locationUpdateIntervalRef.current = setInterval(startLocationTracking, 2 * 60 * 1000);
-    }
+    // Initial location update (delayed to avoid conflicts with manual requests)
+    locationTimeoutRef.current = setTimeout(() => {
+      attemptLocationUpdate();
+    }, 30000); // Wait 30 seconds before first auto-update
+
+    // Set up interval for periodic updates (every 10 minutes instead of 2)
+    locationUpdateIntervalRef.current = setInterval(attemptLocationUpdate, 10 * 60 * 1000);
 
     return () => {
       if (locationUpdateIntervalRef.current) {
         clearInterval(locationUpdateIntervalRef.current);
         locationUpdateIntervalRef.current = null;
+      }
+      
+      if (locationTimeoutRef.current) {
+        clearTimeout(locationTimeoutRef.current);
+        locationTimeoutRef.current = null;
       }
     };
   }, [connected, user, updateUserLocation]);
