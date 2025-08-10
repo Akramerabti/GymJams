@@ -890,59 +890,38 @@ const GymBrosMap = ({ userProfile }) => {
               ))}
             
             {/* Gym Markers */}
-           {filteredGyms.map(gym => (
-              <Marker 
-                key={`gym-${gym.id}`} 
-                position={[gym.lat, gym.lng]} 
-                icon={createGymIcon(gym, gym.isRealtime)}
-                eventHandlers={{
-                  click: () => handleMarkerClick('gym', gym)
-                }}
-              >
-                <Popup>
-                  <div className="min-w-48">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Building2 className="h-5 w-5 text-blue-500" />
-                      <h3 className="font-semibold">{gym.name}</h3>
-                      {gym.verified && (
-                        <span className="text-green-500 text-xs">✓</span>
-                      )}
-                      {gym.isNew && (
-                        <span className="bg-green-100 text-green-600 px-1 py-0.5 rounded text-xs">New</span>
-                      )}
-                      {gym.isRealtime && (
-                        <Zap className="w-3 h-3 text-blue-500" />
-                      )}
+            {filteredGyms
+  .filter(gym => isValidCoordinate(gym.lat, gym.lng))
+  .map(gym => (
+    <Marker 
+      key={`gym-${gym.id}`} 
+      position={[gym.lat, gym.lng]} 
+      icon={createGymIcon(gym)}
+      eventHandlers={{
+        click: () => handleMarkerClick('gym', gym)
+      }}
+    >
+                  <Popup>
+                    <div className="min-w-48">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Building2 className="h-5 w-5 text-blue-500" />
+                        <h3 className="font-semibold">{gym.name}</h3>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-2">{gym.description}</p>
+                      <div className="flex items-center gap-1 text-sm text-blue-600 mb-2">
+                        <Users className="h-4 w-4" />
+                        <span>{gym.memberCount} members active</span>
+                      </div>
+                      <button 
+                        onClick={() => handleMarkerClick('gym', gym)}
+                        className="text-blue-500 hover:underline text-sm"
+                      >
+                        View Details →
+                      </button>
                     </div>
-                    <p className="text-xs text-gray-500 capitalize mb-1">{gym.type || 'gym'}</p>
-                    {gym.description && (
-                      <p className="text-sm text-gray-600 mb-2 line-clamp-2">{gym.description}</p>
-                    )}
-                    <div className="flex items-center gap-1 text-sm text-blue-600 mb-2">
-                      <Users className="h-4 w-4" />
-                      <span>{gym.memberCount || 0} members active</span>
-                    </div>
-                    {gym.distance && (
-                      <p className="text-xs text-gray-500 mb-2">{Math.round(gym.distance * 10) / 10} km away</p>
-                    )}
-                    <button 
-                      onClick={() => handleMarkerClick('gym', gym)}
-                      className="text-blue-500 hover:underline text-sm"
-                    >
-                      View Details →
-                    </button>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
-          </MarkerClusterGroup>
-        ) : (
-          <>
-            {/* Fallback markers without clustering */}
-            {/* Same marker code as above, just without the MarkerClusterGroup wrapper */}
-          </>
-        )}
-
+                  </Popup>
+                </Marker>
+              ))}
             
             {/* Event Markers */}
           {filteredEvents

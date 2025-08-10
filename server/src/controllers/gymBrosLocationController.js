@@ -434,29 +434,15 @@ export const getGymsForMap = async (req, res) => {
     const { type, search, types, limit = 500, offset = 0 } = req.query;
     let query = { isActive: true };
 
-    logger.info('[getGymsForMap][DEBUG] --- START ---');
-    // Log all gyms in the database before any filtering
-    try {
-      const allGyms = await Gym.find({});
-      logger.info(`[getGymsForMap][DEBUG] Total gyms in DB: ${allGyms.length}`);
-      logger.info('[getGymsForMap][DEBUG] All gyms content:', JSON.stringify(allGyms, null, 2));
-    } catch (allGymsError) {
-      logger.error('[getGymsForMap][DEBUG] Error fetching all gyms:', allGymsError);
-    }
-
-    // Apply type filters
     if (type) {
-      logger.info(`[getGymsForMap][DEBUG] Filtering by type: ${type}`);
       query.type = type;
     } else if (types) {
       const typeArray = Array.isArray(types) ? types : types.split(',');
-      logger.info(`[getGymsForMap][DEBUG] Filtering by types: ${typeArray}`);
       query.type = { $in: typeArray };
     }
 
     // Apply search filter
     if (search) {
-      logger.info(`[getGymsForMap][DEBUG] Filtering by search: ${search}`);
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
         { description: { $regex: search, $options: 'i' } },
@@ -465,24 +451,22 @@ export const getGymsForMap = async (req, res) => {
       ];
     }
 
-  logger.info('[getGymsForMap][DEBUG] Query object content:', JSON.stringify(query, null, 2));
+    logger.info('[getGymsForMap] Query:', JSON.stringify(query));
 
     const gyms = await Gym.find(query)
       .sort({ isVerified: -1, memberCount: -1, type: 1 })
       .skip(Number(offset))
       .limit(Number(limit));
 
-  logger.info(`[getGymsForMap][DEBUG] Query result count: ${gyms.length}`);
-  logger.info('[getGymsForMap][DEBUG] Gyms returned content:', JSON.stringify(gyms, null, 2));
+    logger.info(`[getGymsForMap] Found ${gyms.length} gyms`);
 
     res.json({
       success: true,
       gyms,
       total: gyms.length
     });
-    logger.info('[getGymsForMap][DEBUG] --- END ---');
   } catch (error) {
-    logger.error('[getGymsForMap][DEBUG] Error:', error);
+    logger.error('[getGymsForMap] Error:', error);
     res.status(500).json({ error: 'Failed to fetch gyms' });
   }
 };
