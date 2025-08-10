@@ -59,8 +59,7 @@ const ErrorDisplay = ({ error, onRetry, type = 'general' }) => {
   );
 };
 
-// Search/Filter Bar Component with Avatar
-const MapControls = ({ onSearch, onFilterToggle, loading, onRefresh, avatar, onAvatarClick }) => {
+const MapControls = ({ onSearch, onFilterToggle, loading, onRefresh, avatar, onAvatarClick, isTracking, onToggleTracking, trackingError }) => {
   const [query, setQuery] = useState('');
 
   const handleSearch = (value) => {
@@ -70,15 +69,34 @@ const MapControls = ({ onSearch, onFilterToggle, loading, onRefresh, avatar, onA
 
   return (
     <div className="absolute top-4 left-4 right-4 z-20 flex gap-2 items-center">
-      {/* Avatar Circle Button */}
-      <button
-        className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-blue-400 bg-white shadow-lg flex items-center justify-center hover:scale-105 transition-transform mr-2 overflow-hidden"
-        onClick={onAvatarClick}
-        title="Edit your Gym Mouse avatar"
-        style={{ padding: '2px' }}
-      >
-        {renderMouseAvatar(avatar || {}, 44)}
-      </button>
+      {/* Avatar Circle Button with tracking indicator */}
+      <div className="relative">
+        <button
+          className={`flex-shrink-0 w-12 h-12 rounded-full border-2 ${
+            isTracking ? 'border-green-400 shadow-green-200' : 'border-blue-400'
+          } bg-white shadow-lg flex items-center justify-center hover:scale-105 transition-transform mr-2 overflow-hidden`}
+          onClick={onAvatarClick}
+          title="Edit your Gym Mouse avatar"
+          style={{ padding: '2px' }}
+        >
+          {renderMouseAvatar(avatar || {}, 44)}
+        </button>
+        
+        {/* Tracking indicator */}
+        {isTracking && (
+          <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white">
+            <div className="w-full h-full bg-green-500 rounded-full animate-pulse"></div>
+          </div>
+        )}
+        
+        {/* Error indicator */}
+        {trackingError && !isTracking && (
+          <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white">
+            <div className="w-full h-full bg-red-500 rounded-full"></div>
+          </div>
+        )}
+      </div>
+
       <div className="flex-1 relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
         <input
@@ -89,6 +107,20 @@ const MapControls = ({ onSearch, onFilterToggle, loading, onRefresh, avatar, onA
           onChange={e => handleSearch(e.target.value)}
         />
       </div>
+
+      {/* Location tracking toggle button */}
+      <button
+        onClick={onToggleTracking}
+        className={`p-2 rounded-lg border shadow-lg transition-colors ${
+          isTracking 
+            ? 'bg-green-500 text-white border-green-600 hover:bg-green-600' 
+            : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+        }`}
+        title={isTracking ? 'Stop location tracking' : 'Start location tracking'}
+      >
+        <MapPin className={`h-5 w-5 ${isTracking ? 'animate-pulse' : ''}`} />
+      </button>
+
       <button
         onClick={onFilterToggle}
         className="bg-white p-2 rounded-lg border border-gray-300 shadow-lg hover:bg-gray-50 transition-colors"
@@ -244,24 +276,170 @@ const MapFilters = ({ isOpen, onClose, filters, onApply }) => {
   );
 };
 
-// Custom Map Event Handler
-const MapEventHandler = ({ onMarkerClick, currentUserLocation }) => {
+const TileLoadingIndicator = ({ isLoading, tileCount }) => {
+  // Only show if we have a significant number of tiles loading AND it's been loading for a bit
+  const [showLoading, setShowLoading] = useState(false);
+  
+  useEffect(() => {
+    let timer;
+    
+    if (isLoading && tileCount > 3) {
+      timer = setTimeout(() => {
+        setShowLoading(true);
+      }, 800); // Wait 800ms before showing
+    } else {
+      setShowLoading(false);
+    }
+    
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isLoading, tileCount]);
+  
+  if (!showLoading) return null;
+  
+  return (
+    <div className="absolute top-16 right-4 z-30 bg-black bg-opacity-60 text-white px-2 py-1 rounded text-xs pointer-events-none">
+      <div className="flex items-center gap-1">
+        <div className="animate-spin rounded-full h-2 w-2 border-b border-white"></div>
+        <span>Loading tiles...</span>
+      </div>
+    </div>
+  );
+};
+
+// Update your enhancedMapStyles to hide the tile grid lines
+const enhancedMapStyles = `
+  .custom-leaflet-map .leaflet-control-zoom {
+    display: none !important;
+  }
+  
+  .custom-leaflet-map .leaflet-container {
+    border-radius: 1rem;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+    background: #1e293b; /* Dark background */
+    transition: filter 0.3s;
+  }
+  
+  .gymbros-map-dark .leaflet-container {
+    background: #1e293b !important; /* Force dark background */
+  }
+  
+  /* HIDE THE WHITE GRID LINES */
+  .custom-leaflet-map .leaflet-tile-pane {
+    filter: none !important;
+  }
+  
+  .custom-leaflet-map .leaflet-tile {
+    border: none !important; /* Remove tile borders */
+    outline: none !important; /* Remove tile outlines */
+    box-shadow: none !important; /* Remove any shadows */
+  }
+  
+  /* Hide tile container borders */
+  .custom-leaflet-map .leaflet-tile-container {
+    border: none !important;
+    outline: none !important;
+  }
+  
+  /* Force dark background for the entire map */
+  .gymbros-map-dark {
+    background: #1e293b !important;
+  }
+  
+  .gymbros-map-dark .leaflet-tile-pane {
+    background: #1e293b !important;
+  }
+  
+  /* Remove any white backgrounds that might show through */
+  .gymbros-map-dark .leaflet-map-pane {
+    background: #1e293b !important;
+  }
+  
+  /* Smooth tile transitions */
+  .custom-leaflet-map .leaflet-tile-container {
+    transition: opacity 0.3s ease-in-out !important;
+  }
+  
+  .custom-leaflet-map .leaflet-tile {
+    transition: opacity 0.2s ease-in-out !important;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    image-rendering: pixelated;
+  }
+  
+  /* Loading state for tiles */
+  .custom-leaflet-map .leaflet-tile-loaded {
+    opacity: 1 !important;
+  }
+  
+  .custom-leaflet-map .leaflet-tile-loading {
+    opacity: 0.5 !important;
+  }
+  
+  /* Custom marker optimizations */
+  .custom-mouse-icon,
+  .custom-gym-icon,
+  .custom-event-icon,
+  .custom-community-icon,
+  .custom-sport-center-icon,
+  .custom-other-icon {
+    background: transparent !important;
+    border: none !important;
+    will-change: transform;
+    backface-visibility: hidden;
+    transform: translateZ(0);
+  }
+  
+  /* Improve clustering performance */
+  .marker-cluster {
+    will-change: transform;
+    transform: translateZ(0);
+  }
+  
+  /* Smooth panning */
+  .custom-leaflet-map .leaflet-map-pane {
+    will-change: transform;
+  }
+`;
+
+const MapEventHandler = ({ onMarkerClick, currentUserLocation, setTilesLoading }) => {
   const map = useMapEvents({
     click: (e) => {
       // Handle map clicks if needed
     },
-    zoom: (e) => {
-      // Handle zoom changes if needed
+    zoomstart: (e) => {
+      // Only show loading for significant zoom changes
+      const currentZoom = e.target.getZoom();
+      // Don't show loading for small zoom changes
+      if (Math.abs(e.target._zoom - currentZoom) > 1) {
+        setTilesLoading(true);
+      }
+    },
+    zoomend: (e) => {
+      // Hide loading after zoom completes with delay
+      setTimeout(() => setTilesLoading(false), 200);
+    },
+    movestart: (e) => {
+      // Only show loading for significant moves (not small pans)
+      // Don't trigger on small movements
     },
     moveend: (e) => {
+      // Only trigger loading check if we moved significantly
       const center = e.target.getCenter();
       const zoom = e.target.getZoom();
-      // Handle map move end if needed
-    }
+      
+      // Much shorter delay and don't always trigger loading
+      setTimeout(() => {
+        setTilesLoading(false);
+      }, 100);
+    },
+    // Remove the wheel handler - it's too aggressive
   });
 
   return null;
 };
+
 
 const isValidCoordinate = (lat, lng) => {
   return typeof lat === 'number' && typeof lng === 'number' && 
@@ -290,6 +468,11 @@ const GymBrosMap = ({ userProfile }) => {
   const [mapZoom, setMapZoom] = useState(13);
   const mapRef = useRef();
   const { socket, connected, subscribeToMapUpdates, unsubscribeFromMapUpdates } = useSocket();
+  const [isLocationTracking, setIsLocationTracking] = useState(false);
+const [trackingWatchId, setTrackingWatchId] = useState(null);
+const [trackingError, setTrackingError] = useState(null);
+const [tilesLoading, setTilesLoading] = useState(false);
+const [tileLoadCount, setTileLoadCount] = useState(0);
 
   // Error states
   const [errors, setErrors] = useState({
@@ -323,6 +506,164 @@ const GymBrosMap = ({ userProfile }) => {
   const { darkMode } = useTheme();
 
   const isLoading = loading || dataLoading.users || dataLoading.gyms;
+
+  useEffect(() => {
+  let watchId = null;
+  
+  const startLocationTracking = async () => {
+    try {
+      // Check if user wants location tracking (could be a setting)
+      const shouldTrack = localStorage.getItem('gymBrosAutoTrack') !== 'false'; // Default to true
+      
+      if (!shouldTrack) {
+        console.log('🚗 Auto-tracking disabled by user preference');
+        return;
+      }
+
+      // Check location permission first
+      const permissionState = await gymBrosLocationService.checkLocationPermission();
+      
+      if (permissionState === 'denied') {
+        console.log('🚗 Location permission denied, cannot auto-track');
+        setTrackingError('Location permission denied');
+        return;
+      }
+
+      if (!navigator.geolocation) {
+        console.log('🚗 Geolocation not supported');
+        setTrackingError('Geolocation not supported');
+        return;
+      }
+
+      console.log('🚗 Starting automatic location tracking...');
+      setIsLocationTracking(true);
+      setTrackingError(null);
+
+      watchId = navigator.geolocation.watchPosition(
+        async (position) => {
+          const newLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            speed: position.coords.speed,
+            heading: position.coords.heading,
+            timestamp: Date.now()
+          };
+
+          console.log('🚗 Location update:', newLocation);
+
+          // Check if location changed significantly (>10 meters)
+          if (currentLocation) {
+            const distance = gymBrosLocationService.calculateDistance(
+              currentLocation.lat,
+              currentLocation.lng,
+              newLocation.lat,
+              newLocation.lng
+            );
+
+            // Only update if moved more than 10 meters
+            if (distance < 10) {
+              console.log('🚗 Location change too small, skipping update');
+              return;
+            }
+          }
+
+          // Update local state
+          setCurrentLocation(newLocation);
+          
+          // Smoothly move map center (don't change zoom)
+          if (mapRef.current) {
+            const map = mapRef.current;
+            map.panTo([newLocation.lat, newLocation.lng], {
+              animate: true,
+              duration: 1.0 // 1 second smooth pan
+            });
+          }
+
+          // Send to socket for real-time updates to other users
+          if (socket && connected) {
+            socket.emit('locationUpdate', {
+              lat: newLocation.lat,
+              lng: newLocation.lng,
+              accuracy: newLocation.accuracy,
+              speed: newLocation.speed,
+              heading: newLocation.heading,
+              timestamp: newLocation.timestamp,
+              userId: userProfile?.userId || userProfile?._id
+            });
+          }
+
+          // Update backend location (throttled)
+          try {
+            await gymBrosLocationService.updateUserLocationRealtime({
+              lat: newLocation.lat,
+              lng: newLocation.lng,
+              accuracy: convertAccuracyToEnum(newLocation.accuracy),
+              source: 'gps',
+              timestamp: new Date(newLocation.timestamp).toISOString()
+            });
+          } catch (error) {
+            console.warn('Failed to update backend location:', error);
+            // Don't show error to user for background updates
+          }
+        },
+        (error) => {
+          console.error('🚗 Location tracking error:', error);
+          
+          let errorMessage = 'Location tracking failed';
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = 'Location access denied';
+              localStorage.setItem('gymBrosAutoTrack', 'false'); // Remember user denied
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = 'Location unavailable';
+              break;
+            case error.TIMEOUT:
+              errorMessage = 'Location timeout';
+              break;
+          }
+          
+          setTrackingError(errorMessage);
+          setIsLocationTracking(false);
+          
+          // Show error only for permission denied
+          if (error.code === error.PERMISSION_DENIED) {
+            toast.error('Location tracking disabled. Enable in settings to track your movement.');
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000, // 15 seconds
+          maximumAge: 10000 // Use cached location if less than 10 seconds old
+        }
+      );
+
+      setTrackingWatchId(watchId);
+      console.log('🚗 Location tracking started with watchId:', watchId);
+
+    } catch (error) {
+      console.error('🚗 Failed to start location tracking:', error);
+      setTrackingError('Failed to start tracking');
+      setIsLocationTracking(false);
+    }
+  };
+
+  // Start tracking when component mounts and user/socket is ready
+  if (userProfile && socket) {
+    startLocationTracking();
+  }
+
+  // Cleanup function
+  return () => {
+    if (watchId) {
+      console.log('🚗 Stopping location tracking...');
+      navigator.geolocation.clearWatch(watchId);
+      setIsLocationTracking(false);
+      setTrackingWatchId(null);
+    }
+  };
+}, [userProfile, socket, connected]);
 
   useEffect(() => {
     const initializeData = async () => {
@@ -380,6 +721,22 @@ const GymBrosMap = ({ userProfile }) => {
 
     initializeLocation();
   }, [userProfile]);
+
+  const toggleLocationTracking = () => {
+  if (isLocationTracking && trackingWatchId) {
+    // Stop tracking
+    navigator.geolocation.clearWatch(trackingWatchId);
+    setIsLocationTracking(false);
+    setTrackingWatchId(null);
+    localStorage.setItem('gymBrosAutoTrack', 'false');
+    toast.info('Location tracking stopped');
+  } else {
+    // Start tracking
+    localStorage.setItem('gymBrosAutoTrack', 'true');
+    // Trigger re-render to start tracking
+    window.location.reload();
+  }
+};
 
   // Fetch map data
   const fetchMapData = async () => {
@@ -799,29 +1156,87 @@ const GymBrosMap = ({ userProfile }) => {
     }
   };
 
-  // Handle marker clicks
-  const handleMarkerClick = (type, data) => {
-    // Center and zoom on the clicked location
-    if (mapRef.current) {
-      const map = mapRef.current;
-      map.setView([data.lat, data.lng], 16);
+  const preloadTiles = (map, center, zooms = []) => {
+  if (!map || !center) return;
+  
+  zooms.forEach(zoom => {
+    const bounds = map.getBounds();
+    const tileLayer = map._layers[Object.keys(map._layers)[0]]; // Get tile layer
+    
+    if (tileLayer && tileLayer._url) {
+      // Preload tiles for this zoom level
+      const tiles = [];
+      const pixelBounds = map.getPixelBounds();
+      const tileSize = tileLayer.options.tileSize || 256;
+      
+      for (let x = Math.floor(pixelBounds.min.x / tileSize); x <= Math.ceil(pixelBounds.max.x / tileSize); x++) {
+        for (let y = Math.floor(pixelBounds.min.y / tileSize); y <= Math.ceil(pixelBounds.max.y / tileSize); y++) {
+          const tileUrl = tileLayer._url
+            .replace('{z}', zoom)
+            .replace('{x}', x)
+            .replace('{y}', y)
+            .replace('{s}', 'a'); // Use first subdomain
+          
+          // Preload tile
+          const img = new Image();
+          img.src = tileUrl;
+        }
+      }
     }
+  });
+};
 
-    // Open side panel with data
-    setSidePanel({
-      isOpen: true,
-      data,
-      type
+const handleMarkerClick = (type, data) => {
+  if (mapRef.current) {
+    const map = mapRef.current;
+    const currentZoom = map.getZoom();
+    const targetZoom = 16;
+    
+    // Calculate zoom difference for smooth animation
+    const zoomDiff = Math.abs(targetZoom - currentZoom);
+    const duration = Math.min(2.0, 0.8 + (zoomDiff * 0.2)); // Longer for bigger zoom changes
+    
+    // Preload tiles for target zoom level
+    preloadTiles(map, [data.lat, data.lng], [targetZoom - 1, targetZoom, targetZoom + 1]);
+    
+    // Use flyTo for smooth animated movement
+    map.flyTo([data.lat, data.lng], targetZoom, {
+      animate: true,
+      duration: duration,
+      easeLinearity: 0.15, // Smoother easing
+      noMoveStart: false
     });
-  };
+  }
 
-  // Handle current user mouse click - zoom to location
+  // Open side panel with data
+  setSidePanel({
+    isOpen: true,
+    data,
+    type
+  });
+};
+
   const handleCurrentUserClick = () => {
-    if (currentLocation && mapRef.current) {
-      const map = mapRef.current;
-      map.setView([currentLocation.lat, currentLocation.lng], 18);
-    }
-  };
+  if (currentLocation && mapRef.current) {
+    const map = mapRef.current;
+    map.flyTo([currentLocation.lat, currentLocation.lng], 18, {
+      animate: true,
+      duration: 1.2,
+      easeLinearity: 0.25
+    });
+  }
+};
+
+const convertAccuracyToEnum = (numericAccuracy) => {
+  if (typeof numericAccuracy !== 'number' || isNaN(numericAccuracy)) {
+    return 'medium';
+  }
+  
+  if (numericAccuracy < 10) return 'high';
+  if (numericAccuracy < 100) return 'medium';
+  if (numericAccuracy < 500) return 'low';
+  return 'approximate';
+};
 
   // Save avatar handler
   const handleAvatarSave = async (newAvatar) => {
@@ -859,15 +1274,20 @@ const GymBrosMap = ({ userProfile }) => {
   }
 
   return (
-    <div className="relative w-full h-full">
-      <MapControls 
-        onSearch={handleSearch}
-        onFilterToggle={() => setShowFilters(true)}
-        loading={isLoading}
-        onRefresh={handleRefresh}
-        avatar={avatar}
-        onAvatarClick={() => setShowAvatarDesigner(true)}
-      />
+      <div className="relative w-full h-full">
+    <MapControls 
+      onSearch={handleSearch}
+      onFilterToggle={() => setShowFilters(true)}
+      loading={isLoading}
+      onRefresh={handleRefresh}
+      avatar={avatar}
+      onAvatarClick={() => setShowAvatarDesigner(true)}
+      isTracking={isLocationTracking}
+      onToggleTracking={toggleLocationTracking}
+      trackingError={trackingError}
+    />
+
+<TileLoadingIndicator isLoading={tilesLoading} tileCount={tileLoadCount} />
       
       {/* Error displays */}
       {Object.entries(errors).map(([type, error]) => 
@@ -955,66 +1375,32 @@ const GymBrosMap = ({ userProfile }) => {
 
       {/* Debug Panel - Only show in development */}
       {process.env.NODE_ENV === 'development' && (
-        <div className="fixed bottom-20 right-4 bg-black bg-opacity-75 text-white p-3 rounded-lg text-xs max-w-sm z-40">
-          <h4 className="font-bold mb-2">🐛 Debug Info</h4>
-          <div className="space-y-1">
-            <div>Users: {users.length} ({filteredUsers.length} filtered)</div>
-            <div>Gyms: {filteredGyms.length} | Events: {filteredEvents.length} | Community: {filteredCommunity.length}</div>
-            <div>Total Locations: {gyms.length}</div>
-            <div>Location: {currentLocation ? `[${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}]` : 'None'}</div>
-            <div>Search: "{searchQuery}"</div>
-            <div>Loading: {loading ? 'Yes' : 'No'}</div>
-            <div className="text-red-300">
-              Errors: {Object.keys(errors).filter(key => errors[key]).join(', ') || 'None'}
-            </div>
-          </div>
-        </div>
-      )}
+  <div className="fixed bottom-20 right-4 bg-black bg-opacity-75 text-white p-3 rounded-lg text-xs max-w-sm z-40">
+    <h4 className="font-bold mb-2">🐛 Debug Info</h4>
+    <div className="space-y-1">
+      <div>Users: {users.length} ({filteredUsers.length} filtered)</div>
+      <div>Gyms: {filteredGyms.length} | Events: {filteredEvents.length} | Community: {filteredCommunity.length}</div>
+      <div>Total Locations: {gyms.length}</div>
+      <div>Location: {currentLocation ? `[${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}]` : 'None'}</div>
+      <div>Search: "{searchQuery}"</div>
+      <div>Loading: {loading ? 'Yes' : 'No'}</div>
+      <div className={`${isLocationTracking ? 'text-green-300' : 'text-red-300'}`}>
+        Tracking: {isLocationTracking ? 'Active' : 'Inactive'}
+        {trackingError && ` (${trackingError})`}
+      </div>
+      <div className="text-red-300">
+        Errors: {Object.keys(errors).filter(key => errors[key]).join(', ') || 'None'}
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 };
 
 // Add styles
 const style = document.createElement('style');
-style.innerHTML = `
-  .custom-leaflet-map .leaflet-control-zoom {
-    display: none !important;
-  }
-  .custom-leaflet-map .leaflet-container {
-    border-radius: 1rem;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.12);
-    background: #f8fafc;
-    transition: filter 0.3s;
-  }
-  .gymbros-map-dark .leaflet-container {
-    filter: grayscale(0.15) brightness(0.95) sepia(0.15) hue-rotate(185deg) saturate(1.2) contrast(1.08);
-    background: #1e293b;
-  }
-  .custom-mouse-icon {
-    background: transparent !important;
-    border: none !important;
-  }
-  .custom-gym-icon {
-    background: transparent !important;
-    border: none !important;
-  }
-  .custom-event-icon {
-    background: transparent !important;
-    border: none !important;
-  }
-  .custom-community-icon {
-    background: transparent !important;
-    border: none !important;
-  }
-  .custom-sport-center-icon {
-    background: transparent !important;
-    border: none !important;
-  }
-  .custom-other-icon {
-    background: transparent !important;
-    border: none !important;
-  }
-`;
+style.innerHTML = enhancedMapStyles;
 
 if (!document.head.querySelector('style[data-gymbros-map]')) {
   style.setAttribute('data-gymbros-map', '');

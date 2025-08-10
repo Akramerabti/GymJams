@@ -730,24 +730,36 @@ export const getGymsForMap = async (req, res) => {
   }
 };
 
-// Real-time user location update endpoint
 export const updateUserLocationRealtime = async (req, res) => {
   try {
-    const { locationData } = req.body;
-    const effectiveUser = getEffectiveUser(req);
-    
-    if (!locationData || !locationData.lat || !locationData.lng) {
+    // Extract from locationData if it exists, otherwise use req.body directly
+    const locationData = req.body.locationData || req.body;
+    const { lat, lng, accuracy, source = 'gps', timestamp } = locationData;
+
+    console.log('Received location update:', { lat, lng, accuracy, source, timestamp }); // Debug log
+
+    // Add validation
+    if (!lat || !lng) {
       return res.status(400).json({
         success: false,
-        message: 'Valid location data is required'
+        message: 'Latitude and longitude are required'
       });
     }
 
-    // Get user profile
+    const effectiveUser = getEffectiveUser(req);
+
+    if (!effectiveUser.userId && !effectiveUser.profileId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    // Find user's profile
     let profile;
     if (effectiveUser.profileId) {
       profile = await GymBrosProfile.findById(effectiveUser.profileId);
-    } else if (effectiveUser.userId) {
+    } else {
       profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
     }
 
@@ -758,69 +770,35 @@ export const updateUserLocationRealtime = async (req, res) => {
       });
     }
 
-    // Update location in cache for real-time updates
-    mapCache.setUserLocation(profile._id.toString(), {
-      lat: locationData.lat,
-      lng: locationData.lng,
-      accuracy: locationData.accuracy || 'medium',
-      source: 'realtime'
-    });
+    // Update location with proper structure
+    profile.location = {
+      lat: parseFloat(lat),
+      lng: parseFloat(lng),
+      address: profile.location?.address || '',
+      city: profile.location?.city || '',
+      state: profile.location?.state || '',
+      country: profile.location?.country || 'US',
+      zipCode: profile.location?.zipCode || '',
+      accuracy: accuracy || 'medium',
+      source: source || 'gps',
+      lastUpdated: new Date(timestamp || Date.now())
+    };
 
-    // Update profile location in database (less frequently)
-    const lastUpdate = profile.location?.lastUpdated || new Date(0);
-    const now = new Date();
-    const timeSinceLastUpdate = now - lastUpdate;
-    
-    // Only update database if it's been more than 60 seconds since last update
-    if (timeSinceLastUpdate > 60000) {
-      profile.location = {
-        ...profile.location,
-        lat: locationData.lat,
-        lng: locationData.lng,
-        lastUpdated: now,
-        source: 'realtime',
-        accuracy: locationData.accuracy || profile.location?.accuracy || 'medium'
-      };
-      profile.lastActive = now;
-      await profile.save();
-    } else {
-      // Just update lastActive for online status
-      profile.lastActive = now;
-      await profile.save();
-    }
-
-    // Emit location update to nearby users (if they're watching this area)
-    // This would require socket.io integration
-    try {
-      if (global.io) {
-        global.io.emit('userLocationUpdate', {
-          userId: profile._id,
-          location: {
-            lat: locationData.lat,
-            lng: locationData.lng
-          },
-          isOnline: true
-        });
-      }
-    } catch (socketError) {
-      logger.warn('Socket emission failed:', socketError.message);
-    }
+    await profile.save();
 
     res.json({
       success: true,
-      message: 'Location updated',
-      cached: timeSinceLastUpdate <= 60000
+      message: 'Location updated successfully'
     });
 
   } catch (error) {
-    logger.error('Error updating real-time location:', error);
+    console.error('Error updating realtime location:', error);
     res.status(500).json({
       success: false,
       message: 'Error updating location'
     });
   }
 };
-
 // Get clustered data for specific zoom level (similar to Snapchat's heat map)
 export const getMapClusters = async (req, res) => {
   try {
