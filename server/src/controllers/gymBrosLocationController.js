@@ -7,52 +7,138 @@ import logger from '../utils/logger.js';
 import geocodingService from '../services/geocoding.service.js';
 import Gym from '../models/Gym.js';
 
-export const checkLocation = async (req, res) => {
-  try {
-    const { phone, user: clientUser } = req.body;
-    const effectiveUser = getEffectiveUser(req);
-    
-    const user = effectiveUser.userId ? 
-      await User.findById(effectiveUser.userId) : 
-      clientUser;
-    
-    const result = await gymBrosLocationService.checkExistingLocation(user, phone || effectiveUser.phone);
-    
-    res.json(result);
-  } catch (error) {
-    logger.error('Error checking existing location:', error);
-    res.status(500).json({ message: 'Error checking location' });
-  }
+// Enhanced zoom-level aware data densities
+const ZOOM_LEVEL_CONFIG = {
+  world: { min: 0, max: 4, userLimit: 50, gymLimit: 200, minDistance: 50000 }, // 50km minimum between points
+  continent: { min: 5, max: 7, userLimit: 100, gymLimit: 500, minDistance: 10000 }, // 10km minimum
+  country: { min: 8, max: 10, userLimit: 200, gymLimit: 1000, minDistance: 5000 }, // 5km minimum
+  region: { min: 11, max: 13, userLimit: 500, gymLimit: 2000, minDistance: 1000 }, // 1km minimum
+  city: { min: 14, max: 16, userLimit: 1000, gymLimit: 5000, minDistance: 500 }, // 500m minimum
+  neighborhood: { min: 17, max: 22, userLimit: 2000, gymLimit: 10000, minDistance: 0 } // No minimum
 };
 
-export const getGymsForMap = async (req, res) => {
-  try {
-    const { type, bbox, limit = 500, offset = 0, search } = req.query;
-    const query = { isActive: true };
-    if (type) query.type = type;
-    if (search) query.name = { $regex: search, $options: 'i' };
-    if (bbox) {
-      // bbox: "lng1,lat1,lng2,lat2"
-      const [lng1, lat1, lng2, lat2] = bbox.split(',').map(Number);
-      query['location.coordinates'] = {
-        $geoWithin: {
-          $box: [
-            [lng1, lat1],
-            [lng2, lat2]
-          ]
-        }
-      };
+// Smart cache for map data
+class MapDataCache {
+  constructor() {
+    this.cache = new Map();
+    this.userLocationCache = new Map();
+    this.gymCache = new Map();
+    
+    // Cache TTL settings based on data type
+    this.cacheTTL = {
+      gyms: 30 * 60 * 1000,      // 30 minutes (gyms are static)
+      users: 2 * 60 * 1000,      // 2 minutes (users move)
+      userLocations: 30 * 1000,   // 30 seconds (active user tracking)
+      world: 60 * 60 * 1000,      // 1 hour for world-level data
+      continent: 30 * 60 * 1000,  // 30 minutes for continent-level
+      country: 15 * 60 * 1000,    // 15 minutes for country-level
+      region: 5 * 60 * 1000,      // 5 minutes for region-level
+      city: 2 * 60 * 1000,        // 2 minutes for city-level
+      neighborhood: 30 * 1000     // 30 seconds for neighborhood-level
+    };
+  }
+
+  generateCacheKey(type, bounds, zoom, filters = {}) {
+    const precision = this.getPrecisionForZoom(zoom);
+    const north = Math.ceil(bounds.north / precision) * precision;
+    const south = Math.floor(bounds.south / precision) * precision;
+    const east = Math.ceil(bounds.east / precision) * precision;
+    const west = Math.floor(bounds.west / precision) * precision;
+    
+    const filtersKey = JSON.stringify({
+      showUsers: filters.showUsers,
+      showGyms: filters.showGyms,
+      gymTypes: filters.gymTypes || [],
+      maxDistance: filters.maxDistance
+    });
+    
+    return `${type}_z${zoom}_${north}_${south}_${east}_${west}_${filtersKey}`;
+  }
+
+  getPrecisionForZoom(zoom) {
+    if (zoom <= 4) return 5.0;      // ~500km grid
+    if (zoom <= 7) return 1.0;      // ~100km grid
+    if (zoom <= 10) return 0.1;     // ~10km grid
+    if (zoom <= 13) return 0.01;    // ~1km grid
+    if (zoom <= 16) return 0.001;   // ~100m grid
+    return 0.0001;                  // ~10m grid
+  }
+
+  getConfig(zoom) {
+    for (const [level, config] of Object.entries(ZOOM_LEVEL_CONFIG)) {
+      if (zoom >= config.min && zoom <= config.max) {
+        return { level, ...config };
+      }
     }
-    const gyms = await Gym.find(query).skip(Number(offset)).limit(Number(limit));
-    res.json({ gyms });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch gyms' });
+    return ZOOM_LEVEL_CONFIG.neighborhood;
   }
-};
 
+  get(key, type) {
+    const cached = this.cache.get(key);
+    if (!cached) return null;
+    
+    const now = Date.now();
+    const ttl = this.cacheTTL[type] || this.cacheTTL.users;
+    
+    if (now - cached.timestamp < ttl) {
+      return cached.data;
+    }
+    
+    this.cache.delete(key);
+    return null;
+  }
+
+  set(key, data, type) {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+      type
+    });
+    
+    // Cleanup old entries
+    if (this.cache.size > 1000) {
+      const oldest = Array.from(this.cache.entries())
+        .sort((a, b) => a[1].timestamp - b[1].timestamp)
+        .slice(0, 100);
+      
+      oldest.forEach(([key]) => this.cache.delete(key));
+    }
+  }
+
+  // User location specific caching for real-time updates
+  setUserLocation(userId, location) {
+    this.userLocationCache.set(userId, {
+      ...location,
+      timestamp: Date.now()
+    });
+  }
+
+  getUserLocation(userId) {
+    const cached = this.userLocationCache.get(userId);
+    if (!cached) return null;
+    
+    const now = Date.now();
+    if (now - cached.timestamp < this.cacheTTL.userLocations) {
+      return cached;
+    }
+    
+    this.userLocationCache.delete(userId);
+    return null;
+  }
+
+  clear() {
+    this.cache.clear();
+    this.userLocationCache.clear();
+    this.gymCache.clear();
+  }
+}
+
+const mapCache = new MapDataCache();
+
+// Enhanced getMapUsers with zoom-level awareness
 export const getMapUsers = async (req, res) => {
   try {
-    const { north, south, east, west, maxDistance = 25 } = req.query;
+    const { north, south, east, west, zoom = 13, maxDistance = 25 } = req.query;
     const effectiveUser = getEffectiveUser(req);
 
     // Validate required parameters
@@ -70,6 +156,25 @@ export const getMapUsers = async (req, res) => {
       east: parseFloat(east),
       west: parseFloat(west)
     };
+
+    const zoomLevel = parseInt(zoom);
+    const config = mapCache.getConfig(zoomLevel);
+
+    // Generate cache key
+    const cacheKey = mapCache.generateCacheKey('users', bounds, zoomLevel, { maxDistance });
+    const cached = mapCache.get(cacheKey, config.level);
+    
+    if (cached) {
+      logger.info(`Returning cached user data for zoom ${zoomLevel}`);
+      return res.json({
+        success: true,
+        users: cached.users,
+        count: cached.count,
+        bounds: bounds,
+        zoom: zoomLevel,
+        cached: true
+      });
+    }
 
     // Validate bounds
     if (bounds.north <= bounds.south || bounds.east <= bounds.west) {
@@ -90,74 +195,129 @@ export const getMapUsers = async (req, res) => {
       }
     }
 
-    // Build the aggregation pipeline
+    // Build the aggregation pipeline with zoom-aware optimizations
     const pipeline = [
       // Match active profiles within geographic bounds
       {
         $match: {
           isActive: true,
-          'location.coordinates': {
-            $geoWithin: {
-              $box: [
-                [bounds.west, bounds.south], // Southwest corner
-                [bounds.east, bounds.north]  // Northeast corner
-              ]
-            }
+          'location.lat': {
+            $gte: bounds.south,
+            $lte: bounds.north
+          },
+          'location.lng': {
+            $gte: bounds.west,
+            $lte: bounds.east
           },
           // Exclude current user
-          ...(currentUserProfileId && { _id: { $ne: currentUserProfileId } })
-        }
-      },
-      // Add distance calculation from center of bounds
-      {
-        $addFields: {
-          distance: {
-            $divide: [
-              {
-                $multiply: [
-                  {
-                    $sqrt: {
-                      $add: [
-                        {
-                          $pow: [
-                            {
-                              $subtract: [
-                                { $arrayElemAt: ['$location.coordinates', 1] }, // lat
-                                { $divide: [{ $add: [bounds.north, bounds.south] }, 2] }
-                              ]
-                            },
-                            2
-                          ]
-                        },
-                        {
-                          $pow: [
-                            {
-                              $subtract: [
-                                { $arrayElemAt: ['$location.coordinates', 0] }, // lng
-                                { $divide: [{ $add: [bounds.east, bounds.west] }, 2] }
-                              ]
-                            },
-                            2
-                          ]
-                        }
-                      ]
-                    }
-                  },
-                  111 // Rough conversion to kilometers
-                ]
-              },
-              1
-            ]
+          ...(currentUserProfileId && { _id: { $ne: currentUserProfileId } }),
+          // Only show users active within appropriate timeframe based on zoom
+          lastActive: {
+            $gte: new Date(Date.now() - (config.level === 'world' ? 24 * 60 * 60 * 1000 : 4 * 60 * 60 * 1000))
           }
         }
-      },
-      // Filter by max distance if specified
-      {
-        $match: {
-          distance: { $lte: parseFloat(maxDistance) }
+      }
+    ];
+
+    // Add distance calculation and filtering for closer zoom levels
+    if (config.level !== 'world' && config.level !== 'continent') {
+      const centerLat = (bounds.north + bounds.south) / 2;
+      const centerLng = (bounds.east + bounds.west) / 2;
+      
+      pipeline.push(
+        // Add distance calculation from center of bounds
+        {
+          $addFields: {
+            distance: {
+              $multiply: [
+                111000, // Convert to meters
+                {
+                  $sqrt: {
+                    $add: [
+                      {
+                        $pow: [
+                          {
+                            $subtract: ['$location.lat', centerLat]
+                          },
+                          2
+                        ]
+                      },
+                      {
+                        $pow: [
+                          {
+                            $multiply: [
+                              {
+                                $subtract: ['$location.lng', centerLng]
+                              },
+                              { $cos: { $multiply: [centerLat, Math.PI / 180] } }
+                            ]
+                          },
+                          2
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        // Filter by max distance
+        {
+          $match: {
+            distance: { $lte: parseFloat(maxDistance) * 1000 } // Convert km to meters
+          }
         }
-      },
-      // Populate user data
+      );
+    }
+
+    // Add sampling for large zoom-out views
+    if (config.minDistance > 0) {
+      // Group nearby users and sample from each group
+      pipeline.push(
+        {
+          $addFields: {
+            gridLat: {
+              $floor: {
+                $divide: ['$location.lat', config.minDistance / 111000]
+              }
+            },
+            gridLng: {
+              $floor: {
+                $divide: ['$location.lng', config.minDistance / 111000]
+              }
+            }
+          }
+        },
+        {
+          $group: {
+            _id: { gridLat: '$gridLat', gridLng: '$gridLng' },
+            users: { $push: '$$ROOT' },
+            count: { $sum: 1 }
+          }
+        },
+        {
+          $addFields: {
+            // Take most active user from each grid cell
+            representative: {
+              $arrayElemAt: [
+                {
+                  $sortArray: {
+                    input: '$users',
+                    sortBy: { lastActive: -1 }
+                  }
+                },
+                0
+              ]
+            }
+          }
+        },
+        { $replaceRoot: { newRoot: '$representative' } }
+      );
+    }
+
+    // Populate user data and project final fields
+    pipeline.push(
       {
         $lookup: {
           from: 'users',
@@ -166,7 +326,6 @@ export const getMapUsers = async (req, res) => {
           as: 'userInfo'
         }
       },
-      // Project the fields we need for the map
       {
         $project: {
           _id: 1,
@@ -178,10 +337,10 @@ export const getMapUsers = async (req, res) => {
           experienceLevel: 1,
           preferredTime: 1,
           location: {
-            lat: { $arrayElemAt: ['$location.coordinates', 1] },
-            lng: { $arrayElemAt: ['$location.coordinates', 0] }
+            lat: '$location.lat',
+            lng: '$location.lng'
           },
-          distance: { $round: ['$distance', 1] },
+          distance: { $round: [{ $divide: ['$distance', 1000] }, 1] }, // Convert back to km
           lastActive: 1,
           isOnline: {
             $gt: [
@@ -190,42 +349,74 @@ export const getMapUsers = async (req, res) => {
             ]
           },
           profileImage: { $arrayElemAt: ['$userInfo.profileImage', 0] },
-          // Include user email/phone for guest token validation
           userEmail: { $arrayElemAt: ['$userInfo.email', 0] },
-          userPhone: { $arrayElemAt: ['$userInfo.phone', 0] }
+          userPhone: { $arrayElemAt: ['$userInfo.phone', 0] },
+          // Add activity indicator based on last active time
+          activityStatus: {
+            $switch: {
+              branches: [
+                {
+                  case: { $gt: ['$lastActive', { $subtract: [new Date(), 15 * 60 * 1000] }] },
+                  then: 'online'
+                },
+                {
+                  case: { $gt: ['$lastActive', { $subtract: [new Date(), 60 * 60 * 1000] }] },
+                  then: 'recent'
+                },
+                {
+                  case: { $gt: ['$lastActive', { $subtract: [new Date(), 24 * 60 * 60 * 1000] }] },
+                  then: 'today'
+                }
+              ],
+              default: 'offline'
+            }
+          }
         }
       },
-      // Sort by distance, then by last active
       {
         $sort: {
-          distance: 1,
-          lastActive: -1
+          lastActive: -1,
+          distance: 1
         }
       },
-      // Limit results for performance
       {
-        $limit: 100
+        $limit: config.userLimit
       }
-    ];
+    );
 
-    logger.info(`Fetching map users within bounds: N${bounds.north} S${bounds.south} E${bounds.east} W${bounds.west}, maxDistance: ${maxDistance}km`);
+    logger.info(`Fetching users for zoom level ${zoomLevel} (${config.level}) with limit ${config.userLimit}`);
 
     const users = await GymBrosProfile.aggregate(pipeline);
 
-    // Filter out users who haven't been active recently if needed
-    const activeUsers = users.filter(user => {
-      // Show all users within 24 hours of last activity
-      const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      return !user.lastActive || user.lastActive > dayAgo;
+    // Filter out users who haven't been active recently for appropriate zoom levels
+    const filteredUsers = users.filter(user => {
+      if (config.level === 'world' || config.level === 'continent') {
+        // For world/continent view, show users active within 24 hours
+        const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        return !user.lastActive || user.lastActive > dayAgo;
+      } else {
+        // For closer views, show users active within 4 hours
+        const hoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+        return !user.lastActive || user.lastActive > hoursAgo;
+      }
     });
 
-    logger.info(`Found ${activeUsers.length} active users in map bounds`);
+    logger.info(`Found ${filteredUsers.length} active users in map bounds for zoom ${zoomLevel}`);
+
+    const result = {
+      users: filteredUsers,
+      count: filteredUsers.length,
+      bounds: bounds,
+      zoom: zoomLevel,
+      config: config
+    };
+
+    // Cache the result
+    mapCache.set(cacheKey, result, config.level);
 
     res.json({
       success: true,
-      users: activeUsers,
-      count: activeUsers.length,
-      bounds: bounds
+      ...result
     });
 
   } catch (error) {
@@ -234,6 +425,734 @@ export const getMapUsers = async (req, res) => {
       success: false,
       message: 'Error fetching map users'
     });
+  }
+};
+
+// Enhanced getGymsForMap with zoom-level awareness and type filtering
+export const getGymsForMap = async (req, res) => {
+  try {
+    const { 
+      type, 
+      bbox, 
+      zoom = 13, 
+      limit = 500, 
+      offset = 0, 
+      search,
+      types // Array of gym types to include
+    } = req.query;
+
+    const zoomLevel = parseInt(zoom);
+    const config = mapCache.getConfig(zoomLevel);
+
+    // Parse bbox if provided
+    let geoQuery = { isActive: true };
+    let bounds = null;
+
+    if (bbox) {
+      const [lng1, lat1, lng2, lat2] = bbox.split(',').map(Number);
+      bounds = { north: Math.max(lat1, lat2), south: Math.min(lat1, lat2), east: Math.max(lng1, lng2), west: Math.min(lng1, lng2) };
+      
+      geoQuery['location.coordinates'] = {
+        $geoWithin: {
+          $box: [
+            [Math.min(lng1, lng2), Math.min(lat1, lat2)],
+            [Math.max(lng1, lng2), Math.max(lat1, lat2)]
+          ]
+        }
+      };
+    }
+
+    // Apply type filters
+    if (type) {
+      geoQuery.type = type;
+    } else if (types) {
+      const typeArray = Array.isArray(types) ? types : types.split(',');
+      geoQuery.type = { $in: typeArray };
+    }
+
+    // Apply search filter
+    if (search) {
+      geoQuery.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { 'location.city': { $regex: search, $options: 'i' } },
+        { gymChain: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Check cache
+    const cacheKey = mapCache.generateCacheKey('gyms', bounds || {}, zoomLevel, { type, types, search });
+    const cached = mapCache.get(cacheKey, 'gyms');
+    
+    if (cached) {
+      return res.json({
+        success: true,
+        gyms: cached.gyms.slice(Number(offset), Number(offset) + Number(limit)),
+        total: cached.total,
+        zoom: zoomLevel,
+        cached: true
+      });
+    }
+
+    // Build aggregation pipeline for zoom-aware filtering
+    const pipeline = [
+      { $match: geoQuery }
+    ];
+
+    // Add sampling for world/continent views
+    if (config.minDistance > 0 && bounds) {
+      const gridSize = config.minDistance / 111000; // Convert meters to degrees (approximate)
+      
+      pipeline.push(
+        {
+          $addFields: {
+            gridLat: {
+              $floor: {
+                $divide: [{ $arrayElemAt: ['$location.coordinates', 1] }, gridSize]
+              }
+            },
+            gridLng: {
+              $floor: {
+                $divide: [{ $arrayElemAt: ['$location.coordinates', 0] }, gridSize]
+              }
+            }
+          }
+        },
+        {
+          $group: {
+            _id: { gridLat: '$gridLat', gridLng: '$gridLng', type: '$type' },
+            gyms: { $push: '$$ROOT' },
+            count: { $sum: 1 }
+          }
+        },
+        {
+          $addFields: {
+            // Prioritize verified gyms, then by member count
+            representative: {
+              $arrayElemAt: [
+                {
+                  $sortArray: {
+                    input: '$gyms',
+                    sortBy: { isVerified: -1, memberCount: -1 }
+                  }
+                },
+                0
+              ]
+            }
+          }
+        },
+        { $replaceRoot: { newRoot: '$representative' } }
+      );
+    }
+
+    // Add final projection and sorting
+    pipeline.push(
+      {
+        $addFields: {
+          lat: { $arrayElemAt: ['$location.coordinates', 1] },
+          lng: { $arrayElemAt: ['$location.coordinates', 0] }
+        }
+      },
+      {
+        $sort: { 
+          isVerified: -1, 
+          memberCount: -1, 
+          type: 1 
+        }
+      },
+      {
+        $limit: config.gymLimit
+      }
+    );
+
+    const gyms = await Gym.aggregate(pipeline);
+
+    const result = {
+      gyms,
+      total: gyms.length,
+      zoom: zoomLevel,
+      config: config
+    };
+
+    // Cache the result
+    mapCache.set(cacheKey, result, 'gyms');
+
+    res.json({
+      success: true,
+      gyms: gyms.slice(Number(offset), Number(offset) + Number(limit)),
+      total: gyms.length,
+      zoom: zoomLevel
+    });
+
+  } catch (error) {
+    logger.error('Error fetching gyms for map:', error);
+    res.status(500).json({ error: 'Failed to fetch gyms' });
+  }
+};
+
+// Real-time user location update endpoint
+export const updateUserLocationRealtime = async (req, res) => {
+  try {
+    const { locationData } = req.body;
+    const effectiveUser = getEffectiveUser(req);
+    
+    if (!locationData || !locationData.lat || !locationData.lng) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid location data is required'
+      });
+    }
+
+    // Get user profile
+    let profile;
+    if (effectiveUser.profileId) {
+      profile = await GymBrosProfile.findById(effectiveUser.profileId);
+    } else if (effectiveUser.userId) {
+      profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+    }
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Profile not found'
+      });
+    }
+
+    // Update location in cache for real-time updates
+    mapCache.setUserLocation(profile._id.toString(), {
+      lat: locationData.lat,
+      lng: locationData.lng,
+      accuracy: locationData.accuracy || 'medium',
+      source: 'realtime'
+    });
+
+    // Update profile location in database (less frequently)
+    const lastUpdate = profile.location?.lastUpdated || new Date(0);
+    const now = new Date();
+    const timeSinceLastUpdate = now - lastUpdate;
+    
+    // Only update database if it's been more than 60 seconds since last update
+    if (timeSinceLastUpdate > 60000) {
+      profile.location = {
+        ...profile.location,
+        lat: locationData.lat,
+        lng: locationData.lng,
+        lastUpdated: now,
+        source: 'realtime',
+        accuracy: locationData.accuracy || profile.location?.accuracy || 'medium'
+      };
+      profile.lastActive = now;
+      await profile.save();
+    } else {
+      // Just update lastActive for online status
+      profile.lastActive = now;
+      await profile.save();
+    }
+
+    // Emit location update to nearby users (if they're watching this area)
+    // This would require socket.io integration
+    try {
+      if (global.io) {
+        global.io.emit('userLocationUpdate', {
+          userId: profile._id,
+          location: {
+            lat: locationData.lat,
+            lng: locationData.lng
+          },
+          isOnline: true
+        });
+      }
+    } catch (socketError) {
+      logger.warn('Socket emission failed:', socketError.message);
+    }
+
+    res.json({
+      success: true,
+      message: 'Location updated',
+      cached: timeSinceLastUpdate <= 60000
+    });
+
+  } catch (error) {
+    logger.error('Error updating real-time location:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating location'
+    });
+  }
+};
+
+// Get clustered data for specific zoom level (similar to Snapchat's heat map)
+export const getMapClusters = async (req, res) => {
+  try {
+    const { north, south, east, west, zoom = 13, clusterSize = 0.01 } = req.query;
+    const effectiveUser = getEffectiveUser(req);
+
+    const bounds = {
+      north: parseFloat(north),
+      south: parseFloat(south),
+      east: parseFloat(east),
+      west: parseFloat(west)
+    };
+
+    const zoomLevel = parseInt(zoom);
+    const config = mapCache.getConfig(zoomLevel);
+
+    // Calculate appropriate cluster size based on zoom level
+    const dynamicClusterSize = parseFloat(clusterSize) * Math.pow(2, Math.max(0, 15 - zoomLevel));
+
+    // Get clustered user data
+    const userClusters = await GymBrosProfile.aggregate([
+      {
+        $match: {
+          isActive: true,
+          'location.lat': { $gte: bounds.south, $lte: bounds.north },
+          'location.lng': { $gte: bounds.west, $lte: bounds.east },
+          lastActive: { $gte: new Date(Date.now() - 4 * 60 * 60 * 1000) } // 4 hours
+        }
+      },
+      {
+        $addFields: {
+          clusterLat: {
+            $multiply: [
+              { $floor: { $divide: ['$location.lat', dynamicClusterSize] } },
+              dynamicClusterSize
+            ]
+          },
+          clusterLng: {
+            $multiply: [
+              { $floor: { $divide: ['$location.lng', dynamicClusterSize] } },
+              dynamicClusterSize
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: { lat: '$clusterLat', lng: '$clusterLng' },
+          count: { $sum: 1 },
+          onlineCount: {
+            $sum: {
+              $cond: [
+                { $gt: ['$lastActive', { $subtract: [new Date(), 15 * 60 * 1000] }] },
+                1,
+                0
+              ]
+            }
+          },
+          users: { 
+            $push: {
+              _id: '$_id',
+              name: '$name',
+              avatar: '$avatar',
+              isOnline: {
+                $gt: ['$lastActive', { $subtract: [new Date(), 15 * 60 * 1000] }]
+              }
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          lat: '$_id.lat',
+          lng: '$_id.lng',
+          count: 1,
+          onlineCount: 1,
+          // Only include sample users for smaller clusters
+          users: {
+            $cond: [
+              { $lte: ['$count', 10] },
+              '$users',
+              { $slice: ['$users', 3] }
+            ]
+          }
+        }
+      },
+      { $sort: { count: -1 } },
+      { $limit: 500 }
+    ]);
+
+    // Get clustered gym data
+    const gymClusters = await Gym.aggregate([
+      {
+        $match: {
+          isActive: true,
+          'location.coordinates.1': { $gte: bounds.south, $lte: bounds.north },
+          'location.coordinates.0': { $gte: bounds.west, $lte: bounds.east }
+        }
+      },
+      {
+        $addFields: {
+          lat: { $arrayElemAt: ['$location.coordinates', 1] },
+          lng: { $arrayElemAt: ['$location.coordinates', 0] },
+          clusterLat: {
+            $multiply: [
+              { $floor: { $divide: [{ $arrayElemAt: ['$location.coordinates', 1] }, dynamicClusterSize] } },
+              dynamicClusterSize
+            ]
+          },
+          clusterLng: {
+            $multiply: [
+              { $floor: { $divide: [{ $arrayElemAt: ['$location.coordinates', 0] }, dynamicClusterSize] } },
+              dynamicClusterSize
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: { lat: '$clusterLat', lng: '$clusterLng' },
+          count: { $sum: 1 },
+          gyms: {
+            $push: {
+              _id: '$_id',
+              name: '$name',
+              type: '$type',
+              verified: '$isVerified',
+              memberCount: '$memberCount'
+            }
+          },
+          types: { $addToSet: '$type' }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          lat: '$_id.lat',
+          lng: '$_id.lng',
+          count: 1,
+          types: 1,
+          // Only include sample gyms for smaller clusters
+          gyms: {
+            $cond: [
+              { $lte: ['$count', 5] },
+              '$gyms',
+              { $slice: ['$gyms', 2] }
+            ]
+          }
+        }
+      },
+      { $sort: { count: -1 } },
+      { $limit: 300 }
+    ]);
+
+    res.json({
+      success: true,
+      userClusters,
+      gymClusters,
+      zoom: zoomLevel,
+      clusterSize: dynamicClusterSize,
+      bounds
+    });
+
+  } catch (error) {
+    logger.error('Error fetching map clusters:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching map clusters'
+    });
+  }
+};
+
+// Get real-time updates for a specific viewport
+export const getMapUpdates = async (req, res) => {
+  try {
+    const { north, south, east, west, lastUpdate } = req.query;
+    const effectiveUser = getEffectiveUser(req);
+
+    const bounds = {
+      north: parseFloat(north),
+      south: parseFloat(south),
+      east: parseFloat(east),
+      west: parseFloat(west)
+    };
+
+    const since = lastUpdate ? new Date(lastUpdate) : new Date(Date.now() - 60000); // Default to last minute
+
+    // Get users that have updated their location since lastUpdate
+    const updatedUsers = await GymBrosProfile.find({
+      isActive: true,
+      'location.lat': { $gte: bounds.south, $lte: bounds.north },
+      'location.lng': { $gte: bounds.west, $lte: bounds.east },
+      $or: [
+        { 'location.lastUpdated': { $gte: since } },
+        { lastActive: { $gte: since } }
+      ]
+    }).select('_id name avatar location lastActive workoutTypes experienceLevel')
+      .limit(100);
+
+    // Get newly created or updated gyms
+    const updatedGyms = await Gym.find({
+      isActive: true,
+      'location.coordinates.1': { $gte: bounds.south, $lte: bounds.north },
+      'location.coordinates.0': { $gte: bounds.west, $lte: bounds.east },
+      updatedAt: { $gte: since }
+    }).limit(50);
+
+    const processedUsers = updatedUsers.map(user => ({
+      ...user.toObject(),
+      lat: user.location.lat,
+      lng: user.location.lng,
+      isOnline: user.lastActive > new Date(Date.now() - 15 * 60 * 1000)
+    }));
+
+    const processedGyms = updatedGyms.map(gym => ({
+      ...gym.toObject(),
+      lat: gym.location.coordinates[1],
+      lng: gym.location.coordinates[0]
+    }));
+
+    res.json({
+      success: true,
+      users: processedUsers,
+      gyms: processedGyms,
+      timestamp: new Date().toISOString(),
+      bounds
+    });
+
+  } catch (error) {
+    logger.error('Error fetching map updates:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching map updates'
+    });
+  }
+};
+
+// Enhanced gym creation with better type support
+export const createGym = async (req, res) => {
+  try {
+    const gymData = req.body;
+    const effectiveUser = getEffectiveUser(req);
+
+    logger.info('Creating gym with data:', JSON.stringify(gymData));
+
+    if (!effectiveUser.userId && !effectiveUser.profileId && !effectiveUser.phone && !effectiveUser.email) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication, verified phone, or email required to create gym'
+      });
+    }
+
+    if (!gymData.name || !gymData.location) {
+      return res.status(400).json({
+        success: false,
+        message: 'Gym name and location are required'
+      });
+    }
+
+    // Validate gym type
+    const validTypes = ['gym', 'community', 'event', 'sport_center', 'other'];
+    if (gymData.type && !validTypes.includes(gymData.type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid gym type. Must be one of: ' + validTypes.join(', ')
+      });
+    }
+
+    let createdByValue = null;
+    if (effectiveUser.userId) {
+      createdByValue = effectiveUser.userId;
+    } else if (effectiveUser.phone) {
+      createdByValue = effectiveUser.phone;
+    } else if (effectiveUser.email) {
+      createdByValue = effectiveUser.email;
+    } else if (effectiveUser.profileId) {
+      createdByValue = effectiveUser.profileId;
+    }
+
+    if (!createdByValue) {
+      return res.status(400).json({
+        success: false,
+        message: 'Could not determine creator for gym.'
+      });
+    }
+
+    // Determine the gym's actual coordinates
+    let gymLat, gymLng;
+    let geocoded = false;
+    
+    // Check if we should geocode the address
+    if (gymData.shouldGeocode && gymData.location.address && gymData.location.city && gymData.location.country) {
+      logger.info(`Attempting to geocode gym address: ${gymData.location.address}, ${gymData.location.city}, ${gymData.location.country}`);
+      
+      try {
+        const geocodeResult = await geocodingService.geocodeAddress(
+          gymData.location.address,
+          gymData.location.city,
+          gymData.location.state || '',
+          gymData.location.country,
+          gymData.location.zipCode || ''
+        );
+        
+        if (geocodeResult) {
+          gymLat = geocodeResult.lat;
+          gymLng = geocodeResult.lng;
+          geocoded = true;
+          logger.info(`Geocoding successful - Gym coordinates: ${gymLat}, ${gymLng}`);
+        } else {
+          // Geocoding failed, fall back to user's location
+          logger.warn('Geocoding failed, using user location as fallback');
+          gymLat = parseFloat(gymData.location.lat);
+          gymLng = parseFloat(gymData.location.lng);
+        }
+      } catch (geocodeError) {
+        logger.error('Geocoding error:', geocodeError);
+        // Fall back to user's location
+        gymLat = parseFloat(gymData.location.lat);
+        gymLng = parseFloat(gymData.location.lng);
+      }
+    } else {
+      // Use the provided coordinates (user is at the gym)
+      gymLat = parseFloat(gymData.location.lat);
+      gymLng = parseFloat(gymData.location.lng);
+      logger.info('Using provided coordinates (user at gym location)');
+    }
+
+    // Check if a gym already exists at this location
+    try {
+      const nearbyGyms = await Gym.findNearby(gymLat, gymLng, 0.1); // Within ~160 meters
+      const existingGym = nearbyGyms.find(gym => 
+        gym.name.toLowerCase() === gymData.name.toLowerCase()
+      );
+      
+      if (existingGym) {
+        logger.info(`Gym already exists: ${existingGym.name}`);
+        
+        // Calculate distance from user
+        let distanceFromUser = 0;
+        if (gymData.userLocation && gymData.userLocation.lat && gymData.userLocation.lng) {
+          const userLat = parseFloat(gymData.userLocation.lat);
+          const userLng = parseFloat(gymData.userLocation.lng);
+          distanceFromUser = geocodingService.calculateDistance(userLat, userLng, gymLat, gymLng);
+        }
+        
+        return res.json({
+          success: true,
+          gym: {
+            ...existingGym.toObject(),
+            distanceMiles: parseFloat(distanceFromUser.toFixed(1))
+          },
+          message: 'Gym already exists',
+          geocoded: geocoded
+        });
+      }
+    } catch (nearbyError) {
+      logger.warn('Could not check for nearby gyms:', nearbyError.message);
+    }
+
+    // Create the new gym with correct coordinates and type
+    const newGym = await Gym.create({
+      name: gymData.name,
+      type: gymData.type || 'gym', // Default to 'gym' if not specified
+      location: {
+        type: 'Point',
+        coordinates: [gymLng, gymLat], // GeoJSON format: [lng, lat]
+        address: gymData.location.address || '',
+        city: gymData.location.city || '',
+        state: gymData.location.state || '',
+        country: gymData.location.country || '',
+        zipCode: gymData.location.zipCode || ''
+      },
+      description: gymData.description || '',
+      amenities: gymData.amenities || [],
+      gymChain: gymData.gymChain || '',
+      website: gymData.website || '',
+      phone: gymData.phone || '',
+      createdBy: createdByValue,
+      isActive: true
+    });
+
+    logger.info(`Created new gym: ${newGym.name} at coordinates [${gymLng}, ${gymLat}] with type: ${newGym.type}`);
+
+    // Calculate distance from user's current location
+    let distanceFromUser = 0;
+    if (gymData.userLocation && gymData.userLocation.lat && gymData.userLocation.lng) {
+      const userLat = parseFloat(gymData.userLocation.lat);
+      const userLng = parseFloat(gymData.userLocation.lng);
+      distanceFromUser = geocodingService.calculateDistance(userLat, userLng, gymLat, gymLng);
+      logger.info(`Distance from user to gym: ${distanceFromUser.toFixed(1)} miles`);
+    }
+
+    // Clear relevant caches
+    mapCache.clear();
+
+    // Return the gym with proper distance calculated
+    const responseGym = {
+      _id: newGym._id,
+      name: newGym.name,
+      type: newGym.type,
+      location: {
+        lat: gymLat,
+        lng: gymLng,
+        address: newGym.location.address,
+        city: newGym.location.city,
+        state: newGym.location.state,
+        country: newGym.location.country,
+        zipCode: newGym.location.zipCode
+      },
+      distanceMiles: parseFloat(distanceFromUser.toFixed(1)),
+      description: newGym.description,
+      amenities: newGym.amenities,
+      gymChain: newGym.gymChain,
+      website: newGym.website,
+      phone: newGym.phone,
+      memberCount: 0,
+      rating: { average: 0, count: 0 },
+      isVerified: false,
+      createdAt: newGym.createdAt
+    };
+
+    let responseData = {
+      success: true,
+      gym: responseGym,
+      geocoded: geocoded,
+      message: geocoded ? 'Gym created successfully with accurate location' : 'Gym created (approximate location)'
+    };
+
+    if (effectiveUser.isGuest && (effectiveUser.phone || effectiveUser.email)) {
+      responseData.guestToken = generateGuestToken(effectiveUser.phone || effectiveUser.email, effectiveUser.profileId);
+    }
+
+    // Emit real-time update about new gym creation
+    try {
+      if (global.io) {
+        global.io.emit('gymCreated', {
+          gym: responseGym,
+          location: { lat: gymLat, lng: gymLng }
+        });
+      }
+    } catch (socketError) {
+      logger.warn('Socket emission failed:', socketError.message);
+    }
+
+    res.json(responseData);
+  } catch (error) {
+    logger.error('Error creating gym:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error creating gym',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Export all existing functions...
+export const checkLocation = async (req, res) => {
+  try {
+    const { phone, user: clientUser } = req.body;
+    const effectiveUser = getEffectiveUser(req);
+    
+    const user = effectiveUser.userId ? 
+      await User.findById(effectiveUser.userId) : 
+      clientUser;
+    
+    const result = await gymBrosLocationService.checkExistingLocation(user, phone || effectiveUser.phone);
+    
+    res.json(result);
+  } catch (error) {
+    logger.error('Error checking existing location:', error);
+    res.status(500).json({ message: 'Error checking location' });
   }
 };
 
@@ -379,197 +1298,6 @@ export const searchGyms = async (req, res) => {
   } catch (error) {
     logger.error('Error searching gyms:', error);
     res.status(500).json({ message: 'Error searching gyms' });
-  }
-};
-
-export const createGym = async (req, res) => {
-  try {
-    const gymData = req.body;
-    const effectiveUser = getEffectiveUser(req);
-
-    logger.info('Creating gym with data:', JSON.stringify(gymData));
-
-    if (!effectiveUser.userId && !effectiveUser.profileId && !effectiveUser.phone && !effectiveUser.email) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication, verified phone, or email required to create gym'
-      });
-    }
-
-    if (!gymData.name || !gymData.location) {
-      return res.status(400).json({
-        success: false,
-        message: 'Gym name and location are required'
-      });
-    }
-
-    let createdByValue = null;
-    if (effectiveUser.userId) {
-      createdByValue = effectiveUser.userId;
-    } else if (effectiveUser.phone) {
-      createdByValue = effectiveUser.phone;
-    } else if (effectiveUser.email) {
-      createdByValue = effectiveUser.email;
-    } else if (effectiveUser.profileId) {
-      createdByValue = effectiveUser.profileId;
-    }
-
-    if (!createdByValue) {
-      return res.status(400).json({
-        success: false,
-        message: 'Could not determine creator for gym.'
-      });
-    }
-
-    // Determine the gym's actual coordinates
-    let gymLat, gymLng;
-    let geocoded = false;
-    
-    // Check if we should geocode the address
-    if (gymData.shouldGeocode && gymData.location.address && gymData.location.city && gymData.location.country) {
-      logger.info(`Attempting to geocode gym address: ${gymData.location.address}, ${gymData.location.city}, ${gymData.location.country}`);
-      
-      try {
-        const geocodeResult = await geocodingService.geocodeAddress(
-          gymData.location.address,
-          gymData.location.city,
-          gymData.location.state || '',
-          gymData.location.country,
-          gymData.location.zipCode || ''
-        );
-        
-        if (geocodeResult) {
-          gymLat = geocodeResult.lat;
-          gymLng = geocodeResult.lng;
-          geocoded = true;
-          logger.info(`Geocoding successful - Gym coordinates: ${gymLat}, ${gymLng}`);
-        } else {
-          // Geocoding failed, fall back to user's location
-          logger.warn('Geocoding failed, using user location as fallback');
-          gymLat = parseFloat(gymData.location.lat);
-          gymLng = parseFloat(gymData.location.lng);
-        }
-      } catch (geocodeError) {
-        logger.error('Geocoding error:', geocodeError);
-        // Fall back to user's location
-        gymLat = parseFloat(gymData.location.lat);
-        gymLng = parseFloat(gymData.location.lng);
-      }
-    } else {
-      // Use the provided coordinates (user is at the gym)
-      gymLat = parseFloat(gymData.location.lat);
-      gymLng = parseFloat(gymData.location.lng);
-      logger.info('Using provided coordinates (user at gym location)');
-    }
-
-    // Check if a gym already exists at this location
-    try {
-      const nearbyGyms = await Gym.findNearby(gymLat, gymLng, 0.1); // Within ~160 meters
-      const existingGym = nearbyGyms.find(gym => 
-        gym.name.toLowerCase() === gymData.name.toLowerCase()
-      );
-      
-      if (existingGym) {
-        logger.info(`Gym already exists: ${existingGym.name}`);
-        
-        // Calculate distance from user
-        let distanceFromUser = 0;
-        if (gymData.userLocation && gymData.userLocation.lat && gymData.userLocation.lng) {
-          const userLat = parseFloat(gymData.userLocation.lat);
-          const userLng = parseFloat(gymData.userLocation.lng);
-          distanceFromUser = geocodingService.calculateDistance(userLat, userLng, gymLat, gymLng);
-        }
-        
-        return res.json({
-          success: true,
-          gym: {
-            ...existingGym.toObject(),
-            distanceMiles: parseFloat(distanceFromUser.toFixed(1))
-          },
-          message: 'Gym already exists',
-          geocoded: geocoded
-        });
-      }
-    } catch (nearbyError) {
-      logger.warn('Could not check for nearby gyms:', nearbyError.message);
-    }
-
-    // Create the new gym with correct coordinates
-    const newGym = await Gym.create({
-      name: gymData.name,
-      location: {
-        type: 'Point',
-        coordinates: [gymLng, gymLat], // GeoJSON format: [lng, lat]
-        address: gymData.location.address || '',
-        city: gymData.location.city || '',
-        state: gymData.location.state || '',
-        country: gymData.location.country || '',
-        zipCode: gymData.location.zipCode || ''
-      },
-      description: gymData.description || '',
-      amenities: gymData.amenities || [],
-      gymChain: gymData.gymChain || '',
-      website: gymData.website || '',
-      phone: gymData.phone || '',
-      createdBy: createdByValue,
-      isActive: true
-    });
-
-    logger.info(`Created new gym: ${newGym.name} at coordinates [${gymLng}, ${gymLat}]`);
-
-    // Calculate distance from user's current location
-    let distanceFromUser = 0;
-    if (gymData.userLocation && gymData.userLocation.lat && gymData.userLocation.lng) {
-      const userLat = parseFloat(gymData.userLocation.lat);
-      const userLng = parseFloat(gymData.userLocation.lng);
-      distanceFromUser = geocodingService.calculateDistance(userLat, userLng, gymLat, gymLng);
-      logger.info(`Distance from user to gym: ${distanceFromUser.toFixed(1)} miles`);
-    }
-
-    // Return the gym with proper distance calculated
-    const responseGym = {
-      _id: newGym._id,
-      name: newGym.name,
-      location: {
-        lat: gymLat,
-        lng: gymLng,
-        address: newGym.location.address,
-        city: newGym.location.city,
-        state: newGym.location.state,
-        country: newGym.location.country,
-        zipCode: newGym.location.zipCode
-      },
-      distanceMiles: parseFloat(distanceFromUser.toFixed(1)),
-      description: newGym.description,
-      amenities: newGym.amenities,
-      gymChain: newGym.gymChain,
-      website: newGym.website,
-      phone: newGym.phone,
-      memberCount: 0,
-      rating: { average: 0, count: 0 },
-      isVerified: false,
-      createdAt: newGym.createdAt
-    };
-
-    let responseData = {
-      success: true,
-      gym: responseGym,
-      geocoded: geocoded,
-      message: geocoded ? 'Gym created successfully with accurate location' : 'Gym created (approximate location)'
-    };
-
-    if (effectiveUser.isGuest && (effectiveUser.phone || effectiveUser.email)) {
-      responseData.guestToken = generateGuestToken(effectiveUser.phone || effectiveUser.email, effectiveUser.profileId);
-    }
-
-    res.json(responseData);
-  } catch (error) {
-    logger.error('Error creating gym:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Error creating gym',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
   }
 };
 

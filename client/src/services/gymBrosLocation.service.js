@@ -1,527 +1,540 @@
-import locationService from './location.service.js';
-import api from './api.js';
+import api from './api';
+import { toast } from 'sonner';
 
-class GymBrosLocationService {
+class EnhancedGymBrosLocationService {
   constructor() {
-    this.isAutoSyncActive = false;
-    this.lastSyncTime = 0;
-    this.syncCooldown = 1800000;
-    this.requestQueue = new Map();
-    this.lastKnownLocation = null;
-    this.locationCheckInterval = null;
-    this.significantDistanceThreshold = 500;
-  }
-  
-  isInCooldown() {
-    const now = Date.now();
-    const timeSinceLastSync = now - this.lastSyncTime;
-    return timeSinceLastSync < this.syncCooldown;
+    this.lastLocationUpdate = null;
+    this.locationCache = new Map();
+    this.watchId = null;
   }
 
-  async debouncedApiCall(key, apiCall) {
-    if (this.requestQueue.has(key)) {
-      return await this.requestQueue.get(key);
-    }
-
-    const promise = apiCall().finally(() => {
-      this.requestQueue.delete(key);
-    });
-
-    this.requestQueue.set(key, promise);
-    return await promise;
-  }
-  
-  async shouldSkipLocationStep(user = null, phone = null) {
+  // Get user's best known location with fallbacks
+  async getBestLocation(user, phone) {
     try {
-      if (this.isInCooldown()) {
-        const localLocation = this.getStoredLocation();
-        if (localLocation && this.isLocationComplete(localLocation)) {
-          return {
-            skipStep: true,
-            locationData: localLocation,
-            source: 'localStorage',
-            message: 'Using cached location (cooldown active)'
+      // Try to get saved location from backend first
+      const response = await api.post('/gym-bros/check', {
+        user,
+        phone
+      });
+
+      if (response.data && response.data.location) {
+        console.log('📍 Got saved location from backend:', response.data.location);
+        return response.data.location;
+      }
+
+      // Fallback to browser geolocation
+      return await this.getCurrentLocation();
+    } catch (error) {
+      console.error('Error getting best location:', error);
+      
+      // Final fallback to browser geolocation
+      return await this.getCurrentLocation();
+    }
+  }
+
+  // Get current location using browser geolocation
+  getCurrentLocation(options = {}) {
+    const defaultOptions = {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 60000,
+      ...options
+    };
+
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation is not supported by this browser'));
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const location = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            source: 'gps',
+            timestamp: new Date().toISOString()
           };
-        }
-      }
-
-      const localLocation = this.getStoredLocation();
-      
-      if (localLocation && this.isLocationComplete(localLocation)) {
-        this.lastKnownLocation = localLocation;
-        return {
-          skipStep: true,
-          locationData: localLocation,
-          source: 'localStorage',
-          message: 'Using stored location'
-        };
-      }
-
-      const freshLocation = await locationService.getLocationByIP();
-      if (freshLocation && this.isLocationComplete(freshLocation)) {
-        this.storeLocation(freshLocation);
-        this.lastKnownLocation = freshLocation;
-        return {
-          skipStep: true,
-          locationData: freshLocation,
-          source: 'ip_geolocation',
-          message: 'Using IP-based location'
-        };
-      }
-
-      return {
-        skipStep: false,
-        locationData: null,
-        source: null,
-        message: 'Location setup required'
-      };
-
-    } catch (error) {
-      return {
-        skipStep: false,
-        locationData: null,
-        source: null,
-        message: 'Error checking location'
-      };
-    }
-  }
-
-  async updateLocation(locationData, user = null, phone = null) {
-    try {
-      if (this.isInCooldown()) {
-        return {
-          success: false,
-          message: 'Location update in cooldown'
-        };
-      }
-      
-      const normalizedLocation = this.normalizeLocationData(locationData);
-      
-      this.storeLocation(normalizedLocation);
-      this.lastKnownLocation = normalizedLocation;
-      this.lastSyncTime = Date.now();
-
-      const response = await api.post('/gym-bros-location/update', {
-        locationData: normalizedLocation,
-        user: user,
-        phone: phone
-      });
-
-      if (response.data.success && user && typeof window !== 'undefined') {
-        try {
-          const { default: useAuthStore } = await import('../stores/authStore.js');
-          const authState = useAuthStore.getState();
           
-          if (authState.user) {
-            const updatedUser = {
-              ...authState.user,
-              location: {
-                lat: normalizedLocation.lat,
-                lng: normalizedLocation.lng,
-                city: normalizedLocation.city,
-                address: normalizedLocation.address,
-                state: normalizedLocation.state,
-                country: normalizedLocation.country,
-                isVisible: true,
-                updatedAt: new Date().toISOString()
-              }
-            };
-            useAuthStore.getState().setUser(updatedUser);
+          console.log('📍 Got current browser location:', location);
+          resolve(location);
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
+          
+          // Provide different error messages based on error type
+          let errorMessage = 'Could not get your location';
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = 'Location access denied. Please enable location permissions.';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = 'Location information unavailable.';
+              break;
+            case error.TIMEOUT:
+              errorMessage = 'Location request timed out.';
+              break;
           }
-        } catch (error) {}
-      }
-
-      return {
-        success: true,
-        updates: response.data.updates || [],
-        nearbyGyms: response.data.nearbyGyms || [],
-        message: response.data.message || 'Location updated successfully'
-      };
-
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  async getLocationRecommendations(locationData) {
-    try {
-      if (!locationData || !locationData.lat || !locationData.lng) {
-        return {
-          nearbyGyms: [],
-          locationGroups: [],
-          gymGroups: []
-        };
-      }
-
-      const response = await api.get('/gym-bros/location-recommendations', {
-        params: {
-          lat: locationData.lat,
-          lng: locationData.lng
-        }
-      });
-
-      return response.data;
-
-    } catch (error) {
-      return {
-        nearbyGyms: [],
-        locationGroups: [],
-        gymGroups: []
-      };
-    }
-  }
-
-  async searchNearbyGyms(locationData, query = '', radiusMiles = 25) {
-  try {
-    if (!locationData || !locationData.lat || !locationData.lng) {
-      return [];
-    }
-
-    const userLat = parseFloat(locationData.lat);
-    const userLng = parseFloat(locationData.lng);
-
-    const response = await api.get('/gym-bros/gyms/search', {
-      params: {
-        lat: userLat,
-        lng: userLng,
-        radius: radiusMiles,
-        query: query
-      }
+          
+          reject(new Error(errorMessage));
+        },
+        defaultOptions
+      );
     });
-
-    const gyms = response.data.gyms || [];
-    
-    return gyms.map(gym => ({
-      ...gym,
-      distanceMiles: gym.distanceMiles !== undefined ? gym.distanceMiles : 
-        this.calculateDistance(userLat, userLng, gym.location.lat, gym.location.lng)
-    }));
-
-  } catch (error) {
-    return [];
   }
-}
 
-  async createGym(gymData) {
-  try {
-    if (!gymData.name || !gymData.location) {
-      throw new Error('Gym name and location are required');
+  // Watch user's location for real-time updates
+  watchLocation(callback, options = {}) {
+    if (!navigator.geolocation) {
+      console.warn('Geolocation not supported');
+      return null;
     }
 
-    // Pass all the location data to the backend for geocoding
-    const requestData = {
-      name: gymData.name,
-      location: {
-        address: gymData.location.address || '',
-        city: gymData.location.city || '',
-        state: gymData.location.state || '',
-        country: gymData.location.country || '',
-        zipCode: gymData.location.zipCode || '',
-        // Include fallback coordinates if geocoding fails
-        lat: gymData.location.lat,
-        lng: gymData.location.lng
-      },
-      userLocation: gymData.userLocation, // User's current location for distance calc
-      description: gymData.description || '',
-      amenities: gymData.amenities || [],
-      gymChain: gymData.gymChain || '',
-      website: gymData.website || '',
-      phone: gymData.phone || '',
-      createdByUserId: gymData.createdByUserId,
-      shouldGeocode: gymData.shouldGeocode // Whether to geocode or use provided coords
+    const defaultOptions = {
+      enableHighAccuracy: true,
+      timeout: 30000,
+      maximumAge: 30000, // Update every 30 seconds max
+      ...options
     };
 
-    const response = await api.post('/gym-bros/gyms', requestData);
-    
-    return response.data;
-  } catch (error) {
-    throw error;
+    this.watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const location = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          source: 'gps',
+          timestamp: new Date().toISOString()
+        };
+
+        // Only call callback if location has changed significantly (>10 meters)
+        if (this.hasLocationChangedSignificantly(location)) {
+          console.log('📍 Location changed significantly:', location);
+          this.lastLocationUpdate = location;
+          callback(location);
+        }
+      },
+      (error) => {
+        console.error('Location watch error:', error);
+        callback(null, error);
+      },
+      defaultOptions
+    );
+
+    return this.watchId;
   }
-}
 
+  // Stop watching location
+  stopWatchingLocation() {
+    if (this.watchId !== null) {
+      navigator.geolocation.clearWatch(this.watchId);
+      this.watchId = null;
+      console.log('📍 Stopped watching location');
+    }
+  }
 
-  async associateWithGym(gymId, isPrimary = false, membershipType = 'member') {
+  // Check if location has changed significantly
+  hasLocationChangedSignificantly(newLocation, threshold = 10) {
+    if (!this.lastLocationUpdate) return true;
+
+    const distance = this.calculateDistance(
+      this.lastLocationUpdate.lat,
+      this.lastLocationUpdate.lng,
+      newLocation.lat,
+      newLocation.lng
+    );
+
+    return distance > threshold; // threshold in meters
+  }
+
+  // Update user location with real-time support
+  async updateUserLocation(locationData, user, phone, profileId) {
     try {
-      const response = await api.post('/gym-bros/gyms/associate', {
-        gymId: gymId,
-        isPrimary: isPrimary,
-        membershipType: membershipType
+      const response = await api.post('/gym-bros/update', {
+        locationData,
+        user,
+        phone
       });
 
       return response.data;
     } catch (error) {
+      console.error('Error updating location:', error);
       throw error;
     }
   }
 
-  isLocationComplete(locationData) {
-    return !!(
-      locationData &&
-      locationData.lat &&
-      locationData.lng &&
-      locationData.city
-    );
-  }
-
-  normalizeLocationData(locationData) {
-    if (!locationData) return null;
-
-    let source = 'manual';
-    if (locationData.source) {
-      const sourceMap = {
-        'gps': 'gps',
-        'ip': 'ip-geolocation', 
-        'ip-geolocation': 'ip-geolocation',
-        'manual': 'manual',
-        'imported': 'imported',
-        'auto-refresh': 'ip-geolocation',
-        'fresh-gps-guest': 'gps',
-        'fresh-gps': 'gps',
-        'user_input': 'manual'
-      };
-      source = sourceMap[locationData.source] || 'manual';
-    }
-
-    let country = locationData.country || 'US';
-    
-    if (locationData.city) {
-      const city = locationData.city.toLowerCase();
-      const canadianCities = ['montreal', 'toronto', 'vancouver', 'calgary', 'ottawa', 'edmonton', 'winnipeg', 'quebec', 'hamilton', 'vaudreuil'];
-      if (canadianCities.some(canadianCity => city.includes(canadianCity))) {
-        country = 'CA';
-      }
-    }
-    
-    if (locationData.lat && locationData.lng) {
-      const lat = parseFloat(locationData.lat);
-      const lng = parseFloat(locationData.lng);
-      
-      if (lat >= 41.0 && lat <= 83.0 && lng >= -141.0 && lng <= -52.0) {
-        country = 'CA';
-      }
-    }
-
-    if (locationData.address && locationData.address.toLowerCase().includes('canada')) {
-      country = 'CA';
-    }
-
-    let accuracy = locationData.accuracy;
-    if (!accuracy) {
-      if (source === 'gps' && locationData.lat && locationData.lng) {
-        accuracy = 'high';
-      } else if (source === 'ip-geolocation') {
-        accuracy = 'low';
-      } else {
-        accuracy = 'medium';
-      }
-    }
-
-    const normalized = {
-      lat: parseFloat(locationData.lat) || 0,
-      lng: parseFloat(locationData.lng) || 0,
-      city: locationData.city || locationData.address || 'Unknown City',
-      address: locationData.address || locationData.city || 'Unknown Address',
-      state: locationData.state || locationData.region || '',
-      country: country,
-      zipCode: locationData.zipCode || locationData.postal || '',
-      source: source,
-      accuracy: accuracy,
-      timestamp: locationData.timestamp || new Date().toISOString()
-    };
-
-    if (!normalized.city || normalized.city === 'Unknown City') {
-      normalized.city = normalized.address || 'Unknown City';
-    }
-    if (!normalized.address || normalized.address === 'Unknown Address') {
-      normalized.address = normalized.city || 'Unknown Address';
-    }
-
-    return normalized;
-  }
-
-  storeLocation(locationData) {
+  // Send real-time location update (for live tracking)
+  async updateUserLocationRealtime(locationData) {
     try {
-      const locationToStore = {
-        ...locationData,
-        timestamp: new Date().toISOString()
-      };
-      
-      if (!locationToStore.city && locationToStore.address) {
-        locationToStore.city = locationToStore.address;
-      }
-      if (!locationToStore.address && locationToStore.city) {
-        locationToStore.address = locationToStore.city;
-      }
-      
-      localStorage.setItem('userLocation', JSON.stringify(locationToStore));
-      localStorage.setItem('gymBrosLocation', JSON.stringify(locationToStore));
-    } catch (error) {}
-  }
+      const response = await api.post('/gym-bros/realtime/location', {
+        locationData
+      });
 
-  getStoredLocation() {
-    try {
-      const gymBrosLocation = localStorage.getItem('gymBrosLocation');
-      if (gymBrosLocation) {
-        const parsed = JSON.parse(gymBrosLocation);
-        if (this.isLocationFresh(parsed)) {
-          return parsed;
-        }
-      }
-
-      const userLocation = localStorage.getItem('userLocation');
-      if (userLocation) {
-        const parsed = JSON.parse(userLocation);
-        if (this.isLocationFresh(parsed)) {
-          return parsed;
-        }
-      }
-
-      return null;
+      return response.data;
     } catch (error) {
-      return null;
-    }
-  }
-
-  isLocationFresh(locationData, maxAgeHours = 168) {
-    if (!locationData || !locationData.timestamp) return false;
-    
-    const locationTime = new Date(locationData.timestamp).getTime();
-    const now = Date.now();
-    const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
-    
-    return (now - locationTime) < maxAgeMs;
-  }
-
-  async getBestLocation(user = null, phone = null) {
-    try {
-      const stored = this.getStoredLocation();
-      if (stored && this.isLocationFresh(stored)) {
-        return stored;
-      }
-
-      const smartResult = await this.shouldSkipLocationStep(user, phone);
-      if (smartResult.skipStep && smartResult.locationData) {
-        return smartResult.locationData;
-      }
-
-      const ipLocation = await locationService.getLocationByIP();
-      if (ipLocation) {
-        this.storeLocation(ipLocation);
-        return ipLocation;
-      }
-
-      return {
-        lat: 40.7128,
-        lng: -74.0060,
-        city: 'New York',
-        address: 'New York, NY',
-        source: 'default'
-      };
-
-    } catch (error) {
-      return null;
-    }
-  }
-
-  startAutoLocationSync(user = null, phone = null) {
-    if (this.isAutoSyncActive) {
-      return;
-    }
-
-    if (this.locationCheckInterval) {
-      clearInterval(this.locationCheckInterval);
-    }
-
-    this.isAutoSyncActive = true;
-
-    if (!this.isInCooldown()) {
-      this.checkForSignificantLocationChange(user, phone);
-    }
-
-    this.locationCheckInterval = setInterval(() => {
-      this.checkForSignificantLocationChange(user, phone);
-    }, 30 * 60 * 1000);
-  }
-
-  stopAutoLocationSync() {
-    if (this.locationCheckInterval) {
-      clearInterval(this.locationCheckInterval);
-      this.locationCheckInterval = null;
-      this.isAutoSyncActive = false;
-    }
-  }
-
-  async checkForSignificantLocationChange(user = null, phone = null) {
-    try {
-      if (this.isInCooldown()) {
-        return;
-      }
-      
-      const currentLocation = this.getStoredLocation();
-      
-      if (!currentLocation || !this.isLocationComplete(currentLocation)) {
-        return;
-      }
-
-      if (this.lastKnownLocation && this.isLocationComplete(this.lastKnownLocation)) {
-        const distance = this.calculateDistance(
-          currentLocation.lat,
-          currentLocation.lng,
-          this.lastKnownLocation.lat,
-          this.lastKnownLocation.lng
-        );
-        
-        if (distance < this.significantDistanceThreshold) {
-          return;
-        }
-      }
-
-      const normalizedLocation = this.normalizeLocationData(currentLocation);
-      await this.updateLocation(normalizedLocation, user, phone);
-
-    } catch (error) {}
-  }
-
-  calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371000;
-    const φ1 = lat1 * Math.PI/180;
-    const φ2 = lat2 * Math.PI/180;
-    const Δφ = (lat2-lat1) * Math.PI/180;
-    const Δλ = (lon2-lon1) * Math.PI/180;
-
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-    return R * c;
-  }
-
-  async forceSyncNow() {
-    try {
-      if (typeof window !== 'undefined') {
-        const { default: useAuthStore } = await import('../stores/authStore.js');
-        const authState = useAuthStore.getState();
-        const user = authState.user;
-        
-        const localLocation = this.getStoredLocation();
-        
-        if (localLocation && this.isLocationComplete(localLocation)) {
-          const normalizedLocation = this.normalizeLocationData(localLocation);
-          const result = await this.updateLocation(normalizedLocation, user, user?.phone);
-          return { success: true, result };
-        } else {
-          return { success: false, error: 'No valid localStorage location' };
-        }
-      }
-    } catch (error) {
+      console.error('Error updating real-time location:', error);
+      // Don't throw error for real-time updates to avoid disrupting UX
       return { success: false, error: error.message };
     }
   }
+
+  // Get map users with zoom-level awareness
+  async getMapUsers(bounds, zoom, maxDistance = 25) {
+    try {
+      const response = await api.get('/gym-bros/map/users', {
+        params: {
+          north: bounds.north,
+          south: bounds.south,
+          east: bounds.east,
+          west: bounds.west,
+          zoom: zoom,
+          maxDistance: maxDistance
+        }
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching map users:', error);
+      throw error;
+    }
+  }
+
+  // Get gyms for map with enhanced filtering
+  async getGymsForMap(bounds, zoom, filters = {}) {
+    try {
+      const params = {
+        bbox: `${bounds.west},${bounds.south},${bounds.east},${bounds.north}`,
+        zoom: zoom,
+        limit: filters.limit || 1000,
+        offset: filters.offset || 0
+      };
+
+      if (filters.types && filters.types.length > 0) {
+        params.types = filters.types.join(',');
+      }
+
+      if (filters.search) {
+        params.search = filters.search;
+      }
+
+      const response = await api.get('/gym-bros/gyms', { params });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching gyms for map:', error);
+      throw error;
+    }
+  }
+
+  // Get real-time map updates
+  async getMapUpdates(bounds, lastUpdate) {
+    try {
+      const params = {
+        north: bounds.north,
+        south: bounds.south,
+        east: bounds.east,
+        west: bounds.west
+      };
+
+      if (lastUpdate) {
+        params.lastUpdate = lastUpdate;
+      }
+
+      const response = await api.get('/gym-bros/realtime/updates', { params });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching map updates:', error);
+      throw error;
+    }
+  }
+
+  // Get clustered data for large zoom-out views
+  async getMapClusters(bounds, zoom, clusterSize = 0.01) {
+    try {
+      const response = await api.get('/gym-bros/map/clusters', {
+        params: {
+          north: bounds.north,
+          south: bounds.south,
+          east: bounds.east,
+          west: bounds.west,
+          zoom: zoom,
+          clusterSize: clusterSize
+        }
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching map clusters:', error);
+      throw error;
+    }
+  }
+
+  // Search nearby gyms
+  async searchNearbyGyms(location, query = '', radius = 25) {
+    try {
+      const response = await api.get('/gym-bros/gyms/search', {
+        params: {
+          lat: location.lat,
+          lng: location.lng,
+          query: query,
+          radius: radius
+        }
+      });
+
+      return response.data.gyms || [];
+    } catch (error) {
+      console.error('Error searching gyms:', error);
+      throw error;
+    }
+  }
+
+  // Create a new gym
+  async createGym(gymData) {
+    try {
+      const response = await api.post('/gym-bros/gyms', gymData);
+      
+      if (response.data.success) {
+        toast.success(`Gym "${response.data.gym.name}" created successfully!`);
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error('Error creating gym:', error);
+      toast.error('Failed to create gym. Please try again.');
+      throw error;
+    }
+  }
+
+  // Associate user with a gym
+  async associateWithGym(gymId, isPrimary = false, membershipType = 'member') {
+    try {
+      const response = await api.post('/gym-bros/gyms/associate', {
+        gymId,
+        isPrimary,
+        membershipType
+      });
+
+      if (response.data.success) {
+        toast.success('Successfully associated with gym!');
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error('Error associating with gym:', error);
+      toast.error('Failed to associate with gym.');
+      throw error;
+    }
+  }
+
+  // Get user's gyms
+  async getUserGyms() {
+    try {
+      const response = await api.get('/gym-bros/gyms/my-gyms');
+      return response.data;
+    } catch (error) {
+      console.error('Error getting user gyms:', error);
+      throw error;
+    }
+  }
+
+  // Get nearby groups
+  async getNearbyGroups(location, radius = 25) {
+    try {
+      const response = await api.get('/gym-bros/groups/nearby', {
+        params: {
+          lat: location.lat,
+          lng: location.lng,
+          radius: radius
+        }
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error getting nearby groups:', error);
+      throw error;
+    }
+  }
+
+  // Create location-based group
+  async createLocationGroup(groupData) {
+    try {
+      const response = await api.post('/gym-bros/groups/location', groupData);
+      
+      if (response.data.success) {
+        toast.success(`Group "${response.data.group.name}" created successfully!`);
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error('Error creating location group:', error);
+      toast.error('Failed to create group. Please try again.');
+      throw error;
+    }
+  }
+
+  // Get location recommendations
+  async getLocationRecommendations(location) {
+    try {
+      const response = await api.get('/gym-bros/location-recommendations', {
+        params: {
+          lat: location.lat,
+          lng: location.lng
+        }
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error getting location recommendations:', error);
+      throw error;
+    }
+  }
+
+  // Enhanced location data with address lookup
+  async enhanceLocationWithAddress(locationData) {
+    // If we already have a good address, return as-is
+    if (locationData.address && locationData.address.trim() !== '') {
+      return locationData;
+    }
+
+    try {
+      // Use reverse geocoding to get address
+      const address = await this.reverseGeocode(locationData.lat, locationData.lng);
+      
+      return {
+        ...locationData,
+        address: address.address || 'Unknown location',
+        city: address.city || locationData.city || '',
+        state: address.state || locationData.state || '',
+        country: address.country || locationData.country || '',
+        zipCode: address.zipCode || locationData.zipCode || ''
+      };
+    } catch (error) {
+      console.error('Error enhancing location with address:', error);
+      
+      // Return original data with fallback address
+      return {
+        ...locationData,
+        address: locationData.address || 'Location coordinates'
+      };
+    }
+  }
+
+  // Simple reverse geocoding using a free service
+  async reverseGeocode(lat, lng) {
+    try {
+      // Using Nominatim (OpenStreetMap) for free reverse geocoding
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+        {
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'GymBros-App/1.0'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Reverse geocoding failed');
+      }
+
+      const data = await response.json();
+      
+      if (data && data.address) {
+        return {
+          address: data.display_name || 'Unknown location',
+          city: data.address.city || data.address.town || data.address.village || '',
+          state: data.address.state || data.address.province || '',
+          country: data.address.country || '',
+          zipCode: data.address.postcode || ''
+        };
+      }
+
+      throw new Error('No address data found');
+    } catch (error) {
+      console.error('Reverse geocoding error:', error);
+      throw error;
+    }
+  }
+
+  // Calculate distance between two points in meters
+  calculateDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371000; // Earth's radius in meters
+    const dLat = this.toRadians(lat2 - lat1);
+    const dLng = this.toRadians(lng2 - lng1);
+    
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.toRadians(lat1)) * Math.cos(this.toRadians(lat2)) * 
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in meters
+  }
+
+  // Convert degrees to radians
+  toRadians(degrees) {
+    return degrees * (Math.PI / 180);
+  }
+
+  // Validate coordinates
+  isValidCoordinates(lat, lng) {
+    return (
+      typeof lat === 'number' && 
+      typeof lng === 'number' &&
+      lat >= -90 && lat <= 90 &&
+      lng >= -180 && lng <= 180
+    );
+  }
+
+  // Check if location exists (legacy)
+  async checkExistingLocation(user, phone) {
+    try {
+      const response = await api.post('/gym-bros/check', {
+        user,
+        phone
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error checking existing location:', error);
+      throw error;
+    }
+  }
+
+  // Format location for display
+  formatLocationForDisplay(location) {
+    if (!location) return 'Unknown location';
+
+    const parts = [];
+    
+    if (location.address) parts.push(location.address);
+    if (location.city) parts.push(location.city);
+    if (location.state) parts.push(location.state);
+    if (location.country && location.country !== 'US') parts.push(location.country);
+
+    return parts.length > 0 ? parts.join(', ') : 'Unknown location';
+  }
+
+  // Get location accuracy description
+  getLocationAccuracyDescription(accuracy) {
+    if (!accuracy || typeof accuracy !== 'number') return 'Unknown accuracy';
+    
+    if (accuracy < 10) return 'Very precise (GPS)';
+    if (accuracy < 50) return 'Precise (GPS)';
+    if (accuracy < 100) return 'Good accuracy';
+    if (accuracy < 500) return 'Approximate';
+    return 'Low accuracy';
+  }
+
+  // Clear location cache
+  clearLocationCache() {
+    this.locationCache.clear();
+    this.lastLocationUpdate = null;
+    console.log('📍 Location cache cleared');
+  }
 }
 
-if (typeof window !== 'undefined') {
-  window.gymBrosLocationService = new GymBrosLocationService();
-}
-
-export default new GymBrosLocationService();
+const enhancedGymBrosLocationService = new EnhancedGymBrosLocationService();
+export default enhancedGymBrosLocationService;

@@ -1,362 +1,342 @@
-// components/GymBros/MouseAvatarUtils.js
+import React from 'react';
 import L from 'leaflet';
+import { Building2, Calendar, Users, MapPin, Activity, Zap, Shield } from 'lucide-react';
 
-export const renderMouseAvatar = (avatar, size = 120) => {
+// Enhanced mouse avatar rendering with real-time indicators
+export const renderMouseAvatar = (avatar, size = 40, showRealtimeIndicator = false) => {
+  const furColor = avatar.furColor || '#8B4513';
   const mood = avatar.mood || 'happy';
-  const eyeType = avatar.eyes || 'normal';
+  const eyes = avatar.eyes || 'normal';
+  const accessories = avatar.accessories || [];
   
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" className="drop-shadow-lg">
-      {/* Shadow */}
-      <ellipse cx="50" cy="95" rx="20" ry="3" fill="#000" opacity="0.2" />
+  // Mouse body paths
+  const mouseBody = (
+    <g>
+      {/* Main body */}
+      <ellipse cx={size/2} cy={size*0.6} rx={size*0.35} ry={size*0.25} fill={furColor} />
       
-      {/* Tail */}
-      <path 
-        d="M 25 75 Q 10 70 5 80 Q 0 85 10 85 Q 15 82 20 78" 
-        stroke={avatar.furColor} 
-        strokeWidth="6" 
-        fill="none"
-        strokeLinecap="round"
-      />
-      
-      {/* Mouse Body */}
-      <ellipse cx="50" cy="65" rx="25" ry="30" fill={avatar.furColor} />
-      
-      {/* Body highlight */}
-      <ellipse cx="45" cy="60" rx="12" ry="15" fill={avatar.furColor} opacity="0.3" />
-      
-      {/* Mouse Head */}
-      <circle cx="50" cy="35" r="20" fill={avatar.furColor} />
-      
-      {/* Head highlight */}
-      <ellipse cx="45" cy="30" rx="8" ry="10" fill={avatar.furColor} opacity="0.3" />
+      {/* Head */}
+      <circle cx={size/2} cy={size*0.35} r={size*0.28} fill={furColor} />
       
       {/* Ears */}
-      <circle cx="35" cy="25" r="10" fill={avatar.furColor} />
-      <circle cx="65" cy="25" r="10" fill={avatar.furColor} />
+      <circle cx={size*0.3} cy={size*0.2} r={size*0.12} fill={furColor} />
+      <circle cx={size*0.7} cy={size*0.2} r={size*0.12} fill={furColor} />
+      <circle cx={size*0.3} cy={size*0.2} r={size*0.08} fill="#FFB6C1" />
+      <circle cx={size*0.7} cy={size*0.2} r={size*0.08} fill="#FFB6C1" />
       
-      {/* Inner ears */}
-      <circle cx="35" cy="25" r="6" fill="#FFC0CB" />
-      <circle cx="65" cy="25" r="6" fill="#FFC0CB" />
+      {/* Eyes */}
+      {eyes === 'normal' && (
+        <>
+          <circle cx={size*0.42} cy={size*0.32} r={size*0.06} fill="#000" />
+          <circle cx={size*0.58} cy={size*0.32} r={size*0.06} fill="#000" />
+          <circle cx={size*0.44} cy={size*0.30} r={size*0.02} fill="#FFF" />
+          <circle cx={size*0.60} cy={size*0.30} r={size*0.02} fill="#FFF" />
+        </>
+      )}
       
-      {/* Eyes based on mood */}
-      {renderEyes(mood, eyeType)}
+      {eyes === 'excited' && (
+        <>
+          <path d={`M${size*0.38},${size*0.29} Q${size*0.42},${size*0.26} ${size*0.46},${size*0.29}`} 
+                stroke="#000" strokeWidth="2" fill="none" />
+          <path d={`M${size*0.54},${size*0.29} Q${size*0.58},${size*0.26} ${size*0.62},${size*0.29}`} 
+                stroke="#000" strokeWidth="2" fill="none" />
+        </>
+      )}
       
       {/* Nose */}
-      <ellipse cx="50" cy="42" rx="3" ry="2" fill="#FF69B4" />
+      <circle cx={size/2} cy={size*0.4} r={size*0.03} fill="#FF69B4" />
       
       {/* Mouth based on mood */}
-      {renderMouth(mood)}
+      {mood === 'happy' && (
+        <path d={`M${size*0.46},${size*0.45} Q${size/2},${size*0.5} ${size*0.54},${size*0.45}`} 
+              stroke="#000" strokeWidth="1.5" fill="none" />
+      )}
+      
+      {mood === 'excited' && (
+        <ellipse cx={size/2} cy={size*0.47} rx={size*0.05} ry={size*0.03} fill="#000" />
+      )}
+      
+      {mood === 'determined' && (
+        <line x1={size*0.46} y1={size*0.46} x2={size*0.54} y2={size*0.46} 
+              stroke="#000" strokeWidth="2" />
+      )}
       
       {/* Whiskers */}
-      <line x1="30" y1="40" x2="20" y2="38" stroke="#000" strokeWidth="0.5" opacity="0.5" />
-      <line x1="30" y1="43" x2="20" y2="43" stroke="#000" strokeWidth="0.5" opacity="0.5" />
-      <line x1="70" y1="40" x2="80" y2="38" stroke="#000" strokeWidth="0.5" opacity="0.5" />
-      <line x1="70" y1="43" x2="80" y2="43" stroke="#000" strokeWidth="0.5" opacity="0.5" />
+      <line x1={size*0.25} y1={size*0.38} x2={size*0.35} y2={size*0.36} stroke="#000" strokeWidth="1" />
+      <line x1={size*0.25} y1={size*0.42} x2={size*0.35} y2={size*0.42} stroke="#000" strokeWidth="1" />
+      <line x1={size*0.65} y1={size*0.36} x2={size*0.75} y2={size*0.38} stroke="#000" strokeWidth="1" />
+      <line x1={size*0.65} y1={size*0.42} x2={size*0.75} y2={size*0.42} stroke="#000" strokeWidth="1" />
       
-      {/* Shirt */}
-      {avatar.shirtStyle !== 'none' && renderShirt(avatar.shirtStyle, avatar.shirtColor)}
-      
-      {/* Pants */}
-      <path 
-        d="M 32 72 L 32 87 L 40 87 L 42 78 L 50 78 L 58 78 L 60 87 L 68 87 L 68 72 Z" 
-        fill={avatar.pants || '#1F2937'} 
-      />
+      {/* Tail */}
+      <path d={`M${size*0.85},${size*0.65} Q${size*0.95},${size*0.5} ${size*0.9},${size*0.35}`} 
+            stroke={furColor} strokeWidth="3" fill="none" />
       
       {/* Arms */}
-      <ellipse cx="28" cy="60" rx="5" ry="12" fill={avatar.furColor} transform="rotate(-20 28 60)" />
-      <ellipse cx="72" cy="60" rx="5" ry="12" fill={avatar.furColor} transform="rotate(20 72 60)" />
+      <ellipse cx={size*0.25} cy={size*0.55} rx={size*0.08} ry={size*0.15} fill={furColor} />
+      <ellipse cx={size*0.75} cy={size*0.55} rx={size*0.08} ry={size*0.15} fill={furColor} />
       
-      {/* Paws */}
-      <circle cx="26" cy="70" r="4" fill={avatar.furColor} />
-      <circle cx="74" cy="70" r="4" fill={avatar.furColor} />
-      
-      {/* Feet */}
-      <ellipse cx="40" cy="90" rx="6" ry="4" fill={avatar.furColor} />
-      <ellipse cx="60" cy="90" rx="6" ry="4" fill={avatar.furColor} />
+      {/* Legs */}
+      <ellipse cx={size*0.35} cy={size*0.8} rx={size*0.08} ry={size*0.12} fill={furColor} />
+      <ellipse cx={size*0.65} cy={size*0.8} rx={size*0.08} ry={size*0.12} fill={furColor} />
       
       {/* Accessories */}
-      {renderAccessory(avatar.accessory, avatar.shirtColor)}
+      {accessories.includes('workout_band') && (
+        <rect x={size*0.2} y={size*0.5} width={size*0.6} height={size*0.05} fill="#FF6B6B" rx="2" />
+      )}
+      
+      {accessories.includes('cap') && (
+        <ellipse cx={size/2} cy={size*0.15} rx={size*0.25} ry={size*0.1} fill="#4A90E2" />
+      )}
+      
+      {accessories.includes('muscle') && (
+        <>
+          <ellipse cx={size*0.2} cy={size*0.5} rx={size*0.06} ry={size*0.1} fill={furColor} />
+          <ellipse cx={size*0.8} cy={size*0.5} rx={size*0.06} ry={size*0.1} fill={furColor} />
+        </>
+      )}
+    </g>
+  );
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="inline-block">
+      {mouseBody}
+      
+      {/* Real-time indicator */}
+      {showRealtimeIndicator && (
+        <g>
+          <circle cx={size*0.85} cy={size*0.15} r={size*0.08} fill="#3B82F6" opacity="0.9">
+            <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite" />
+          </circle>
+          <Zap x={size*0.81} y={size*0.11} width={size*0.08} height={size*0.08} className="text-white" />
+        </g>
+      )}
     </svg>
   );
 };
 
-const renderEyes = (mood, eyeType) => {
-  switch(mood) {
-    case 'excited':
-      return (
-        <>
-          <circle cx="43" cy="35" r="4" fill="#000" />
-          <circle cx="57" cy="35" r="4" fill="#000" />
-          <circle cx="44" cy="33" r="2" fill="#FFF" />
-          <circle cx="58" cy="33" r="2" fill="#FFF" />
-          {/* Sparkles */}
-          <circle cx="41" cy="32" r="1" fill="#FFF" opacity="0.8" />
-          <circle cx="59" cy="32" r="1" fill="#FFF" opacity="0.8" />
-        </>
-      );
-    case 'cool':
-      return (
-        <>
-          {/* Sunglasses handled in accessories */}
-          <circle cx="43" cy="35" r="3" fill="#000" />
-          <circle cx="57" cy="35" r="3" fill="#000" />
-        </>
-      );
-    case 'determined':
-      return (
-        <>
-          <path d="M 40 33 L 46 35 L 40 37" fill="#000" />
-          <path d="M 60 33 L 54 35 L 60 37" fill="#000" />
-        </>
-      );
-    case 'neutral':
-      return (
-        <>
-          <ellipse cx="43" cy="35" rx="2" ry="3" fill="#000" />
-          <ellipse cx="57" cy="35" rx="2" ry="3" fill="#000" />
-        </>
-      );
-    default: // happy
-      return (
-        <>
-          <circle cx="43" cy="35" r="3" fill="#000" />
-          <circle cx="57" cy="35" r="3" fill="#000" />
-          <circle cx="44" cy="34" r="1" fill="#FFF" />
-          <circle cx="58" cy="34" r="1" fill="#FFF" />
-        </>
-      );
-  }
-};
-
-const renderMouth = (mood) => {
-  switch(mood) {
-    case 'excited':
-      return <path d="M 42 45 Q 50 50 58 45" stroke="#000" strokeWidth="1.5" fill="none" />;
-    case 'determined':
-      return <line x1="45" y1="46" x2="55" y2="46" stroke="#000" strokeWidth="1.5" />;
-    case 'neutral':
-      return <line x1="46" y1="45" x2="54" y2="45" stroke="#000" strokeWidth="1" />;
-    default: // happy
-      return <path d="M 44 44 Q 50 47 56 44" stroke="#000" strokeWidth="1" fill="none" />;
-  }
-};
-
-const renderShirt = (style, color) => {
-  switch(style) {
-    case 'hoodie':
-      return (
-        <>
-          <rect x="28" y="48" width="44" height="28" rx="3" fill={color} />
-          <path d="M 40 25 Q 50 20 60 25" stroke={color} strokeWidth="3" fill="none" />
-          {/* Hood strings */}
-          <line x1="45" y1="50" x2="45" y2="55" stroke="#FFF" strokeWidth="1" opacity="0.5" />
-          <line x1="55" y1="50" x2="55" y2="55" stroke="#FFF" strokeWidth="1" opacity="0.5" />
-          {/* Pocket */}
-          <rect x="42" y="62" width="16" height="8" rx="1" fill="#000" opacity="0.2" />
-        </>
-      );
-    case 'tank':
-      return (
-        <>
-          <rect x="35" y="52" width="30" height="23" rx="2" fill={color} />
-          {/* Tank straps */}
-          <rect x="35" y="48" width="4" height="6" fill={color} />
-          <rect x="61" y="48" width="4" height="6" fill={color} />
-        </>
-      );
-    case 'tshirt':
-    default:
-      return (
-        <>
-          <rect x="30" y="50" width="40" height="25" rx="3" fill={color} />
-          {/* Sleeves */}
-          <ellipse cx="28" cy="55" rx="6" ry="8" fill={color} />
-          <ellipse cx="72" cy="55" rx="6" ry="8" fill={color} />
-        </>
-      );
-  }
-};
-
-const renderAccessory = (accessory, shirtColor) => {
-  switch(accessory) {
-    case 'glasses':
-      return (
-        <>
-          <circle cx="43" cy="35" r="6" fill="none" stroke="#000" strokeWidth="1.5" />
-          <circle cx="57" cy="35" r="6" fill="none" stroke="#000" strokeWidth="1.5" />
-          <line x1="49" y1="35" x2="51" y2="35" stroke="#000" strokeWidth="1.5" />
-          <line x1="37" y1="35" x2="30" y2="33" stroke="#000" strokeWidth="1.5" />
-          <line x1="63" y1="35" x2="70" y2="33" stroke="#000" strokeWidth="1.5" />
-        </>
-      );
-    case 'sunglasses':
-      return (
-        <>
-          <ellipse cx="43" cy="35" rx="7" ry="6" fill="#000" />
-          <ellipse cx="57" cy="35" rx="7" ry="6" fill="#000" />
-          <line x1="50" y1="35" x2="50" y2="35" stroke="#000" strokeWidth="2" />
-          <line x1="36" y1="35" x2="30" y2="33" stroke="#000" strokeWidth="1.5" />
-          <line x1="64" y1="35" x2="70" y2="33" stroke="#000" strokeWidth="1.5" />
-        </>
-      );
-    case 'hat':
-      return (
-        <>
-          <ellipse cx="50" cy="20" rx="22" ry="8" fill="#FF0000" />
-          <rect x="35" y="15" width="30" height="8" fill="#FF0000" />
-          <rect x="45" y="19" width="10" height="2" fill="#FFF" opacity="0.5" />
-        </>
-      );
-    case 'headphones':
-      return (
-        <>
-          <rect x="28" y="30" width="8" height="12" rx="4" fill="#000" />
-          <rect x="64" y="30" width="8" height="12" rx="4" fill="#000" />
-          <path d="M 35 30 Q 50 15 65 30" stroke="#000" strokeWidth="3" fill="none" />
-          <circle cx="32" cy="36" r="1" fill="#FFF" opacity="0.5" />
-          <circle cx="68" cy="36" r="1" fill="#FFF" opacity="0.5" />
-        </>
-      );
-    case 'bandana':
-      return (
-        <>
-          <path d="M 30 22 Q 50 18 70 22 L 70 28 Q 50 30 30 28 Z" fill="#FF0000" />
-          <circle cx="40" cy="24" r="1" fill="#FFF" />
-          <circle cx="50" cy="23" r="1" fill="#FFF" />
-          <circle cx="60" cy="24" r="1" fill="#FFF" />
-        </>
-      );
-    default:
-      return null;
-  }
-};
-
-export const createMouseIcon = (avatar, isCurrentUser = false) => {
+// Create enhanced mouse icon for map markers
+export const createMouseIcon = (avatar, isCurrentUser = false, isRealtime = false) => {
   const size = isCurrentUser ? 50 : 40;
-  const svgString = `
-    <svg width="${size}" height="${size}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  const iconHtml = `
+    <div class="relative ${isRealtime ? 'realtime-marker' : ''}">
+      ${createMouseSVG(avatar, size)}
       ${isCurrentUser ? `
-        <circle cx="50" cy="50" r="48" fill="#3B82F6" opacity="0.2" />
-        <circle cx="50" cy="50" r="48" fill="none" stroke="#3B82F6" stroke-width="2" opacity="0.5" stroke-dasharray="5,5">
-          <animateTransform
-            attributeName="transform"
-            attributeType="XML"
-            type="rotate"
-            from="0 50 50"
-            to="360 50 50"
-            dur="10s"
-            repeatCount="indefinite"/>
-        </circle>
+        <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-blue-500 border-2 border-white rounded-full flex items-center justify-center">
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="white">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+        </div>
+      ` : ''}
+      ${isRealtime ? `
+        <div class="absolute -top-1 -right-1 w-3 h-3 bg-green-400 border border-white rounded-full">
+          <div class="w-full h-full bg-green-400 rounded-full animate-ping"></div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  return L.divIcon({
+    html: iconHtml,
+    className: 'custom-mouse-icon',
+    iconSize: [size + 10, size + 10],
+    iconAnchor: [(size + 10) / 2, (size + 10) / 2],
+    popupAnchor: [0, -(size + 10) / 2]
+  });
+};
+
+// Create enhanced gym icon with type-specific styling
+export const createGymIcon = (gym, isRealtime = false) => {
+  const getGymTypeIcon = (type) => {
+    switch (type) {
+      case 'gym':
+        return { icon: '🏋️', color: '#3B82F6', bgColor: '#EBF8FF' };
+      case 'community':
+        return { icon: '🏘️', color: '#10B981', bgColor: '#ECFDF5' };
+      case 'event':
+        return { icon: '📅', color: '#F59E0B', bgColor: '#FFFBEB' };
+      case 'sport_center':
+        return { icon: '⚽', color: '#EF4444', bgColor: '#FEF2F2' };
+      case 'other':
+        return { icon: '📍', color: '#8B5CF6', bgColor: '#F5F3FF' };
+      default:
+        return { icon: '🏋️', color: '#3B82F6', bgColor: '#EBF8FF' };
+    }
+  };
+
+  const typeInfo = getGymTypeIcon(gym.type);
+  const verified = gym.verified || gym.isVerified;
+  const isNew = gym.isNew;
+
+  const iconHtml = `
+    <div class="relative ${isRealtime ? 'realtime-marker' : ''}" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center border-2 border-white" 
+           style="background-color: ${typeInfo.bgColor}; border-color: ${typeInfo.color};">
+        <span style="font-size: 18px; line-height: 1;">${typeInfo.icon}</span>
+      </div>
+      
+      ${verified ? `
+        <div class="absolute -top-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full flex items-center justify-center">
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="white">
+            <path d="M9 12l2 2 4-4"/>
+          </svg>
+        </div>
       ` : ''}
       
-      <!-- Shadow -->
-      <ellipse cx="50" cy="95" rx="15" ry="2" fill="#000" opacity="0.15" />
+      ${isNew ? `
+        <div class="absolute -top-2 -left-2 bg-green-500 text-white text-xs px-1 rounded-full">
+          NEW
+        </div>
+      ` : ''}
       
-      <!-- Body -->
-      <ellipse cx="50" cy="65" rx="25" ry="30" fill="${avatar.furColor || '#8B4513'}" />
+      ${isRealtime ? `
+        <div class="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-400 border border-white rounded-full">
+          <div class="w-full h-full bg-blue-400 rounded-full animate-ping"></div>
+        </div>
+      ` : ''}
+      
+      ${gym.memberCount > 0 ? `
+        <div class="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-white border border-gray-200 text-xs px-1 rounded-full text-gray-700">
+          ${gym.memberCount}
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  return L.divIcon({
+    html: iconHtml,
+    className: 'custom-gym-icon',
+    iconSize: [50, 50],
+    iconAnchor: [25, 25],
+    popupAnchor: [0, -25]
+  });
+};
+
+// Helper function to create mouse SVG string
+const createMouseSVG = (avatar, size) => {
+  const furColor = avatar.furColor || '#8B4513';
+  const mood = avatar.mood || 'happy';
+  const eyes = avatar.eyes || 'normal';
+  const accessories = avatar.accessories || [];
+
+  return `
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="inline-block">
+      <!-- Main body -->
+      <ellipse cx="${size/2}" cy="${size*0.6}" rx="${size*0.35}" ry="${size*0.25}" fill="${furColor}" />
       
       <!-- Head -->
-      <circle cx="50" cy="35" r="20" fill="${avatar.furColor || '#8B4513'}" />
+      <circle cx="${size/2}" cy="${size*0.35}" r="${size*0.28}" fill="${furColor}" />
       
       <!-- Ears -->
-      <circle cx="35" cy="25" r="10" fill="${avatar.furColor || '#8B4513'}" />
-      <circle cx="65" cy="25" r="10" fill="${avatar.furColor || '#8B4513'}" />
-      <circle cx="35" cy="25" r="6" fill="#FFC0CB" />
-      <circle cx="65" cy="25" r="6" fill="#FFC0CB" />
+      <circle cx="${size*0.3}" cy="${size*0.2}" r="${size*0.12}" fill="${furColor}" />
+      <circle cx="${size*0.7}" cy="${size*0.2}" r="${size*0.12}" fill="${furColor}" />
+      <circle cx="${size*0.3}" cy="${size*0.2}" r="${size*0.08}" fill="#FFB6C1" />
+      <circle cx="${size*0.7}" cy="${size*0.2}" r="${size*0.08}" fill="#FFB6C1" />
       
       <!-- Eyes -->
-      <circle cx="43" cy="35" r="3" fill="#000" />
-      <circle cx="57" cy="35" r="3" fill="#000" />
-      <circle cx="44" cy="34" r="1" fill="#FFF" />
-      <circle cx="58" cy="34" r="1" fill="#FFF" />
-      
-      <!-- Nose -->
-      <ellipse cx="50" cy="42" rx="3" ry="2" fill="#FF69B4" />
-      
-      <!-- Shirt -->
-      ${avatar.shirtStyle !== 'none' ? `
-        <rect x="30" y="50" width="40" height="25" rx="3" fill="${avatar.shirtColor || '#3B82F6'}" />
+      ${eyes === 'normal' ? `
+        <circle cx="${size*0.42}" cy="${size*0.32}" r="${size*0.06}" fill="#000" />
+        <circle cx="${size*0.58}" cy="${size*0.32}" r="${size*0.06}" fill="#000" />
+        <circle cx="${size*0.44}" cy="${size*0.30}" r="${size*0.02}" fill="#FFF" />
+        <circle cx="${size*0.60}" cy="${size*0.30}" r="${size*0.02}" fill="#FFF" />
       ` : ''}
       
-      <!-- Pants -->
-      <path d="M 32 72 L 32 87 L 40 87 L 42 78 L 50 78 L 58 78 L 60 87 L 68 87 L 68 72 Z" 
-            fill="${avatar.pants || '#1F2937'}" />
+      ${eyes === 'excited' ? `
+        <path d="M${size*0.38},${size*0.29} Q${size*0.42},${size*0.26} ${size*0.46},${size*0.29}" 
+              stroke="#000" stroke-width="2" fill="none" />
+        <path d="M${size*0.54},${size*0.29} Q${size*0.58},${size*0.26} ${size*0.62},${size*0.29}" 
+              stroke="#000" stroke-width="2" fill="none" />
+      ` : ''}
+      
+      <!-- Nose -->
+      <circle cx="${size/2}" cy="${size*0.4}" r="${size*0.03}" fill="#FF69B4" />
+      
+      <!-- Mouth based on mood -->
+      ${mood === 'happy' ? `
+        <path d="M${size*0.46},${size*0.45} Q${size/2},${size*0.5} ${size*0.54},${size*0.45}" 
+              stroke="#000" stroke-width="1.5" fill="none" />
+      ` : ''}
+      
+      ${mood === 'excited' ? `
+        <ellipse cx="${size/2}" cy="${size*0.47}" rx="${size*0.05}" ry="${size*0.03}" fill="#000" />
+      ` : ''}
+      
+      <!-- Whiskers -->
+      <line x1="${size*0.25}" y1="${size*0.38}" x2="${size*0.35}" y2="${size*0.36}" stroke="#000" stroke-width="1" />
+      <line x1="${size*0.25}" y1="${size*0.42}" x2="${size*0.35}" y2="${size*0.42}" stroke="#000" stroke-width="1" />
+      <line x1="${size*0.65}" y1="${size*0.36}" x2="${size*0.75}" y2="${size*0.38}" stroke="#000" stroke-width="1" />
+      <line x1="${size*0.65}" y1="${size*0.42}" x2="${size*0.75}" y2="${size*0.42}" stroke="#000" stroke-width="1" />
+      
+      <!-- Tail -->
+      <path d="M${size*0.85},${size*0.65} Q${size*0.95},${size*0.5} ${size*0.9},${size*0.35}" 
+            stroke="${furColor}" stroke-width="3" fill="none" />
+      
+      <!-- Arms -->
+      <ellipse cx="${size*0.25}" cy="${size*0.55}" rx="${size*0.08}" ry="${size*0.15}" fill="${furColor}" />
+      <ellipse cx="${size*0.75}" cy="${size*0.55}" rx="${size*0.08}" ry="${size*0.15}" fill="${furColor}" />
+      
+      <!-- Accessories -->
+      ${accessories.includes('workout_band') ? `
+        <rect x="${size*0.2}" y="${size*0.5}" width="${size*0.6}" height="${size*0.05}" fill="#FF6B6B" rx="2" />
+      ` : ''}
+      
+      ${accessories.includes('cap') ? `
+        <ellipse cx="${size/2}" cy="${size*0.15}" rx="${size*0.25}" ry="${size*0.1}" fill="#4A90E2" />
+      ` : ''}
     </svg>
   `;
+};
+
+// Create activity indicator for real-time status
+export const createActivityIndicator = (status) => {
+  const indicators = {
+    online: { color: '#10B981', text: 'Online', pulse: true },
+    recent: { color: '#F59E0B', text: 'Active', pulse: false },
+    today: { color: '#6B7280', text: 'Today', pulse: false },
+    offline: { color: '#9CA3AF', text: 'Offline', pulse: false }
+  };
+
+  const indicator = indicators[status] || indicators.offline;
+
+  return `
+    <div class="flex items-center gap-1">
+      <div class="w-2 h-2 rounded-full ${indicator.pulse ? 'animate-pulse' : ''}" 
+           style="background-color: ${indicator.color}"></div>
+      <span class="text-xs" style="color: ${indicator.color}">${indicator.text}</span>
+    </div>
+  `;
+};
+
+// Enhanced marker cluster icon
+export const createClusterIcon = (cluster, type = 'mixed') => {
+  const count = cluster.getChildCount();
+  const size = count < 10 ? 30 : count < 100 ? 40 : 50;
   
+  const getClusterStyle = (type) => {
+    switch (type) {
+      case 'users':
+        return { bg: '#3B82F6', border: '#1E40AF', icon: '👥' };
+      case 'gyms':
+        return { bg: '#10B981', border: '#047857', icon: '🏋️' };
+      case 'mixed':
+      default:
+        return { bg: '#8B5CF6', border: '#6D28D9', icon: '📍' };
+    }
+  };
+
+  const style = getClusterStyle(type);
+
   return L.divIcon({
-    html: svgString,
-    className: isCurrentUser ? 'mouse-marker-current' : 'mouse-marker',
+    html: `
+      <div class="flex items-center justify-center w-${size} h-${size} rounded-full border-2 border-white shadow-lg"
+           style="background-color: ${style.bg}; border-color: ${style.border}; width: ${size}px; height: ${size}px;">
+        <div class="flex flex-col items-center text-white">
+          <span style="font-size: ${size > 40 ? '14px' : '12px'};">${style.icon}</span>
+          <span style="font-size: ${size > 40 ? '12px' : '10px'}; font-weight: bold;">${count}</span>
+        </div>
+      </div>
+    `,
+    className: 'custom-cluster-icon',
     iconSize: [size, size],
-    iconAnchor: [size/2, size/2],
-    popupAnchor: [0, -size/2]
-  });
-};
-
-export const createGymIcon = () => {
-  return L.divIcon({
-    html: `
-      <div class="gym-marker-container">
-        <svg width="50" height="50" viewBox="0 0 50 50">
-          <!-- Building Shadow -->
-          <ellipse cx="25" cy="48" rx="15" ry="2" fill="#000" opacity="0.2" />
-          
-          <!-- Building Base -->
-          <rect x="8" y="15" width="34" height="30" fill="#6B7280" rx="2" />
-          
-          <!-- Building Roof -->
-          <polygon points="5,15 25,5 45,15" fill="#4B5563" />
-          
-          <!-- Windows -->
-          <rect x="12" y="20" width="8" height="6" fill="#9CA3AF" rx="1" />
-          <rect x="21" y="20" width="8" height="6" fill="#9CA3AF" rx="1" />
-          <rect x="30" y="20" width="8" height="6" fill="#9CA3AF" rx="1" />
-          
-          <rect x="12" y="28" width="8" height="6" fill="#9CA3AF" rx="1" />
-          <rect x="21" y="28" width="8" height="6" fill="#9CA3AF" rx="1" />
-          <rect x="30" y="28" width="8" height="6" fill="#9CA3AF" rx="1" />
-          
-          <!-- Door -->
-          <rect x="20" y="36" width="10" height="9" fill="#374151" rx="1" />
-          <circle cx="27" cy="41" r="1" fill="#9CA3AF" />
-          
-          <!-- Gym Sign -->
-          <rect x="15" y="10" width="20" height="4" fill="#EF4444" rx="1" />
-          <text x="25" y="12.5" text-anchor="middle" fill="#FFF" font-size="3" font-weight="bold">GYM</text>
-        </svg>
-      </div>
-    `,
-    className: 'gym-building-marker',
-    iconSize: [50, 50],
-    iconAnchor: [25, 45],
-    popupAnchor: [0, -45]
-  });
-};
-
-export const createEventIcon = () => {
-  return L.divIcon({
-    html: `
-      <div class="event-marker-container">
-        <svg width="40" height="40" viewBox="0 0 40 40">
-          <!-- Calendar Background -->
-          <rect x="5" y="8" width="30" height="28" fill="#8B5CF6" rx="3" />
-          
-          <!-- Calendar Header -->
-          <rect x="5" y="8" width="30" height="8" fill="#7C3AED" rx="3" />
-          
-          <!-- Calendar Rings -->
-          <circle cx="12" cy="6" r="2" fill="none" stroke="#4C1D95" stroke-width="2" />
-          <circle cx="28" cy="6" r="2" fill="none" stroke="#4C1D95" stroke-width="2" />
-          
-          <!-- Date -->
-          <text x="20" y="28" text-anchor="middle" fill="#FFF" font-size="10" font-weight="bold">!</text>
-        </svg>
-      </div>
-    `,
-    className: 'event-marker',
-    iconSize: [40, 40],
-    iconAnchor: [20, 35],
-    popupAnchor: [0, -35]
+    iconAnchor: [size / 2, size / 2]
   });
 };
