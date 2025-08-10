@@ -31,7 +31,7 @@ const GymSchema = new mongoose.Schema({
         message: 'Invalid coordinates format [lng, lat]'
       }
     },
-    // Keep these fields for display/reference purposes
+
     address: { 
       type: String, 
       required: true,

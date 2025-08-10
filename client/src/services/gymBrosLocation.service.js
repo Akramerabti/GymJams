@@ -1,6 +1,18 @@
 import api from './api';
 import { toast } from 'sonner';
 
+const convertAccuracyToEnum = (numericAccuracy) => {
+  if (typeof numericAccuracy !== 'number' || isNaN(numericAccuracy)) {
+    return 'medium'; // default
+  }
+  
+  // Convert GPS accuracy (in meters) to enum
+  if (numericAccuracy < 10) return 'high';        // Very precise GPS
+  if (numericAccuracy < 100) return 'medium';     // Good GPS
+  if (numericAccuracy < 500) return 'low';        // Approximate GPS  
+  return 'approximate';                           // Poor accuracy
+};
+
 class EnhancedGymBrosLocationService {
  constructor() {
   this.lastLocationUpdate = null;
@@ -105,57 +117,113 @@ forceSyncNow() {
     });
 }
 
-  // Get current location using browser geolocation
-  getCurrentLocation(options = {}) {
-    const defaultOptions = {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 60000,
-      ...options
-    };
+  // FIXED: Get current location with city information
+getCurrentLocation(options = {}) {
+  const defaultOptions = {
+    enableHighAccuracy: true,
+    timeout: 15000, // Increased timeout to 15 seconds
+    maximumAge: 60000,
+    ...options
+  };
 
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error('Geolocation is not supported by this browser'));
-        return;
-      }
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('Geolocation is not supported by this browser'));
+      return;
+    }
 
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const location = {
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const basicLocation = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
-            accuracy: position.coords.accuracy,
+            accuracy: convertAccuracyToEnum(position.coords.accuracy),
             source: 'gps',
             timestamp: new Date().toISOString()
           };
           
-          console.log('📍 Got current browser location:', location);
-          resolve(location);
-        },
-        (error) => {
-          console.error('Geolocation error:', error);
+          console.log('📍 Got basic browser location:', basicLocation);
           
-          // Provide different error messages based on error type
-          let errorMessage = 'Could not get your location';
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              errorMessage = 'Location access denied. Please enable location permissions.';
-              break;
-            case error.POSITION_UNAVAILABLE:
-              errorMessage = 'Location information unavailable.';
-              break;
-            case error.TIMEOUT:
-              errorMessage = 'Location request timed out.';
-              break;
+          try {
+            const enhancedLocation = await this.enhanceLocationWithAddress(basicLocation);
+            console.log('📍 Enhanced location with city:', enhancedLocation);
+
+            localStorage.setItem('userLocation', JSON.stringify(enhancedLocation));
+            
+            resolve(enhancedLocation);
+          } catch (geocodeError) {
+            console.warn('⚠️ Reverse geocoding failed, using fallback city');
+            
+            // Fallback: try to get city from localStorage or use default
+            const savedLocation = localStorage.getItem('userLocation');
+            let fallbackCity = 'Montreal'; // Default for your area
+            
+            if (savedLocation) {
+              try {
+                const parsed = JSON.parse(savedLocation);
+                if (parsed.city) {
+                  fallbackCity = parsed.city;
+                }
+              } catch (e) {
+                console.warn('Failed to parse saved location');
+              }
+            }
+            
+            const locationWithFallback = {
+              ...basicLocation,
+              city: fallbackCity,
+              address: fallbackCity,
+              state: 'Quebec',
+              country: 'Canada',
+              zipCode: ''
+            };
+            
+            console.log('📍 Using fallback location:', locationWithFallback);
+            resolve(locationWithFallback);
           }
-          
-          reject(new Error(errorMessage));
-        },
-        defaultOptions
-      );
-    });
-  }
+        } catch (error) {
+          console.error('Error processing location:', error);
+          reject(error);
+        }
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        
+        let errorMessage = 'Could not get your location';
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Location access denied. Please enable location permissions.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Location information unavailable.';
+            break;
+          case error.TIMEOUT:
+            errorMessage = 'Location request timed out.';
+            break;
+        }
+        
+        // Try to use saved location as fallback
+        const savedLocation = localStorage.getItem('userLocation');
+        if (savedLocation) {
+          try {
+            const parsed = JSON.parse(savedLocation);
+            console.log('📍 Using saved location due to GPS error:', parsed);
+            resolve(parsed);
+            return;
+          } catch (e) {
+            console.warn('Failed to parse saved location');
+          }
+        }
+        
+        reject(new Error(errorMessage));
+      },
+      defaultOptions
+    );
+  });
+}
+
+
 
   // Watch user's location for real-time updates
   watchLocation(callback, options = {}) {
@@ -171,21 +239,52 @@ forceSyncNow() {
       ...options
     };
 
-    this.watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const location = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          accuracy: position.coords.accuracy,
-          source: 'gps',
-          timestamp: new Date().toISOString()
-        };
 
-        // Only call callback if location has changed significantly (>10 meters)
-        if (this.hasLocationChangedSignificantly(location)) {
-          console.log('📍 Location changed significantly:', location);
-          this.lastLocationUpdate = location;
-          callback(location);
+    this.watchId = navigator.geolocation.watchPosition(
+      async (position) => {
+        try {
+          const basicLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: convertAccuracyToEnum(position.coords.accuracy),
+            source: 'gps',
+            timestamp: new Date().toISOString()
+          };
+
+          // Only call callback if location has changed significantly (>10 meters)
+          if (this.hasLocationChangedSignificantly(basicLocation)) {
+            console.log('📍 Location changed significantly:', basicLocation);
+
+            // Enhance with city information
+            try {
+              const enhancedLocation = await this.enhanceLocationWithAddress(basicLocation);
+              this.lastLocationUpdate = enhancedLocation;
+              callback(enhancedLocation);
+            } catch (error) {
+              // Fallback to basic location with saved city
+              const savedLocation = localStorage.getItem('userLocation');
+              let fallbackCity = 'Montreal';
+
+              if (savedLocation) {
+                try {
+                  const parsed = JSON.parse(savedLocation);
+                  if (parsed.city) fallbackCity = parsed.city;
+                } catch (e) {}
+              }
+
+              const locationWithFallback = {
+                ...basicLocation,
+                city: fallbackCity,
+                address: fallbackCity
+              };
+
+              this.lastLocationUpdate = locationWithFallback;
+              callback(locationWithFallback);
+            }
+          }
+        } catch (error) {
+          console.error('Error processing watch location:', error);
+          callback(null, error);
         }
       },
       (error) => {

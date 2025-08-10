@@ -12,6 +12,7 @@ import { useGuestFlow } from '../components/gymBros/components/GuestFlowContext'
 import gymbrosService from '../services/gymbros.service';
 import useApiOptimization from '../hooks/useApiOptimization';
 import gymBrosLocationService from '../services/gymBrosLocation.service';
+import useGymBrosData from '../hooks/useGymBrosData';
 
 import DiscoverTab from '../components/gymBros/components/DiscoverTab';
 import GymBrosSetup from '../components/gymBros/GymBrosSetup';
@@ -68,6 +69,16 @@ const FooterHider = () => {
 
 const GymBros = () => {
   const { user, isAuthenticated } = useAuthStore();
+
+  const [profiles, setProfiles] = useState([]);
+const [currentIndex, setCurrentIndex] = useState(0);
+
+   const { 
+    profiles: sharedProfiles, 
+    invalidate,
+    clearCache 
+  } = useGymBrosData();
+
   const { 
     isGuest, 
     guestProfile, 
@@ -78,10 +89,8 @@ const GymBros = () => {
     clearGuestState
   } = useGuestFlow();
   
-  const { optimizedApiCall, clearCache } = useApiOptimization();
-  
-  const [profiles, setProfiles] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const { optimizedApiCall } = useApiOptimization();
+  ;
   const [loading, setLoading] = useState(true);
   const [hasProfile, setHasProfile] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
@@ -119,7 +128,8 @@ const GymBros = () => {
       
       if (isAuthenticated) {
         clearGuestState();
-        initializeWithSingleCall();
+      clearCache(); 
+      initializeWithSingleCall();
       } else if (isGuest || verifiedPhone) {
         initializeWithSingleCall();
       } else {
@@ -668,20 +678,19 @@ const GymBros = () => {
         return (
           <div className="h-full overflow-hidden relative">
             <DiscoverTab
-              fetchProfiles={() => fetchProfilesWithFilters(filters)}
-              loading={loading}
-              filters={filters}
-              setShowFilters={setShowFilters}
-              distanceUnit="miles"
-              isPremium={false}
-              initialProfiles={profiles}
-              initialIndex={currentIndex}
-              userProfile={userProfile}
-              onNavigateToMatches={(matchedProfile) => {
-                setActiveTab('matches');
-                fetchMatches();
-              }}
-            />
+               loading={loading}
+               filters={filters}
+               setShowFilters={setShowFilters}
+               distanceUnit="miles"
+               isPremium={false}
+               initialProfiles={sharedProfiles} 
+               initialIndex={currentIndex}
+               userProfile={userProfile}
+               onNavigateToMatches={(matchedProfile) => {
+                 setActiveTab('matches');
+                 invalidate('matches');
+               }}
+             />
           </div>
         );
 

@@ -15,32 +15,40 @@ import useAuthStore from '../../../stores/authStore';
 import useApiOptimization from '../../../hooks/useApiOptimization';
 import useRealtimeUpdates from '../../../hooks/useRealtimeUpdates';
 import ActiveBoostNotification from './ActiveBoostNotification';
+import useGymBrosData from '../../../hooks/useGymBrosData';
 
-// Premium feature costs
 const PREMIUM_FEATURES = {
   REKINDLE: 30,
   SUPERSTAR: 20
 };
 
 const DiscoverTab = ({ 
-  fetchProfiles,
-  loading,
+
+  loading: externalLoading, 
   filters,
   setShowFilters,
   distanceUnit = 'miles',
   isPremium = false,
-  initialProfiles = [],
+  initialProfiles = [], 
   initialIndex = 0,
   userProfile = null,
   onNavigateToMatches
 }) => {
+    const { 
+    profiles: sharedProfiles, 
+    loading: dataLoading, 
+    fetchProfiles: fetchSharedProfiles,
+    invalidate 
+  } = useGymBrosData();
   const { balance: pointsBalance, subtractPoints, updatePointsInBackend } = usePoints();
   const { isAuthenticated, user } = useAuthStore();
   const { optimizedApiCall, debouncedApiCall, clearCache } = useApiOptimization();
   const { subscribeToNewMatches } = useRealtimeUpdates();
   
-  const [profiles, setProfiles] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+   const [profiles, setProfiles] = useState(initialProfiles);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const loading = dataLoading.profiles || externalLoading;
+
   const [showProfileDetail, setShowProfileDetail] = useState(false);
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState(null);
@@ -66,7 +74,24 @@ const DiscoverTab = ({
   
   // Get user ID for real-time updates
   const userId = user?.id || user?.user?.id;
-  // Initialize with initial profiles and set up real-time updates
+  
+
+  useEffect(() => {
+    if (sharedProfiles.length > 0) {
+      setProfiles(sharedProfiles);
+      setCurrentIndex(0);
+    } else if (initialProfiles.length > 0) {
+      setProfiles(initialProfiles);
+      setCurrentIndex(initialIndex);
+    }
+  }, [sharedProfiles, initialProfiles, initialIndex]);
+
+  useEffect(() => {
+    if (filters) {
+      fetchSharedProfiles(filters);
+    }
+  }, [filters, fetchSharedProfiles]);
+
   useEffect(() => {
     if (initialProfiles && Array.isArray(initialProfiles) && initialProfiles.length > 0) {
       //('DiscoverTab: Setting profiles from initialProfiles:', initialProfiles.length);
@@ -128,30 +153,24 @@ const DiscoverTab = ({
       }, 500);
     }
   }, [currentIndex, profiles.length, isTransitioning]);
-  // Optimized load more profiles with caching
-  const loadMoreProfiles = async () => {
+
+  
+   const loadMoreProfiles = async () => {
     if (loadingMoreProfiles || !hasMoreProfiles) return;
-  
+
     setLoadingMoreProfiles(true);
-  
+
     try {
-      const moreProfiles = await optimizedApiCall(
-        `recommended-profiles-skip-${profiles.length}`,
-        () => gymbrosService.getRecommendedProfiles({
-          ...filters,
-          skip: profiles.length
-        }),
-        {
-          cacheTime: 30 * 1000, // Cache for 30 seconds
-          minInterval: 5 * 1000, // Minimum 5 seconds between requests
-        }
-      );
-  
+      const moreProfiles = await fetchSharedProfiles({
+        ...filters,
+        skip: profiles.length
+      });
+
       if (moreProfiles.length > 0) {
         setProfiles(prev => [...prev, ...moreProfiles]);
-        setHasMoreProfiles(moreProfiles.length >= 10); // Adjust this threshold as needed
+        setHasMoreProfiles(moreProfiles.length >= 10);
       } else {
-        setHasMoreProfiles(false); // No more profiles to load
+        setHasMoreProfiles(false);
       }
     } catch (error) {
       console.error('Error loading more profiles:', error);
@@ -160,32 +179,22 @@ const DiscoverTab = ({
       setLoadingMoreProfiles(false);
     }
   };
-    // Optimized refresh with cache clearing
-  const handleRefresh = async () => {
+
+
+    const handleRefresh = async () => {
     if (refreshing) return;
     
     setRefreshing(true);
     
     try {
-      // Clear existing profiles and cache
+
       setProfiles([]);
       setCurrentIndex(0);
-      
-      // Clear all profile-related cache
-      clearCache('recommended-profiles');
-      // Clear any skip-based cache entries
-      for (let i = 0; i < 100; i += 10) {
-        clearCache(`recommended-profiles-skip-${i}`);
-      }
-      
-      // Use the fetchProfiles prop which now points to fetchProfilesWithFilters
-      if (fetchProfiles && typeof fetchProfiles === 'function') {
-        // Pass the current filters
-        await fetchProfiles(filters);
-        toast.success('Profiles refreshed');
-      } else {
-        toast.error('Refresh function not available');
-      }
+
+      invalidate('profiles');
+
+      await fetchSharedProfiles(filters, true); // force = true
+      toast.success('Profiles refreshed');
     } catch (error) {
       console.error('Error refreshing profiles:', error);
       toast.error('Failed to refresh profiles');
@@ -193,6 +202,7 @@ const DiscoverTab = ({
       setRefreshing(false);
     }
   };
+
   
   // Handle pull-to-refresh logic
   const handleTouchStart = (e) => {
@@ -353,23 +363,26 @@ const DiscoverTab = ({
         }
       }
   
-      // Handle match if one occurred
-      if (matchResult) {
-        //('MATCH DETECTED with profile:', currentProfile.name);
-  
+       if (matchResult) {
+        console.log('MATCH DETECTED with profile:', currentProfile.name);
+
         // Store matched profile and show modal
         setMatchedProfile({ ...currentProfile });
-  
+
+        // ADD: Invalidate caches after match
+        invalidate('profiles');
+        invalidate('matches');
+
         // Wait for animation to complete before showing match modal
         setTimeout(() => {
           setShowMatchModal(true);
-          // Reset processing state to allow new swipes after match is shown
           setProcessingSwipe(false);
           swipeLockRef.current = false;
         }, 500);
-  
+
         return;
       }
+
 
       // If no match, advance to next profile after animation completes
       setTimeout(() => {

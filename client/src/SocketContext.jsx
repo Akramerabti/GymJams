@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import { useAuth } from './stores/authStore';
 import { toast } from 'sonner';
 import { Award, AlertTriangle, MapPin, Users } from 'lucide-react';
+import useGymBrosData from '../src/hooks/useGymBrosData';
 
 const SocketContext = createContext({
   socket: null,
@@ -34,7 +35,7 @@ export const SocketProvider = ({ children }) => {
     gyms: new Map(),
     lastUpdate: null
   });
-  
+   const { invalidate } = useGymBrosData();
   const socketRef = useRef(null);
   const mapSubscriptionsRef = useRef(new Set());
   const lastLocationUpdateRef = useRef(null);
@@ -147,8 +148,7 @@ export const SocketProvider = ({ children }) => {
         ]);
       });
 
-      // NEW: Map-specific real-time listeners
-      socketInstance.on('userLocationUpdate', (data) => {
+        socketInstance.on('userLocationUpdate', (data) => {
         console.log('📍 Received user location update:', data);
         setMapUpdates(prev => {
           const newUsers = new Map(prev.users);
@@ -163,6 +163,8 @@ export const SocketProvider = ({ children }) => {
             lastUpdate: Date.now()
           };
         });
+
+        invalidate('users');
       });
 
       socketInstance.on('userOffline', (data) => {
@@ -232,6 +234,7 @@ export const SocketProvider = ({ children }) => {
             lastUpdate: Date.now()
           };
         });
+        invalidate('gyms');
       });
 
       // Listen for match notifications with location context
@@ -255,6 +258,9 @@ export const SocketProvider = ({ children }) => {
             timestamp: new Date().toISOString()
           }
         ]);
+
+        invalidate('profiles');
+        invalidate('matches');
       });
       
       socketRef.current = socketInstance;
