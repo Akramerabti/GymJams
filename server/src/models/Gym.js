@@ -208,7 +208,7 @@ function toRadians(degrees) {
 }
 
 // Static method to find gyms within radius
-GymSchema.statics.findNearby = async function(lat, lng, radiusMiles = 25) {
+GymSchema.statics.findNearby = async function(lat, lng, radiusMiles = 100) {
   try {
     const results = await this.aggregate([
       {

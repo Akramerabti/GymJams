@@ -84,7 +84,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
     // Location related fields
     hasExistingLocation: false,
     existingLocationMessage: '',
-    selectedGym: null,
+    selectedGyms: [], // Changed from selectedGym to selectedGyms array
     newGym: null
   });
   const [loading, setLoading] = useState(false);
@@ -94,6 +94,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
   const [authMode, setAuthMode] = useState('signup'); // 'signup' or 'login'
   const [showPhoneLogin, setShowPhoneLogin] = useState(false);
   const imageUploaderRef = useRef(null);
+
 
   useEffect(() => {
     console.log('ImageUploaderRef initialized:', imageUploaderRef.current ? 'YES' : 'NO');
@@ -155,6 +156,7 @@ const GymBrosSetup = ({ onProfileCreated }) => {
     initializeWithLocationCheck();
   }, [user]);
 
+
   // Enhanced handleChange function for GymBrosSetup.jsx
   const handleChange = (field, value) => {
     // Special handling for photos to track changes
@@ -182,6 +184,10 @@ const GymBrosSetup = ({ onProfileCreated }) => {
         ...prev,
         location: { ...prev.location, ...value },
       }));
+    } else if (field === 'selectedGyms') {
+      // Handle multiple gym selections
+      console.log('Updating selected gyms:', value);
+      setProfileData(prev => ({ ...prev, [field]: value }));
     } else {
       setProfileData(prev => ({ ...prev, [field]: value }));
       
@@ -338,6 +344,12 @@ const GymBrosSetup = ({ onProfileCreated }) => {
           if (profile.goals) setProfileData(prev => ({ ...prev, goals: profile.goals }));
           if (profile.work) setProfileData(prev => ({ ...prev, work: profile.work }));
           if (profile.studies) setProfileData(prev => ({ ...prev, studies: profile.studies }));
+          // Handle gym data if available
+          if (profile.primaryGym) setProfileData(prev => ({ ...prev, selectedGyms: [profile.primaryGym] }));
+          if (profile.gyms && profile.gyms.length > 0) {
+            const gymsList = profile.gyms.map(g => g.gym || g);
+            setProfileData(prev => ({ ...prev, selectedGyms: gymsList }));
+          }
         }
       }
     
@@ -474,35 +486,43 @@ const GymBrosSetup = ({ onProfileCreated }) => {
                 
                 console.log('Profile updated with images:', updateResponse);
                 
+                // STEP 4: Handle gym memberships AFTER profile is complete
+                await handleGymMemberships(updateResponse.profile || initialResponse.profile);
+                
                 // Call the onProfileCreated callback with the final profile
                 onProfileCreated(updateResponse.profile || initialResponse.profile);
                 toast.success('Profile created successfully!');
               } else {
-                // No images were uploaded, still consider it a success
+                // No images were uploaded, still handle gym memberships
+                await handleGymMemberships(initialResponse.profile);
                 onProfileCreated(initialResponse.profile);
                 toast.success('Profile created successfully!');
               }
             } else {
-              // Image upload failed, but profile was created
+              // Image upload failed, but profile was created, still handle gyms
               console.warn('Profile created but image upload failed:', uploadResult.message);
+              await handleGymMemberships(initialResponse.profile);
               onProfileCreated(initialResponse.profile);
               toast.success('Profile created, but image upload failed.');
             }
           } else {
-            // No valid files to upload, still consider it a success
+            // No valid files to upload, still handle gym memberships
             console.log('No valid image files to upload');
+            await handleGymMemberships(initialResponse.profile);
             onProfileCreated(initialResponse.profile);
             toast.success('Profile created successfully!');
           }
         } catch (imageError) {
-          // Image processing failed, but profile was created
+          // Image processing failed, but profile was created, still handle gyms
           console.error('Image processing failed:', imageError);
+          await handleGymMemberships(initialResponse.profile);
           onProfileCreated(initialResponse.profile);
           toast.success('Profile created, but image processing failed.');
         }
       } else {
-        // No blob URLs to process
-        console.log('No blob URLs found, profile creation complete');
+        // No blob URLs to process, handle gym memberships
+        console.log('No blob URLs found, handling gym memberships');
+        await handleGymMemberships(initialResponse.profile);
         onProfileCreated(initialResponse.profile);
         toast.success('Profile created successfully!');
       }
@@ -517,6 +537,54 @@ const GymBrosSetup = ({ onProfileCreated }) => {
       setLoading(false);
     }
   };
+
+  // Handle gym memberships after profile creation
+const handleGymMemberships = async (profile) => {
+  try {
+    if (profileData.selectedGyms && profileData.selectedGyms.length > 0) {
+      console.log('Adding user to selected gyms:', profileData.selectedGyms);
+      console.log('Using profile:', profile); // Debug log
+      
+      // Associate with each selected gym
+      for (const gym of profileData.selectedGyms) {
+        try {
+          const result = await gymBrosLocationService.associateWithGym(
+            gym._id,
+            false, // Not primary by default
+            'member', // Default membership type
+            {
+              profileId: profile._id, // Pass the profile ID
+              userId: profile.userId || user?._id // Pass user ID if available
+            }
+          );
+          console.log(`Successfully associated with gym: ${gym.name}`, result);
+        } catch (gymError) {
+          console.error(`Failed to associate with gym: ${gym.name}`, gymError);
+          // Don't fail the entire process for gym association errors
+        }
+      }
+      
+      // Set the first gym as primary if we have any
+      if (profileData.selectedGyms.length > 0) {
+        try {
+          await gymBrosLocationService.setPrimaryGym(
+            profileData.selectedGyms[0]._id,
+            {
+              profileId: profile._id,
+              userId: profile.userId || user?._id
+            }
+          );
+          console.log(`Set primary gym: ${profileData.selectedGyms[0].name}`);
+        } catch (primaryError) {
+          console.error('Failed to set primary gym:', primaryError);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error handling gym memberships:', error);
+    // Don't throw error - gym association is not critical for profile creation
+  }
+};
 
   // Navigation functions - declare before buildSteps
   const goToNextStep = () => {

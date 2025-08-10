@@ -15,6 +15,11 @@ router.post('/gyms/associate', gymBrosLocationController.associateWithGym);
 router.get('/gyms/my-gyms', gymBrosLocationController.getUserGyms);
 router.get('/groups/nearby', gymBrosLocationController.getNearbyGroups);
 router.post('/groups/location', gymBrosLocationController.createLocationGroup);
+router.post('/gyms/associate', optionalAuthenticate, gymBrosLocationController.associateWithGym);
+router.delete('/gyms/associate/:gymId', optionalAuthenticate, gymBrosLocationController.removeGymAssociation);
+router.put('/gyms/set-primary', optionalAuthenticate, gymBrosLocationController.setPrimaryGym);
+router.get('/gyms/my-gyms', optionalAuthenticate, gymBrosLocationController.getUserGyms);
+router.get('/gyms/:gymId/members', optionalAuthenticate, gymBrosLocationController.getGymMembers);
 
 router.get('/map/users', optionalAuthenticate, gymBrosLocationController.getMapUsers);
 router.get('/gyms', optionalAuthenticate, gymBrosLocationController.getGymsForMap);

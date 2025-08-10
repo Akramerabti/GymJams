@@ -743,7 +743,7 @@ class GymBrosLocationService {
   }
 
   // Search nearby gyms
-  async searchNearbyGyms(location, query = '', radius = 25) {
+  async searchNearbyGyms(location, query = '', radius = 100) {
     try {
       const response = await api.get('/gym-bros/gyms/search', {
         params: {
@@ -760,6 +760,8 @@ class GymBrosLocationService {
       throw error;
     }
   }
+
+
 
   // Create a new gym
   async createGym(gymData) {
@@ -778,37 +780,209 @@ class GymBrosLocationService {
     }
   }
 
-  // Associate user with a gym
-  async associateWithGym(gymId, isPrimary = false, membershipType = 'member') {
-    try {
-      const response = await api.post('/gym-bros/gyms/associate', {
-        gymId,
-        isPrimary,
-        membershipType
-      });
+  async associateWithGym(gymId, isPrimary = false, membershipType = 'member', options = {}) {
+  try {
+    const requestData = {
+      gymId,
+      isPrimary,
+      membershipType,
+      visitFrequency: options.visitFrequency || 'weekly',
+      preferredTimes: options.preferredTimes || [],
+      notes: options.notes || ''
+    };
 
-      if (response.data.success) {
-        toast.success('Successfully associated with gym!');
+    // Add profile/user info if available
+    if (options.profileId) {
+      requestData.profileId = options.profileId;
+    }
+    if (options.userId) {
+      requestData.userId = options.userId;
+    }
+
+    console.log('Sending gym association request:', requestData);
+
+    const response = await api.post('/gym-bros/gyms/associate', requestData);
+
+    if (response.data.success) {
+      const gymName = response.data.gym?.name || 'the facility';
+      toast.success(`Successfully joined ${gymName}!`);
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error('Error associating with gym:', error);
+    const errorMessage = error.response?.data?.message || 'Failed to join facility.';
+    toast.error(errorMessage);
+    throw error;
+  }
+}
+
+async associateWithMultipleGyms(gymAssociations) {
+  try {
+    const results = [];
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const association of gymAssociations) {
+      try {
+        const result = await this.associateWithGym(
+          association.gymId,
+          association.isPrimary,
+          association.membershipType,
+          association.options
+        );
+        results.push({ ...association, success: true, result });
+        successCount++;
+      } catch (error) {
+        results.push({ ...association, success: false, error: error.message });
+        failCount++;
       }
-
-      return response.data;
-    } catch (error) {
-      console.error('Error associating with gym:', error);
-      toast.error('Failed to associate with gym.');
-      throw error;
     }
-  }
 
-  // Get user's gyms
+    // Show summary toast
+    if (successCount > 0 && failCount === 0) {
+      toast.success(`Successfully joined ${successCount} facilities!`);
+    } else if (successCount > 0 && failCount > 0) {
+      toast.warning(`Joined ${successCount} facilities, ${failCount} failed.`);
+    } else if (failCount > 0) {
+      toast.error(`Failed to join ${failCount} facilities.`);
+    }
+
+    return {
+      success: successCount > 0,
+      results,
+      successCount,
+      failCount
+    };
+  } catch (error) {
+    console.error('Error associating with multiple gyms:', error);
+    toast.error('Failed to process gym associations.');
+    throw error;
+  }
+}
+
   async getUserGyms() {
-    try {
-      const response = await api.get('/gym-bros/gyms/my-gyms');
-      return response.data;
-    } catch (error) {
-      console.error('Error getting user gyms:', error);
-      throw error;
-    }
+  try {
+    const response = await api.get('/gym-bros/gyms/my-gyms');
+    return response.data;
+  } catch (error) {
+    console.error('Error getting user gyms:', error);
+    throw error;
   }
+}
+
+async getGymMembers(gymId, options = {}) {
+  try {
+    const params = {
+      limit: options.limit || 50,
+      offset: options.offset || 0
+    };
+
+    if (options.membershipType) {
+      params.membershipType = options.membershipType;
+    }
+
+    if (options.status) {
+      params.status = options.status;
+    }
+
+    const response = await api.get(`/gym-bros/gyms/${gymId}/members`, { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error getting gym members:', error);
+    throw error;
+  }
+}
+
+async shouldSkipLocationStep(user, phone) {
+  try {
+    // Check if user already has location data
+    if (user && user.location && user.location.lat && user.location.lng) {
+      return {
+        skipStep: true,
+        source: 'user_profile',
+        locationData: user.location
+      };
+    }
+
+    // Check backend for existing location
+    try {
+      const response = await this.checkExistingLocation(user, phone);
+      if (response && response.location && response.location.lat && response.location.lng) {
+        return {
+          skipStep: true,
+          source: 'backend',
+          locationData: response.location
+        };
+      }
+    } catch (backendError) {
+      console.warn('Backend location check failed:', backendError);
+    }
+
+    // Check localStorage
+    const storedLocation = this.getStoredLocation();
+    if (storedLocation && storedLocation.lat && storedLocation.lng) {
+      return {
+        skipStep: true,
+        source: 'localStorage',
+        locationData: storedLocation
+      };
+    }
+
+    // Check cache
+    const cachedLocation = this.getCachedLocation();
+    if (cachedLocation && cachedLocation.lat && cachedLocation.lng) {
+      return {
+        skipStep: true,
+        source: 'cache',
+        locationData: cachedLocation
+      };
+    }
+
+    // No existing location found
+    return {
+      skipStep: false,
+      source: null,
+      locationData: null
+    };
+
+  } catch (error) {
+    console.error('Error checking if should skip location step:', error);
+    return {
+      skipStep: false,
+      source: null,
+      locationData: null
+    };
+  }
+}
+
+async recordGymVisit(gymId, visitData = {}) {
+  try {
+    const response = await api.post(`/gym-bros/gyms/${gymId}/visit`, {
+      timestamp: visitData.timestamp || new Date().toISOString(),
+      duration: visitData.duration,
+      workoutType: visitData.workoutType,
+      notes: visitData.notes
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('Error recording gym visit:', error);
+    // Don't show error toast for visit recording as it's not critical
+    return { success: false };
+  }
+}
+
+
+async checkGymMembership(gymId) {
+  try {
+    const response = await api.get(`/gym-bros/gyms/${gymId}/membership`);
+    return response.data;
+  } catch (error) {
+    console.error('Error checking gym membership:', error);
+    return { isMember: false };
+  }
+}
 
   // Get nearby groups
   async getNearbyGroups(location, radius = 25) {
@@ -827,6 +1001,63 @@ class GymBrosLocationService {
       throw error;
     }
   }
+
+  async removeGymAssociation(gymId) {
+  try {
+    const response = await api.delete(`/gym-bros/gyms/associate/${gymId}`);
+
+    if (response.data.success) {
+      toast.success('Successfully left the facility!');
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error('Error removing gym association:', error);
+    toast.error('Failed to leave facility.');
+    throw error;
+  }
+}
+
+async updateGymAssociation(gymId, updates) {
+  try {
+    const response = await api.put(`/gym-bros/gyms/associate/${gymId}`, updates);
+
+    if (response.data.success) {
+      toast.success('Gym association updated successfully!');
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error('Error updating gym association:', error);
+    toast.error('Failed to update gym association.');
+    throw error;
+  }
+}
+
+async setPrimaryGym(gymId, options = {}) {
+  try {
+    const requestData = { gymId };
+    
+    if (options.profileId) {
+      requestData.profileId = options.profileId;
+    }
+    if (options.userId) {
+      requestData.userId = options.userId;
+    }
+
+    const response = await api.put('/gym-bros/gyms/set-primary', requestData);
+
+    if (response.data.success) {
+      toast.success('Primary gym updated successfully!');
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error('Error setting primary gym:', error);
+    toast.error('Failed to set primary gym.');
+    throw error;
+  }
+}
 
   // Create location-based group
   async createLocationGroup(groupData) {

@@ -631,13 +631,20 @@ export const buildSteps = ({
               <p className="text-white/80 text-sm">Connect with people at your gym</p>
             </div>
             <GymSelector
-              location={profileData.location}
-              selectedGym={profileData.selectedGym}
-              onGymSelect={(gym) => handleChange('selectedGym', gym)}
-              onCreateGym={(gymData) => handleChange('newGym', gymData)}
-              isGuest={!isAuthenticated}
-              userId={user && user._id}
-            />
+  location={profileData.location}
+  selectedGyms={profileData.selectedGyms}
+  onGymSelect={(gyms) => {
+    console.log('GymSelector onGymSelect called with:', gyms);
+    handleChange('selectedGyms', gyms);
+  }}
+  onCreateGym={(gymData) => {
+    const currentGyms = profileData.selectedGyms || [];
+    handleChange('selectedGyms', [...currentGyms, gymData]);
+    handleChange('newGym', gymData);
+  }}
+  isGuest={!isAuthenticated}
+  userId={user && user._id}
+/>
           </div>
         )
       },

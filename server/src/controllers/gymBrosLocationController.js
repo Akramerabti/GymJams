@@ -428,6 +428,265 @@ export const getMapUsers = async (req, res) => {
   }
 };
 
+export const associateWithGym = async (req, res) => {
+  try {
+    const { gymId, isPrimary = false, membershipType = 'member', visitFrequency, preferredTimes, notes, profileId, userId } = req.body;
+    const effectiveUser = getEffectiveUser(req);
+
+    console.log('Association request:', { gymId, profileId, userId, effectiveUser });
+
+    // Allow association if we have profileId or userId in the request body
+    if (!effectiveUser.userId && !effectiveUser.profileId && !profileId && !userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required to join gym'
+      });
+    }
+
+    // Validate gym exists
+    const gym = await Gym.findById(gymId);
+    if (!gym) {
+      return res.status(404).json({
+        success: false,
+        message: 'Gym not found'
+      });
+    }
+
+    // Find user's profile using multiple methods
+    let profile;
+    if (profileId) {
+      profile = await GymBrosProfile.findById(profileId);
+    } else if (effectiveUser.profileId) {
+      profile = await GymBrosProfile.findById(effectiveUser.profileId);
+    } else if (userId) {
+      profile = await GymBrosProfile.findOne({ userId: userId });
+    } else if (effectiveUser.userId) {
+      profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+    }
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Profile not found'
+      });
+    }
+
+    console.log('Found profile:', profile._id);
+
+    // Add gym association
+    profile.addGym(gymId, {
+      membershipType,
+      isPrimary,
+      visitFrequency: visitFrequency || 'weekly',
+      preferredTimes: preferredTimes || [],
+      notes: notes || ''
+    });
+
+    await profile.save();
+
+    // Update gym member count
+    const memberCount = await GymBrosProfile.countDocuments({
+      'gyms.gym': gymId,
+      'gyms.status': 'active'
+    });
+
+    await Gym.findByIdAndUpdate(gymId, { memberCount });
+
+    console.log(`Profile ${profile._id} joined gym ${gym.name}`);
+
+    res.json({
+      success: true,
+      message: `Successfully joined ${gym.name}`,
+      gym: gym,
+      memberCount
+    });
+
+  } catch (error) {
+    console.error('Error associating with gym:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to join gym'
+    });
+  }
+};
+
+// Remove gym association
+export const removeGymAssociation = async (req, res) => {
+  try {
+    const { gymId } = req.params;
+    const effectiveUser = getEffectiveUser(req);
+
+    if (!effectiveUser.userId && !effectiveUser.profileId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    let profile;
+    if (effectiveUser.profileId) {
+      profile = await GymBrosProfile.findById(effectiveUser.profileId);
+    } else {
+      profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+    }
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Profile not found'
+      });
+    }
+
+    profile.removeGym(gymId);
+    await profile.save();
+
+    const memberCount = await GymBrosProfile.countDocuments({
+      'gyms.gym': gymId,
+      'gyms.status': 'active'
+    });
+
+    await Gym.findByIdAndUpdate(gymId, { memberCount });
+
+    res.json({
+      success: true,
+      message: 'Successfully left gym',
+      memberCount
+    });
+
+  } catch (error) {
+    logger.error('Error removing gym association:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to leave gym'
+    });
+  }
+};
+
+// Set primary gym
+export const setPrimaryGym = async (req, res) => {
+  try {
+    const { gymId } = req.body;
+    const effectiveUser = getEffectiveUser(req);
+
+    if (!effectiveUser.userId && !effectiveUser.profileId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    let profile;
+    if (effectiveUser.profileId) {
+      profile = await GymBrosProfile.findById(effectiveUser.profileId);
+    } else {
+      profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+    }
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Profile not found'
+      });
+    }
+
+    profile.setPrimaryGym(gymId);
+    await profile.save();
+
+    res.json({
+      success: true,
+      message: 'Primary gym updated successfully'
+    });
+
+  } catch (error) {
+    logger.error('Error setting primary gym:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to set primary gym'
+    });
+  }
+};
+
+// Get user's gyms
+export const getUserGyms = async (req, res) => {
+  try {
+    const effectiveUser = getEffectiveUser(req);
+
+    if (!effectiveUser.userId && !effectiveUser.profileId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    let profile;
+    if (effectiveUser.profileId) {
+      profile = await GymBrosProfile.findById(effectiveUser.profileId).populate('gyms.gym');
+    } else {
+      profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId }).populate('gyms.gym');
+    }
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Profile not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      gyms: profile.gyms,
+      primaryGym: profile.primaryGym
+    });
+
+  } catch (error) {
+    logger.error('Error getting user gyms:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get user gyms'
+    });
+  }
+};
+
+// Get gym members
+export const getGymMembers = async (req, res) => {
+  try {
+    const { gymId } = req.params;
+    const { limit = 50, offset = 0, membershipType, status = 'active' } = req.query;
+
+    const query = {
+      'gyms.gym': gymId,
+      'gyms.status': status
+    };
+
+    if (membershipType) {
+      query['gyms.membershipType'] = membershipType;
+    }
+
+    const members = await GymBrosProfile.find(query)
+      .populate('gyms.gym')
+      .limit(parseInt(limit))
+      .skip(parseInt(offset))
+      .select('name age profileImage workoutTypes experienceLevel lastActive gyms');
+
+    const total = await GymBrosProfile.countDocuments(query);
+
+    res.json({
+      success: true,
+      members,
+      total,
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+  } catch (error) {
+    logger.error('Error getting gym members:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get gym members'
+    });
+  }
+};
+
 // Enhanced getGymsForMap with zoom-level awareness and type filtering
 export const getGymsForMap = async (req, res) => {
   try {
@@ -1181,102 +1440,6 @@ export const searchGyms = async (req, res) => {
   } catch (error) {
     logger.error('Error searching gyms:', error);
     res.status(500).json({ message: 'Error searching gyms' });
-  }
-};
-
-export const associateWithGym = async (req, res) => {
-  try {
-    const { gymId, isPrimary = false, membershipType = 'member' } = req.body;
-    const effectiveUser = getEffectiveUser(req);
-
-    if (!gymId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Gym ID is required'
-      });
-    }
-
-    if (!effectiveUser.profileId && !effectiveUser.userId) {
-      return res.status(401).json({
-        success: false,
-        message: 'Profile required to associate with gym'
-      });
-    }
-
-    let profileId = effectiveUser.profileId;
-    if (!profileId && effectiveUser.userId) {
-      const profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
-      if (profile) {
-        profileId = profile._id;
-      }
-    }
-
-    if (!profileId) {
-      return res.status(404).json({
-        success: false,
-        message: 'GymBros profile not found'
-      });
-    }
-
-    await gymBrosLocationService.associateUserWithGym(
-      profileId,
-      gymId,
-      isPrimary,
-      membershipType
-    );
-
-    res.json({
-      success: true,
-      message: 'Successfully associated with gym'
-    });
-  } catch (error) {
-    logger.error('Error associating with gym:', error);
-    res.status(500).json({ message: 'Error associating with gym' });
-  }
-};
-
-export const getUserGyms = async (req, res) => {
-  try {
-    const effectiveUser = getEffectiveUser(req);
-    
-    if (!effectiveUser.profileId && !effectiveUser.userId) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required'
-      });
-    }
-
-    let profile;
-    if (effectiveUser.profileId) {
-      profile = await GymBrosProfile.findById(effectiveUser.profileId)
-        .populate('primaryGym')
-        .populate('gyms.gym');
-    } else if (effectiveUser.userId) {
-      profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId })
-        .populate('primaryGym')
-        .populate('gyms.gym');
-    }
-
-    if (!profile) {
-      return res.status(404).json({
-        success: false,
-        message: 'Profile not found'
-      });
-    }
-
-    const userGyms = {
-      primaryGym: profile.primaryGym,
-      otherGyms: profile.gyms.filter(g => g.isActive),
-      totalGyms: profile.gyms.filter(g => g.isActive).length + (profile.primaryGym ? 1 : 0)
-    };
-
-    res.json({
-      success: true,
-      ...userGyms
-    });
-  } catch (error) {
-    logger.error('Error getting user gyms:', error);
-    res.status(500).json({ message: 'Error getting user gyms' });
   }
 };
 
