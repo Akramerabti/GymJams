@@ -991,6 +991,253 @@ export const getGymBrosMatches = async (req, res) => {
   }
 };
 
+export const getGymBrosMapUsers = async (req, res) => {
+  try {
+    const effectiveUser = getEffectiveUser(req);
+    logger.info(`Fetching map users for: ${effectiveUser.userId || effectiveUser.profileId || 'unidentified'}`);
+    
+    // No user context available
+    if (!effectiveUser.userId && !effectiveUser.profileId && !effectiveUser.phone) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication or verified phone required'
+      });
+    }
+    
+    // Get user's profile
+    let userProfile;
+    
+    if (effectiveUser.isGuest) {
+      if (effectiveUser.profileId) {
+        userProfile = await GymBrosProfile.findById(effectiveUser.profileId);
+      } else if (effectiveUser.phone) {
+        userProfile = await GymBrosProfile.findOne({ phone: effectiveUser.phone });
+      }
+    } else {
+      userProfile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+    }
+    
+    if (!userProfile) {
+      return res.status(404).json({ 
+        error: "User profile not found",
+        message: "Please complete your profile setup before browsing the map" 
+      });
+    }
+
+    // Update lastActive timestamp
+    try {
+      userProfile.lastActive = new Date();
+      await userProfile.save();
+    } catch (updateError) {
+      logger.error(`Error updating lastActive timestamp: ${updateError.message}`);
+    }
+
+    const mapUsers = [];
+    const userIds = new Set(); // Track unique users to avoid duplicates
+
+    // STEP 1: Get members of gyms the user has joined
+    const userGymIds = [];
+    
+    // Add primary gym
+    if (userProfile.primaryGym) {
+      userGymIds.push(userProfile.primaryGym);
+    }
+    
+    // Add other gyms where user is active member
+    if (userProfile.gyms && userProfile.gyms.length > 0) {
+      userProfile.gyms
+        .filter(gymAssoc => gymAssoc.isActive)
+        .forEach(gymAssoc => {
+          userGymIds.push(gymAssoc.gym);
+        });
+    }
+
+    logger.info(`User is member of ${userGymIds.length} gyms`);
+
+    if (userGymIds.length > 0) {
+      // Find all other profiles that are members of these gyms
+      const gymMembers = await GymBrosProfile.find({
+        $and: [
+          {
+            $or: [
+              { primaryGym: { $in: userGymIds } },
+              { 'gyms.gym': { $in: userGymIds }, 'gyms.isActive': true }
+            ]
+          },
+          // Exclude current user
+          { _id: { $ne: userProfile._id } },
+          // Only profiles with valid location data
+          { 'location.lat': { $exists: true, $ne: null } },
+          { 'location.lng': { $exists: true, $ne: null } }
+        ]
+      });
+
+      logger.info(`Found ${gymMembers.length} gym members`);
+
+      gymMembers.forEach(member => {
+        if (!userIds.has(member._id.toString())) {
+          userIds.add(member._id.toString());
+          mapUsers.push({
+            ...member.toObject(),
+            source: 'gym_member',
+            sharedGym: true
+          });
+        }
+      });
+    }
+
+    // STEP 2: Get user's matches from the matching system
+    const userIdentifier = effectiveUser.userId || effectiveUser.profileId;
+    let possibleUserIds = [userIdentifier];
+    
+    if (effectiveUser.userId) {
+      const userProfileForMatches = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+      if (userProfileForMatches) {
+        possibleUserIds.push(userProfileForMatches._id.toString());
+      }
+    }
+
+    const matches = await GymBrosMatch.find({
+      users: { $in: possibleUserIds },
+      active: true
+    });
+
+    logger.info(`Found ${matches.length} matches`);
+
+    const matchedUserIds = [];
+    matches.forEach(match => {
+      const otherUserIds = match.users.filter(id => 
+        !possibleUserIds.includes(id.toString())
+      );
+      otherUserIds.forEach(id => matchedUserIds.push(id));
+    });
+
+    if (matchedUserIds.length > 0) {
+      const matchedProfiles = await GymBrosProfile.find({
+        $and: [
+          {
+            $or: [
+              { userId: { $in: matchedUserIds } },
+              { _id: { $in: matchedUserIds } }
+            ]
+          },
+          // Only profiles with valid location data
+          { 'location.lat': { $exists: true, $ne: null } },
+          { 'location.lng': { $exists: true, $ne: null } }
+        ]
+      });
+
+      logger.info(`Found ${matchedProfiles.length} matched profiles with location`);
+
+      matchedProfiles.forEach(match => {
+        if (!userIds.has(match._id.toString())) {
+          userIds.add(match._id.toString());
+          mapUsers.push({
+            ...match.toObject(),
+            source: 'match',
+            isMatch: true
+          });
+        }
+      });
+    }
+
+    // STEP 3: Add MAXIMUM 3 recommended profiles
+    const { 
+      workoutTypes, 
+      experienceLevel, 
+      preferredTime, 
+      gender, 
+      minAge, 
+      maxAge,
+      maxDistance,
+      includeRecommendations = 'true'
+    } = req.query;
+
+    if (includeRecommendations === 'true') {
+      const filters = {
+        workoutTypes: workoutTypes ? workoutTypes.split(',') : undefined,
+        experienceLevel: experienceLevel || undefined,
+        preferredTime: preferredTime || undefined,
+        genderPreference: gender || undefined,
+        ageRange: {
+          min: minAge ? parseInt(minAge, 10) : 18,
+          max: maxAge ? parseInt(maxAge, 10) : 99
+        },
+        maxDistance: maxDistance ? parseInt(maxDistance, 10) : 25
+      };
+
+      const recommendations = await getRecommendedProfiles(userProfile, filters);
+      logger.info(`Found ${recommendations.length} recommended profiles`);
+
+      // 🎯 LIMIT TO MAXIMUM 3 RECOMMENDATIONS
+      const limitedRecommendations = recommendations
+        .filter(rec => !userIds.has(rec._id.toString()))
+        .slice(0, 3); // ⭐ MAXIMUM 3 RECOMMENDATIONS
+
+      limitedRecommendations.forEach(rec => {
+        if (!userIds.has(rec._id.toString())) {
+          userIds.add(rec._id.toString());
+          mapUsers.push({
+            ...rec,
+            source: 'recommendation',
+            isRecommendation: true
+          });
+        }
+      });
+
+      logger.info(`✅ Added ${limitedRecommendations.length} recommendations to map (max 3)`);
+    }
+
+    // Add avatars and coordinates for map display
+    const finalMapUsers = mapUsers.map(user => ({
+      ...user,
+      // Extract coordinates for map display
+      lat: user.location?.lat,
+      lng: user.location?.lng,
+      // Ensure avatar is included for matches and gym members
+      avatar: user.avatar || null,
+      // Add user ID for map markers
+      id: user._id.toString()
+    }));
+
+    logger.info(`🗺️ Returning ${finalMapUsers.length} total map users (${mapUsers.filter(u => u.source === 'gym_member').length} gym members, ${mapUsers.filter(u => u.source === 'match').length} matches, ${mapUsers.filter(u => u.source === 'recommendation').length} recommendations)`);
+
+    // For guest users, generate and include a new token
+    if (effectiveUser.isGuest) {
+      const guestToken = generateGuestToken(effectiveUser.phone, effectiveUser.profileId);
+      
+      res.json({
+        users: finalMapUsers,
+        isGuest: true,
+        guestToken,
+        stats: {
+          gymMembers: mapUsers.filter(u => u.source === 'gym_member').length,
+          matches: mapUsers.filter(u => u.source === 'match').length,
+          recommendations: mapUsers.filter(u => u.source === 'recommendation').length,
+          total: finalMapUsers.length
+        }
+      });
+    } else {
+      res.json({
+        users: finalMapUsers,
+        isGuest: false,
+        stats: {
+          gymMembers: mapUsers.filter(u => u.source === 'gym_member').length,
+          matches: mapUsers.filter(u => u.source === 'match').length,
+          recommendations: mapUsers.filter(u => u.source === 'recommendation').length,
+          total: finalMapUsers.length
+        }
+      });
+    }
+  } catch (error) {
+    logger.error('Error in getGymBrosMapUsers:', error);
+    res.status(500).json({ 
+      error: "Failed to retrieve map users",
+      message: "An unexpected error occurred while finding gym partners"
+    });
+  }
+};
+
 // Remove a match
 export const removeMatch = async (req, res) => {
   try {

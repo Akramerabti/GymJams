@@ -1,10 +1,13 @@
-// hooks/useGymBrosData.js
+// client/src/hooks/useGymBrosData.js - Updated version
+
 import { create } from 'zustand';
 import gymbrosService from '../services/gymbros.service';
 import gymBrosLocationService from '../services/gymBrosLocation.service';
 
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 const useGymBrosData = create((set, get) => ({
-  // Data state
+  // State
   users: [],
   gyms: [],
   profiles: [],
@@ -26,55 +29,48 @@ const useGymBrosData = create((set, get) => ({
     matches: null
   },
   
-
-  CACHE_DURATION: 5 * 60 * 1000,
-
+  // Helper to check if data is fresh
   isFresh: (type) => {
-    const { lastFetch, CACHE_DURATION } = get();
-    if (!lastFetch[type]) return false;
-    return Date.now() - lastFetch[type] < CACHE_DURATION;
+    const { lastFetch } = get();
+    return lastFetch[type] && (Date.now() - lastFetch[type]) < CACHE_DURATION;
   },
-
-  fetchUsers: async (force = false) => {
+  
+  // UPDATED: Fetch users specifically for map (gym members + matches + recommendations)
+  fetchUsers: async (filters = {}, force = false) => {
     const { users, loading, isFresh } = get();
     
     if (!force && users.length > 0 && isFresh('users')) {
-      console.log('📍 Using cached users');
+      console.log('🗺️ Using cached map users');
       return users;
     }
     
-    if (loading.users) {
-      console.log('📍 Users already loading');
-      return users;
-    }
+    if (loading.users) return users;
     
     set(state => ({ loading: { ...state.loading, users: true } }));
     
     try {
-      const response = await gymbrosService.getGymBrosProfiles();
-      const usersArray = response?.recommendations || [];
-
-      const processedUsers = usersArray
-        .filter(user => user.location?.coordinates)
-        .map(user => {
-          const [lng, lat] = user.location.coordinates;
-          return { ...user, lat, lng, id: user._id || user.id };
-        });
+      console.log('🗺️ Fetching map users with filters:', filters);
+      
+      // Use the new map users endpoint
+      const fetchedUsers = await gymbrosService.getMapUsers(filters);
+      
+      console.log(`🗺️ Retrieved ${fetchedUsers.length} map users`);
       
       set(state => ({
-        users: processedUsers,
+        users: fetchedUsers,
         lastFetch: { ...state.lastFetch, users: Date.now() },
         loading: { ...state.loading, users: false }
       }));
       
-      return processedUsers;
+      return fetchedUsers;
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('Error fetching map users:', error);
       set(state => ({ loading: { ...state.loading, users: false } }));
       return [];
     }
   },
-
+  
+  // Fetch gyms (unchanged)
   fetchGyms: async (force = false) => {
     const { gyms, loading, isFresh } = get();
     
@@ -88,8 +84,8 @@ const useGymBrosData = create((set, get) => ({
     set(state => ({ loading: { ...state.loading, gyms: true } }));
     
     try {
-      const data = await gymBrosLocationService.getGymsForMap();
-      const gymsArray = Array.isArray(data) ? data : data.gyms || [];
+      const response = await gymBrosLocationService.getGymsForMap();
+      const gymsArray = Array.isArray(response) ? response : response.gyms || [];
 
       const processedGyms = gymsArray
         .filter(gym => gym.location?.coordinates)
@@ -112,12 +108,12 @@ const useGymBrosData = create((set, get) => ({
     }
   },
   
-  fetchProfiles: async (filters, force = false) => {
+  // UPDATED: Fetch profiles for discovery tab (separate from map users)
+  fetchProfiles: async (filters = {}, force = false) => {
     const { profiles, loading, isFresh } = get();
-    const cacheKey = JSON.stringify(filters);
     
     if (!force && profiles.length > 0 && isFresh('profiles')) {
-      console.log('💪 Using cached profiles');
+      console.log('💪 Using cached discovery profiles');
       return profiles;
     }
     
@@ -126,7 +122,12 @@ const useGymBrosData = create((set, get) => ({
     set(state => ({ loading: { ...state.loading, profiles: true } }));
     
     try {
+      console.log('💪 Fetching discovery profiles with filters:', filters);
+      
+      // Use the existing profiles endpoint for discovery
       const fetchedProfiles = await gymbrosService.getRecommendedProfiles(filters);
+      
+      console.log(`💪 Retrieved ${fetchedProfiles.length} discovery profiles`);
       
       set(state => ({
         profiles: fetchedProfiles,
@@ -136,18 +137,50 @@ const useGymBrosData = create((set, get) => ({
       
       return fetchedProfiles;
     } catch (error) {
-      console.error('Error fetching profiles:', error);
+      console.error('Error fetching discovery profiles:', error);
       set(state => ({ loading: { ...state.loading, profiles: false } }));
       return [];
     }
   },
   
+  // Fetch matches (unchanged)
+  fetchMatches: async (force = false) => {
+    const { matches, loading, isFresh } = get();
+    
+    if (!force && matches.length > 0 && isFresh('matches')) {
+      console.log('❤️ Using cached matches');
+      return matches;
+    }
+    
+    if (loading.matches) return matches;
+    
+    set(state => ({ loading: { ...state.loading, matches: true } }));
+    
+    try {
+      const fetchedMatches = await gymbrosService.getMatches();
+      
+      set(state => ({
+        matches: fetchedMatches,
+        lastFetch: { ...state.lastFetch, matches: Date.now() },
+        loading: { ...state.loading, matches: false }
+      }));
+      
+      return fetchedMatches;
+    } catch (error) {
+      console.error('Error fetching matches:', error);
+      set(state => ({ loading: { ...state.loading, matches: false } }));
+      return [];
+    }
+  },
+  
+  // Invalidate cache for a specific type
   invalidate: (type) => {
     set(state => ({
       lastFetch: { ...state.lastFetch, [type]: null }
     }));
   },
 
+  // Clear all cache
   clearCache: () => {
     set({
       lastFetch: {

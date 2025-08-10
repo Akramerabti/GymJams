@@ -5,7 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { Search, Filter, Calendar, MapPin, Dumbbell, Users, RefreshCw, X, Building2, AlertTriangle } from 'lucide-react';
 import MouseAvatarDesigner from './components/MouseAvatarDesigner';
-import { renderMouseAvatar, createMouseIcon, createGymIcon } from './components/MouseAvatarUtils';
+import { renderMouseAvatar, createMouseIcon, createGymIcon, createWavingMouseSVG } from './components/MouseAvatarUtils';
 import MapSidePanel from './components/MapSidePanel';
 import gymbrosService from '../../services/gymbros.service';
 import { useSocket } from '../../SocketContext';
@@ -378,18 +378,24 @@ const GymBrosMap = ({ userProfile }) => {
 
   // Fetch map data
   const fetchMapData = async () => {
-    setLoading(true);
-    try {
-      await Promise.all([
-        fetchUsers(),
-        fetchGyms()
-      ]);
-    } catch (error) {
-      console.error('Error fetching map data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
+  try {
+    const mapFilters = {
+      ...filters,
+      maxDistance: filters.maxDistance,
+      includeRecommendations: true
+    };
+    
+    await Promise.all([
+      fetchUsers(mapFilters),
+      fetchGyms()
+    ]);
+  } catch (error) {
+    console.error('Error fetching map data:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const requestLocationPermission = async () => {
     try {
@@ -559,37 +565,109 @@ const GymBrosMap = ({ userProfile }) => {
       );
     }
     
-    // User Markers
-    filteredUsers
-      .filter(user => isValidCoordinate(user.lat, user.lng))
-      .forEach(user => {
-        markers.push(
-          <Marker 
-            key={`user-${user.id}`} 
-            position={[user.lat, user.lng]} 
-            icon={createMouseIcon(user.avatar || {})}
-            eventHandlers={{
-              click: () => handleMarkerClick('user', user)
-            }}
-          >
-            <Popup>
-              <div className="min-w-48 text-center">
-                <div className="mb-2">
-                  {renderMouseAvatar(user.avatar || {}, 60)}
-                </div>
-                <h3 className="font-semibold">{user.name}</h3>
-                <p className="text-sm text-gray-500">{user.age} • {user.experienceLevel}</p>
-                <button 
-                  onClick={() => handleMarkerClick('user', user)}
-                  className="mt-2 text-blue-500 hover:underline text-sm"
-                >
-                  View Details →
-                </button>
+     filteredUsers
+    .filter(user => isValidCoordinate(user.lat, user.lng))
+    .forEach(user => {
+      // Determine user type and styling
+      const isMatch = user.source === 'match' || user.isMatch;
+      const isGymMember = user.source === 'gym_member' || user.sharedGym;
+      const isRecommendation = user.source === 'recommendation' || user.isRecommendation;
+      
+      console.log(`🗺️ Rendering user ${user.name}: match=${isMatch}, gymMember=${isGymMember}, recommendation=${isRecommendation}`);
+      
+      markers.push(
+        <Marker 
+          key={`user-${user.id || user._id}`} 
+          position={[user.lat, user.lng]} 
+          icon={createMouseIcon(user.avatar || {}, false, { 
+            isMatch, 
+            isGymMember, 
+            isRecommendation 
+          })}
+          eventHandlers={{
+            click: () => handleMarkerClick('user', user)
+          }}
+        >
+          <Popup>
+            <div className="min-w-48 text-center">
+              <div className="mb-2">
+                {isRecommendation ? (
+                  // Show waving mouse for recommendations
+                  <div dangerouslySetInnerHTML={{ 
+                    __html: createWavingMouseSVG(60) 
+                  }} />
+                ) : (
+                  // Show actual avatar for matches and gym members
+                  renderMouseAvatar(user.avatar || {}, 60)
+                )}
               </div>
-            </Popup>
-          </Marker>
-        );
-      });
+              
+              <h3 className="font-semibold text-gray-900">{user.name}</h3>
+              <p className="text-sm text-gray-500">{user.age} • {user.experienceLevel}</p>
+              
+              {/* Enhanced relationship indicators */}
+              <div className="mt-2 mb-2 space-y-1">
+                {isMatch && (
+                  <div className="inline-flex items-center gap-1 px-2 py-1 bg-pink-100 text-pink-800 text-xs rounded-full">
+                    <span>❤️</span>
+                    <span className="font-medium">It's a Match!</span>
+                  </div>
+                )}
+                
+                {isGymMember && !isMatch && (
+                  <div className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full">
+                    <span>🏋️</span>
+                    <span className="font-medium">Gym Buddy</span>
+                  </div>
+                )}
+                
+                {isRecommendation && !isMatch && !isGymMember && (
+                  <div className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
+                    <span>⭐</span>
+                    <span className="font-medium">Recommended</span>
+                  </div>
+                )}
+              </div>
+              
+              {/* Workout types */}
+              {user.workoutTypes && user.workoutTypes.length > 0 && (
+                <div className="mb-2">
+                  <div className="flex flex-wrap gap-1 justify-center">
+                    {user.workoutTypes.slice(0, 2).map(type => (
+                      <span key={type} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                        {type}
+                      </span>
+                    ))}
+                    {user.workoutTypes.length > 2 && (
+                      <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                        +{user.workoutTypes.length - 2}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* Match score for recommendations */}
+              {isRecommendation && user.matchScore && (
+                <div className="mb-2">
+                  <div className="text-xs text-gray-600">
+                    <span className="font-medium text-purple-600">{user.matchScore}% match</span>
+                  </div>
+                </div>
+              )}
+              
+              <button 
+                onClick={() => handleMarkerClick('user', user)}
+                className="mt-2 px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                View Profile →
+              </button>
+            </div>
+          </Popup>
+        </Marker>
+      );
+    });
+  
     
     // Gym Markers (including all types: gym, event, community, sport_center, other)
     [...filteredGyms, ...filteredEvents, ...filteredCommunity]

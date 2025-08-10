@@ -101,6 +101,46 @@ const gymbrosService = {
     }
   },
 
+  async getMapUsers(filters = {}) {
+    try {
+      const queryParams = {};
+      if (filters.workoutTypes?.length) {
+        queryParams.workoutTypes = filters.workoutTypes.join(',');
+      }
+      if (filters.experienceLevel && filters.experienceLevel !== 'Any') {
+        queryParams.experienceLevel = filters.experienceLevel;
+      }
+      if (filters.preferredTime && filters.preferredTime !== 'Any') {
+        queryParams.preferredTime = filters.preferredTime;
+      }
+      if (filters.genderPreference && filters.genderPreference !== 'All') {
+        queryParams.gender = filters.genderPreference;
+      }
+      if (filters.ageRange) {
+        if (filters.ageRange.min) queryParams.minAge = filters.ageRange.min;
+        if (filters.ageRange.max) queryParams.maxAge = filters.ageRange.max;
+      }
+      if (filters.maxDistance) {
+        queryParams.maxDistance = filters.maxDistance;
+      }
+      queryParams.includeRecommendations = filters.includeRecommendations !== false ? 'true' : 'false';
+      // Add timestamp to avoid caching
+      queryParams._t = Date.now();
+
+      const config = this.configWithGuestToken({ params: queryParams });
+      const response = await api.get('/gym-bros/map/users', config);
+
+      if (response.data.guestToken) {
+        this.setGuestToken(response.data.guestToken);
+      }
+
+      return response.data.users || [];
+    } catch (error) {
+      console.error('Error fetching map users:', error);
+      throw new Error(error.response?.data?.message || 'Failed to fetch map users');
+    }
+  },
+
   async verifyCode(phone, code) {
     try {
       const response = await api.post('/gym-bros/verify-code', { 

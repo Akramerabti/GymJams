@@ -30,7 +30,8 @@ import {
   convertGuestToUser,
   getWhoLikedMeCount,
   getWhoLikedMeProfiles,
-  initializeGymBros
+  initializeGymBros,
+  getGymBrosMapUsers
 } from '../controllers/gymBrosController.js';
 
 // Import message controllers
@@ -91,6 +92,8 @@ router.post('/profile-images', optionalAuthenticate, upload.array('images', 6), 
 
 // Delete a specific profile image
 router.delete('/profile-image/:imageId', optionalAuthenticate, deleteProfileImage);
+
+router.get('/map/users', optionalAuthenticate, getGymBrosMapUsers);
 
 // Delete GymBros profile
 router.delete('/profile', optionalAuthenticate, deleteGymBrosProfile);

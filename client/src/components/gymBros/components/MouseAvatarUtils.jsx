@@ -114,29 +114,83 @@ export const renderMouseAvatar = (avatar, size = 40, showRealtimeIndicator = fal
   );
 };
 
-// Create enhanced mouse icon for map markers
-export const createMouseIcon = (avatar, isCurrentUser = false, isRealtime = false) => {
-  const size = isCurrentUser ? 50 : 40;
+export const createMouseIcon = (avatar, isCurrentUser = false, options = {}) => {
+  const { 
+    isMatch = false, 
+    isGymMember = false, 
+    isRecommendation = false,
+    isRealtime = false 
+  } = options;
   
-  try {
-    const iconHtml = `
-      <div class="relative ${isRealtime ? 'realtime-marker' : ''}" style="width: ${size + 10}px; height: ${size + 10}px;">
-        ${createMouseSVG(avatar, size)}
-        ${isCurrentUser ? `
-          <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-blue-500 border-2 border-white rounded-full flex items-center justify-center">
-            <svg width="8" height="8" viewBox="0 0 24 24" fill="white">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-            </svg>
-          </div>
-        ` : ''}
-        ${isRealtime ? `
-          <div class="absolute -top-1 -right-1 w-3 h-3 bg-green-400 border border-white rounded-full">
-            <div class="w-full h-full bg-green-400 rounded-full animate-ping"></div>
-          </div>
-        ` : ''}
+  let size = isCurrentUser ? 50 : 40;
+  let borderColor = '#3B82F6'; // Default blue
+  let borderWidth = '2px';
+  
+  if (isCurrentUser) {
+    borderColor = '#10B981'; // Green for current user
+    borderWidth = '3px';
+  } else if (isMatch) {
+    borderColor = '#EC4899'; // Pink for matches
+    borderWidth = '3px';
+  } else if (isGymMember) {
+    borderColor = '#F59E0B'; // Orange for gym members
+    borderWidth = '2px';
+  } else if (isRecommendation) {
+    borderColor = '#8B5CF6'; // Purple for recommendations
+    borderWidth = '2px';
+  }
+  
+  let mouseHtml;
+  
+  if (isRecommendation) {
+    // Use special waving mouse for recommendations
+    mouseHtml = createWavingMouseSVG(size);
+  } else {
+    // Use regular avatar for matches and gym members
+    mouseHtml = renderMouseAvatar(avatar || {}, size);
+  }
+  
+  const iconHtml = `
+    <div class="relative ${isRealtime ? 'realtime-marker' : ''}" style="width: ${size + 10}px; height: ${size + 10}px;">
+      <div style="border: ${borderWidth} solid ${borderColor}; border-radius: 50%; background: white; width: ${size + 4}px; height: ${size + 4}px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.3); overflow: hidden;">
+        ${mouseHtml}
       </div>
-    `;
+      
+      ${isCurrentUser ? `
+        <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-blue-500 border-2 border-white rounded-full flex items-center justify-center">
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="white">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+        </div>
+      ` : ''}
+      
+      ${isMatch && !isCurrentUser ? `
+        <div class="absolute -top-1 -right-1 w-5 h-5 bg-pink-500 border-2 border-white rounded-full flex items-center justify-center">
+          <span style="font-size: 10px;">❤️</span>
+        </div>
+      ` : ''}
+      
+      ${isGymMember && !isMatch && !isCurrentUser ? `
+        <div class="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 border-2 border-white rounded-full flex items-center justify-center">
+          <span style="font-size: 10px;">🏋️</span>
+        </div>
+      ` : ''}
+      
+      ${isRecommendation && !isMatch && !isGymMember && !isCurrentUser ? `
+        <div class="absolute -top-1 -right-1 w-5 h-5 bg-purple-500 border-2 border-white rounded-full flex items-center justify-center">
+          <span style="font-size: 10px;">⭐</span>
+        </div>
+      ` : ''}
+      
+      ${isRealtime ? `
+        <div class="absolute -top-1 -left-1 w-3 h-3 bg-green-400 border border-white rounded-full">
+          <div class="w-full h-full bg-green-400 rounded-full animate-ping"></div>
+        </div>
+      ` : ''}
+    </div>
+  `;
 
+  try {
     return L.divIcon({
       html: iconHtml,
       className: 'custom-mouse-icon',
@@ -149,13 +203,94 @@ export const createMouseIcon = (avatar, isCurrentUser = false, isRealtime = fals
     
     // Fallback to a simple div icon
     return L.divIcon({
-      html: `<div style="width: ${size}px; height: ${size}px; background: #3B82F6; border-radius: 50%; border: 2px solid white;"></div>`,
+      html: `<div style="width: ${size}px; height: ${size}px; background: ${borderColor}; border-radius: 50%; border: 2px solid white;"></div>`,
       className: 'custom-mouse-icon-fallback',
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2],
       popupAnchor: [0, -size / 2]
     });
   }
+};
+
+export const createWavingMouseSVG = (size = 40) => {
+  return `
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="inline-block">
+      <defs>
+        <!-- Animation for waving arm -->
+        <animateTransform id="waveAnimation" 
+          attributeName="transform"
+          type="rotate"
+          values="0 ${size*0.2} ${size*0.55}; -20 ${size*0.2} ${size*0.55}; 0 ${size*0.2} ${size*0.55}"
+          dur="1.5s"
+          repeatCount="indefinite"/>
+      </defs>
+      
+      <!-- Main body -->
+      <ellipse cx="${size/2}" cy="${size*0.6}" rx="${size*0.35}" ry="${size*0.25}" fill="#FFA500" />
+      
+      <!-- Head -->
+      <circle cx="${size/2}" cy="${size*0.35}" r="${size*0.28}" fill="#FFA500" />
+      
+      <!-- Ears -->
+      <circle cx="${size*0.3}" cy="${size*0.2}" r="${size*0.12}" fill="#FFA500" />
+      <circle cx="${size*0.7}" cy="${size*0.2}" r="${size*0.12}" fill="#FFA500" />
+      <circle cx="${size*0.3}" cy="${size*0.2}" r="${size*0.08}" fill="#FFB6C1" />
+      <circle cx="${size*0.7}" cy="${size*0.2}" r="${size*0.08}" fill="#FFB6C1" />
+      
+      <!-- Eyes - excited/happy -->
+      <path d="M${size*0.38},${size*0.29} Q${size*0.42},${size*0.26} ${size*0.46},${size*0.29}" 
+            stroke="#000" stroke-width="2" fill="none" />
+      <path d="M${size*0.54},${size*0.29} Q${size*0.58},${size*0.26} ${size*0.62},${size*0.29}" 
+            stroke="#000" stroke-width="2" fill="none" />
+      
+      <!-- Nose -->
+      <circle cx="${size/2}" cy="${size*0.4}" r="${size*0.03}" fill="#FF69B4" />
+      
+      <!-- Happy mouth -->
+      <path d="M${size*0.46},${size*0.45} Q${size/2},${size*0.5} ${size*0.54},${size*0.45}" 
+            stroke="#000" stroke-width="1.5" fill="none" />
+      
+      <!-- Whiskers -->
+      <line x1="${size*0.25}" y1="${size*0.38}" x2="${size*0.35}" y2="${size*0.36}" stroke="#000" stroke-width="1" />
+      <line x1="${size*0.25}" y1="${size*0.42}" x2="${size*0.35}" y2="${size*0.42}" stroke="#000" stroke-width="1" />
+      <line x1="${size*0.65}" y1="${size*0.36}" x2="${size*0.75}" y2="${size*0.38}" stroke="#000" stroke-width="1" />
+      <line x1="${size*0.65}" y1="${size*0.42}" x2="${size*0.75}" y2="${size*0.42}" stroke="#000" stroke-width="1" />
+      
+      <!-- Tail -->
+      <path d="M${size*0.85},${size*0.65} Q${size*0.95},${size*0.5} ${size*0.9},${size*0.35}" 
+            stroke="#FFA500" stroke-width="3" fill="none" />
+      
+      <!-- Non-waving arm -->
+      <ellipse cx="${size*0.75}" cy="${size*0.55}" rx="${size*0.08}" ry="${size*0.15}" fill="#FFA500" />
+      
+      <!-- Waving arm with animation -->
+      <g>
+        <animateTransform 
+          attributeName="transform"
+          type="rotate"
+          values="0 ${size*0.2} ${size*0.55}; -30 ${size*0.2} ${size*0.55}; 0 ${size*0.2} ${size*0.55}"
+          dur="1.5s"
+          repeatCount="indefinite"/>
+        <ellipse cx="${size*0.2}" cy="${size*0.55}" rx="${size*0.08}" ry="${size*0.15}" fill="#FFA500" />
+        <!-- Waving hand -->
+        <circle cx="${size*0.15}" cy="${size*0.45}" r="${size*0.06}" fill="#FFA500" />
+      </g>
+      
+      <!-- Legs -->
+      <ellipse cx="${size*0.35}" cy="${size*0.8}" rx="${size*0.08}" ry="${size*0.12}" fill="#FFA500" />
+      <ellipse cx="${size*0.65}" cy="${size*0.8}" rx="${size*0.08}" ry="${size*0.12}" fill="#FFA500" />
+      
+      <!-- "Hi!" speech bubble -->
+      <g opacity="0.9">
+        <!-- Bubble -->
+        <ellipse cx="${size*0.8}" cy="${size*0.25}" rx="${size*0.15}" ry="${size*0.1}" fill="#FFFFFF" stroke="#FFA500" stroke-width="1"/>
+        <!-- Bubble pointer -->
+        <path d="M${size*0.7},${size*0.3} L${size*0.65},${size*0.35} L${size*0.72},${size*0.35} Z" fill="#FFFFFF" stroke="#FFA500" stroke-width="1"/>
+        <!-- "Hi!" text -->
+        <text x="${size*0.8}" y="${size*0.28}" text-anchor="middle" font-family="Arial, sans-serif" font-size="${size*0.08}" font-weight="bold" fill="#FFA500">Hi!</text>
+      </g>
+    </svg>
+  `;
 };
 
 // Create enhanced gym icon with type-specific styling
