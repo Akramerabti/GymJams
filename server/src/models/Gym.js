@@ -6,6 +6,12 @@ const GymSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  type: {
+  type: String,
+  enum: ['gym', 'community', 'event', 'sport_center', 'other'],
+  default: 'gym',
+  required: true
+},
   location: {
     // GeoJSON Point format for proper geospatial queries
     type: {

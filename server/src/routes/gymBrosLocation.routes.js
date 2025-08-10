@@ -13,7 +13,9 @@ router.get('/gyms/search', gymBrosLocationController.searchGyms);
 router.post('/gyms', optionalAuthenticate, gymBrosLocationController.createGym);
 router.post('/gyms/associate', gymBrosLocationController.associateWithGym);
 router.get('/gyms/my-gyms', gymBrosLocationController.getUserGyms);
+router.get('/gyms', optionalAuthenticate, gymBrosLocationController.getGymsForMap);
 router.get('/groups/nearby', gymBrosLocationController.getNearbyGroups);
 router.post('/groups/location', gymBrosLocationController.createLocationGroup);
+router.get('/map/users', optionalAuthenticate, gymBrosLocationController.getMapUsers);
 
 export default router;

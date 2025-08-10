@@ -1,9 +1,9 @@
+// components/GymBros/MouseAvatarUtils.js
 import L from 'leaflet';
-import React from 'react';
 
 export const renderMouseAvatar = (avatar, size = 120) => {
-  const mood = avatar?.mood || 'happy';
-  const eyeType = avatar?.eyes || 'normal';
+  const mood = avatar.mood || 'happy';
+  const eyeType = avatar.eyes || 'normal';
   
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" className="drop-shadow-lg">
@@ -13,27 +13,27 @@ export const renderMouseAvatar = (avatar, size = 120) => {
       {/* Tail */}
       <path 
         d="M 25 75 Q 10 70 5 80 Q 0 85 10 85 Q 15 82 20 78" 
-        stroke={avatar?.furColor || '#8B4513'} 
+        stroke={avatar.furColor} 
         strokeWidth="6" 
         fill="none"
         strokeLinecap="round"
       />
       
       {/* Mouse Body */}
-      <ellipse cx="50" cy="65" rx="25" ry="30" fill={avatar?.furColor || '#8B4513'} />
+      <ellipse cx="50" cy="65" rx="25" ry="30" fill={avatar.furColor} />
       
       {/* Body highlight */}
-      <ellipse cx="45" cy="60" rx="12" ry="15" fill={avatar?.furColor || '#8B4513'} opacity="0.3" />
+      <ellipse cx="45" cy="60" rx="12" ry="15" fill={avatar.furColor} opacity="0.3" />
       
       {/* Mouse Head */}
-      <circle cx="50" cy="35" r="20" fill={avatar?.furColor || '#8B4513'} />
+      <circle cx="50" cy="35" r="20" fill={avatar.furColor} />
       
       {/* Head highlight */}
-      <ellipse cx="45" cy="30" rx="8" ry="10" fill={avatar?.furColor || '#8B4513'} opacity="0.3" />
+      <ellipse cx="45" cy="30" rx="8" ry="10" fill={avatar.furColor} opacity="0.3" />
       
       {/* Ears */}
-      <circle cx="35" cy="25" r="10" fill={avatar?.furColor || '#8B4513'} />
-      <circle cx="65" cy="25" r="10" fill={avatar?.furColor || '#8B4513'} />
+      <circle cx="35" cy="25" r="10" fill={avatar.furColor} />
+      <circle cx="65" cy="25" r="10" fill={avatar.furColor} />
       
       {/* Inner ears */}
       <circle cx="35" cy="25" r="6" fill="#FFC0CB" />
@@ -55,28 +55,28 @@ export const renderMouseAvatar = (avatar, size = 120) => {
       <line x1="70" y1="43" x2="80" y2="43" stroke="#000" strokeWidth="0.5" opacity="0.5" />
       
       {/* Shirt */}
-      {avatar?.shirtStyle !== 'none' && renderShirt(avatar?.shirtStyle, avatar?.shirtColor)}
+      {avatar.shirtStyle !== 'none' && renderShirt(avatar.shirtStyle, avatar.shirtColor)}
       
       {/* Pants */}
       <path 
         d="M 32 72 L 32 87 L 40 87 L 42 78 L 50 78 L 58 78 L 60 87 L 68 87 L 68 72 Z" 
-        fill={avatar?.pants || '#1F2937'} 
+        fill={avatar.pants || '#1F2937'} 
       />
       
       {/* Arms */}
-      <ellipse cx="28" cy="60" rx="5" ry="12" fill={avatar?.furColor || '#8B4513'} transform="rotate(-20 28 60)" />
-      <ellipse cx="72" cy="60" rx="5" ry="12" fill={avatar?.furColor || '#8B4513'} transform="rotate(20 72 60)" />
+      <ellipse cx="28" cy="60" rx="5" ry="12" fill={avatar.furColor} transform="rotate(-20 28 60)" />
+      <ellipse cx="72" cy="60" rx="5" ry="12" fill={avatar.furColor} transform="rotate(20 72 60)" />
       
       {/* Paws */}
-      <circle cx="26" cy="70" r="4" fill={avatar?.furColor || '#8B4513'} />
-      <circle cx="74" cy="70" r="4" fill={avatar?.furColor || '#8B4513'} />
+      <circle cx="26" cy="70" r="4" fill={avatar.furColor} />
+      <circle cx="74" cy="70" r="4" fill={avatar.furColor} />
       
       {/* Feet */}
-      <ellipse cx="40" cy="90" rx="6" ry="4" fill={avatar?.furColor || '#8B4513'} />
-      <ellipse cx="60" cy="90" rx="6" ry="4" fill={avatar?.furColor || '#8B4513'} />
+      <ellipse cx="40" cy="90" rx="6" ry="4" fill={avatar.furColor} />
+      <ellipse cx="60" cy="90" rx="6" ry="4" fill={avatar.furColor} />
       
       {/* Accessories */}
-      {renderAccessory(avatar?.accessory, avatar?.shirtColor)}
+      {renderAccessory(avatar.accessory, avatar.shirtColor)}
     </svg>
   );
 };
@@ -253,158 +253,110 @@ export const createMouseIcon = (avatar, isCurrentUser = false) => {
       <!-- Shadow -->
       <ellipse cx="50" cy="95" rx="15" ry="2" fill="#000" opacity="0.15" />
       
-      <!-- Tail -->
-      <path d="M 25 75 Q 10 70 5 80 Q 0 85 10 85 Q 15 82 20 78" 
-            stroke="${avatar?.furColor || '#8B4513'}" 
-            stroke-width="4" 
-            fill="none"
-            stroke-linecap="round" />
-      
       <!-- Body -->
-      <ellipse cx="50" cy="65" rx="18" ry="22" fill="${avatar?.furColor || '#8B4513'}" />
+      <ellipse cx="50" cy="65" rx="25" ry="30" fill="${avatar.furColor || '#8B4513'}" />
       
       <!-- Head -->
-      <circle cx="50" cy="35" r="15" fill="${avatar?.furColor || '#8B4513'}" />
+      <circle cx="50" cy="35" r="20" fill="${avatar.furColor || '#8B4513'}" />
       
       <!-- Ears -->
-      <circle cx="38" cy="27" r="7" fill="${avatar?.furColor || '#8B4513'}" />
-      <circle cx="62" cy="27" r="7" fill="${avatar?.furColor || '#8B4513'}" />
-      <circle cx="38" cy="27" r="4" fill="#FFC0CB" />
-      <circle cx="62" cy="27" r="4" fill="#FFC0CB" />
+      <circle cx="35" cy="25" r="10" fill="${avatar.furColor || '#8B4513'}" />
+      <circle cx="65" cy="25" r="10" fill="${avatar.furColor || '#8B4513'}" />
+      <circle cx="35" cy="25" r="6" fill="#FFC0CB" />
+      <circle cx="65" cy="25" r="6" fill="#FFC0CB" />
       
       <!-- Eyes -->
-      <circle cx="45" cy="35" r="2" fill="#000" />
-      <circle cx="55" cy="35" r="2" fill="#000" />
-      <circle cx="46" cy="34" r="0.5" fill="#FFF" />
-      <circle cx="56" cy="34" r="0.5" fill="#FFF" />
+      <circle cx="43" cy="35" r="3" fill="#000" />
+      <circle cx="57" cy="35" r="3" fill="#000" />
+      <circle cx="44" cy="34" r="1" fill="#FFF" />
+      <circle cx="58" cy="34" r="1" fill="#FFF" />
       
       <!-- Nose -->
-      <ellipse cx="50" cy="40" rx="2" ry="1.5" fill="#FF69B4" />
+      <ellipse cx="50" cy="42" rx="3" ry="2" fill="#FF69B4" />
       
       <!-- Shirt -->
-      ${avatar?.shirtStyle !== 'none' ? `
-        <rect x="38" y="50" width="24" height="18" rx="2" fill="${avatar?.shirtColor || '#3B82F6'}" />
+      ${avatar.shirtStyle !== 'none' ? `
+        <rect x="30" y="50" width="40" height="25" rx="3" fill="${avatar.shirtColor || '#3B82F6'}" />
       ` : ''}
       
       <!-- Pants -->
-      <path d="M 40 65 L 40 75 L 44 75 L 46 70 L 50 70 L 54 70 L 56 75 L 60 75 L 60 65 Z" 
-            fill="${avatar?.pants || '#1F2937'}" />
-      
-      <!-- Arms -->
-      <ellipse cx="33" cy="55" rx="3" ry="8" fill="${avatar?.furColor || '#8B4513'}" transform="rotate(-15 33 55)" />
-      <ellipse cx="67" cy="55" rx="3" ry="8" fill="${avatar?.furColor || '#8B4513'}" transform="rotate(15 67 55)" />
-      
-      <!-- Accessories -->
-      ${avatar?.accessory === 'glasses' ? `
-        <circle cx="45" cy="35" r="4" fill="none" stroke="#000" stroke-width="1" />
-        <circle cx="55" cy="35" r="4" fill="none" stroke="#000" stroke-width="1" />
-        <line x1="49" y1="35" x2="51" y2="35" stroke="#000" stroke-width="1" />
-      ` : ''}
-      
-      ${avatar?.accessory === 'hat' ? `
-        <ellipse cx="50" cy="22" rx="16" ry="6" fill="#FF0000" />
-        <rect x="38" y="18" width="24" height="6" fill="#FF0000" />
-      ` : ''}
-      
-      ${avatar?.accessory === 'sunglasses' ? `
-        <ellipse cx="45" cy="35" rx="5" ry="4" fill="#000" />
-        <ellipse cx="55" cy="35" rx="5" ry="4" fill="#000" />
-        <line x1="50" y1="35" x2="50" y2="35" stroke="#000" stroke-width="1" />
-      ` : ''}
+      <path d="M 32 72 L 32 87 L 40 87 L 42 78 L 50 78 L 58 78 L 60 87 L 68 87 L 68 72 Z" 
+            fill="${avatar.pants || '#1F2937'}" />
     </svg>
   `;
-
+  
   return L.divIcon({
     html: svgString,
-    className: 'custom-mouse-icon',
+    className: isCurrentUser ? 'mouse-marker-current' : 'mouse-marker',
     iconSize: [size, size],
-    iconAnchor: [size / 2, size - 5], // Bottom center anchor
-    popupAnchor: [0, -size + 5]
+    iconAnchor: [size/2, size/2],
+    popupAnchor: [0, -size/2]
   });
 };
 
-// Create gym building icon
-export const createGymIcon = (gym) => {
-  const svgString = `
-    <svg width="60" height="60" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-      <!-- Building shadow -->
-      <ellipse cx="50" cy="90" rx="25" ry="4" fill="#000" opacity="0.2" />
-      
-      <!-- Main building -->
-      <rect x="25" y="40" width="50" height="50" fill="#4A5568" stroke="#2D3748" stroke-width="2" />
-      
-      <!-- Roof -->
-      <polygon points="20,40 50,25 80,40" fill="#E53E3E" stroke="#C53030" stroke-width="1" />
-      
-      <!-- Windows -->
-      <rect x="30" y="50" width="8" height="8" fill="#FED7D7" />
-      <rect x="42" y="50" width="8" height="8" fill="#FED7D7" />
-      <rect x="54" y="50" width="8" height="8" fill="#FED7D7" />
-      <rect x="66" y="50" width="8" height="8" fill="#FED7D7" />
-      
-      <!-- Door -->
-      <rect x="45" y="70" width="10" height="20" fill="#8B4513" />
-      <circle cx="52" cy="80" r="1" fill="#FFD700" />
-      
-      <!-- Gym sign -->
-      <rect x="35" y="30" width="30" height="8" fill="#3182CE" />
-      <text x="50" y="36" text-anchor="middle" fill="white" font-size="6" font-weight="bold">GYM</text>
-      
-      <!-- Dumbbell icon -->
-      <g transform="translate(50,75) scale(0.3)">
-        <rect x="-15" y="-2" width="30" height="4" fill="#2D3748" />
-        <rect x="-18" y="-6" width="6" height="12" fill="#4A5568" />
-        <rect x="12" y="-6" width="6" height="12" fill="#4A5568" />
-      </g>
-      
-      <!-- Activity radius indicator -->
-      <circle cx="50" cy="50" r="35" fill="none" stroke="#3182CE" stroke-width="1" opacity="0.3" stroke-dasharray="3,3" />
-    </svg>
-  `;
-
+export const createGymIcon = () => {
   return L.divIcon({
-    html: svgString,
-    className: 'custom-gym-icon',
-    iconSize: [60, 60],
-    iconAnchor: [30, 60], // Bottom center
-    popupAnchor: [0, -60]
+    html: `
+      <div class="gym-marker-container">
+        <svg width="50" height="50" viewBox="0 0 50 50">
+          <!-- Building Shadow -->
+          <ellipse cx="25" cy="48" rx="15" ry="2" fill="#000" opacity="0.2" />
+          
+          <!-- Building Base -->
+          <rect x="8" y="15" width="34" height="30" fill="#6B7280" rx="2" />
+          
+          <!-- Building Roof -->
+          <polygon points="5,15 25,5 45,15" fill="#4B5563" />
+          
+          <!-- Windows -->
+          <rect x="12" y="20" width="8" height="6" fill="#9CA3AF" rx="1" />
+          <rect x="21" y="20" width="8" height="6" fill="#9CA3AF" rx="1" />
+          <rect x="30" y="20" width="8" height="6" fill="#9CA3AF" rx="1" />
+          
+          <rect x="12" y="28" width="8" height="6" fill="#9CA3AF" rx="1" />
+          <rect x="21" y="28" width="8" height="6" fill="#9CA3AF" rx="1" />
+          <rect x="30" y="28" width="8" height="6" fill="#9CA3AF" rx="1" />
+          
+          <!-- Door -->
+          <rect x="20" y="36" width="10" height="9" fill="#374151" rx="1" />
+          <circle cx="27" cy="41" r="1" fill="#9CA3AF" />
+          
+          <!-- Gym Sign -->
+          <rect x="15" y="10" width="20" height="4" fill="#EF4444" rx="1" />
+          <text x="25" y="12.5" text-anchor="middle" fill="#FFF" font-size="3" font-weight="bold">GYM</text>
+        </svg>
+      </div>
+    `,
+    className: 'gym-building-marker',
+    iconSize: [50, 50],
+    iconAnchor: [25, 45],
+    popupAnchor: [0, -45]
   });
 };
 
-// Helper function to generate random avatar
-export const generateRandomAvatar = () => {
-  const furColors = ['#8B4513', '#6B7280', '#F3F4F6', '#1F2937', '#D97706', '#FEF3C7'];
-  const shirtColors = ['#3B82F6', '#EF4444', '#10B981', '#8B5CF6', '#EC4899', '#000000'];
-  const shirtStyles = ['tshirt', 'hoodie', 'tank', 'none'];
-  const accessories = ['none', 'glasses', 'hat', 'headphones', 'sunglasses', 'bandana'];
-  const pantsColors = ['#1F2937', '#3B82F6', '#000000', '#D2B48C', '#DC2626', '#059669'];
-  const moods = ['happy', 'excited', 'neutral', 'cool', 'determined'];
-
-  return {
-    furColor: furColors[Math.floor(Math.random() * furColors.length)],
-    shirtColor: shirtColors[Math.floor(Math.random() * shirtColors.length)],
-    shirtStyle: shirtStyles[Math.floor(Math.random() * shirtStyles.length)],
-    accessory: accessories[Math.floor(Math.random() * accessories.length)],
-    pants: pantsColors[Math.floor(Math.random() * pantsColors.length)],
-    mood: moods[Math.floor(Math.random() * moods.length)],
-    eyes: 'normal'
-  };
-};
-
-// Helper function to validate avatar data
-export const validateAvatar = (avatar) => {
-  const defaults = {
-    furColor: '#8B4513',
-    shirtColor: '#3B82F6',
-    shirtStyle: 'tshirt',
-    accessory: 'none',
-    pants: '#1F2937',
-    mood: 'happy',
-    eyes: 'normal'
-  };
-
-  return {
-    ...defaults,
-    ...avatar
-  };
+export const createEventIcon = () => {
+  return L.divIcon({
+    html: `
+      <div class="event-marker-container">
+        <svg width="40" height="40" viewBox="0 0 40 40">
+          <!-- Calendar Background -->
+          <rect x="5" y="8" width="30" height="28" fill="#8B5CF6" rx="3" />
+          
+          <!-- Calendar Header -->
+          <rect x="5" y="8" width="30" height="8" fill="#7C3AED" rx="3" />
+          
+          <!-- Calendar Rings -->
+          <circle cx="12" cy="6" r="2" fill="none" stroke="#4C1D95" stroke-width="2" />
+          <circle cx="28" cy="6" r="2" fill="none" stroke="#4C1D95" stroke-width="2" />
+          
+          <!-- Date -->
+          <text x="20" y="28" text-anchor="middle" fill="#FFF" font-size="10" font-weight="bold">!</text>
+        </svg>
+      </div>
+    `,
+    className: 'event-marker',
+    iconSize: [40, 40],
+    iconAnchor: [20, 35],
+    popupAnchor: [0, -35]
+  });
 };

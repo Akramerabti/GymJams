@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -8,6 +8,7 @@ import MouseAvatarDesigner from './components/MouseAvatarDesigner';
 import { renderMouseAvatar, createMouseIcon, createGymIcon } from './components/MouseAvatarUtils';
 import gymbrosService from '../../services/gymbros.service';
 import gymBrosLocationService from '../../services/gymBrosLocation.service';
+import api from '../../services/api';
 
 // Import clustering if available
 let MarkerClusterGroup;
@@ -19,6 +20,177 @@ try {
 
 // Default center (can be overridden by user location)
 const DEFAULT_CENTER = [45.5017, -73.5673]; // Montreal
+
+// Smart cache service that prevents unnecessary API calls
+class SmartMapCache {
+  constructor() {
+    this.cache = new Map();
+    this.pendingRequests = new Map();
+    this.viewportHistory = [];
+    this.lastFetchTime = {
+      users: 0,
+      gyms: 0
+    };
+    
+    // Cache TTL settings
+    this.cacheTTL = {
+      gyms: 15 * 60 * 1000,      // 15 minutes (gyms don't move)
+      users: 90 * 1000,          // 1.5 minutes (users move around)
+      viewport: 5 * 60 * 1000    // 5 minutes for viewport-based cache
+    };
+    
+    // Minimum time between API calls
+    this.minFetchInterval = {
+      gyms: 30 * 1000,           // 30 seconds minimum between gym fetches
+      users: 15 * 1000           // 15 seconds minimum between user fetches
+    };
+  }
+
+  // Generate a stable cache key based on rounded viewport
+  generateCacheKey(type, bounds, filters) {
+    // Round to reduce cache fragmentation (roughly 1km grid)
+    const precision = 0.01;
+    const north = Math.ceil(bounds.north / precision) * precision;
+    const south = Math.floor(bounds.south / precision) * precision;
+    const east = Math.ceil(bounds.east / precision) * precision;
+    const west = Math.floor(bounds.west / precision) * precision;
+    
+    const viewportKey = `${north.toFixed(2)}_${south.toFixed(2)}_${east.toFixed(2)}_${west.toFixed(2)}`;
+    const filtersKey = JSON.stringify({
+      maxDistance: filters.maxDistance,
+      showUsers: filters.showUsers,
+      showGyms: filters.showGyms,
+      gymTypes: filters.gymTypes
+    });
+    
+    return `${type}_${viewportKey}_${filtersKey}`;
+  }
+
+  // Check if we should skip this fetch due to recent activity
+  shouldSkipFetch(type, bounds) {
+    const now = Date.now();
+    const lastFetch = this.lastFetchTime[type];
+    const minInterval = this.minFetchInterval[type];
+    
+    // Skip if we fetched too recently
+    if (now - lastFetch < minInterval) {
+      console.log(`⏸️ Skipping ${type} fetch - too recent (${now - lastFetch}ms ago)`);
+      return true;
+    }
+    
+    // Check if we have very similar viewport in recent history
+    const currentViewport = { ...bounds, timestamp: now };
+    const recentSimilar = this.viewportHistory.find(v => {
+      const timeDiff = now - v.timestamp;
+      if (timeDiff > 30000) return false; // Only check last 30 seconds
+      
+      const latDiff = Math.abs(v.north - bounds.north) + Math.abs(v.south - bounds.south);
+      const lngDiff = Math.abs(v.east - bounds.east) + Math.abs(v.west - bounds.west);
+      
+      return latDiff < 0.005 && lngDiff < 0.005; // ~500m threshold
+    });
+    
+    if (recentSimilar) {
+      console.log(`⏸️ Skipping ${type} fetch - similar viewport recently fetched`);
+      return true;
+    }
+    
+    // Add to history and cleanup old entries
+    this.viewportHistory.push(currentViewport);
+    this.viewportHistory = this.viewportHistory.filter(v => now - v.timestamp < 60000); // Keep 1 minute history
+    
+    return false;
+  }
+
+  // Get cached data if valid
+  getCached(key, type) {
+    const cached = this.cache.get(key);
+    if (!cached) return null;
+    
+    const now = Date.now();
+    const age = now - cached.timestamp;
+    const ttl = this.cacheTTL[type];
+    
+    if (age < ttl) {
+      console.log(`📦 Using cached ${type} data (${Math.round(age/1000)}s old)`);
+      return cached.data;
+    }
+    
+    // Remove expired cache
+    this.cache.delete(key);
+    return null;
+  }
+
+  // Store data in cache
+  setCached(key, data, type) {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+      type
+    });
+    
+    // Update last fetch time
+    this.lastFetchTime[type] = Date.now();
+    
+    // Cleanup old cache entries (keep max 50 entries)
+    if (this.cache.size > 50) {
+      const oldest = Array.from(this.cache.entries())
+        .sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
+      this.cache.delete(oldest[0]);
+    }
+  }
+
+  // Prevent duplicate requests
+  async deduplicate(key, requestFn) {
+    if (this.pendingRequests.has(key)) {
+      console.log(`⏳ Waiting for existing ${key} request`);
+      return await this.pendingRequests.get(key);
+    }
+
+    const promise = requestFn().finally(() => {
+      this.pendingRequests.delete(key);
+    });
+
+    this.pendingRequests.set(key, promise);
+    return await promise;
+  }
+
+  // Force clear all cache
+  clearAll() {
+    this.cache.clear();
+    this.pendingRequests.clear();
+    this.viewportHistory = [];
+    this.lastFetchTime = { users: 0, gyms: 0 };
+    console.log('🗑️ Cache cleared');
+  }
+
+  // Clear cache for specific type
+  clearType(type) {
+    for (const [key, value] of this.cache.entries()) {
+      if (value.type === type) {
+        this.cache.delete(key);
+      }
+    }
+    console.log(`🗑️ Cleared ${type} cache`);
+  }
+}
+
+const mapCache = new SmartMapCache();
+
+// Debounce hook for viewport changes
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+
+  return debouncedValue;
+};
 
 // Search/Filter Bar Component with Avatar
 const MapControls = ({ onSearch, onFilterToggle, loading, onRefresh, avatar, onAvatarClick }) => {
@@ -80,7 +252,7 @@ const MapUpdater = ({ center, zoom }) => {
   return null;
 };
 
-// Side Panel Component
+// Side Panel Component (simplified for brevity)
 const SidePanel = ({ isOpen, onClose, data, type }) => {
   if (!isOpen || !data) return null;
 
@@ -122,13 +294,6 @@ const SidePanel = ({ isOpen, onClose, data, type }) => {
               </div>
             </div>
 
-            {data.hours && (
-              <div className="mb-4">
-                <h3 className="font-semibold text-gray-800 mb-2">🕒 Hours</h3>
-                <p className="text-gray-600">{data.hours}</p>
-              </div>
-            )}
-
             <div className="flex gap-2">
               <button className="flex-1 bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 transition-colors">
                 Check In Here
@@ -137,48 +302,6 @@ const SidePanel = ({ isOpen, onClose, data, type }) => {
                 Get Directions
               </button>
             </div>
-          </div>
-        );
-      
-      case 'event':
-        return (
-          <div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Calendar className="h-6 w-6 text-purple-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">{data.name}</h2>
-                <p className="text-sm text-gray-500">{data.type || 'Fitness Event'}</p>
-              </div>
-            </div>
-
-            {data.description && (
-              <div className="mb-4">
-                <h3 className="font-semibold text-gray-800 mb-2">📝 Description</h3>
-                <p className="text-gray-600">{data.description}</p>
-              </div>
-            )}
-
-            {data.date && (
-              <div className="mb-4">
-                <h3 className="font-semibold text-gray-800 mb-2">📅 Date & Time</h3>
-                <p className="text-gray-600">{new Date(data.date).toLocaleDateString()} at {data.time || 'TBD'}</p>
-              </div>
-            )}
-
-            <div className="mb-4">
-              <h3 className="font-semibold text-gray-800 mb-2">👥 Participants</h3>
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-purple-500" />
-                <span className="text-lg font-bold text-purple-600">{data.participants || 0}</span>
-                <span className="text-gray-500">interested</span>
-              </div>
-            </div>
-
-            <button className="w-full bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600 transition-colors">
-              Join Event
-            </button>
           </div>
         );
 
@@ -198,33 +321,11 @@ const SidePanel = ({ isOpen, onClose, data, type }) => {
               <div>
                 <h2 className="text-xl font-bold text-gray-900">{data.name}</h2>
                 <p className="text-sm text-gray-500">{data.age} • {data.experienceLevel}</p>
+                {data.distance && (
+                  <p className="text-sm text-blue-500">{Math.round(data.distance * 10) / 10} km away</p>
+                )}
               </div>
             </div>
-
-            {data.bio && (
-              <div className="mb-4">
-                <h3 className="font-semibold text-gray-800 mb-2">About</h3>
-                <p className="text-gray-600">{data.bio}</p>
-              </div>
-            )}
-
-            <div className="mb-4">
-              <h3 className="font-semibold text-gray-800 mb-2">💪 Workout Types</h3>
-              <div className="flex flex-wrap gap-1">
-                {data.workoutTypes?.slice(0, 4).map((type, idx) => (
-                  <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-                    {type}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {data.preferredTime && (
-              <div className="mb-4">
-                <h3 className="font-semibold text-gray-800 mb-2">🕒 Preferred Time</h3>
-                <p className="text-gray-600">{data.preferredTime}</p>
-              </div>
-            )}
 
             <div className="flex gap-2">
               <button className="flex-1 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors">
@@ -296,17 +397,7 @@ const MapFilters = ({ isOpen, onClose, filters, onApply }) => {
                   className="mr-2"
                 />
                 <Dumbbell className="h-4 w-4 mr-1" />
-                Gyms
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={localFilters.showEvents}
-                  onChange={(e) => setLocalFilters({...localFilters, showEvents: e.target.checked})}
-                  className="mr-2"
-                />
-                <Calendar className="h-4 w-4 mr-1" />
-                Events
+                Gyms & Locations
               </label>
             </div>
           </div>
@@ -347,29 +438,50 @@ const MapFilters = ({ isOpen, onClose, filters, onApply }) => {
   );
 };
 
-// Custom Map Event Handler
-const MapEventHandler = ({ onMarkerClick, currentUserLocation }) => {
+// Custom Map Event Handler with smart debouncing
+const MapEventHandler = ({ onViewportChange, debounceMs = 1000 }) => {
   const map = useMapEvents({
-    click: (e) => {
-      console.log('Map clicked at:', e.latlng);
+    moveend: () => {
+      const bounds = map.getBounds();
+      const zoom = map.getZoom();
+      onViewportChange({
+        north: bounds.getNorth(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        west: bounds.getWest(),
+        zoom
+      });
     },
+    zoomend: () => {
+      const bounds = map.getBounds();
+      const zoom = map.getZoom();
+      onViewportChange({
+        north: bounds.getNorth(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        west: bounds.getWest(),
+        zoom
+      });
+    }
   });
 
   return null;
 };
 
 // Main GymBrosMap Component
-const GymBrosMap = ({ userProfile }) => {
-  // Track current user location for map dot
+const GymBrosMap = ({ userProfile, initialUsers = [], filters: parentFilters = {} }) => {
+  // State management
   const [currentLocation, setCurrentLocation] = useState(null);
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState(initialUsers);
   const [gyms, setGyms] = useState([]);
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
   const [mapZoom, setMapZoom] = useState(13);
+  const [currentViewport, setCurrentViewport] = useState(null);
+  const [showAvatarDesigner, setShowAvatarDesigner] = useState(false);
+  const [avatar, setAvatar] = useState(userProfile?.avatar || null);
   const mapRef = useRef();
   
   // Side panel state
@@ -382,13 +494,13 @@ const GymBrosMap = ({ userProfile }) => {
   const [filters, setFilters] = useState({
     showUsers: true,
     showGyms: true,
-    showEvents: true,
-    maxDistance: 25
+    maxDistance: parentFilters.maxDistance || 25,
+    gymTypes: [],
+    ...parentFilters
   });
 
-  // Avatar designer modal state
-  const [showAvatarDesigner, setShowAvatarDesigner] = useState(false);
-  const [avatar, setAvatar] = useState(userProfile?.avatar || null);
+  // Debounced viewport to prevent too many API calls
+  const debouncedViewport = useDebounce(currentViewport, 800);
 
   // Use theme context for dark mode
   const { darkMode } = useTheme();
@@ -413,213 +525,208 @@ const GymBrosMap = ({ userProfile }) => {
     initializeLocation();
   }, [userProfile]);
 
-  // Fetch map data
-  const fetchMapData = async () => {
+  // Enhanced user fetching with better error handling and fallbacks
+  const fetchUsers = useCallback(async (bounds) => {
+    if (!bounds || !filters.showUsers) return [];
+
+    const cacheKey = mapCache.generateCacheKey('users', bounds, filters);
+
+    // Check cache first
+    const cached = mapCache.getCached(cacheKey, 'users');
+    if (cached) return cached;
+
+    // Check if we should skip this fetch
+    if (mapCache.shouldSkipFetch('users', bounds)) {
+      return [];
+    }
+
+    return await mapCache.deduplicate(cacheKey, async () => {
+      try {
+        console.log('👥 Fetching users from API...');
+
+        // Try new map endpoint first
+        const config = gymbrosService.configWithGuestToken({
+          params: {
+            north: bounds.north,
+            south: bounds.south,
+            east: bounds.east,
+            west: bounds.west,
+            maxDistance: filters.maxDistance
+          }
+        });
+
+        let response;
+        try {
+          response = await api.get('/gym-bros/map/users', config);
+        } catch (mapError) {
+          console.log('👥 Map endpoint failed, trying fallback...');
+          // Fallback to existing profiles endpoint
+          const fallbackResponse = await gymbrosService.getRecommendedProfiles({
+            maxDistance: filters.maxDistance,
+            skip: 0,
+            limit: 50
+          });
+
+          // Filter users within bounds
+          const usersInBounds = fallbackResponse.filter(user => {
+            const lat = user.location?.lat || user.lat;
+            const lng = user.location?.lng || user.lng;
+            return lat && lng &&
+                   lat >= bounds.south && lat <= bounds.north &&
+                   lng >= bounds.west && lng <= bounds.east;
+          });
+
+          response = { data: { users: usersInBounds } };
+        }
+
+        const fetchedUsers = response.data.users || [];
+
+        const processedUsers = fetchedUsers.map(user => ({
+          ...user,
+          id: user._id || user.id,
+          lat: user.location?.lat || user.lat,
+          lng: user.location?.lng || user.lng,
+          avatar: user.avatar || generateRandomAvatar(),
+          isOnline: isUserOnline(user.lastActive),
+          distance: user.distance || null
+        }));
+
+        mapCache.setCached(cacheKey, processedUsers, 'users');
+        console.log(`👥 Fetched ${processedUsers.length} users`);
+        return processedUsers;
+
+      } catch (error) {
+        console.error('Error fetching users:', error);
+        return [];
+      }
+    });
+  }, [filters]);
+
+  // Enhanced gym fetching using your existing backend
+  const fetchGyms = useCallback(async (bounds) => {
+    if (!bounds || !filters.showGyms) return [];
+    
+    const cacheKey = mapCache.generateCacheKey('gyms', bounds, filters);
+    
+    // Check cache first
+    const cached = mapCache.getCached(cacheKey, 'gyms');
+    if (cached) return cached;
+    
+    // Check if we should skip this fetch
+    if (mapCache.shouldSkipFetch('gyms', bounds)) {
+      return gyms; // Return current gyms
+    }
+
+    return await mapCache.deduplicate(cacheKey, async () => {
+      try {
+        console.log('📍 Fetching gyms from API...');
+        
+        // Use your existing gym search endpoint
+        const centerLat = (bounds.north + bounds.south) / 2;
+        const centerLng = (bounds.east + bounds.west) / 2;
+        
+        const response = await gymBrosLocationService.searchNearbyGyms(
+          { lat: centerLat, lng: centerLng },
+          '',
+          filters.maxDistance
+        );
+
+        const processedGyms = response.map(gym => ({
+          ...gym,
+          id: gym._id || gym.id,
+          lat: gym.location?.lat || gym.lat,
+          lng: gym.location?.lng || gym.lng,
+          type: gym.type || 'gym',
+          memberCount: gym.memberCount || 0,
+          address: gym.location?.address || gym.address,
+          city: gym.location?.city || gym.city,
+          verified: gym.isVerified || false
+        }));
+
+        mapCache.setCached(cacheKey, processedGyms, 'gyms');
+        console.log(`📍 Fetched ${processedGyms.length} gyms`);
+        return processedGyms;
+        
+      } catch (error) {
+        console.error('Error fetching gyms:', error);
+        return gyms; // Return current gyms on error
+      }
+    });
+  }, [filters, gyms]);
+
+  // Main data fetching function with smart loading states
+  const fetchMapData = useCallback(async (viewport) => {
+    if (!viewport) return;
+    
     setLoading(true);
     try {
-      await Promise.all([
-        fetchUsers(),
-        fetchGyms(),
-        fetchEvents()
-      ]);
+      const promises = [];
+      
+      if (filters.showGyms) {
+        promises.push(fetchGyms(viewport));
+      } else {
+        promises.push(Promise.resolve([]));
+      }
+      
+      if (filters.showUsers) {
+        promises.push(fetchUsers(viewport));
+      } else {
+        promises.push(Promise.resolve([]));
+      }
+
+      const [gymsData, usersData] = await Promise.all(promises);
+      
+      setGyms(applyFilters(gymsData, 'gym'));
+      setUsers(applyFilters(usersData, 'user'));
+      
     } catch (error) {
       console.error('Error fetching map data:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters, fetchGyms, fetchUsers]);
 
-  const fetchUsers = async () => {
-    try {
-      // Use the gym bros profiles endpoint to get nearby users
-      const response = await gymbrosService.getGymBrosProfiles({
-        maxDistance: filters.maxDistance
-      });
-      
-      if (response.success && response.recommendations) {
-        // Add random avatars for users who don't have one
-        const usersWithAvatars = response.recommendations.map(user => ({
-          ...user,
-          avatar: user.avatar || generateRandomAvatar()
-        }));
-        setUsers(usersWithAvatars);
-      } else {
-        // Mock data with avatars
-        setUsers([
-          {
-            id: '1',
-            name: 'Alex Smith',
-            age: 25,
-            lat: 45.5089,
-            lng: -73.5617,
-            profileImage: null,
-            experienceLevel: 'Intermediate',
-            workoutTypes: ['Strength Training', 'Cardio'],
-            bio: 'Looking for workout partners!',
-            avatar: {
-              furColor: '#8B4513',
-              shirtColor: '#3B82F6',
-              shirtStyle: 'tshirt',
-              accessory: 'glasses',
-              pants: '#1F2937',
-              mood: 'happy'
-            }
-          },
-          {
-            id: '2',
-            name: 'Sarah Johnson',
-            age: 28,
-            lat: 45.5076,
-            lng: -73.5540,
-            profileImage: null,
-            experienceLevel: 'Advanced',
-            workoutTypes: ['CrossFit', 'HIIT'],
-            bio: 'CrossFit enthusiast, always up for a challenge',
-            avatar: {
-              furColor: '#FFC0CB',
-              shirtColor: '#EC4899',
-              shirtStyle: 'tank',
-              accessory: 'headphones',
-              pants: '#3B82F6',
-              mood: 'excited'
-            }
-          }
-        ]);
-      }
-    } catch (error) {
-      console.error('Error fetching users:', error);
-      setUsers([]);
-    }
-  };
-
-  const fetchGyms = async () => {
-    try {
-      const response = await fetch('/api/gyms');
-      if (response.ok) {
-        const data = await response.json();
-        setGyms(Array.isArray(data) ? data : []);
-      } else {
-        // Mock data for gyms with member counts
-        setGyms([
-          {
-            id: '1',
-            name: 'Energie Cardio',
-            lat: 45.5086,
-            lng: -73.5540,
-            address: '1234 Rue Sainte-Catherine, Montreal, QC',
-            description: '24/7 fitness center with modern equipment and group classes',
-            memberCount: 47,
-            hours: 'Open 24/7',
-            type: 'Commercial Gym'
-          },
-          {
-            id: '2',
-            name: 'GoodLife Fitness',
-            lat: 45.5021,
-            lng: -73.5709,
-            address: '5678 Boulevard Saint-Laurent, Montreal, QC',
-            description: 'Full-service gym with classes, personal training, and swimming pool',
-            memberCount: 23,
-            hours: '5:00 AM - 11:00 PM',
-            type: 'Chain Gym'
-          },
-          {
-            id: '3',
-            name: 'CrossFit Downtown',
-            lat: 45.5044,
-            lng: -73.5590,
-            address: '9012 Rue Notre-Dame, Montreal, QC',
-            description: 'Dedicated CrossFit box with certified trainers and competitive atmosphere',
-            memberCount: 12,
-            hours: '6:00 AM - 10:00 PM',
-            type: 'CrossFit Box'
-          }
-        ]);
-      }
-    } catch (error) {
-      console.error('Error fetching gyms:', error);
-      setGyms([]);
-    }
-  };
-
-  const fetchEvents = async () => {
-    try {
-      const response = await fetch('/api/gym-bros/map/events');
-      if (response.ok) {
-        const data = await response.json();
-        setEvents(Array.isArray(data) ? data : []);
-      } else {
-        // Mock data for events
-        setEvents([
-          {
-            id: '1',
-            name: 'Morning Yoga Group',
-            lat: 45.5044,
-            lng: -73.5698,
-            description: 'Join us for relaxing morning yoga in the park',
-            date: new Date(Date.now() + 86400000), // Tomorrow
-            time: '7:00 AM',
-            participants: 12,
-            type: 'Yoga Session'
-          },
-          {
-            id: '2',
-            name: 'Weekend Running Club',
-            lat: 45.5099,
-            lng: -73.5533,
-            description: 'Weekly 5K run through Old Montreal',
-            date: new Date(Date.now() + 259200000), // 3 days from now
-            time: '8:00 AM',
-            participants: 8,
-            type: 'Running Group'
-          }
-        ]);
-      }
-    } catch (error) {
-      console.error('Error fetching events:', error);
-      setEvents([]);
-    }
-  };
-
-  // Initial data fetch
+  // Handle debounced viewport changes
   useEffect(() => {
-    fetchMapData();
+    if (debouncedViewport) {
+      fetchMapData(debouncedViewport);
+    }
+  }, [debouncedViewport, fetchMapData]);
+
+  // Handle viewport changes with debouncing
+  const handleViewportChange = useCallback((viewport) => {
+    setCurrentViewport(viewport);
   }, []);
 
-  // Filter data based on search and filters
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = !searchQuery || 
-      user.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.workoutTypes?.some(type => type.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    return filters.showUsers && matchesSearch;
-  });
+  // Apply filters to data
+  const applyFilters = (data, type) => {
+    if (!data || !Array.isArray(data)) return [];
 
-  const filteredGyms = gyms.filter(gym => {
-    const matchesSearch = !searchQuery || 
-      gym.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      gym.address?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    return filters.showGyms && matchesSearch;
-  });
+    return data.filter(item => {
+      // Search query filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        if (type === 'gym') {
+          return item.name?.toLowerCase().includes(query) ||
+                 item.address?.toLowerCase().includes(query) ||
+                 item.city?.toLowerCase().includes(query);
+        } else if (type === 'user') {
+          return item.name?.toLowerCase().includes(query) ||
+                 item.workoutTypes?.some(wt => wt.toLowerCase().includes(query));
+        }
+      }
 
-  const filteredEvents = events.filter(event => {
-    const matchesSearch = !searchQuery || 
-      event.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    return filters.showEvents && matchesSearch;
-  });
+      return true;
+    });
+  };
 
   // Handle marker clicks
   const handleMarkerClick = (type, data) => {
-    // Center and zoom on the clicked location
     if (mapRef.current) {
       const map = mapRef.current;
       map.setView([data.lat, data.lng], 16);
     }
 
-    // Open side panel with data
     setSidePanel({
       isOpen: true,
       data,
@@ -627,11 +734,20 @@ const GymBrosMap = ({ userProfile }) => {
     });
   };
 
-  // Handle current user mouse click - zoom to location
-  const handleCurrentUserClick = () => {
-    if (currentLocation && mapRef.current) {
-      const map = mapRef.current;
-      map.setView([currentLocation.lat, currentLocation.lng], 18);
+  // Handle refresh - clear cache and refetch
+  const handleRefresh = () => {
+    mapCache.clearAll();
+    if (currentViewport) {
+      fetchMapData(currentViewport);
+    }
+  };
+
+  // Handle filter changes
+  const handleFiltersApply = (newFilters) => {
+    setFilters(newFilters);
+    mapCache.clearAll(); // Clear cache when filters change
+    if (currentViewport) {
+      fetchMapData(currentViewport);
     }
   };
 
@@ -641,9 +757,8 @@ const GymBrosMap = ({ userProfile }) => {
       setAvatar(newAvatar);
       setShowAvatarDesigner(false);
       
-      // Save avatar to backend (extend the profile update API)
-      // This would need to be implemented in your backend
-      await gymbrosService.updateProfile({
+      await gymbrosService.createOrUpdateProfile({
+        ...userProfile,
         avatar: newAvatar
       });
       
@@ -653,34 +768,31 @@ const GymBrosMap = ({ userProfile }) => {
     }
   };
 
-  const handleRefresh = () => {
-    fetchMapData();
-  };
-
-  const handleFiltersApply = (newFilters) => {
-    setFilters(newFilters);
-  };
-
+  // Utility functions
   const generateRandomAvatar = () => {
     const furColors = ['#8B4513', '#6B7280', '#F3F4F6', '#1F2937', '#D97706', '#FEF3C7'];
-    const shirtColors = ['#3B82F6', '#EF4444', '#10B981', '#8B5CF6', '#EC4899', '#000000'];
-    const shirtStyles = ['tshirt', 'hoodie', 'tank', 'none'];
-    const accessories = ['none', 'glasses', 'hat', 'headphones', 'sunglasses', 'bandana'];
-    const pantsColors = ['#1F2937', '#3B82F6', '#000000', '#D2B48C', '#DC2626', '#059669'];
     const moods = ['happy', 'excited', 'neutral', 'cool', 'determined'];
 
     return {
       furColor: furColors[Math.floor(Math.random() * furColors.length)],
-      shirtColor: shirtColors[Math.floor(Math.random() * shirtColors.length)],
-      shirtStyle: shirtStyles[Math.floor(Math.random() * shirtStyles.length)],
-      accessory: accessories[Math.floor(Math.random() * accessories.length)],
-      pants: pantsColors[Math.floor(Math.random() * pantsColors.length)],
       mood: moods[Math.floor(Math.random() * moods.length)],
       eyes: 'normal'
     };
   };
 
-  if (loading && users.length === 0 && gyms.length === 0 && events.length === 0) {
+  const isUserOnline = (lastActive) => {
+    if (!lastActive) return false;
+    const now = new Date();
+    const lastActiveDate = new Date(lastActive);
+    const diffMinutes = (now - lastActiveDate) / (1000 * 60);
+    return diffMinutes < 15;
+  };
+
+  // Filter data based on search and filters
+  const filteredUsers = applyFilters(users, 'user');
+  const filteredGyms = applyFilters(gyms, 'gym');
+
+  if (loading && users.length === 0 && gyms.length === 0) {
     return (
       <div className="flex items-center justify-center h-full bg-gray-50">
         <div className="text-center">
@@ -717,7 +829,10 @@ const GymBrosMap = ({ userProfile }) => {
           attribution="&copy; <a href='https://carto.com/attributions'>CARTO</a>"
         />
         <MapUpdater center={mapCenter} zoom={mapZoom} />
-        <MapEventHandler onMarkerClick={handleMarkerClick} currentUserLocation={currentLocation} />
+        <MapEventHandler 
+          onViewportChange={handleViewportChange}
+          debounceMs={800}
+        />
         
         {MarkerClusterGroup ? (
           <MarkerClusterGroup>
@@ -728,7 +843,11 @@ const GymBrosMap = ({ userProfile }) => {
                 position={[currentLocation.lat, currentLocation.lng]}
                 icon={createMouseIcon(avatar || {}, true)}
                 eventHandlers={{
-                  click: handleCurrentUserClick
+                  click: () => {
+                    if (mapRef.current) {
+                      mapRef.current.setView([currentLocation.lat, currentLocation.lng], 18);
+                    }
+                  }
                 }}
               >
                 <Popup>
@@ -760,6 +879,12 @@ const GymBrosMap = ({ userProfile }) => {
                     </div>
                     <h3 className="font-semibold">{user.name}</h3>
                     <p className="text-sm text-gray-500">{user.age} • {user.experienceLevel}</p>
+                    {user.distance && (
+                      <p className="text-xs text-blue-500">{Math.round(user.distance * 10) / 10} km away</p>
+                    )}
+                    {user.isOnline && (
+                      <span className="inline-block w-2 h-2 bg-green-400 rounded-full mr-1"></span>
+                    )}
                     <button 
                       onClick={() => handleMarkerClick('user', user)}
                       className="mt-2 text-blue-500 hover:underline text-sm"
@@ -786,12 +911,21 @@ const GymBrosMap = ({ userProfile }) => {
                     <div className="flex items-center gap-2 mb-2">
                       <Building2 className="h-5 w-5 text-blue-500" />
                       <h3 className="font-semibold">{gym.name}</h3>
+                      {gym.verified && (
+                        <span className="text-green-500 text-xs">✓</span>
+                      )}
                     </div>
-                    <p className="text-sm text-gray-600 mb-2">{gym.description}</p>
+                    <p className="text-xs text-gray-500 capitalize mb-1">{gym.type || 'gym'}</p>
+                    {gym.description && (
+                      <p className="text-sm text-gray-600 mb-2 line-clamp-2">{gym.description}</p>
+                    )}
                     <div className="flex items-center gap-1 text-sm text-blue-600 mb-2">
                       <Users className="h-4 w-4" />
-                      <span>{gym.memberCount} members active</span>
+                      <span>{gym.memberCount || 0} members active</span>
                     </div>
+                    {gym.distance && (
+                      <p className="text-xs text-gray-500 mb-2">{Math.round(gym.distance * 10) / 10} km away</p>
+                    )}
                     <button 
                       onClick={() => handleMarkerClick('gym', gym)}
                       className="text-blue-500 hover:underline text-sm"
@@ -802,36 +936,61 @@ const GymBrosMap = ({ userProfile }) => {
                 </Popup>
               </Marker>
             ))}
-            
-            {/* Event Markers */}
-            {filteredEvents.map(event => (
-              <Marker 
-                key={`event-${event.id}`} 
-                position={[event.lat, event.lng]} 
-                icon={L.divIcon({
-                  html: `<div style="background: #8B5CF6; color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 20px; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">📅</div>`,
-                  className: 'custom-event-icon',
-                  iconSize: [40, 40],
-                  iconAnchor: [20, 20],
-                })}
+          </MarkerClusterGroup>
+        ) : (
+          <>
+            {/* Fallback without clustering */}
+            {currentLocation && (
+              <Marker
+                key="current-user-location"
+                position={[currentLocation.lat, currentLocation.lng]}
+                icon={createMouseIcon(avatar || {}, true)}
                 eventHandlers={{
-                  click: () => handleMarkerClick('event', event)
+                  click: () => {
+                    if (mapRef.current) {
+                      mapRef.current.setView([currentLocation.lat, currentLocation.lng], 18);
+                    }
+                  }
                 }}
               >
                 <Popup>
-                  <div className="min-w-48">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Calendar className="h-5 w-5 text-purple-500" />
-                      <h3 className="font-semibold">{event.name}</h3>
+                  <div className="text-center">
+                    <div className="mb-2">
+                      {renderMouseAvatar(avatar || {}, 60)}
                     </div>
-                    <p className="text-sm text-gray-600 mb-2">{event.description}</p>
-                    <div className="flex items-center gap-1 text-sm text-purple-600 mb-2">
-                      <Users className="h-4 w-4" />
-                      <span>{event.participants} interested</span>
+                    <p className="font-semibold">You are here! 🐭</p>
+                    <p className="text-sm text-gray-600">Click to customize your mouse</p>
+                  </div>
+                </Popup>
+              </Marker>
+            )}
+            
+            {/* User Markers without clustering */}
+            {filteredUsers.map(user => (
+              <Marker 
+                key={`user-${user.id}`} 
+                position={[user.lat, user.lng]} 
+                icon={createMouseIcon(user.avatar || {})}
+                eventHandlers={{
+                  click: () => handleMarkerClick('user', user)
+                }}
+              >
+                <Popup>
+                  <div className="min-w-48 text-center">
+                    <div className="mb-2">
+                      {renderMouseAvatar(user.avatar || {}, 60)}
                     </div>
+                    <h3 className="font-semibold">{user.name}</h3>
+                    <p className="text-sm text-gray-500">{user.age} • {user.experienceLevel}</p>
+                    {user.distance && (
+                      <p className="text-xs text-blue-500">{Math.round(user.distance * 10) / 10} km away</p>
+                    )}
+                    {user.isOnline && (
+                      <span className="inline-block w-2 h-2 bg-green-400 rounded-full mr-1"></span>
+                    )}
                     <button 
-                      onClick={() => handleMarkerClick('event', event)}
-                      className="text-purple-500 hover:underline text-sm"
+                      onClick={() => handleMarkerClick('user', user)}
+                      className="mt-2 text-blue-500 hover:underline text-sm"
                     >
                       View Details →
                     </button>
@@ -839,26 +998,85 @@ const GymBrosMap = ({ userProfile }) => {
                 </Popup>
               </Marker>
             ))}
-          </MarkerClusterGroup>
-        ) : (
-          <>
-            {/* Fallback without clustering - same markers */}
-            {currentLocation && (
-              <Marker
-                key="current-user-location"
-                position={[currentLocation.lat, currentLocation.lng]}
-                icon={createMouseIcon(avatar || {}, true)}
+            
+            {/* Gym Markers without clustering */}
+            {filteredGyms.map(gym => (
+              <Marker 
+                key={`gym-${gym.id}`} 
+                position={[gym.lat, gym.lng]} 
+                icon={createGymIcon(gym)}
                 eventHandlers={{
-                  click: handleCurrentUserClick
+                  click: () => handleMarkerClick('gym', gym)
                 }}
               >
-                <Popup>You are here! 🐭</Popup>
+                <Popup>
+                  <div className="min-w-48">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Building2 className="h-5 w-5 text-blue-500" />
+                      <h3 className="font-semibold">{gym.name}</h3>
+                      {gym.verified && (
+                        <span className="text-green-500 text-xs">✓</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 capitalize mb-1">{gym.type || 'gym'}</p>
+                    {gym.description && (
+                      <p className="text-sm text-gray-600 mb-2 line-clamp-2">{gym.description}</p>
+                    )}
+                    <div className="flex items-center gap-1 text-sm text-blue-600 mb-2">
+                      <Users className="h-4 w-4" />
+                      <span>{gym.memberCount || 0} members active</span>
+                    </div>
+                    {gym.distance && (
+                      <p className="text-xs text-gray-500 mb-2">{Math.round(gym.distance * 10) / 10} km away</p>
+                    )}
+                    <button 
+                      onClick={() => handleMarkerClick('gym', gym)}
+                      className="text-blue-500 hover:underline text-sm"
+                    >
+                      View Details →
+                    </button>
+                  </div>
+                </Popup>
               </Marker>
-            )}
-            {/* ... other markers without clustering ... */}
+            ))}
           </>
         )}
       </MapContainer>
+      
+      {/* Loading Indicator */}
+      {loading && (
+        <div className="absolute top-20 right-4 z-30 bg-white rounded-lg shadow-lg p-3">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="h-4 w-4 animate-spin text-blue-500" />
+            <span className="text-sm text-gray-600">Updating map...</span>
+          </div>
+        </div>
+      )}
+      
+      {/* Data Count Indicator */}
+      <div className="absolute bottom-4 left-4 z-30 bg-white rounded-lg shadow-lg p-2 text-sm text-gray-600">
+        <div className="flex items-center gap-4">
+          {filters.showUsers && (
+            <div className="flex items-center gap-1">
+              <Users className="h-4 w-4 text-blue-500" />
+              <span>{filteredUsers.length}</span>
+            </div>
+          )}
+          {filters.showGyms && (
+            <div className="flex items-center gap-1">
+              <Dumbbell className="h-4 w-4 text-green-500" />
+              <span>{filteredGyms.length}</span>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {/* Cache Status Indicator (development only) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="absolute top-20 left-4 z-30 bg-black bg-opacity-75 text-white text-xs p-2 rounded">
+          Cache: {mapCache.cache.size} entries
+        </div>
+      )}
       
       {/* Side Panel */}
       <SidePanel 
@@ -912,9 +1130,11 @@ style.innerHTML = `
     background: transparent !important;
     border: none !important;
   }
-  .custom-event-icon {
-    background: transparent !important;
-    border: none !important;
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 `;
 

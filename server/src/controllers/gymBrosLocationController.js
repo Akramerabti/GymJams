@@ -25,6 +25,218 @@ export const checkLocation = async (req, res) => {
   }
 };
 
+export const getGymsForMap = async (req, res) => {
+  try {
+    const { type, bbox, limit = 500, offset = 0, search } = req.query;
+    const query = { isActive: true };
+    if (type) query.type = type;
+    if (search) query.name = { $regex: search, $options: 'i' };
+    if (bbox) {
+      // bbox: "lng1,lat1,lng2,lat2"
+      const [lng1, lat1, lng2, lat2] = bbox.split(',').map(Number);
+      query['location.coordinates'] = {
+        $geoWithin: {
+          $box: [
+            [lng1, lat1],
+            [lng2, lat2]
+          ]
+        }
+      };
+    }
+    const gyms = await Gym.find(query).skip(Number(offset)).limit(Number(limit));
+    res.json({ gyms });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch gyms' });
+  }
+};
+
+export const getMapUsers = async (req, res) => {
+  try {
+    const { north, south, east, west, maxDistance = 25 } = req.query;
+    const effectiveUser = getEffectiveUser(req);
+
+    // Validate required parameters
+    if (!north || !south || !east || !west) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bounding box coordinates (north, south, east, west) are required'
+      });
+    }
+
+    // Convert to numbers
+    const bounds = {
+      north: parseFloat(north),
+      south: parseFloat(south),
+      east: parseFloat(east),
+      west: parseFloat(west)
+    };
+
+    // Validate bounds
+    if (bounds.north <= bounds.south || bounds.east <= bounds.west) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid bounding box coordinates'
+      });
+    }
+
+    // Get current user's profile ID for exclusion
+    let currentUserProfileId = null;
+    if (effectiveUser.profileId) {
+      currentUserProfileId = effectiveUser.profileId;
+    } else if (effectiveUser.userId) {
+      const profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+      if (profile) {
+        currentUserProfileId = profile._id;
+      }
+    }
+
+    // Build the aggregation pipeline
+    const pipeline = [
+      // Match active profiles within geographic bounds
+      {
+        $match: {
+          isActive: true,
+          'location.coordinates': {
+            $geoWithin: {
+              $box: [
+                [bounds.west, bounds.south], // Southwest corner
+                [bounds.east, bounds.north]  // Northeast corner
+              ]
+            }
+          },
+          // Exclude current user
+          ...(currentUserProfileId && { _id: { $ne: currentUserProfileId } })
+        }
+      },
+      // Add distance calculation from center of bounds
+      {
+        $addFields: {
+          distance: {
+            $divide: [
+              {
+                $multiply: [
+                  {
+                    $sqrt: {
+                      $add: [
+                        {
+                          $pow: [
+                            {
+                              $subtract: [
+                                { $arrayElemAt: ['$location.coordinates', 1] }, // lat
+                                { $divide: [{ $add: [bounds.north, bounds.south] }, 2] }
+                              ]
+                            },
+                            2
+                          ]
+                        },
+                        {
+                          $pow: [
+                            {
+                              $subtract: [
+                                { $arrayElemAt: ['$location.coordinates', 0] }, // lng
+                                { $divide: [{ $add: [bounds.east, bounds.west] }, 2] }
+                              ]
+                            },
+                            2
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  111 // Rough conversion to kilometers
+                ]
+              },
+              1
+            ]
+          }
+        }
+      },
+      // Filter by max distance if specified
+      {
+        $match: {
+          distance: { $lte: parseFloat(maxDistance) }
+        }
+      },
+      // Populate user data
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'userInfo'
+        }
+      },
+      // Project the fields we need for the map
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          age: 1,
+          bio: 1,
+          avatar: 1,
+          workoutTypes: 1,
+          experienceLevel: 1,
+          preferredTime: 1,
+          location: {
+            lat: { $arrayElemAt: ['$location.coordinates', 1] },
+            lng: { $arrayElemAt: ['$location.coordinates', 0] }
+          },
+          distance: { $round: ['$distance', 1] },
+          lastActive: 1,
+          isOnline: {
+            $gt: [
+              '$lastActive',
+              { $subtract: [new Date(), 15 * 60 * 1000] } // Online if active in last 15 minutes
+            ]
+          },
+          profileImage: { $arrayElemAt: ['$userInfo.profileImage', 0] },
+          // Include user email/phone for guest token validation
+          userEmail: { $arrayElemAt: ['$userInfo.email', 0] },
+          userPhone: { $arrayElemAt: ['$userInfo.phone', 0] }
+        }
+      },
+      // Sort by distance, then by last active
+      {
+        $sort: {
+          distance: 1,
+          lastActive: -1
+        }
+      },
+      // Limit results for performance
+      {
+        $limit: 100
+      }
+    ];
+
+    logger.info(`Fetching map users within bounds: N${bounds.north} S${bounds.south} E${bounds.east} W${bounds.west}, maxDistance: ${maxDistance}km`);
+
+    const users = await GymBrosProfile.aggregate(pipeline);
+
+    // Filter out users who haven't been active recently if needed
+    const activeUsers = users.filter(user => {
+      // Show all users within 24 hours of last activity
+      const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      return !user.lastActive || user.lastActive > dayAgo;
+    });
+
+    logger.info(`Found ${activeUsers.length} active users in map bounds`);
+
+    res.json({
+      success: true,
+      users: activeUsers,
+      count: activeUsers.length,
+      bounds: bounds
+    });
+
+  } catch (error) {
+    logger.error('Error fetching map users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching map users'
+    });
+  }
+};
+
 export const checkLocationLegacy = async (req, res) => {
   try {
     const { phone } = req.query;

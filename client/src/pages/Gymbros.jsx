@@ -685,29 +685,42 @@ const GymBros = () => {
           </div>
         );
 
-      case 'map':
-        return (
-          <div className="h-full w-full">
-            {!hasProfile ? (
-              <div className="relative h-full">
-                <GymBrosMap userProfile={null} />
-                <div className="absolute top-20 left-4 right-4 bg-white rounded-lg shadow-lg p-4 z-30">
-                  <p className="text-sm text-gray-600 mb-2">
-                    Create a profile to see gym partners and join the community!
-                  </p>
-                  <button
-                    onClick={() => setActiveTab('discover')}
-                    className="w-full bg-blue-500 text-white py-2 px-4 rounded text-sm hover:bg-blue-600"
-                  >
-                    Create Profile
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <GymBrosMap userProfile={userProfile} />
-            )}
+       case 'map':
+    return (
+      <div className="h-full w-full">
+        {!hasProfile ? (
+          <div className="relative h-full">
+            <GymBrosMap 
+              userProfile={null} 
+              initialUsers={[]} // Pass empty array for guests
+              filters={{ maxDistance: 25, showUsers: true, showGyms: true }}
+            />
+            <div className="absolute top-20 left-4 right-4 bg-white rounded-lg shadow-lg p-4 z-30">
+              <p className="text-sm text-gray-600 mb-2">
+                Create a profile to see gym partners and join the community!
+              </p>
+              <button
+                onClick={() => setActiveTab('discover')}
+                className="w-full bg-blue-500 text-white py-2 px-4 rounded text-sm hover:bg-blue-600"
+              >
+                Create Profile
+              </button>
+            </div>
           </div>
-        );
+        ) : (
+          <GymBrosMap 
+            userProfile={userProfile} 
+            initialUsers={profiles} 
+            filters={{
+              maxDistance: filters.maxDistance,
+              showUsers: true,
+              showGyms: true,
+              workoutTypes: filters.workoutTypes
+            }}
+          />
+        )}
+      </div>
+    );
 
       case 'matches':
         if (!hasProfile) {
