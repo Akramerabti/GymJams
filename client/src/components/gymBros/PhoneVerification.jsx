@@ -4,6 +4,7 @@ import { Phone, CheckCircle, Loader, ArrowRight, LogIn } from 'lucide-react';
 import gymbrosService from '../../services/gymbros.service';
 import useAuthStore from '../../stores/authStore';
 import PhoneInput from '../../pages/phoneinput';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const PhoneVerification = ({ 
   phone, 
@@ -14,6 +15,7 @@ const PhoneVerification = ({
   onContinueWithNewAccount
 }) => {
   const { loginWithToken } = useAuthStore();
+  const { darkMode } = useTheme();
   const [verificationStep, setVerificationStep] = useState('input'); 
   const [isLoading, setIsLoading] = useState(false);
   const [phoneError, setPhoneError] = useState('');
@@ -43,9 +45,6 @@ const PhoneVerification = ({
     setPhoneError('');
     
     try {
-
-
-
       const exists = await gymbrosService.checkPhoneExists(phone);
       setPhoneExists(exists);
       
@@ -69,135 +68,92 @@ const PhoneVerification = ({
       if (response.success) {
         setVerificationStep('verifying');
         setTimer(30); // 30 second countdown for resend
-        toast.success('Verification code sent!');
-        // Focus the first OTP input
-        setTimeout(() => {
-          if (inputRefs.current[0]) {
-            inputRefs.current[0].focus();
-          }
-        }, 100);
+        toast.success('Verification code sent!', {
+          description: `Check your messages for the 6-digit code`
+        });
+        
+        if (response.token) {
+          setVerificationToken(response.token);
+        }
       } else {
-        throw new Error(response.message || 'Failed to send verification code');
+        setPhoneError(response.message || 'Failed to send verification code');
+        toast.error(response.message || 'Failed to send verification code');
       }
     } catch (error) {
       console.error('Error sending verification code:', error);
-      setPhoneError(error.response?.data?.message || 'Failed to send verification code');
-      toast.error('Failed to send verification code');
+      setPhoneError('Failed to send verification code. Please try again.');
+      toast.error('Failed to send verification code. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
-  
+
   const handleVerifyCode = async () => {
-    const verificationCode = otpValues.join('');
-    
-    if (verificationCode.length !== 6 || !/^\d+$/.test(verificationCode)) {
+    const code = otpValues.join('');
+    if (code.length !== 6) {
+      toast.error('Please enter the complete 6-digit code');
       return;
     }
     
     setIsLoading(true);
     
     try {
-      // First verify the phone number with the code
-      const response = await gymbrosService.verifyCode(phone, verificationCode);
-      //('Verification response:', response);
+      const response = await gymbrosService.verifyCode(phone, code);
       
-      if (response.success && response.token) {
-        setVerificationToken(response.token);
+      if (response.success) {
         setVerificationStep('verified');
         
-        // Store for potential use in other components
-        localStorage.setItem('verifiedPhone', phone);
-        localStorage.setItem('verificationToken', response.token);
-        
-        try {
-          //('Checking profile with verified phone');
-          const profileData = await gymbrosService.checkProfileWithVerifiedPhone(
-            phone, 
-            response.token
-          );
-          
-          setTimeout(() => {
-            if (profileData.success) {
-              // Check if we have a user account
-              if (profileData.user) {
-                // We have both user and potentially a profile
-                loginWithToken(response.token);
-                toast.success('Logged in successfully!');
-                
-                // Notify parent component of successful verification and login
-                onVerified && onVerified(
-                  true, 
-                  profileData.user, 
-                  profileData.token, 
-                  profileData
-                );
-              } else if (profileData.profile) {
-                // We have a profile but no user
-                onVerified && onVerified(
-                  true,
-                  null, // No user yet
-                  response.token,
-                  {
-                    hasProfile: true,
-                    profile: profileData.profile,
-                    needsRegistration: true
-                  }
-                );
-              } else {
-                // Neither user nor profile found - new signup
-                toast.info('Phone verified! Please create your profile.');
-                onVerified && onVerified(true, null, response.token);
-              }
-            } else {
-              // Profile check failed but phone verification succeeded
-              toast.error(profileData.message || 'Failed to find user with this phone number');
-              onVerified && onVerified(true, null, response.token);
-            }
-          }, 500); // Short delay to ensure token is properly saved
-        } catch (profileError) {
-          console.error('Error checking profile with verified phone:', profileError);
-          toast.error('Error verifying your profile. Please try again.');
-          
-          // Still mark as verified since the phone verification worked
-          onVerified && onVerified(true, null, response.token);
+        if (response.user && response.token) {
+          // User logged in successfully
+          await loginWithToken(response.token, response.user);
+          onVerified(true, response.user, response.token, response.profile || null);
+        } else {
+          // Guest verification or new account
+          onVerified(true, null, response.token || verificationToken, null);
         }
+        
+        toast.success('Phone verified successfully!');
       } else {
         toast.error(response.message || 'Invalid verification code');
       }
     } catch (error) {
       console.error('Error verifying code:', error);
-      toast.error(error.response?.data?.message || 'Failed to verify code');
+      toast.error('Verification failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleOtpChange = (index, value) => {
-    // Only allow numbers
-    if (value && !/^\d*$/.test(value)) return;
+    // Only allow single digits
+    if (value.length > 1) {
+      value = value.slice(-1);
+    }
     
-    // Update the OTP array
+    if (!/^\d*$/.test(value)) {
+      return; // Only allow digits
+    }
+    
     const newOtpValues = [...otpValues];
-    newOtpValues[index] = value.substring(0, 1); // Take only the first character
+    newOtpValues[index] = value;
     setOtpValues(newOtpValues);
     
-    // Auto-focus next input if value is entered
+    // Auto-move to next input if value is entered
     if (value && index < 5) {
-      inputRefs.current[index + 1].focus();
+      inputRefs.current[index + 1]?.focus();
     }
     
-    // If we've filled the last digit, attempt verification automatically
-    if (value && index === 5) {
-      const allFilled = newOtpValues.every(v => v !== '');
-      if (allFilled) {
-        setTimeout(() => handleVerifyCode(), 300);
-      }
+    // Auto-verify when all 6 digits are entered
+    if (newOtpValues.join('').length === 6 && newOtpValues.every(v => v !== '')) {
+      setTimeout(() => {
+        setOtpValues(newOtpValues);
+        setTimeout(handleVerifyCode, 100);
+      }, 50);
     }
   };
-  
+
   const handleOtpKeyDown = (index, e) => {
-    // Navigate between inputs with arrow keys
+    // Handle navigation
     if (e.key === 'ArrowLeft' && index > 0) {
       inputRefs.current[index - 1].focus();
     } else if (e.key === 'ArrowRight' && index < 5) {
@@ -223,26 +179,103 @@ const PhoneVerification = ({
     }
   };
   
+  // Enhanced paste handler with mobile support
   const handleOtpPaste = (e) => {
     e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').trim();
+    let pastedData = '';
     
-    // Check if pasted content is a 6-digit number
+    // Handle different paste sources
+    if (e.clipboardData && e.clipboardData.getData) {
+      pastedData = e.clipboardData.getData('text');
+    } else if (window.clipboardData && window.clipboardData.getData) {
+      pastedData = window.clipboardData.getData('Text');
+    }
+    
+    // Clean the pasted data
+    pastedData = pastedData.trim().replace(/\s+/g, '').replace(/\D/g, '');
+    
+    // Check if pasted content is exactly 6 digits
     if (/^\d{6}$/.test(pastedData)) {
       const newOtpValues = pastedData.split('');
       setOtpValues(newOtpValues);
+      
       // Focus the last input
-      inputRefs.current[5].focus();
+      setTimeout(() => {
+        inputRefs.current[5]?.focus();
+      }, 10);
       
       // Auto-verify after a short delay
-      setTimeout(() => handleVerifyCode(), 300);
+      setTimeout(() => {
+        handleVerifyCode();
+      }, 300);
+      
+      toast.success('Code pasted successfully!');
+    } else if (pastedData.length > 0) {
+      // If it's not exactly 6 digits, still try to use what we can
+      const digits = pastedData.slice(0, 6).padEnd(6, '').split('');
+      const newOtpValues = digits.map(d => /^\d$/.test(d) ? d : '');
+      setOtpValues(newOtpValues);
+      
+      // Focus the next empty input
+      const nextEmptyIndex = newOtpValues.findIndex(v => v === '');
+      if (nextEmptyIndex !== -1) {
+        setTimeout(() => {
+          inputRefs.current[nextEmptyIndex]?.focus();
+        }, 10);
+      }
     }
+  };
+
+  // Add support for iOS SMS auto-fill
+  const handleOtpInput = (index, e) => {
+    const inputType = e.nativeEvent.inputType;
+    const data = e.nativeEvent.data;
+    
+    // Handle iOS SMS auto-fill
+    if (inputType === 'insertCompositionText' || inputType === 'insertText') {
+      if (data && /^\d{6}$/.test(data)) {
+        e.preventDefault();
+        const newOtpValues = data.split('');
+        setOtpValues(newOtpValues);
+        
+        // Focus the last input
+        setTimeout(() => {
+          inputRefs.current[5]?.focus();
+        }, 10);
+        
+        // Auto-verify
+        setTimeout(() => {
+          handleVerifyCode();
+        }, 300);
+        return;
+      }
+    }
+    
+    // Regular input handling
+    handleOtpChange(index, e.target.value);
   };
 
   const handleContinueAsNewAccount = () => {
     // User has chosen to continue creating a new account despite having an existing one
     if (onContinueWithNewAccount) {
       onContinueWithNewAccount(phone, verificationToken);
+    }
+  };
+
+  // Theme-aware input styles
+  const getInputStyles = () => {
+    if (darkMode) {
+      return "bg-gray-800 border-gray-600 text-white focus:border-blue-400 focus:ring-blue-400/20";
+    } else {
+      return "bg-white border-gray-300 text-black focus:border-blue-500 focus:ring-blue-500/20";
+    }
+  };
+
+  const getOtpInputStyles = () => {
+    if (darkMode) {
+      return "bg-gray-800 border-gray-600 text-white focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20";
+    } else {
+      return "bg-white border-gray-300 text-black focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20";
     }
   };
   
@@ -255,14 +288,16 @@ const PhoneVerification = ({
               value={phone}
               onChange={onChange}
               onValidChange={(isValid) => {
-                if (!isValid) {
+                // Only show error if phone has content and is invalid
+                if (phone && phone.trim() && !isValid) {
                   setPhoneError('Please enter a valid phone number');
                 } else {
                   setPhoneError('');
                 }
               }}
               autoFocus
-              className="w-full"
+              className={`w-full ${getInputStyles()}`}
+              darkMode={darkMode}
             />
             {phoneError && (
               <p className="text-red-500 text-sm mt-2">{phoneError}</p>
@@ -272,7 +307,11 @@ const PhoneVerification = ({
           <button
             onClick={handleSendVerificationCode}
             disabled={isLoading || phoneError}
-            className="w-full mt-4 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`w-full mt-4 py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed ${
+              darkMode 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            }`}
           >
             {isLoading ? (
               <Loader className="w-5 h-5 mr-2 animate-spin" />
@@ -286,31 +325,49 @@ const PhoneVerification = ({
       
       {verificationStep === 'verifying' && (
         <>
-          <p className="text-center text-gray-600">
+          <p className={`text-center ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
             We've sent a 6-digit verification code to <span className="font-semibold">{phone}</span>
           </p>
           
+          {/* Enhanced OTP Input Section */}
           <div className="flex items-center justify-center space-x-2 my-6">
             {otpValues.map((digit, index) => (
               <input
                 key={index}
                 ref={el => inputRefs.current[index] = el}
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 maxLength={1}
                 value={digit}
-                onChange={(e) => handleOtpChange(index, e.target.value)}
+                onChange={(e) => handleOtpInput(index, e)}
                 onKeyDown={(e) => handleOtpKeyDown(index, e)}
                 onPaste={index === 0 ? handleOtpPaste : undefined}
-                className="w-12 h-14 text-center text-2xl font-bold border-2 border-gray-300 rounded-md focus:border-blue-500 focus:outline-none"
+                autoComplete={index === 0 ? "one-time-code" : "off"}
+                className={`w-12 h-14 text-center text-2xl font-bold border-2 rounded-md transition-all duration-200 ${getOtpInputStyles()}`}
+                style={{
+                  // Ensure proper mobile support
+                  fontSize: '24px',
+                  lineHeight: '1',
+                }}
               />
             ))}
           </div>
+          
+          {/* Helper text for mobile users */}
+          <p className={`text-center text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            💡 Tip: You can paste the entire 6-digit code or tap the SMS notification to auto-fill
+          </p>
           
           <div className="flex flex-col items-center justify-center space-y-3">
             <button
               onClick={handleVerifyCode}
               disabled={isLoading || otpValues.join('').length !== 6}
-              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`w-full py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed ${
+                darkMode 
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
             >
               {isLoading ? (
                 <Loader className="w-5 h-5 mr-2 animate-spin" />
@@ -323,14 +380,22 @@ const PhoneVerification = ({
             <button
               onClick={handleSendVerificationCode}
               disabled={isLoading || timer > 0}
-              className="text-blue-600 hover:text-blue-800 text-sm"
+              className={`font-medium text-sm transition-colors ${
+                darkMode 
+                  ? 'text-blue-400 hover:text-blue-300' 
+                  : 'text-blue-600 hover:text-blue-800'
+              } ${(isLoading || timer > 0) ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {timer > 0 ? `Resend code in ${timer}s` : 'Resend code'}
             </button>
             
             <button
               onClick={() => setVerificationStep('input')}
-              className="text-gray-500 hover:text-gray-700 text-sm"
+              className={`font-medium text-sm transition-colors ${
+                darkMode 
+                  ? 'text-gray-400 hover:text-gray-300' 
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
             >
               Change phone number
             </button>
@@ -344,29 +409,38 @@ const PhoneVerification = ({
             <CheckCircle className="w-10 h-10 text-green-600" />
           </div>
           <h3 className="text-xl font-bold text-green-600 mb-2">Phone Verified!</h3>
-          <p className="text-gray-600 text-center mb-4">
+          <p className={`text-center mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
             Your phone number has been successfully verified.
           </p>
-          
-          {phoneExists && !isLoginFlow && (
-            <div className="w-full mt-4 space-y-3">
-              <button
-                onClick={handleContinueAsNewAccount}
-                className="w-full py-3 px-4 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center"
-              >
-                <ArrowRight className="w-5 h-5 mr-2" />
-                Continue with New Account
-              </button>
-              
-              <button
-                onClick={() => onExistingAccountFound && onExistingAccountFound(phone)}
-                className="w-full py-3 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center"
-              >
-                <LogIn className="w-5 h-5 mr-2" />
-                Log In to Existing Account
-              </button>
-            </div>
-          )}
+        </div>
+      )}
+      
+      {phoneExists && verificationStep === 'verified' && !isLoginFlow && (
+        <div className={`p-4 rounded-lg border ${
+          darkMode ? 'bg-yellow-900/20 border-yellow-600/30' : 'bg-yellow-50 border-yellow-200'
+        }`}>
+          <h4 className={`font-medium mb-2 ${
+            darkMode ? 'text-yellow-400' : 'text-yellow-800'
+          }`}>
+            Account Already Exists
+          </h4>
+          <p className={`text-sm mb-3 ${
+            darkMode ? 'text-yellow-300' : 'text-yellow-700'
+          }`}>
+            This phone number is already associated with an account. Would you like to continue creating a new account or log in instead?
+          </p>
+          <div className="flex space-x-2">
+            <button
+              onClick={handleContinueAsNewAccount}
+              className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                darkMode 
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
+            >
+              Create New Account
+            </button>
+          </div>
         </div>
       )}
     </div>

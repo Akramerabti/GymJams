@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { 
   Dumbbell, CheckCircle, Award, Clock, 
@@ -10,7 +9,9 @@ import LocationPicker from './LocationPicker';
 import AutoLocationStep from './AutoLocationStep';
 import NearbyGymsPreview from './NearbyGymsPreview';
 import GymSelector from './GymSelector';
+import HeightPicker from './../ui/HeightPicker';
 import { useScreenType } from '../../hooks/useScreenType';
+import { useTheme } from '../../contexts/ThemeContext';
 
 // Constants for the form options
 const workoutTypes = [
@@ -22,7 +23,6 @@ const workoutTypes = [
 const experienceLevels = ['Beginner', 'Intermediate', 'Advanced'];
 const timePreferences = ['Morning', 'Afternoon', 'Evening', 'Late Night', 'Weekends Only', 'Flexible'];
 const genders = ['Male', 'Female', 'Other'];
-const heightUnits = ['cm', 'inches'];
 
 const interests = [
   'Reading', 'Traveling', 'Cooking', 'Hiking', 'Cycling', 'Swimming',
@@ -30,6 +30,83 @@ const interests = [
   'Fitness', 'Yoga', 'Meditation', 'Movies', 'Theater', 'Art', 'Nature',
   'Technology', 'Fashion', 'Foodie', 'Wine Tasting', 'Coffee Enthusiast'
 ];
+
+// Theme-aware input component
+const ThemedInput = ({ type = "text", value, onChange, onBlur, placeholder, className = "", ...props }) => {
+  const { darkMode } = useTheme();
+  
+  const baseStyles = "w-full border-2 rounded-xl transition-all duration-300 focus:outline-none";
+  const themeStyles = darkMode 
+    ? "bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-blue-400 focus:bg-gray-800" 
+    : "bg-white border-gray-300 text-black placeholder-gray-500 focus:border-blue-500 focus:bg-white";
+  
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={onChange}
+      onBlur={onBlur}
+      placeholder={placeholder}
+      className={`${baseStyles} ${themeStyles} ${className}`}
+      {...props}
+    />
+  );
+};
+
+// Theme-aware select component
+const ThemedSelect = ({ value, onChange, options, placeholder, className = "", ...props }) => {
+  const { darkMode } = useTheme();
+  
+  const baseStyles = "w-full border-2 rounded-xl transition-all duration-300 focus:outline-none";
+  const themeStyles = darkMode 
+    ? "bg-gray-800 border-gray-600 text-white focus:border-blue-400" 
+    : "bg-white border-gray-300 text-black focus:border-blue-500";
+  
+  return (
+    <select
+      value={value}
+      onChange={onChange}
+      className={`${baseStyles} ${themeStyles} ${className}`}
+      {...props}
+    >
+      {placeholder && (
+        <option value="" className={darkMode ? "text-gray-400" : "text-gray-500"}>
+          {placeholder}
+        </option>
+      )}
+      {options.map(option => (
+        <option 
+          key={option} 
+          value={option} 
+          className={darkMode ? "text-white bg-gray-800" : "text-black bg-white"}
+        >
+          {option}
+        </option>
+      ))}
+    </select>
+  );
+};
+
+// Theme-aware textarea component
+const ThemedTextarea = ({ value, onChange, placeholder, rows = 3, className = "", ...props }) => {
+  const { darkMode } = useTheme();
+  
+  const baseStyles = "w-full border-2 rounded-xl transition-all duration-300 focus:outline-none resize-none";
+  const themeStyles = darkMode 
+    ? "bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-blue-400 focus:bg-gray-800" 
+    : "bg-white border-gray-300 text-black placeholder-gray-500 focus:border-blue-500 focus:bg-white";
+  
+  return (
+    <textarea
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      rows={rows}
+      className={`${baseStyles} ${themeStyles} ${className}`}
+      {...props}
+    />
+  );
+};
 
 // Enhanced welcome component with better engagement
 const WelcomeStep = ({ goToNextStep, handleLoginWithPhone, isAuthenticated, showPhoneLogin, screenType }) => (
@@ -148,167 +225,158 @@ const WelcomeStep = ({ goToNextStep, handleLoginWithPhone, isAuthenticated, show
 );
 
 // Combined Basic Info Step (name + age + gender)
-const BasicInfoStep = ({ profileData, handleChange, handleInputBlur, goToNextStep, handleLoginWithPhone, isAuthenticated, showPhoneLogin, screenType }) => (
-  <div className="w-full space-y-6">
-    {/* Main Title */}
-    <div className="text-center space-y-1 mb-4">
-      <h2 className="text-xl font-bold text-white">Tell us about yourself</h2>
-      <p className="text-white/80 text-sm">Basic information to get started</p>
-    </div>
-    
-    {/* Name Input */}
-    <div className="space-y-2">
-      <label className="text-white font-medium text-sm">What's your name?</label>
-      <input 
-        type="text" 
-        value={profileData.name} 
-        onChange={(e) => handleChange('name', e.target.value)}
-        className={`w-full bg-white border-2 border-gray-300 rounded-xl text-black placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:bg-white transition-all duration-300 ${
-          screenType === 'mobile' ? 'p-3 text-lg' : 'p-4 text-xl'
-        }`}
-        placeholder="Enter your name"
-        autoFocus
-      />
-    </div>
-
-    {/* Age and Gender Row */}
-    <div className={`grid gap-4 ${screenType === 'mobile' ? 'grid-cols-1' : 'grid-cols-2'}`}>
-      {/* Age */}
+const BasicInfoStep = ({ profileData, handleChange, handleInputBlur, goToNextStep, handleLoginWithPhone, isAuthenticated, showPhoneLogin, screenType }) => {
+  const { darkMode } = useTheme();
+  
+  return (
+    <div className="w-full space-y-6">
+      {/* Main Title */}
+      <div className="text-center space-y-1 mb-4">
+        <h2 className="text-xl font-bold text-white">Tell us about yourself</h2>
+        <p className="text-white/80 text-sm">Basic information to get started</p>
+      </div>
+      
+      {/* Name Input */}
       <div className="space-y-2">
-        <label className="text-white font-medium text-sm">Age</label>
-        <input 
-          type="number" 
-          value={profileData.age} 
-          onChange={(e) => handleChange('age', e.target.value)}
-          onBlur={(e) => handleInputBlur('age', e.target.value)}
-          className="w-full p-3 bg-white border-2 border-gray-300 rounded-xl text-black placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:bg-white transition-all duration-300" 
-          placeholder="Age"
-          min="18"
-          max="99"
+        <label className="text-white font-medium text-sm">What's your name?</label>
+        <ThemedInput 
+          type="text" 
+          value={profileData.name} 
+          onChange={(e) => handleChange('name', e.target.value)}
+          className={screenType === 'mobile' ? 'p-3 text-lg' : 'p-4 text-xl'}
+          placeholder="Enter your name"
+          autoFocus
         />
       </div>
 
-      {/* Gender */}
-      <div className="space-y-2">
-        <label className="text-white font-medium text-sm">Gender</label>
-        <select
-          value={profileData.gender}
-          onChange={(e) => handleChange('gender', e.target.value)}
-          className="w-full p-3 bg-white border-2 border-gray-300 rounded-xl text-black focus:outline-none focus:border-blue-500 transition-all duration-300"
-        >
-          <option value="" className="text-gray-500">Select gender</option>
-          {genders.map(gender => (
-            <option key={gender} value={gender} className="text-black">{gender}</option>
-          ))}
-        </select>
-      </div>
-    </div>
+      {/* Age and Gender Row */}
+      <div className={`grid gap-4 ${screenType === 'mobile' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+        {/* Age */}
+        <div className="space-y-2">
+          <label className="text-white font-medium text-sm">Age</label>
+          <ThemedInput 
+            type="number" 
+            value={profileData.age} 
+            onChange={(e) => handleChange('age', e.target.value)}
+            onBlur={(e) => handleInputBlur('age', e.target.value)}
+            className="p-3"
+            placeholder="Age"
+            min="18"
+            max="99"
+          />
+        </div>
 
-    {/* Height (condensed into one row) */}
-    <div className="space-y-2">
-      <label className="text-white font-medium text-sm">Height</label>
-      <div className="flex gap-2">
-        <input 
-          type="number" 
-          value={profileData.height} 
-          onChange={(e) => handleChange('height', e.target.value)}
-          onBlur={(e) => handleInputBlur('height', e.target.value)}
-          className="flex-1 p-3 bg-white border-2 border-gray-300 rounded-xl text-black placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all duration-300" 
-          placeholder="Height"
+        {/* Gender */}
+        <div className="space-y-2">
+          <label className="text-white font-medium text-sm">Gender</label>
+          <ThemedSelect
+            value={profileData.gender}
+            onChange={(e) => handleChange('gender', e.target.value)}
+            options={genders}
+            placeholder="Select gender"
+            className="p-3"
+          />
+        </div>
+      </div>
+
+      {/* Height (now with picker) */}
+      <div className="space-y-2">
+        <label className="text-white font-medium text-sm">Height</label>
+        <HeightPicker
+          value={profileData.height}
+          unit={profileData.heightUnit}
+          onHeightChange={(height) => handleChange('height', height)}
+          onUnitChange={(unit) => handleChange('heightUnit', unit)}
+          className="w-full"
         />
-        <select
-          value={profileData.heightUnit}
-          onChange={(e) => handleChange('heightUnit', e.target.value)}
-          className="p-3 bg-white border-2 border-gray-300 rounded-xl text-black focus:outline-none focus:border-blue-500 transition-all duration-300"
-        >
-          {heightUnits.map(unit => (
-            <option key={unit} value={unit} className="text-black">{unit}</option>
-          ))}
-        </select>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 // Combined Fitness Info Step (workout types + experience + time preference)
-const FitnessInfoStep = ({ profileData, handleWorkoutTypeToggle, handleChange, screenType }) => (
-  <div className="w-full space-y-4">
-    {/* Main Title */}
-    <div className="text-center space-y-1 mb-4">
-      <h2 className="text-xl font-bold text-white">Your Fitness Profile</h2>
-      <p className="text-white/80 text-sm">Help us find compatible workout partners</p>
-    </div>
-    
-    {/* Workout Types */}
-    <div className="space-y-2">
-      <label className="text-white font-medium text-sm">What workouts do you enjoy?</label>
-      <div className={`grid gap-2 ${
-        screenType === 'mobile' ? 'grid-cols-2' : 'grid-cols-3'
-      }`}>
-        {workoutTypes.map(type => (
-          <button
-            key={type}
-            type="button"
-            onClick={() => handleWorkoutTypeToggle(type)}
-            className={`px-2 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              profileData.workoutTypes.includes(type)
-                ? 'bg-white/30 text-white border-2 border-white/40 backdrop-blur-sm'
-                : 'bg-white/10 text-white border-2 border-white/20 hover:bg-white/20 backdrop-blur-sm'
-            }`}
-          >
-            {type}
-          </button>
-        ))}
+const FitnessInfoStep = ({ profileData, handleWorkoutTypeToggle, handleChange, screenType }) => {
+  const { darkMode } = useTheme();
+  
+  return (
+    <div className="w-full space-y-4">
+      {/* Main Title */}
+      <div className="text-center space-y-1 mb-4">
+        <h2 className="text-xl font-bold text-white">Your Fitness Profile</h2>
+        <p className="text-white/80 text-sm">Help us find compatible workout partners</p>
       </div>
-    </div>
-
-    {/* Experience Level and Time Preference */}
-    <div className={`grid gap-4 ${screenType === 'mobile' ? 'grid-cols-1' : 'grid-cols-2'}`}>
-      {/* Experience Level */}
+      
+      {/* Workout Types */}
       <div className="space-y-2">
-        <label className="text-white font-medium text-sm">Experience Level</label>
-        <div className="flex flex-col gap-2">
-          {experienceLevels.map(level => (
+        <label className="text-white font-medium text-sm">What workouts do you enjoy?</label>
+        <div className={`grid gap-2 ${
+          screenType === 'mobile' ? 'grid-cols-2' : 'grid-cols-3'
+        }`}>
+          {workoutTypes.map(type => (
             <button
-              key={level}
+              key={type}
               type="button"
-              onClick={() => handleChange('experienceLevel', level)}
-              className={`px-3 py-2 rounded-xl text-sm flex items-center transition-colors ${
-                profileData.experienceLevel === level
-                  ? 'bg-white/30 text-white border-2 border-white/40 backdrop-blur-sm'
-                  : 'bg-white/10 text-white border-2 border-white/20 hover:bg-white/20 backdrop-blur-sm'
-              }`}
-            >
-              <Award size={14} className="mr-2" />
-              {level}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Time Preference */}
-      <div className="space-y-2">
-        <label className="text-white font-medium text-sm">Preferred Time</label>
-        <div className="flex flex-wrap gap-2">
-          {timePreferences.map(time => (
-            <button
-              key={time}
-              type="button"
-              onClick={() => handleChange('preferredTime', time)}
+              onClick={() => handleWorkoutTypeToggle(type)}
               className={`px-2 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                profileData.preferredTime === time
+                profileData.workoutTypes.includes(type)
                   ? 'bg-white/30 text-white border-2 border-white/40 backdrop-blur-sm'
                   : 'bg-white/10 text-white border-2 border-white/20 hover:bg-white/20 backdrop-blur-sm'
               }`}
             >
-              {time}
+              {type}
             </button>
           ))}
         </div>
       </div>
+
+      {/* Experience Level and Time Preference */}
+      <div className={`grid gap-4 ${screenType === 'mobile' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+        {/* Experience Level */}
+        <div className="space-y-2">
+          <label className="text-white font-medium text-sm">Experience Level</label>
+          <div className="flex flex-col gap-2">
+            {experienceLevels.map(level => (
+              <button
+                key={level}
+                type="button"
+                onClick={() => handleChange('experienceLevel', level)}
+                className={`px-3 py-2 rounded-xl text-sm flex items-center transition-colors ${
+                  profileData.experienceLevel === level
+                    ? 'bg-white/30 text-white border-2 border-white/40 backdrop-blur-sm'
+                    : 'bg-white/10 text-white border-2 border-white/20 hover:bg-white/20 backdrop-blur-sm'
+                }`}
+              >
+                <Award size={14} className="mr-2" />
+                {level}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Time Preference */}
+        <div className="space-y-2">
+          <label className="text-white font-medium text-sm">Preferred Time</label>
+          <div className="flex flex-wrap gap-2">
+            {timePreferences.map(time => (
+              <button
+                key={time}
+                type="button"
+                onClick={() => handleChange('preferredTime', time)}
+                className={`px-2 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  profileData.preferredTime === time
+                    ? 'bg-white/30 text-white border-2 border-white/40 backdrop-blur-sm'
+                    : 'bg-white/10 text-white border-2 border-white/20 hover:bg-white/20 backdrop-blur-sm'
+                }`}
+              >
+                {time}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export const buildSteps = ({
   isAuthenticated,
@@ -331,6 +399,7 @@ export const buildSteps = ({
 }) => {
   // Use screen type detection
   const { screenType } = useScreenType();
+  const { darkMode } = useTheme();
   
   // Check if the user already has a verified phone number
   const hasVerifiedPhone = isAuthenticated && user && 
@@ -540,34 +609,34 @@ export const buildSteps = ({
             
             <div className="space-y-2">
               <label className="text-white font-medium text-sm">Fitness Goals (Optional)</label>
-              <textarea 
+              <ThemedTextarea 
                 value={profileData.goals} 
                 onChange={(e) => handleChange('goals', e.target.value)}
-                className="w-full p-3 bg-white border-2 border-gray-300 rounded-xl text-black placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all duration-300 resize-none"
+                className="p-3"
                 placeholder="e.g., Lose weight, build muscle, train for marathon..."
-                rows="3"
+                rows={3}
               />
             </div>
 
             <div className={`grid gap-4 ${screenType === 'mobile' ? 'grid-cols-1' : 'grid-cols-2'}`}>
               <div className="space-y-2">
                 <label className="text-white font-medium text-sm">Work (Optional)</label>
-                <input 
+                <ThemedInput 
                   type="text" 
                   value={profileData.work} 
                   onChange={(e) => handleChange('work', e.target.value)}
-                  className="w-full p-3 bg-white border-2 border-gray-300 rounded-xl text-black placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all duration-300"
+                  className="p-3"
                   placeholder="Your profession"
                 />
               </div>
 
               <div className="space-y-2">
                 <label className="text-white font-medium text-sm">Studies (Optional)</label>
-                <input 
+                <ThemedInput 
                   type="text" 
                   value={profileData.studies} 
                   onChange={(e) => handleChange('studies', e.target.value)}
-                  className="w-full p-3 bg-white border-2 border-gray-300 rounded-xl text-black placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all duration-300"
+                  className="p-3"
                   placeholder="Your field of study"
                 />
               </div>
@@ -631,20 +700,20 @@ export const buildSteps = ({
               <p className="text-white/80 text-sm">Connect with people at your gym</p>
             </div>
             <GymSelector
-  location={profileData.location}
-  selectedGyms={profileData.selectedGyms}
-  onGymSelect={(gyms) => {
-    console.log('GymSelector onGymSelect called with:', gyms);
-    handleChange('selectedGyms', gyms);
-  }}
-  onCreateGym={(gymData) => {
-    const currentGyms = profileData.selectedGyms || [];
-    handleChange('selectedGyms', [...currentGyms, gymData]);
-    handleChange('newGym', gymData);
-  }}
-  isGuest={!isAuthenticated}
-  userId={user && user._id}
-/>
+              location={profileData.location}
+              selectedGyms={profileData.selectedGyms}
+              onGymSelect={(gyms) => {
+                console.log('GymSelector onGymSelect called with:', gyms);
+                handleChange('selectedGyms', gyms);
+              }}
+              onCreateGym={(gymData) => {
+                const currentGyms = profileData.selectedGyms || [];
+                handleChange('selectedGyms', [...currentGyms, gymData]);
+                handleChange('newGym', gymData);
+              }}
+              isGuest={!isAuthenticated}
+              userId={user && user._id}
+            />
           </div>
         )
       },

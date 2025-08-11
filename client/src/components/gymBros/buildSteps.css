@@ -1,4 +1,39 @@
-/* Enhanced GymBros BuildSteps CSS */
+/* Enhanced GymBros BuildSteps CSS with Theme Support */
+
+/* Force proper theming for GymBros setup */
+.gymbros-setup-fullscreen {
+  color-scheme: dark;
+}
+
+.gymbros-setup-fullscreen *,
+.gymbros-setup-fullscreen input,
+.gymbros-setup-fullscreen select,
+.gymbros-setup-fullscreen textarea,
+.gymbros-setup-fullscreen button {
+  color: inherit !important;
+}
+
+/* Ensure all text in GymBros setup is white in dark mode */
+.gymbros-setup-fullscreen input,
+.gymbros-setup-fullscreen select,
+.gymbros-setup-fullscreen textarea {
+  color: white !important;
+}
+
+.gymbros-setup-fullscreen input::placeholder,
+.gymbros-setup-fullscreen textarea::placeholder {
+  color: rgba(156, 163, 175, 1) !important; /* gray-400 */
+}
+
+/* Phone input specific overrides */
+.gymbros-setup-fullscreen .phone-input input {
+  color: white !important;
+  background: transparent !important;
+}
+
+.gymbros-setup-fullscreen .phone-input input::placeholder {
+  color: rgba(156, 163, 175, 1) !important; /* gray-400 */
+}
 
 /* Responsive animations and effects */
 .gym-bros-welcome {
@@ -60,15 +95,172 @@
   left: 100%;
 }
 
-/* Responsive form styling */
-.gym-bros-input {
+/* Enhanced OTP Input Styling */
+.otp-input {
+  transition: all 0.2s ease;
+  border-radius: 8px;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  letter-spacing: 0.5px;
+  caret-color: transparent; /* Hide caret for better mobile UX */
+}
+
+.otp-input:focus {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  border-width: 2px;
+}
+
+/* Dark mode OTP inputs */
+.dark .otp-input,
+.dark-mode .otp-input {
+  background-color: #374151 !important; /* gray-700 */
+  border-color: #4B5563 !important; /* gray-600 */
+  color: white !important;
+}
+
+.dark .otp-input:focus,
+.dark-mode .otp-input:focus {
+  border-color: #60A5FA !important; /* blue-400 */
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2) !important;
+}
+
+/* Light mode OTP inputs */
+.otp-input {
+  background-color: white !important;
+  border-color: #D1D5DB !important; /* gray-300 */
+  color: black !important;
+}
+
+.otp-input:focus {
+  border-color: #3B82F6 !important; /* blue-500 */
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Theme-aware form inputs */
+.themed-input {
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  font-size: 16px; /* Prevent zoom on iOS */
+}
+
+.themed-input:focus {
+  transform: scale(1.01);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+}
+
+/* Dark mode form inputs */
+.dark .themed-input,
+.dark-mode .themed-input {
+  background-color: #374151 !important; /* gray-700 */
+  border-color: #4B5563 !important; /* gray-600 */
+  color: white !important;
+}
+
+.dark .themed-input::placeholder,
+.dark-mode .themed-input::placeholder {
+  color: #9CA3AF !important; /* gray-400 */
+}
+
+.dark .themed-input:focus,
+.dark-mode .themed-input:focus {
+  background-color: #374151 !important; /* gray-700 */
+  border-color: #60A5FA !important; /* blue-400 */
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2) !important;
+}
+
+/* Light mode form inputs */
+.themed-input {
+  background-color: white !important;
+  border-color: #D1D5DB !important; /* gray-300 */
+  color: black !important;
+}
+
+.themed-input::placeholder {
+  color: #6B7280 !important; /* gray-500 */
+}
+
+.themed-input:focus {
+  background-color: white !important;
+  border-color: #3B82F6 !important; /* blue-500 */
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Theme-aware select dropdowns */
+.themed-select {
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
 }
 
-.gym-bros-input:focus {
-  transform: scale(1.02);
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+/* Dark mode selects */
+.dark .themed-select,
+.dark-mode .themed-select {
+  background-color: #374151 !important; /* gray-700 */
+  border-color: #4B5563 !important; /* gray-600 */
+  color: white !important;
+}
+
+.dark .themed-select option,
+.dark-mode .themed-select option {
+  background-color: #374151 !important; /* gray-700 */
+  color: white !important;
+}
+
+.dark .themed-select:focus,
+.dark-mode .themed-select:focus {
+  border-color: #60A5FA !important; /* blue-400 */
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2) !important;
+}
+
+/* Light mode selects */
+.themed-select {
+  background-color: white !important;
+  border-color: #D1D5DB !important; /* gray-300 */
+  color: black !important;
+}
+
+.themed-select option {
+  background-color: white !important;
+  color: black !important;
+}
+
+.themed-select:focus {
+  border-color: #3B82F6 !important; /* blue-500 */
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Theme-aware textarea */
+.themed-textarea {
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  font-size: 16px; /* Prevent zoom on iOS */
+}
+
+/* Dark mode textarea */
+.themed-textarea::placeholder {
+  color: #9CA3AF !important; /* gray-400 */
+}
+
+.themed-textarea:focus {
+  background-color: #374151 !important; /* gray-700 */
+  border-color: #60A5FA !important; /* blue-400 */
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2) !important;
+}
+
+/* Light mode textarea */
+.themed-textarea {
+  background-color: white !important;
+  border-color: #D1D5DB !important; /* gray-300 */
+  color: black !important;
+}
+
+.themed-textarea::placeholder {
+  color: #6B7280 !important; /* gray-500 */
+}
+
+.themed-textarea:focus {
+  background-color: white !important;
+  border-color: #3B82F6 !important; /* blue-500 */
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
 }
 
 /* Mobile-specific optimizations */
@@ -81,8 +273,25 @@
     display: none; /* Hide floating elements on mobile for better performance */
   }
   
-  .gym-bros-input {
-    font-size: 16px; /* Prevent zoom on iOS */
+  .themed-input,
+  .themed-select,
+  .themed-textarea {
+    font-size: 16px !important; /* Prevent zoom on iOS */
+    -webkit-appearance: none; /* Remove default iOS styling */
+  }
+
+  /* Enhanced mobile OTP input */
+  .otp-input {
+    font-size: 20px !important;
+    width: 44px !important;
+    height: 52px !important;
+    line-height: 1.2;
+  }
+
+  /* Better mobile touch targets */
+  .gym-bros-button {
+    min-height: 44px;
+    padding: 12px 16px;
   }
 }
 
@@ -90,6 +299,12 @@
 @media (min-width: 769px) and (max-width: 1024px) {
   .gym-bros-welcome {
     padding: 2rem;
+  }
+  
+  .otp-input {
+    width: 48px;
+    height: 56px;
+    font-size: 22px;
   }
 }
 
@@ -102,6 +317,12 @@
   .gym-bros-button:hover {
     transform: translateY(-2px);
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  }
+
+  .otp-input {
+    width: 48px;
+    height: 56px;
+    font-size: 24px;
   }
 }
 
@@ -177,14 +398,51 @@
   transition: opacity 300ms, transform 300ms;
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .gym-bros-input {
-    color: white;
+/* Phone input specific styling */
+.phone-input-container {
+  position: relative;
+}
+
+.phone-input-container .themed-input {
+  padding-left: 3rem; /* Space for phone icon */
+}
+
+.phone-input-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+/* Dark mode phone input icon */
+.dark .phone-input-icon,
+.dark-mode .phone-input-icon {
+  color: #9CA3AF; /* gray-400 */
+}
+
+/* Light mode phone input icon */
+.phone-input-icon {
+  color: #6B7280; /* gray-500 */
+}
+
+/* Auto-fill detection for SMS codes */
+input[autocomplete="one-time-code"] {
+  -webkit-text-security: none !important;
+}
+
+/* iOS Safari specific fixes */
+@supports (-webkit-touch-callout: none) {
+  .otp-input {
+    -webkit-appearance: none;
+    border-radius: 8px;
   }
   
-  .gym-bros-input::placeholder {
-    color: rgba(255, 255, 255, 0.6);
+  .themed-input,
+  .themed-select,
+  .themed-textarea {
+    -webkit-appearance: none;
+    border-radius: 12px;
   }
 }
 
@@ -194,8 +452,12 @@
     border: 2px solid white;
   }
   
-  .gym-bros-input {
-    border: 2px solid white;
+  .themed-input,
+  .themed-select,
+  .themed-textarea,
+  .otp-input {
+    border: 2px solid;
+    border-width: 2px !important;
   }
 }
 
@@ -203,7 +465,11 @@
 @media (prefers-reduced-motion: reduce) {
   .floating-element,
   .gym-bros-button,
-  .progress-dot {
+  .progress-dot,
+  .otp-input,
+  .themed-input,
+  .themed-select,
+  .themed-textarea {
     animation: none;
     transition: none;
   }
@@ -219,4 +485,741 @@
   .floating-element {
     display: none;
   }
+  
+  .themed-input,
+  .themed-select,
+  .themed-textarea,
+  .otp-input {
+    background: white !important;
+    color: black !important;
+    border: 1px solid black !important;
+  }
+}
+
+/* Focus visible for accessibility */
+.themed-input:focus-visible,
+.themed-select:focus-visible,
+.themed-textarea:focus-visible,
+.otp-input:focus-visible {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}
+
+.dark .themed-input:focus-visible,
+.dark .themed-select:focus-visible,
+.dark .themed-textarea:focus-visible,
+.dark .otp-input:focus-visible,
+.dark-mode .themed-input:focus-visible,
+.dark-mode .themed-select:focus-visible,
+.dark-mode .themed-textarea:focus-visible,
+.dark-mode .otp-input:focus-visible {
+  outline: 2px solid #60A5FA;
+  outline-offset: 2px;
+}
+
+/* Placeholder text improvements */
+.themed-input::placeholder,
+.themed-textarea::placeholder {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* Error states for form validation */
+.themed-input.error,
+.themed-select.error,
+.themed-textarea.error {
+  border-color: #EF4444 !important; /* red-500 */
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2) !important;
+}
+
+.dark .themed-input.error,
+.dark .themed-select.error,
+.dark .themed-textarea.error,
+.dark-mode .themed-input.error,
+.dark-mode .themed-select.error,
+.dark-mode .themed-textarea.error {
+  border-color: #F87171 !important; /* red-400 */
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.2) !important;
+}
+
+/* Success states for form validation */
+.themed-input.success,
+.themed-select.success,
+.themed-textarea.success {
+  border-color: #10B981 !important; /* green-500 */
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2) !important;
+}
+
+.dark .themed-input.success,
+.dark .themed-select.success,
+.dark .themed-textarea.success,
+.dark-mode .themed-input.success,
+.dark-mode .themed-select.success,
+.dark-mode .themed-textarea.success {
+  border-color: #34D399 !important; /* green-400 */
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2) !important;
+}
+
+/* Webkit autofill styling */
+.themed-input:-webkit-autofill,
+.themed-input:-webkit-autofill:hover,
+.themed-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px white inset !important;
+  -webkit-text-fill-color: black !important;
+}
+
+.dark .themed-input:-webkit-autofill,
+.dark .themed-input:-webkit-autofill:hover,
+.dark .themed-input:-webkit-autofill:focus,
+.dark-mode .themed-input:-webkit-autofill,
+.dark-mode .themed-input:-webkit-autofill:hover,
+.dark-mode .themed-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #374151 inset !important;
+  -webkit-text-fill-color: white !important;
+}
+
+/* Comprehensive dark mode text overrides for GymBros setup */
+.gymbros-setup-fullscreen.dark *,
+.gymbros-setup-fullscreen.dark-mode *,
+.gymbros-setup-fullscreen input,
+.gymbros-setup-fullscreen select,
+.gymbros-setup-fullscreen textarea,
+.gymbros-setup-fullscreen span,
+.gymbros-setup-fullscreen div {
+  color: inherit;
+}
+
+/* Specific text color enforcement for dark mode */
+.gymbros-setup-fullscreen.dark input,
+.gymbros-setup-fullscreen.dark select,
+.gymbros-setup-fullscreen.dark textarea,
+.gymbros-setup-fullscreen.dark-mode input,
+.gymbros-setup-fullscreen.dark-mode select,
+.gymbros-setup-fullscreen.dark-mode textarea {
+  color: white !important;
+}
+
+/* Phone input text color override for dark mode */
+.gymbros-setup-fullscreen.dark .phone-input input,
+.gymbros-setup-fullscreen.dark-mode .phone-input input {
+  color: white !important;
+  -webkit-text-fill-color: white !important;
+}
+
+/* Button text in dropdown should be visible in dark mode */
+.gymbros-setup-fullscreen.dark button,
+.gymbros-setup-fullscreen.dark-mode button {
+  color: white !important;
+}
+
+/* Ensure dropdown text is visible */
+.gymbros-setup-fullscreen.dark .dropdown-item,
+.gymbros-setup-fullscreen.dark-mode .dropdown-item {
+  color: white !important;
+}
+
+/* Override any inherited black text colors */
+.gymbros-setup-fullscreen .text-black {
+  color: white !important;
+}
+
+.gymbros-setup-fullscreen.dark .text-black,
+.gymbros-setup-fullscreen.dark-mode .text-black {
+  color: white !important;
+}
+
+/* Fix any input that might still have black text */
+.gymbros-setup-fullscreen input[type="text"],
+.gymbros-setup-fullscreen input[type="tel"],
+.gymbros-setup-fullscreen input[type="number"],
+.gymbros-setup-fullscreen input[type="email"],
+.gymbros-setup-fullscreen select,
+.gymbros-setup-fullscreen textarea {
+  color: white !important;
+}
+
+/* Special handling for phone input component */
+.gymbros-setup-fullscreen [class*="phone"] input {
+  color: white !important;
+  -webkit-text-fill-color: white !important;
+}
+
+/* Force white text for any component that might override */
+.gymbros-setup-fullscreen * {
+  --text-opacity: 1;
+  color: rgba(255, 255, 255, var(--text-opacity)) !important;
+}
+
+/* Exception for buttons and other interactive elements that should keep their styling */
+.gymbros-setup-fullscreen button,
+.gymbros-setup-fullscreen .btn {
+  color: inherit;
+}
+
+/* Specific overrides for form elements */
+.gymbros-setup-fullscreen form input,
+.gymbros-setup-fullscreen form select,
+.gymbros-setup-fullscreen form textarea {
+  color: white !important;
+  -webkit-text-fill-color: white !important;
+}
+
+/* Dark mode theme-aware colors */
+.dark-mode .themed-textarea,
+.dark .themed-textarea {
+  background-color: #374151 !important; /* gray-700 */
+  border-color: #4B5563 !important; /* gray-600 */
+  color: white !important;
+}/* Enhanced GymBros BuildSteps CSS with Theme Support */
+
+/* Responsive animations and effects */
+.gym-bros-welcome {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.gym-bros-welcome::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)" /></svg>');
+  opacity: 0.3;
+  animation: backgroundMove 20s linear infinite;
+}
+
+@keyframes backgroundMove {
+  0% { transform: translateX(0) translateY(0); }
+  25% { transform: translateX(-10px) translateY(-5px); }
+  50% { transform: translateX(-20px) translateY(-10px); }
+  75% { transform: translateX(-10px) translateY(-5px); }
+  100% { transform: translateX(0) translateY(0); }
+}
+
+/* Floating animation for desktop elements */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-10px) rotate(1deg); }
+  66% { transform: translateY(-5px) rotate(-1deg); }
+}
+
+.floating-element {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Enhanced button hover effects */
+.gym-bros-button {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.gym-bros-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.gym-bros-button:hover::before {
+  left: 100%;
+}
+
+/* Enhanced OTP Input Styling */
+.otp-input {
+  transition: all 0.2s ease;
+  border-radius: 8px;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  letter-spacing: 0.5px;
+  caret-color: transparent; /* Hide caret for better mobile UX */
+}
+
+.otp-input:focus {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  border-width: 2px;
+}
+
+/* Dark mode OTP inputs */
+.dark .otp-input,
+.dark-mode .otp-input {
+  background-color: #374151 !important; /* gray-700 */
+  border-color: #4B5563 !important; /* gray-600 */
+  color: white !important;
+}
+
+.dark .otp-input:focus,
+.dark-mode .otp-input:focus {
+  border-color: #60A5FA !important; /* blue-400 */
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2) !important;
+}
+
+/* Light mode OTP inputs */
+.otp-input {
+  background-color: white !important;
+  border-color: #D1D5DB !important; /* gray-300 */
+  color: black !important;
+}
+
+.otp-input:focus {
+  border-color: #3B82F6 !important; /* blue-500 */
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Theme-aware form inputs */
+.themed-input {
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  font-size: 16px; /* Prevent zoom on iOS */
+}
+
+.themed-input:focus {
+  transform: scale(1.01);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+}
+
+/* Dark mode form inputs */
+.dark .themed-input,
+.dark-mode .themed-input {
+  background-color: #374151 !important; /* gray-700 */
+  border-color: #4B5563 !important; /* gray-600 */
+  color: white !important;
+}
+
+.dark .themed-input::placeholder,
+.dark-mode .themed-input::placeholder {
+  color: #9CA3AF !important; /* gray-400 */
+}
+
+.dark .themed-input:focus,
+.dark-mode .themed-input:focus {
+  background-color: #374151 !important; /* gray-700 */
+  border-color: #60A5FA !important; /* blue-400 */
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2) !important;
+}
+
+/* Light mode form inputs */
+.themed-input {
+  background-color: white !important;
+  border-color: #D1D5DB !important; /* gray-300 */
+  color: black !important;
+}
+
+.themed-input::placeholder {
+  color: #6B7280 !important; /* gray-500 */
+}
+
+.themed-input:focus {
+  background-color: white !important;
+  border-color: #3B82F6 !important; /* blue-500 */
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Theme-aware select dropdowns */
+.themed-select {
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+/* Dark mode selects */
+.dark .themed-select,
+.dark-mode .themed-select {
+  background-color: #374151 !important; /* gray-700 */
+  border-color: #4B5563 !important; /* gray-600 */
+  color: white !important;
+}
+
+.dark .themed-select option,
+.dark-mode .themed-select option {
+  background-color: #374151 !important; /* gray-700 */
+  color: white !important;
+}
+
+.dark .themed-select:focus,
+.dark-mode .themed-select:focus {
+  border-color: #60A5FA !important; /* blue-400 */
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2) !important;
+}
+
+/* Light mode selects */
+.themed-select {
+  background-color: white !important;
+  border-color: #D1D5DB !important; /* gray-300 */
+  color: black !important;
+}
+
+.themed-select option {
+  background-color: white !important;
+  color: black !important;
+}
+
+.themed-select:focus {
+  border-color: #3B82F6 !important; /* blue-500 */
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Theme-aware textarea */
+.themed-textarea {
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  font-size: 16px; /* Prevent zoom on iOS */
+}
+
+/* Dark mode textarea */
+.dark .themed-textarea,
+.dark-mode .themed-textarea {
+  background-color: #374151 !important; /* gray-700 */
+  border-color: #4B5563 !important; /* gray-600 */
+  color: white !important;
+}
+
+.dark .themed-textarea::placeholder,
+.dark-mode .themed-textarea::placeholder {
+  color: #9CA3AF !important; /* gray-400 */
+}
+
+.dark .themed-textarea:focus,
+.dark-mode .themed-textarea:focus {
+  background-color: #374151 !important; /* gray-700 */
+  border-color: #60A5FA !important; /* blue-400 */
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2) !important;
+}
+
+/* Light mode textarea */
+.themed-textarea {
+  background-color: white !important;
+  border-color: #D1D5DB !important; /* gray-300 */
+  color: black !important;
+}
+
+.themed-textarea::placeholder {
+  color: #6B7280 !important; /* gray-500 */
+}
+
+.themed-textarea:focus {
+  background-color: white !important;
+  border-color: #3B82F6 !important; /* blue-500 */
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Mobile-specific optimizations */
+@media (max-width: 768px) {
+  .gym-bros-welcome {
+    padding: 1rem;
+  }
+  
+  .floating-element {
+    display: none; /* Hide floating elements on mobile for better performance */
+  }
+  
+  .themed-input,
+  .themed-select,
+  .themed-textarea {
+    font-size: 16px !important; /* Prevent zoom on iOS */
+    -webkit-appearance: none; /* Remove default iOS styling */
+  }
+
+  /* Enhanced mobile OTP input */
+  .otp-input {
+    font-size: 20px !important;
+    width: 44px !important;
+    height: 52px !important;
+    line-height: 1.2;
+  }
+
+  /* Better mobile touch targets */
+  .gym-bros-button {
+    min-height: 44px;
+    padding: 12px 16px;
+  }
+}
+
+/* Tablet optimizations */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .gym-bros-welcome {
+    padding: 2rem;
+  }
+  
+  .otp-input {
+    width: 48px;
+    height: 56px;
+    font-size: 22px;
+  }
+}
+
+/* Desktop enhancements */
+@media (min-width: 1025px) {
+  .gym-bros-welcome {
+    padding: 3rem;
+  }
+  
+  .gym-bros-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  }
+
+  .otp-input {
+    width: 48px;
+    height: 56px;
+    font-size: 24px;
+  }
+}
+
+/* Enhanced progress indicators */
+.progress-dot {
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.progress-dot.active {
+  transform: scale(1.2);
+}
+
+.progress-dot::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 0;
+  height: 0;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.progress-dot.active::before {
+  width: 200%;
+  height: 200%;
+}
+
+/* Success animations */
+.success-check {
+  animation: checkmark 0.6s ease-in-out;
+}
+
+@keyframes checkmark {
+  0% { transform: scale(0); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+/* Loading states */
+.loading-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Smooth transitions for step changes */
+.step-transition-enter {
+  opacity: 0;
+  transform: translateX(100%);
+}
+
+.step-transition-enter-active {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 300ms, transform 300ms;
+}
+
+.step-transition-exit {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.step-transition-exit-active {
+  opacity: 0;
+  transform: translateX(-100%);
+  transition: opacity 300ms, transform 300ms;
+}
+
+/* Phone input specific styling */
+.phone-input-container {
+  position: relative;
+}
+
+.phone-input-container .themed-input {
+  padding-left: 3rem; /* Space for phone icon */
+}
+
+.phone-input-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+/* Dark mode phone input icon */
+.dark .phone-input-icon,
+.dark-mode .phone-input-icon {
+  color: #9CA3AF; /* gray-400 */
+}
+
+/* Light mode phone input icon */
+.phone-input-icon {
+  color: #6B7280; /* gray-500 */
+}
+
+/* Auto-fill detection for SMS codes */
+input[autocomplete="one-time-code"] {
+  -webkit-text-security: none !important;
+}
+
+/* iOS Safari specific fixes */
+@supports (-webkit-touch-callout: none) {
+  .otp-input {
+    -webkit-appearance: none;
+    border-radius: 8px;
+  }
+  
+  .themed-input,
+  .themed-select,
+  .themed-textarea {
+    -webkit-appearance: none;
+    border-radius: 12px;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .gym-bros-button {
+    border: 2px solid white;
+  }
+  
+  .themed-input,
+  .themed-select,
+  .themed-textarea,
+  .otp-input {
+    border: 2px solid;
+    border-width: 2px !important;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .floating-element,
+  .gym-bros-button,
+  .progress-dot,
+  .otp-input,
+  .themed-input,
+  .themed-select,
+  .themed-textarea {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* Print styles */
+@media print {
+  .gym-bros-welcome {
+    background: white;
+    color: black;
+  }
+  
+  .floating-element {
+    display: none;
+  }
+  
+  .themed-input,
+  .themed-select,
+  .themed-textarea,
+  .otp-input {
+    background: white !important;
+    color: black !important;
+    border: 1px solid black !important;
+  }
+}
+
+/* Focus visible for accessibility */
+.themed-input:focus-visible,
+.themed-select:focus-visible,
+.themed-textarea:focus-visible,
+.otp-input:focus-visible {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}
+
+.dark .themed-input:focus-visible,
+.dark .themed-select:focus-visible,
+.dark .themed-textarea:focus-visible,
+.dark .otp-input:focus-visible,
+.dark-mode .themed-input:focus-visible,
+.dark-mode .themed-select:focus-visible,
+.dark-mode .themed-textarea:focus-visible,
+.dark-mode .otp-input:focus-visible {
+  outline: 2px solid #60A5FA;
+  outline-offset: 2px;
+}
+
+/* Placeholder text improvements */
+.themed-input::placeholder,
+.themed-textarea::placeholder {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* Error states for form validation */
+.themed-input.error,
+.themed-select.error,
+.themed-textarea.error {
+  border-color: #EF4444 !important; /* red-500 */
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2) !important;
+}
+
+.dark .themed-input.error,
+.dark .themed-select.error,
+.dark .themed-textarea.error,
+.dark-mode .themed-input.error,
+.dark-mode .themed-select.error,
+.dark-mode .themed-textarea.error {
+  border-color: #F87171 !important; /* red-400 */
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.2) !important;
+}
+
+/* Success states for form validation */
+.themed-input.success,
+.themed-select.success,
+.themed-textarea.success {
+  border-color: #10B981 !important; /* green-500 */
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2) !important;
+}
+
+.dark .themed-input.success,
+.dark .themed-select.success,
+.dark .themed-textarea.success,
+.dark-mode .themed-input.success,
+.dark-mode .themed-select.success,
+.dark-mode .themed-textarea.success {
+  border-color: #34D399 !important; /* green-400 */
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2) !important;
+}
+
+/* Webkit autofill styling */
+.themed-input:-webkit-autofill,
+.themed-input:-webkit-autofill:hover,
+.themed-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px white inset !important;
+  -webkit-text-fill-color: black !important;
+}
+
+.dark .themed-input:-webkit-autofill,
+.dark .themed-input:-webkit-autofill:hover,
+.dark .themed-input:-webkit-autofill:focus,
+.dark-mode .themed-input:-webkit-autofill,
+.dark-mode .themed-input:-webkit-autofill:hover,
+.dark-mode .themed-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #374151 inset !important;
+  -webkit-text-fill-color: white !important;
 }

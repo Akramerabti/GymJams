@@ -509,7 +509,8 @@ const [tileLoadCount, setTileLoadCount] = useState(0);
 
   useEffect(() => {
   let watchId = null;
-  
+  let lastApiCall = 0;
+
   const startLocationTracking = async () => {
     try {
       // Check if user wants location tracking (could be a setting)
@@ -540,15 +541,17 @@ const [tileLoadCount, setTileLoadCount] = useState(0);
       setTrackingError(null);
 
       watchId = navigator.geolocation.watchPosition(
-        async (position) => {
-          const newLocation = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-            speed: position.coords.speed,
-            heading: position.coords.heading,
-            timestamp: Date.now()
-          };
+      async (position) => {
+        const now = Date.now();
+        
+        const newLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          speed: position.coords.speed,
+          heading: position.coords.heading,
+          timestamp: now
+        };
 
           console.log('🚗 Location update:', newLocation);
 
@@ -568,19 +571,8 @@ const [tileLoadCount, setTileLoadCount] = useState(0);
             }
           }
 
-          // Update local state
-          setCurrentLocation(newLocation);
-          
-          // Smoothly move map center (don't change zoom)
-          if (mapRef.current) {
-            const map = mapRef.current;
-            map.panTo([newLocation.lat, newLocation.lng], {
-              animate: true,
-              duration: 1.0 // 1 second smooth pan
-            });
-          }
+           setCurrentLocation(newLocation);
 
-          // Send to socket for real-time updates to other users
           if (socket && connected) {
             socket.emit('locationUpdate', {
               lat: newLocation.lat,
@@ -593,7 +585,7 @@ const [tileLoadCount, setTileLoadCount] = useState(0);
             });
           }
 
-          // Update backend location (throttled)
+         if (now - lastApiCall >= 60000) { 
           try {
             await gymBrosLocationService.updateUserLocationRealtime({
               lat: newLocation.lat,
@@ -602,11 +594,15 @@ const [tileLoadCount, setTileLoadCount] = useState(0);
               source: 'gps',
               timestamp: new Date(newLocation.timestamp).toISOString()
             });
+            lastApiCall = now;
+            console.log('🚗 API call made - next one in 60 seconds');
           } catch (error) {
             console.warn('Failed to update backend location:', error);
-            // Don't show error to user for background updates
           }
-        },
+        } else {
+          console.log(`🚗 Skipping API call - ${Math.round((60000 - (now - lastApiCall)) / 1000)}s remaining`);
+        }
+      },
         (error) => {
           console.error('🚗 Location tracking error:', error);
           
@@ -614,7 +610,7 @@ const [tileLoadCount, setTileLoadCount] = useState(0);
           switch (error.code) {
             case error.PERMISSION_DENIED:
               errorMessage = 'Location access denied';
-              localStorage.setItem('gymBrosAutoTrack', 'false'); // Remember user denied
+              localStorage.setItem('gymBrosAutoTrack', 'false');
               break;
             case error.POSITION_UNAVAILABLE:
               errorMessage = 'Location unavailable';
