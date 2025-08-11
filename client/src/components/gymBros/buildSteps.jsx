@@ -108,7 +108,6 @@ const ThemedTextarea = ({ value, onChange, placeholder, rows = 3, className = ""
   );
 };
 
-// Enhanced welcome component with better engagement
 const WelcomeStep = ({ goToNextStep, handleLoginWithPhone, isAuthenticated, showPhoneLogin, screenType }) => (
   <div className="relative h-full overflow-hidden">
     {/* Animated background gradient */}
@@ -131,6 +130,7 @@ const WelcomeStep = ({ goToNextStep, handleLoginWithPhone, isAuthenticated, show
       <div className="relative mb-8">
         <div className="absolute inset-0 bg-white/20 rounded-full blur-2xl scale-150 animate-pulse"></div>
         <div className="relative bg-gradient-to-br from-white/20 to-white/10 backdrop-blur-lg rounded-full p-6 border border-white/30 mx-auto w-fit shadow-2xl mt-10">
+          <Dumbbell className="h-12 w-12 text-white" />
         </div>
       </div>
       
@@ -224,12 +224,85 @@ const WelcomeStep = ({ goToNextStep, handleLoginWithPhone, isAuthenticated, show
   </div>
 );
 
-// Combined Basic Info Step (name + age + gender)
-const BasicInfoStep = ({ profileData, handleChange, handleInputBlur, goToNextStep, handleLoginWithPhone, isAuthenticated, showPhoneLogin, screenType }) => {
+// Helper to parse "5'8"" to inches
+function parseFeetInches(str) {
+  const match = /^(\d+)'(\d+)"$/.exec(str);
+  if (!match) return null;
+  const feet = parseInt(match[1], 10);
+  const inches = parseInt(match[2], 10);
+  return feet * 12 + inches;
+}
+
+// Fixed BasicInfoStep component - with HeightPicker
+// Fixed BasicInfoStep component - in buildSteps.jsx
+
+const BasicInfoStep = ({
+  profileData,
+  handleChange,
+  handleInputBlur,
+  goToNextStep,
+  handleLoginWithPhone,
+  isAuthenticated,
+  showPhoneLogin,
+  screenType
+}) => {
   const { darkMode } = useTheme();
-  
+
+  // Set default height if not set (on mount)
+  React.useEffect(() => {
+    if (!profileData.height) {
+      if (profileData.heightUnit === 'inches') {
+        // Default to 5'6" (66 inches)
+        handleChange('height', 66);
+      } else {
+        // Default to 170 cm
+        handleChange('height', 170);
+      }
+    }
+    // eslint-disable-next-line
+  }, [profileData.heightUnit]);
+
+  // Enhanced handler for height change
+  const handleHeightChange = (heightValue) => {
+    if (profileData.heightUnit === 'inches') {
+      // HeightPicker gives label like "5'8"", convert to inches
+      if (typeof heightValue === 'string' && heightValue.includes("'")) {
+        const inches = parseFeetInches(heightValue);
+        if (typeof inches === 'number' && !isNaN(inches)) {
+          handleChange('height', inches);
+        }
+      } else {
+        // If it's already a number (total inches), use it directly
+        const numValue = Number(heightValue);
+        if (!isNaN(numValue) && numValue > 0) {
+          handleChange('height', numValue);
+        }
+      }
+    } else {
+      // For cm, convert to number
+      const cm = Number(heightValue);
+      if (!isNaN(cm) && cm > 0) {
+        handleChange('height', cm);
+      }
+    }
+  };
+
+  // Helper to display current height for debugging
+  const getHeightDisplay = () => {
+    if (!profileData.height) return 'Not set';
+    
+    if (profileData.heightUnit === 'inches') {
+      const inches = Number(profileData.height);
+      const feet = Math.floor(inches / 12);
+      const remainingInches = inches % 12;
+      return `${feet}'${remainingInches}" (${inches} total inches)`;
+    } else {
+      return `${profileData.height} cm`;
+    }
+  };
+
   return (
-    <div className="w-full space-y-6">
+    <div className="flex flex-col h-full max-h-[90vh] overflow-y-auto px-2 py-20">
       {/* Main Title */}
       <div className="text-center space-y-1 mb-4">
         <h2 className="text-xl font-bold text-white">Tell us about yourself</h2>
@@ -237,7 +310,7 @@ const BasicInfoStep = ({ profileData, handleChange, handleInputBlur, goToNextSte
       </div>
       
       {/* Name Input */}
-      <div className="space-y-2">
+      <div className="space-y-2 mb-2">
         <label className="text-white font-medium text-sm">What's your name?</label>
         <ThemedInput 
           type="text" 
@@ -250,7 +323,7 @@ const BasicInfoStep = ({ profileData, handleChange, handleInputBlur, goToNextSte
       </div>
 
       {/* Age and Gender Row */}
-      <div className={`grid gap-4 ${screenType === 'mobile' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+      <div className={`grid gap-4 mb-2 ${screenType === 'mobile' ? 'grid-cols-1' : 'grid-cols-2'}`}>
         {/* Age */}
         <div className="space-y-2">
           <label className="text-white font-medium text-sm">Age</label>
@@ -279,16 +352,74 @@ const BasicInfoStep = ({ profileData, handleChange, handleInputBlur, goToNextSte
         </div>
       </div>
 
-      {/* Height (now with picker) */}
-      <div className="space-y-2">
+      {/* Height with HeightPicker */}
+      <div className="space-y-2 mb-2 pt-4">
         <label className="text-white font-medium text-sm">Height</label>
         <HeightPicker
-          value={profileData.height}
-          unit={profileData.heightUnit}
-          onHeightChange={(height) => handleChange('height', height)}
+          value={
+            profileData.height !== undefined && profileData.height !== null && profileData.height !== ''
+              ? profileData.height.toString()
+              : profileData.heightUnit === 'inches'
+                ? '66'
+                : '170'
+          }
+          unit={profileData.heightUnit || 'cm'}
+          onHeightChange={handleHeightChange}
           onUnitChange={(unit) => handleChange('heightUnit', unit)}
           className="w-full"
         />
+        {/* Debug info - remove in production */}
+        <p className="text-white/50 text-xs">
+          Debug: {profileData.heightUnit === 'inches'
+            ? (() => {
+                const inches = Number(profileData.height);
+                const feet = Math.floor(inches / 12);
+                const remainingInches = inches % 12;
+                return `${feet}'${remainingInches}" (${inches} total inches)`;
+              })()
+            : `${profileData.height} cm`}
+        </p>
+      </div>
+
+      {/* Spacer to push buttons to bottom if enough space */}
+      <div className="flex-1" />
+
+      {/* Navigation Buttons */}
+      <div className="flex justify-end pt-4">
+        <button
+          type="button"
+          onClick={() => {
+            console.log('Continue clicked. Current height:', profileData.height, 'Type:', typeof profileData.height);
+            goToNextStep();
+          }}
+          disabled={
+            !profileData.name.trim() ||
+            !profileData.age ||
+            Number(profileData.age) < 18 ||
+            Number(profileData.age) > 99 ||
+            !profileData.gender ||
+            !profileData.height ||
+            !(typeof profileData.height === 'number' && profileData.height > 0)
+          }
+          className={`
+            py-2 px-8 rounded-xl font-bold transition-all duration-200 shadow-lg
+            ${(
+              profileData.name.trim() &&
+              profileData.age &&
+              Number(profileData.age) >= 18 &&
+              Number(profileData.age) <= 99 &&
+              profileData.gender &&
+              profileData.height &&
+              typeof profileData.height === 'number' &&
+              profileData.height > 0
+            )
+              ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600'
+              : 'bg-gray-500 text-gray-300 cursor-not-allowed'
+            }
+          `}
+        >
+          Continue
+        </button>
       </div>
     </div>
   );
@@ -496,24 +627,49 @@ export const buildSteps = ({
     stepsList = [
       ...stepsList,
       {
-        id: 'basicInfo',
-        title: "Tell us about yourself",
-        subtitle: "Basic information to get started",
-        icon: <User size={24} />,
-        isValid: () => profileData.name.trim().length > 0 && profileData.age >= 18 && profileData.gender !== '' && profileData.height !== '',
-        component: (
-          <BasicInfoStep
-            profileData={profileData}
-            handleChange={handleChange}
-            handleInputBlur={handleInputBlur}
-            goToNextStep={goToNextStep}
-            handleLoginWithPhone={handleLoginWithPhone}
-            isAuthenticated={isAuthenticated}
-            showPhoneLogin={showPhoneLogin}
-            screenType={screenType}
-          />
-        )
-      },
+  id: 'basicInfo',
+  title: "Tell us about yourself",
+  subtitle: "Basic information to get started",
+  icon: <User size={24} />,
+  isValid: () => {
+    console.log('Validating basic info step:', {
+      name: profileData.name?.trim(),
+      age: profileData.age,
+      ageNumber: Number(profileData.age),
+      gender: profileData.gender,
+      height: profileData.height,
+      heightType: typeof profileData.height
+    });
+
+    const isValid = (
+      profileData.name?.trim().length > 0 &&
+      profileData.age &&
+      Number(profileData.age) >= 18 &&
+      Number(profileData.age) <= 99 &&
+      profileData.gender !== '' &&
+      profileData.height &&
+      (
+        (typeof profileData.height === 'number' && profileData.height > 0) ||
+        (typeof profileData.height === 'string' && Number(profileData.height) > 0)
+      )
+    );
+
+    console.log('BasicInfo step validation result:', isValid);
+    return isValid;
+  },
+  component: (
+    <BasicInfoStep
+      profileData={profileData}
+      handleChange={handleChange}
+      handleInputBlur={handleInputBlur}
+      goToNextStep={goToNextStep}
+      handleLoginWithPhone={handleLoginWithPhone}
+      isAuthenticated={isAuthenticated}
+      showPhoneLogin={showPhoneLogin}
+      screenType={screenType}
+    />
+  )
+},
       {
         id: 'photos',
         title: 'Add Your Photos',

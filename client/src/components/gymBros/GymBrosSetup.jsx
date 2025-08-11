@@ -652,119 +652,118 @@ const handleGymMemberships = async (profile) => {
 
   const isWelcomeStep = currentStep === 0;
   
-  return (
-    <>
-      <FooterHider />
-      <div className={`${
-        isWelcomeStep 
-          ? 'bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-800 text-white' 
-          : 'bg-gradient-to-br from-slate-600 via-purple-400 to-indigo-500 text-white'
-      } gymbros-setup-fullscreen h-screen w-full flex flex-col transition-colors duration-300 relative overflow-hidden`}
-      >
-        {/* Animated Background Shapes for Welcome Step */}
-        {isWelcomeStep && (
-          <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute -top-10 -left-10 w-32 h-32 bg-white/10 rounded-full animate-pulse"></div>
-            <div className="absolute top-1/4 -right-16 w-48 h-48 bg-white/5 rounded-full animate-bounce"></div>
-            <div className="absolute bottom-1/4 -left-20 w-40 h-40 bg-white/10 rounded-full animate-pulse"></div>
-            <div className="absolute -bottom-16 right-1/4 w-56 h-56 bg-white/5 rounded-full animate-pulse"></div>
-          </div>
-        )}
+return (
+  <>
+    <FooterHider />
+    <div className={`${
+      isWelcomeStep 
+        ? 'bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-800 text-white' 
+        : 'bg-gradient-to-br from-slate-600 via-purple-400 to-indigo-500 text-white'
+    } gymbros-setup-fullscreen h-screen w-full flex flex-col transition-colors duration-300 relative overflow-hidden`}>
+      
+      {/* Animated Background Shapes for Welcome Step */}
+      {isWelcomeStep && (
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-10 -left-10 w-32 h-32 bg-white/10 rounded-full animate-pulse"></div>
+          <div className="absolute top-1/4 -right-16 w-48 h-48 bg-white/5 rounded-full animate-bounce"></div>
+          <div className="absolute bottom-1/4 -left-20 w-40 h-40 bg-white/10 rounded-full animate-pulse"></div>
+          <div className="absolute -bottom-16 right-1/4 w-56 h-56 bg-white/5 rounded-full animate-pulse"></div>
+        </div>
+      )}
 
-        {/* Progress Bar - Hide on Welcome Step */}
-        {!isWelcomeStep && (
-          <div className="w-full bg-black/20 h-2">
+      {/* Progress Bar - Hide on Welcome Step */}
+      {!isWelcomeStep && (
+        <div className="w-full bg-black/20 h-2 flex-shrink-0">
+          <motion.div
+            className="h-full bg-gradient-to-r from-blue-400 to-purple-400"
+            initial={{ width: 0 }}
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.5 }}
+          />
+        </div>
+      )}
+
+      {/* Step Counter - Hide on Welcome Step */}
+      {!isWelcomeStep && (
+        <div className="text-center py-4 flex-shrink-0">
+          <span className="text-white/80 text-sm">
+            Step {currentStep + 1} of {steps.length}
+          </span>
+        </div>
+      )}
+
+      {/* Main Content - Flexible */}
+      <div className="flex-1 flex flex-col justify-center p-4 min-h-0 relative z-10">
+        <div className="w-full max-w-2xl mx-auto h-full flex flex-col justify-center">
+          <AnimatePresence mode="wait" custom={direction}>
             <motion.div
-              className="h-full bg-gradient-to-r from-blue-400 to-purple-400"
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.5 }}
-            />
-          </div>
-        )}
-
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col relative z-10">
-          {/* Step Counter - Hide on Welcome Step */}
-          {!isWelcomeStep && (
-            <div className="text-center py-4">
-              <span className="text-white/80 text-sm">
-                Step {currentStep + 1} of {steps.length}
-              </span>
-            </div>
-          )}
-
-          {/* Animated Step Content */}
-          <div className="flex-1 flex flex-col justify-center p-4 min-h-0">
-            <div className="w-full max-w-2xl mx-auto h-full flex flex-col">
-              <AnimatePresence mode="wait" custom={direction}>
-                <motion.div
-                  key={currentStep}
-                  custom={direction}
-                  variants={slideVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{
-                    x: { type: "spring", stiffness: 300, damping: 30 },
-                    opacity: { duration: 0.2 },
-                  }}
-                  className="w-full h-full flex flex-col"
-                >
-                  {steps[currentStep].component}
-                </motion.div>
-              </AnimatePresence>
-            </div>
-          </div>
-
-          {/* Navigation */}
-          <div className="p-6">
-            <div className="flex justify-between items-center max-w-2xl mx-auto">
-              {/* Back Button */}
-              <button
-                onClick={goToPreviousStep}
-                disabled={currentStep === 0}
-                className={`
-                  flex items-center px-6 py-3 rounded-xl font-medium transition-all duration-300
-                  ${currentStep === 0 
-                    ? 'invisible' 
-                    : 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
-                  }
-                `}
-              >
-                <ChevronLeft size={20} className="mr-2" />
-                Back
-              </button>
-
-              {/* Next/Submit Button */}
-              <button
-                onClick={goToNextStep}
-                disabled={!canProceed() || loading}
-                className={`
-                  flex items-center px-8 py-3 rounded-xl font-medium transition-all duration-300
-                  ${canProceed() && !loading
-                    ? 'bg-white text-gray-900 hover:bg-gray-100 shadow-lg transform hover:scale-105'
-                    : 'bg-gray-500 text-gray-300 cursor-not-allowed'
-                  }
-                `}
-              >
-                {loading ? (
-                  <span className="animate-spin">⏳</span>
-                ) : currentStep === steps.length - 1 ? (
-                  'Complete Setup'
-                ) : (
-                  'Continue'
-                )}
-                {!loading && currentStep < steps.length - 1 && (
-                  <ChevronRight size={20} className="ml-2" />
-                )}
-              </button>
-            </div>
-          </div>
+              key={currentStep}
+              custom={direction}
+              variants={slideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{
+                x: { type: "spring", stiffness: 300, damping: 30 },
+                opacity: { duration: 0.2 },
+              }}
+              className="w-full flex flex-col justify-center"
+            >
+              {steps[currentStep].component}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
-    </>
-  );
+
+      {/* Navigation - Fixed at bottom, hide on welcome step */}
+      {!isWelcomeStep && (
+        <div className="p-4 md:p-6 flex-shrink-0 bg-gradient-to-t from-black/10 to-transparent">
+          <div className="flex justify-between items-center max-w-2xl mx-auto">
+            {/* Back Button */}
+            <button
+              onClick={goToPreviousStep}
+              disabled={currentStep === 0}
+              className={`
+                flex items-center px-4 md:px-6 py-3 rounded-xl font-medium transition-all duration-300
+                ${currentStep === 0 
+                  ? 'invisible' 
+                  : 'bg-white/10 hover:bg-white/20 text-white border border-white/20 shadow-lg'
+                }
+              `}
+            >
+              <ChevronLeft size={20} className="mr-2" />
+              Back
+            </button>
+
+            {/* Next/Submit Button */}
+            <button
+              onClick={goToNextStep}
+              disabled={!canProceed() || loading}
+              className={`
+                flex items-center px-6 md:px-8 py-3 rounded-xl font-medium transition-all duration-300 shadow-lg
+                ${canProceed() && !loading
+                  ? 'bg-white text-gray-900 hover:bg-gray-100 transform hover:scale-105'
+                  : 'bg-gray-500 text-gray-300 cursor-not-allowed'
+                }
+              `}
+            >
+              {loading ? (
+                <span className="animate-spin">⏳</span>
+              ) : currentStep === steps.length - 1 ? (
+                'Complete Setup'
+              ) : (
+                'Continue'
+              )}
+              {!loading && currentStep < steps.length - 1 && (
+                <ChevronRight size={20} className="ml-2" />
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  </>
+);
 };
 
 export default GymBrosSetup;
