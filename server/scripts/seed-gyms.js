@@ -30,21 +30,21 @@ const allowedAmenities = [
 
 const gyms =[
   {
-    "name": "Éconofitness Québec - Sainte-Foy",
+    "name": "Island Gym",
     "location": {
       "type": "Point",
       "coordinates": null,
-      "address": "2600 Boulevard Laurier",
-      "city": "Québec",
+      "address": "87 Grand Boulevard",
+      "city": "L’Île-Perrot",
       "state": "QC",
       "country": "Canada",
-      "zipCode": "G1V 4T3"
+      "zipCode": "J7V 4W6"
     },
-    "description": "Self-service budget gym—open 24/7 with parking and tanning booths.",
-    "amenities": ["Cardio Equipment", "Free Weights", "24/7 Access", "Parking"],
-    "gymChain": "Éconofitness",
-    "website": "https://econofitness.ca/en/gym/quebec",
-    "phone": "",
+    "description": "Well-equipped 24-hour facility with juice bar, aerobics room, personal trainers, over 100 machines.",
+    "amenities": ["Cardio Equipment", "Strength Training", "Juice Bar", "Aerobics Room", "Personal Training"],
+    "gymChain": "Island Gym",
+    "website": "https://islandgym.ca",
+    "phone": "+1 514-425-5555",
     "hours": {
       "monday": {"open":"00:00","close":"23:59"},
       "tuesday": {"open":"00:00","close":"23:59"},
@@ -58,32 +58,31 @@ const gyms =[
     "isActive": true,
     "type": "gym",
     "createdBy": "GymTonic"
-    
   },
   {
-    "name": "Mega Fitness Gym 24hr",
+    "name": "Anytime Fitness L’Île-Perrot",
     "location": {
       "type": "Point",
       "coordinates": null,
-      "address": "1400 Avenue Saint-Jean-Baptiste",
-      "city": "Québec",
+      "address": "88 Boulevard Don-Quichotte",
+      "city": "L’Île-Perrot",
       "state": "QC",
       "country": "Canada",
-      "zipCode": "G2E 5B7"
+      "zipCode": "J7V 6L7"
     },
-    "description": "Well-equipped 24-hour fitness facility with a wide range of machines and free weights.",
-    "amenities": ["Cardio Equipment", "Free Weights", "24/7 Access"],
-    "gymChain": "Mega Fitness",
-    "website": "",
-    "phone": "+1 418-877-5454",
+    "description": "Neighborhood 24-hour gym for beginners to fitness regulars with personalized support.",
+    "amenities": ["24/7 Access", "Cardio Equipment", "Strength Equipment", "Personal Plans"],
+    "gymChain": "Anytime Fitness",
+    "website": "https://www.anytimefitness.quebec/gyms/9900028/l’ile-perrot-qc-j7v-6l7/",
+    "phone": "+1 514-425-5225",
     "hours": {
-      "monday":{"open":"00:00","close":"23:59"},
-      "tuesday":{"open":"00:00","close":"23:59"},
-      "wednesday":{"open":"00:00","close":"23:59"},
-      "thursday":{"open":"00:00","close":"23:59"},
-      "friday":{"open":"00:00","close":"23:59"},
-      "saturday":{"open":"00:00","close":"23:59"},
-      "sunday":{"open":"00:00","close":"23:59"}
+      "monday": {"open":"00:00","close":"23:59"},
+      "tuesday": {"open":"00:00","close":"23:59"},
+      "wednesday": {"open":"00:00","close":"23:59"},
+      "thursday": {"open":"00:00","close":"23:59"},
+      "friday": {"open":"00:00","close":"23:59"},
+      "saturday": {"open":"00:00","close":"23:59"},
+      "sunday": {"open":"00:00","close":"23:59"}
     },
     "isVerified": true,
     "isActive": true,
@@ -91,161 +90,39 @@ const gyms =[
     "createdBy": "GymTonic"
   },
   {
-    "name": "Univers Gym",
+    "name": "Gym Fit Forme Pointe-Claire",
     "location": {
       "type": "Point",
       "coordinates": null,
-      "address": "4250 1re Avenue",
-      "city": "Québec",
+      "address": "2375 Route Trans-Canadienne #B",
+      "city": "Pointe-Claire",
       "state": "QC",
       "country": "Canada",
-      "zipCode": "G1H 2S5"
+      "zipCode": "H9R 5Z5"
     },
-    "description": "Well-equipped fitness centre with quality machines and friendly atmosphere.",
-    "amenities": ["Cardio Equipment", "Free Weights", "Locker Rooms"],
-    "gymChain": "Univers Gym",
-    "website": "",
-    "phone": "+1 418-260-9888",
-    "hours": {},
-    "isVerified": true,
-    "isActive": true,
-    "type": "gym",
-    "createdBy": "GymTonic"
-  },
-  {
-    "name": "Nautilus Plus Quebec Place",
-    "location": {
-      "type": "Point",
-      "coordinates": null,
-      "address": "880 Boulevard Honoré-Mercier",
-      "city": "Québec",
-      "state": "QC",
-      "country": "Canada",
-      "zipCode": "G1R 4X5"
+    "description": "Full-service fitness center with group classes, personal training, juice bar, saunas, massage loungers, Wi-Fi.",
+    "amenities": ["Cardio Equipment", "Strength Training", "Group Classes", "Juice Bar", "Sauna", "Massage Loungers", "Wi-Fi"],
+    "gymChain": "Gym Fit Forme",
+    "website": "https://gymfitforme.com/",
+    "phone": "+1 514-426-0321",
+    "hours": {
+      "monday": {"open":"05:00","close":"00:00"},
+      "tuesday": {"open":"05:00","close":"00:00"},
+      "wednesday": {"open":"05:00","close":"00:00"},
+      "thursday": {"open":"05:00","close":"00:00"},
+      "friday": {"open":"05:00","close":"00:00"},
+      "saturday": {"open":"07:00","close":"22:00"},
+      "sunday": {"open":"07:00","close":"22:00"}
     },
-    "description": "Part of the Nautilus Plus chain offering group classes, training, and machines.",
-    "amenities": ["Cardio Equipment", "Group Classes", "Free Weights"],
-    "gymChain": "Nautilus Plus",
-    "website": "",
-    "phone": "",
-    "hours": {},
-    "isVerified": true,
-    "isActive": true,
-    "type": "gym",
-    "createdBy": "GymTonic"
-  },
-  {
-    "name": "Gym Le Chalet",
-    "location": {
-      "type": "Point",
-      "coordinates": null,
-      "address": "2327 Boulevard du Versant Nord",
-      "city": "Québec",
-      "state": "QC",
-      "country": "Canada",
-      "zipCode": "G1N 4C2"
-    },
-    "description": "Local fitness club with strength and cardio machines, popular in Québec City.",
-    "amenities": ["Cardio Equipment", "Free Weights"],
-    "gymChain": "Gyms Local",
-    "website": "",
-    "phone": "+1 418-260-9552",
-    "hours": {},
-    "isVerified": true,
-    "isActive": true,
-    "type": "gym",
-    "createdBy": "GymTonic"
-  },
-  {
-    "name": "World Gym Beauport",
-    "location": {
-      "type": "Point",
-      "coordinates": null,
-      "address": "2837 Avenue Saint-David",
-      "city": "Québec",
-      "state": "QC",
-      "country": "Canada",
-      "zipCode": "G1C 0J3"
-    },
-    "description": "Franchise gym offering full-service fitness, cardio, weights, and group training.",
-    "amenities": ["Cardio Equipment", "Free Weights", "Group Classes", "Locker Rooms"],
-    "gymChain": "World Gym",
-    "website": "",
-    "phone": "+1 418-661-0200",
-    "hours": {},
-    "isVerified": true,
-    "isActive": true,
-    "type": "gym",
-    "createdBy": "GymTonic",
-    
-  },
-  {
-    "name": "Le Podium (Powerlifting & Athletic Performance)",
-    "location": {
-      "type": "Point",
-      "coordinates": null,
-      "address": "1995 Rue Frank-Carrel, Suite 105",
-      "city": "Québec",
-      "state": "QC",
-      "country": "Canada",
-      "zipCode": ""
-    },
-    "description": "Dedicated powerlifting and performance gym supporting all fitness levels.",
-    "amenities": ["Free Weights", "Cardio Equipment"],
-    "gymChain": "Le Podium",
-    "website": "",
-    "phone": "",
-    "hours": {},
-    "isVerified": true,
-    "isActive": true,
-    "type": "gym",
-    "createdBy": "GymTonic"
-  },
-  {
-    "name": "Nordik Fight Club (MMA)",
-    "location": {
-      "type": "Point",
-      "coordinates": null,
-      "address": "909 Boulevard Charest Ouest #1/2",
-      "city": "Québec",
-      "state": "QC",
-      "country": "Canada",
-      "zipCode": ""
-    },
-    "description": "Top MMA gym offering Brazilian Jiu-Jitsu, Muay Thai, wrestling and more.",
-    "amenities": ["Cardio Equipment"],
-    "gymChain": "Nordik Fight Club",
-    "website": "",
-    "phone": "",
-    "hours": {},
-    "isVerified": true,
-    "isActive": true,
-    "type": "gym",
-    "createdBy": "GymTonic"
-  },
-  {
-    "name": "Tristar Gym Montreal (MMA)",
-    "location": {
-      "type": "Point",
-      "coordinates": null,
-      "address": "Montreal, QC",
-      "city": "Montreal",
-      "state": "QC",
-      "country": "Canada",
-      "zipCode": ""
-    },
-    "description": "World-renowned MMA training center home of Georges St-Pierre’s team.",
-    "amenities": ["Cardio Equipment"],
-    "gymChain": "Tristar Gym",
-    "website": "https://tristargym.com",
-    "phone": "",
-    "hours": {},
     "isVerified": true,
     "isActive": true,
     "type": "gym",
     "createdBy": "GymTonic"
   }
 ]
+
+
+
 
 
 gyms.forEach(gym => {
