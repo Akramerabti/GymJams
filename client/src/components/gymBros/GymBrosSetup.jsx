@@ -603,27 +603,26 @@ const handleGymMemberships = async (profile) => {
     }
   };
 
-  // Build steps with handlers
-  const steps = buildSteps({
-    profileData,
-    handleChange,
-    handleInputBlur,
-    handleWorkoutTypeToggle,
-    handleInterestToggle,
-    handlePhoneChange,
-    handlePhoneVerified,
-    handleExistingAccountFound,
-    handleContinueWithNewAccount,
-    handleLoginWithPhone,
-    isPhoneVerified,
-    authMode,
-    showPhoneLogin,
-    imageUploaderRef,
-    goToNextStep,  // ← This was missing!
-    user,          // ← This was missing!
-    isAuthenticated // ← This was missing!
-  });
-
+ const steps = buildSteps({
+  profileData,
+  handleChange,
+  handleInputBlur,
+  handleWorkoutTypeToggle,
+  handleInterestToggle,
+  handlePhoneChange,
+  handlePhoneVerified,
+  handleExistingAccountFound,
+  handleContinueWithNewAccount,
+  handleLoginWithPhone,
+  isPhoneVerified,
+  setIsPhoneVerified, // Add this line
+  authMode,
+  showPhoneLogin,
+  imageUploaderRef,
+  goToNextStep,
+  user,
+  isAuthenticated
+});
   // Update progress when step changes
   useEffect(() => {
     setProgress(((currentStep + 1) / steps.length) * 100);

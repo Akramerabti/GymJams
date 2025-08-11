@@ -1,13 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 
 const HeightPicker = ({ value, unit = 'cm', onHeightChange, onUnitChange, className = "" }) => {
   const { darkMode } = useTheme();
-  const [isOpen, setIsOpen] = useState(false);
   const [selectedHeight, setSelectedHeight] = useState(value || '');
-  const dropdownRef = useRef(null);
   const scrollRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Generate height options based on unit
   const generateHeightOptions = () => {
@@ -47,40 +45,48 @@ const HeightPicker = ({ value, unit = 'cm', onHeightChange, onUnitChange, classN
 
   const heightOptions = generateHeightOptions();
 
-  // Handle clicking outside to close dropdown
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   // Update selected height when value prop changes
   useEffect(() => {
     setSelectedHeight(value || '');
   }, [value]);
 
-  // Scroll to selected item when dropdown opens
+  // Center the selected item when component mounts or value changes
   useEffect(() => {
-    if (isOpen && scrollRef.current && selectedHeight) {
+    if (scrollRef.current && selectedHeight) {
       const selectedIndex = heightOptions.findIndex(option => option.value === selectedHeight);
       if (selectedIndex !== -1) {
-        const itemHeight = 48; // Height of each item in pixels
-        const scrollTop = selectedIndex * itemHeight - 96; // Center the item
+        const itemHeight = 60; // Height of each item in pixels
+        const containerHeight = scrollRef.current.clientHeight;
+        const scrollTop = selectedIndex * itemHeight - (containerHeight / 2) + (itemHeight / 2);
         scrollRef.current.scrollTop = Math.max(0, scrollTop);
       }
     }
-  }, [isOpen, selectedHeight, heightOptions]);
+  }, [selectedHeight, heightOptions, unit]);
 
-  const handleHeightSelect = (height) => {
-    setSelectedHeight(height.value);
-    onHeightChange(height.value);
-    setIsOpen(false);
+  // Handle scroll to update selected value
+  const handleScroll = () => {
+    if (isDragging || !scrollRef.current) return;
+    
+    const scrollTop = scrollRef.current.scrollTop;
+    const itemHeight = 60;
+    const containerHeight = scrollRef.current.clientHeight;
+    const centerOffset = (containerHeight / 2) - (itemHeight / 2);
+    const selectedIndex = Math.round((scrollTop + centerOffset) / itemHeight);
+    
+    const clampedIndex = Math.max(0, Math.min(selectedIndex, heightOptions.length - 1));
+    const newSelectedHeight = heightOptions[clampedIndex];
+    
+    if (newSelectedHeight && newSelectedHeight.value !== selectedHeight) {
+      setSelectedHeight(newSelectedHeight.value);
+      onHeightChange(newSelectedHeight.value);
+    }
   };
+
+  // Debounced scroll handler
+  useEffect(() => {
+    const timeoutId = setTimeout(handleScroll, 100);
+    return () => clearTimeout(timeoutId);
+  }, [scrollRef.current?.scrollTop]);
 
   const handleUnitToggle = () => {
     const newUnit = unit === 'cm' ? 'inches' : 'cm';
@@ -99,7 +105,7 @@ const HeightPicker = ({ value, unit = 'cm', onHeightChange, onUnitChange, classN
       
       if (convertedHeight) {
         // Find the closest valid option in the new unit
-        const newOptions = unit === 'cm' ? generateHeightOptionsForInches() : generateHeightOptionsForCm();
+        const newOptions = newUnit === 'cm' ? generateHeightOptionsForCm() : generateHeightOptionsForInches();
         const closestOption = newOptions.reduce((prev, curr) => {
           return Math.abs(parseInt(curr.value) - parseInt(convertedHeight)) < Math.abs(parseInt(prev.value) - parseInt(convertedHeight)) ? curr : prev;
         });
@@ -144,105 +150,106 @@ const HeightPicker = ({ value, unit = 'cm', onHeightChange, onUnitChange, classN
     return options;
   };
 
-  const getSelectedLabel = () => {
-    if (!selectedHeight) return 'Select height';
-    
-    const option = heightOptions.find(opt => opt.value === selectedHeight);
-    return option ? option.label : 'Select height';
-  };
-
   // Theme-aware styles
   const getContainerStyles = () => {
     const baseStyles = "relative w-full";
     return `${baseStyles} ${className}`;
   };
 
-  const getButtonStyles = () => {
-    const baseStyles = "w-full flex items-center justify-between px-3 py-3 border-2 rounded-xl transition-all duration-300 focus:outline-none";
-    const themeStyles = darkMode 
-      ? "bg-gray-800 border-gray-600 text-white hover:border-gray-500 focus:border-blue-400" 
-      : "bg-white border-gray-300 text-black hover:border-gray-400 focus:border-blue-500";
-    
-    return `${baseStyles} ${themeStyles}`;
-  };
-
-  const getDropdownStyles = () => {
-    const baseStyles = "absolute top-full left-0 right-0 z-50 mt-1 rounded-lg border shadow-lg max-h-64 overflow-hidden";
+  const getScrollContainerStyles = () => {
+    const baseStyles = "relative h-48 overflow-hidden rounded-xl border-2";
     const themeStyles = darkMode 
       ? "bg-gray-800 border-gray-600" 
-      : "bg-white border-gray-200";
+      : "bg-white border-gray-300";
     
     return `${baseStyles} ${themeStyles}`;
   };
 
-  const getItemStyles = (isSelected = false) => {
-    const baseStyles = "px-3 py-3 cursor-pointer transition-colors flex items-center justify-between h-12";
+  const getItemStyles = (isCenter = false, distance = 0) => {
+    const baseStyles = "flex items-center justify-between px-4 py-3 text-center transition-all duration-200 h-15";
+    
+    // Calculate opacity based on distance from center
+    const opacity = isCenter ? 1 : Math.max(0.3, 1 - (distance * 0.2));
+    const scale = isCenter ? 1 : Math.max(0.9, 1 - (distance * 0.05));
     
     if (darkMode) {
-      return `${baseStyles} ${isSelected 
-        ? 'bg-blue-600 text-white' 
-        : 'text-gray-300 hover:bg-gray-700'
-      }`;
+      return `${baseStyles} text-white`;
     } else {
-      return `${baseStyles} ${isSelected 
-        ? 'bg-blue-50 text-blue-700' 
-        : 'text-gray-700 hover:bg-gray-50'
-      }`;
+      return `${baseStyles} text-black`;
     }
   };
 
   const getUnitButtonStyles = () => {
-    const baseStyles = "px-4 py-3 border-l-2 transition-colors hover:bg-opacity-50 min-w-20 font-medium";
+    const baseStyles = "px-4 py-3 border-2 rounded-xl transition-colors hover:bg-opacity-50 min-w-20 font-medium mt-2";
     const themeStyles = darkMode 
-      ? "border-gray-600 text-gray-300 hover:bg-gray-700" 
-      : "border-gray-300 text-gray-600 hover:bg-gray-50";
+      ? "border-gray-600 text-gray-300 hover:bg-gray-700 bg-gray-800" 
+      : "border-gray-300 text-gray-600 hover:bg-gray-50 bg-white";
     
     return `${baseStyles} ${themeStyles}`;
   };
 
   return (
-    <div className={getContainerStyles()} ref={dropdownRef}>
-      <div className="flex">
-        {/* Height selector */}
-        <button
-          type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className={`${getButtonStyles()} rounded-r-none border-r-0 flex-1`}
-        >
-          <span className="font-medium">{getSelectedLabel()}</span>
-          <ChevronDown className={`h-4 w-4 transition-transform ${
-            isOpen ? 'rotate-180' : ''
-          } ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-        </button>
+    <div className={getContainerStyles()}>
+      {/* Scroll Container */}
+      <div className={getScrollContainerStyles()}>
+        {/* Center line indicator */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <div className={`w-full h-15 border-t-2 border-b-2 ${
+            darkMode ? 'border-blue-400' : 'border-blue-500'
+          } opacity-30`}></div>
+        </div>
         
-        {/* Unit toggle */}
-        <button
-          type="button"
-          onClick={handleUnitToggle}
-          className={`${getUnitButtonStyles()} rounded-l-none rounded-r-xl border-2 ${
-            darkMode ? 'border-gray-600' : 'border-gray-300'
-          }`}
-        >
-          {unit}
-        </button>
-      </div>
+        {/* Gradient overlays for fade effect */}
+        <div className={`absolute top-0 left-0 right-0 h-16 z-20 pointer-events-none ${
+          darkMode 
+            ? 'bg-gradient-to-b from-gray-800 to-transparent' 
+            : 'bg-gradient-to-b from-white to-transparent'
+        }`}></div>
+        <div className={`absolute bottom-0 left-0 right-0 h-16 z-20 pointer-events-none ${
+          darkMode 
+            ? 'bg-gradient-to-t from-gray-800 to-transparent' 
+            : 'bg-gradient-to-t from-white to-transparent'
+        }`}></div>
 
-      {/* Dropdown */}
-      {isOpen && (
-        <div className={getDropdownStyles()}>
-          <div 
-            ref={scrollRef}
-            className="max-h-64 overflow-y-auto"
-            style={{
-              scrollbarWidth: 'thin',
-              scrollbarColor: darkMode ? '#4B5563 #374151' : '#D1D5DB #F3F4F6'
-            }}
-          >
-            {heightOptions.map((option) => (
+        {/* Scrollable content */}
+        <div 
+          ref={scrollRef}
+          className="h-full overflow-y-scroll scrollbar-none relative z-10"
+          onScroll={handleScroll}
+          onTouchStart={() => setIsDragging(true)}
+          onTouchEnd={() => setIsDragging(false)}
+          onMouseDown={() => setIsDragging(true)}
+          onMouseUp={() => setIsDragging(false)}
+          style={{
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            WebkitScrollbar: 'none'
+          }}
+        >
+          {/* Padding for centering */}
+          <div className="h-24"></div>
+          
+          {heightOptions.map((option, index) => {
+            const isSelected = selectedHeight === option.value;
+            const centerIndex = heightOptions.findIndex(opt => opt.value === selectedHeight);
+            const distance = Math.abs(index - centerIndex);
+            const opacity = isSelected ? 1 : Math.max(0.3, 1 - (distance * 0.15));
+            const scale = isSelected ? 1.1 : Math.max(0.85, 1 - (distance * 0.05));
+            
+            return (
               <div
                 key={option.value}
-                onClick={() => handleHeightSelect(option)}
-                className={getItemStyles(selectedHeight === option.value)}
+                className={`${getItemStyles(isSelected, distance)} h-15`}
+                style={{
+                  opacity,
+                  transform: `scale(${scale})`,
+                  fontWeight: isSelected ? 'bold' : 'normal',
+                  fontSize: isSelected ? '1.1em' : '1em'
+                }}
+                onClick={() => {
+                  setSelectedHeight(option.value);
+                  onHeightChange(option.value);
+                }}
               >
                 <span className="font-medium">{option.label}</span>
                 <span className={`text-sm ${
@@ -251,26 +258,27 @@ const HeightPicker = ({ value, unit = 'cm', onHeightChange, onUnitChange, classN
                   {option.secondary}
                 </span>
               </div>
-            ))}
-          </div>
+            );
+          })}
+          
+          {/* Padding for centering */}
+          <div className="h-24"></div>
         </div>
-      )}
+      </div>
 
-      {/* Custom scrollbar styles */}
+      {/* Unit toggle button */}
+      <button
+        type="button"
+        onClick={handleUnitToggle}
+        className={getUnitButtonStyles()}
+      >
+        Switch to {unit === 'cm' ? 'inches' : 'cm'}
+      </button>
+
+      {/* Custom scrollbar hiding styles */}
       <style jsx>{`
-        .max-h-64::-webkit-scrollbar {
-          width: 6px;
-        }
-        .max-h-64::-webkit-scrollbar-track {
-          background: ${darkMode ? '#374151' : '#F3F4F6'};
-          border-radius: 3px;
-        }
-        .max-h-64::-webkit-scrollbar-thumb {
-          background: ${darkMode ? '#4B5563' : '#D1D5DB'};
-          border-radius: 3px;
-        }
-        .max-h-64::-webkit-scrollbar-thumb:hover {
-          background: ${darkMode ? '#6B7280' : '#9CA3AF'};
+        .scrollbar-none::-webkit-scrollbar {
+          display: none;
         }
       `}</style>
     </div>

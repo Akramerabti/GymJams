@@ -385,6 +385,7 @@ export const buildSteps = ({
   authMode,
   showPhoneLogin,
   isPhoneVerified,
+  setIsPhoneVerified, // Add this parameter
   handleChange,
   handleInputBlur,
   handleLoginWithPhone,
@@ -397,6 +398,7 @@ export const buildSteps = ({
   goToNextStep,
   imageUploaderRef
 }) => {
+
   // Use screen type detection
   const { screenType } = useScreenType();
   const { darkMode } = useTheme();
@@ -428,53 +430,66 @@ export const buildSteps = ({
     }
   ];
 
-  // Add phone verification step for non-authenticated users or if phone not verified
-  if (!isAuthenticated || !hasVerifiedPhone) {
-    stepsList.push({
-      id: 'phone',
-      title: authMode === 'login' ? "Log in with your phone" : "Verify your phone number",
-      subtitle: authMode === 'login' ? 
-        "We'll verify your identity" : 
-        "We'll send a verification code",
-      icon: <Phone size={24} />,
-      isValid: () => isPhoneVerified || hasVerifiedPhone,
-      component: hasVerifiedPhone ? (
-        <div className="w-full space-y-4">
-          <div className="text-center space-y-1 mb-10">
-            <h2 className="text-xl font-bold text-white mt-10">{authMode === 'login' ? 'Log in with your phone' : 'Verify your phone number'}</h2>
-            <p className="text-white/80 text-sm">{authMode === 'login' ? "We'll verify your identity" : "We'll send a verification code"}</p>
-          </div>
-          <div className="flex items-center justify-center mb-4">
-            <div className="bg-green-500/20 backdrop-blur-sm rounded-full p-3 border border-green-400/30">
-              <CheckCircle className="w-8 h-8 text-green-300" />
-            </div>
-          </div>
-          <p className="text-center text-white">Your phone number is already verified</p>
-          <p className="text-center font-semibold text-white">{profileData.phone}</p>
+ if (!isAuthenticated || !hasVerifiedPhone) {
+  stepsList.push({
+    id: 'phone',
+    title: authMode === 'login' ? "Log in with your phone" : "Verify your phone number",
+    subtitle: authMode === 'login' ? 
+      "We'll verify your identity" : 
+      "We'll send a verification code",
+    icon: <Phone size={24} />,
+    isValid: () => isPhoneVerified || hasVerifiedPhone,
+    component: (hasVerifiedPhone || isPhoneVerified) ? (
+      <div className="w-full space-y-4">
+        <div className="text-center space-y-1 mb-6">
+          <h2 className="text-xl font-bold text-white">{authMode === 'login' ? 'Log in with your phone' : 'Verify your phone number'}</h2>
+          <p className="text-white/80 text-sm">{authMode === 'login' ? "We'll verify your identity" : "We'll send a verification code"}</p>
         </div>
-      ) : (
-        <div className="w-full space-y-4">
-          <div className="text-center space-y-1 mb-4">
-            <h2 className="text-xl font-bold text-white">{authMode === 'login' ? 'Log in with your phone' : 'Verify your phone number'}</h2>
-            <p className="text-white/80 text-sm">{authMode === 'login' ? "We'll verify your identity" : "We'll send a verification code"}</p>
+        
+        <div className="flex flex-col items-center justify-center py-4">
+          <div className="bg-green-500/20 backdrop-blur-sm rounded-full p-4 mb-4 border border-green-400/30">
+            <CheckCircle className="w-10 h-10 text-green-300" />
           </div>
-          <PhoneVerification
-            phone={profileData.phone}
-            onChange={handlePhoneChange}
-            onVerified={(verified, userData, token, profileData) => {
-              if (verified && userData?.phone) {
-                handleChange('phone', userData.phone);
-              }
-              handlePhoneVerified(verified, userData, token, profileData);
-            }}
-            isLoginFlow={authMode === 'login'}
-            onExistingAccountFound={handleExistingAccountFound}
-            onContinueWithNewAccount={handleContinueWithNewAccount}
-          />
+          <h3 className="text-lg font-bold text-green-300 mb-2">Phone Verified!</h3>
+          <p className="text-center text-white mb-2">Your phone number has been successfully verified</p>
+          <p className="text-center font-semibold text-white text-lg">{profileData.phone}</p>
+          
+         <button
+    type="button"
+    onClick={() => {
+      // Allow user to change phone number
+      handleChange('phone', '');
+      setIsPhoneVerified(false); // Now this function is available
+    }}
+    className="mt-4 text-sm text-white/70 hover:text-white transition-colors underline"
+  >
+    Change phone number
+  </button>
         </div>
-      )
-    });
-  }
+      </div>
+    ) : (
+      <div className="w-full space-y-4">
+        <div className="text-center space-y-1 mb-4">
+          <h2 className="text-xl font-bold text-white">{authMode === 'login' ? 'Log in with your phone' : 'Verify your phone number'}</h2>
+          <p className="text-white/80 text-sm">{authMode === 'login' ? "We'll verify your identity" : "We'll send a verification code"}</p>
+        </div>
+        <PhoneVerification
+          phone={profileData.phone}
+          onChange={handlePhoneChange}
+          onVerified={(verified, userData, token, profileData) => {
+            if (verified && userData?.phone) {
+              handleChange('phone', userData.phone);
+            }
+            handlePhoneVerified(verified, userData, token, profileData);
+          }}
+          isLoginFlow={authMode === 'login'}
+          onExistingAccountFound={handleExistingAccountFound}
+          onContinueWithNewAccount={handleContinueWithNewAccount}
+        />
+      </div>
+    )
+  });
+}
   
   // Only include profile building steps for signup (not for login)
   if (authMode === 'signup') {
