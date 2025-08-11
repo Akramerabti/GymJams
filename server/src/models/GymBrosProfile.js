@@ -425,7 +425,134 @@ GymBrosProfileSchema.pre('save', function (next) {
   next();
 });
 
-// ... existing methods remain the same ...
+// Instance methods
+GymBrosProfileSchema.methods.addGym = function(gymId, options = {}) {
+  const gymAssociation = {
+    gym: gymId,
+    membershipType: options.membershipType || 'member',
+    isPrimary: options.isPrimary || false,
+    visitFrequency: options.visitFrequency || 'weekly',
+    preferredTimes: options.preferredTimes || [],
+    status: options.status || 'active',
+    notes: options.notes || ''
+  };
+
+  // Check if gym already exists
+  const existingIndex = this.gyms.findIndex(g => g.gym.toString() === gymId.toString());
+  
+  if (existingIndex !== -1) {
+    // Update existing association
+    this.gyms[existingIndex] = { ...this.gyms[existingIndex].toObject(), ...gymAssociation };
+  } else {
+    // Add new association
+    this.gyms.push(gymAssociation);
+  }
+
+  // Set as primary gym if specified
+  if (options.isPrimary) {
+    this.primaryGym = gymId;
+    // Unset other primary flags
+    this.gyms.forEach(g => {
+      g.isPrimary = g.gym.toString() === gymId.toString();
+    });
+  }
+
+  return this;
+};
+
+GymBrosProfileSchema.methods.removeGym = function(gymId) {
+  this.gyms = this.gyms.filter(g => g.gym.toString() !== gymId.toString());
+  
+  // If removed gym was primary, clear primary
+  if (this.primaryGym && this.primaryGym.toString() === gymId.toString()) {
+    this.primaryGym = null;
+    
+    // Set first remaining gym as primary if any exist
+    if (this.gyms.length > 0) {
+      this.primaryGym = this.gyms[0].gym;
+      this.gyms[0].isPrimary = true;
+    }
+  }
+
+  return this;
+};
+
+GymBrosProfileSchema.methods.setPrimaryGym = function(gymId) {
+  // Check if gym is in the list
+  const gymExists = this.gyms.some(g => g.gym.toString() === gymId.toString());
+  
+  if (!gymExists) {
+    throw new Error('Cannot set primary gym that is not in the gym list');
+  }
+
+  this.primaryGym = gymId;
+  
+  // Update primary flags
+  this.gyms.forEach(g => {
+    g.isPrimary = g.gym.toString() === gymId.toString();
+  });
+
+  return this;
+};
+
+GymBrosProfileSchema.methods.getActiveGyms = function() {
+  return this.gyms.filter(g => g.isActive && g.status === 'active');
+};
+
+GymBrosProfileSchema.methods.updateLastVisit = function(gymId) {
+  const gym = this.gyms.find(g => g.gym.toString() === gymId.toString());
+  if (gym) {
+    gym.lastVisit = new Date();
+  }
+  return this;
+};
+
+// Static methods
+GymBrosProfileSchema.statics.findByGym = function(gymId, options = {}) {
+  const query = {
+    'gyms.gym': gymId,
+    'gyms.status': options.status || 'active'
+  };
+
+  if (options.membershipType) {
+    query['gyms.membershipType'] = options.membershipType;
+  }
+
+  return this.find(query).populate('gyms.gym');
+};
+
+GymBrosProfileSchema.statics.findNearbyWithCommonGyms = function(lat, lng, maxDistance = 25) {
+  return this.aggregate([
+    {
+      $geoNear: {
+        near: {
+          type: "Point",
+          coordinates: [lng, lat]
+        },
+        distanceField: "distance",
+        maxDistance: maxDistance * 1609.34, // Convert miles to meters
+        spherical: true,
+        query: { isProfileComplete: true, isGuest: false }
+      }
+    },
+    {
+      $lookup: {
+        from: 'gyms',
+        localField: 'gyms.gym',
+        foreignField: '_id',
+        as: 'gymDetails'
+      }
+    },
+    {
+      $addFields: {
+        distanceMiles: { $divide: ["$distance", 1609.34] }
+      }
+    },
+    {
+      $sort: { distance: 1 }
+    }
+  ]);
+};
 
 const GymBrosProfile = mongoose.model('GymBrosProfile', GymBrosProfileSchema);
 export default GymBrosProfile;

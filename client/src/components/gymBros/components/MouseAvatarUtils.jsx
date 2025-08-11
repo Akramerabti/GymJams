@@ -7,7 +7,8 @@ export const renderMouseAvatar = (avatar, size = 40, showRealtimeIndicator = fal
   const furColor = avatar.furColor || '#8B4513';
   const mood = avatar.mood || 'happy';
   const eyes = avatar.eyes || 'normal';
-  const accessories = avatar.accessories || [];
+  // Ensure accessories is always an array
+  const accessories = Array.isArray(avatar.accessories) ? avatar.accessories : [];
   
   // Mouse body paths
   const mouseBody = (
@@ -420,7 +421,7 @@ const createMouseSVG = (avatar, size) => {
         <ellipse cx="${size/2}" cy="${size*0.47}" rx="${size*0.05}" ry="${size*0.03}" fill="#000" />
       ` : ''}
       
-      <!-- Whiskers -->
+      {/* Whiskers */}
       <line x1="${size*0.25}" y1="${size*0.38}" x2="${size*0.35}" y2="${size*0.36}" stroke="#000" stroke-width="1" />
       <line x1="${size*0.25}" y1="${size*0.42}" x2="${size*0.35}" y2="${size*0.42}" stroke="#000" stroke-width="1" />
       <line x1="${size*0.65}" y1="${size*0.36}" x2="${size*0.75}" y2="${size*0.38}" stroke="#000" stroke-width="1" />

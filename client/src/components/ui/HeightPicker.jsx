@@ -15,7 +15,8 @@ const HeightPicker = ({
   const scrollTimeoutRef = useRef(null);
   const itemHeight = 44; // Fixed height for each item
   const [lastScrollTime, setLastScrollTime] = useState(0);
-  
+  const [showWheelHint, setShowWheelHint] = useState(false);
+
   // Generate height options based on unit
   const generateHeightOptions = useCallback(() => {
     if (unit === 'cm') {
@@ -240,8 +241,34 @@ const HeightPicker = ({
   const visibleItems = Math.floor(containerHeight / itemHeight);
   const paddingItems = Math.floor(visibleItems / 2);
 
+  // Show scroll wheel hint if on desktop (not touch device)
+  useEffect(() => {
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (!isTouchDevice) {
+      setShowWheelHint(true);
+      // Hide after 4 seconds or on first scroll/wheel
+      const hide = () => setShowWheelHint(false);
+      window.addEventListener('wheel', hide, { once: true });
+      const timeout = setTimeout(hide, 4000);
+      return () => {
+        window.removeEventListener('wheel', hide, { once: true });
+        clearTimeout(timeout);
+      };
+    }
+  }, []);
+
   return (
     <div className={`relative w-full ${className}`}>
+      {/* Elegant scroll wheel hint for desktop */}
+      {showWheelHint && (
+        <div className="absolute left-1/2 -translate-x-1/2 top-2 z-40 flex items-center space-x-2 bg-white/90 dark:bg-gray-800/90 px-3 py-1 rounded-full shadow text-xs font-medium text-gray-700 dark:text-gray-200 pointer-events-none animate-fade-in">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24">
+            <rect x="7" y="2" width="10" height="20" rx="5" fill="#888" />
+            <rect x="11" y="5" width="2" height="4" rx="1" fill="#fff" />
+          </svg>
+          <span>Tip: Use your scroll wheel</span>
+        </div>
+      )}
       {/* Main container */}
       <div className={`relative overflow-hidden rounded-2xl border-2 transition-all duration-300 ${
         darkMode 
@@ -362,6 +389,13 @@ const HeightPicker = ({
         .scrollbar-hide {
           -ms-overflow-style: none;
           scrollbar-width: none;
+        }
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(-10px);}
+          to { opacity: 1; transform: translateY(0);}
+        }
+        .animate-fade-in {
+          animation: fade-in 0.5s;
         }
       `}</style>
     </div>
