@@ -1,44 +1,58 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useTheme } from '../../contexts/ThemeContext';
 
-const HeightPicker = ({ value, unit = 'cm', onHeightChange, onUnitChange, className = "" }) => {
+const HeightPicker = ({ 
+  value, 
+  unit = 'cm', 
+  onHeightChange, 
+  onUnitChange, 
+  className = "" 
+}) => {
+  const { darkMode } = useTheme();
   const [selectedHeight, setSelectedHeight] = useState(value || '');
   const scrollRef = useRef(null);
-  const itemRef = useRef(null);
-  const [itemHeight, setItemHeight] = useState(50);
-  const [isUserScrolling, setIsUserScrolling] = useState(false);
-
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollTimeoutRef = useRef(null);
+  const itemHeight = 44; // Fixed height for each item
+  const [lastScrollTime, setLastScrollTime] = useState(0);
+  
   // Generate height options based on unit
-  const generateHeightOptions = () => {
+  const generateHeightOptions = useCallback(() => {
     if (unit === 'cm') {
-      // 120cm to 220cm
       const options = [];
       for (let cm = 120; cm <= 220; cm++) {
         options.push({
           value: cm.toString(),
-          label: cm.toString()
+          label: `${cm} cm`,
+          displayValue: cm
         });
       }
       return options;
     } else {
-      // 4ft1 to 8ft (in inches format)
       const options = [];
       for (let feet = 4; feet <= 7; feet++) {
-        const maxInches = feet === 7 ? 11 : 11; // Go up to 7'11"
-        const startInches = feet === 4 ? 1 : 0; // Start at 4'1"
+        const maxInches = feet === 7 ? 11 : 11;
+        const startInches = feet === 4 ? 1 : 0;
         
         for (let inches = startInches; inches <= maxInches; inches++) {
           const totalInches = feet * 12 + inches;
           options.push({
             value: totalInches.toString(),
-            label: `${feet}'${inches}"`
+            label: `${feet}'${inches}"`,
+            displayValue: `${feet}'${inches}"`
           });
         }
       }
       return options;
     }
-  };
+  }, [unit]);
 
   const heightOptions = generateHeightOptions();
+
+  // Find current index
+  const getCurrentIndex = useCallback(() => {
+    return heightOptions.findIndex(option => option.value === selectedHeight);
+  }, [heightOptions, selectedHeight]);
 
   // Update selected height when value prop changes
   useEffect(() => {
@@ -47,85 +61,150 @@ const HeightPicker = ({ value, unit = 'cm', onHeightChange, onUnitChange, classN
     }
   }, [value]);
 
-  // Dynamically set item height from DOM
-  useEffect(() => {
-    if (itemRef.current) {
-      setItemHeight(itemRef.current.offsetHeight);
-    }
-  }, [unit]);
-
-  // Center the selected item when component mounts or unit/selectedHeight changes
+  // Scroll to selected item when component mounts or unit changes
   useEffect(() => {
     if (!scrollRef.current || !selectedHeight) return;
-    const selectedIndex = heightOptions.findIndex(option => option.value === selectedHeight);
-    if (selectedIndex === -1) return;
-    const scrollTop = selectedIndex * itemHeight;
+    
+    const index = getCurrentIndex();
+    if (index === -1) return;
+    
+    const scrollTop = index * itemHeight;
     scrollRef.current.scrollTop = scrollTop;
-  }, [unit, heightOptions, selectedHeight, itemHeight]);
+  }, [unit, selectedHeight, getCurrentIndex]);
 
-  // Snap to nearest item on scroll end, but only if user is not clicking an item
-  useEffect(() => {
+  // Enhanced scroll handler with better sensitivity for desktop
+  const handleScroll = useCallback((event) => {
     if (!scrollRef.current) return;
-    let timeoutId;
-    const handleScroll = () => {
-      setIsUserScrolling(true);
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        setIsUserScrolling(false);
-        if (!scrollRef.current) return;
-        const scrollTop = scrollRef.current.scrollTop;
-        const nearestIndex = Math.round(scrollTop / itemHeight);
-        const clampedIndex = Math.max(0, Math.min(nearestIndex, heightOptions.length - 1));
-        const newSelected = heightOptions[clampedIndex];
-        // Only update if not already selected
-        if (newSelected && newSelected.value !== selectedHeight) {
-          setSelectedHeight(newSelected.value);
-          if (onHeightChange) {
-            const returnValue = unit === 'inches' ? newSelected.label : newSelected.value;
-            onHeightChange(returnValue);
-          }
+    
+    const now = Date.now();
+    const timeDiff = now - lastScrollTime;
+    setLastScrollTime(now);
+    
+    setIsScrolling(true);
+    
+    // Clear existing timeout
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    
+    // For wheel events (desktop), use more immediate response
+    const isWheelEvent = event.type === 'wheel';
+    const debounceTime = isWheelEvent ? 50 : 150; // Much faster for wheel events
+    
+    // Set new timeout for snap behavior
+    scrollTimeoutRef.current = setTimeout(() => {
+      if (!scrollRef.current) return;
+      
+      const scrollTop = scrollRef.current.scrollTop;
+      const index = Math.round(scrollTop / itemHeight);
+      const clampedIndex = Math.max(0, Math.min(index, heightOptions.length - 1));
+      const selectedOption = heightOptions[clampedIndex];
+      
+      if (selectedOption && selectedOption.value !== selectedHeight) {
+        setSelectedHeight(selectedOption.value);
+        if (onHeightChange) {
+          onHeightChange(selectedOption.value);
         }
-        // Snap scroll position only if not already centered
-        if (scrollRef.current.scrollTop !== clampedIndex * itemHeight) {
-          scrollRef.current.scrollTo({
-            top: clampedIndex * itemHeight,
-            behavior: 'auto'
-          });
-        }
-      }, 200); // Slightly longer debounce for better UX
-    };
-    const el = scrollRef.current;
-    el.addEventListener('scroll', handleScroll);
-    return () => {
-      clearTimeout(timeoutId);
-      el.removeEventListener('scroll', handleScroll);
-    };
-  }, [heightOptions, selectedHeight, itemHeight, unit, onHeightChange]);
+      }
+      
+      // Snap to center
+      const targetScrollTop = clampedIndex * itemHeight;
+      if (Math.abs(scrollRef.current.scrollTop - targetScrollTop) > 1) {
+        scrollRef.current.scrollTop = targetScrollTop;
+      }
+      setIsScrolling(false);
+    }, debounceTime);
+  }, [heightOptions, selectedHeight, onHeightChange, lastScrollTime]);
 
+  // Enhanced wheel handler for better desktop experience
+  const handleWheel = useCallback((event) => {
+    event.preventDefault();
+    
+    if (!scrollRef.current) return;
+    
+    const currentScrollTop = scrollRef.current.scrollTop;
+    const currentIndex = Math.round(currentScrollTop / itemHeight);
+    
+    // Determine direction and move by exactly one item
+    const deltaY = event.deltaY;
+    const direction = deltaY > 0 ? 1 : -1;
+    const newIndex = Math.max(0, Math.min(currentIndex + direction, heightOptions.length - 1));
+    
+    // Scroll to the exact position
+    scrollRef.current.scrollTop = newIndex * itemHeight;
+    
+    // Update selected option immediately for better responsiveness
+    const selectedOption = heightOptions[newIndex];
+    if (selectedOption && selectedOption.value !== selectedHeight) {
+      setSelectedHeight(selectedOption.value);
+      if (onHeightChange) {
+        onHeightChange(selectedOption.value);
+      }
+    }
+  }, [heightOptions, selectedHeight, onHeightChange, itemHeight]);
+
+  // Attach scroll and wheel listeners
+  useEffect(() => {
+    const scrollElement = scrollRef.current;
+    if (!scrollElement) return;
+    
+    // Add both scroll and wheel listeners
+    scrollElement.addEventListener('scroll', handleScroll);
+    scrollElement.addEventListener('wheel', handleWheel, { passive: false });
+    
+    return () => {
+      scrollElement.removeEventListener('scroll', handleScroll);
+      scrollElement.removeEventListener('wheel', handleWheel);
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, [handleScroll, handleWheel]);
+
+  // Handle unit toggle
   const handleUnitToggle = () => {
     const newUnit = unit === 'cm' ? 'inches' : 'cm';
+    
     if (onUnitChange) {
       onUnitChange(newUnit);
     }
     
-    // Convert current height to new unit and find the closest option
+    // Convert current height to new unit
     if (selectedHeight) {
       let convertedHeight;
       if (newUnit === 'cm' && unit === 'inches') {
-        // Convert inches to cm
         convertedHeight = Math.round(parseInt(selectedHeight) * 2.54);
       } else if (newUnit === 'inches' && unit === 'cm') {
-        // Convert cm to inches
         convertedHeight = Math.round(parseInt(selectedHeight) / 2.54);
       }
       
       if (convertedHeight) {
-        // Generate new options for the new unit
+        // Generate options for new unit
         const newOptions = newUnit === 'cm' ? 
-          generateHeightOptionsForCm() : 
-          generateHeightOptionsForInches();
+          (() => {
+            const opts = [];
+            for (let cm = 120; cm <= 220; cm++) {
+              opts.push({ value: cm.toString(), label: `${cm} cm` });
+            }
+            return opts;
+          })() :
+          (() => {
+            const opts = [];
+            for (let feet = 4; feet <= 7; feet++) {
+              const maxInches = feet === 7 ? 11 : 11;
+              const startInches = feet === 4 ? 1 : 0;
+              for (let inches = startInches; inches <= maxInches; inches++) {
+                const totalInches = feet * 12 + inches;
+                opts.push({ 
+                  value: totalInches.toString(), 
+                  label: `${feet}'${inches}"` 
+                });
+              }
+            }
+            return opts;
+          })();
         
-        // Find the closest option in the new unit
+        // Find closest option
         const closestOption = newOptions.reduce((prev, curr) => {
           const prevDiff = Math.abs(parseInt(prev.value) - convertedHeight);
           const currDiff = Math.abs(parseInt(curr.value) - convertedHeight);
@@ -134,121 +213,159 @@ const HeightPicker = ({ value, unit = 'cm', onHeightChange, onUnitChange, classN
         
         setSelectedHeight(closestOption.value);
         if (onHeightChange) {
-          // Return the appropriate value format
-          const returnValue = newUnit === 'inches' ? closestOption.label : closestOption.value;
-          onHeightChange(returnValue);
+          onHeightChange(closestOption.value);
         }
       }
     }
   };
 
-  const handleItemClick = (optionValue, optionLabel) => {
+  // Handle item click
+  const handleItemClick = (optionValue) => {
     setSelectedHeight(optionValue);
     if (onHeightChange) {
-      const returnValue = unit === 'inches' ? optionLabel : optionValue;
-      onHeightChange(returnValue);
+      onHeightChange(optionValue);
     }
-    // Snap to item
-    const selectedIndex = heightOptions.findIndex(option => option.value === optionValue);
-    if (selectedIndex !== -1 && scrollRef.current) {
+    
+    // Scroll to clicked item
+    const index = heightOptions.findIndex(option => option.value === optionValue);
+    if (index !== -1 && scrollRef.current) {
       scrollRef.current.scrollTo({
-        top: selectedIndex * itemHeight,
+        top: index * itemHeight,
         behavior: 'smooth'
       });
     }
   };
 
-  // Calculate dynamic top/bottom padding for centering
-  const containerHeight = 240; // h-60 = 240px
-  const dynamicPadding = (containerHeight - itemHeight) / 2;
+  const containerHeight = 200;
+  const visibleItems = Math.floor(containerHeight / itemHeight);
+  const paddingItems = Math.floor(visibleItems / 2);
 
   return (
     <div className={`relative w-full ${className}`}>
-      <div className="relative h-60 overflow-hidden rounded-lg bg-white">
+      {/* Main container */}
+      <div className={`relative overflow-hidden rounded-2xl border-2 transition-all duration-300 ${
+        darkMode 
+          ? 'bg-gray-800 border-gray-600' 
+          : 'bg-white border-gray-300'
+      }`} style={{ height: containerHeight }}>
+        
         {/* Unit toggle button */}
-        <div className="absolute right-4 top-1/2 transform -translate-y-1/2 z-30">
+        <div className="absolute right-3 top-3 z-30">
           <button
             type="button"
             onClick={handleUnitToggle}
-            className="px-3 py-1 text-sm border border-gray-300 rounded bg-white text-gray-600 hover:bg-gray-50 transition-colors font-medium shadow-sm"
+            className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-all duration-200 border-2 ${
+              darkMode
+                ? 'bg-gray-700 border-gray-500 text-gray-200 hover:bg-gray-600 hover:border-gray-400'
+                : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 hover:border-gray-300'
+            }`}
           >
-            {unit === 'cm' ? 'ft' : 'cm'}
+            {unit === 'cm' ? 'CM' : 'FT'}
           </button>
         </div>
-        {/* Gradient overlays */}
-        <div className="absolute top-0 left-0 right-0 h-20 z-20 pointer-events-none bg-gradient-to-b from-white to-transparent"></div>
-        <div className="absolute bottom-0 left-0 right-0 h-20 z-20 pointer-events-none bg-gradient-to-t from-white to-transparent"></div>
+
+        {/* Selection indicator line */}
+        <div 
+          className={`absolute left-0 right-0 z-20 border-t-2 border-b-2 pointer-events-none ${
+            darkMode ? 'border-blue-400' : 'border-blue-500'
+          }`}
+          style={{
+            top: `${(containerHeight - itemHeight) / 2}px`,
+            height: `${itemHeight}px`
+          }}
+        />
+
+        {/* Top gradient overlay */}
+        <div className={`absolute top-0 left-0 right-0 z-10 pointer-events-none h-16 ${
+          darkMode 
+            ? 'bg-gradient-to-b from-gray-800 via-gray-800/80 to-transparent' 
+            : 'bg-gradient-to-b from-white via-white/80 to-transparent'
+        }`} />
+
+        {/* Bottom gradient overlay */}
+        <div className={`absolute bottom-0 left-0 right-0 z-10 pointer-events-none h-16 ${
+          darkMode 
+            ? 'bg-gradient-to-t from-gray-800 via-gray-800/80 to-transparent' 
+            : 'bg-gradient-to-t from-white via-white/80 to-transparent'
+        }`} />
+
         {/* Scrollable content */}
         <div
           ref={scrollRef}
-          className="h-full overflow-y-scroll relative z-10"
+          className="h-full overflow-y-scroll scrollbar-hide"
           style={{
             scrollSnapType: 'y mandatory',
-            WebkitOverflowScrolling: 'touch',
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none'
+            WebkitOverflowScrolling: 'touch'
           }}
         >
-          {/* Top padding for centering */}
-          <div style={{ height: dynamicPadding }}></div>
+          {/* Top padding */}
+          <div style={{ height: `${paddingItems * itemHeight}px` }} />
+          
+          {/* Height options */}
           {heightOptions.map((option, index) => {
             const isSelected = selectedHeight === option.value;
+            const distanceFromCenter = Math.abs(
+              getCurrentIndex() - index
+            );
+            const opacity = Math.max(0.3, 1 - (distanceFromCenter * 0.15));
+            const scale = Math.max(0.85, 1 - (distanceFromCenter * 0.05));
             
             return (
               <div
                 key={option.value}
-                ref={isSelected ? itemRef : null}
-                className="flex items-center justify-center px-4 text-center transition-all duration-200 cursor-pointer"
+                className={`flex items-center justify-center cursor-pointer transition-all duration-200 ${
+                  darkMode ? 'text-white' : 'text-gray-900'
+                }`}
                 style={{
                   height: `${itemHeight}px`,
                   scrollSnapAlign: 'center',
-                  fontWeight: isSelected ? 'bold' : 'normal',
-                  fontSize: isSelected ? '1.2em' : '1em',
-                  color: isSelected ? '#1e40af' : '#374151', // Always blue for selected, even in ft
-                  background: isSelected ? 'rgba(59,130,246,0.08)' : 'transparent'
+                  opacity: isScrolling ? 1 : opacity,
+                  transform: isScrolling ? 'scale(1)' : `scale(${scale})`,
+                  fontWeight: isSelected ? '600' : '400',
+                  fontSize: isSelected ? '18px' : '16px',
+                  color: isSelected ? 
+                    (darkMode ? '#60a5fa' : '#2563eb') : 
+                    (darkMode ? '#e5e7eb' : '#374151')
                 }}
-                onClick={() => handleItemClick(option.value, option.label)}
+                onClick={() => handleItemClick(option.value)}
               >
-                <span>{option.label}</span>
+                <span className="select-none">
+                  {option.displayValue || option.label}
+                </span>
               </div>
             );
           })}
-          {/* Bottom padding for centering */}
-          <div style={{ height: dynamicPadding }}></div>
+          
+          {/* Bottom padding */}
+          <div style={{ height: `${paddingItems * itemHeight}px` }} />
         </div>
       </div>
-      {/* Hide scrollbar */}
+
+      {/* Current selection display */}
+      <div className={`text-center mt-2 text-sm ${
+        darkMode ? 'text-gray-300' : 'text-gray-600'
+      }`}>
+        Selected: <span className={`font-medium ${
+          darkMode ? 'text-blue-400' : 'text-blue-600'
+        }`}>
+          {heightOptions.find(opt => opt.value === selectedHeight)?.displayValue || 
+           heightOptions.find(opt => opt.value === selectedHeight)?.label || 
+           'None'}
+        </span>
+      </div>
+
+      {/* Hide scrollbar styles */}
       <style jsx>{`
-        div::-webkit-scrollbar {
+        .scrollbar-hide::-webkit-scrollbar {
           display: none;
+        }
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
         }
       `}</style>
     </div>
   );
 };
 
-// Demo component to test the height picker
-const HeightPickerDemo = () => {
-  const [height, setHeight] = useState('170'); // Start with cm
-  const [unit, setUnit] = useState('cm');
-
-  return (
-    <div className=" min-h-screen">
-      <div className="mb-4 text-center">
-        <p className="text-lg">Selected Height:</p>
-        <p className="text-xl font-bold text-blue-600">
-          {height} {unit === 'cm' ? 'cm' : ''}
-        </p>
-      </div>
-      
-      <HeightPicker
-        value={height}
-        unit={unit}
-        onHeightChange={setHeight}
-        onUnitChange={setUnit}
-      />
-    </div>
-  );
-};
-
-export default HeightPickerDemo;
+export default HeightPicker;

@@ -302,7 +302,7 @@ const BasicInfoStep = ({
   };
 
   return (
-    <div className="flex flex-col h-full max-h-[90vh] overflow-y-auto px-2 py-20">
+    <div className="flex flex-col h-full max-h-[90vh] overflow-y-auto px-2 ">
       {/* Main Title */}
       <div className="text-center space-y-1 mb-4">
         <h2 className="text-xl font-bold text-white">Tell us about yourself</h2>
@@ -354,7 +354,6 @@ const BasicInfoStep = ({
 
       {/* Height with HeightPicker */}
       <div className="space-y-2 mb-2 pt-4">
-        <label className="text-white font-medium text-sm">Height</label>
         <HeightPicker
           value={
             profileData.height !== undefined && profileData.height !== null && profileData.height !== ''
@@ -368,58 +367,6 @@ const BasicInfoStep = ({
           onUnitChange={(unit) => handleChange('heightUnit', unit)}
           className="w-full"
         />
-        {/* Debug info - remove in production */}
-        <p className="text-white/50 text-xs">
-          Debug: {profileData.heightUnit === 'inches'
-            ? (() => {
-                const inches = Number(profileData.height);
-                const feet = Math.floor(inches / 12);
-                const remainingInches = inches % 12;
-                return `${feet}'${remainingInches}" (${inches} total inches)`;
-              })()
-            : `${profileData.height} cm`}
-        </p>
-      </div>
-
-      {/* Spacer to push buttons to bottom if enough space */}
-      <div className="flex-1" />
-
-      {/* Navigation Buttons */}
-      <div className="flex justify-end pt-4">
-        <button
-          type="button"
-          onClick={() => {
-            console.log('Continue clicked. Current height:', profileData.height, 'Type:', typeof profileData.height);
-            goToNextStep();
-          }}
-          disabled={
-            !profileData.name.trim() ||
-            !profileData.age ||
-            Number(profileData.age) < 18 ||
-            Number(profileData.age) > 99 ||
-            !profileData.gender ||
-            !profileData.height ||
-            !(typeof profileData.height === 'number' && profileData.height > 0)
-          }
-          className={`
-            py-2 px-8 rounded-xl font-bold transition-all duration-200 shadow-lg
-            ${(
-              profileData.name.trim() &&
-              profileData.age &&
-              Number(profileData.age) >= 18 &&
-              Number(profileData.age) <= 99 &&
-              profileData.gender &&
-              profileData.height &&
-              typeof profileData.height === 'number' &&
-              profileData.height > 0
-            )
-              ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600'
-              : 'bg-gray-500 text-gray-300 cursor-not-allowed'
-            }
-          `}
-        >
-          Continue
-        </button>
       </div>
     </div>
   );
