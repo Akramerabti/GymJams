@@ -1,19 +1,18 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { Search, Filter, Calendar, MapPin, Dumbbell, Users, RefreshCw, X, Building2, AlertTriangle, Loader, MapPinIcon } from 'lucide-react';
 import MouseAvatarDesigner from './components/MouseAvatarDesigner';
-import { createGymIcon } from './components/MouseAvatarUtils';
+import AvatarDisplay from './components/AvatarDisplay';
 import MapSidePanel from './components/MapSidePanel';
+import { ImageService, DistanceUtils, FilterUtils } from './components/ImageUtils';
 import gymbrosService from '../../services/gymbros.service';
 import { useSocket } from '../../SocketContext';
 import { toast } from 'sonner';
 import gymBrosLocationService from '../../services/gymBrosLocation.service';
 import useGymBrosData from '../../hooks/useGymBrosData';
-
-// Import clustering if available
 let MarkerClusterGroup;
 try {
   MarkerClusterGroup = require('react-leaflet-cluster').default;
@@ -22,218 +21,6 @@ try {
 }
 
 const DEFAULT_CENTER = [45.5017, -73.5673]; 
-
-// Enhanced Image Service with fallbacks and error handling
-class ImageService {
-  static getSupabaseBaseUrl() {
-    return 'https://qqfdpetawucteqzrlzyn.supabase.co/storage/v1/object/public/uploads';
-  }
-  
-  static getAvatarUrl(avatar, userGender = 'Male', size = 256) {
-    // 1. Custom uploaded avatar (highest priority)
-    if (avatar?.customAvatarUrl) {
-      return avatar.customAvatarUrl;
-    }
-
-    // 2. Generated avatar image
-    if (avatar?.generatedImageUrl) {
-      return avatar.generatedImageUrl;
-    }
-    
-    // 3. Fallback to default avatar
-    return this.getDefaultAvatar(userGender, size);
-  }
-
-  static getDefaultAvatar(userGender = 'Male', size = 256) {
-    const genderFolder = userGender.toLowerCase();
-    const baseUrl = this.getSupabaseBaseUrl();
-    return `${baseUrl}/gym-bros/avatar-assets/fallback/default_mouse_${genderFolder}.png`;
-  }
-
-  static getGymImage(gym) {
-    if (gym.images && gym.images.length > 0) {
-      return gym.images[0]; 
-    }
-
-    if (gym.profileImage) {
-      return gym.profileImage;
-    }
-
-    return this.getDefaultGymImage(gym.type || 'gym');
-  }
-
-  static getDefaultGymImage(gymType = 'gym') {
-    const baseUrl = this.getSupabaseBaseUrl();
-    const typeImages = {
-      'gym': `${baseUrl}/gym-bros/gym-assets/defaults/default_gym.png`,
-      'community': `${baseUrl}/gym-bros/gym-assets/defaults/default_community.png`,
-      'event': `${baseUrl}/gym-bros/gym-assets/defaults/default_event.png`,
-      'sport_center': `${baseUrl}/gym-bros/gym-assets/defaults/default_sport_center.png`,
-      'other': `${baseUrl}/gym-bros/gym-assets/defaults/default_other.png`
-    };
-    
-    return typeImages[gymType] || typeImages['gym'];
-  }
-  
-  // Create enhanced avatar icon with image fallback
-  static createImageIcon(avatar, userGender, isCurrentUser = false, userType = {}) {
-    const avatarUrl = this.getAvatarUrl(avatar, userGender, 256); // Use larger size for better quality
-    const size = isCurrentUser ? 90 : 75; // Increase marker size for user avatars
-
-    return L.divIcon({
-      html: `
-        <div class="relative" style="width: ${size}px; height: ${size}px;">
-          <img 
-            src="${avatarUrl}" 
-            style="
-              width: ${size}px; 
-              height: ${size}px; 
-              object-fit: contain; 
-              border-radius: 0;
-              background: transparent;
-              box-shadow: none;
-              border: none;
-              display: block;
-              position: relative;
-              z-index: 1020;
-            "
-            onerror="this.src='${this.getDefaultAvatar(userGender)}'"
-          />
-          <!-- Removed blue dot for current user -->
-          ${userType.isMatch && !isCurrentUser ? `
-            <div class="absolute -top-1 -right-1 w-6 h-6 bg-pink-500 border-2 border-white rounded-full flex items-center justify-center">
-              <div style="font-size: 12px; line-height: 1;">❤️</div>
-            </div>
-          ` : ''}
-          ${userType.isGymMember && !userType.isMatch && !isCurrentUser ? `
-            <div class="absolute -top-1 -right-1 w-6 h-6 bg-orange-500 border-2 border-white rounded-full flex items-center justify-center">
-              <div style="color: white; font-size: 10px; line-height: 1;">🏋️</div>
-            </div>
-          ` : ''}
-          ${userType.isRecommendation && !userType.isMatch && !userType.isGymMember && !isCurrentUser ? `
-            <div class="absolute -top-1 -right-1 w-6 h-6 bg-purple-500 border-2 border-white rounded-full flex items-center justify-center">
-              <div style="color: white; font-size: 10px; line-height: 1;">⭐</div>
-            </div>
-          ` : ''}
-        </div>
-      `,
-      className: `custom-avatar-icon ${isCurrentUser ? 'current-user' : ''}`,
-      iconSize: [size, size],
-      iconAnchor: [size/2, size/2],
-    });
-  }
-
-  // Create enhanced gym icon with images
-  static createGymImageIcon(gym, isRealtime = false) {
-    const gymImage = this.getGymImage(gym);
-    const typeInfo = this.getGymTypeInfo(gym.type);
-    const size = 50;
-    // Remove border/background/circle, just show the image or fallback icon
-    // Remove green active/verified icon
-    return L.divIcon({
-      html: `
-        <div class="relative" style="width: ${size}px; height: ${size}px;">
-          <img 
-            src="${gymImage}" 
-            style="
-              width: ${size}px; 
-              height: ${size}px; 
-              object-fit: cover; 
-              border-radius: 0;
-              background: transparent;
-              display: block;
-              position: relative;
-              z-index: 1000;
-            "
-            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"
-          />
-          <div style="
-            display: none;
-            width: ${size}px; 
-            height: ${size}px; 
-            background: transparent;
-            border-radius: 0;
-            align-items: center; 
-            justify-content: center;
-            font-size: 24px;
-            position: absolute;
-            top: 0;
-            left: 0;
-          ">${typeInfo.icon}</div>
-          ${gym.isNew ? `
-            <div class="absolute -top-2 -left-2 bg-green-500 text-white text-xs px-1 rounded-full" style="font-size: 8px; line-height: 1.2; padding: 2px 4px;">
-              NEW
-            </div>
-          ` : ''}
-          ${isRealtime ? `
-            <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-blue-400 border-2 border-white rounded-full">
-              <div class="w-full h-full bg-blue-400 rounded-full animate-ping"></div>
-            </div>
-          ` : ''}
-        </div>
-      `,
-      className: 'custom-gym-icon',
-      iconSize: [size, size],
-      iconAnchor: [size / 2, size / 2],
-      popupAnchor: [0, -size / 2]
-    });
-  }
-  
-  static getBorderColor(isCurrentUser, userType) {
-    if (isCurrentUser) return '#10B981'; // Green for current user
-    if (userType.isMatch) return '#EC4899'; // Pink for matches
-    if (userType.isGymMember) return '#F59E0B'; // Orange for gym members
-    if (userType.isRecommendation) return '#8B5CF6'; // Purple for recommendations
-    return '#3B82F6'; // Blue default
-  }
-
-  static getGymTypeInfo(type) {
-    const types = {
-      'gym': { icon: '🏋️', color: '#3B82F6', bgColor: '#EBF8FF' },
-      'community': { icon: '🏘️', color: '#10B981', bgColor: '#ECFDF5' },
-      'event': { icon: '📅', color: '#F59E0B', bgColor: '#FFFBEB' },
-      'sport_center': { icon: '⚽', color: '#EF4444', bgColor: '#FEF2F2' },
-      'other': { icon: '📍', color: '#8B5CF6', bgColor: '#F5F3FF' }
-    };
-    return types[type] || types.gym;
-  }
-}
-
-// Enhanced Avatar Display Component with loading states
-const AvatarDisplay = ({ avatar, userGender, size = 90, className = "" }) => {
-  const [imageError, setImageError] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const avatarUrl = ImageService.getAvatarUrl(avatar, userGender, size);
-  const fallbackUrl = ImageService.getDefaultAvatar(userGender, size);
-
-  // Increase container and image size, use object-fit: contain to avoid cropping
-  return (
-    <div className={`relative ${className}`} style={{ width: size, height: size }}>
-      {loading && (
-        <div className="absolute inset-0 bg-gray-200 rounded-full flex items-center justify-center">
-          <Loader className="h-4 w-4 animate-spin text-gray-400" />
-        </div>
-      )}
-      <img
-        src={imageError ? fallbackUrl : avatarUrl}
-        alt="Avatar"
-        style={{
-          width: size,
-          height: size,
-          objectFit: 'contain',
-          borderRadius: '0',
-          background: 'transparent',
-          display: loading ? 'none' : 'block'
-        }}
-        onLoad={() => setLoading(false)}
-        onError={() => {
-          setImageError(true);
-          setLoading(false);
-        }}
-      />
-    </div>
-  );
-};
 
 // Geolocation Loading Screen Component (NO SKIP OPTION)
 const GeolocationLoadingScreen = ({ onLocationFound, onLocationError }) => {
@@ -407,7 +194,7 @@ const GeolocationLoadingScreen = ({ onLocationFound, onLocationError }) => {
   );
 };
 
-// Map Controls Component (REMOVED LOCATION TRACKING TOGGLE)
+// Map Controls Component
 const MapControls = ({ onSearch, onFilterToggle, loading, onRefresh, avatar, userGender, onAvatarClick }) => {
   const [query, setQuery] = useState('');
 
@@ -458,61 +245,6 @@ const MapControls = ({ onSearch, onFilterToggle, loading, onRefresh, avatar, use
       >
         <RefreshCw className={`h-5 w-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
       </button>
-    </div>
-  );
-};
-
-// Map Event Handler
-const MapEventHandler = ({ onMarkerClick, currentUserLocation }) => {
-  const map = useMapEvents({
-    click: (e) => {
-      // Handle map clicks if needed
-    }
-  });
-
-  return null;
-};
-
-// Map Update Component
-const MapUpdater = ({ center, zoom }) => {
-  const map = useMap();
-  
-  useEffect(() => {
-    if (center) {
-      map.setView(center, zoom || map.getZoom());
-    }
-  }, [center, zoom, map]);
-
-  return null;
-};
-
-// Error Display Component
-const ErrorDisplay = ({ error, onRetry, type = 'general' }) => {
-  const getErrorMessage = () => {
-    switch (type) {
-      case 'users': return 'Failed to load gym partners';
-      case 'gyms': return 'Failed to load gyms';
-      case 'events': return 'Failed to load events';
-      case 'location': return 'Failed to get your location';
-      default: return 'Something went wrong';
-    }
-  };
-
-  return (
-    <div className="bg-red-50 border border-red-200 rounded-lg p-4 m-4">
-      <div className="flex items-center gap-2 mb-2">
-        <AlertTriangle className="h-5 w-5 text-red-500" />
-        <h3 className="font-medium text-red-800">{getErrorMessage()}</h3>
-      </div>
-      <p className="text-sm text-red-600 mb-3">{error}</p>
-      {onRetry && (
-        <button
-          onClick={onRetry}
-          className="text-sm bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded"
-        >
-          Try Again
-        </button>
-      )}
     </div>
   );
 };
@@ -607,6 +339,61 @@ const MapFilters = ({ isOpen, onClose, filters, onApply }) => {
             </div>
           </div>
           
+          {/* User Type Visibility Toggles */}
+          <div>
+            <label className="block text-sm font-medium mb-2">User Types Visibility</label>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <span className="text-pink-600 mr-2">❤️</span>
+                  <span>Matches</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={localFilters.showMatches}
+                    onChange={(e) => setLocalFilters({...localFilters, showMatches: e.target.checked})}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-600"></div>
+                </label>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <span className="text-purple-600 mr-2">⭐</span>
+                  <span>Recommended</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={localFilters.showRecommended}
+                    onChange={(e) => setLocalFilters({...localFilters, showRecommended: e.target.checked})}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <span className="text-orange-600 mr-2">🏋️</span>
+                  <span>Gym Members</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={localFilters.showGymMembers}
+                    onChange={(e) => setLocalFilters({...localFilters, showGymMembers: e.target.checked})}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+                </label>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">Toggle which user types appear on the map</p>
+          </div>
+          
           <div>
             <label className="block text-sm font-medium mb-2">Max Distance</label>
             <input
@@ -618,6 +405,84 @@ const MapFilters = ({ isOpen, onClose, filters, onApply }) => {
               className="w-full"
             />
             <span className="text-sm text-gray-500">{localFilters.maxDistance} km</span>
+          </div>
+
+          {/* Search filters */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Search Options</label>
+            <div className="space-y-2">
+              <input
+                type="text"
+                placeholder="Search by name, gym, or workout type..."
+                value={localFilters.searchQuery || ''}
+                onChange={(e) => setLocalFilters({...localFilters, searchQuery: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
+          </div>
+
+          {/* Age range filter */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Age Range</label>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                placeholder="Min"
+                min="18"
+                max="100"
+                value={localFilters.ageRange?.min || ''}
+                onChange={(e) => setLocalFilters({
+                  ...localFilters, 
+                  ageRange: { ...localFilters.ageRange, min: parseInt(e.target.value) || null }
+                })}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <input
+                type="number"
+                placeholder="Max"
+                min="18"
+                max="100"
+                value={localFilters.ageRange?.max || ''}
+                onChange={(e) => setLocalFilters({
+                  ...localFilters, 
+                  ageRange: { ...localFilters.ageRange, max: parseInt(e.target.value) || null }
+                })}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
+          </div>
+
+          {/* Experience Level Filter */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Experience Level</label>
+            <select
+              value={localFilters.experienceLevel || 'Any'}
+              onChange={(e) => setLocalFilters({...localFilters, experienceLevel: e.target.value === 'Any' ? null : e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+            >
+              <option value="Any">Any Level</option>
+              <option value="Beginner">Beginner</option>
+              <option value="Intermediate">Intermediate</option>
+              <option value="Advanced">Advanced</option>
+              <option value="Expert">Expert</option>
+            </select>
+          </div>
+
+          {/* Gym Rating Filter */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Minimum Gym Rating</label>
+            <input
+              type="range"
+              min="0"
+              max="5"
+              step="0.5"
+              value={localFilters.minRating || 0}
+              onChange={(e) => setLocalFilters({...localFilters, minRating: parseFloat(e.target.value)})}
+              className="w-full"
+            />
+            <span className="text-sm text-gray-500">
+              {localFilters.minRating || 0} stars and above
+            </span>
           </div>
         </div>
         
@@ -632,7 +497,7 @@ const MapFilters = ({ isOpen, onClose, filters, onApply }) => {
             onClick={handleApply}
             className="flex-1 py-2 px-4 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
-            Apply
+            Apply Filters
           </button>
         </div>
       </div>
@@ -640,11 +505,66 @@ const MapFilters = ({ isOpen, onClose, filters, onApply }) => {
   );
 };
 
+// Map Event Handler
+const MapEventHandler = ({ onMarkerClick, currentUserLocation }) => {
+  const map = useMapEvents({
+    click: (e) => {
+      // Handle map clicks if needed
+    }
+  });
+
+  return null;
+};
+
+// Map Update Component
+const MapUpdater = ({ center, zoom }) => {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (center) {
+      map.setView(center, zoom || map.getZoom());
+    }
+  }, [center, zoom, map]);
+
+  return null;
+};
+
+// Error Display Component
+const ErrorDisplay = ({ error, onRetry, type = 'general' }) => {
+  const getErrorMessage = () => {
+    switch (type) {
+      case 'users': return 'Failed to load gym partners';
+      case 'gyms': return 'Failed to load gyms';
+      case 'events': return 'Failed to load events';
+      case 'location': return 'Failed to get your location';
+      default: return 'Something went wrong';
+    }
+  };
+
+  return (
+    <div className="bg-red-50 border border-red-200 rounded-lg p-4 m-4">
+      <div className="flex items-center gap-2 mb-2">
+        <AlertTriangle className="h-5 w-5 text-red-500" />
+        <h3 className="font-medium text-red-800">{getErrorMessage()}</h3>
+      </div>
+      <p className="text-sm text-red-600 mb-3">{error}</p>
+      {onRetry && (
+        <button
+          onClick={onRetry}
+          className="text-sm bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded"
+        >
+          Try Again
+        </button>
+      )}
+    </div>
+  );
+};
+
 // Main GymBrosMap Component
 const GymBrosMap = ({ userProfile }) => {
   const { 
-    users, 
-    gyms, 
+    users: rawUsers, 
+    gyms: rawGyms, 
     loading: dataLoading,
     fetchUsers, 
     fetchGyms,
@@ -679,7 +599,17 @@ const GymBrosMap = ({ userProfile }) => {
     showCommunity: true,
     showSportCenters: true,
     showOther: true,
-    maxDistance: 25
+    maxDistance: 25,
+    searchQuery: '',
+    ageRange: { min: null, max: null },
+    experienceLevel: null,
+    genderPreference: null,
+    workoutTypes: [],
+    // User type visibility toggles - only matches visible by default
+    showRecommended: false,
+    showMatches: true,
+    showGymMembers: false,
+    minRating: 0
   });
 
   const [showAvatarDesigner, setShowAvatarDesigner] = useState(false);
@@ -687,6 +617,52 @@ const GymBrosMap = ({ userProfile }) => {
 
   const { darkMode } = useTheme();
   const userGender = userProfile?.gender || 'Male';
+
+  // Apply filters and search to users and gyms
+  const { filteredUsers, filteredGyms } = useMemo(() => {
+    let users = [...rawUsers];
+    let gyms = [...rawGyms];
+
+    // Apply distance filter first (most efficient)
+    if (currentLocation && filters.maxDistance) {
+      users = DistanceUtils.filterByDistance(users, currentLocation, filters.maxDistance);
+      gyms = DistanceUtils.filterByDistance(gyms, currentLocation, filters.maxDistance);
+    }
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const userSearchFields = ['name', 'bio', 'experienceLevel', 'workoutTypes'];
+      const gymSearchFields = ['name', 'description', 'type'];
+      
+      users = FilterUtils.searchItems(users, searchQuery, userSearchFields);
+      gyms = FilterUtils.searchItems(gyms, searchQuery, gymSearchFields);
+    }
+
+    // Apply advanced filters from filter modal
+    if (filters.searchQuery && filters.searchQuery !== searchQuery) {
+      const userSearchFields = ['name', 'bio', 'experienceLevel', 'workoutTypes'];
+      const gymSearchFields = ['name', 'description', 'type'];
+      
+      users = FilterUtils.searchItems(users, filters.searchQuery, userSearchFields);
+      gyms = FilterUtils.searchItems(gyms, filters.searchQuery, gymSearchFields);
+    }
+
+    // Apply user-specific filters
+    users = FilterUtils.filterUsers(users, filters);
+
+    // Apply gym-specific filters
+    gyms = FilterUtils.filterGyms(gyms, filters);
+
+    // Apply visibility filters
+    if (!filters.showUsers) users = [];
+    if (!filters.showGyms) gyms = gyms.filter(gym => gym.type !== 'gym');
+    if (!filters.showCommunity) gyms = gyms.filter(gym => gym.type !== 'community');
+    if (!filters.showSportCenters) gyms = gyms.filter(gym => gym.type !== 'sport_center');
+    if (!filters.showEvents) gyms = gyms.filter(gym => gym.type !== 'event');
+    if (!filters.showOther) gyms = gyms.filter(gym => !['other'].includes(gym.type));
+
+    return { filteredUsers: users, filteredGyms: gyms };
+  }, [rawUsers, rawGyms, searchQuery, filters, currentLocation]);
 
   // Handle geolocation completion
   const handleLocationFound = async (location) => {
@@ -708,9 +684,15 @@ const GymBrosMap = ({ userProfile }) => {
         console.warn('Failed to update backend location:', error);
       }
       
-      // Start fetching map data
+      // Start fetching map data with location-based filters
+      const locationFilters = {
+        maxDistance: filters.maxDistance,
+        lat: location.lat,
+        lng: location.lng
+      };
+      
       await Promise.all([
-        fetchUsers(),
+        fetchUsers(locationFilters),
         fetchGyms()
       ]);
       
@@ -729,7 +711,7 @@ const GymBrosMap = ({ userProfile }) => {
     toast.error('Location access is required to use GymBros Map');
   };
 
-  // Render markers with enhanced image handling
+  // Render markers with enhanced image handling and random mirroring
   const renderMarkers = () => {
     const markers = [];
 
@@ -739,45 +721,39 @@ const GymBrosMap = ({ userProfile }) => {
         <Marker
           key="current-user-location"
           position={[currentLocation.lat, currentLocation.lng]}
-          icon={ImageService.createImageIcon(avatar, userGender, true)}
+          icon={ImageService.createImageIcon(
+            avatar, 
+            userGender, 
+            true, 
+            {}, 
+            userProfile?.id || userProfile?._id
+          )}
           eventHandlers={{
             click: handleCurrentUserClick
           }}
         >
-          <Popup>
-            <div className="text-center p-2">
-              <AvatarDisplay 
-                avatar={avatar} 
-                userGender={userGender} 
-                size={60} 
-              />
-              <h3 className="font-semibold mt-2">You are here</h3>
-              <p className="text-sm text-gray-600">
-                Tap to center map on your location
-              </p>
-            </div>
-          </Popup>
         </Marker>
       );
     }
 
-    // User markers with enhanced images
-    users
+    filteredUsers
       .filter(user => user.lat && user.lng)
       .forEach(user => {
+        const userId = user.id || user._id;
         const isMatch = user.source === 'match' || user.isMatch;
         const isGymMember = user.source === 'gym_member' || user.sharedGym;
         const isRecommendation = user.source === 'recommendation' || user.isRecommendation;
         
         markers.push(
           <Marker 
-            key={`user-${user.id || user._id}`} 
+            key={`user-${userId}`} 
             position={[user.lat, user.lng]} 
             icon={ImageService.createImageIcon(
               user.avatar, 
               user.gender || 'Male', 
               false, 
-              { isMatch, isGymMember, isRecommendation }
+              { isMatch, isGymMember, isRecommendation },
+              userId
             )}
             eventHandlers={{
               click: () => handleMarkerClick('user', user)
@@ -788,10 +764,23 @@ const GymBrosMap = ({ userProfile }) => {
                 <AvatarDisplay 
                   avatar={user.avatar} 
                   userGender={user.gender || 'Male'} 
+                  userId={userId}
                   size={60} 
                 />
                 <h3 className="font-semibold text-gray-900 mt-2">{user.name}</h3>
                 <p className="text-sm text-gray-500">{user.age} • {user.experienceLevel}</p>
+                
+                {/* Distance indicator */}
+                {currentLocation && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    {DistanceUtils.calculateDistance(
+                      currentLocation.lat, 
+                      currentLocation.lng, 
+                      user.lat, 
+                      user.lng
+                    ).toFixed(1)} km away
+                  </p>
+                )}
                 
                 {/* Enhanced relationship indicators */}
                 <div className="mt-2 space-y-1">
@@ -830,7 +819,7 @@ const GymBrosMap = ({ userProfile }) => {
       });
     
     // Gym markers with enhanced images
-    gyms
+    filteredGyms
       .filter(gym => {
         if (gym.location?.coordinates && Array.isArray(gym.location.coordinates)) {
           const [lng, lat] = gym.location.coordinates;
@@ -885,6 +874,18 @@ const GymBrosMap = ({ userProfile }) => {
                 </div>
                 
                 <p className="text-sm text-gray-600 mb-2 line-clamp-2">{gym.description}</p>
+                
+                {/* Distance indicator */}
+                {currentLocation && (
+                  <p className="text-xs text-gray-400 mb-2">
+                    {DistanceUtils.calculateDistance(
+                      currentLocation.lat, 
+                      currentLocation.lng, 
+                      lat, 
+                      lng
+                    ).toFixed(1)} km away
+                  </p>
+                )}
                 
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-1 text-blue-600">
@@ -975,8 +976,17 @@ const GymBrosMap = ({ userProfile }) => {
 
   const handleRefresh = async () => {
     setLoading(true);
+    
+    // Fetch with current location and filters for optimized backend queries
+    const locationFilters = currentLocation ? {
+      maxDistance: filters.maxDistance,
+      lat: currentLocation.lat,
+      lng: currentLocation.lng,
+      ...filters
+    } : filters;
+    
     await Promise.all([
-      fetchUsers(true), 
+      fetchUsers(locationFilters, true), 
       fetchGyms(true)
     ]);
     setLoading(false);
@@ -989,6 +999,18 @@ const GymBrosMap = ({ userProfile }) => {
 
   const handleFiltersApply = (newFilters) => {
     setFilters(newFilters);
+    
+    // If max distance changed significantly, refetch from backend
+    if (Math.abs(newFilters.maxDistance - filters.maxDistance) > 10 && currentLocation) {
+      const locationFilters = {
+        maxDistance: newFilters.maxDistance,
+        lat: currentLocation.lat,
+        lng: currentLocation.lng,
+        ...newFilters
+      };
+      
+      fetchUsers(locationFilters, true);
+    }
   };
 
   // Main render logic
@@ -1093,17 +1115,26 @@ const GymBrosMap = ({ userProfile }) => {
         </div>
       </div>
 
+      {/* Results counter */}
+      <div className="absolute bottom-4 right-4 z-30 bg-black bg-opacity-60 text-white px-3 py-2 rounded-lg text-sm">
+        <div className="flex items-center gap-4">
+          <span>👥 {filteredUsers.length}</span>
+          <span>🏋️ {filteredGyms.length}</span>
+        </div>
+      </div>
+
       {/* Debug Panel - Only show in development */}
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed bottom-20 right-4 bg-black bg-opacity-75 text-white p-3 rounded-lg text-xs max-w-sm z-40">
           <h4 className="font-bold mb-2">🐛 Debug Info</h4>
           <div className="space-y-1">
-            <div>Users: {users.length}</div>
-            <div>Gyms: {gyms.length}</div>
+            <div>Raw Users: {rawUsers.length} | Filtered: {filteredUsers.length}</div>
+            <div>Raw Gyms: {rawGyms.length} | Filtered: {filteredGyms.length}</div>
             <div>Location Status: {locationStatus}</div>
             <div>Current Location: {currentLocation ? `[${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}]` : 'None'}</div>
             <div>Map Ready: {mapReady ? 'Yes' : 'No'}</div>
             <div>Search: "{searchQuery}"</div>
+            <div>Max Distance: {filters.maxDistance}km</div>
           </div>
         </div>
       )}

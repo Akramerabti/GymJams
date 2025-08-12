@@ -1599,3 +1599,41 @@ html {
 .animate-slideUp {
   animation: slideUp 0.5s ease-out;
 }
+
+.custom-avatar-icon {
+  overflow: visible !important;
+}
+
+.custom-avatar-icon.mirrored-avatar {
+  transform: scaleX(-1) !important;
+}
+
+/* Fix for badges/indicators on mirrored avatars */
+.custom-avatar-icon.mirrored-avatar .absolute {
+  transform: scaleX(-1) !important;
+}
+
+/* Ensure smooth transitions for mirroring */
+.custom-avatar-icon,
+.custom-avatar-icon img {
+  transition: transform 0.2s ease-in-out;
+}
+
+/* Force hardware acceleration for better performance */
+.custom-avatar-icon {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+
+/* Ensure images load properly with mirroring */
+.custom-avatar-icon img {
+  image-rendering: auto;
+  image-rendering: crisp-edges;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+/* Debug helper (remove in production) */
+.debug-mirror {
+  border: 2px solid red !important;
+  background: rgba(255, 0, 0, 0.1) !important;
+}
