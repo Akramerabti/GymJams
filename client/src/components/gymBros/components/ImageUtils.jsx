@@ -45,7 +45,7 @@ export class ImageService {
       return avatar.generatedImageUrl;
     }
     
-    // 3. Fallback to default avatar
+  
     return this.getDefaultAvatar(userGender, size);
   }
 
@@ -80,23 +80,33 @@ export class ImageService {
     return typeImages[gymType] || typeImages['gym'];
   }
   
+
+// Check if user image should be mirrored (session-stable but changes between page loads)
+static shouldMirrorUser(userId) {
+  if (!userId) return false;
+  
+  // Create a session-stable hash using userId + current page URL
+  // This ensures consistent mirroring during the session but changes between sessions
+  let hash = 0;
+  const str = userId.toString() + window.location.href;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash) % 2 === 0;
+}
+
 // Create enhanced avatar icon with image fallback and random mirroring
 static createImageIcon(avatar, userGender, isCurrentUser = false, userType = {}, userId = null) {
   const avatarUrl = this.getAvatarUrl(avatar, userGender, 256);
-  const size = isCurrentUser ? 80 : 65;
-  // TRUE RANDOM 50% CHANCE - CHANGES EVERY RELOAD
-  const shouldMirror = Math.random() < 0.5;
+  const size = isCurrentUser ? 90 : 75;
+  
+  // Use the updated shouldMirrorUser method for session-stable mirroring
+  const shouldMirror = userId && this.shouldMirrorUser(userId);
 
   // Create a unique ID for this specific icon to avoid CSS conflicts
   const iconId = `avatar-${userId || 'default'}-${Date.now()}`;
-
-  // Debug logging
-  console.log('createImageIcon debug:', {
-    userId,
-    isCurrentUser,
-    shouldMirror,
-    randomValue: 'TRUE RANDOM EVERY TIME'
-  });
 
   return L.divIcon({
     html: `
@@ -143,7 +153,6 @@ static createImageIcon(avatar, userGender, isCurrentUser = false, userType = {},
     iconAnchor: [size/2, size/2],
   });
 }
-
   // Create enhanced gym icon with images
   static createGymImageIcon(gym, isRealtime = false) {
     const gymImage = this.getGymImage(gym);

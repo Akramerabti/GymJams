@@ -16,7 +16,7 @@ const AvatarDisplay = ({
   const [imageError, setImageError] = useState(false);
   const [loading, setLoading] = useState(true);
   
-  // Determine if image should be mirrored
+
   const autoMirror = userId ? ImageService.shouldMirrorUser(userId) : false;
   const finalMirror = shouldMirror || autoMirror;
   
