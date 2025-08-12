@@ -77,9 +77,9 @@ class ImageService {
   
   // Create enhanced avatar icon with image fallback
   static createImageIcon(avatar, userGender, isCurrentUser = false, userType = {}) {
-    const avatarUrl = this.getAvatarUrl(avatar, userGender, 80);
-    const size = isCurrentUser ? 60 : 50;
-    
+    const avatarUrl = this.getAvatarUrl(avatar, userGender, 256); // Use larger size for better quality
+    const size = isCurrentUser ? 90 : 75; // Increase marker size for user avatars
+
     return L.divIcon({
       html: `
         <div class="relative" style="width: ${size}px; height: ${size}px;">
@@ -88,7 +88,7 @@ class ImageService {
             style="
               width: ${size}px; 
               height: ${size}px; 
-              object-fit: cover; 
+              object-fit: contain; 
               border-radius: 0;
               background: transparent;
               box-shadow: none;
@@ -200,12 +200,13 @@ class ImageService {
 }
 
 // Enhanced Avatar Display Component with loading states
-const AvatarDisplay = ({ avatar, userGender, size = 60, className = "" }) => {
+const AvatarDisplay = ({ avatar, userGender, size = 90, className = "" }) => {
   const [imageError, setImageError] = useState(false);
   const [loading, setLoading] = useState(true);
   const avatarUrl = ImageService.getAvatarUrl(avatar, userGender, size);
   const fallbackUrl = ImageService.getDefaultAvatar(userGender, size);
 
+  // Increase container and image size, use object-fit: contain to avoid cropping
   return (
     <div className={`relative ${className}`} style={{ width: size, height: size }}>
       {loading && (
@@ -219,8 +220,8 @@ const AvatarDisplay = ({ avatar, userGender, size = 60, className = "" }) => {
         style={{
           width: size,
           height: size,
-          objectFit: 'cover',
-          borderRadius: '50%',
+          objectFit: 'contain',
+          borderRadius: '0',
           background: 'transparent',
           display: loading ? 'none' : 'block'
         }}
