@@ -939,10 +939,12 @@ const GymBrosMap = ({ userProfile }) => {
   const handleCurrentUserClick = () => {
     if (currentLocation && mapRef.current) {
       const map = mapRef.current;
-      map.flyTo([currentLocation.lat, currentLocation.lng], 18, {
-        animate: true,
-        duration: 1.2
-      });
+      map.flyTo([currentLocation.lat, currentLocation.lng], 16, {
+      animate: true,
+      duration: 1.2, 
+      easeLinearity: 0.1, 
+      noMoveStart: false 
+    });
     }
   };
 

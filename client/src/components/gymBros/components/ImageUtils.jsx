@@ -97,7 +97,6 @@ static shouldMirrorUser(userId) {
   return Math.abs(hash) % 2 === 0;
 }
 
-// Create enhanced avatar icon with image fallback and random mirroring
 static createImageIcon(avatar, userGender, isCurrentUser = false, userType = {}, userId = null) {
   const avatarUrl = this.getAvatarUrl(avatar, userGender, 256);
   const size = isCurrentUser ? 90 : 75;
@@ -150,7 +149,10 @@ static createImageIcon(avatar, userGender, isCurrentUser = false, userType = {},
     `,
     className: `custom-avatar-icon ${isCurrentUser ? 'current-user' : ''}`,
     iconSize: [size, size],
+    // FIXED: Proper icon anchoring to center the icon on the coordinates
     iconAnchor: [size/2, size/2],
+    // FIXED: Add popup anchor for better popup positioning
+    popupAnchor: [0, -size/2]
   });
 }
   // Create enhanced gym icon with images
