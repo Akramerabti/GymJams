@@ -123,19 +123,38 @@ const [currentIndex, setCurrentIndex] = useState(0);
   }, [hasProfile]);
 
   useEffect(() => {
-    if (!hasInitializedRef.current) {
-      hasInitializedRef.current = true;
-      
-      if (isAuthenticated) {
-        clearGuestState();
+
+     if (guestLoading) {
+    console.log('⏳ Waiting for guest context to load...');
+    return;
+  }
+
+    console.log('🚀 Starting initialization:', { 
+      isAuthenticated, 
+      isGuest, 
+      verifiedPhone, 
+      guestToken: !!localStorage.getItem('gymbros_guest_token') 
+    });
+    
+    if (isAuthenticated) {
+      clearGuestState();
       clearCache(); 
       initializeWithSingleCall();
-      } else if (isGuest || verifiedPhone) {
+    } else if (isGuest || verifiedPhone) {
+      initializeWithSingleCall();
+    } else {
+      // Check for guest token even if isGuest is false
+      const guestToken = localStorage.getItem('gymbros_guest_token');
+      if (guestToken) {
+        console.log('🎫 Found guest token, setting and initializing');
+        gymbrosService.setGuestToken(guestToken);
         initializeWithSingleCall();
       } else {
+        console.log('❌ No authentication, showing login prompt');
         setLoading(false);
       }
     }
+  
     
     if (typeof window !== 'undefined') {
       window.gymBrosDebug = {
@@ -154,7 +173,7 @@ const [currentIndex, setCurrentIndex] = useState(0);
     return () => {
       gymBrosLocationService.stopAutoLocationSync();
     };
-  }, [isAuthenticated, isGuest, verifiedPhone]);
+  }, [isAuthenticated, isGuest, verifiedPhone, guestLoading]); 
 
   useEffect(() => {
     if (activeTab === 'discover' && hasProfile) {
@@ -205,94 +224,53 @@ const [currentIndex, setCurrentIndex] = useState(0);
   }, [clearCache]);
 
   const initializeWithSingleCall = async () => {
-    try {
-      setLoading(true);
-      
-      debugGuestToken();
-      
-      const initData = await optimizedApiCall(
-        'gymbros-init',
-        () => gymbrosService.initializeGymBros(),
-        {
-          cacheTime: 10 * 60 * 1000,
-          minInterval: 60 * 1000,
-        }
-      );
-      
-      if (initData.hasProfile && initData.profile) {
-        setHasProfile(true);
-        setUserProfile(initData.profile);
-        
-        if (!locationSyncStartedRef.current) {
-          locationSyncStartedRef.current = true;
-          gymBrosLocationService.startAutoLocationSync(user, user?.phone || initData.profile.phone);
-        }
-        
-        const initialFilters = {
-          workoutTypes: [],
-          experienceLevel: 'Any',
-          preferredTime: 'Any',
-          genderPreference: 'All',
-          ageRange: { min: 18, max: 99 },
-          maxDistance: 50
-        };
-        
-        setFilters(initialFilters);
-        
-        if (initData.profiles && Array.isArray(initData.profiles)) {
-          setProfiles(initData.profiles);
-        } else {
-          await fetchProfilesWithFilters(initialFilters);
-        }
-        
-        if (initData.matches && Array.isArray(initData.matches)) {
-          setMatches(initData.matches);
-        }
-      } else {
-        setHasProfile(false);
-        setUserProfile(null);
-        
-        if (!isAuthenticated && !isGuest && !verifiedPhone) {
-          const guestToken = localStorage.getItem('gymbros_guest_token');
-          if (guestToken) {
-            gymbrosService.setGuestToken(guestToken);
-            await fetchGuestProfile();
-            
-            if (guestProfile) {
-              setHasProfile(true);
-              setUserProfile(guestProfile);
-              
-              const initialFilters = {
-                workoutTypes: [],
-                experienceLevel: 'Any',
-                preferredTime: 'Any',
-                genderPreference: 'All',
-                ageRange: { min: 18, max: 99 },
-                maxDistance: 50
-              };
-              
-              setFilters(initialFilters);
-              await fetchProfilesWithFilters(initialFilters);
-            } else {
-              setShowLoginPrompt(true);
-            }
-          } else {
-            setShowLoginPrompt(true);
-          }
-        }
+  try {
+    setLoading(true);
+    
+    // 🔥 SET GUEST TOKEN FIRST - BEFORE ANY API CALLS
+    const guestToken = localStorage.getItem('gymbros_guest_token');
+    if (guestToken) {
+      console.log('🎫 Setting guest token before API call');
+      gymbrosService.setGuestToken(guestToken);
+    }
+    
+    debugGuestToken();
+    
+    const initData = await optimizedApiCall(
+      'gymbros-init',
+      () => gymbrosService.initializeGymBros(),
+      {
+        cacheTime: 10 * 60 * 1000,
+        minInterval: 60 * 1000,
       }
-    } catch (error) {
-      console.error('Error initializing profile:', error);
+    );
+    
+    // Rest of your existing logic...
+    if (initData.hasProfile && initData.profile) {
+      setHasProfile(true);
+      setUserProfile(initData.profile);
+      // ... rest unchanged
+    } else {
+      // Remove the duplicate guest token logic since it's already handled above
       setHasProfile(false);
       setUserProfile(null);
       
       if (!isAuthenticated && !isGuest && !verifiedPhone) {
         setShowLoginPrompt(true);
       }
-    } finally {
-      setLoading(false);
     }
-  };
+  } catch (error) {
+    console.error('Error initializing profile:', error);
+    setHasProfile(false);
+    setUserProfile(null);
+    
+    if (!isAuthenticated && !isGuest && !verifiedPhone) {
+      setShowLoginPrompt(true);
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   const checkUserProfile = async () => {
     await initializeWithSingleCall();

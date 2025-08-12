@@ -288,7 +288,6 @@ const PhoneVerification = ({
               value={phone}
               onChange={onChange}
               onValidChange={(isValid) => {
-                // Only show error if phone has content and is invalid
                 if (phone && phone.trim() && !isValid) {
                   setPhoneError('Please enter a valid phone number');
                 } else {
@@ -354,10 +353,6 @@ const PhoneVerification = ({
             ))}
           </div>
           
-          {/* Helper text for mobile users */}
-          <p className={`text-center text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-            💡 Tip: You can paste the entire 6-digit code or tap the SMS notification to auto-fill
-          </p>
           
           <div className="flex flex-col items-center justify-center space-y-3">
             <button

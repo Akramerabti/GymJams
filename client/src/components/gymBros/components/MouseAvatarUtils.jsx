@@ -4,11 +4,12 @@ import { Building2, Calendar, Users, MapPin, Activity, Zap, Shield } from 'lucid
 
 // Enhanced mouse avatar rendering with real-time indicators
 export const renderMouseAvatar = (avatar, size = 40, showRealtimeIndicator = false) => {
-  const furColor = avatar.furColor || '#8B4513';
-  const mood = avatar.mood || 'happy';
-  const eyes = avatar.eyes || 'normal';
-  // Ensure accessories is always an array
-  const accessories = Array.isArray(avatar.accessories) ? avatar.accessories : [];
+  const furColor = avatar?.furColor || '#8B4513';
+  const shirtColor = avatar?.shirtColor || '#3B82F6';
+  const shirtStyle = avatar?.shirtStyle || 'tshirt';
+  const accessory = avatar?.accessory || 'none';
+  const mood = avatar?.mood || 'happy';
+  const eyes = avatar?.eyes || 'normal';
   
   // Mouse body paths
   const mouseBody = (
@@ -62,6 +63,16 @@ export const renderMouseAvatar = (avatar, size = 40, showRealtimeIndicator = fal
               stroke="#000" strokeWidth="2" />
       )}
       
+      {mood === 'neutral' && (
+        <line x1={size*0.46} y1={size*0.46} x2={size*0.54} y2={size*0.46} 
+              stroke="#000" strokeWidth="1" />
+      )}
+      
+      {mood === 'cool' && (
+        <path d={`M${size*0.46},${size*0.47} Q${size/2},${size*0.44} ${size*0.54},${size*0.47}`} 
+              stroke="#000" strokeWidth="1.5" fill="none" />
+      )}
+      
       {/* Whiskers */}
       <line x1={size*0.25} y1={size*0.38} x2={size*0.35} y2={size*0.36} stroke="#000" strokeWidth="1" />
       <line x1={size*0.25} y1={size*0.42} x2={size*0.35} y2={size*0.42} stroke="#000" strokeWidth="1" />
@@ -76,22 +87,62 @@ export const renderMouseAvatar = (avatar, size = 40, showRealtimeIndicator = fal
       <ellipse cx={size*0.25} cy={size*0.55} rx={size*0.08} ry={size*0.15} fill={furColor} />
       <ellipse cx={size*0.75} cy={size*0.55} rx={size*0.08} ry={size*0.15} fill={furColor} />
       
-  {/* Legs removed (pants) */}
-      
-      {/* Accessories */}
-      {accessories.includes('workout_band') && (
-        <rect x={size*0.2} y={size*0.5} width={size*0.6} height={size*0.05} fill="#FF6B6B" rx="2" />
+      {/* Shirt/Clothing */}
+      {shirtStyle === 'tshirt' && (
+        <>
+          <ellipse cx={size/2} cy={size*0.55} rx={size*0.25} ry={size*0.15} fill={shirtColor} />
+          <ellipse cx={size/2} cy={size*0.48} rx={size*0.15} ry={size*0.08} fill={shirtColor} />
+        </>
       )}
       
-      {accessories.includes('cap') && (
+      {shirtStyle === 'hoodie' && (
+        <>
+          <ellipse cx={size/2} cy={size*0.55} rx={size*0.28} ry={size*0.18} fill={shirtColor} />
+          <ellipse cx={size/2} cy={size*0.48} rx={size*0.18} ry={size*0.1} fill={shirtColor} />
+          <ellipse cx={size/2} cy={size*0.25} rx={size*0.2} ry={size*0.05} fill={shirtColor} />
+        </>
+      )}
+      
+      {shirtStyle === 'tank' && (
+        <>
+          <ellipse cx={size/2} cy={size*0.55} rx={size*0.22} ry={size*0.15} fill={shirtColor} />
+          <ellipse cx={size/2} cy={size*0.48} rx={size*0.12} ry={size*0.08} fill={shirtColor} />
+        </>
+      )}
+      
+      {/* Accessories */}
+      {accessory === 'glasses' && (
+        <>
+          <circle cx={size*0.42} cy={size*0.32} r={size*0.08} fill="none" stroke="#000" strokeWidth="1" />
+          <circle cx={size*0.58} cy={size*0.32} r={size*0.08} fill="none" stroke="#000" strokeWidth="1" />
+          <line x1={size*0.5} y1={size*0.32} x2={size*0.5} y2={size*0.32} stroke="#000" strokeWidth="1" />
+        </>
+      )}
+      
+      {accessory === 'hat' && (
         <ellipse cx={size/2} cy={size*0.15} rx={size*0.25} ry={size*0.1} fill="#4A90E2" />
       )}
       
-      {accessories.includes('muscle') && (
+      {accessory === 'headphones' && (
         <>
-          <ellipse cx={size*0.2} cy={size*0.5} rx={size*0.06} ry={size*0.1} fill={furColor} />
-          <ellipse cx={size*0.8} cy={size*0.5} rx={size*0.06} ry={size*0.1} fill={furColor} />
+          <ellipse cx={size*0.25} cy={size*0.25} rx={size*0.06} ry={size*0.08} fill="#333" />
+          <ellipse cx={size*0.75} cy={size*0.25} rx={size*0.06} ry={size*0.08} fill="#333" />
+          <path d={`M${size*0.31},${size*0.2} Q${size/2},${size*0.1} ${size*0.69},${size*0.2}`} 
+                stroke="#333" strokeWidth="3" fill="none" />
         </>
+      )}
+      
+      {accessory === 'sunglasses' && (
+        <>
+          <ellipse cx={size*0.42} cy={size*0.32} rx={size*0.08} ry={size*0.06} fill="#000" />
+          <ellipse cx={size*0.58} cy={size*0.32} rx={size*0.08} ry={size*0.06} fill="#000" />
+          <line x1={size*0.5} y1={size*0.32} x2={size*0.5} y2={size*0.32} stroke="#000" strokeWidth="1" />
+        </>
+      )}
+      
+      {accessory === 'bandana' && (
+        <path d={`M${size*0.25},${size*0.25} Q${size/2},${size*0.15} ${size*0.75},${size*0.25} Q${size*0.7},${size*0.35} ${size*0.3},${size*0.35}`} 
+              fill="#FF0000" />
       )}
     </g>
   );
@@ -106,7 +157,7 @@ export const renderMouseAvatar = (avatar, size = 40, showRealtimeIndicator = fal
           <circle cx={size*0.85} cy={size*0.15} r={size*0.08} fill="#3B82F6" opacity="0.9">
             <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite" />
           </circle>
-          <Zap x={size*0.81} y={size*0.11} width={size*0.08} height={size*0.08} className="text-white" />
+          <text x={size*0.85} y={size*0.18} textAnchor="middle" fontSize={size*0.06} fill="white">⚡</text>
         </g>
       )}
     </svg>
@@ -146,7 +197,9 @@ export const createMouseIcon = (avatar, isCurrentUser = false, options = {}) => 
     mouseHtml = createWavingMouseSVG(size);
   } else {
     // Use regular avatar for matches and gym members
-    mouseHtml = renderMouseAvatar(avatar || {}, size);
+    const avatarSvg = renderMouseAvatar(avatar || {}, size);
+    // Convert React element to string for divIcon
+    mouseHtml = `<div>${avatarSvg.props.dangerouslySetInnerHTML?.__html || ''}</div>`;
   }
   
   const iconHtml = `
@@ -275,10 +328,6 @@ export const createWavingMouseSVG = (size = 40) => {
         <circle cx="${size*0.15}" cy="${size*0.45}" r="${size*0.06}" fill="#FFA500" />
       </g>
       
-      <!-- Legs -->
-      <ellipse cx="${size*0.35}" cy="${size*0.8}" rx="${size*0.08}" ry="${size*0.12}" fill="#FFA500" />
-      <ellipse cx="${size*0.65}" cy="${size*0.8}" rx="${size*0.08}" ry="${size*0.12}" fill="#FFA500" />
-      
       <!-- "Hi!" speech bubble -->
       <g opacity="0.9">
         <!-- Bubble -->
@@ -370,81 +419,6 @@ export const createGymIcon = (gym, isRealtime = false) => {
       popupAnchor: [0, -20]
     });
   }
-};
-
-// Helper function to create mouse SVG string
-const createMouseSVG = (avatar, size) => {
-  const furColor = avatar.furColor || '#8B4513';
-  const mood = avatar.mood || 'happy';
-  const eyes = avatar.eyes || 'normal';
-  const accessories = avatar.accessories || [];
-
-  return `
-    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="inline-block">
-      <!-- Main body -->
-      <ellipse cx="${size/2}" cy="${size*0.6}" rx="${size*0.35}" ry="${size*0.25}" fill="${furColor}" />
-      
-      <!-- Head -->
-      <circle cx="${size/2}" cy="${size*0.35}" r="${size*0.28}" fill="${furColor}" />
-      
-      <!-- Ears -->
-      <circle cx="${size*0.3}" cy="${size*0.2}" r="${size*0.12}" fill="${furColor}" />
-      <circle cx="${size*0.7}" cy="${size*0.2}" r="${size*0.12}" fill="${furColor}" />
-      <circle cx="${size*0.3}" cy="${size*0.2}" r="${size*0.08}" fill="#FFB6C1" />
-      <circle cx="${size*0.7}" cy="${size*0.2}" r="${size*0.08}" fill="#FFB6C1" />
-      
-      <!-- Eyes -->
-      ${eyes === 'normal' ? `
-        <circle cx="${size*0.42}" cy="${size*0.32}" r="${size*0.06}" fill="#000" />
-        <circle cx="${size*0.58}" cy="${size*0.32}" r="${size*0.06}" fill="#000" />
-        <circle cx="${size*0.44}" cy="${size*0.30}" r="${size*0.02}" fill="#FFF" />
-        <circle cx="${size*0.60}" cy="${size*0.30}" r="${size*0.02}" fill="#FFF" />
-      ` : ''}
-      
-      ${eyes === 'excited' ? `
-        <path d="M${size*0.38},${size*0.29} Q${size*0.42},${size*0.26} ${size*0.46},${size*0.29}" 
-              stroke="#000" stroke-width="2" fill="none" />
-        <path d="M${size*0.54},${size*0.29} Q${size*0.58},${size*0.26} ${size*0.62},${size*0.29}" 
-              stroke="#000" stroke-width="2" fill="none" />
-      ` : ''}
-      
-      <!-- Nose -->
-      <circle cx="${size/2}" cy="${size*0.4}" r="${size*0.03}" fill="#FF69B4" />
-      
-      <!-- Mouth based on mood -->
-      ${mood === 'happy' ? `
-        <path d="M${size*0.46},${size*0.45} Q${size/2},${size*0.5} ${size*0.54},${size*0.45}" 
-              stroke="#000" stroke-width="1.5" fill="none" />
-      ` : ''}
-      
-      ${mood === 'excited' ? `
-        <ellipse cx="${size/2}" cy="${size*0.47}" rx="${size*0.05}" ry="${size*0.03}" fill="#000" />
-      ` : ''}
-      
-      {/* Whiskers */}
-      <line x1="${size*0.25}" y1="${size*0.38}" x2="${size*0.35}" y2="${size*0.36}" stroke="#000" stroke-width="1" />
-      <line x1="${size*0.25}" y1="${size*0.42}" x2="${size*0.35}" y2="${size*0.42}" stroke="#000" stroke-width="1" />
-      <line x1="${size*0.65}" y1="${size*0.36}" x2="${size*0.75}" y2="${size*0.38}" stroke="#000" stroke-width="1" />
-      <line x1="${size*0.65}" y1="${size*0.42}" x2="${size*0.75}" y2="${size*0.42}" stroke="#000" stroke-width="1" />
-      
-      <!-- Tail -->
-      <path d="M${size*0.85},${size*0.65} Q${size*0.95},${size*0.5} ${size*0.9},${size*0.35}" 
-            stroke="${furColor}" stroke-width="3" fill="none" />
-      
-      <!-- Arms -->
-      <ellipse cx="${size*0.25}" cy="${size*0.55}" rx="${size*0.08}" ry="${size*0.15}" fill="${furColor}" />
-      <ellipse cx="${size*0.75}" cy="${size*0.55}" rx="${size*0.08}" ry="${size*0.15}" fill="${furColor}" />
-      
-      <!-- Accessories -->
-      ${accessories.includes('workout_band') ? `
-        <rect x="${size*0.2}" y="${size*0.5}" width="${size*0.6}" height="${size*0.05}" fill="#FF6B6B" rx="2" />
-      ` : ''}
-      
-      ${accessories.includes('cap') ? `
-        <ellipse cx="${size/2}" cy="${size*0.15}" rx="${size*0.25}" ry="${size*0.1}" fill="#4A90E2" />
-      ` : ''}
-    </svg>
-  `;
 };
 
 // Create activity indicator for real-time status
