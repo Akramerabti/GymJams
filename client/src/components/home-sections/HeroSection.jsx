@@ -5,7 +5,7 @@ import productService from '../../services/product.service';
 import gymBrosService from '../../services/gymbros.service';
 import { formatImageUrl, getFallbackAvatarUrl } from '../../utils/imageUtils';
 import { getCloudinaryVideoUrl } from '../../utils/cloudinary';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogTrigger } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogTrigger } from '../../components/ui/dialog';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
