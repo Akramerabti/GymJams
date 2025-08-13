@@ -405,6 +405,7 @@ const Home = () => {
               {/* Tooltip */}
               <div className="absolute right-6 top-1/2 -translate-y-1/2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow">
                 {label}
+                
               </div>
             </div>
           ))}
