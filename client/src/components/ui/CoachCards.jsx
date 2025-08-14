@@ -618,17 +618,15 @@ style={{ boxSizing: 'border-box', touchAction: 'auto', height: '75vh' }}
                 {/* CTA */}
                 <div className="border-t pt-6">
                   <button
-  onClick={() => handleChooseCoach(selectedCoach)}
-  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-4 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
->
-  Choose {selectedCoach.firstName}
-</button>
-<p className={`text-center text-sm mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-  Start with our Premium Plan and work with {selectedCoach.firstName}
-</p>
+                    onClick={() => handleChooseCoach(selectedCoach)}
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-4 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+                  >
+                    Choose {selectedCoach.firstName}
+                  </button>
                   <p className={`text-center text-sm mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    Subscribe to a coaching plan to work with {selectedCoach.firstName}
+                    Start and work with {selectedCoach.firstName}
                   </p>
+
                 </div>
               </div>
             </motion.div>
