@@ -663,23 +663,6 @@ const CoachingHome = () => {
    </div>
 </section>
 
-{/* Alternative: If you want to control the container width specifically */}
-<section className="py-20">
-  <div className="max-w-7xl mx-auto px-4">
-    <CoachCards
-      coaches={coaches}
-      isDarkMode={isDarkMode}
-      formatImageUrl={formatImageUrl}
-      t={t}
-      debug={true} // Always show debug for testing
-      containerWidth={1280} // Fixed container width
-      maxCardsPerView={5} // Show max 5 cards
-      minCardWidth={260} // Slightly larger minimum width
-      cardGap={20} // Larger gap between cards
-    />
-  </div>
-</section>
-
       {/* Pricing Section with Hover Effects */}
       <section id="plans" className={`
         py-20 relative overflow-hidden
