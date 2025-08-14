@@ -172,7 +172,7 @@ const ShopSection = ({ isActive, onNavigate, darkMode }) => {
   };
 
   return (
-    <div className="relative h-full w-full flex items-center justify-center overflow-hidden">
+    <div >
       {/* Background */}
       <div className="absolute inset-0">
         <div className={`absolute inset-0 ${
@@ -187,7 +187,7 @@ const ShopSection = ({ isActive, onNavigate, darkMode }) => {
       </div>
 
       {/* Content */}
-      <div className={`relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 transition-all duration-1000 ${
+      <div className={`relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-40 transition-all duration-1000 ${
         isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
       }`}>
         {/* Header */}
@@ -205,7 +205,7 @@ const ShopSection = ({ isActive, onNavigate, darkMode }) => {
             {t('shopsection.premiumShop')}
           </h2>
           
-          <p className={`text-lg ${darkMode ? 'text-gray-300' : 'text-gray-700'} max-w-2xl mx-auto ${
+          <p className={`text-md ${darkMode ? 'text-gray-300' : 'text-gray-700'} max-w-2xl mx-auto ${
             isActive ? 'animate-fade-in animation-delay-200' : ''
           }`}>
             {t('shopsection.discover')}
