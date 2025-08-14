@@ -485,9 +485,9 @@ const CoachCards = ({
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className={`relative w-full max-w-[420px] md:max-w-[520px] lg:max-w-[640px] xl:max-w-[720px] 2xl:max-w-[800px] max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl flex flex-col items-center
-                ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}
-              style={{ boxSizing: 'border-box' }}
+          className={`relative w-full max-w-[420px] md:max-w-[520px] lg:max-w-[640px] xl:max-w-[720px] 2xl:max-w-[800px] overflow-y-auto rounded-2xl shadow-2xl flex flex-col items-center
+  ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}
+style={{ boxSizing: 'border-box', touchAction: 'auto', height: '75vh' }}
               onClick={(e) => e.stopPropagation()}
             >
               <button
