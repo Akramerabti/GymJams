@@ -370,19 +370,45 @@ export const handleEmailWebhook = async (req, res) => {
       return `${normalizedLocal}@${domain}`;
     };
     
-    // Generate multiple normalized variations for lookup
-    const generateEmailVariations = (email) => {
+     const generateEmailVariations = (email) => {
       if (!email) return [];
       
       const variations = new Set([email]); // Use Set to avoid duplicates
-      const [localPart, domain] = email.split('@');
+      const cleanEmail = email.toLowerCase().trim();
+      variations.add(cleanEmail);
+      
+      if (!cleanEmail.includes('@')) return Array.from(variations);
+      
+      const [localPart, domain] = cleanEmail.split('@');
       
       // Add normalized version
-      variations.add(normalizeEmail(email));
+      const normalized = normalizeEmail(cleanEmail);
+      variations.add(normalized);
       
-      // For Gmail specifically, also add version without dots
+      // For Gmail specifically, add COMPREHENSIVE variations including reverse engineering
       if (domain === 'gmail.com' || domain === 'googlemail.com') {
+        // Always add version without dots
         variations.add(`${localPart.replace(/\./g, '')}@${domain}`);
+        
+        // If no dots in original, try to reconstruct common patterns
+        if (!localPart.includes('.') && localPart.length > 4) {
+          // Try common prefix patterns
+          const prefixMatch = localPart.match(/^(auth|user|admin|test|demo|dev)(.+)$/);
+          if (prefixMatch && prefixMatch[2].length > 0) {
+            variations.add(`${prefixMatch[1]}.${prefixMatch[2]}@${domain}`);
+          }
+          
+          // Try common suffix patterns  
+          const suffixMatch = localPart.match(/^(.+)(system|vd|test|dev|prod)$/);
+          if (suffixMatch && suffixMatch[1].length > 0) {
+            variations.add(`${suffixMatch[1]}.${suffixMatch[2]}@${domain}`);
+          }
+        }
+        
+        // If dots exist, also add version without dots
+        if (localPart.includes('.')) {
+          variations.add(`${localPart.replace(/\./g, '')}@${domain}`);
+        }
       }
       
       // For educational domains, add version with single dots
@@ -440,7 +466,7 @@ export const handleEmailWebhook = async (req, res) => {
       }
     }
 
-    console.log('Application lookup result:', {
+     console.log('Application lookup result:', {
       originalEmail: senderEmail,
       emailVariations: emailVariations,
       found: !!application,
@@ -448,7 +474,18 @@ export const handleEmailWebhook = async (req, res) => {
       currentStatus: application?.status,
       applicationEmail: application?.email
     });
-
+    
+    // Additional debugging for email normalization issues
+    if (!application) {
+      console.log('[DEBUG] No application found, checking what applications exist...');
+      const allApps = await Application.find({}).select('email name applicationType status').limit(10);
+      console.log('[DEBUG] Sample applications in database:', allApps.map(app => ({
+        email: app.email,
+        name: app.name,
+        type: app.applicationType,
+        status: app.status
+      })));
+    }
     // Check for signed documents
     const hasSignedDocs = hasSignedDocuments(attachments, bodyPlain, strippedText, subject);
     

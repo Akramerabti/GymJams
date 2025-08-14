@@ -106,100 +106,69 @@ const normalizeEmail = (email) => {
   return `${normalizedLocal}@${domain}`;
 };
 
-// Generate multiple normalized variations for lookup
 const generateEmailVariations = (email) => {
-  if (!email || typeof email !== 'string') return [];
-  
-  const variations = new Set(); // Use Set to avoid duplicates
-  const cleanEmail = email.toLowerCase().trim();
-  
-  // Add original email
-  variations.add(cleanEmail);
-  
-  // Add normalized version
-  const normalized = normalizeEmail(cleanEmail);
-  variations.add(normalized);
-  
-  // Extract parts for additional variations
-  const atIndex = cleanEmail.lastIndexOf('@');
-  if (atIndex === -1) return Array.from(variations);
-  
-  let localPart = cleanEmail.substring(0, atIndex);
-  const domain = cleanEmail.substring(atIndex + 1);
-  
-  // For Gmail specifically, add multiple variations
-  if (domain === 'gmail.com' || domain === 'googlemail.com') {
-    // Version without dots
-    variations.add(`${localPart.replace(/\./g, '')}@${domain}`);
-    // Version without plus aliases
-    variations.add(`${localPart.split('+')[0]}@${domain}`);
-    // Version without dots AND plus aliases
-    variations.add(`${localPart.replace(/\./g, '').split('+')[0]}@${domain}`);
-  }
-  
-  // For educational domains, add comprehensive variations
-  if (domain.endsWith('.edu') || domain.includes('.ac.') || domain.endsWith('.ca')) {
-    // Version with single dots (normalize consecutive dots)
-    const singleDots = localPart.replace(/\.+/g, '.');
-    variations.add(`${singleDots}@${domain}`);
-    
-    // Version without leading/trailing dots
-    const trimmedDots = localPart.replace(/^\.+|\.+$/g, '');
-    variations.add(`${trimmedDots}@${domain}`);
-    
-    // Combination of both
-    const cleanDots = localPart.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, '');
-    variations.add(`${cleanDots}@${domain}`);
-    
-    // For very dot-heavy addresses, also add version without dots
-    if (localPart.split('.').length > 3) {
-      variations.add(`${localPart.replace(/\./g, '')}@${domain}`);
-    }
-    
-    // Handle common educational email patterns
-    // Remove common prefixes/suffixes that might be inconsistent
-    const withoutNumbers = localPart.replace(/\d+$/, ''); // Remove trailing numbers
-    if (withoutNumbers !== localPart) {
-      variations.add(`${withoutNumbers}@${domain}`);
-      variations.add(`${withoutNumbers.replace(/\./g, '')}@${domain}`);
-    }
-  }
-  
-  // For all domains, add version without plus aliases
-  if (localPart.includes('+')) {
-    const withoutPlus = localPart.split('+')[0];
-    variations.add(`${withoutPlus}@${domain}`);
-    
-    // If it's educational, also add dot variations
-    if (domain.endsWith('.edu') || domain.includes('.ac.') || domain.endsWith('.ca')) {
-      variations.add(`${withoutPlus.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, '')}@${domain}`);
-    }
-  }
-  
-  // Remove any empty or invalid variations
-  const validVariations = Array.from(variations).filter(email => 
-    email && 
-    email.includes('@') && 
-    email.indexOf('@') > 0 && 
-    email.indexOf('@') < email.length - 1 &&
-    !email.startsWith('@') &&
-    !email.endsWith('@')
-  );
-  
-  return validVariations;
-};
+      if (!email) return [];
+      
+      const variations = new Set([email]); // Use Set to avoid duplicates
+      const cleanEmail = email.toLowerCase().trim();
+      variations.add(cleanEmail);
+      
+      if (!cleanEmail.includes('@')) return Array.from(variations);
+      
+      const [localPart, domain] = cleanEmail.split('@');
+      
+      // Add normalized version
+      const normalized = normalizeEmail(cleanEmail);
+      variations.add(normalized);
+      
+      // For Gmail specifically, add COMPREHENSIVE variations including reverse engineering
+      if (domain === 'gmail.com' || domain === 'googlemail.com') {
+        // Always add version without dots
+        variations.add(`${localPart.replace(/\./g, '')}@${domain}`);
+        
+        // If no dots in original, try to reconstruct common patterns
+        if (!localPart.includes('.') && localPart.length > 4) {
+          // Try common prefix patterns
+          const prefixMatch = localPart.match(/^(auth|user|admin|test|demo|dev)(.+)$/);
+          if (prefixMatch && prefixMatch[2].length > 0) {
+            variations.add(`${prefixMatch[1]}.${prefixMatch[2]}@${domain}`);
+          }
+          
+          // Try common suffix patterns  
+          const suffixMatch = localPart.match(/^(.+)(system|vd|test|dev|prod)$/);
+          if (suffixMatch && suffixMatch[1].length > 0) {
+            variations.add(`${suffixMatch[1]}.${suffixMatch[2]}@${domain}`);
+          }
+        }
+        
+        // If dots exist, also add version without dots
+        if (localPart.includes('.')) {
+          variations.add(`${localPart.replace(/\./g, '')}@${domain}`);
+        }
+      }
+      
+      // For educational domains, add version with single dots
+      if (domain.endsWith('.edu') || domain.includes('.ac.') || domain.endsWith('.ca')) {
+        variations.add(`${localPart.replace(/\.+/g, '.')}@${domain}`);
+        // Also add version without dots for very dot-heavy addresses
+        if (localPart.split('.').length > 3) {
+          variations.add(`${localPart.replace(/\./g, '')}@${domain}`);
+        }
+      }
+      
+      return Array.from(variations);
+    };
 
 export const submitApplication = async (req, res) => {
   try {
     const { name, email, phone, applicationType, message, portfolioUrl } = req.body;
     
-    // Normalize the email for consistent storage and lookup
-    const normalizedEmail = normalizeEmail(email);
+    // Generate email variations for duplicate checking
     const emailVariations = generateEmailVariations(email);
     
-    logger.info(`[APPLICATION] Submitting application with email: ${email}, normalized: ${normalizedEmail}, variations: ${emailVariations.join(', ')}`);
+    logger.info(`[APPLICATION] Submitting application with email: ${email}, variations: ${emailVariations.join(', ')}`);
     
-    // Remove any existing applications with the same email variations AND applicationType
+    // Check for existing applications with same email variations
     const existingApplications = await Application.find({ 
       email: { $in: emailVariations }, 
       applicationType: applicationType 
@@ -217,9 +186,27 @@ export const submitApplication = async (req, res) => {
       logger.info(`[APPLICATION] Removed existing applications: ${removedIds.join(', ')}`);
     }
     
+    // NEW: Try to find existing user account and use THEIR email format
+    let emailToStore = email; // Default to submitted email
+    
+    try {
+      const existingUser = await User.findOne({ 
+        email: { $in: emailVariations }
+      });
+      
+      if (existingUser) {
+        emailToStore = existingUser.email; // Use the user's actual email format
+        logger.info(`[APPLICATION] Found existing user with email: ${existingUser.email}, will store application with this email instead of: ${email}`);
+      } else {
+        logger.info(`[APPLICATION] No existing user found for email variations, storing with submitted email: ${email}`);
+      }
+    } catch (userLookupError) {
+      logger.warn(`[APPLICATION] Error looking up existing user: ${userLookupError.message}, proceeding with submitted email`);
+    }
+    
     const newApplication = new Application({
       name,
-      email: normalizedEmail, // Store the normalized email
+      email: emailToStore, // Store the user's actual email (or submitted email if no user found)
       phone,
       applicationType,
       message,
@@ -260,9 +247,9 @@ export const submitApplication = async (req, res) => {
     try {
       emailStatus.attempted = true;
       
-      // Send email to the original email address (not normalized) for user-facing communication
+      // Send email to the email we stored (which is now the user's actual email)
       const emailResult = await sendEmail({
-        email: email, // Use original email for sending
+        email: emailToStore,
         subject: 'Application Received - GymTonic',
         message: `Dear ${name},\n\nThank you for submitting your application. We have received it and will review it shortly. You will be notified of any updates.\n\nBest regards,\nGymTonic Team`
       });
@@ -305,7 +292,7 @@ export const submitApplication = async (req, res) => {
       data: {
         id: newApplication._id,
         name: newApplication.name,
-        email: newApplication.email, // Return normalized email
+        email: newApplication.email, // Return the email we actually stored
         type: newApplication.applicationType,
         status: newApplication.status
       },
@@ -729,12 +716,47 @@ The GymTonic Team`
     } else if (status === 'approved' && application.signedDocumentPath) {
       // Final approval after document is signed - Update user role
       try {
-        // Generate email variations to find the user account
-        const emailVariations = generateEmailVariations(application.email);
-        
-        const user = await User.findOne({ 
-          email: { $in: emailVariations }
+         let user = await User.findOne({ 
+          email: application.email // Direct lookup since we store the actual user email
         });
+        
+        // Fallback: if direct lookup fails, try variations (for old applications)
+        if (!user) {
+          logger.info(`[DEBUG] Direct email lookup failed for ${application.email}, trying variations...`);
+          const emailVariations = generateEmailVariations(application.email);
+          
+          user = await User.findOne({ 
+            email: { $in: emailVariations }
+          });
+          
+          if (user) {
+            logger.info(`[DEBUG] Found user via variations: ${user.email} for application email: ${application.email}`);
+            // Update the application to use the correct email for future lookups
+            application.email = user.email;
+            await application.save();
+            logger.info(`[DEBUG] Updated application email from ${application.email} to ${user.email}`);
+          }
+        }
+        
+        if (user) {
+          logger.info(`[DEBUG] Found user: ${user.email} (ID: ${user._id})`);
+        } else {
+          logger.warn(`[DEBUG] No user found for application email: ${application.email}`);
+        }
+        
+        if (user) {
+          logger.info(`[DEBUG] Found user: ${user.email} (ID: ${user._id}) for application email: ${application.email}`);
+        } else {
+          logger.warn(`[DEBUG] No user found for application email: ${application.email}. Checked variations: ${emailVariations.join(', ')}`);
+          
+          // Additional debugging: Let's see what users actually exist with similar emails
+          const partialMatch = await User.findOne({ 
+            email: { $regex: application.email.split('@')[0].replace(/\./g, ''), $options: 'i' } 
+          });
+          if (partialMatch) {
+            logger.info(`[DEBUG] Found partial match user: ${partialMatch.email} - this might be the account we're looking for`);
+          }
+        }
         
         if (user) {
           // Determine role based on application type
@@ -1037,6 +1059,63 @@ export const migrateEmailNormalization = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to migrate email normalization',
+      error: error.message
+    });
+  }
+};
+
+export const migrateApplicationsToUserEmails = async (req, res) => {
+  try {
+    // Only allow this for admin users
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required'
+      });
+    }
+    
+    const applications = await Application.find({});
+    let updatedCount = 0;
+    let notFoundCount = 0;
+    
+    for (const application of applications) {
+      const originalEmail = application.email;
+      
+      try {
+        // Generate variations to find the user
+        const emailVariations = generateEmailVariations(originalEmail);
+        
+        const user = await User.findOne({ 
+          email: { $in: emailVariations }
+        });
+        
+        if (user && user.email !== originalEmail) {
+          // Update application to use user's actual email
+          application.email = user.email;
+          await application.save();
+          updatedCount++;
+          logger.info(`[MIGRATION] Updated application ${application._id}: ${originalEmail} -> ${user.email}`);
+        } else if (!user) {
+          notFoundCount++;
+          logger.info(`[MIGRATION] No user found for application ${application._id} with email ${originalEmail}`);
+        }
+      } catch (error) {
+        logger.error(`[MIGRATION] Error processing application ${application._id}:`, error);
+      }
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: `Migration completed. Updated ${updatedCount} applications. ${notFoundCount} applications have no matching user.`,
+      totalApplications: applications.length,
+      updatedCount,
+      notFoundCount
+    });
+  } catch (error) {
+    logger.error('[MIGRATION] Error migrating applications to user emails:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to migrate applications',
       error: error.message
     });
   }

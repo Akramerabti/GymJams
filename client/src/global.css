@@ -1599,3 +1599,134 @@ html {
 .animate-slideUp {
   animation: slideUp 0.5s ease-out;
 }
+
+/* Line clamp utilities for bio text truncation */
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.line-clamp-3 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.line-clamp-4 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+}
+
+/* Aspect ratio utilities for consistent image sizing */
+.aspect-square {
+  aspect-ratio: 1 / 1;
+}
+
+.aspect-4-3 {
+  aspect-ratio: 4 / 3;
+}
+
+.aspect-16-9 {
+  aspect-ratio: 16 / 9;
+}
+
+/* Fallback for older browsers that don't support aspect-ratio */
+@supports not (aspect-ratio: 1 / 1) {
+  .aspect-square {
+    width: 100%;
+    padding-bottom: 100%;
+    position: relative;
+  }
+  
+  .aspect-square > * {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+/* Enhanced coach card transitions */
+.coach-card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.coach-card-hover:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Enhanced mobile touch targets for carousel navigation */
+@media (max-width: 640px) {
+  .carousel-nav-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Smooth carousel transitions */
+.carousel-container {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Enhanced focus styles for accessibility */
+.carousel-nav-btn:focus-visible {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}
+
+.carousel-dot:focus-visible {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}
+
+/* Better text rendering for coach names and bios */
+.coach-text {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Gradient overlays for better text readability */
+.coach-name-overlay {
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.8) 0%,
+    rgba(0, 0, 0, 0.6) 50%,
+    rgba(0, 0, 0, 0.2) 80%,
+    transparent 100%
+  );
+}
+
+/* Enhanced social link hover effects */
+.social-link {
+  transition: all 0.2s ease;
+}
+
+.social-link:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive spacing adjustments */
+@media (min-width: 640px) {
+  .coach-card-padding {
+    padding: 1.25rem; /* 20px */
+  }
+}
+
+@media (min-width: 1024px) {
+  .coach-card-padding {
+    padding: 1.5rem; /* 24px */
+  }
+}

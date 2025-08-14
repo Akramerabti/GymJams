@@ -15,6 +15,7 @@ import { motion, useAnimation, AnimatePresence } from 'framer-motion';
 import { useInView } from 'react-intersection-observer';
 import subscriptionService from '../services/subscription.service';
 import { getFallbackAvatarUrl } from '../utils/imageUtils';
+import CoachCards from '../components/ui/CoachCards';
 import { useTranslation } from 'react-i18next';
 
 const CoachingHome = () => {
@@ -594,7 +595,7 @@ const CoachingHome = () => {
       </section>
 
       {/* Coaches Section - ENHANCED */}
-      <section className={`
+       <section className={`
         py-20 relative overflow-hidden
         ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}
         transition-colors duration-300
@@ -628,227 +629,43 @@ const CoachingHome = () => {
               transition={{ duration: 0.5, delay: 0.1 }}
             >
               {t('coachinghome.meetCoachesDesc')}
-            </motion.p>          </div>          {coaches.length > 0 ? (
-            <>              <div className={`grid gap-x-4 gap-y-8 md:gap-x-8 md:gap-y-12 ${
-                coaches.length === 1 
-                  ? 'grid-cols-1 max-w-sm mx-auto justify-items-center'
-                  : coaches.length === 2
-                  ? 'grid-cols-2 max-w-2xl mx-auto justify-items-center'
-                  : 'grid-cols-3 md:grid-cols-2 lg:grid-cols-3'
-              }`}>{coaches.slice(0, 6).map((coach, index) => (
-                  <motion.div
-                    key={coach._id}
-                    className={`
-                      rounded-2xl overflow-hidden transition-all duration-300
-                      ${isDarkMode 
-                        ? 'bg-gray-800 border border-gray-700 hover:border-blue-600' 
-                        : 'bg-white border border-gray-100 hover:border-blue-300'} 
-                      group hover:shadow-2xl hover:-translate-y-2
-                      ${coaches.length <= 2 ? 'w-full max-w-sm' : 'w-full'}
-                    `}
-                    initial={{ opacity: 0, y: 30 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.5, delay: index * 0.1 }}
-                  >                    {/* Coach Image */}
-                    <div className="relative h-32 md:h-64 overflow-hidden">
-                      {coach.profileImage ? (
-                        <img 
-                          src={formatImageUrl(coach.profileImage)} 
-                          alt={`Coach ${coach.firstName}`}
-                          className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110"                          onError={(e) => {
-                            console.error('Image load error for coach:', coach.profileImage);
-                            e.target.onerror = null;
-                            e.target.src = getFallbackAvatarUrl(); 
-                          }}
-                        />
-                      ) : (
-                        <div className={`w-full h-full flex items-center justify-center ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                          <User className={`w-24 h-24 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                        </div>
-                      )}
-                      <div className={`absolute bottom-0 left-0 right-0 p-2 md:p-4 ${isDarkMode ? 'bg-gradient-to-t from-black/80 to-transparent' : 'bg-gradient-to-t from-black/70 to-transparent'}`}>
-                        <h3 className="text-sm md:text-xl font-bold text-white drop-shadow-sm">
-                          {coach.firstName} {coach.lastName}
-                        </h3>
-                      </div>
-                    </div>
-                    
-                    {/* Coach Details */}
-                    <div className="p-3 md:p-6">
-                      {/* Coach Specialties */}
-                      <div className="mb-2 md:mb-4 flex flex-wrap gap-1 md:gap-2">
-                        {coach.specialties && coach.specialties.length > 0 ? (
-                          coach.specialties.slice(0, 3).map((specialty, idx) => (
-                            <span key={idx} className={`
-                              text-xs px-2 py-1 rounded-full
-                              ${isDarkMode 
-                                ? 'bg-blue-900/30 text-blue-300' 
-                                : 'bg-blue-100 text-blue-800'}
-                            `}>
-                              {specialty}
-                            </span>
-                          ))
-                        ) : (
-                          <span className={`
-                            text-xs px-2 py-1 rounded-full
-                            ${isDarkMode 
-                              ? 'bg-gray-700 text-gray-300' 
-                              : 'bg-gray-100 text-gray-700'}
-                          `}>
-                            Fitness Coach
-                          </span>
-                        )}
-                        {coach.specialties && coach.specialties.length > 3 && (
-                          <span className={`
-                            text-xs px-2 py-1 rounded-full
-                            ${isDarkMode 
-                              ? 'bg-gray-700 text-gray-300' 
-                              : 'bg-gray-100 text-gray-700'}
-                          `}>
-                            +{coach.specialties.length - 3} more
-                          </span>
-                        )}
-                      </div>
-                      
-                      {/* Coach Rating if available */}
-                      {coach.rating && (
-                        <div className="flex items-center mb-2 md:mb-4">
-                          <div className="flex">
-                            {[...Array(5)].map((_, i) => (
-                              <Star 
-                                key={i} 
-                                className={`w-4 h-4 ${
-                                  i < Math.floor(coach.rating) 
-                                    ? 'text-yellow-400 fill-yellow-400' 
-                                    : 'text-gray-300 dark:text-gray-600'
-                                }`} 
-                              />
-                            ))}
-                          </div>
-                          <span className={`ml-2 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                            {coach.rating.toFixed(1)}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {/* Coach Bio (truncated) */}
-                      {coach.bio && (
-                        <p className={`text-xs md:text-sm mb-2 md:mb-4 line-clamp-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                          {coach.bio}
-                        </p>
-                      )}
-                        {/* Social links if available */}
-                      {coach.socialLinks && (
-                        <div className="flex space-x-1 md:space-x-2 mb-2 md:mb-4">
-                          {coach.socialLinks.instagram && (
-                            <a 
-                              href={coach.socialLinks.instagram} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className={`p-2 rounded-full ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
-                            >
-                              <Instagram className="w-4 h-4 text-pink-500" />
-                            </a>
-                          )}
-                          {coach.socialLinks.twitter && (
-                            <a 
-                              href={coach.socialLinks.twitter} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className={`p-2 rounded-full ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
-                            >
-                              <Twitter className="w-4 h-4 text-blue-400" />
-                            </a>
-                          )}
-                          {coach.socialLinks.youtube && (
-                            <a 
-                              href={coach.socialLinks.youtube} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className={`p-2 rounded-full ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
-                            >
-                              <Youtube className="w-4 h-4 text-red-500" />
-                            </a>
-                          )}
-                        </div>
-                      )}
-  
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-                {/* See More Button */}
-              {coaches.length > 6 && (
-                <div className="text-center mt-12">
-                  <motion.button
-                    onClick={() => {
-                      const plansSection = document.getElementById('plans');
-                      if (plansSection) {
-                        plansSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      }
-                    }}
-                    className={`
-                      px-8 py-3 rounded-lg font-medium transition-all duration-300
-                      ${isDarkMode 
-                        ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                        : 'bg-blue-600 hover:bg-blue-700 text-white'}
-                      shadow-lg hover:shadow-xl transform hover:-translate-y-1
-                    `}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.5, delay: 0.3 }}
-                  >
-                    {t('coachinghome.seeMoreCoaches')}
-                  </motion.button>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="text-center py-16">
-              <motion.div
+            </motion.p>
+          </div>
+
+          {/* Enhanced Coach Cards with Carousel */}
+          <CoachCards
+            coaches={coaches}
+            isDarkMode={isDarkMode}
+            formatImageUrl={formatImageUrl}
+            t={t}
+          />
+
+          {/* See More Button - Only show if there are more than 6 coaches */}
+          {coaches.length > 6 && (
+            <div className="text-center mt-12">
+              <motion.button
+                onClick={() => {
+                  const plansSection = document.getElementById('plans');
+                  if (plansSection) {
+                    plansSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }}
+                className={`
+                  px-8 py-3 rounded-lg font-medium transition-all duration-300
+                  ${isDarkMode 
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'}
+                  shadow-lg hover:shadow-xl transform hover:-translate-y-1
+                `}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="max-w-md mx-auto"
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.3 }}
               >
-                <div className={`
-                  rounded-xl shadow-lg p-8 
-                  ${isDarkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'}
-                `}>
-                  <div className={`
-                    w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center
-                    ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}
-                  `}>
-                    <svg 
-                      className={`w-8 h-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        strokeWidth="2" 
-                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className={`text-xl font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{t('coachinghome.noCoaches')}</h3>
-                  <p className={`mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                    {t('coachinghome.expandingTeam')}
-                  </p>
-                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {t('coachinghome.joinTeam')}{' '}
-                    <a href="/contact" className="text-blue-600 hover:text-blue-700 hover:underline">
-                      {t('coachinghome.contactUs')}
-                    </a>
-                  </p>
-                </div>
-              </motion.div>
+                {t('coachinghome.seeMoreCoaches')}
+              </motion.button>
             </div>
           )}
         </div>
