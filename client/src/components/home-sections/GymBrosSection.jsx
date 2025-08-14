@@ -92,9 +92,9 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
   };
 
   return (
-    <div className={`absolute inset-0 flex items-center justify-center p-[clamp(1rem,4vw,3rem)] overflow-hidden pointer-events-auto`}>
+    <div className={`absolute inset-0  flex items-center justify-center p-[clamp(3rem,6vw,3rem)] sm:p-[clamp(3rem,5vw,3rem)] md:p-[clamp(2rem,4vw,3rem)] overflow-hidden pointer-events-auto`}>
       <div 
-        className={`w-full max-w-[clamp(320px,95vw,1800px)] mx-auto transition-all duration-800 ${
+        className={`w-full max-w-[clamp(320px,95vw,1800px)] max-h-[100vh] py-10 mx-auto transition-all duration-800 ${
           isActive 
             ? 'opacity-100 translate-y-0 scale-100' 
             : 'opacity-0 translate-y-12 scale-95'
@@ -144,8 +144,8 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
               <p 
                 className="text-gray-100/90 max-w-2xl leading-relaxed"
                 style={{
-                  fontSize: 'clamp(1rem,2.5vw,1.5rem)',
-                  marginBottom: 'clamp(1.5rem,4vw,2.5rem)',
+                  fontSize: 'clamp(0.5rem,2.5vw,1.5rem)',
+                  marginBottom: 'clamp(1rem,4vw,2.5rem)',
                   lineHeight: 'clamp(1.4,1.6,1.7)'
                 }}
               >
@@ -218,15 +218,15 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
               <div 
                 className="grid grid-cols-1 sm:grid-cols-2"
                 style={{
-                  gap: 'clamp(0.75rem,2vw,1.25rem)',
-                  marginBottom: 'clamp(1.5rem,4vw,2.5rem)'
+                  gap: 'clamp(0.45rem,2vw,1.25rem)',
+                  marginBottom: 'clamp(1rem,4vw,2.5rem)'
                 }}
               >
                 <div 
                   className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-300/30 flex items-center hover:from-cyan-400/30 hover:to-blue-400/30 transition-all duration-300"
                   style={{
-                    borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
-                    padding: 'clamp(0.75rem,2vw,1.25rem)',
+                      borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
+                    padding: 'clamp(0.25rem,2vw,1.25rem)',
                     gap: 'clamp(0.5rem,1.5vw,1rem)'
                   }}
                 >
@@ -241,7 +241,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                     <div 
                       className="text-cyan-200 font-semibold"
                       style={{
-                        fontSize: 'clamp(0.875rem,2vw,1.125rem)'
+                        fontSize: 'clamp(0.475rem,2vw,1.125rem)'
                       }}
                     >
                       {t('gymbrossection.smartMatching')}
@@ -260,15 +260,15 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                 <div 
                   className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-300/30 flex items-center hover:from-purple-400/30 hover:to-pink-400/30 transition-all duration-300"
                   style={{
-                    borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
-                    padding: 'clamp(0.75rem,2vw,1.25rem)',
+                      borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
+                    padding: 'clamp(0.25rem,2vw,1.25rem)',
                     gap: 'clamp(0.5rem,1.5vw,1rem)'
                   }}
                 >
                   <MessageCircle 
                     className="text-purple-300 flex-shrink-0" 
                     style={{
-                      width: 'clamp(1.25rem,3vw,1.5rem)',
+                       width: 'clamp(1.25rem,3vw,1.5rem)',
                       height: 'clamp(1.25rem,3vw,1.5rem)'
                     }}
                   />
@@ -276,7 +276,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                     <div 
                       className="text-purple-200 font-semibold"
                       style={{
-                        fontSize: 'clamp(0.875rem,2vw,1.125rem)'
+                        fontSize: 'clamp(0.475rem,2vw,1.125rem)'
                       }}
                     >
                       {t('gymbrossection.chatConnect')}
@@ -296,7 +296,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                   className="bg-gradient-to-r from-pink-500/20 to-rose-500/20 border border-pink-300/30 flex items-center hover:from-pink-400/30 hover:to-rose-400/30 transition-all duration-300"
                   style={{
                     borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
-                    padding: 'clamp(0.75rem,2vw,1.25rem)',
+                    padding: 'clamp(0.25rem,2vw,1.25rem)',
                     gap: 'clamp(0.5rem,1.5vw,1rem)'
                   }}
                 >
@@ -311,7 +311,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                     <div 
                       className="text-pink-200 font-semibold"
                       style={{
-                        fontSize: 'clamp(0.875rem,2vw,1.125rem)'
+                        fontSize: 'clamp(0.475rem,2vw,1.125rem)'
                       }}
                     >
                       {t('gymbrossection.goalAlignment')}
@@ -330,15 +330,15 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                 <div 
                   className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-300/30 flex items-center hover:from-blue-400/30 hover:to-cyan-400/30 transition-all duration-300"
                   style={{
-                    borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
-                    padding: 'clamp(0.75rem,2vw,1.25rem)',
+                       borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
+                    padding: 'clamp(0.25rem,2vw,1.25rem)',
                     gap: 'clamp(0.5rem,1.5vw,1rem)'
                   }}
                 >
                   <Dumbbell 
                     className="text-blue-300 flex-shrink-0" 
                     style={{
-                      width: 'clamp(1.25rem,3vw,1.5rem)',
+                       width: 'clamp(1.25rem,3vw,1.5rem)',
                       height: 'clamp(1.25rem,3vw,1.5rem)'
                     }}
                   />
@@ -346,7 +346,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                     <div 
                       className="text-blue-200 font-semibold"
                       style={{
-                        fontSize: 'clamp(0.875rem,2vw,1.125rem)'
+                       fontSize: 'clamp(0.475rem,2vw,1.125rem)'
                       }}
                     >
                       {t('gymbrossection.workoutTogether')}

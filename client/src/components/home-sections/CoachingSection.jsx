@@ -112,7 +112,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
   };
 
   return (
-    <div className={`absolute inset-0 flex items-center justify-center p-[clamp(1rem,4vw,3rem)] overflow-hidden ${videoModalOpen ? 'pointer-events-auto' : 'pointer-events-auto'}`}>
+    <div className={`absolute inset-0 flex items-center justify-center p-[clamp(3rem,6vw,3rem)] sm:p-[clamp(3rem,5vw,3rem)] md:p-[clamp(2rem,4vw,3rem)] overflow-hidden ${videoModalOpen ? 'pointer-events-auto' : 'pointer-events-auto'}`}>
       {/* Floating Coach Bubbles */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {coaches.map((coach, index) => (
@@ -142,7 +142,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
       </div>
 
       <div 
-        className={`w-full max-w-[clamp(320px,95vw,1800px)] mx-auto transition-all duration-800 ${
+        className={`w-full max-w-[clamp(320px,95vw,1800px)] max-h-[100vh] py-10 mx-auto transition-all duration-800 ${
           isActive 
             ? 'opacity-100 translate-y-0 scale-100' 
             : 'opacity-0 translate-y-12 scale-95'
@@ -160,7 +160,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
             <div 
               className="w-full"
               style={{
-                padding: 'clamp(1.5rem,4vw,3rem)'
+                padding: 'clamp(1rem,3vw,3rem)' // Reduced from 1.5rem,4vw,3rem
               }}
             >
               {/* Badge */}
@@ -181,8 +181,8 @@ const CoachingSection = ({ onNavigate, isActive }) => {
               <h2 
                 className="font-bold text-white bg-gradient-to-r from-purple-200 via-blue-200 to-orange-200 bg-clip-text text-transparent leading-[0.9]"
                 style={{
-                  fontSize: 'clamp(1.75rem,6vw,4rem)',
-                  marginBottom: 'clamp(1rem,3vw,2rem)',
+                  fontSize: 'clamp(1.5rem,5vw,4rem)', // Reduced from 6vw
+                  marginBottom: 'clamp(0.75rem,2vw,2rem)', // Reduced from 1rem,3vw,2rem
                   letterSpacing: 'clamp(-0.02em,0.1vw,0.02em)'
                 }}
               >
@@ -192,8 +192,8 @@ const CoachingSection = ({ onNavigate, isActive }) => {
               <p 
                 className="text-gray-100/90 max-w-2xl leading-relaxed"
                 style={{
-                  fontSize: 'clamp(1rem,2.5vw,1.5rem)',
-                  marginBottom: 'clamp(1.5rem,4vw,2.5rem)',
+                  fontSize: 'clamp(0.5rem,2.5vw,1.5rem)', // Updated to match GymBros
+                  marginBottom: 'clamp(1rem,4vw,2.5rem)', // Updated to match GymBros
                   lineHeight: 'clamp(1.4,1.6,1.7)'
                 }}
               >
@@ -309,15 +309,15 @@ const CoachingSection = ({ onNavigate, isActive }) => {
               <div 
                 className="grid grid-cols-1 sm:grid-cols-2"
                 style={{
-                  gap: 'clamp(0.75rem,2vw,1.25rem)',
-                  marginBottom: 'clamp(1.5rem,4vw,2.5rem)'
+                  gap: 'clamp(0.45rem,2vw,1.25rem)', // Updated to match GymBros
+                  marginBottom: 'clamp(1rem,4vw,2.5rem)' // Updated to match GymBros
                 }}
               >
                 <div 
                   className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-300/30 flex items-center hover:from-purple-400/30 hover:to-blue-400/30 transition-all duration-300"
                   style={{
                     borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
-                    padding: 'clamp(0.75rem,2vw,1.25rem)',
+                    padding: 'clamp(0.25rem,2vw,1.25rem)', // Updated to match GymBros
                     gap: 'clamp(0.5rem,1.5vw,1rem)'
                   }}
                 >
@@ -332,7 +332,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     <div 
                       className="text-purple-200 font-semibold"
                       style={{
-                        fontSize: 'clamp(0.875rem,2vw,1.125rem)'
+                        fontSize: 'clamp(0.475rem,2vw,1.125rem)' // Updated to match GymBros
                       }}
                     >
                       {t('coachingsection.customPlans')}
@@ -352,7 +352,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                   className="bg-gradient-to-r from-blue-500/20 to-orange-500/20 border border-blue-300/30 flex items-center hover:from-blue-400/30 hover:to-orange-400/30 transition-all duration-300"
                   style={{
                     borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
-                    padding: 'clamp(0.75rem,2vw,1.25rem)',
+                    padding: 'clamp(0.25rem,2vw,1.25rem)', // Updated to match GymBros
                     gap: 'clamp(0.5rem,1.5vw,1rem)'
                   }}
                 >
@@ -367,7 +367,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     <div 
                       className="text-blue-200 font-semibold"
                       style={{
-                        fontSize: 'clamp(0.875rem,2vw,1.125rem)'
+                        fontSize: 'clamp(0.475rem,2vw,1.125rem)' // Updated to match GymBros
                       }}
                     >
                       {t('coachingsection.support247')}
@@ -387,7 +387,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                   className="bg-gradient-to-r from-orange-500/20 to-purple-500/20 border border-orange-300/30 flex items-center hover:from-orange-400/30 hover:to-purple-400/30 transition-all duration-300"
                   style={{
                     borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
-                    padding: 'clamp(0.75rem,2vw,1.25rem)',
+                    padding: 'clamp(0.25rem,2vw,1.25rem)', // Updated to match GymBros
                     gap: 'clamp(0.5rem,1.5vw,1rem)'
                   }}
                 >
@@ -402,7 +402,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     <div 
                       className="text-orange-200 font-semibold"
                       style={{
-                        fontSize: 'clamp(0.875rem,2vw,1.125rem)'
+                        fontSize: 'clamp(0.475rem,2vw,1.125rem)' // Updated to match GymBros
                       }}
                     >
                       {t('coachingsection.goalTracking')}
@@ -422,7 +422,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                   className="bg-gradient-to-r from-gray-500/20 to-purple-500/20 border border-gray-300/30 flex items-center hover:from-gray-400/30 hover:to-purple-400/30 transition-all duration-300"
                   style={{
                     borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
-                    padding: 'clamp(0.75rem,2vw,1.25rem)',
+                    padding: 'clamp(0.25rem,2vw,1.25rem)', // Updated to match GymBros
                     gap: 'clamp(0.5rem,1.5vw,1rem)'
                   }}
                 >
@@ -437,7 +437,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     <div 
                       className="text-gray-200 font-semibold"
                       style={{
-                        fontSize: 'clamp(0.875rem,2vw,1.125rem)'
+                        fontSize: 'clamp(0.475rem,2vw,1.125rem)' // Updated to match GymBros
                       }}
                     >
                       {t('coachingsection.certified')}
