@@ -112,7 +112,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
   };
 
   return (
-    <div className={`absolute inset-0 flex items-center justify-center p-[clamp(3rem,6vw,3rem)] sm:p-[clamp(3rem,5vw,3rem)] md:p-[clamp(2rem,4vw,3rem)] overflow-hidden ${videoModalOpen ? 'pointer-events-auto' : 'pointer-events-auto'}`}>
+    <div className={`absolute inset-0 flex items-start justify-center pt-[clamp(4rem,8vh,6rem)] p-[clamp(3rem,6vw,3rem)] sm:p-[clamp(3rem,5vw,3rem)] md:p-[clamp(2rem,4vw,3rem)] overflow-hidden ${videoModalOpen ? 'pointer-events-auto' : 'pointer-events-auto'}`}>
       {/* Floating Coach Bubbles */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {coaches.map((coach, index) => (
