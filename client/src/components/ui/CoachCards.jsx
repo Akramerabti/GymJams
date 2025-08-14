@@ -22,7 +22,7 @@ const CoachCards = ({
   const [showModal, setShowModal] = useState(false);
   const [dimensions, setDimensions] = useState({ cardsPerView: 4, cardWidth: 280 });
 
-  // Simplified responsive calculation
+  // Mobile-optimized responsive calculation
   const getCardDimensions = () => {
     if (typeof window === 'undefined') return { cardsPerView: 4, cardWidth: 280 };
     
@@ -38,9 +38,15 @@ const CoachCards = ({
     else if (viewportWidth < 1536) cardsPerView = 5;
     else cardsPerView = Math.min(maxCardsPerView, 6);
     
-    // Reserve space for arrows (when needed)
-    const arrowSpace = coaches.length > cardsPerView ? 128 : 0; // 64px each side
-    const containerPadding = 64; // Account for container padding
+    // Mobile-optimized spacing
+    const isMobile = viewportWidth < 640;
+    const arrowSpace = (coaches.length > cardsPerView && !isMobile) ? 128 : (coaches.length > cardsPerView ? 80 : 0);
+    
+    // Reduced container padding for mobile
+    let containerPadding;
+    if (isMobile) containerPadding = 16; // Much smaller on mobile
+    else if (viewportWidth < 1024) containerPadding = 32;
+    else containerPadding = 64;
     
     // Calculate available width
     const availableWidth = viewportWidth - containerPadding - arrowSpace;
@@ -198,13 +204,13 @@ const CoachCards = ({
 
       <div className={`relative w-full ${!needsArrows ? 'flex justify-center' : ''}`}>
         
-        {/* Navigation Arrows */}
+        {/* Mobile-optimized Navigation Arrows */}
         {needsArrows && (
           <>
             <button
               onClick={prevSlide}
               disabled={!canGoPrev}
-              className={`absolute left-2 top-1/2 -translate-y-1/2 z-20 rounded-full shadow-xl transition-all duration-300 transform hover:scale-110
+              className={`absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-20 rounded-full shadow-xl transition-all duration-300 transform hover:scale-110
                 ${!canGoPrev
                   ? 'opacity-40 cursor-not-allowed' 
                   : 'opacity-90 hover:opacity-100 hover:shadow-2xl active:scale-95'
@@ -213,15 +219,15 @@ const CoachCards = ({
                   ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-500 hover:to-purple-500' 
                   : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:from-blue-400 hover:to-indigo-400'
                 } 
-                p-3 w-12 h-12`}
+                p-2 sm:p-3 w-10 h-10 sm:w-12 sm:h-12`}
             >
-              <ChevronLeft className="w-6 h-6" />
+              <ChevronLeft className="w-4 h-4 sm:w-6 sm:h-6" />
             </button>
             
             <button
               onClick={nextSlide}
               disabled={!canGoNext}
-              className={`absolute right-2 top-1/2 -translate-y-1/2 z-20 rounded-full shadow-xl transition-all duration-300 transform hover:scale-110
+              className={`absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-20 rounded-full shadow-xl transition-all duration-300 transform hover:scale-110
                 ${!canGoNext
                   ? 'opacity-40 cursor-not-allowed' 
                   : 'opacity-90 hover:opacity-100 hover:shadow-2xl active:scale-95'
@@ -230,20 +236,20 @@ const CoachCards = ({
                   ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-500 hover:to-pink-500' 
                   : 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-400 hover:to-purple-400'
                 } 
-                p-3 w-12 h-12`}
+                p-2 sm:p-3 w-10 h-10 sm:w-12 sm:h-12`}
             >
-              <ChevronRight className="w-6 h-6" />
+              <ChevronRight className="w-4 h-4 sm:w-6 sm:h-6" />
             </button>
           </>
         )}
 
-        {/* Cards Container */}
+        {/* Mobile-optimized Cards Container */}
         <div 
           className="overflow-hidden"
           style={{ 
             maxWidth: needsArrows ? '100%' : 'fit-content',
-            marginLeft: needsArrows ? '64px' : '0',
-            marginRight: needsArrows ? '64px' : '0'
+            marginLeft: needsArrows ? '44px' : '0', // Reduced from 64px for mobile
+            marginRight: needsArrows ? '44px' : '0' // Reduced from 64px for mobile
           }}
         >
           <div 

@@ -595,12 +595,11 @@ const CoachingHome = () => {
       </section>
 
       {/* Coaches Section - ENHANCED */}
-      <section className={`
+ <section className={`
   py-20 relative overflow-hidden
   ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}
   transition-colors duration-300
 `}>
-  {/* Background decorative elements */}
   <div className="absolute inset-0 overflow-hidden pointer-events-none">
     <svg className="absolute top-0 left-0 w-full h-64 -translate-y-1/2 opacity-5" viewBox="0 0 1200 120" preserveAspectRatio="none">
       <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z"
@@ -610,41 +609,27 @@ const CoachingHome = () => {
     <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500 rounded-full blur-3xl opacity-5 -translate-x-1/2 -translate-y-1/2"></div>
   </div>
            
-  <div className="container mx-auto px-4 max-w-6xl relative z-10">
-    <div className="text-center mb-16">
-      <motion.h2
-        className="text-3xl md:text-4xl font-bold mb-4"
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.5 }}
-      >
+<div className="mx-auto px-0 sm:px-4 lg:px-8 max-w-6xl relative z-10">
+    <div className="text-center mb-16 px-4">
+      <motion.h2 className="text-3xl md:text-4xl font-bold mb-4">
         {t('coachinghome.meetCoaches')}
       </motion.h2>
-      <motion.p
-        className={`max-w-2xl mx-auto ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.5, delay: 0.1 }}
-      >
+      <motion.p className={`max-w-2xl mx-auto ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
         {t('coachinghome.meetCoachesDesc')}
       </motion.p>
     </div>
 
-    {/* Enhanced Coach Cards with Simplified Carousel */}
-    <CoachCards
-      coaches={coaches}
-      isDarkMode={isDarkMode}
-      formatImageUrl={formatImageUrl}
-      t={t}
-      // New debugging and configuration props
-      debug={false} // Enable debug in development
-      containerWidth={null} // Let it auto-calculate, or specify a fixed width
-      maxCardsPerView={6} // Maximum cards to show at once
-      minCardWidth={240} // Minimum width per card
-      cardGap={16} // Gap between cards in pixels
-    />
+    {/* Coach Cards with ZERO horizontal padding on mobile */}
+    <div className="px-0 sm:px-4">
+      <CoachCards
+        coaches={coaches}
+        isDarkMode={isDarkMode}
+        formatImageUrl={formatImageUrl}
+        t={t}
+        debug={false}
+        minCardWidth={180} // Even smaller for mobile
+        cardGap={8} // Minimal gap
+      />
 
     {/* See More Button - Only show if there are more than 6 coaches */}
     {coaches.length > 6 && (
@@ -675,6 +660,7 @@ const CoachingHome = () => {
       </div>
     )}
   </div>
+   </div>
 </section>
 
 {/* Alternative: If you want to control the container width specifically */}
