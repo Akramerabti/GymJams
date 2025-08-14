@@ -4,6 +4,7 @@ import {
   User, Star, Instagram, Twitter, Youtube, ChevronLeft, ChevronRight, X, Mail, Award, Clock
 } from 'lucide-react';
 import { getFallbackAvatarUrl } from '../../utils/imageUtils';
+import { useNavigate } from 'react-router-dom';
 
 const CoachCards = ({ 
   coaches = [], 
@@ -21,6 +22,7 @@ const CoachCards = ({
   const [selectedCoach, setSelectedCoach] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [dimensions, setDimensions] = useState({ cardsPerView: 4, cardWidth: 280 });
+  const navigate = useNavigate();
 
   // Mobile-optimized responsive calculation
   const getCardDimensions = () => {
@@ -89,6 +91,45 @@ const CoachCards = ({
       });
     }
   }, [debug, safeCoaches.length, dimensions, currentSlide, maxSlide, canGoNext, canGoPrev, needsArrows]);
+
+   useEffect(() => {
+  if (showModal) {
+    // Store the current scroll position
+    const scrollY = window.scrollY;
+    
+    // Apply comprehensive scroll prevention
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
+    document.documentElement.style.overflow = 'hidden';
+    
+    // Store scroll position for restoration
+    document.body.dataset.scrollY = scrollY.toString();
+    
+    return () => {
+      // Get stored scroll position
+      const scrollY = parseInt(document.body.dataset.scrollY || '0');
+      
+      // Restore body styles
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.width = '';
+      document.documentElement.style.overflow = '';
+      
+      // Clean up data attribute
+      delete document.body.dataset.scrollY;
+      
+      // Restore scroll position
+      window.scrollTo(0, scrollY);
+    };
+  }
+}, [showModal]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -165,6 +206,34 @@ const CoachCards = ({
     setShowModal(false);
     setSelectedCoach(null);
   };
+
+  const handleChooseCoach = () => {
+  // Find the premium plan (you can adjust this logic based on your needs)
+  const premiumPlan = {
+    id: 'premium',
+    name: 'Premium Plan',
+    price: 69.99,
+    pointsPerMonth: 200,
+    features: [
+      'Advanced training plan',
+      'Nutrition guidance',
+      'Weekly plan updates',
+      'Priority support',
+      '200 points monthly',
+    ]
+  };
+
+    navigate('/subscription-checkout', {
+    state: {
+      plan: premiumPlan,
+      returnUrl: '/questionnaire',
+    },
+  });
+  
+  // Close the modal
+  closeModal();
+};
+
 
   // Early return for empty coaches
   if (safeCoaches.length === 0) {
@@ -402,22 +471,23 @@ const CoachCards = ({
         )}
       </div>
 
-      {/* Coach Detail Modal */}
+       {/* Coach Detail Modal */}
       <AnimatePresence>
         {showModal && selectedCoach && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
             onClick={closeModal}
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className={`relative max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl
+              exit={{ opacity: 0, scale: 0.95 }}
+              className={`relative w-full max-w-[420px] md:max-w-[520px] lg:max-w-[640px] xl:max-w-[720px] 2xl:max-w-[800px] max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl flex flex-col items-center
                 ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}
+              style={{ boxSizing: 'border-box' }}
               onClick={(e) => e.stopPropagation()}
             >
               <button
@@ -428,37 +498,46 @@ const CoachCards = ({
                 <X className="w-5 h-5" />
               </button>
 
-              {/* Header */}
-              <div className="relative h-48">
-                {selectedCoach.profileImage ? (
-                  <img src={formatImageUrl(selectedCoach.profileImage)} alt={selectedCoach.firstName} className="w-full h-full object-cover" />
-                ) : (
-                  <div className={`w-full h-full flex items-center justify-center ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                    <User className="w-24 h-24 text-gray-400" />
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                <div className="absolute bottom-4 left-6 text-white">
-                  <h2 className="text-2xl font-bold">{selectedCoach.firstName} {selectedCoach.lastName}</h2>
-                  {selectedCoach.rating && (
-                    <div className="flex items-center mt-1">
-                      <div className="flex mr-2">
-                        {[...Array(5)].map((_, i) => (
-                          <Star key={i} className={`w-4 h-4 ${i < Math.floor(selectedCoach.rating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
-                        ))}
-                      </div>
-                      <span className="text-sm">{selectedCoach.rating.toFixed(1)}</span>
+              {/* Square Image */}
+              <div className="w-full flex justify-center mt-8">
+                <div className="relative w-full aspect-square rounded-xl overflow-hidden shadow-lg border-4 border-white dark:border-gray-800 bg-gray-200 dark:bg-gray-700 max-w-[340px] md:max-w-[400px] lg:max-w-[450px] xl:max-w-[500px]">
+                  {selectedCoach.profileImage ? (
+                    <img
+                      src={formatImageUrl(selectedCoach.profileImage)}
+                      alt={selectedCoach.firstName}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <User className="w-20 h-20 text-gray-400" />
                     </div>
                   )}
                 </div>
               </div>
 
+              {/* Name & Rating */}
+              <div className="w-full flex flex-col items-center mt-4 px-6">
+                <h2 className="text-2xl font-bold text-center mb-1 text-gray-900 dark:text-white">
+                  {selectedCoach.firstName} {selectedCoach.lastName}
+                </h2>
+                {selectedCoach.rating && (
+                  <div className="flex items-center mb-2">
+                    <div className="flex mr-2">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} className={`w-4 h-4 ${i < Math.floor(selectedCoach.rating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
+                      ))}
+                    </div>
+                    <span className="text-sm text-gray-700 dark:text-gray-200">{selectedCoach.rating.toFixed(1)}</span>
+                  </div>
+                )}
+              </div>
+
               {/* Content */}
-              <div className="p-6 space-y-6">
+              <div className="w-full px-6 md:px-8 lg:px-10 py-4 flex-1 flex flex-col gap-6">
                 {/* Specialties */}
                 {selectedCoach.specialties?.length > 0 && (
                   <div>
-                    <h3 className={`text-lg font-semibold mb-3 flex items-center ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    <h3 className={`text-lg font-semibold mb-2 flex items-center ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                       <Award className="w-5 h-5 mr-2 text-blue-500" />
                       Specialties
                     </h3>
@@ -475,7 +554,7 @@ const CoachCards = ({
                 {/* Bio */}
                 {selectedCoach.bio && (
                   <div>
-                    <h3 className={`text-lg font-semibold mb-3 flex items-center ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    <h3 className={`text-lg font-semibold mb-2 flex items-center ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                       <User className="w-5 h-5 mr-2 text-blue-500" />
                       About Me
                     </h3>
@@ -487,7 +566,7 @@ const CoachCards = ({
 
                 {/* Experience */}
                 <div>
-                  <h3 className={`text-lg font-semibold mb-3 flex items-center ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  <h3 className={`text-lg font-semibold mb-2 flex items-center ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     <Clock className="w-5 h-5 mr-2 text-blue-500" />
                     Experience
                   </h3>
@@ -501,7 +580,7 @@ const CoachCards = ({
 
                 {/* Social Links */}
                 <div>
-                  <h3 className={`text-lg font-semibold mb-3 flex items-center ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  <h3 className={`text-lg font-semibold mb-2 flex items-center ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     <Mail className="w-5 h-5 mr-2 text-blue-500" />
                     Connect
                   </h3>
@@ -539,11 +618,14 @@ const CoachCards = ({
                 {/* CTA */}
                 <div className="border-t pt-6">
                   <button
-                    onClick={closeModal}
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105"
-                  >
-                    Choose This Coach
-                  </button>
+  onClick={() => handleChooseCoach(selectedCoach)}
+  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-4 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+>
+  Choose {selectedCoach.firstName}
+</button>
+<p className={`text-center text-sm mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+  Start with our Premium Plan and work with {selectedCoach.firstName}
+</p>
                   <p className={`text-center text-sm mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                     Subscribe to a coaching plan to work with {selectedCoach.firstName}
                   </p>

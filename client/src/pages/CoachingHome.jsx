@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -60,7 +61,7 @@ const CoachingHome = () => {
       format: 'auto'
     });
   };
-
+  
   // Function to handle video errors and try alternatives
   const handleVideoError = (videoElement) => {
     setVideoLoadError(true);
@@ -128,7 +129,9 @@ const CoachingHome = () => {
       } finally {
         setIsLoading(false);
       }
-    };    const fetchCoaches = async () => {
+    };   
+    
+    const fetchCoaches = async () => {
       try {
 
         const response = await subscriptionService.getCoaches();
@@ -161,6 +164,7 @@ const CoachingHome = () => {
     fetchCoaches();
     checkSubscription();
   }, [user, navigate]);
+  
 
   const features = [
     {
@@ -178,7 +182,9 @@ const CoachingHome = () => {
       title: t('coachinghome.progressTracking'),
       description: t('coachinghome.progressTrackingDesc'),
     },
-  ];  const subscriptionPlans = [
+  ];  
+  
+  const subscriptionPlans = [
     {
       id: 'basic',
       name: t('coachinghome.planBasic'),
@@ -413,7 +419,7 @@ const CoachingHome = () => {
           <div className="absolute bottom-1/3 right-1/4 w-128 h-128 rounded-full bg-indigo-500 blur-3xl"></div>
         </div>
 
-        <div className="container mx-auto px-4 relative z-10">
+        <div className="container mx-auto px-4 relative ">
           <AnimatePresence>
             {!showAccessForm ? (
               <motion.div 
@@ -707,7 +713,7 @@ const CoachingHome = () => {
           </motion.div>
         </div>
         
-        <div className="container mx-auto px-4 max-w-6xl relative z-10">
+        <div className="container mx-auto px-4 max-w-6xl relative">
           <div className="text-center mb-16">
             <motion.h2 
               className="text-3xl md:text-4xl font-bold mb-4"
@@ -737,7 +743,7 @@ const CoachingHome = () => {
                   ${plan.color} rounded-2xl overflow-hidden relative border-2
                   ${plan.popular ? 'border-blue-500 dark:border-blue-600' : plan.borderColor}  
                   shadow-lg hover:shadow-xl transition-all duration-300
-                  ${plan.popular ? 'md:transform md:scale-105 z-10' : 'z-0'}
+                  ${plan.popular ? 'md:transform md:scale-105 z-1' : 'z-0'}
                 `}
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -757,7 +763,7 @@ const CoachingHome = () => {
                   </div>
                 )}
                 
-                <div className="p-8">
+                <div className="p-8 z-1">
                   <h3 className={`text-2xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {plan.name}
                   </h3>
