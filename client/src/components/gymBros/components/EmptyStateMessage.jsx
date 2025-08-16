@@ -91,7 +91,7 @@ const EmptyStateMessage = ({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.1 }}
-        className="text-xl font-bold mb-2"
+        className="text-xl font-bold mb-2 text-black"
       >
         {content.title}
       </motion.h3>
@@ -100,7 +100,7 @@ const EmptyStateMessage = ({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
-        className="text-gray-500 mb-6 max-w-xs"
+        className="text-black mb-6 max-w-xs opacity-70"
       >
         {content.description}
       </motion.p>
@@ -116,7 +116,7 @@ const EmptyStateMessage = ({
             whileTap={{ scale: 0.95 }}
           >
             <RefreshCw size={18} className="mr-2" />
-            {content.actionLabel}
+            <span className="text-white font-medium">{content.actionLabel}</span>
           </motion.button>
         )}
 
@@ -126,13 +126,13 @@ const EmptyStateMessage = ({
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.3, delay: 0.4 }}
             onClick={content.secondaryAction.onClick}
-            className="px-6 py-3 bg-gray-200 text-gray-700 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors w-full"
+            className="px-6 py-3 bg-gray-200 text-black rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors w-full"
             whileTap={{ scale: 0.95 }}
           >
             {content.secondaryAction.icon && (
-              <span className="mr-2">{content.secondaryAction.icon}</span>
+              <span className="mr-2 text-black">{content.secondaryAction.icon}</span>
             )}
-            {content.secondaryAction.label}
+            <span className="text-black font-medium">{content.secondaryAction.label}</span>
           </motion.button>
         )}
       </div>
