@@ -109,115 +109,174 @@ const ThemedTextarea = ({ value, onChange, placeholder, rows = 3, className = ""
 };
 
 const WelcomeStep = ({ goToNextStep, handleLoginWithPhone, isAuthenticated, showPhoneLogin, screenType }) => (
-  <div className="relative h-full overflow-hidden">
+  <div className="welcome-step-container relative min-h-full overflow-x-hidden overflow-y-auto">
     {/* Animated background gradient */}
-    <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-purple-700 to-pink-600 opacity-90">
+    <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-purple-700 to-pink-600 opacity-90 overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent"></div>
-      {/* Animated floating elements for desktop */}
+      {/* Animated floating elements for desktop only - properly contained within viewport */}
       {screenType === 'desktop' && (
-        <>
-          <div className="absolute top-20 left-10 w-16 h-16 bg-white/10 rounded-full animate-bounce delay-1000"></div>
-          <div className="absolute top-40 right-20 w-12 h-12 bg-yellow-400/20 rounded-full animate-pulse delay-500"></div>
-          <div className="absolute bottom-32 left-1/4 w-8 h-8 bg-pink-400/30 rounded-full animate-ping delay-700"></div>
-        </>
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="welcome-step-floating absolute top-20 left-8 w-12 h-12 bg-white/10 rounded-full animate-bounce delay-1000"></div>
+          <div className="welcome-step-floating absolute top-40 right-8 w-10 h-10 bg-yellow-400/20 rounded-full animate-pulse delay-500"></div>
+          <div className="welcome-step-floating absolute bottom-32 left-1/3 w-6 h-6 bg-pink-400/30 rounded-full animate-ping delay-700"></div>
+        </div>
       )}
     </div>
     
-    <div className={`relative z-10 text-center px-6 py-8 text-white h-full flex flex-col justify-center ${
-      screenType === 'mobile' ? 'px-4' : screenType === 'tablet' ? 'px-8' : 'px-12'
+    <div className={`welcome-step-content relative z-10 text-center text-white min-h-full flex flex-col ${
+      screenType === 'mobile' 
+        ? 'px-4 py-4' 
+        : screenType === 'tablet' 
+        ? 'px-6 py-6' 
+        : 'px-8 py-8'
     }`}>
-      {/* Hero Icon */}
-      <div className="relative mb-8">
+      
+      {/* Hero Icon - Responsive sizing with proper spacing classes */}
+      <div className={`welcome-step-hero relative flex-shrink-0 ${
+        screenType === 'mobile' ? 'mb-3 mt-1' : 'mb-4 mt-2'
+      }`}>
         <div className="absolute inset-0 bg-white/20 rounded-full blur-2xl scale-150 animate-pulse"></div>
-        <div className="relative bg-gradient-to-br from-white/20 to-white/10 backdrop-blur-lg rounded-full p-6 border border-white/30 mx-auto w-fit shadow-2xl mt-10">
-          <Dumbbell className="h-12 w-12 text-white" />
+        <div className={`relative bg-gradient-to-br from-white/20 to-white/10 backdrop-blur-lg rounded-full border border-white/30 mx-auto w-fit shadow-2xl ${
+          screenType === 'mobile' ? 'p-3' : 'p-4'
+        }`}>
+          <Dumbbell className={`text-white ${
+            screenType === 'mobile' ? 'h-8 w-8' : screenType === 'tablet' ? 'h-10 w-10' : 'h-12 w-12'
+          }`} />
         </div>
       </div>
       
-      {/* Main Headline */}
-      <div className="mb-8 space-y-3">
+      {/* Main Headline - Responsive text sizing with text shadow */}
+      <div className={`welcome-step-spacing welcome-step-text-shadow space-y-1 flex-shrink-0 ${
+        screenType === 'mobile' ? 'mb-3' : 'mb-4'
+      }`}>
         <h1 className={`font-bold text-yellow-300 drop-shadow-lg leading-tight ${
-          screenType === 'mobile' ? 'text-2xl' : screenType === 'tablet' ? 'text-3xl' : 'text-4xl'
+          screenType === 'mobile' 
+            ? 'text-lg' 
+            : screenType === 'tablet' 
+            ? 'text-xl' 
+            : 'text-2xl'
         }`}>
           Find Your Perfect<br />
           <span className="text-white">Gym Partner</span>
         </h1>
         
         <p className={`text-blue-100 font-medium ${
-          screenType === 'mobile' ? 'text-lg' : 'text-xl'
+          screenType === 'mobile' ? 'text-sm' : 'text-base'
         }`}>
           🚀 Transform Your Fitness Journey
         </p>
       </div>
 
-      {/* Value Props */}
-      <div className={`grid gap-4 mb-8 ${
-        screenType === 'mobile' ? 'grid-cols-1' : 'grid-cols-3'
-      } max-w-2xl mx-auto`}>
-        <div className="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/20">
-          <Heart className="h-8 w-8 text-pink-300 mx-auto mb-2" />
-          <h3 className="font-semibold text-white mb-1">Perfect Matches</h3>
+      {/* Value Props - Responsive grid with proper spacing */}
+      <div className={`welcome-step-grid welcome-step-spacing grid gap-2 max-w-2xl mx-auto flex-shrink-0 ${
+        screenType === 'mobile' 
+          ? 'grid-cols-1 mb-3' 
+          : 'grid-cols-3 mb-4'
+      }`}>
+        <div className="bg-white/10 backdrop-blur-sm p-2.5 rounded-xl border border-white/20">
+          <Heart className={`text-pink-300 mx-auto mb-1 ${
+            screenType === 'mobile' ? 'h-5 w-5' : 'h-6 w-6'
+          }`} />
+          <h3 className={`font-semibold text-white mb-1 ${
+            screenType === 'mobile' ? 'text-xs' : 'text-sm'
+          }`}>Perfect Matches</h3>
           <p className="text-xs text-white/80">AI-powered compatibility</p>
         </div>
         
-        <div className="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/20">
-          <MapPin className="h-8 w-8 text-green-300 mx-auto mb-2" />
-          <h3 className="font-semibold text-white mb-1">Local Partners</h3>
+        <div className="bg-white/10 backdrop-blur-sm p-2.5 rounded-xl border border-white/20">
+          <MapPin className={`text-green-300 mx-auto mb-1 ${
+            screenType === 'mobile' ? 'h-5 w-5' : 'h-6 w-6'
+          }`} />
+          <h3 className={`font-semibold text-white mb-1 ${
+            screenType === 'mobile' ? 'text-xs' : 'text-sm'
+          }`}>Local Partners</h3>
           <p className="text-xs text-white/80">Train in your area</p>
         </div>
         
-        <div className="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/20">
-          <Zap className="h-8 w-8 text-yellow-300 mx-auto mb-2" />
-          <h3 className="font-semibold text-white mb-1">Instant Connect</h3>
+        <div className="bg-white/10 backdrop-blur-sm p-2.5 rounded-xl border border-white/20">
+          <Zap className={`text-yellow-300 mx-auto mb-1 ${
+            screenType === 'mobile' ? 'h-5 w-5' : 'h-6 w-6'
+          }`} />
+          <h3 className={`font-semibold text-white mb-1 ${
+            screenType === 'mobile' ? 'text-xs' : 'text-sm'
+          }`}>Instant Connect</h3>
           <p className="text-xs text-white/80">Start training today</p>
         </div>
       </div>
 
-      {/* Success Stats */}
-      <div className="mb-8">
-        <p className="text-yellow-300 font-bold text-lg mb-2">Join 10,000+ Active Members</p>
-        <div className="flex justify-center items-center space-x-2 mb-2">
+      {/* Success Stats - Compact on mobile with proper spacing */}
+      <div className={`welcome-step-stats welcome-step-spacing flex-shrink-0 ${
+        screenType === 'mobile' ? 'mb-3' : 'mb-4'
+      }`}>
+        <p className={`text-yellow-300 font-bold mb-1 welcome-step-text-shadow ${
+          screenType === 'mobile' ? 'text-sm' : 'text-base'
+        }`}>Join 10,000+ Active Members</p>
+        <div className="flex justify-center items-center space-x-1 mb-1">
           {[...Array(5)].map((_, i) => (
-            <span key={i} className="text-yellow-300 text-lg">⭐</span>
+            <span key={i} className={`text-yellow-300 ${
+              screenType === 'mobile' ? 'text-sm' : 'text-base'
+            }`}>⭐</span>
           ))}
-          <span className="text-white/90 ml-2 font-medium">4.9/5 Rating</span>
+          <span className={`text-white/90 ml-2 font-medium ${
+            screenType === 'mobile' ? 'text-xs' : 'text-sm'
+          }`}>4.9/5 Rating</span>
         </div>
-        <p className="text-white/70 text-sm">Average 3x better workout consistency</p>
+        <p className={`text-white/70 ${
+          screenType === 'mobile' ? 'text-xs' : 'text-sm'
+        }`}>Average 3x better workout consistency</p>
       </div>
  
-      {/* Action Buttons */}
-      <div className={`space-y-4 w-full mx-auto ${
-        screenType === 'mobile' ? 'max-w-sm' : 'max-w-md'
+      {/* Action Buttons - Flex grow to push to bottom with sticky positioning */}
+      <div className={`welcome-step-actions w-full mx-auto flex-grow flex flex-col justify-end space-y-2 ${
+        screenType === 'mobile' ? 'max-w-sm mb-3' : 'max-w-md mb-4'
       }`}>
         {!isAuthenticated && (
           <button
             onClick={handleLoginWithPhone}
-            className="w-full bg-white/15 backdrop-blur-sm border-2 border-white/40 text-white py-3 px-6 rounded-2xl font-medium hover:bg-white/25 transition-all duration-300 transform hover:scale-105 flex items-center justify-center group"
+            className={`welcome-step-button w-full bg-white/15 backdrop-blur-sm border-2 border-white/40 text-white rounded-2xl font-medium hover:bg-white/25 transition-all duration-300 transform hover:scale-105 flex items-center justify-center group ${
+              screenType === 'mobile' ? 'py-3 px-4 text-sm' : 'py-3 px-6 text-base'
+            }`}
           >
-            <LogIn className="mr-2 h-5 w-5 group-hover:rotate-12 transition-transform" />
-            Already have an account? Log in
+            <LogIn className={`mr-2 group-hover:rotate-12 transition-transform ${
+              screenType === 'mobile' ? 'h-4 w-4' : 'h-5 w-5'
+            }`} />
+            <span className={screenType === 'mobile' ? 'text-xs' : 'text-sm'}>
+              Already have an account? Log in
+            </span>
           </button>
         )}
         
         <button
           onClick={goToNextStep}
-          className={`w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white font-bold rounded-2xl hover:from-yellow-500 hover:to-orange-600 transition-all duration-300 transform hover:scale-105 shadow-2xl flex items-center justify-center group ${
-            screenType === 'mobile' ? 'py-4 px-6 text-lg' : 'py-5 px-8 text-xl'
+          className={`welcome-step-button w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white font-bold rounded-2xl hover:from-yellow-500 hover:to-orange-600 transition-all duration-300 transform hover:scale-105 shadow-2xl flex items-center justify-center group ${
+            screenType === 'mobile' 
+              ? 'py-3 px-4 text-base' 
+              : screenType === 'tablet'
+              ? 'py-4 px-6 text-lg'
+              : 'py-4 px-8 text-xl'
           }`}
         >
           <span className="mr-2">🔥</span>
           Start Your Journey
-          <Zap className="ml-2 h-5 w-5 group-hover:animate-bounce" />
+          <Zap className={`ml-2 group-hover:animate-bounce ${
+            screenType === 'mobile' ? 'h-4 w-4' : 'h-5 w-5'
+          }`} />
         </button>
       </div>
 
-      {/* Trust Indicators */}
-      <div className="mt-8 text-center">
-        <p className="text-white/60 text-xs mb-2">Trusted by fitness enthusiasts worldwide</p>
-        <div className="flex justify-center items-center space-x-6 text-white/40">
-          <span className="text-xs">🔒 Secure</span>
-          <span className="text-xs">✅ Verified</span>
-          <span className="text-xs">⚡ Fast Setup</span>
+      {/* Trust Indicators - Always at bottom with proper spacing */}
+      <div className="welcome-step-trust text-center flex-shrink-0 mt-auto">
+        <p className={`text-white/60 mb-1 welcome-step-text-shadow ${
+          screenType === 'mobile' ? 'text-xs' : 'text-sm'
+        }`}>Trusted by fitness enthusiasts worldwide</p>
+        <div className={`flex justify-center items-center text-white/40 ${
+          screenType === 'mobile' 
+            ? 'space-x-3 text-xs' 
+            : 'space-x-4 text-sm'
+        }`}>
+          <span>🔒 Secure</span>
+          <span>✅ Verified</span>
+          <span>⚡ Fast Setup</span>
         </div>
       </div>
     </div>
@@ -233,8 +292,6 @@ function parseFeetInches(str) {
   return feet * 12 + inches;
 }
 
-// Fixed BasicInfoStep component - with HeightPicker
-// Fixed BasicInfoStep component - in buildSteps.jsx
 
 const BasicInfoStep = ({
   profileData,

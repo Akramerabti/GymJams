@@ -14,8 +14,31 @@ const HeightPicker = ({
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollTimeoutRef = useRef(null);
   const itemHeight = 44; // Fixed height for each item
-  const [lastScrollTime, setLastScrollTime] = useState(0);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [showWheelHint, setShowWheelHint] = useState(false);
+
+  // Detect if this is a touch device
+  useEffect(() => {
+    const checkTouchDevice = () => {
+      const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      setIsTouchDevice(hasTouch);
+      return hasTouch;
+    };
+    
+    const isTouch = checkTouchDevice();
+    
+    // Only show wheel hint on non-touch devices
+    if (!isTouch) {
+      setShowWheelHint(true);
+      const hide = () => setShowWheelHint(false);
+      window.addEventListener('wheel', hide, { once: true });
+      const timeout = setTimeout(hide, 4000);
+      return () => {
+        window.removeEventListener('wheel', hide);
+        clearTimeout(timeout);
+      };
+    }
+  }, []);
 
   // Generate height options based on unit
   const generateHeightOptions = useCallback(() => {
@@ -73,13 +96,9 @@ const HeightPicker = ({
     scrollRef.current.scrollTop = scrollTop;
   }, [unit, selectedHeight, getCurrentIndex]);
 
-  // Enhanced scroll handler with better sensitivity for desktop
+  // Optimized scroll handler for mobile vs desktop
   const handleScroll = useCallback((event) => {
     if (!scrollRef.current) return;
-    
-    const now = Date.now();
-    const timeDiff = now - lastScrollTime;
-    setLastScrollTime(now);
     
     setIsScrolling(true);
     
@@ -88,9 +107,8 @@ const HeightPicker = ({
       clearTimeout(scrollTimeoutRef.current);
     }
     
-    // For wheel events (desktop), use more immediate response
-    const isWheelEvent = event.type === 'wheel';
-    const debounceTime = isWheelEvent ? 50 : 150; // Much faster for wheel events
+    // Different timing for touch vs mouse/wheel
+    const debounceTime = isTouchDevice ? 50 : 100; // Much faster for touch
     
     // Set new timeout for snap behavior
     scrollTimeoutRef.current = setTimeout(() => {
@@ -108,17 +126,23 @@ const HeightPicker = ({
         }
       }
       
-      // Snap to center
-      const targetScrollTop = clampedIndex * itemHeight;
-      if (Math.abs(scrollRef.current.scrollTop - targetScrollTop) > 1) {
-        scrollRef.current.scrollTop = targetScrollTop;
+      // Only snap if we're not on a touch device or if the scroll has settled
+      if (!isTouchDevice) {
+        const targetScrollTop = clampedIndex * itemHeight;
+        if (Math.abs(scrollRef.current.scrollTop - targetScrollTop) > 1) {
+          scrollRef.current.scrollTop = targetScrollTop;
+        }
       }
+      
       setIsScrolling(false);
     }, debounceTime);
-  }, [heightOptions, selectedHeight, onHeightChange, lastScrollTime]);
+  }, [heightOptions, selectedHeight, onHeightChange, isTouchDevice]);
 
-  // Enhanced wheel handler for better desktop experience
+  // Wheel handler specifically for desktop (mouse wheel)
   const handleWheel = useCallback((event) => {
+    // Only handle wheel events on non-touch devices
+    if (isTouchDevice) return;
+    
     event.preventDefault();
     
     if (!scrollRef.current) return;
@@ -142,25 +166,71 @@ const HeightPicker = ({
         onHeightChange(selectedOption.value);
       }
     }
-  }, [heightOptions, selectedHeight, onHeightChange, itemHeight]);
+  }, [heightOptions, selectedHeight, onHeightChange, itemHeight, isTouchDevice]);
+
+  // Touch handlers for better mobile experience
+  const handleTouchStart = useCallback(() => {
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    setIsScrolling(true);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    // Let the momentum scroll finish naturally on mobile
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    
+    scrollTimeoutRef.current = setTimeout(() => {
+      if (!scrollRef.current) return;
+      
+      const scrollTop = scrollRef.current.scrollTop;
+      const index = Math.round(scrollTop / itemHeight);
+      const clampedIndex = Math.max(0, Math.min(index, heightOptions.length - 1));
+      const selectedOption = heightOptions[clampedIndex];
+      
+      if (selectedOption && selectedOption.value !== selectedHeight) {
+        setSelectedHeight(selectedOption.value);
+        if (onHeightChange) {
+          onHeightChange(selectedOption.value);
+        }
+      }
+      
+      setIsScrolling(false);
+    }, 200); // Longer delay for touch to let momentum scrolling finish
+  }, [heightOptions, selectedHeight, onHeightChange]);
 
   // Attach scroll and wheel listeners
   useEffect(() => {
     const scrollElement = scrollRef.current;
     if (!scrollElement) return;
     
-    // Add both scroll and wheel listeners
-    scrollElement.addEventListener('scroll', handleScroll);
-    scrollElement.addEventListener('wheel', handleWheel, { passive: false });
+    // Always add scroll listener
+    scrollElement.addEventListener('scroll', handleScroll, { passive: true });
+    
+    // Only add wheel listener for non-touch devices
+    if (!isTouchDevice) {
+      scrollElement.addEventListener('wheel', handleWheel, { passive: false });
+    } else {
+      // Add touch-specific listeners for mobile
+      scrollElement.addEventListener('touchstart', handleTouchStart, { passive: true });
+      scrollElement.addEventListener('touchend', handleTouchEnd, { passive: true });
+    }
     
     return () => {
       scrollElement.removeEventListener('scroll', handleScroll);
-      scrollElement.removeEventListener('wheel', handleWheel);
+      if (!isTouchDevice) {
+        scrollElement.removeEventListener('wheel', handleWheel);
+      } else {
+        scrollElement.removeEventListener('touchstart', handleTouchStart);
+        scrollElement.removeEventListener('touchend', handleTouchEnd);
+      }
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current);
       }
     };
-  }, [handleScroll, handleWheel]);
+  }, [handleScroll, handleWheel, handleTouchStart, handleTouchEnd, isTouchDevice]);
 
   // Handle unit toggle
   const handleUnitToggle = () => {
@@ -241,26 +311,10 @@ const HeightPicker = ({
   const visibleItems = Math.floor(containerHeight / itemHeight);
   const paddingItems = Math.floor(visibleItems / 2);
 
-  // Show scroll wheel hint if on desktop (not touch device)
-  useEffect(() => {
-    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    if (!isTouchDevice) {
-      setShowWheelHint(true);
-      // Hide after 4 seconds or on first scroll/wheel
-      const hide = () => setShowWheelHint(false);
-      window.addEventListener('wheel', hide, { once: true });
-      const timeout = setTimeout(hide, 4000);
-      return () => {
-        window.removeEventListener('wheel', hide, { once: true });
-        clearTimeout(timeout);
-      };
-    }
-  }, []);
-
   return (
     <div className={`relative w-full ${className}`}>
-      {/* Elegant scroll wheel hint for desktop */}
-      {showWheelHint && (
+      {/* Elegant scroll wheel hint for desktop only */}
+      {showWheelHint && !isTouchDevice && (
         <div className="absolute left-1/2 -translate-x-1/2 top-2 z-40 flex items-center space-x-2 bg-white/90 dark:bg-gray-800/90 px-3 py-1 rounded-full shadow text-xs font-medium text-gray-700 dark:text-gray-200 pointer-events-none animate-fade-in">
           <svg width="18" height="18" fill="none" viewBox="0 0 24 24">
             <rect x="7" y="2" width="10" height="20" rx="5" fill="#888" />
@@ -269,6 +323,16 @@ const HeightPicker = ({
           <span>Tip: Use your scroll wheel</span>
         </div>
       )}
+      
+      {/* Touch hint for mobile */}
+      {isTouchDevice && (
+        <div className="text-center mb-2">
+          <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            Swipe up or down to select your height
+          </p>
+        </div>
+      )}
+      
       {/* Main container */}
       <div className={`relative overflow-hidden rounded-2xl border-2 transition-all duration-300 ${
         darkMode 
@@ -281,7 +345,7 @@ const HeightPicker = ({
           <button
             type="button"
             onClick={handleUnitToggle}
-            className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-all duration-200 border-2 ${
+            className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-all duration-200 border-2 touch-manipulation ${
               darkMode
                 ? 'bg-gray-700 border-gray-500 text-gray-200 hover:bg-gray-600 hover:border-gray-400'
                 : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 hover:border-gray-300'
@@ -321,8 +385,11 @@ const HeightPicker = ({
           ref={scrollRef}
           className="h-full overflow-y-scroll scrollbar-hide"
           style={{
-            scrollSnapType: 'y mandatory',
-            WebkitOverflowScrolling: 'touch'
+            // Only use scroll snap on desktop, let mobile scroll naturally
+            scrollSnapType: isTouchDevice ? 'none' : 'y mandatory',
+            WebkitOverflowScrolling: 'touch',
+            // Better mobile scrolling
+            touchAction: 'pan-y'
           }}
         >
           {/* Top padding */}
@@ -340,12 +407,12 @@ const HeightPicker = ({
             return (
               <div
                 key={option.value}
-                className={`flex items-center justify-center cursor-pointer transition-all duration-200 ${
+                className={`flex items-center justify-center cursor-pointer transition-all duration-200 touch-manipulation ${
                   darkMode ? 'text-white' : 'text-gray-900'
                 }`}
                 style={{
                   height: `${itemHeight}px`,
-                  scrollSnapAlign: 'center',
+                  scrollSnapAlign: isTouchDevice ? 'none' : 'center',
                   opacity: isScrolling ? 1 : opacity,
                   transform: isScrolling ? 'scale(1)' : `scale(${scale})`,
                   fontWeight: isSelected ? '600' : '400',
@@ -396,6 +463,12 @@ const HeightPicker = ({
         }
         .animate-fade-in {
           animation: fade-in 0.5s;
+        }
+        
+        /* Optimize touch scrolling performance */
+        .scrollbar-hide {
+          -webkit-transform: translateZ(0);
+          transform: translateZ(0);
         }
       `}</style>
     </div>

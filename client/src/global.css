@@ -1730,3 +1730,197 @@ html {
     padding: 1.5rem; /* 24px */
   }
 }
+
+.welcome-step-container {
+  /* Ensure proper viewport sizing */
+  min-height: 100vh;
+  min-height: 100svh; /* Small viewport height for mobile browsers */
+  max-height: 100vh;
+  max-height: 100svh;
+  overflow-y: auto;
+  overflow-x: hidden !important; /* Force hide horizontal scrollbar */
+  width: 100%;
+  max-width: 100vw; /* Prevent content from exceeding viewport width */
+  
+  /* Smooth scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Prevent any element from causing horizontal overflow */
+.welcome-step-container,
+.welcome-step-container * {
+  box-sizing: border-box !important;
+}
+
+/* Emergency overflow prevention - add this class to body when showing welcome step */
+.no-horizontal-scroll {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+}
+
+/* Mobile-specific adjustments for WelcomeStep */
+@media (max-width: 768px) {
+  .welcome-step-container {
+    /* Account for mobile browser UI */
+    min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    min-height: calc(100svh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+  
+  /* Ensure content doesn't get cut off */
+  .welcome-step-content {
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+  
+  /* Reduce spacing further on very small screens */
+  @media (max-height: 667px) {
+    .welcome-step-spacing {
+      margin-bottom: 0.75rem !important;
+    }
+    
+    .welcome-step-hero {
+      margin-bottom: 1rem !important;
+      margin-top: 0.5rem !important;
+    }
+  }
+  
+  /* Ultra-compact for very small screens */
+  @media (max-height: 568px) {
+    .welcome-step-spacing {
+      margin-bottom: 0.5rem !important;
+    }
+    
+    .welcome-step-hero {
+      margin-bottom: 0.75rem !important;
+      margin-top: 0.25rem !important;
+    }
+    
+    .welcome-step-text {
+      font-size: 0.875rem !important;
+      line-height: 1.25rem !important;
+    }
+  }
+}
+
+/* Landscape mode adjustments for mobile */
+@media (max-width: 768px) and (orientation: landscape) and (max-height: 500px) {
+  .welcome-step-container {
+    padding: 0.5rem !important;
+  }
+  
+  .welcome-step-hero {
+    margin-bottom: 0.5rem !important;
+    margin-top: 0 !important;
+  }
+  
+  .welcome-step-spacing {
+    margin-bottom: 0.5rem !important;
+  }
+  
+  .welcome-step-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+  
+  .welcome-step-button {
+    padding: 0.75rem 1rem !important;
+    font-size: 0.875rem !important;
+  }
+}
+
+/* Prevent content from being too tall on short screens */
+@media (max-height: 600px) {
+  .welcome-step-value-props {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+  
+  .welcome-step-stats {
+    margin-bottom: 1rem !important;
+  }
+  
+  .welcome-step-trust {
+    margin-top: 0.5rem !important;
+  }
+}
+
+/* Ensure buttons are always accessible */
+.welcome-step-actions {
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.1));
+  padding-top: 1rem;
+}
+
+/* Fix for iOS Safari viewport issues */
+@supports (-webkit-touch-callout: none) {
+  .welcome-step-container {
+    min-height: -webkit-fill-available;
+    max-height: -webkit-fill-available;
+  }
+}
+
+/* Prevent horizontal overflow from all child elements */
+.welcome-step-container * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Ensure content wrapper doesn't overflow */
+.welcome-step-content {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  position: relative;
+}
+
+/* Ensure text content doesn't overflow */
+.welcome-step-text {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  max-width: 100%;
+}
+
+/* Ensure grid doesn't overflow */
+.welcome-step-grid {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Ensure buttons don't overflow */
+.welcome-step-actions {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Ensure floating elements stay within bounds */
+.welcome-step-floating {
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100vh - 2rem);
+}
+
+/* Animation performance optimizations */
+.welcome-step-floating {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Touch target optimization */
+.welcome-step-button {
+  min-height: 44px; /* iOS minimum touch target */
+  min-width: 44px;
+  touch-action: manipulation; /* Prevent double-tap zoom */
+}
+
+/* Prevent zoom on iOS inputs if any */
+.welcome-step input,
+.welcome-step select,
+.welcome-step textarea {
+  font-size: 16px !important; /* Prevent iOS zoom */
+  -webkit-appearance: none;
+}
