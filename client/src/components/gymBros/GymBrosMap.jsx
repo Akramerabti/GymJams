@@ -1105,26 +1105,6 @@ const GymBrosMap = ({ userProfile }) => {
         />
       )}
 
-      {/* Status indicator */}
-      <div className="absolute bottom-4 left-4 z-30 bg-black bg-opacity-60 text-white px-3 py-2 rounded-lg text-sm">
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${
-            locationStatus === 'loaded' ? 'bg-green-400' : 'bg-red-400'
-          }`} />
-          <span>
-            {locationStatus === 'loaded' ? 'Location Active' : 'Location Error'}
-          </span>
-        </div>
-      </div>
-
-      {/* Results counter */}
-      <div className="absolute bottom-4 right-4 z-30 bg-black bg-opacity-60 text-white px-3 py-2 rounded-lg text-sm">
-        <div className="flex items-center gap-4">
-          <span>👥 {filteredUsers.length}</span>
-          <span>🏋️ {filteredGyms.length}</span>
-        </div>
-      </div>
-
       {/* Debug Panel - Only show in development */}
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed bottom-20 right-4 bg-black bg-opacity-75 text-white p-3 rounded-lg text-xs max-w-sm z-40">

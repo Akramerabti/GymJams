@@ -785,93 +785,128 @@ const [currentIndex, setCurrentIndex] = useState(0);
   }
 
   return (
-    <>
-      <FooterHider />
-      <div className="fixed inset-0 top-16 flex flex-col max-w-2xl mx-auto bg-white overflow-hidden">
-        <div className="flex-shrink-0 z-30 sticky top-0">
-          {renderHeader()}
-        </div>
-        
-        <div className={`flex-1 relative bg-gray-50 overflow-hidden ${
-          activeTab === 'discover' ? 'no-scroll' : ''
-        }`}>
-          {renderTabContent()}
-        </div>
-        
-        <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t border-gray-200 z-20">
-          <div className="max-w-2xl mx-auto px-6 py-3 flex justify-between items-center">
-            <button 
-              onClick={() => setActiveTab('discover')}
-              className={`flex flex-col items-center p-2 ${
-                activeTab === 'discover' ? 'text-blue-500' : 'text-gray-500'
-              }`}
-            >
-              <Heart size={24} />
-              <span className="text-xs mt-1">Discover</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('map')}
-              className={`flex flex-col items-center p-2 ${
-                activeTab === 'map' ? 'text-blue-500' : 'text-gray-500'
-              }`}
-            >
-              <MapPin size={22} />
-              <span className="text-xs mt-1">Map</span>
-            </button>
-
-            <button 
-              onClick={() => {
-                setActiveTab('matches');
-              }}
-              className={`flex flex-col items-center p-2 ${
-                activeTab === 'matches' ? 'text-blue-500' : 'text-gray-500'
-              }`}
-            >
-              <MessageCircle size={22} />
-              <span className="text-xs mt-1">Matches</span>
-            </button>
-
-            <button 
-              onClick={() => setActiveTab('shop')}
-              className={`flex flex-col items-center p-2 ${
-                activeTab === 'shop' ? 'text-blue-500' : 'text-gray-500'
-              }`}
-            >
-              <ShoppingBag size={24} />
-              <span className="text-xs mt-1">Shop</span>
-            </button>
-
-            <button 
-              onClick={() => setActiveTab('profile')}
-              className={`flex flex-col items-center p-2 ${
-                activeTab === 'profile' ? 'text-blue-500' : 'text-gray-500'
-              }`}
-            >
-              <User size={24} />
-              <span className="text-xs mt-1">Profile</span>
-            </button>
-          </div>
-        </div>
+  <>
+    <FooterHider />
+    <div className="gymbros-main-container fixed inset-0 top-16 flex flex-col max-w-2xl mx-auto bg-white overflow-hidden">
+      
+      {/* Header */}
+      <div className="flex-shrink-0 z-30 sticky top-0">
+        {renderHeader()}
       </div>
       
-      <GymBrosFilters
-        isOpen={showFilters}
-        onClose={() => setShowFilters(false)}
-        filters={filters}
-        onApply={handleFilterChange}
-      />
+      {/* Main Content - Account for bottom nav height and safe areas */}
+      <div className={`flex-1 relative bg-gray-50 overflow-hidden pb-[80px] sm:pb-[90px] ${
+        activeTab === 'discover' ? 'no-scroll' : ''
+      }`} style={{
+        paddingBottom: 'max(80px, calc(80px + env(safe-area-inset-bottom)))'
+      }}>
+        {renderTabContent()}
+      </div>
       
-      <GymBrosSettings
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-        userProfile={userProfile}
-        onProfileUpdated={handleProfileUpdated}
-        filters={filters}
-        isGuest={isGuest}
-      />
-    </>
-  );
+      {/* Bottom Navigation with Full Safe Area Support */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t border-gray-200 z-20 safe-bottom">
+        <div className="max-w-2xl mx-auto px-3 sm:px-6 py-2 sm:py-3 flex justify-between items-center">
+          
+          <button 
+            onClick={() => setActiveTab('discover')}
+            className={`flex flex-col items-center p-2 min-h-[44px] min-w-[44px] touch-manipulation transition-all duration-200 rounded-lg ${
+              activeTab === 'discover' 
+                ? 'text-blue-500 bg-blue-50' 
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+            aria-label="Discover gym partners"
+            aria-current={activeTab === 'discover' ? 'page' : undefined}
+          >
+            <Dumbbell size={20} className="sm:h-6 sm:w-6" />
+            <span className="text-xs mt-1 hidden sm:block">Discover</span>
+            <span className="text-xs mt-1 block sm:hidden">Swipe</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('map')}
+            className={`flex flex-col items-center p-2 min-h-[44px] min-w-[44px] touch-manipulation transition-all duration-200 rounded-lg ${
+              activeTab === 'map' 
+                ? 'text-blue-500 bg-blue-50' 
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+            aria-label="Map view"
+            aria-current={activeTab === 'map' ? 'page' : undefined}
+          >
+            <MapPin size={20} className="sm:h-6 sm:w-6" />
+            <span className="text-xs mt-1">Map</span>
+          </button>
+
+          <button 
+            onClick={() => {
+              setActiveTab('matches');
+            }}
+            className={`flex flex-col items-center p-2 min-h-[44px] min-w-[44px] touch-manipulation transition-all duration-200 rounded-lg relative ${
+              activeTab === 'matches' 
+                ? 'text-blue-500 bg-blue-50' 
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+            aria-label={`Matches${matches.length > 0 ? ` (${matches.length})` : ''}`}
+            aria-current={activeTab === 'matches' ? 'page' : undefined}
+          >
+            <MessageCircle size={20} className="sm:h-6 sm:w-6" />
+            <span className="text-xs mt-1">Matches</span>
+            {matches.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-medium shadow-sm">
+                {matches.length > 9 ? '9+' : matches.length}
+              </span>
+            )}
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('shop')}
+            className={`flex flex-col items-center p-2 min-h-[44px] min-w-[44px] touch-manipulation transition-all duration-200 rounded-lg ${
+              activeTab === 'shop' 
+                ? 'text-blue-500 bg-blue-50' 
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+            aria-label="Shop"
+            aria-current={activeTab === 'shop' ? 'page' : undefined}
+          >
+            <ShoppingBag size={20} className="sm:h-6 sm:w-6" />
+            <span className="text-xs mt-1">Shop</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('profile')}
+            className={`flex flex-col items-center p-2 min-h-[44px] min-w-[44px] touch-manipulation transition-all duration-200 rounded-lg ${
+              activeTab === 'profile' 
+                ? 'text-blue-500 bg-blue-50' 
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+            aria-label="Profile"
+            aria-current={activeTab === 'profile' ? 'page' : undefined}
+          >
+            <User size={20} className="sm:h-6 sm:w-6" />
+            <span className="text-xs mt-1">Profile</span>
+          </button>
+          
+        </div>
+      </div>
+    </div>
+    
+    {/* Modals */}
+    <GymBrosFilters
+      isOpen={showFilters}
+      onClose={() => setShowFilters(false)}
+      filters={filters}
+      onApply={handleFilterChange}
+    />
+    
+    <GymBrosSettings
+      isOpen={showSettings}
+      onClose={() => setShowSettings(false)}
+      userProfile={userProfile}
+      onProfileUpdated={handleProfileUpdated}
+      filters={filters}
+      isGuest={isGuest}
+    />
+  </>
+);
 };
 
 export default GymBros;
