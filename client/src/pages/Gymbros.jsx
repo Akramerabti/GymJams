@@ -534,114 +534,93 @@ const [currentIndex, setCurrentIndex] = useState(0);
     </div>
   );
 
-  const renderHeader = () => {
-    const headerTitle = (
-      <h1 className="text-xl font-bold flex items-center">
-        <Dumbbell className="mr-2 text-blue-500" />
-        GymBros
-      </h1>
-    );
+const renderHeader = () => {
+  // Don't show header for matches and map sections
+  if (activeTab === 'matches' || activeTab === 'map') {
+    return null;
+  }
 
-    const headerContent = (() => {
-      switch(activeTab) {
-        case 'discover':
-          return (
-            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
-              {headerTitle}
-              <div className="flex space-x-2">
-                <button 
-                  onClick={() => setShowFilters(true)}
-                  className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
-                >
-                  <Filter size={20} />
-                </button>
-                <button
-                  onClick={() => {
-                    fetchMatches();
-                    setActiveTab('matches');
-                  }}
-                  className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 relative"
-                >
-                  <MessageCircle size={20} />
-                  {matches.length > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
-                      {matches.length}
-                    </span>
-                  )}
-                </button>
-              </div>
-            </div>
-          );
+  const headerTitle = (
+    <h1 className="text-xl font-bold flex items-center">
+      <Dumbbell className="mr-2 text-blue-500" />
+      GymBros
+    </h1>
+  );
 
-        case 'map':
-          return (
-            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
-              {headerTitle}
-              <button
-                onClick={() => setShowSettings(true)}
+  const headerContent = (() => {
+    switch(activeTab) {
+      case 'discover':
+        return (
+          <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+            {headerTitle}
+            <div className="flex space-x-2">
+              <button 
+                onClick={() => setShowFilters(true)}
                 className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
               >
-                <Settings size={20} />
+                <Filter size={20} />
               </button>
-            </div>
-          );
-
-        case 'matches':
-          return (
-            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
-              {headerTitle}
               <button
-                onClick={() => setShowSettings(true)}
-                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
-              >
-                <Settings size={20} />
-              </button>
-            </div>
-          );
-
-        case 'shop':
-          return (
-            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
-              {headerTitle}
-              <button
+                onClick={() => {
+                  fetchMatches();
+                  setActiveTab('matches');
+                }}
                 className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 relative"
               >
-                <ShoppingBag size={20} />
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
-                  0
-                </span>
+                <MessageCircle size={20} />
+                {matches.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
+                    {matches.length}
+                  </span>
+                )}
               </button>
             </div>
-          );
+          </div>
+        );
 
-        case 'profile':
-          return (
-            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
-              {headerTitle}
-              <button
-                onClick={() => setShowSettings(true)}
-                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
-              >
-                <Settings size={20} />
-              </button>
-            </div>
-          );
+      case 'shop':
+        return (
+          <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+            {headerTitle}
+            <button
+              className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 relative"
+            >
+              <ShoppingBag size={20} />
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
+                0
+              </span>
+            </button>
+          </div>
+        );
 
-        default:
-          return (
-            <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
-              {headerTitle}
-            </div>
-          );
-      }
-    })();
+      case 'profile':
+        return (
+          <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+            {headerTitle}
+            <button
+              onClick={() => setShowSettings(true)}
+              className="p-2 rounded-full bg-gray-100 hover:bg-gray-200"
+            >
+              <Settings size={20} />
+            </button>
+          </div>
+        );
 
-    return (
-      <div className="w-full">
-        {headerContent}
-      </div>
-    );
-  };
+      default:
+        return (
+          <div className="bg-white shadow-md py-3 px-4 flex justify-between items-center">
+            {headerTitle}
+          </div>
+        );
+    }
+  })();
+
+  return (
+    <div className="w-full">
+      {headerContent}
+    </div>
+  );
+};
 
   const renderTabContent = () => {
     if (!hasProfile && activeTab === 'discover') {

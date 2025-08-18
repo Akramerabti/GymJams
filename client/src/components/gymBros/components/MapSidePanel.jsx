@@ -66,22 +66,22 @@ const MapSidePanel = ({ isOpen, onClose, data, type }) => {
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-blue-50 rounded-lg p-3 text-center">
                 <Users className="w-6 h-6 text-blue-600 mx-auto mb-1" />
-                <p className="text-2xl font-bold text-gray-900">{data.memberCount || 0}</p>
-                <p className="text-xs text-gray-600">Members</p>
+                <p className="text-2xl font-bold text-black">{data.memberCount || 0}</p>
+                <p className="text-xs text-black">Members</p>
               </div>
               <div className="bg-yellow-50 rounded-lg p-3 text-center">
                 <Star className="w-6 h-6 text-yellow-600 mx-auto mb-1" />
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-2xl font-bold text-black">
                   {data.rating?.average?.toFixed(1) || 'N/A'}
                 </p>
-                <p className="text-xs text-gray-600">Rating</p>
+                <p className="text-xs text-black">Rating</p>
               </div>
               <div className="bg-green-50 rounded-lg p-3 text-center">
                 <TrendingUp className="w-6 h-6 text-green-600 mx-auto mb-1" />
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-2xl font-bold text-black">
                   {data.distanceMiles?.toFixed(1) || '0'}mi
                 </p>
-                <p className="text-xs text-gray-600">Distance</p>
+                <p className="text-xs text-black">Distance</p>
               </div>
             </div>
 
@@ -188,11 +188,8 @@ const MapSidePanel = ({ isOpen, onClose, data, type }) => {
 
       {/* Action Buttons */}
       <div className="p-4 border-t space-y-2">
-        <button className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium">
-          Check In Here
-        </button>
         <button className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
-          Join This Gym
+          Enter Group
         </button>
       </div>
     </>
@@ -400,17 +397,20 @@ const MapSidePanel = ({ isOpen, onClose, data, type }) => {
         />
       )}
 
-      {/* Panel */}
-      <div className={`fixed left-0 top-0 h-full w-96 bg-white shadow-2xl z-40 transform transition-transform duration-300 flex flex-col ${
+      {/* Panel - Mobile first, responsive design */}
+      <div className={`fixed left-0  top-0 h-full w-full md:w-96 bg-white shadow-2xl z-40 transform transition-transform duration-300 flex flex-col ${
         isOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute right-4 top-4 z-50 p-2 bg-white/90 backdrop-blur rounded-full shadow-lg hover:bg-white transition-colors"
-        >
-          <X size={20} />
-        </button>
+        {/* Close Button - Fixed position for mobile */}
+        <div className="absolute right-0 top-0 z-50 py-20 p-4">
+          <button
+            onClick={onClose}
+            className="p-2 bg-black/80 backdrop-blur rounded-full shadow-lg hover:bg-black/90 transition-colors"
+            aria-label="Close panel"
+          >
+            <X size={16} className="text-white" />
+          </button>
+        </div>
 
         {/* Content based on type */}
         {data && (

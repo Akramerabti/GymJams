@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { Search, Filter, Calendar, MapPin, Dumbbell, Users, RefreshCw, X, Building2, AlertTriangle, Loader, MapPinIcon } from 'lucide-react';
@@ -711,6 +711,127 @@ const GymBrosMap = ({ userProfile }) => {
     toast.error('Location access is required to use GymBros Map');
   };
 
+  // Helper function to identify user's gym memberships
+  const getUserGymIds = (userProfile) => {
+    const gymIds = new Set();
+    
+    // Add primary gym
+    if (userProfile?.primaryGym) {
+      gymIds.add(userProfile.primaryGym.toString());
+    }
+    
+    // Add other active gym memberships
+    if (userProfile?.gyms && Array.isArray(userProfile.gyms)) {
+      console.log('User gyms:', userProfile.gyms);
+      userProfile.gyms
+        .filter(gymAssoc => gymAssoc.isActive && gymAssoc.status === 'active')
+        .forEach(gymAssoc => {
+          if (gymAssoc.gym) {
+            gymIds.add(gymAssoc.gym.toString());
+          }
+        });
+    }
+    
+    return Array.from(gymIds);
+  };
+
+  // Function to render membership circles around user's gyms
+  const renderMembershipCircles = () => {
+    const circles = [];
+    const userGymIds = getUserGymIds(userProfile);
+    
+    if (userGymIds.length === 0) return circles;
+    
+    filteredGyms
+      .filter(gym => {
+        // Only show circles for gyms user is a member of
+        const gymId = gym._id || gym.id;
+        return userGymIds.includes(gymId.toString());
+      })
+      .filter(gym => {
+        // Ensure gym has valid coordinates
+        if (gym.location?.coordinates && Array.isArray(gym.location.coordinates)) {
+          const [lng, lat] = gym.location.coordinates;
+          return lat && lng && !isNaN(lat) && !isNaN(lng);
+        }
+        const lat = gym.lat || gym.location?.lat;
+        const lng = gym.lng || gym.location?.lng;
+        return lat && lng && !isNaN(lat) && !isNaN(lng);
+      })
+      .forEach(gym => {
+        let lat, lng;
+        if (gym.location?.coordinates && Array.isArray(gym.location.coordinates)) {
+          [lng, lat] = gym.location.coordinates;
+        } else {
+          lat = gym.lat || gym.location?.lat;
+          lng = gym.lng || gym.location?.lng;
+        }
+        
+        const gymId = gym._id || gym.id;
+        
+        // Calculate appropriate radius based on gym type
+        const baseRadius = 100; // meters
+        const radius = gym.type === 'gym' ? baseRadius : baseRadius * 0.7;
+        
+        // Main membership circle (blue with transparency)
+        circles.push(
+          <Circle
+            key={`membership-circle-${gymId}`}
+            center={[lat, lng]}
+            radius={radius}
+            pathOptions={{
+              color: '#3B82F6',        // Blue border
+              fillColor: '#3B82F6',    // Blue fill
+              fillOpacity: 0.15,       // Transparent fill
+              weight: 3,               // Border thickness
+              opacity: 0.8,            // Border opacity
+              dashArray: '5, 10',      // Dashed border for visual distinction
+            }}
+          />
+        );
+        
+        // Add dotted circle around the main circle for enhanced visual effect
+        circles.push(
+          <Circle
+            key={`membership-dots-${gymId}`}
+            center={[lat, lng]}
+            radius={radius + 20}
+            pathOptions={{
+              color: '#1D4ED8',        // Darker blue
+              fillColor: 'transparent',
+              fillOpacity: 0,
+              weight: 2,
+              opacity: 0.6,
+              dashArray: '2, 8',       // Dotted pattern
+            }}
+          />
+        );
+        
+        // Add inner circle for primary gym
+        const isPrimaryGym = userProfile?.primaryGym && 
+                            userProfile.primaryGym.toString() === gymId.toString();
+        
+        if (isPrimaryGym) {
+          circles.push(
+            <Circle
+              key={`primary-gym-${gymId}`}
+              center={[lat, lng]}
+              radius={radius - 30}
+              pathOptions={{
+                color: '#1E40AF',      // Darker blue for primary
+                fillColor: '#3B82F6',
+                fillOpacity: 0.3,      // Slightly more opaque
+                weight: 2,
+                opacity: 1,
+              }}
+            />
+          );
+        }
+      });
+    
+    return circles;
+  };
+
   // Render markers with enhanced image handling and random mirroring
   const renderMarkers = () => {
     const markers = [];
@@ -735,6 +856,10 @@ const GymBrosMap = ({ userProfile }) => {
         </Marker>
       );
     }
+
+    // Add membership circles for user's gyms
+    const membershipCircles = renderMembershipCircles();
+    markers.push(...membershipCircles);
 
     filteredUsers
       .filter(user => user.lat && user.lng)
@@ -818,7 +943,7 @@ const GymBrosMap = ({ userProfile }) => {
         );
       });
     
-    // Gym markers with enhanced images
+    // Gym markers with enhanced membership status
     filteredGyms
       .filter(gym => {
         if (gym.location?.coordinates && Array.isArray(gym.location.coordinates)) {
@@ -839,6 +964,18 @@ const GymBrosMap = ({ userProfile }) => {
         }
         
         const gymId = gym._id || gym.id;
+        const userGymIds = getUserGymIds(userProfile);
+        const isMember = userGymIds.includes(gymId.toString());
+        const isPrimaryGym = userProfile?.primaryGym && 
+                            userProfile.primaryGym.toString() === gymId.toString();
+        
+        // Find specific membership details
+        let membershipDetails = null;
+        if (isMember && userProfile?.gyms) {
+          membershipDetails = userProfile.gyms.find(g => 
+            g.gym.toString() === gymId.toString() && g.isActive
+          );
+        }
         
         markers.push(
           <Marker 
@@ -872,6 +1009,31 @@ const GymBrosMap = ({ userProfile }) => {
                     {gym.type?.replace('_', ' ') || 'gym'}
                   </span>
                 </div>
+                
+                {/* Membership Status Indicator */}
+                {isMember && (
+                  <div className="mb-2 space-y-1">
+                    {isPrimaryGym && (
+                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                        <span>⭐</span>
+                        <span className="font-medium">Primary Gym</span>
+                      </div>
+                    )}
+                    
+                    {!isPrimaryGym && (
+                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full">
+                        <span>🏋️</span>
+                        <span className="font-medium">Member</span>
+                      </div>
+                    )}
+                    
+                    {membershipDetails && (
+                      <div className="text-xs text-blue-600">
+                        {membershipDetails.membershipType} • {membershipDetails.visitFrequency}
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 <p className="text-sm text-gray-600 mb-2 line-clamp-2">{gym.description}</p>
                 
@@ -1057,12 +1219,13 @@ const GymBrosMap = ({ userProfile }) => {
         ref={mapRef}
         className={`z-10 custom-leaflet-map${darkMode ? ' gymbros-map-dark' : ''}`}
         zoomControl={false}
+        attributionControl={false} 
       >
         <TileLayer
           url={darkMode
             ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
             : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'}
-          attribution="&copy; <a href='https://carto.com/attributions'>CARTO</a>"
+          attribution=""
         />
         <MapUpdater center={mapCenter} zoom={mapZoom} />
         <MapEventHandler 
@@ -1078,6 +1241,26 @@ const GymBrosMap = ({ userProfile }) => {
           renderMarkers()
         )}
       </MapContainer>
+      
+      {/* Membership Legend */}
+      {userProfile && getUserGymIds(userProfile).length > 0 && (
+        <div className="absolute top-20 right-4 z-30 bg-white rounded-lg shadow-lg p-3 max-w-48">
+          <h4 className="font-medium text-sm mb-2">Gym Memberships</h4>
+          <div className="space-y-1 text-xs">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full border-2 border-blue-500 bg-blue-500 bg-opacity-15"></div>
+              <span>Member Gym</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full border-2 border-blue-700 bg-blue-500 bg-opacity-30"></div>
+              <span>Primary Gym</span>
+            </div>
+            <div className="text-gray-500 text-xs mt-1">
+              {getUserGymIds(userProfile).length} gym{getUserGymIds(userProfile).length !== 1 ? 's' : ''}
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Side Panel */}
       <MapSidePanel 
@@ -1117,6 +1300,7 @@ const GymBrosMap = ({ userProfile }) => {
             <div>Map Ready: {mapReady ? 'Yes' : 'No'}</div>
             <div>Search: "{searchQuery}"</div>
             <div>Max Distance: {filters.maxDistance}km</div>
+            <div>User Gyms: {userProfile ? getUserGymIds(userProfile).length : 0}</div>
           </div>
         </div>
       )}
