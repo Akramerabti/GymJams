@@ -17,6 +17,11 @@ const ZOOM_LEVEL_CONFIG = {
   neighborhood: { min: 17, max: 22, userLimit: 2000, gymLimit: 10000, minDistance: 0 } // No minimum
 };
 
+const GYM_LIMITS = {
+  MAX_GYMS: 7,              // Regular gyms, sport centers, other facilities
+  MAX_EVENTS_COMMUNITIES: 14 // Events and community centers
+};
+
 // Smart cache for map data
 class MapDataCache {
   constructor() {
@@ -428,52 +433,278 @@ export const getMapUsers = async (req, res) => {
   }
 };
 
+export const validateGymAssociationLimits = async (profileId, newGymType) => {
+  try {
+    // Import necessary models
+    const { default: GymBrosProfile } = await import('../models/GymBrosProfile.js');
+    const { default: Gym } = await import('../models/Gym.js');
+
+    // Get user's current gym associations
+    const profile = await GymBrosProfile.findById(profileId).populate('gyms.gym');
+    
+    if (!profile) {
+      return { canJoin: false, reason: 'Profile not found' };
+    }
+
+    // Get active gym associations
+    const activeGyms = profile.gyms.filter(g => g.isActive && g.gym);
+    
+    // Categorize current gyms
+    const gymTypes = ['gym', 'sport_center', 'other'];
+    const eventCommunityTypes = ['community', 'event'];
+    
+    let currentGymCount = 0;
+    let currentEventCommunityCount = 0;
+    
+    for (const gymAssoc of activeGyms) {
+      const gymType = gymAssoc.gym.type || 'gym';
+      
+      if (gymTypes.includes(gymType)) {
+        currentGymCount++;
+      } else if (eventCommunityTypes.includes(gymType)) {
+        currentEventCommunityCount++;
+      }
+    }
+
+    // Check limits for the new gym type
+    if (gymTypes.includes(newGymType)) {
+      if (currentGymCount >= GYM_LIMITS.MAX_GYMS) {
+        return {
+          canJoin: false,
+          reason: `You can only join up to ${GYM_LIMITS.MAX_GYMS} gyms. You currently have ${currentGymCount} gym memberships.`,
+          currentCount: currentGymCount,
+          limit: GYM_LIMITS.MAX_GYMS,
+          type: 'gym'
+        };
+      }
+    } else if (eventCommunityTypes.includes(newGymType)) {
+      if (currentEventCommunityCount >= GYM_LIMITS.MAX_EVENTS_COMMUNITIES) {
+        return {
+          canJoin: false,
+          reason: `You can only join up to ${GYM_LIMITS.MAX_EVENTS_COMMUNITIES} communities/events. You currently have ${currentEventCommunityCount} memberships.`,
+          currentCount: currentEventCommunityCount,
+          limit: GYM_LIMITS.MAX_EVENTS_COMMUNITIES,
+          type: 'event_community'
+        };
+      }
+    }
+
+    return {
+      canJoin: true,
+      reason: null,
+      currentCounts: {
+        gyms: currentGymCount,
+        eventsCommunities: currentEventCommunityCount
+      }
+    };
+
+  } catch (error) {
+    logger.error('Error validating gym association limits:', error);
+    return {
+      canJoin: false,
+      reason: 'Unable to validate membership limits. Please try again.'
+    };
+  }
+};
+
+// Updated associateWithGym function with comprehensive debugging
 export const associateWithGym = async (req, res) => {
   try {
-    const { gymId, isPrimary = false, membershipType = 'member', visitFrequency, preferredTimes, notes, profileId, userId } = req.body;
+    const { gymId, isPrimary = false, membershipType = 'member', visitFrequency, preferredTimes, notes } = req.body;
+    
+    console.log('🏋️ === ASSOCIATE WITH GYM DEBUG START ===');
+    console.log('🏋️ Request body:', JSON.stringify(req.body, null, 2));
+    console.log('🏋️ Headers:', JSON.stringify(req.headers, null, 2));
+    
+    // Get effective user first and debug it
     const effectiveUser = getEffectiveUser(req);
-
-    console.log('Association request:', { gymId, profileId, userId, effectiveUser });
-
-    // Allow association if we have profileId or userId in the request body
-    if (!effectiveUser.userId && !effectiveUser.profileId && !profileId && !userId) {
-      return res.status(401).json({
+    console.log('🏋️ Effective user object:', JSON.stringify(effectiveUser, null, 2));
+    console.log('🏋️ req.user:', req.user ? JSON.stringify(req.user, null, 2) : 'null');
+    console.log('🏋️ req.guestUser:', req.guestUser ? JSON.stringify(req.guestUser, null, 2) : 'null');
+    
+    // Validate required data
+    if (!gymId) {
+      console.log('🏋️ ERROR: Missing gymId');
+      return res.status(400).json({
         success: false,
-        message: 'Authentication required to join gym'
+        message: 'Gym ID is required'
       });
     }
 
-    // Validate gym exists
+    // Debug profile lookup strategy
+    console.log('🏋️ Starting profile lookup...');
+    let profile;
+    let lookupMethod = 'unknown';
+    
+    if (effectiveUser.isGuest) {
+      console.log('🏋️ USER TYPE: Guest user detected');
+      
+      if (effectiveUser.profileId) {
+        console.log('🏋️ LOOKUP METHOD: Guest with profileId');
+        console.log('🏋️ Searching for profileId:', effectiveUser.profileId);
+        lookupMethod = 'guest-profileId';
+        
+        try {
+          profile = await GymBrosProfile.findById(effectiveUser.profileId);
+          console.log('🏋️ Profile lookup by ID result:', profile ? {
+            _id: profile._id,
+            name: profile.name,
+            phone: profile.phone,
+            userId: profile.userId
+          } : 'null');
+        } catch (findError) {
+          console.log('🏋️ ERROR in findById:', findError);
+        }
+        
+      } else if (effectiveUser.phone) {
+        console.log('🏋️ LOOKUP METHOD: Guest with phone only');
+        console.log('🏋️ Phone number:', effectiveUser.phone);
+        lookupMethod = 'guest-phone';
+        
+        try {
+          // Debug phone search comprehensively
+          console.log('🏋️ Searching for guest profile with phone:', effectiveUser.phone);
+          
+          // First, let's see all profiles with phones
+          const allWithPhones = await GymBrosProfile.find({ 
+            phone: { $exists: true, $ne: null } 
+          }, { _id: 1, name: 1, phone: 1, userId: 1 }).limit(10);
+          console.log('🏋️ Sample profiles with phones:', allWithPhones);
+          
+          // Look for guest profiles (no userId)
+          const guestProfiles = await GymBrosProfile.find({
+            $or: [
+              { userId: { $exists: false } },
+              { userId: null }
+            ]
+          }, { _id: 1, name: 1, phone: 1, userId: 1 }).limit(5);
+          console.log('🏋️ Sample guest profiles:', guestProfiles);
+          
+          // Try exact phone match for guest
+          profile = await GymBrosProfile.findOne({ 
+            phone: effectiveUser.phone,
+            $or: [
+              { userId: { $exists: false } },
+              { userId: null }
+            ]
+          });
+          console.log('🏋️ Guest profile lookup result:', profile ? {
+            _id: profile._id,
+            name: profile.name,
+            phone: profile.phone,
+            userId: profile.userId
+          } : 'null');
+          
+          // If not found, try any profile with this phone
+          if (!profile) {
+            console.log('🏋️ No guest profile found, trying any profile with phone...');
+            profile = await GymBrosProfile.findOne({ phone: effectiveUser.phone });
+            console.log('🏋️ Any profile with phone result:', profile ? {
+              _id: profile._id,
+              name: profile.name,
+              phone: profile.phone,
+              userId: profile.userId
+            } : 'null');
+          }
+          
+        } catch (phoneError) {
+          console.log('🏋️ ERROR in phone lookup:', phoneError);
+        }
+      } else {
+        console.log('🏋️ ERROR: Guest user has no profileId or phone');
+      }
+      
+    } else {
+      console.log('🏋️ USER TYPE: Authenticated user');
+      console.log('🏋️ LOOKUP METHOD: Authenticated userId');
+      console.log('🏋️ UserId:', effectiveUser.userId);
+      lookupMethod = 'auth-userId';
+      
+      try {
+        profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+        console.log('🏋️ Auth profile lookup result:', profile ? {
+          _id: profile._id,
+          name: profile.name,
+          phone: profile.phone,
+          userId: profile.userId
+        } : 'null');
+      } catch (authError) {
+        console.log('🏋️ ERROR in auth lookup:', authError);
+      }
+    }
+
+    console.log('🏋️ FINAL PROFILE RESULT:', profile ? {
+      _id: profile._id,
+      name: profile.name,
+      phone: profile.phone,
+      userId: profile.userId,
+      lookupMethod: lookupMethod
+    } : 'null');
+
+    if (!profile) {
+      console.log('🏋️ === PROFILE NOT FOUND ERROR ===');
+      console.log('🏋️ Lookup method used:', lookupMethod);
+      console.log('🏋️ Effective user was:', JSON.stringify(effectiveUser, null, 2));
+      
+      return res.status(404).json({
+        success: false,
+        message: 'Profile not found',
+        debug: {
+          lookupMethod,
+          effectiveUser,
+          hasReqUser: !!req.user,
+          hasGuestUser: !!req.guestUser
+        }
+      });
+    }
+
+    console.log('🏋️ Profile found successfully, continuing with gym association...');
+
+    // Get gym details
     const gym = await Gym.findById(gymId);
     if (!gym) {
+      console.log('🏋️ ERROR: Gym not found for ID:', gymId);
       return res.status(404).json({
         success: false,
         message: 'Gym not found'
       });
     }
 
-    // Find user's profile using multiple methods
-    let profile;
-    if (profileId) {
-      profile = await GymBrosProfile.findById(profileId);
-    } else if (effectiveUser.profileId) {
-      profile = await GymBrosProfile.findById(effectiveUser.profileId);
-    } else if (userId) {
-      profile = await GymBrosProfile.findOne({ userId: userId });
-    } else if (effectiveUser.userId) {
-      profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
-    }
+    console.log('🏋️ Gym found:', { _id: gym._id, name: gym.name, type: gym.type });
 
-    if (!profile) {
-      return res.status(404).json({
+    // Check if already a member
+    const existingAssociation = profile.gyms.find(g => 
+      g.gym.toString() === gymId.toString() && g.isActive
+    );
+
+    if (existingAssociation) {
+      console.log('🏋️ ERROR: Already a member');
+      return res.status(400).json({
         success: false,
-        message: 'Profile not found'
+        message: 'You are already a member of this facility'
       });
     }
 
-    console.log('Found profile:', profile._id);
+    // VALIDATE ASSOCIATION LIMITS
+    console.log('🏋️ Validating association limits...');
+    const limitValidation = await validateGymAssociationLimits(profile._id, gym.type);
+    console.log('🏋️ Limit validation result:', limitValidation);
+    
+    if (!limitValidation.canJoin) {
+      console.log('🏋️ ERROR: Cannot join due to limits');
+      return res.status(400).json({
+        success: false,
+        message: limitValidation.reason,
+        limitInfo: {
+          currentCount: limitValidation.currentCount,
+          limit: limitValidation.limit,
+          type: limitValidation.type
+        }
+      });
+    }
 
-    // Add gym association
+    // Add gym association using the existing method
+    console.log('🏋️ Adding gym association...');
     profile.addGym(gymId, {
       membershipType,
       isPrimary,
@@ -483,29 +714,125 @@ export const associateWithGym = async (req, res) => {
     });
 
     await profile.save();
+    console.log('🏋️ Profile saved successfully');
 
     // Update gym member count
-    const memberCount = await GymBrosProfile.countDocuments({
-      'gyms.gym': gymId,
-      'gyms.status': 'active'
+    await Gym.findByIdAndUpdate(gymId, {
+      $inc: { memberCount: 1 }
     });
+    console.log('🏋️ Gym member count updated');
 
-    await Gym.findByIdAndUpdate(gymId, { memberCount });
-
-    console.log(`Profile ${profile._id} joined gym ${gym.name}`);
-
-    res.json({
+    // Prepare response
+    let responseData = {
       success: true,
       message: `Successfully joined ${gym.name}`,
-      gym: gym,
-      memberCount
-    });
+      gym: {
+        _id: gym._id,
+        name: gym.name,
+        type: gym.type
+      },
+      membershipType,
+      isPrimary,
+      currentCounts: limitValidation.currentCounts
+    };
+
+    // Add guest token if applicable
+    if (effectiveUser.isGuest) {
+      console.log('🏋️ Adding guest token to response');
+      responseData.guestToken = generateGuestToken(effectiveUser.phone, profile._id);
+    }
+
+    console.log('🏋️ === ASSOCIATE WITH GYM SUCCESS ===');
+    console.log('🏋️ Response data:', JSON.stringify(responseData, null, 2));
+    
+    logger.info(`User ${profile._id} joined gym ${gym.name} (${gym.type})`);
+    
+    res.json(responseData);
 
   } catch (error) {
-    console.error('Error associating with gym:', error);
+    console.log('🏋️ === ASSOCIATE WITH GYM ERROR ===');
+    console.log('🏋️ Error details:', error);
+    console.log('🏋️ Error stack:', error.stack);
+    
+    logger.error('Error associating with gym:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to join gym'
+      message: 'Failed to join facility'
+    });
+  }
+};
+
+// Also add a helper endpoint to check current limits
+export const getGymAssociationLimits = async (req, res) => {
+  try {
+    const effectiveUser = getEffectiveUser(req);
+    
+    // Get user profile
+    let profile;
+    if (effectiveUser.isGuest) {
+      if (effectiveUser.profileId) {
+        profile = await GymBrosProfile.findById(effectiveUser.profileId).populate('gyms.gym');
+      } else if (effectiveUser.phone) {
+        profile = await GymBrosProfile.findOne({ phone: effectiveUser.phone }).populate('gyms.gym');
+      }
+    } else {
+      profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId }).populate('gyms.gym');
+    }
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Profile not found'
+      });
+    }
+
+    // Count current associations
+    const activeGyms = profile.gyms.filter(g => g.isActive && g.gym);
+    
+    const gymTypes = ['gym', 'sport_center', 'other'];
+    const eventCommunityTypes = ['community', 'event'];
+    
+    let currentGymCount = 0;
+    let currentEventCommunityCount = 0;
+    
+    for (const gymAssoc of activeGyms) {
+      const gymType = gymAssoc.gym.type || 'gym';
+      
+      if (gymTypes.includes(gymType)) {
+        currentGymCount++;
+      } else if (eventCommunityTypes.includes(gymType)) {
+        currentEventCommunityCount++;
+      }
+    }
+
+    const responseData = {
+      success: true,
+      limits: {
+        maxGyms: GYM_LIMITS.MAX_GYMS,
+        maxEventsCommunities: GYM_LIMITS.MAX_EVENTS_COMMUNITIES
+      },
+      current: {
+        gyms: currentGymCount,
+        eventsCommunities: currentEventCommunityCount
+      },
+      available: {
+        gyms: GYM_LIMITS.MAX_GYMS - currentGymCount,
+        eventsCommunities: GYM_LIMITS.MAX_EVENTS_COMMUNITIES - currentEventCommunityCount
+      }
+    };
+
+    // Add guest token if applicable
+    if (effectiveUser.isGuest) {
+      responseData.guestToken = generateGuestToken(effectiveUser.phone, profile._id);
+    }
+
+    res.json(responseData);
+
+  } catch (error) {
+    logger.error('Error getting gym association limits:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get association limits'
     });
   }
 };

@@ -11,7 +11,6 @@ router.post('/update', gymBrosLocationController.updateLocation);
 router.put('/location', gymBrosLocationController.updateLocationLegacy);
 router.get('/location-recommendations', gymBrosLocationController.getLocationRecommendations);
 router.get('/gyms/search', gymBrosLocationController.searchGyms);
-router.post('/gyms/associate', gymBrosLocationController.associateWithGym);
 router.get('/gyms/my-gyms', gymBrosLocationController.getUserGyms);
 router.get('/groups/nearby', gymBrosLocationController.getNearbyGroups);
 router.post('/groups/location', gymBrosLocationController.createLocationGroup);

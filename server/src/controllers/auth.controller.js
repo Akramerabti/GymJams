@@ -962,32 +962,133 @@ export const deleteAccount = async (req, res) => {
     // Delete any subscriptions associated with the user
     await Subscription.deleteMany({ user: userId }).session(session);
 
-    // Delete GymBros profile and related data
+    // Delete GymBros profile and related data with comprehensive cleanup
     try {
       // Import GymBros models
       const { default: GymBrosProfile } = await import('../models/GymBrosProfile.js');
       const { default: GymBrosPreference } = await import('../models/GymBrosPreference.js');
       const { default: GymBrosMatch } = await import('../models/GymBrosMatch.js');
+      const { default: GymBrosGroup } = await import('../models/GymBrosGroup.js');
+      const { default: Gym } = await import('../models/Gym.js');
 
-      // Delete the GymBros profile
-      const gymBrosProfile = await GymBrosProfile.findOneAndDelete({ userId }).session(session);
+      // Find the user's GymBros profile
+      const gymBrosProfile = await GymBrosProfile.findOne({ userId }).session(session);
+      
       if (gymBrosProfile) {
-        logger.info(`Deleted GymBros profile for user: ${userId}`);
+        logger.info(`Found GymBros profile for user deletion: ${gymBrosProfile._id}`);
         
-        // Also delete related GymBros data
-        await GymBrosPreference.findOneAndDelete({ userId }).session(session);
+        // STEP 1: Clean up gym memberships and update gym member counts
+        if (gymBrosProfile.gyms && gymBrosProfile.gyms.length > 0) {
+          const gymIds = gymBrosProfile.gyms.map(g => g.gym);
+          
+          // Update member counts for all gyms the user was a member of
+          await Gym.updateMany(
+            { _id: { $in: gymIds } },
+            { $inc: { memberCount: -1 } },
+            { session }
+          );
+          
+          logger.info(`Updated member counts for ${gymIds.length} gyms`);
+        }
+
+        // STEP 2: Handle group memberships and ownership
+        const profileId = gymBrosProfile._id;
         
-        // Deactivate matches involving this user
+        // Find all groups where the user is a member
+        const memberGroups = await GymBrosGroup.find({
+          'members.profile': profileId,
+          'members.isActive': true
+        }).session(session);
+
+        // Find all groups where the user is the admin
+        const adminGroups = await GymBrosGroup.find({
+          admin: profileId,
+          isActive: true
+        }).session(session);
+
+        // Remove user from groups where they're a member (but not admin)
+        for (const group of memberGroups) {
+          if (!group.admin.equals(profileId)) {
+            // Remove from members array
+            group.members = group.members.filter(m => 
+              !m.profile.equals(profileId)
+            );
+            
+            // Update member count
+            group.stats.activeMembers = group.members.filter(m => m.isActive).length;
+            
+            await group.save({ session });
+            logger.info(`Removed user from group: ${group.name}`);
+          }
+        }
+
+        // Handle groups where user is admin
+        for (const group of adminGroups) {
+          const activeMembers = group.members.filter(m => 
+            m.isActive && !m.profile.equals(profileId)
+          );
+
+          if (activeMembers.length > 0) {
+            // Transfer ownership to the longest-standing moderator or member
+            const newAdmin = activeMembers
+              .filter(m => m.role === 'moderator')
+              .sort((a, b) => a.joinedAt - b.joinedAt)[0] || 
+              activeMembers.sort((a, b) => a.joinedAt - b.joinedAt)[0];
+
+            if (newAdmin) {
+              // Transfer admin rights
+              group.admin = newAdmin.profile;
+              newAdmin.role = 'admin';
+              
+              // Remove the deleted user from members
+              group.members = group.members.filter(m => 
+                !m.profile.equals(profileId)
+              );
+              
+              // Update stats
+              group.stats.activeMembers = group.members.filter(m => m.isActive).length;
+              
+              await group.save({ session });
+              logger.info(`Transferred group ownership of "${group.name}" to user: ${newAdmin.profile}`);
+            } else {
+              // No members left, deactivate the group
+              group.isActive = false;
+              await group.save({ session });
+              logger.info(`Deactivated empty group: ${group.name}`);
+            }
+          } else {
+            // No other members, deactivate the group
+            group.isActive = false;
+            await group.save({ session });
+            logger.info(`Deactivated empty group: ${group.name}`);
+          }
+        }
+
+        // STEP 3: Clean up matches
         await GymBrosMatch.updateMany(
-          { users: userId },
-          { $set: { active: false } }
-        ).session(session);
+          { 
+            $or: [
+              { users: userId },
+              { users: profileId }
+            ]
+          },
+          { $set: { active: false } },
+          { session }
+        );
+        logger.info(`Deactivated matches for profile: ${profileId}`);
+
+        // STEP 4: Delete preferences and profile
+        await GymBrosPreference.findOneAndDelete({ userId }, { session });
+        await GymBrosProfile.findByIdAndDelete(profileId, { session });
         
-        logger.info(`Cleaned up GymBros related data for user: ${userId}`);
+        logger.info(`Deleted GymBros profile and completed cleanup for user: ${userId}`);
+      } else {
+        logger.info(`No GymBros profile found for user: ${userId}`);
       }
     } catch (gymBrosError) {
-      logger.error('Error deleting GymBros profile during account deletion:', gymBrosError);
-      // Don't abort transaction for GymBros deletion failures
+      logger.error('Error during GymBros profile cleanup in account deletion:', gymBrosError);
+      // Don't abort transaction for GymBros deletion errors
+      // Log error but continue with main user account deletion
     }
 
     // If the user is a coach, remove them from any client's assigned coach

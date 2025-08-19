@@ -101,6 +101,33 @@ const gymbrosService = {
     }
   },
 
+  async checkGymBrosProfile() {
+  try {
+    const config = this.configWithGuestToken();
+    const response = await api.get('/gym-bros/profile', config);
+    
+    if (response.data.guestToken) {
+      this.setGuestToken(response.data.guestToken);
+    }
+    
+    // Return in the expected format
+    return {
+      success: !!response.data.profile,
+      profile: response.data.profile || null,
+      ...response.data
+    };
+  } catch (error) {
+    console.error('Error checking GymBros profile:', error);
+    
+    // Return consistent format even on error
+    return {
+      success: false,
+      profile: null,
+      error: error.message
+    };
+  }
+},
+
   async getMapUsers(filters = {}) {
     try {
       const queryParams = {};

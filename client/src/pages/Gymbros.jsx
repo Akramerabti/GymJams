@@ -93,7 +93,7 @@ const [currentIndex, setCurrentIndex] = useState(0);
   ;
   const [loading, setLoading] = useState(true);
   const [hasProfile, setHasProfile] = useState(false);
-  const [userProfile, setUserProfile] = useState(null);
+
   const [showMatches, setShowMatches] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -109,10 +109,10 @@ const [currentIndex, setCurrentIndex] = useState(0);
     ageRange: { min: 18, max: 99 },
     maxDistance: 50
   });
-  const swipeRef = useRef(null);
-  const profileRef = useRef(null);
-  const hasInitializedRef = useRef(false);
-  const locationSyncStartedRef = useRef(false);
+  const [userModelProfile, setUserModelProfile] = useState(null); // User model data
+  const [gymBrosProfile, setGymBrosProfile] = useState(null);
+
+  const [userProfile, setUserProfile] = useState(null)
 
   useEffect(() => {
     if (hasProfile) {
@@ -175,6 +175,40 @@ const [currentIndex, setCurrentIndex] = useState(0);
     };
   }, [isAuthenticated, isGuest, verifiedPhone, guestLoading]); 
 
+
+   const combineProfiles = (userModel, gymBrosModel) => {
+    if (!userModel && !gymBrosModel) return null;
+    
+    // For authenticated users: merge User + GymBrosProfile
+    if (userModel && gymBrosModel) {
+      return {
+        ...userModel,           // User model data (location, avatar, etc.)
+        ...gymBrosModel,        // GymBros data (gyms, workout preferences)
+        isGuest: false,
+        profileType: 'authenticated'
+      };
+    }
+    
+    // For guest users: only GymBrosProfile
+    if (!userModel && gymBrosModel) {
+      return {
+        ...gymBrosModel,
+        isGuest: true,
+        profileType: 'guest'
+      };
+    }
+    
+    // Fallback: only User model
+    return {
+      ...userModel,
+      gyms: [],
+      primaryGym: null,
+      isGuest: false,
+      profileType: 'user-only'
+    };
+  };
+
+
   useEffect(() => {
     if (activeTab === 'discover' && hasProfile) {
       document.body.style.overflow = 'hidden';
@@ -223,19 +257,21 @@ const [currentIndex, setCurrentIndex] = useState(0);
     };
   }, [clearCache]);
 
-  const initializeWithSingleCall = async () => {
+   const initializeWithSingleCall = async () => {
   try {
     setLoading(true);
     
-    // 🔥 SET GUEST TOKEN FIRST - BEFORE ANY API CALLS
+    console.log('🚀 === DUAL PROFILE INITIALIZATION ===');
+    
+    // Set guest token first
     const guestToken = localStorage.getItem('gymbros_guest_token');
     if (guestToken) {
       console.log('🎫 Setting guest token before API call');
       gymbrosService.setGuestToken(guestToken);
     }
     
-    debugGuestToken();
-    
+    // STEP 1: Get initialization data (this gives us userModelProfile)
+    console.log('📡 Fetching initialization data...');
     const initData = await optimizedApiCall(
       'gymbros-init',
       () => gymbrosService.initializeGymBros(),
@@ -245,23 +281,79 @@ const [currentIndex, setCurrentIndex] = useState(0);
       }
     );
     
-    // Rest of your existing logic...
+    console.log('📡 Init data received:', initData);
+    
+    // STEP 2: Store the user model profile
+    let userModel = null;
     if (initData.hasProfile && initData.profile) {
+      console.log('👤 Setting user model profile:', initData.profile);
+      userModel = initData.profile;
+      setUserModelProfile(initData.profile);
       setHasProfile(true);
-      setUserProfile(initData.profile);
-      // ... rest unchanged
+    }
+    
+    // STEP 3: Fetch GymBrosProfile separately for gym associations
+    console.log('🏋️ Fetching GymBrosProfile for gym data...');
+    let gymBrosModel = null;
+    
+    try {
+      // Use the correct method name
+      const gymBrosResponse = await gymbrosService.getGymBrosProfile();
+      console.log('🏋️ GymBros response:', gymBrosResponse);
+      
+      if (gymBrosResponse && gymBrosResponse.profile) {
+        console.log('🏋️ Setting GymBros profile:', gymBrosResponse.profile);
+        gymBrosModel = gymBrosResponse.profile;
+        setGymBrosProfile(gymBrosResponse.profile);
+      } else {
+        console.log('🏋️ No GymBros profile found in response');
+        setGymBrosProfile(null);
+      }
+    } catch (gymBrosError) {
+      console.error('🏋️ Error fetching GymBros profile:', gymBrosError);
+      
+      // If it's a 404, that's normal for new users
+      if (gymBrosError.response?.status === 404) {
+        console.log('🏋️ No GymBros profile exists yet (404) - normal for new users');
+      }
+      
+      setGymBrosProfile(null);
+    }
+    
+    // STEP 4: Combine profiles for backwards compatibility
+    const combinedProfile = combineProfiles(userModel, gymBrosModel);
+    
+    console.log('🔗 Combined profile:', combinedProfile);
+    setUserProfile(combinedProfile);
+    
+    // STEP 5: Handle initialization results
+    if (initData.hasProfile || gymBrosModel) {
+      setHasProfile(true);
+      
+      if (initData.profiles?.length > 0) {
+        setProfiles(initData.profiles);
+        setCurrentIndex(0);
+      }
+      
+      if (initData.matches?.length > 0) {
+        setMatches(initData.matches);
+      }
+      
+      console.log('✅ Profile initialization complete');
     } else {
-      // Remove the duplicate guest token logic since it's already handled above
       setHasProfile(false);
-      setUserProfile(null);
+      setUserModelProfile(null);
       
       if (!isAuthenticated && !isGuest && !verifiedPhone) {
         setShowLoginPrompt(true);
       }
     }
+    
   } catch (error) {
-    console.error('Error initializing profile:', error);
+    console.error('❌ Error initializing profiles:', error);
     setHasProfile(false);
+    setUserModelProfile(null);
+    setGymBrosProfile(null);
     setUserProfile(null);
     
     if (!isAuthenticated && !isGuest && !verifiedPhone) {
@@ -269,6 +361,51 @@ const [currentIndex, setCurrentIndex] = useState(0);
     }
   } finally {
     setLoading(false);
+  }
+};
+
+  const refreshProfiles = async () => {
+  console.log('🔄 Refreshing both profiles...');
+  
+  try {
+    let userModel = null;
+    let gymBrosModel = null;
+    
+    // Refresh User model profile
+    try {
+      const initData = await gymbrosService.initializeGymBros();
+      if (initData.hasProfile && initData.profile) {
+        userModel = initData.profile;
+        setUserModelProfile(initData.profile);
+      }
+    } catch (error) {
+      console.error('Error refreshing user model:', error);
+    }
+    
+    // Refresh GymBros profile
+    try {
+      const gymBrosResponse = await gymbrosService.getGymBrosProfile();
+      if (gymBrosResponse && gymBrosResponse.profile) {
+        gymBrosModel = gymBrosResponse.profile;
+        setGymBrosProfile(gymBrosResponse.profile);
+      }
+    } catch (error) {
+      console.error('Error refreshing GymBros profile:', error);
+      // 404 is normal if no GymBros profile exists
+      if (error.response?.status !== 404) {
+        console.error('Unexpected error refreshing GymBros profile:', error);
+      }
+    }
+    
+    // Recombine profiles
+    const combinedProfile = combineProfiles(userModel, gymBrosModel);
+    setUserProfile(combinedProfile);
+    
+    console.log('✅ Profiles refreshed successfully');
+    console.log('🔗 New combined profile:', combinedProfile);
+    
+  } catch (error) {
+    console.error('❌ Error refreshing profiles:', error);
   }
 };
 
@@ -368,10 +505,30 @@ const [currentIndex, setCurrentIndex] = useState(0);
     }
   };
 
-  const handleProfileCreated = (profile) => {
-    setUserProfile(profile);
+   const handleProfileCreated = async (profile) => {
+    console.log('🎉 Profile created:', profile);
+    
+    // This creates a GymBrosProfile, so store it appropriately
+    setGymBrosProfile(profile);
     setHasProfile(true);
     
+    // If authenticated user, try to get their User model data
+    if (isAuthenticated) {
+      try {
+        const initData = await gymbrosService.initializeGymBros();
+        if (initData.hasProfile && initData.profile) {
+          setUserModelProfile(initData.profile);
+        }
+      } catch (error) {
+        console.error('Error fetching user model after profile creation:', error);
+      }
+    }
+    
+    // Combine profiles
+    const combinedProfile = combineProfiles(userModelProfile, profile);
+    setUserProfile(combinedProfile);
+    
+    // Set filters and fetch profiles
     setFilters({
       workoutTypes: [],
       experienceLevel: 'Any',
@@ -476,24 +633,30 @@ const [currentIndex, setCurrentIndex] = useState(0);
   };
   
   const handleProfileUpdated = async (updatedData) => {
+    console.log('🔄 Profile updated:', updatedData);
+    
     if (updatedData) {
-      setUserProfile(prevProfile => ({
-        ...prevProfile,
-        ...updatedData
-      }));
-      
-      try {
-        await checkUserProfile();
-      } catch (error) {
-        console.error('Error refreshing profile:', error);
-        toast.error('Profile updated but display may be incomplete');
+      // Update the appropriate profile
+      if (updatedData.location || updatedData.avatar) {
+        // This looks like User model data
+        setUserModelProfile(prev => ({ ...prev, ...updatedData }));
+      } else {
+        // This looks like GymBros data
+        setGymBrosProfile(prev => ({ ...prev, ...updatedData }));
       }
+      
+      // Recombine profiles
+      const combinedProfile = combineProfiles(userModelProfile, gymBrosProfile);
+      setUserProfile(combinedProfile);
     }
     
     setShowSettings(false);
     
+    // Refresh profiles to ensure we have latest data
+    await refreshProfiles();
     fetchProfiles();
   };
+
 
   const handleGuestStart = () => {
     clearGuestState();
@@ -651,42 +814,42 @@ const renderHeader = () => {
           </div>
         );
 
-       case 'map':
-    return (
-      <div className="h-full w-full">
-        {!hasProfile ? (
-          <div className="relative h-full">
-            <GymBrosMap 
-              userProfile={null} 
-              initialUsers={[]} // Pass empty array for guests
-              filters={{ maxDistance: 25, showUsers: true, showGyms: true }}
-            />
-            <div className="absolute top-20 left-4 right-4 bg-white rounded-lg shadow-lg p-4 z-30">
-              <p className="text-sm text-gray-600 mb-2">
-                Create a profile to see gym partners and join the community!
-              </p>
-              <button
-                onClick={() => setActiveTab('discover')}
-                className="w-full bg-blue-500 text-white py-2 px-4 rounded text-sm hover:bg-blue-600"
-              >
-                Create Profile
-              </button>
-            </div>
-          </div>
-        ) : (
+      case 'map':
+  return (
+    <div className="h-full w-full">
+      {!hasProfile ? (
+        <div className="relative h-full">
           <GymBrosMap 
-            userProfile={userProfile} 
-            initialUsers={profiles} 
-            filters={{
-              maxDistance: filters.maxDistance,
-              showUsers: true,
-              showGyms: true,
-              workoutTypes: filters.workoutTypes
-            }}
+            userProfile={null}
+            initialUsers={[]}
+            filters={{ maxDistance: 25, showUsers: true, showGyms: true }}
           />
-        )}
-      </div>
-    );
+          <div className="absolute top-20 left-4 right-4 bg-white rounded-lg shadow-lg p-4 z-30">
+            <p className="text-sm text-gray-600 mb-2">
+              Create a profile to see gym partners and join the community!
+            </p>
+            <button
+              onClick={() => setActiveTab('discover')}
+              className="w-full bg-blue-500 text-white py-2 px-4 rounded text-sm hover:bg-blue-600"
+            >
+              Create Profile
+            </button>
+          </div>
+        </div>
+      ) : (
+        <GymBrosMap 
+          userProfile={userProfile} 
+          initialUsers={profiles} 
+          filters={{
+            maxDistance: filters.maxDistance,
+            showUsers: true,
+            showGyms: true,
+            workoutTypes: filters.workoutTypes
+          }}
+        />
+      )}
+    </div>
+  );
 
       case 'matches':
         if (!hasProfile) {

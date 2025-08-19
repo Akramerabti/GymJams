@@ -1770,49 +1770,188 @@ export const updateUserSettings = async (req, res) => {
 };
 
 export const deleteGymBrosProfile = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  
   try {
     const effectiveUser = getEffectiveUser(req);
-
-    // Prefer profileId (guest or user), fallback to userId
+    
+    // Determine which profile to delete
     let profile;
+    let profileId;
+    
     if (effectiveUser.profileId) {
-      profile = await GymBrosProfile.findByIdAndDelete(effectiveUser.profileId);
-      // Also delete related preferences
-      await GymBrosPreference.findOneAndDelete({ profileId: effectiveUser.profileId });
-      // Remove from matches
-      await GymBrosMatch.updateMany(
-        { users: effectiveUser.profileId },
-        { $set: { active: false } }
-      );
+      profile = await GymBrosProfile.findById(effectiveUser.profileId);
+      profileId = effectiveUser.profileId;
     } else if (effectiveUser.userId) {
-      profile = await GymBrosProfile.findOneAndDelete({ userId: effectiveUser.userId });
-      await GymBrosPreference.findOneAndDelete({ userId: effectiveUser.userId });
-      await GymBrosMatch.updateMany(
-        { users: effectiveUser.userId },
-        { $set: { active: false } }
-      );
+      profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
+      profileId = profile?._id;
     } else if (effectiveUser.phone) {
-      // Fallback: delete by phone (very rare, only if no profileId/userId)
-      profile = await GymBrosProfile.findOneAndDelete({ phone: effectiveUser.phone });
-      await GymBrosPreference.findOneAndDelete({ phone: effectiveUser.phone });
-      if (profile) {
-        await GymBrosMatch.updateMany(
-          { users: profile._id },
-          { $set: { active: false } }
-        );
-      }
+      profile = await GymBrosProfile.findOne({ phone: effectiveUser.phone });
+      profileId = profile?._id;
     } else {
+      await session.abortTransaction();
       return res.status(400).json({ message: 'No valid identifier for profile deletion' });
     }
 
     if (!profile) {
+      await session.abortTransaction();
       return res.status(404).json({ message: 'Profile not found' });
     }
 
-    res.status(200).json({ message: 'Profile and related data deleted successfully' });
+    logger.info(`Starting complete cleanup for GymBros profile: ${profileId}`);
+
+    // STEP 1: Clean up gym memberships and update gym member counts
+    if (profile.gyms && profile.gyms.length > 0) {
+      const gymIds = profile.gyms.map(g => g.gym);
+      
+      // Import Gym model
+      const { default: Gym } = await import('../models/Gym.js');
+      
+      // Update member counts for all gyms the user was a member of
+      await Gym.updateMany(
+        { _id: { $in: gymIds } },
+        { $inc: { memberCount: -1 } },
+        { session }
+      );
+      
+      logger.info(`Updated member counts for ${gymIds.length} gyms`);
+    }
+
+    // STEP 2: Handle group memberships and ownership
+    const { default: GymBrosGroup } = await import('../models/GymBrosGroup.js');
+    
+    // Find all groups where the user is a member
+    const memberGroups = await GymBrosGroup.find({
+      'members.profile': profileId,
+      'members.isActive': true
+    }).session(session);
+
+    // Find all groups where the user is the admin
+    const adminGroups = await GymBrosGroup.find({
+      admin: profileId,
+      isActive: true
+    }).session(session);
+
+    // Remove user from groups where they're a member (but not admin)
+    for (const group of memberGroups) {
+      if (!group.admin.equals(profileId)) {
+        // Remove from members array
+        group.members = group.members.filter(m => 
+          !m.profile.equals(profileId)
+        );
+        
+        // Update member count
+        group.stats.activeMembers = group.members.filter(m => m.isActive).length;
+        
+        await group.save({ session });
+        logger.info(`Removed user from group: ${group.name}`);
+      }
+    }
+
+    // Handle groups where user is admin
+    for (const group of adminGroups) {
+      const activeMembers = group.members.filter(m => 
+        m.isActive && !m.profile.equals(profileId)
+      );
+
+      if (activeMembers.length > 0) {
+        // Transfer ownership to the longest-standing moderator or member
+        const newAdmin = activeMembers
+          .filter(m => m.role === 'moderator')
+          .sort((a, b) => a.joinedAt - b.joinedAt)[0] || 
+          activeMembers.sort((a, b) => a.joinedAt - b.joinedAt)[0];
+
+        if (newAdmin) {
+          // Transfer admin rights
+          group.admin = newAdmin.profile;
+          newAdmin.role = 'admin';
+          
+          // Remove the deleted user from members
+          group.members = group.members.filter(m => 
+            !m.profile.equals(profileId)
+          );
+          
+          // Update stats
+          group.stats.activeMembers = group.members.filter(m => m.isActive).length;
+          
+          await group.save({ session });
+          logger.info(`Transferred group ownership of "${group.name}" to user: ${newAdmin.profile}`);
+        } else {
+          // No members left, deactivate the group
+          group.isActive = false;
+          await group.save({ session });
+          logger.info(`Deactivated empty group: ${group.name}`);
+        }
+      } else {
+        // No other members, deactivate the group
+        group.isActive = false;
+        await group.save({ session });
+        logger.info(`Deactivated empty group: ${group.name}`);
+      }
+    }
+
+    // STEP 3: Clean up matches
+    await GymBrosMatch.updateMany(
+      { 
+        $or: [
+          { users: effectiveUser.userId },
+          { users: profileId }
+        ]
+      },
+      { $set: { active: false } },
+      { session }
+    );
+    logger.info(`Deactivated matches for profile: ${profileId}`);
+
+    // STEP 4: Clean up preferences
+    if (effectiveUser.isGuest) {
+      if (effectiveUser.profileId) {
+        await GymBrosPreference.findOneAndDelete({ profileId: effectiveUser.profileId }, { session });
+      } else if (effectiveUser.phone) {
+        await GymBrosPreference.findOneAndDelete({ phone: effectiveUser.phone }, { session });
+      }
+    } else {
+      await GymBrosPreference.findOneAndDelete({ userId: effectiveUser.userId }, { session });
+    }
+    logger.info(`Deleted preferences for profile: ${profileId}`);
+
+    // STEP 5: Clean up User model reference (if user is authenticated)
+    if (effectiveUser.userId && profile.userId) {
+      await User.findByIdAndUpdate(
+        effectiveUser.userId,
+        { $unset: { gymBrosProfile: 1 } },
+        { session }
+      );
+      logger.info(`Removed gymBrosProfile reference from User: ${effectiveUser.userId}`);
+    }
+
+    // STEP 6: Delete the profile itself
+    await GymBrosProfile.findByIdAndDelete(profileId, { session });
+    logger.info(`Deleted GymBros profile: ${profileId}`);
+
+    // Commit the transaction
+    await session.commitTransaction();
+    
+    logger.info(`Successfully completed cleanup for GymBros profile: ${profileId}`);
+    
+    res.status(200).json({ 
+      success: true,
+      message: 'Profile and all related data deleted successfully'
+    });
+
   } catch (error) {
-    console.error('Error in deleteGymBrosProfile:', error);
-    handleError(error, req, res);
+    // Abort transaction on any error
+    await session.abortTransaction();
+    
+    logger.error('Error in deleteGymBrosProfile with cleanup:', error);
+    
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to delete profile and related data'
+    });
+  } finally {
+    session.endSession();
   }
 };
 
