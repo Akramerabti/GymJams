@@ -693,27 +693,27 @@ return (
       )}
 
       {/* Main Content - Flexible */}
-      <div className="flex-1 flex flex-col justify-center p-4 min-h-0 relative z-10">
-        <div className="w-full max-w-2xl mx-auto h-full flex flex-col justify-center">
-          <AnimatePresence mode="wait" custom={direction}>
-            <motion.div
-              key={currentStep}
-              custom={direction}
-              variants={slideVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{
-                x: { type: "spring", stiffness: 300, damping: 30 },
-                opacity: { duration: 0.2 },
-              }}
-              className="w-full flex flex-col justify-center"
-            >
-              {steps[currentStep].component}
-            </motion.div>
-          </AnimatePresence>
+         <div className="flex-1 flex flex-col justify-center p-4 min-h-0 relative z-10 pb-20 md:pb-4"> {/* Added mobile bottom padding */}
+          <div className="w-full max-w-2xl mx-auto h-full flex flex-col justify-center">
+            <AnimatePresence mode="wait" custom={direction}>
+              <motion.div
+                key={currentStep}
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{
+                  x: { type: "spring", stiffness: 300, damping: 30 },
+                  opacity: { duration: 0.2 },
+                }}
+                className="w-full flex flex-col justify-center"
+              >
+                {steps[currentStep].component}
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
-      </div>
 
       {/* Navigation - Fixed at bottom, hide on welcome step */}
       {!isWelcomeStep && (
