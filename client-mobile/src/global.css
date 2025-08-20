@@ -1,0 +1,1926 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    /* Fluid Typography Scale */
+    --font-size-xs: clamp(0.75rem, 0.5vw + 0.6rem, 0.875rem);   /* Min 12px, Max 14px */
+    --font-size-sm: clamp(0.875rem, 0.5vw + 0.7rem, 1rem);      /* Min 14px, Max 16px */
+    --font-size-base: clamp(1rem, 1vw + 0.75rem, 1.125rem);     /* Min 16px, Max 18px */
+    --font-size-lg: clamp(1.125rem, 1vw + 0.85rem, 1.25rem);    /* Min 18px, Max 20px */
+    --font-size-xl: clamp(1.25rem, 1.5vw + 0.9rem, 1.5rem);     /* Min 20px, Max 24px */
+    --font-size-2xl: clamp(1.5rem, 2vw + 1rem, 1.875rem);       /* Min 24px, Max 30px */
+    --font-size-3xl: clamp(1.875rem, 2.5vw + 1.2rem, 2.25rem);  /* Min 30px, Max 36px */
+    --font-size-4xl: clamp(2.25rem, 3vw + 1.5rem, 3rem);        /* Min 36px, Max 48px */
+
+    /* Fluid Spacing Scale (for padding, margin, gap) */
+    --space-xs: clamp(0.25rem, 1vw, 0.5rem);
+    --space-sm: clamp(0.5rem, 1.5vw, 0.75rem);
+    --space-md: clamp(0.75rem, 2vw, 1rem);
+    --space-lg: clamp(1rem, 3vw, 1.5rem);
+    --space-xl: clamp(1.5rem, 4vw, 2rem);
+    --space-2xl: clamp(2rem, 5vw, 3rem);
+
+    /* Base Theme Colors (Light Mode) */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+  }
+
+/* Prevent flash of unstyled content during theme initialization */
+html {
+  --bg-primary: #ffffff;
+  --text-primary: #000000;
+  --bg-navbar: #ffffff;
+  --text-navbar: #000000;
+  font-size: clamp(14px, 1vw + 0.5rem, 18px); 
+  
+  /* Smooth transition for theme changes */
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+html.dark,
+html.dark-mode {
+  --bg-primary: #1f2937;
+  --text-primary: #ffffff;
+  --bg-navbar: #1f2937;
+  --text-navbar: #ffffff;
+}
+
+.leaflet-container {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+/* Ensure navbar maintains correct colors during theme transitions */
+.navbar,
+nav {
+  background-color: var(--bg-navbar) !important;
+  color: var(--text-navbar) !important;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Theme-aware body styling */
+body {
+  font-size: 1rem;
+  line-height: 1.5;
+  max-width: 100%;
+  overflow-x: hidden;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+h1 { font-size: clamp(2rem, 5vw, 3.5rem); }
+h2 { font-size: clamp(1.75rem, 4vw, 3rem); }
+h3 { font-size: clamp(1.5rem, 3.5vw, 2.5rem); }
+h4 { font-size: clamp(1.25rem, 3vw, 2rem); }
+h5 { font-size: clamp(1.125rem, 2.5vw, 1.75rem); }
+h6 { font-size: clamp(1rem, 2vw, 1.5rem); }
+
+.container-fluid {
+  width: 100%;
+  max-width: 100%;
+  padding-left: clamp(1rem, 5vw, 2rem);
+  padding-right: clamp(1rem, 5vw, 2rem);
+}
+
+/* Dark mode variables */
+.dark-mode {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --primary: 217.2 91.2% 59.8%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 224.3 76.3% 48%;
+}
+
+/* Dark theme styles */
+.dark-theme {
+  color-scheme: dark;
+}
+
+.dark-theme .card,
+.dark-theme .input,
+.dark-theme .button:not(.primary),
+.dark-theme .select {
+  background-color: hsl(222.2, 15%, 20%);
+  color: white;
+  border-color: hsl(222.2, 15%, 30%);
+}
+
+.dark-theme .bg-white {
+  background-color: hsl(222.2, 15%, 20%);
+}
+
+.dark-theme .text-gray-900 {
+  color: hsl(210, 40%, 98%);
+}
+
+.dark-theme .text-gray-800 {
+  color: hsl(210, 40%, 96%);
+}
+
+.dark-theme .text-gray-700 {
+  color: hsl(210, 40%, 90%);
+}
+
+.dark-theme .text-gray-600 {
+  color: hsl(210, 40%, 80%);
+}
+
+.dark-theme .text-gray-500 {
+  color: hsl(210, 40%, 70%);
+}
+
+.dark-theme .border-gray-300,
+.dark-theme .border-gray-200,
+.dark-theme .border-gray-100 {
+  border-color: hsl(222.2, 15%, 30%);
+}
+
+.dark-theme .bg-gray-100,
+.dark-theme .bg-gray-50 {
+  background-color: hsl(222.2, 15%, 18%);
+}
+
+.dark-theme .shadow-lg,
+.dark-theme .shadow-md,
+.dark-theme .shadow-sm {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
+}
+
+/* Exclude navbar from dark mode styles */
+.dark-theme nav:first-child {
+  background-color: white;
+  color: hsl(222.2, 84%, 4.9%);
+}
+
+/* Keep the navbar text and icons in normal mode */
+.dark-theme nav:first-child .text-gray-600,
+.dark-theme nav:first-child .text-gray-700 {
+  color: hsl(222.2, 15%, 45%);
+}
+
+.dark-theme nav:first-child .bg-gray-100 {
+  background-color: hsl(210, 40%, 96.1%);
+}
+
+.dark-theme nav:first-child .hover\:bg-gray-100:hover {
+  background-color: hsl(210, 40%, 90%);
+}
+
+html, body {
+    overflow-x: hidden; /* Hide horizontal scrollbar */
+    width: 100%; /* Ensure full width */
+    margin: 0; /* Remove default margin */
+    padding: 0; /* Remove default padding */
+    scroll-behavior: smooth;
+  }
+    /* Ensure no child elements overflow horizontally */
+  * {
+    box-sizing: border-box; /* Prevent padding and border from causing overflow */
+  }
+
+  /* Dynamic Background */
+@keyframes gradientShift {
+  0% { background-position: 0% 25%; }
+  25% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  75% { background-position: 50% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.register-page {
+  min-height: 100vh;
+  background: linear-gradient(270deg, #0026ff, #0059ff, #0050b8, #ff5733, #d94b1f, #ff5733,#0050b8, #0059ff, #0026ff);
+  background-size: 300% 300%;
+  animation: gradientShift 50s ease infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+
+/* Glassmorphism Card */
+.register-card {
+  background: rgba(10, 15, 26, 0.7); /* Dark blue with transparency */
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  padding: 2rem;
+  width: 100%;
+  max-width: 400px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.register-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* Input Fields */
+.input-field {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  transition: all 0.3s ease;
+  color: #ffffff;
+}
+
+.input-field::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.input-field:focus {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 165, 0, 0.6); /* Orange accent */
+  box-shadow: 0 0 10px rgba(255, 165, 0, 0.3);
+}
+
+/* Button Animation */
+.submit-button {
+  background: linear-gradient(45deg, #ff7e5f, #feb47b); /* Orange gradient */
+  border: none;
+  border-radius: 10px;
+  color: #0a0f1a; /* Dark blue text */
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.submit-button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 300%;
+  height: 300%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 70%);
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 0.5s ease;
+}
+
+.submit-button:hover::after {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.submit-button:disabled {
+  background: linear-gradient(45deg, #555, #777);
+  cursor: not-allowed;
+}
+
+/* Loading Animation */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #ff7e5f; /* Orange accent */
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Text and Links */
+.text-gray-300 {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.text-blue-400 {
+  color: #ff7e5f; /* Orange accent */
+}
+
+.text-blue-400:hover {
+  color: #feb47b; /* Lighter orange */
+}
+
+.highlight-match {
+  animation: pulse-highlight 2s;
+}
+
+@keyframes pulse-highlight {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(59, 130, 246, 0.15); }
+}
+
+/* Icons */
+.icon {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.icon:hover {
+  color: #ff7e5f; /* Orange accent */
+}
+
+.content-padding-top {
+  padding-top: calc(4rem + 3rem); /* navbar + gymbros header */
+}
+
+.gymbros-header.hidden {
+  transform: translateY(-100%);
+}
+
+/* Hide footer when specified - Enhanced for mobile compatibility */
+body.hide-footer footer,
+body.hide-footer > footer,
+body.hide-footer [role="contentinfo"],
+.hide-footer footer,
+.hide-footer > footer,
+.hide-footer [role="contentinfo"] {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Additional mobile-specific footer hiding */
+@media (max-width: 768px) {
+  body.hide-footer footer,
+  body.hide-footer > footer,
+  body.hide-footer [role="contentinfo"],
+  .hide-footer footer,
+  .hide-footer > footer,
+  .hide-footer [role="contentinfo"] {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    transform: translateY(100%) !important;
+  }
+}
+
+/* Even more aggressive mobile footer hiding for stubborn browsers */
+@media screen and (max-width: 768px), 
+       screen and (max-device-width: 768px),
+       only screen and (max-device-width: 768px) {
+  body.hide-footer footer,
+  body.hide-footer > footer,
+  body.hide-footer [role="contentinfo"],
+  .hide-footer footer,
+  .hide-footer > footer,
+  .hide-footer [role="contentinfo"],
+  html.hide-footer footer,
+  html.hide-footer > footer,
+  html.hide-footer [role="contentinfo"] {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    position: absolute !important;
+    left: -9999px !important;
+    top: -9999px !important;
+    clip: rect(0, 0, 0, 0) !important;
+    -webkit-clip-path: inset(100%) !important;
+    clip-path: inset(100%) !important;
+    transform: translateY(100%) !important;
+    z-index: -9999 !important;
+  }
+}
+
+/* Additional styles for the GymBros UI */
+.gym-bros-container {
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.gym-bros-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.profile-card {
+  width: 100%;
+  max-width: 400px;
+  height: 70vh;
+  max-height: 700px;
+  overflow: hidden;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+}
+
+.profile-card-image {
+  height: 70%;
+  width: 100%;
+  object-fit: cover;
+}
+
+.profile-card-info {
+  padding: 16px;
+  background: white;
+}
+
+.tab-bar {
+  padding: 12px 16px;
+  background: white;
+  border-top: 1px solid #eaeaea;
+  display: flex;
+  justify-content: space-around;
+}
+
+.tab-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.tab-button.active {
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.action-button {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transition: all 0.2s ease;
+}
+
+.action-button:hover {
+  transform: scale(1.05);
+}
+
+.action-button.like {
+  background: white;
+  color: #10b981;
+  border: 1px solid #e5e7eb;
+}
+
+.action-button.dislike {
+  background: white;
+  color: #ef4444;
+  border: 1px solid #e5e7eb;
+}
+
+/* Image carousel dots */
+.carousel-dots {
+  display: flex;
+  justify-content: center;
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+}
+
+.carousel-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  margin: 0 4px;
+  transition: all 0.2s ease;
+}
+
+.carousel-dot.active {
+  width: 24px;
+  border-radius: 4px;
+  background: white;
+}
+
+/* GymBros Setup full-screen styling */
+.gymbros-setup-fullscreen {
+  min-height: 100vh;
+  min-height: 100dvh; /* Dynamic viewport height for mobile */
+}
+
+/* Ensure navbar doesn't interfere with full-screen components */
+.gymbros-setup-fullscreen {
+  position: relative;
+  z-index: 1;
+}
+
+/* Enhanced GymBros Setup full-screen styling */
+.gymbros-setup-fullscreen {
+  height: 100vh !important;
+  max-height: 100vh !important;
+  overflow: hidden !important;
+}
+
+/* Only apply overflow hidden to specific GymBros setup components, not general hide-footer */
+body.gymbros-setup-fullscreen,
+html.gymbros-setup-fullscreen {
+  overflow: hidden !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+}
+
+/* Mobile viewport fixes for GymBros setup */
+@media (max-width: 768px) {
+  .gymbros-setup-fullscreen {
+    height: 100vh !important;
+    height: 100dvh !important; /* Dynamic viewport height for mobile */
+    max-height: 100vh !important;
+    max-height: 100dvh !important;
+  }
+  
+  body.gymbros-setup-fullscreen,
+  html.gymbros-setup-fullscreen {
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: 100vh !important;
+    max-height: 100dvh !important;
+  }
+}
+
+/* Ensure proper box-sizing for GymBros setup components */
+.gymbros-setup-fullscreen * {
+  box-sizing: border-box !important;
+}
+
+/* Navigation button positioning for GymBros setup */
+.gymbros-setup-fullscreen .navigation-container {
+  padding-bottom: 32px !important;
+  margin-bottom: 24px !important;
+  min-height: 60px !important;
+  position: relative;
+  z-index: 100;
+  margin-top: 16px !important;
+}
+
+/* Ensure navigation stays above viewport bottom */
+@media (max-height: 700px) {
+  .gymbros-setup-fullscreen .navigation-container {
+    padding-bottom: 32px !important;
+    margin-bottom: 24px !important;
+    margin-top: 20px !important;
+  }
+}
+
+/* Extra safe spacing for very small screens */
+@media (max-height: 600px) {
+  .gymbros-setup-fullscreen .navigation-container {
+    padding-bottom: 36px !important;
+    margin-bottom: 28px !important;
+    min-height: 70px !important;
+    margin-top: 24px !important;
+  }
+}
+
+/* Mobile specific navigation spacing */
+@media (max-width: 768px) {
+  .gymbros-setup-fullscreen .navigation-container {
+    padding-bottom: 40px !important;
+    margin-bottom: 32px !important;
+    margin-top: 20px !important;
+  }
+}
+
+/* Custom animations for Hero Section */
+@keyframes floatOnce {
+  0% {
+    transform: translateY(0px);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+    transform: translateY(-8px);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+  75% {
+    transform: translateY(-6px);
+  }
+  100% {
+    transform: translateY(0px);
+    opacity: 1;
+  }
+}
+
+@keyframes slideDownFromVideo {
+  0% {
+    transform: translateY(-150px);
+    opacity: 0;
+    visibility: hidden;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+.animate-floatOnce {
+  animation: floatOnce 2s ease-out forwards;
+}
+
+@keyframes floatUpSection {
+  0% {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-floatUpSection {
+  animation: floatUpSection 0.8s ease-out forwards;
+}
+
+.animate-slideDownFromVideo {
+  animation: slideDownFromVideo 0.5s ease-out forwards;
+}
+
+/* Enhanced Scroll Animations for Home Page */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(60px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes floatIn {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Section transition classes */
+.section-transition {
+  transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.section-visible {
+  animation: fadeInUp 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.section-hidden {
+  opacity: 0;
+  transform: translateY(60px);
+}
+
+.parallax-bg {
+  transition: transform 0.1s ease-out;
+}
+
+/* Smooth scrolling for the entire page */
+html {
+  scroll-behavior: smooth;
+  font-size: clamp(0.875rem, 1vw + 0.5rem, 1rem);
+}
+
+/* Stagger animation utility classes */
+.animate-stagger-1 {
+  animation-delay: 0.1s;
+}
+
+.animate-stagger-2 {
+  animation-delay: 0.2s;
+}
+
+.animate-stagger-3 {
+  animation-delay: 0.3s;
+}
+
+.animate-stagger-4 {
+  animation-delay: 0.4s;
+}
+
+.animate-stagger-5 {
+  animation-delay: 0.5s;
+}
+
+/* Hover enhancements */
+.hover-lift {
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 0.3s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* Improved focus states */
+.focus-visible-ring {
+  transition: all 0.2s ease;
+}
+
+.focus-visible-ring:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+}
+
+/* Loading animation improvements */
+.pulse-soft {
+  animation: pulse-soft 2s infinite;
+}
+
+@keyframes pulse-soft {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Gradient text animation */
+.gradient-text-animate {
+  background: linear-gradient(-45deg, #4f46e5, #7c3aed, #ec4899, #f59e0b);
+  background-size: 400% 400%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-shift 4s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Enhanced animations for sophisticated scroll experience */
+@keyframes revealSection {
+  from {
+    opacity: 0;
+    transform: translateY(100px) scale(0.95);
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0px);
+  }
+}
+
+@keyframes morphBackground {
+  0%, 100% {
+    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  }
+  50% {
+    border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
+  }
+}
+
+@keyframes floatingElements {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  33% {
+    transform: translateY(-10px) rotate(1deg);
+  }
+  66% {
+    transform: translateY(5px) rotate(-1deg);
+  }
+}
+
+@keyframes gradientFlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(79, 70, 229, 0.3), 
+                0 0 40px rgba(124, 58, 237, 0.2),
+                0 0 60px rgba(236, 72, 153, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(79, 70, 229, 0.5), 
+                0 0 60px rgba(124, 58, 237, 0.3),
+                0 0 90px rgba(236, 72, 153, 0.2);
+  }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-100px) rotate(-5deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) rotate(0deg);
+  }
+}
+
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(100px) rotate(5deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) rotate(0deg);
+  }
+}
+
+@keyframes scaleUpBounce {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes textShimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+/* Enhanced utility classes */
+.animate-reveal-section {
+  animation: revealSection 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.animate-morph-bg {
+  animation: morphBackground 20s ease-in-out infinite;
+}
+
+.animate-floating {
+  animation: floatingElements 8s ease-in-out infinite;
+}
+
+.animate-gradient-flow {
+  animation: gradientFlow 8s ease infinite;
+}
+
+.animate-glow-pulse {
+  animation: pulseGlow 3s ease-in-out infinite;
+}
+
+.animate-slide-left {
+  animation: slideInFromLeft 1s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.animate-slide-right {
+  animation: slideInFromRight 1s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.animate-scale-bounce {
+  animation: scaleUpBounce 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-text-shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  background-size: 200% 100%;
+  animation: textShimmer 2s infinite;
+}
+
+/* Section-specific enhancements */
+.section-active {
+  transform: scale(1.02);
+  z-index: 10;
+}
+
+.section-transition-border {
+  position: relative;
+}
+
+.section-transition-border::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  transform: scaleX(0);
+  transition: transform 0.8s ease;
+}
+
+.section-transition-border.visible::before {
+  transform: scaleX(1);
+}
+
+/* Parallax and perspective enhancements */
+.parallax-container {
+  perspective: 1000px;
+  transform-style: preserve-3d;
+}
+
+.parallax-layer {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+
+/* Mouse interaction enhancements */
+.interactive-bg {
+  transition: transform 0.1s ease-out;
+}
+
+.interactive-bg:hover {
+  transform: translateZ(10px);
+}
+
+/* Performance optimizations */
+.will-change-transform {
+  will-change: transform;
+}
+
+.will-change-opacity {
+  will-change: opacity;
+}
+
+.gpu-accelerated {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Hide scrollbars for questionnaire */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
+
+/* Animation delays for staggered effects */
+.animation-delay-1000 {
+  animation-delay: 1s;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+/* Border width utilities */
+.border-3 {
+  border-width: 3px;
+}
+
+/* Questionnaire specific full-screen styles */
+.questionnaire-fullscreen {
+  height: 100vh !important;
+  height: 100dvh !important; /* Dynamic viewport height for mobile */
+  max-height: 100vh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 50 !important;
+}
+
+/* Ensure questionnaire content fits perfectly */
+.questionnaire-content {
+  height: 100% !important;
+  max-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+/* Force all questionnaire children to respect the container */
+.questionnaire-container * {
+  box-sizing: border-box !important;
+}
+
+/* Ensure questionnaire never overlaps navbar */
+.questionnaire-fullscreen {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 1 !important; /* Lower than navbar z-index (9999) */
+}
+
+/* Mobile specific questionnaire adjustments */
+@media (max-width: 768px) {
+  .questionnaire-fullscreen {
+    height: 100vh !important;
+    height: 100svh !important; /* Small viewport height for mobile browsers */
+    max-height: 100vh !important;
+    max-height: 100svh !important;
+  }
+  
+  /* Reduce header height on mobile */
+  .questionnaire-header {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+  
+  /* Compact card padding on mobile */
+  .questionnaire-card {
+    padding: 0.5rem !important;
+  }
+  
+  /* Ensure form sections with many options can scroll */
+  .questionnaire-form-content {
+    max-height: calc(100vh - 200px) !important;
+    overflow-y: auto !important;
+  }
+    /* Improve touch scrolling on iOS */
+  .scrollable-form {
+    -webkit-overflow-scrolling: touch !important;
+  }
+}
+
+/* Ultra-small screen adjustments */
+@media (max-height: 600px) {
+  .questionnaire-spacing-sm {
+    margin-bottom: 0.5rem !important;
+    padding: 0.5rem !important;
+  }
+  
+  .questionnaire-text-sm {
+    font-size: 0.875rem !important;
+    line-height: 1.25rem !important;
+  }
+  
+  /* Further reduce spacing on very small screens */
+  .questionnaire-fullscreen .text-base {
+    font-size: 0.875rem !important;
+  }
+  
+  .questionnaire-fullscreen .text-lg {
+    font-size: 1rem !important;
+  }
+}
+
+/* Very small height adjustments */
+@media (max-height: 500px) {
+  .questionnaire-spacing-xs {
+    margin-bottom: 0.25rem !important;
+    padding: 0.25rem !important;
+  }
+  
+  .questionnaire-text-xs {
+    font-size: 0.75rem !important;
+    line-height: 1rem !important;
+  }
+  
+  /* Hide description text on very small screens */
+  .questionnaire-description-hide {
+    display: none !important;
+  }
+}
+
+/* Mobile landscape specific adjustments */
+@media (max-width: 768px) and (orientation: landscape) and (max-height: 500px) {
+  .questionnaire-fullscreen h1 {
+    font-size: 1rem !important;
+    margin-bottom: 0.25rem !important;
+  }
+  
+  .questionnaire-fullscreen .mb-2 {
+    margin-bottom: 0.25rem !important;
+  }
+  
+  .questionnaire-fullscreen .py-2 {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+}
+
+/* Ensure navigation buttons are always visible on mobile */
+@media (max-width: 768px) {
+  .questionnaire-content {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100vh !important;
+    height: 100svh !important;
+  }
+  
+  /* Ensure the card content area respects button space */
+  .questionnaire-card-content {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+    /* Make sure form content is properly scrollable and leaves space for buttons */
+  .questionnaire-form-content {
+    flex: 1 !important;
+    min-height: 0 !important;
+    max-height: calc(100vh - 314px) !important; /* Reserve space for navbar (64px) + header + buttons (250px) */
+    max-height: calc(100svh - 314px) !important;
+    overflow-y: auto !important;
+  }
+  
+  /* Ensure navigation buttons are always visible */
+  .questionnaire-navigation {
+    flex-shrink: 0 !important;
+    padding: 0.5rem 0 !important;
+    margin-top: auto !important;
+  }
+}
+
+/* For very small screens, reduce reserved space even more */
+@media (max-width: 768px) and (max-height: 600px) {
+  .questionnaire-form-content {
+    max-height: calc(100vh - 264px) !important; /* Navbar + smaller reserved space */
+    max-height: calc(100svh - 264px) !important;
+  }
+}
+
+@media (max-width: 768px) and (max-height: 500px) {
+  .questionnaire-form-content {
+    max-height: calc(100vh - 244px) !important; /* Navbar + even smaller reserved space */
+    max-height: calc(100svh - 244px) !important;
+  }
+}
+
+/* Force dark mode for all questionnaire elements */
+.questionnaire-fullscreen,
+.questionnaire-fullscreen * {
+  color-scheme: dark !important;
+}
+
+.questionnaire-fullscreen .bg-white {
+  background-color: rgb(31 41 55) !important; /* gray-800 */
+}
+
+.questionnaire-fullscreen .text-gray-900 {
+  color: white !important;
+}
+
+.questionnaire-fullscreen .text-gray-800 {
+  color: rgb(229 231 235) !important; /* gray-200 */
+}
+
+.questionnaire-fullscreen .text-gray-700 {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+.questionnaire-fullscreen .text-gray-600 {
+  color: rgb(156 163 175) !important; /* gray-400 */
+}
+
+.questionnaire-fullscreen .border-gray-200 {
+  border-color: rgb(55 65 81) !important; /* gray-700 */
+}
+
+.questionnaire-fullscreen .border-gray-300 {
+  border-color: rgb(75 85 99) !important; /* gray-600 */
+}
+
+.questionnaire-fullscreen .bg-gray-50 {
+  background-color: rgb(55 65 81) !important; /* gray-700 */
+}
+
+.questionnaire-fullscreen .bg-gray-100 {
+  background-color: rgb(75 85 99) !important; /* gray-600 */
+}
+
+/* Force dark mode for all background gradients */
+.questionnaire-fullscreen .from-blue-50 {
+  --tw-gradient-from: rgb(30 58 138 / 0.2) !important; /* blue-900/20 */
+}
+
+.questionnaire-fullscreen .to-indigo-50 {
+  --tw-gradient-to: rgb(49 46 129 / 0.2) !important; /* indigo-900/20 */
+}
+
+.questionnaire-fullscreen .from-emerald-50 {
+  --tw-gradient-from: rgb(6 78 59 / 0.2) !important; /* emerald-900/20 */
+}
+
+.questionnaire-fullscreen .to-teal-50 {
+  --tw-gradient-to: rgb(19 78 74 / 0.2) !important; /* teal-900/20 */
+}
+
+.questionnaire-fullscreen .from-purple-50 {
+  --tw-gradient-from: rgb(88 28 135 / 0.2) !important; /* purple-900/20 */
+}
+
+.questionnaire-fullscreen .to-pink-50 {
+  --tw-gradient-to: rgb(131 24 67 / 0.2) !important; /* pink-900/20 */
+}
+
+.questionnaire-fullscreen .from-cyan-50 {
+  --tw-gradient-from: rgb(22 78 99 / 0.2) !important; /* cyan-900/20 */
+}
+
+.questionnaire-fullscreen .to-blue-50 {
+  --tw-gradient-to: rgb(30 58 138 / 0.2) !important; /* blue-900/20 */
+}
+
+.questionnaire-fullscreen .from-green-50 {
+  --tw-gradient-from: rgb(20 83 45 / 0.2) !important; /* green-900/20 */
+}
+
+.questionnaire-fullscreen .to-emerald-50 {
+  --tw-gradient-to: rgb(6 78 59 / 0.2) !important; /* emerald-900/20 */
+}
+
+/* Force dark mode for input fields */
+.questionnaire-fullscreen input[type="text"],
+.questionnaire-fullscreen input[type="number"],
+.questionnaire-fullscreen input[type="email"],
+.questionnaire-fullscreen textarea {
+  background-color: rgb(31 41 55) !important; /* gray-800 */
+  color: white !important;
+  border-color: rgb(55 65 81) !important; /* gray-700 */
+}
+
+.questionnaire-fullscreen input[type="text"]:focus,
+.questionnaire-fullscreen input[type="number"]:focus,
+.questionnaire-fullscreen input[type="email"]:focus,
+.questionnaire-fullscreen textarea:focus {
+  border-color: rgb(99 102 241) !important; /* indigo-500 */
+}
+
+/* Force dark mode for labels */
+.questionnaire-fullscreen label {
+  color: rgb(209 213 219) !important; /* gray-300 */
+}
+
+/* Custom colored scrollbar for coach selection */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #8b5cf6 #f1f5f9;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+  border-radius: 3px;
+  transition: all 0.2s ease;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+  width: 8px;
+}
+
+.scrollbar-track-gray-100::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+
+.scrollbar-thumb-gradient::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #8b5cf6, #3b82f6, #06b6d4);
+}
+
+.scrollbar-thumb-gradient::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #7c3aed, #2563eb, #0891b2);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 0px;  /* Remove scrollbar space */
+  background: transparent;  /* Optional: just make it transparent */
+}
+
+/* Hide scrollbar for Firefox */
+.custom-scrollbar {
+  scrollbar-width: none;  /* Remove scrollbar space */
+}
+
+.home-container {
+  width: 100%;
+  position: relative;
+  overflow-x: hidden; /* Prevents horizontal scroll */
+  margin: 0;
+  padding: 0;
+  top: 0;
+}
+
+/* --- Section Styling & Transitions --- */
+.home-section {
+  min-height: 100vh;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  transition: all 1.0s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.section-hidden {
+  opacity: 0;
+  transform: translateY(100px) scale(0.9);
+  filter: blur(15px) brightness(0.3);
+}
+
+.section-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0px) brightness(1);
+  animation: revealSection 1.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.section-active {
+  transform: scale(1.02);
+  z-index: 10;
+  filter: brightness(1.1) contrast(1.05);
+}
+
+.parallax-bg {
+  transition: transform 0.3s ease-out, opacity 0.6s ease-out, filter 0.6s ease-out;
+}
+
+/* --- Keyframe Animations --- */
+@keyframes revealSection {
+  from {
+    opacity: 0;
+    transform: translateY(100px) scale(0.9);
+    filter: blur(15px) brightness(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0px) brightness(1);
+  }
+}
+
+@keyframes morphBackground {
+  0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+  50% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
+}
+
+@keyframes floatingElements {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-10px) rotate(1deg); }
+  66% { transform: translateY(5px) rotate(-1deg); }
+}
+
+@keyframes gradientFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(79, 70, 229, 0.3), 
+                0 0 40px rgba(124, 58, 237, 0.2),
+                0 0 60px rgba(236, 72, 153, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(79, 70, 229, 0.5), 
+                0 0 60px rgba(124, 58, 237, 0.3),
+                0 0 90px rgba(236, 72, 153, 0.2);
+  }
+}
+
+.floating-elements { animation: floatingElements 8s ease-in-out infinite; }
+.morphing-bg { animation: morphBackground 20s ease-in-out infinite; }
+.gradient-flow {
+  background: linear-gradient(-45deg, #667eea, #764ba2, #f093fb, #f5576c, #4facfe, #00f2fe);
+  background-size: 400% 400%;
+  animation: gradientFlow 8s ease infinite;
+}
+.glow-effect { animation: pulseGlow 3s ease-in-out infinite; }
+
+/* --- Custom Scrollbar --- */
+::-webkit-scrollbar { width: 12px; }
+::-webkit-scrollbar-track { background: rgba(243, 244, 246, 0.3); border-radius: 10px; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(45deg, #4f46e5, #7c3aed, #ec4899);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: linear-gradient(45deg, #4338ca, #6d28d9, #db2777); background-clip: content-box; }
+
+/* Dark theme scrollbar overrides */
+.dark-theme ::-webkit-scrollbar-track { background: rgba(31, 41, 55, 0.3); }
+
+/*
+=====================================================
+  Responsive Button (New)
+=====================================================
+*/
+.responsive-btn {
+  /* --- Base styles for mobile --- */
+  padding: 0.75rem 1.5rem; /* 12px 24px */
+  font-size: 1rem; /* 16px */
+  font-weight: 600; /* semibold */
+  border-radius: 0.5rem; /* 8px */
+  transition: all 0.3s ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border: 2px solid transparent;
+}
+
+.responsive-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.responsive-btn:active {
+  transform: translateY(-1px);
+}
+
+/* Animated featured glow for product cards */
+.featured-glow {
+  box-shadow: 0 0 0 2px rgba(99, 101, 241, 0.247), 0 0 8px 1px rgba(138, 92, 246, 0.24);
+  animation: featuredGlowPulse 3s linear infinite;
+  transition: box-shadow 0.3s;
+}
+.featured-glow:hover {
+  box-shadow: 0 0 0 4px rgba(167,139,250,0.18), 0 0 16px 4px rgba(124,58,237,0.45), 0 0 24px 8px rgba(244,114,182,0.10);
+  animation-play-state: paused;
+}
+
+@keyframes featuredGlowPulse {
+  0% {
+    box-shadow: 0 0 0 2px rgba(99,102,241,0.10), 0 0 8px 1px rgba(139,92,246,0.08);
+  }
+  25% {
+    box-shadow: 0 0 0 3px rgba(124,58,237,0.13), 0 0 12px 2px rgba(167,139,250,0.10);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(244,114,182,0.13), 0 0 16px 4px rgba(236,72,153,0.10);
+  }
+  75% {
+    box-shadow: 0 0 0 3px rgba(79,70,229,0.12), 0 0 12px 2px rgba(99,102,241,0.09);
+  }
+  100% {
+    box-shadow: 0 0 0 2px rgba(99,102,241,0.10), 0 0 8px 1px rgba(139,92,246,0.08);
+  }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  0% { opacity: 0; transform: translateX(-20px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideUp {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.6s ease-out;
+}
+
+.animate-slideIn {
+  animation: slideIn 0.4s ease-out;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.5s ease-out;
+}
+
+/* Line clamp utilities for bio text truncation */
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.line-clamp-3 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.line-clamp-4 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+}
+
+/* Aspect ratio utilities for consistent image sizing */
+.aspect-square {
+  aspect-ratio: 1 / 1;
+}
+
+.aspect-4-3 {
+  aspect-ratio: 4 / 3;
+}
+
+.aspect-16-9 {
+  aspect-ratio: 16 / 9;
+}
+
+/* Fallback for older browsers that don't support aspect-ratio */
+@supports not (aspect-ratio: 1 / 1) {
+  .aspect-square {
+    width: 100%;
+    padding-bottom: 100%;
+    position: relative;
+  }
+  
+  .aspect-square > * {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+/* Enhanced coach card transitions */
+.coach-card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.coach-card-hover:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Enhanced mobile touch targets for carousel navigation */
+@media (max-width: 640px) {
+  .carousel-nav-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Smooth carousel transitions */
+.carousel-container {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Enhanced focus styles for accessibility */
+.carousel-nav-btn:focus-visible {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}
+
+.carousel-dot:focus-visible {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}
+
+/* Better text rendering for coach names and bios */
+.coach-text {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Gradient overlays for better text readability */
+.coach-name-overlay {
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.8) 0%,
+    rgba(0, 0, 0, 0.6) 50%,
+    rgba(0, 0, 0, 0.2) 80%,
+    transparent 100%
+  );
+}
+
+/* Enhanced social link hover effects */
+.social-link {
+  transition: all 0.2s ease;
+}
+
+.social-link:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive spacing adjustments */
+@media (min-width: 640px) {
+  .coach-card-padding {
+    padding: 1.25rem; /* 20px */
+  }
+}
+
+@media (min-width: 1024px) {
+  .coach-card-padding {
+    padding: 1.5rem; /* 24px */
+  }
+}
+
+.welcome-step-container {
+  /* Ensure proper viewport sizing */
+  min-height: 100vh;
+  min-height: 100svh; /* Small viewport height for mobile browsers */
+  max-height: 100vh;
+  max-height: 100svh;
+  overflow-y: auto;
+  overflow-x: hidden !important; /* Force hide horizontal scrollbar */
+  width: 100%;
+  max-width: 100vw; /* Prevent content from exceeding viewport width */
+  
+  /* Smooth scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Prevent any element from causing horizontal overflow */
+.welcome-step-container,
+.welcome-step-container * {
+  box-sizing: border-box !important;
+}
+
+/* Emergency overflow prevention - add this class to body when showing welcome step */
+.no-horizontal-scroll {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+}
+
+/* Mobile-specific adjustments for WelcomeStep */
+@media (max-width: 768px) {
+  .welcome-step-container {
+    /* Account for mobile browser UI */
+    min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    min-height: calc(100svh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+  
+  /* Ensure content doesn't get cut off */
+  .welcome-step-content {
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+  
+  /* Reduce spacing further on very small screens */
+  @media (max-height: 667px) {
+    .welcome-step-spacing {
+      margin-bottom: 0.75rem !important;
+    }
+    
+    .welcome-step-hero {
+      margin-bottom: 1rem !important;
+      margin-top: 0.5rem !important;
+    }
+  }
+  
+  /* Ultra-compact for very small screens */
+  @media (max-height: 568px) {
+    .welcome-step-spacing {
+      margin-bottom: 0.5rem !important;
+    }
+    
+    .welcome-step-hero {
+      margin-bottom: 0.75rem !important;
+      margin-top: 0.25rem !important;
+    }
+    
+    .welcome-step-text {
+      font-size: 0.875rem !important;
+      line-height: 1.25rem !important;
+    }
+  }
+}
+
+/* Landscape mode adjustments for mobile */
+@media (max-width: 768px) and (orientation: landscape) and (max-height: 500px) {
+  .welcome-step-container {
+    padding: 0.5rem !important;
+  }
+  
+  .welcome-step-hero {
+    margin-bottom: 0.5rem !important;
+    margin-top: 0 !important;
+  }
+  
+  .welcome-step-spacing {
+    margin-bottom: 0.5rem !important;
+  }
+  
+  .welcome-step-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+  
+  .welcome-step-button {
+    padding: 0.75rem 1rem !important;
+    font-size: 0.875rem !important;
+  }
+}
+
+/* Prevent content from being too tall on short screens */
+@media (max-height: 600px) {
+  .welcome-step-value-props {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+  
+  .welcome-step-stats {
+    margin-bottom: 1rem !important;
+  }
+  
+  .welcome-step-trust {
+    margin-top: 0.5rem !important;
+  }
+}
+
+/* Ensure buttons are always accessible */
+.welcome-step-actions {
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.1));
+  padding-top: 1rem;
+}
+
+/* Fix for iOS Safari viewport issues */
+@supports (-webkit-touch-callout: none) {
+  .welcome-step-container {
+    min-height: -webkit-fill-available;
+    max-height: -webkit-fill-available;
+  }
+}
+
+/* Prevent horizontal overflow from all child elements */
+.welcome-step-container * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Ensure content wrapper doesn't overflow */
+.welcome-step-content {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  position: relative;
+}
+
+/* Ensure text content doesn't overflow */
+.welcome-step-text {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  max-width: 100%;
+}
+
+/* Ensure grid doesn't overflow */
+.welcome-step-grid {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Ensure buttons don't overflow */
+.welcome-step-actions {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Ensure floating elements stay within bounds */
+.welcome-step-floating {
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100vh - 2rem);
+}
+
+/* Animation performance optimizations */
+.welcome-step-floating {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Touch target optimization */
+.welcome-step-button {
+  min-height: 44px; /* iOS minimum touch target */
+  min-width: 44px;
+  touch-action: manipulation; /* Prevent double-tap zoom */
+}
+
+/* Prevent zoom on iOS inputs if any */
+.welcome-step input,
+.welcome-step select,
+.welcome-step textarea {
+  font-size: 16px !important; /* Prevent iOS zoom */
+  -webkit-appearance: none;
+}

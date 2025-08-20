@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en"> 
+  <head>    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/logo.png" />
+    
+    <!-- Theme initialization script - must run before CSS loads -->
+    <script>
+      (function() {
+        try {
+          const savedTheme = localStorage.getItem('siteTheme');
+          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          const isDark = savedTheme ? savedTheme === 'dark' : prefersDark;
+          
+          if (isDark) {
+            document.documentElement.classList.add('dark', 'dark-mode');
+            document.documentElement.style.setProperty('--bg-primary', '#1f2937');
+            document.documentElement.style.setProperty('--text-primary', '#ffffff');
+            document.documentElement.style.setProperty('--bg-navbar', '#1f2937');
+            document.documentElement.style.setProperty('--text-navbar', '#ffffff');
+          } else {
+            document.documentElement.classList.remove('dark', 'dark-mode');
+            document.documentElement.style.setProperty('--bg-primary', '#ffffff');
+            document.documentElement.style.setProperty('--text-primary', '#000000');
+            document.documentElement.style.setProperty('--bg-navbar', '#ffffff');
+            document.documentElement.style.setProperty('--text-navbar', '#000000');
+          }
+        } catch (e) {
+          console.error('Theme initialization error:', e);
+        }
+      })();
+    </script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&display=swap" rel="stylesheet">    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0070f3" />
+    
+    <!-- Primary Meta Tags -->
+    <title>GymTonic</title>
+    <meta name="title" content="GymTonic - All Fitness, For All" />
+    <meta name="description" content="Your ultimate destination for fitness, wellness, and lifestyle products." />
+    <meta name="image" content="/logo_whitebg.jpg" />
+    <meta name="google-site-verification" content="B-0XagP202LVg9BDh77NAOM9RFtIPMH0ZGJlx_iLmEQ" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://www.gymtonic.ca/" />
+    <meta property="og:title" content="GymTonic - All Fitness, For All" />
+    <meta property="og:description" content="Your ultimate destination for fitness, wellness, and lifestyle products." />
+    <meta property="og:image" content="/logo_whitebg.jpg" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://www.gymtonic.ca/" />
+    <meta property="twitter:title" content="GymTonic - All Fitness, For All" />
+    <meta property="twitter:description" content="Your ultimate destination for fitness, wellness, and lifestyle products." />
+    <meta property="twitter:image" content="/logo_whitebg.jpg" />
+
+    <!-- Stripe script -->
+    <script defer src="https://js.stripe.com/v3/"></script>
+    
+    <!-- Google AdSense -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2652838159140308" crossorigin="anonymous"></script>
+    
+
+    <script>
+      window.googletag = window.googletag || {cmd: []};
+      googletag.cmd.push(function() {
+        // Define ad slots
+        googletag.defineSlot('/22639388920/GymTonic_Top', [728, 90], 'div-gpt-ad-top').addService(googletag.pubads());
+        googletag.defineSlot('/22639388920/GymTonic_Sidebar', [300, 250], 'div-gpt-ad-sidebar').addService(googletag.pubads());
+        googletag.defineSlot('/22639388920/GymTonic_InContent', [300, 250], 'div-gpt-ad-incontent').addService(googletag.pubads());
+        
+        // Enable services
+        googletag.pubads().enableSingleRequest();
+        googletag.enableServices();
+      });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="ad-blocker-container" style="display:none;"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
