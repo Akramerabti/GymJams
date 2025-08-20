@@ -11,12 +11,20 @@ const corsOptions = {
           'https://gymtonic.onrender.com',
           'https://saas-pl33-git-main-akramerabtis-projects.vercel.app',
           'https://saas-pl33-izz8roaoz-akramerabtis-projects.vercel.app',
-          'https://saas-pl33-9fzcpos92-akramerabtis-projects.vercel.app'
+          'https://saas-pl33-9fzcpos92-akramerabtis-projects.vercel.app',
+           'capacitor://localhost',
+          'ionic://localhost', 
+          'http://localhost',
+          'https://localhost'
         ]
       : [
           'http://localhost:3000', 
           'http://localhost:5173', 
-          'http://localhost:5000'
+          'http://localhost:5000',
+           'capacitor://localhost',
+          'ionic://localhost',
+          'http://localhost',
+          'https://localhost'
         ];
     
     // Check if the origin is in our allowed list

@@ -1,4 +1,4 @@
-package com.gymtonic.app;
+package com.akram.gymtonic;
 
 import com.getcapacitor.BridgeActivity;
 

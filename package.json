@@ -1,5 +1,9 @@
 {
   "dependencies": {
+    "@capacitor/android": "^8.0.0-alpha.1",
+    "@capacitor/cli": "^8.0.0-alpha.1",
+    "@capacitor/core": "^8.0.0-alpha.1",
+    "@capacitor/ios": "^8.0.0-alpha.1",
     "i18next": "^25.3.2",
     "react-i18next": "^15.6.0"
   }

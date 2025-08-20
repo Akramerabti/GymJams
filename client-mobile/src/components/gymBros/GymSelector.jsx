@@ -407,21 +407,20 @@ const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym, userId, 
     );
   }
 
-  return (
-    <div className="w-full h-full flex flex-col max-h-[calc(100vh-200px)] overflow-hidden">
+ return (
+    <div className="w-full h-full flex flex-col max-h-[calc(100vh-280px)] overflow-hidden"> {/* Increased bottom margin for mobile nav */}
       {/* Fixed Header Section - Skip Option */}
       <div className="flex-shrink-0 text-center mb-4">
         <button
           type="button"
           onClick={() => onGymSelect && onGymSelect([])}
-          className="text-white/70 text-sm hover:text-white transition-colors"
+          className="text-white/70 text-sm hover:text-white transition-colors touch-manipulation" // Added touch-manipulation
         >
           Skip for now - I'll add my facilities later
         </button>
       </div>
-
       {/* Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto space-y-4 pb-4">
+      <div className="flex-1 overflow-y-auto space-y-4 pb-20">
         {/* Search Radius and Type Filter Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-shrink-0">
           {/* Search Radius Selector */}
@@ -556,17 +555,17 @@ const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym, userId, 
             ))}
           </div>
         ) : (
-          <div className="space-y-3 max-h-40 overflow-y-auto flex-shrink-0">
-            {filteredGyms.map((gym) => {
-              const isSelected = selectedGyms.some(selected => selected._id === gym._id);
-              return (
-                <div
-                  key={gym._id}
-                  className={`bg-white/10 rounded-xl p-4 cursor-pointer transition-all hover:bg-white/20 ${
-                    isSelected ? 'ring-2 ring-blue-400 bg-white/20' : ''
-                  }`}
-                  onClick={() => handleGymToggle(gym)}
-                >
+           <div className="space-y-3 flex-shrink-0"> {/* Removed max-height constraint */}
+          {filteredGyms.map((gym) => {
+            const isSelected = selectedGyms.some(selected => selected._id === gym._id);
+            return (
+              <div
+                key={gym._id}
+                className={`bg-white/10 rounded-xl p-4 cursor-pointer transition-all hover:bg-white/20 touch-manipulation ${
+                  isSelected ? 'ring-2 ring-blue-400 bg-white/20' : ''
+                }`} // Added touch-manipulation
+                onClick={() => handleGymToggle(gym)}
+              >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
@@ -657,18 +656,18 @@ const GymSelector = ({ location, selectedGym, onGymSelect, onCreateGym, userId, 
         )}
 
         {/* Create New Facility Button */}
-        <div className="text-center flex-shrink-0">
+         <div className="text-center flex-shrink-0 pb-8"> {/* Added bottom padding */}
           <button
             type="button"
             onClick={() => setShowCreateForm(true)}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors touch-manipulation min-h-[44px]" // Added touch-manipulation and min-height
           >
             <Plus size={16} className="mr-2" />
             Can't find your facility? Add it
           </button>
         </div>
       </div>
-
+      
       {/* Create Facility Form Modal - Same as before */}
       {showCreateForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

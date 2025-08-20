@@ -93,7 +93,6 @@ const [currentIndex, setCurrentIndex] = useState(0);
   ;
   const [loading, setLoading] = useState(true);
   const [hasProfile, setHasProfile] = useState(false);
-
   const [showMatches, setShowMatches] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -114,6 +113,39 @@ const [currentIndex, setCurrentIndex] = useState(0);
 
   const [userProfile, setUserProfile] = useState(null)
 
+   useEffect(() => {
+    console.log('🔄 Guest profile sync check:', {
+      isGuest,
+      hasGuestProfile: !!guestProfile,
+      guestProfileId: guestProfile?._id,
+      currentHasProfile: hasProfile,
+      guestLoading
+    });
+
+    // If we have a guest profile from context, use it immediately
+    if (isGuest && guestProfile && !guestLoading) {
+      console.log('✅ Using guest profile from context:', guestProfile);
+      
+      setUserProfile(guestProfile);
+      setHasProfile(true);
+      setLoading(false);
+      
+      // Don't call initializeWithSingleCall again - we have the data
+      return;
+    }
+    
+    // If guest but no profile, they need to complete setup
+    if (isGuest && !guestProfile && !guestLoading) {
+      console.log('📝 Guest without profile - needs setup');
+      setHasProfile(false);
+      setUserProfile(null);
+      setLoading(false);
+      return;
+    }
+
+  }, [isGuest, guestProfile, guestLoading]);
+  
+
   useEffect(() => {
     if (hasProfile) {
       setActiveTab('map');
@@ -121,59 +153,142 @@ const [currentIndex, setCurrentIndex] = useState(0);
       setActiveTab('discover');
     }
   }, [hasProfile]);
+  
+const initializeAuthenticatedUser = async () => {
+    try {
+      const initData = await gymbrosService.initializeGymBros();
+      
+      if (initData.hasProfile) {
+        setHasProfile(true);
+        setShowLoginPrompt(false);
+        
+        if (initData.profiles?.length > 0) {
+          setProfiles(initData.profiles);
+        }
+      } else {
+        setHasProfile(false);
+        setShowLoginPrompt(false);
+      }
+    } catch (error) {
+      console.error('Error initializing authenticated user:', error);
+      setHasProfile(false);
+    }
+  };
 
   useEffect(() => {
-
-     if (guestLoading) {
-    console.log('⏳ Waiting for guest context to load...');
-    return;
-  }
-
-    console.log('🚀 Starting initialization:', { 
+    console.log('🚀 GymBros initialization:', { 
       isAuthenticated, 
       isGuest, 
       verifiedPhone, 
-      guestToken: !!localStorage.getItem('gymbros_guest_token') 
+      guestLoading,
+      guestToken: !!localStorage.getItem('gymbros_guest_token'),
+      verificationToken: !!localStorage.getItem('verificationToken')
     });
-    
-    if (isAuthenticated) {
-      clearGuestState();
-      clearCache(); 
-      initializeWithSingleCall();
-    } else if (isGuest || verifiedPhone) {
-      initializeWithSingleCall();
-    } else {
-      // Check for guest token even if isGuest is false
-      const guestToken = localStorage.getItem('gymbros_guest_token');
-      if (guestToken) {
-        console.log('🎫 Found guest token, setting and initializing');
-        gymbrosService.setGuestToken(guestToken);
-        initializeWithSingleCall();
-      } else {
-        console.log('❌ No authentication, showing login prompt');
+
+    // Wait for guest context to load
+    if (guestLoading) {
+      console.log('⏳ Waiting for guest context to load...');
+      return;
+    }
+
+    const initializeApp = async () => {
+      try {
+        setLoading(true);
+
+        // Case 1: Authenticated user
+        if (isAuthenticated) {
+          console.log('👤 Authenticated user, clearing guest state');
+          clearGuestState();
+          await initializeAuthenticatedUser();
+          return;
+        }
+
+        // Case 2: Guest with profile
+        if (isGuest && guestProfile) {
+          console.log('🎫 Guest with existing profile');
+          setHasProfile(true);
+          setShowLoginPrompt(false);
+          await fetchProfiles();
+          return;
+        }
+
+        // Case 3: Guest token exists but no profile loaded yet
+        const guestToken = localStorage.getItem('gymbros_guest_token');
+        const verificationToken = localStorage.getItem('verificationToken');
+        const verifiedPhoneLocal = localStorage.getItem('verifiedPhone');
+
+        if (guestToken) {
+          console.log('🎫 Found guest token, attempting to load profile');
+          gymbrosService.setGuestToken(guestToken);
+          
+          try {
+            await fetchGuestProfile();
+            // After fetching, check if we got a profile
+            if (guestProfile) {
+              setHasProfile(true);
+              setShowLoginPrompt(false);
+            } else {
+              // Have token but no profile - send to setup
+              setHasProfile(false);
+              setShowLoginPrompt(false);
+            }
+          } catch (error) {
+            console.error('Error loading guest profile with token:', error);
+            // Token might be invalid, clear it
+            if (error.response?.status === 401) {
+              localStorage.removeItem('gymbros_guest_token');
+              setShowLoginPrompt(true);
+            }
+          }
+          return;
+        }
+
+        // Case 4: Verified phone but no token (possible after phone verification)
+        if (verifiedPhoneLocal && verificationToken) {
+          console.log('📱 Found verified phone, checking for profile');
+          
+          try {
+            const response = await gymbrosService.checkProfileWithVerifiedPhone(
+              verifiedPhoneLocal,
+              verificationToken
+            );
+            
+            if (response.guestToken) {
+              gymbrosService.setGuestToken(response.guestToken);
+              localStorage.setItem('gymbros_guest_token', response.guestToken);
+              
+              if (response.profile) {
+                setHasProfile(true);
+                setShowLoginPrompt(false);
+              } else {
+                // Verified but no profile yet
+                setHasProfile(false);
+                setShowLoginPrompt(false);
+              }
+            } else {
+              setShowLoginPrompt(true);
+            }
+          } catch (error) {
+            console.error('Error checking profile with verified phone:', error);
+            setShowLoginPrompt(true);
+          }
+          return;
+        }
+
+        // Case 5: No authentication at all
+        console.log('❌ No authentication found, showing login prompt');
+        setShowLoginPrompt(true);
+
+      } catch (error) {
+        console.error('❌ Error during initialization:', error);
+        setShowLoginPrompt(true);
+      } finally {
         setLoading(false);
       }
-    }
-  
-    
-    if (typeof window !== 'undefined') {
-      window.gymBrosDebug = {
-        forceSyncLocation: () => gymBrosLocationService.forceSyncNow(),
-        checkLocalStorage: () => {
-          console.log('localStorage userLocation:', localStorage.getItem('userLocation'));
-          console.log('localStorage gymBrosLocation:', localStorage.getItem('gymBrosLocation'));
-        },
-        getCurrentUser: () => {
-          console.log('Current user:', user);
-          console.log('isAuthenticated:', isAuthenticated);
-        }
-      };
-    }
-    
-    return () => {
-      gymBrosLocationService.stopAutoLocationSync();
     };
-  }, [isAuthenticated, isGuest, verifiedPhone, guestLoading]); 
+
+    initializeApp();
+  }, [isAuthenticated, isGuest, guestProfile, guestLoading, verifiedPhone]);
 
 
    const combineProfiles = (userModel, gymBrosModel) => {
@@ -272,16 +387,55 @@ const [currentIndex, setCurrentIndex] = useState(0);
     
     // STEP 1: Get initialization data (this gives us userModelProfile)
     console.log('📡 Fetching initialization data...');
-    const initData = await optimizedApiCall(
-      'gymbros-init',
-      () => gymbrosService.initializeGymBros(),
-      {
-        cacheTime: 10 * 60 * 1000,
-        minInterval: 60 * 1000,
-      }
-    );
     
-    console.log('📡 Init data received:', initData);
+    let initData;
+    try {
+      initData = await optimizedApiCall(
+        'gymbros-init',
+        () => gymbrosService.initializeGymBros(),
+        {
+          cacheTime: 10 * 60 * 1000,
+          minInterval: 60 * 1000,
+        }
+      );
+      console.log('📡 Init data received:', initData);
+    } catch (initError) {
+      console.error('❌ Error during initialization:', initError);
+      
+      // Handle different error cases
+      if (initError.response?.status === 404) {
+        console.log('🚨 Initialization returned 404 - user/guest has no profile');
+        
+        // If we have a guest token but got 404, they need to complete setup
+        if (guestToken) {
+          console.log('👤 Guest token exists but no profile, redirecting to setup');
+          setHasProfile(false);
+          setShowLoginPrompt(false);
+          setLoading(false);
+          return;
+        }
+        
+        // No token and no profile - show login prompt
+        setShowLoginPrompt(true);
+        setLoading(false);
+        return;
+      }
+      
+      if (initError.response?.status === 401) {
+        console.log('🔑 Unauthorized - clearing invalid tokens');
+        gymbrosService.clearGuestState();
+        localStorage.removeItem('gymbros_guest_token');
+        setShowLoginPrompt(true);
+        setLoading(false);
+        return;
+      }
+      
+      // Other errors
+      console.error('❌ Unexpected initialization error:', initError);
+      setShowLoginPrompt(true);
+      setLoading(false);
+      return;
+    }
     
     // STEP 2: Store the user model profile
     let userModel = null;
@@ -297,7 +451,6 @@ const [currentIndex, setCurrentIndex] = useState(0);
     let gymBrosModel = null;
     
     try {
-      // Use the correct method name
       const gymBrosResponse = await gymbrosService.getGymBrosProfile();
       console.log('🏋️ GymBros response:', gymBrosResponse);
       
@@ -312,9 +465,17 @@ const [currentIndex, setCurrentIndex] = useState(0);
     } catch (gymBrosError) {
       console.error('🏋️ Error fetching GymBros profile:', gymBrosError);
       
-      // If it's a 404, that's normal for new users
       if (gymBrosError.response?.status === 404) {
         console.log('🏋️ No GymBros profile exists yet (404) - normal for new users');
+        
+        // If we have a guest token but no profile, they need to complete setup
+        if (guestToken && !userModel) {
+          console.log('🚨 Guest token but no profiles found - redirect to setup');
+          setHasProfile(false);
+          setShowLoginPrompt(false);
+          setLoading(false);
+          return;
+        }
       }
       
       setGymBrosProfile(null);
@@ -341,11 +502,20 @@ const [currentIndex, setCurrentIndex] = useState(0);
       
       console.log('✅ Profile initialization complete');
     } else {
+      console.log('🚨 No profiles found - checking authentication state');
       setHasProfile(false);
       setUserModelProfile(null);
       
-      if (!isAuthenticated && !isGuest && !verifiedPhone) {
+      // If we have guest token but no profile, show setup (not login prompt)
+      if (guestToken) {
+        console.log('👤 Guest token exists but no profile - show setup');
+        setShowLoginPrompt(false);
+      } else if (!isAuthenticated && !isGuest && !verifiedPhone) {
+        console.log('❌ No authentication at all - show login prompt');
         setShowLoginPrompt(true);
+      } else {
+        console.log('🤔 Unclear state - show setup');
+        setShowLoginPrompt(false);
       }
     }
     
@@ -356,7 +526,12 @@ const [currentIndex, setCurrentIndex] = useState(0);
     setGymBrosProfile(null);
     setUserProfile(null);
     
-    if (!isAuthenticated && !isGuest && !verifiedPhone) {
+    // Check if we have a guest token - if so, show setup, not login
+    const guestToken = localStorage.getItem('gymbros_guest_token');
+    if (guestToken) {
+      console.log('👤 Error but guest token exists - show setup');
+      setShowLoginPrompt(false);
+    } else if (!isAuthenticated && !isGuest && !verifiedPhone) {
       setShowLoginPrompt(true);
     }
   } finally {
@@ -428,60 +603,94 @@ const [currentIndex, setCurrentIndex] = useState(0);
   }
 
   const fetchProfiles = async () => {
-    try {
-      setLoading(true);
-      
-      const fetchedProfiles = await optimizedApiCall(
-        'recommended-profiles',
-        () => gymbrosService.getRecommendedProfiles(filters),
-        {
-          cacheTime: 5 * 60 * 1000,
-          minInterval: 30 * 1000,
-        }
-      );
-      
-      if (Array.isArray(fetchedProfiles) && fetchedProfiles.length > 0) {
-        setProfiles(fetchedProfiles);
-        setCurrentIndex(0);
-      } else {
-        setProfiles([]);
+  try {
+    setLoading(true);
+    
+    const fetchedProfiles = await optimizedApiCall(
+      'recommended-profiles',
+      () => gymbrosService.getRecommendedProfiles(filters),
+      {
+        cacheTime: 5 * 60 * 1000,
+        minInterval: 30 * 1000,
       }
-    } catch (error) {
-      console.error('Error fetching profiles:', error);
+    );
+    
+    if (Array.isArray(fetchedProfiles) && fetchedProfiles.length > 0) {
+      setProfiles(fetchedProfiles);
+      setCurrentIndex(0);
+    } else {
+      setProfiles([]);
+    }
+  } catch (error) {
+    console.error('Error fetching profiles:', error);
+    
+    // CRITICAL FIX: Handle 404 for guests - means they have token but no profile
+    if (error.response?.status === 404) {
+      console.log('🚨 404 error - Guest has token but no profile, redirecting to setup');
       
-      if (error.response?.status === 401 && gymbrosService.getGuestToken()) {
-        try {
-          await fetchGuestProfile();
-          
-          clearCache('recommended-profiles');
-          const retryProfiles = await optimizedApiCall(
-            'recommended-profiles',
-            () => gymbrosService.getRecommendedProfiles(filters),
-            {
-              bypassCache: true,
-              minInterval: 0,
-            }
-          );
-          
-          if (Array.isArray(retryProfiles) && retryProfiles.length > 0) {
-            setProfiles(retryProfiles);
-            setCurrentIndex(0);
-          } else {
-            setProfiles([]);
+      // If user is a guest and gets 404, they need to complete setup
+      if (isGuest || gymbrosService.getGuestToken()) {
+        console.log('👤 Guest user without profile detected, clearing hasProfile flag');
+        setHasProfile(false); // This will trigger the setup flow
+        setShowLoginPrompt(false);
+        return; // Exit early to show setup
+      }
+      
+      // For authenticated users, this is unexpected
+      if (isAuthenticated) {
+        console.error('⚠️ Authenticated user got 404 - this is unexpected');
+        toast.error('Profile not found. Please contact support.');
+        return;
+      }
+      
+      // For unauthenticated users without guest token, show login
+      setShowLoginPrompt(true);
+      return;
+    }
+    
+    // Handle 401 errors (token expired/invalid)
+    if (error.response?.status === 401 && gymbrosService.getGuestToken()) {
+      console.log('🔑 Guest token expired, attempting refresh');
+      try {
+        await fetchGuestProfile();
+        
+        clearCache('recommended-profiles');
+        const retryProfiles = await optimizedApiCall(
+          'recommended-profiles',
+          () => gymbrosService.getRecommendedProfiles(filters),
+          {
+            bypassCache: true,
+            minInterval: 0,
           }
-        } catch (retryError) {
-          console.error('Error on retry fetch profiles:', retryError);
+        );
+        
+        if (Array.isArray(retryProfiles) && retryProfiles.length > 0) {
+          setProfiles(retryProfiles);
+          setCurrentIndex(0);
+        } else {
+          setProfiles([]);
+        }
+      } catch (retryError) {
+        console.error('Error on retry fetch profiles:', retryError);
+        
+        // If retry also fails with 404, redirect to setup
+        if (retryError.response?.status === 404) {
+          console.log('🚨 Retry also returned 404, guest needs setup');
+          setHasProfile(false);
+          setShowLoginPrompt(false);
+        } else {
           toast.error('Failed to load gym profiles');
           setProfiles([]);
         }
-      } else {
-        toast.error('Failed to load gym profiles');
-        setProfiles([]);
       }
-    } finally {
-      setLoading(false);
+    } else {
+      toast.error('Failed to load gym profiles');
+      setProfiles([]);
     }
-  };
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchMatches = async () => {
     try {
@@ -656,46 +865,6 @@ const [currentIndex, setCurrentIndex] = useState(0);
     await refreshProfiles();
     fetchProfiles();
   };
-
-
-  const handleGuestStart = () => {
-    clearGuestState();
-    setShowLoginPrompt(false);
-    setActiveTab('discover');
-  };
-
-  const renderLoginPrompt = () => (
-    <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-      <Dumbbell size={64} className="text-blue-500 mb-6" />
-      <h2 className="text-2xl font-bold mb-4">Find Your Perfect Gym Partner</h2>
-      <p className="mb-8 text-gray-600">
-        Connect with people who share your fitness goals and schedule. Get started by creating a profile or logging in.
-      </p>
-      
-      <div className="space-y-4 w-full max-w-xs">
-        <Link to="/login" className="w-full block bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors">
-          <LogIn className="inline-block mr-2 h-5 w-5" />
-          Log In
-        </Link>
-        
-        <Link to="/register" className="w-full block bg-gray-100 text-gray-800 py-3 px-6 rounded-lg font-medium hover:bg-gray-200 transition-colors">
-          <UserPlus className="inline-block mr-2 h-5 w-5" />
-          Create Account
-        </Link>
-        
-        <button
-          onClick={handleGuestStart}
-          className="w-full block bg-white border border-gray-300 text-gray-700 py-3 px-6 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-        >
-          Continue with Phone Number
-        </button>
-      </div>
-      
-      <p className="mt-6 text-xs text-gray-500">
-        By continuing, you agree to our Terms of Service and Privacy Policy.
-      </p>
-    </div>
-  );
 
 const renderHeader = () => {
   // Don't show header for matches and map sections
@@ -916,10 +1085,6 @@ const renderHeader = () => {
         </div>
       </div>
     );
-  }
-
-  if (showLoginPrompt && !isAuthenticated && !isGuest && !verifiedPhone && !hasProfile) {
-    return renderLoginPrompt();
   }
 
   if (!hasProfile) {
