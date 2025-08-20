@@ -23,71 +23,10 @@ const PhoneVerification = ({
   const [timer, setTimer] = useState(0);
   const [verificationToken, setVerificationToken] = useState(null);
   const [phoneExists, setPhoneExists] = useState(false);
+  const [isExistingAccountFlow, setIsExistingAccountFlow] = useState(false);
   const inputRefs = useRef([]);
-  
-  useEffect(() => {
-    let interval;
-    if (timer > 0) {
-      interval = setInterval(() => {
-        setTimer(prevTimer => prevTimer - 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [timer]);
 
-  const handleSendVerificationCode = async () => {
-    if (!phone || phone.trim() === '') {
-      setPhoneError('Please enter your phone number');
-      return;
-    }
-    
-    setIsLoading(true);
-    setPhoneError('');
-    
-    try {
-      const exists = await gymbrosService.checkPhoneExists(phone);
-      setPhoneExists(exists);
-      
-      if (exists && !isLoginFlow) {
-        toast.info(
-          'This phone is already registered',
-          {
-            description: 'Would you like to log in with this number?',
-            action: {
-              label: 'Yes, login',
-              onClick: () => onExistingAccountFound && onExistingAccountFound(phone)
-            }
-          }
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      const response = await gymbrosService.sendVerificationCode(phone);
-      
-      if (response.success) {
-        setVerificationStep('verifying');
-        setTimer(30); // 30 second countdown for resend
-        toast.success('Verification code sent!', {
-          description: `Check your messages for the 6-digit code`
-        });
-        
-        if (response.token) {
-          setVerificationToken(response.token);
-        }
-      } else {
-        setPhoneError(response.message || 'Failed to send verification code');
-        toast.error(response.message || 'Failed to send verification code');
-      }
-    } catch (error) {
-      console.error('Error sending verification code:', error);
-      setPhoneError('Failed to send verification code. Please try again.');
-      toast.error('Failed to send verification code. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // Enhanced verification code handler
   const handleVerifyCode = async () => {
     const code = otpValues.join('');
     if (code.length !== 6) {
@@ -98,27 +37,128 @@ const PhoneVerification = ({
     setIsLoading(true);
     
     try {
+      console.log('🔐 Verifying code for phone:', phone, 'exists:', phoneExists);
       const response = await gymbrosService.verifyCode(phone, code);
+      console.log('🔐 Verification response:', response);
       
       if (response.success) {
         setVerificationStep('verified');
         
+        // CHECK 1: If response contains user data and token, this is a LOGIN
         if (response.user && response.token) {
-          // User logged in successfully
-          await loginWithToken(response.token, response.user);
-          onVerified(true, response.user, response.token, response.profile || null);
-        } else {
-          // Guest verification or new account
-          onVerified(true, null, response.token || verificationToken, null);
+          console.log('🎉 EXISTING ACCOUNT LOGIN - User authenticated:', response.user);
+          
+          // This is an existing user logging in
+          try {
+            await loginWithToken(response.token, response.user);
+            console.log('✅ User logged in successfully with token');
+            
+            // Call onVerified with user data to indicate successful login
+            onVerified(true, response.user, response.token, response.profile || null);
+            
+            toast.success('Welcome back! Logged in successfully.');
+            return;
+            
+          } catch (loginError) {
+            console.error('❌ Error logging in with token:', loginError);
+            toast.error('Login failed. Please try again.');
+            return;
+          }
         }
         
+        // CHECK 2: If we know this phone exists but didn't get user data, something went wrong
+        if (phoneExists && !response.user) {
+          console.error('⚠️ Phone exists but no user data returned - this is a backend issue');
+          toast.error('Login failed. Please contact support.');
+          return;
+        }
+        
+        // CHECK 3: This is a new account/guest verification
+        console.log('📝 NEW ACCOUNT/GUEST - Phone verified for new account');
+        onVerified(true, null, response.token || verificationToken, null);
         toast.success('Phone verified successfully!');
+        
       } else {
+        console.error('❌ Verification failed:', response.message);
         toast.error(response.message || 'Invalid verification code');
       }
     } catch (error) {
-      console.error('Error verifying code:', error);
+      console.error('❌ Error verifying code:', error);
       toast.error('Verification failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Enhanced send verification handler
+  const handleSendVerificationCode = async () => {
+    if (!phone || phone.trim() === '') {
+      setPhoneError('Please enter your phone number');
+      return;
+    }
+    
+    setIsLoading(true);
+    setPhoneError('');
+    
+    try {
+      // Check if phone exists FIRST
+      console.log('📱 Checking if phone exists:', phone);
+      const exists = await gymbrosService.checkPhoneExists(phone);
+      setPhoneExists(exists);
+      setIsExistingAccountFlow(exists);
+      
+      console.log('📱 Phone exists result:', exists);
+      
+      // If phone exists and this isn't already a login flow, ask user intent
+      if (exists && !isLoginFlow) {
+        console.log('🔄 Phone exists, showing login option');
+        toast.info(
+          'This phone is already registered',
+          {
+            description: 'Would you like to log in with this number?',
+            action: {
+              label: 'Yes, login',
+              onClick: () => {
+                console.log('👤 User chose to login with existing account');
+                onExistingAccountFound && onExistingAccountFound(phone);
+              }
+            }
+          }
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // Send verification code
+      console.log('📤 Sending verification code to:', phone);
+      const response = await gymbrosService.sendVerificationCode(phone);
+      console.log('📤 Send code response:', response);
+      
+      if (response.success) {
+        setVerificationStep('verifying');
+        setTimer(30);
+        
+        if (exists) {
+          toast.success('Login code sent!', {
+            description: `We sent a login code to verify your identity`
+          });
+        } else {
+          toast.success('Verification code sent!', {
+            description: `Check your messages for the 6-digit code`
+          });
+        }
+        
+        if (response.token) {
+          setVerificationToken(response.token);
+        }
+      } else {
+        setPhoneError(response.message || 'Failed to send verification code');
+        toast.error(response.message || 'Failed to send verification code');
+      }
+    } catch (error) {
+      console.error('❌ Error sending verification code:', error);
+      setPhoneError('Failed to send verification code. Please try again.');
+      toast.error('Failed to send verification code. Please try again.');
     } finally {
       setIsLoading(false);
     }
