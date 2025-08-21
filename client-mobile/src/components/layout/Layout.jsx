@@ -4,36 +4,53 @@ import Navbar from './Navbar';
 import Footer from './Footer';
 import { useTheme } from '../../contexts/ThemeContext';
 
-const Layout = ({ children }) => {
+const Layout = ({ children, showMobileGatekeeper }) => {
   const location = useLocation();
   const [showFooter, setShowFooter] = useState(true);
   const { darkMode } = useTheme();
-  
-  // Create a ref for the Navbar wrapper
   const navbarRef = useRef(null);
 
-  // This new useEffect hook measures the Navbar's height
+  // Hide scrollbars when mobile gatekeeper is shown
+  useEffect(() => {
+    if (showMobileGatekeeper) {
+      // Hide scrollbars on both html and body
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.height = '100%';
+      document.body.style.height = '100%';
+    } else {
+      // Restore normal scrolling when gatekeeper is closed
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      document.documentElement.style.height = '';
+      document.body.style.height = '';
+    }
+
+    return () => {
+      // Cleanup on unmount
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      document.documentElement.style.height = '';
+      document.body.style.height = '';
+    };
+  }, [showMobileGatekeeper]);
+
   useEffect(() => {
     const updateNavbarHeight = () => {
       if (navbarRef.current) {
-        // Get the height of the navbar element
         const height = navbarRef.current.offsetHeight;
-        // Set it as a CSS variable on the root HTML element
         document.documentElement.style.setProperty('--navbar-height', `${height}px`);
       }
     };
 
-    // Run the function on mount and on window resize
     updateNavbarHeight();
     window.addEventListener('resize', updateNavbarHeight);
 
-    // Cleanup function to remove the event listener
     return () => {
       window.removeEventListener('resize', updateNavbarHeight);
     };
-  }, []); // Empty dependency array ensures this runs only once on mount and unmount
+  }, []);
 
-  // Your existing useEffect for footer visibility
   useEffect(() => {
     const checkFooterVisibility = () => {
       const hasHideFooterClass = document.body.classList.contains('hide-footer') ||
@@ -90,12 +107,19 @@ const Layout = ({ children }) => {
     };
   }, [location.pathname]);
 
+  // When mobile gatekeeper is shown, return nothing (layout is hidden)
+  if (showMobileGatekeeper) {
+    return <>{children}</>;
+  }
+
   return (
     <div className={`flex flex-col min-h-screen ${darkMode ? 'dark-theme' : ''}`}>
-      {/* Attach the ref to the Navbar's wrapping div */}
+      {/* Navbar */}
       <div ref={navbarRef}>
         <Navbar />
       </div>
+      
+      {/* Main Content */}
       <main className={`flex-grow transition-colors duration-300 ${
         darkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'
       }`}>
@@ -103,6 +127,8 @@ const Layout = ({ children }) => {
           {children}
         </div>
       </main>
+      
+      {/* Footer */}
       {showFooter && <Footer />}
     </div>
   );

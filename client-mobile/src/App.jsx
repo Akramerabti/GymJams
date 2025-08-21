@@ -9,6 +9,8 @@ import i18n from './i18n';
 // Import global CSS
 import './global.css';
 
+import MobileGatekeeper from './components/MobileGateKeeper';
+
 // Import providers
 import { GuestFlowProvider } from './components/gymBros/components/GuestFlowContext';
 import { SocketProvider } from './SocketContext';
@@ -97,9 +99,59 @@ function CoachProfileModalManager() {
 
 // Main App component
 function App() {
-  const { checkAuth, logout } = useAuth();
+  const { checkAuth, logout, user } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [location, setLocation] = useState(null);
+  const [showMobileGatekeeper, setShowMobileGatekeeper] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if we're returning from OAuth
+  useEffect(() => {
+    const checkOAuthReturn = () => {
+      // Check if we're on the OAuth callback page
+      if (window.location.pathname === '/oauth-callback') {
+        // Don't show mobile gatekeeper on OAuth callback
+        setShowMobileGatekeeper(false);
+        sessionStorage.removeItem('mobileGatekeeperOpen');
+      }
+    };
+    
+    checkOAuthReturn();
+  }, []);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      return mobile;
+    };
+    
+    const mobile = checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    // Don't show gatekeeper if:
+    // 1. Not mobile
+    // 2. Already has token
+    // 3. Already completed onboarding
+    // 4. On OAuth callback page
+    // 5. Was redirected for OAuth (check sessionStorage)
+    const hasCompletedOnboarding = localStorage.getItem('hasCompletedOnboarding');
+    const token = localStorage.getItem('token');
+    const isOAuthCallback = window.location.pathname === '/oauth-callback';
+    const wasOAuthRedirect = sessionStorage.getItem('mobileGatekeeperOpen') === 'true';
+    
+    if (mobile && !token && !hasCompletedOnboarding && !isOAuthCallback && !wasOAuthRedirect) {
+      setShowMobileGatekeeper(true);
+    }
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const handleAccountCreated = (userData, token) => {
+    setShowMobileGatekeeper(false);
+    sessionStorage.removeItem('mobileGatekeeperOpen');
+    checkAuth();
+  };
 
   useEffect(() => {
     const validateTokenOnLoad = async () => {
@@ -110,9 +162,6 @@ function App() {
           if (!isValid) {
             logout();
           }
-        } else {
-          // For guest users, if they have a location, just update localStorage (no API call)
-          // No need to refresh location here, just keep the value
         }
       } catch (error) {
         console.error('Auth check error:', error);
@@ -139,13 +188,14 @@ function App() {
       console.error('App initialization error:', error);
     });
   }, [checkAuth, logout]);
+
   return (
     <I18nextProvider i18n={i18n}>
       <ThemeProvider>
         <SocketProvider>
           <GuestFlowProvider>
             <Router>
-              <Layout>
+              <Layout showMobileGatekeeper={showMobileGatekeeper}>
                 <Routes>
                   {/* Public Routes */}
                   <Route path="/" element={<Home />} />
@@ -200,13 +250,24 @@ function App() {
                   <Onboarding onClose={() => setShowOnboarding(false)} />
                 )}
 
-                {/* Global Components */}
-                <LocationBanner onLocationSet={setLocation} />
-                <CoachProfileModalManager />
+                {/* Only show these when mobile gatekeeper is not active */}
+                {!showMobileGatekeeper && (
+                  <>
+                    <LocationBanner onLocationSet={setLocation} />
+                    <CoachProfileModalManager />
+                  </>
+                )}
 
                 <Toaster />
                 {process.env.NODE_ENV !== 'production' && <AdDebugger />}
               </Layout>
+
+              {/* Mobile Gatekeeper - Outside Layout */}
+              <MobileGatekeeper 
+                isOpen={showMobileGatekeeper}
+                onAccountCreated={handleAccountCreated}
+                onClose={() => setShowMobileGatekeeper(false)}
+              />
             </Router>
           </GuestFlowProvider>
         </SocketProvider>

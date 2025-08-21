@@ -13,7 +13,6 @@ const countryOptions = [
   { code: 'fr', name: 'Français', icon: <span className="inline mr-1">🇫🇷</span> },
   { code: 'es', name: 'Español', icon: <span className="inline mr-1">🇪🇸</span> },
   { code: 'zh', name: '简体中文', icon: <span className="inline mr-1">🇨🇳</span> },
-  // Add more countries/languages as needed
 ];
 
 const Navbar = () => {
@@ -27,6 +26,9 @@ const Navbar = () => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState(countryOptions[0]);
   const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
+  const [dynamicBg, setDynamicBg] = useState('transparent');
+  const [scrollY, setScrollY] = useState(0);
+  
   const userMenuRef = useRef(null);
   const countryDropdownRef = useRef(null);
   const location = useLocation();
@@ -35,22 +37,110 @@ const Navbar = () => {
     return user?.user?.role || user?.role || '';
   };
 
-const isTaskforceOrAdmin = () => {
-  const role = getUserrole(user);
-  return ['taskforce', 'admin', 'marketing', 'affiliate'].includes(role);
-};
+  const isTaskforceOrAdmin = () => {
+    const role = getUserrole(user);
+    return ['taskforce', 'admin', 'marketing', 'affiliate'].includes(role);
+  };
 
-const navigationItems = [
-  { name: t('navbar.shop'), path: '/shop' },
-  { name: t('navbar.gains'), path: '/gymbros' },
-  { name: t('navbar.coaching'), path: '/coaching' },
-  { name: t('navbar.games'), path: '/games' },
-  ...(isTaskforceOrAdmin()
-    ? [{ name: t('navbar.taskforceDashboard'), path: '/taskforce-dashboard' }]
-    : [{ name: t('navbar.blog'), path: '/blog' }]
-  ),
-  { name: t('navbar.contact'), path: '/contact' },
-];
+  const navigationItems = [
+    { name: t('navbar.shop'), path: '/shop' },
+    { name: t('navbar.gains'), path: '/gymbros' },
+    { name: t('navbar.coaching'), path: '/coaching' },
+    { name: t('navbar.games'), path: '/games' },
+    ...(isTaskforceOrAdmin()
+      ? [{ name: t('navbar.taskforceDashboard'), path: '/taskforce-dashboard' }]
+      : [{ name: t('navbar.blog'), path: '/blog' }]
+    ),
+    { name: t('navbar.contact'), path: '/contact' },
+  ];
+
+  // 🎨 DYNAMIC BACKGROUND COLOR DETECTION
+  useEffect(() => {
+    const detectBackgroundColor = () => {
+      // Get the element behind the navbar
+      const elements = document.elementsFromPoint(window.innerWidth / 2, 100);
+      
+      let backgroundColor = 'transparent';
+      let textColor = darkMode ? 'white' : 'black';
+      
+      for (const element of elements) {
+        if (element.tagName === 'HTML' || element.tagName === 'BODY') continue;
+        
+        const styles = window.getComputedStyle(element);
+        const bgColor = styles.backgroundColor;
+        
+        if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+          // Extract RGB values to determine if background is dark or light
+          const rgbMatch = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+          const rgbaMatch = bgColor.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*[\d.]+\)/);
+          
+          if (rgbMatch || rgbaMatch) {
+            const [, r, g, b] = rgbMatch || rgbaMatch;
+            const brightness = (parseInt(r) * 299 + parseInt(g) * 587 + parseInt(b) * 114) / 1000;
+            
+            // Create a semi-transparent version of the detected color
+            const alpha = 0.8;
+            backgroundColor = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+            textColor = brightness > 128 ? 'black' : 'white';
+            break;
+          }
+        }
+      }
+      
+      // Fallback based on current page and scroll position
+      if (backgroundColor === 'transparent') {
+        if (location.pathname === '/') {
+          // Home page - gradient based on scroll
+          const progress = Math.min(scrollY / 1000, 1);
+          if (progress < 0.33) {
+            backgroundColor = `rgba(30, 58, 138, ${0.3 + progress * 0.4})`; // Blue
+            textColor = 'white';
+          } else if (progress < 0.66) {
+            backgroundColor = `rgba(79, 70, 229, ${0.3 + progress * 0.4})`; // Indigo
+            textColor = 'white';
+          } else {
+            backgroundColor = `rgba(126, 34, 206, ${0.3 + progress * 0.4})`; // Purple
+            textColor = 'white';
+          }
+        } else {
+          // Other pages - adapt to theme
+          backgroundColor = darkMode 
+            ? 'rgba(17, 24, 39, 0.8)' // Dark gray
+            : 'rgba(255, 255, 255, 0.8)'; // Light white
+          textColor = darkMode ? 'white' : 'black';
+        }
+      }
+      
+      setDynamicBg({ backgroundColor, textColor });
+    };
+
+    const handleScroll = () => {
+      setScrollY(window.scrollY);
+      detectBackgroundColor();
+    };
+
+    // Initial detection
+    detectBackgroundColor();
+    
+    // Listen for scroll and resize events
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', detectBackgroundColor);
+    
+    // Re-detect when page content changes
+    const observer = new MutationObserver(detectBackgroundColor);
+    observer.observe(document.body, { 
+      childList: true, 
+      subtree: true, 
+      attributes: true,
+      attributeFilter: ['style', 'class']
+    });
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', detectBackgroundColor);
+      observer.disconnect();
+    };
+  }, [location.pathname, darkMode, scrollY]);
 
   useEffect(() => {
     if (user && !isTokenValid()) {
@@ -82,7 +172,6 @@ const navigationItems = [
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Close country dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (countryDropdownRef.current && !countryDropdownRef.current.contains(event.target)) {
@@ -93,14 +182,32 @@ const navigationItems = [
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Change language when selectedCountry changes
   useEffect(() => {
     i18n.changeLanguage(selectedCountry.code);
   }, [selectedCountry, i18n]);
 
+  // 🎨 DYNAMIC STYLING
+  const navbarStyle = {
+    backgroundColor: dynamicBg.backgroundColor || 'transparent',
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+    borderBottom: `1px solid ${dynamicBg.textColor === 'white' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
+    transition: 'all 0.3s ease-in-out',
+  };
+
+  const textStyle = {
+    color: dynamicBg.textColor || (darkMode ? 'white' : 'black'),
+    transition: 'color 0.3s ease-in-out',
+  };
+
+  const iconStyle = {
+    color: dynamicBg.textColor || (darkMode ? 'white' : 'black'),
+    transition: 'color 0.3s ease-in-out',
+  };
+
   return (
-    <div className={`shadow-lg fixed top-0 left-0 right-0 z-[9999] ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-      <div className={`max-w-7xl mx-auto px-8 sm:px-14 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+    <div className="fixed top-0 left-0 right-0 z-[9999]" style={navbarStyle}>
+      <div className="max-w-7xl mx-auto px-8 sm:px-14">
         <div className="flex justify-between items-center h-16">
 
           {/* ======== Logo Section (Left) ======== */}
@@ -112,8 +219,11 @@ const navigationItems = [
                 className="h-[clamp(2.1rem,5vw,3.1rem)] w-auto"
               />
               <span
-                className={`text-[clamp(1.1rem,4vw,1.7rem)] font-extrabold ${darkMode ? 'text-white' : 'text-black'}`}
-                style={{ fontFamily: 'Montserrat, sans-serif' }}
+                className="text-[clamp(1.1rem,4vw,1.7rem)] font-extrabold"
+                style={{ 
+                  fontFamily: 'Montserrat, sans-serif',
+                  ...textStyle
+                }}
               >
                 GYMTONIC
               </span>
@@ -126,11 +236,13 @@ const navigationItems = [
               <Link
                 key={item.name}
                 to={item.path}
-                className={`text-[clamp(0.95rem,2vw,1.25rem)] font-medium transition-colors px-3 py-2 rounded-md ${
-                  location.pathname === item.path
-                    ? (darkMode ? 'text-white font-semibold' : 'text-blue-600 font-semibold')
-                    : (darkMode ? 'text-gray-300 hover:text-white' : 'text-black hover:text-blue-600')
-                }`}
+                className="text-[clamp(0.95rem,2vw,1.25rem)] font-medium transition-all duration-300 px-3 py-2 rounded-md hover:bg-white/10"
+                style={{
+                  ...textStyle,
+                  fontWeight: location.pathname === item.path ? '600' : '500',
+                  textDecoration: location.pathname === item.path ? 'underline' : 'none',
+                  textUnderlineOffset: '4px',
+                }}
               >
                 {item.name}
               </Link>
@@ -140,90 +252,161 @@ const navigationItems = [
           {/* ======== Right Section (Icons & Menus) ======== */}
           <div className="flex items-center space-x-1 sm:space-x-2">
             {user && isTokenValid() ? (
-              // --- Logged-IN User View ---
               <>
+                {/* Coins Display */}
                 <div className="hidden sm:flex items-center space-x-1">
-                  <Coins className={`h-[clamp(1.2rem,3vw,1.8rem)] w-[clamp(1.2rem,3vw,1.8rem)] ${darkMode ? 'text-yellow-300' : 'text-yellow-500'}`} />
-                  <span className={`font-medium text-[clamp(1rem,2vw,1.2rem)] ${darkMode ? 'text-white' : 'text-black'}`}>{balance}</span>
+                  <Coins 
+                    className="h-[clamp(1.2rem,3vw,1.8rem)] w-[clamp(1.2rem,3vw,1.8rem)]" 
+                    style={{ color: '#facc15' }} // Always gold/yellow
+                  />
+                  <span 
+                    className="font-medium text-[clamp(1rem,2vw,1.2rem)]"
+                    style={textStyle}
+                  >
+                    {balance}
+                  </span>
                 </div>
-                <Link to="/cart" className="relative p-0.5">
-                  <ShoppingCart className={`h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)] ${darkMode ? 'text-white' : 'text-gray-600'}`} />
-                  {itemCount > 0 && <div className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[clamp(0.7rem,2vw,1rem)] w-[clamp(1.3rem,2.5vw,1.7rem)] h-[clamp(1.3rem,2.5vw,1.7rem)] rounded-full flex items-center justify-center">{itemCount}</div>}
+
+                {/* Shopping Cart */}
+                <Link to="/cart" className="relative p-0.5 hover:scale-105 transition-transform">
+                  <ShoppingCart 
+                    className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" 
+                    style={iconStyle}
+                  />
+                  {itemCount > 0 && (
+                    <div className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[clamp(0.7rem,2vw,1rem)] w-[clamp(1.3rem,2.5vw,1.7rem)] h-[clamp(1.3rem,2.5vw,1.7rem)] rounded-full flex items-center justify-center">
+                      {itemCount}
+                    </div>
+                  )}
                 </Link>
+
+                {/* User Menu */}
                 <div className="relative" ref={userMenuRef}>
-                  <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="p-0.5">
-                    <User className={`h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)] ${darkMode ? 'text-white' : 'text-gray-600'}`} />
+                  <button 
+                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} 
+                    className="p-0.5 hover:scale-105 transition-transform"
+                  >
+                    <User 
+                      className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" 
+                      style={iconStyle}
+                    />
                   </button>
                   <AnimatePresence>
                     {isUserMenuOpen && (
                       <motion.div
-                        className={`absolute right-0 w-44 mt-1 py-0.5 rounded-md shadow-lg z-20 ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-white text-gray-700'} ring-1 ring-black ring-opacity-5`}
-                        initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                        className="absolute right-0 w-44 mt-1 py-0.5 rounded-md shadow-lg z-20 ring-1 ring-black ring-opacity-5"
+                        style={{
+                          backgroundColor: dynamicBg.backgroundColor || (darkMode ? '#374151' : '#ffffff'),
+                          backdropFilter: 'blur(12px)',
+                          WebkitBackdropFilter: 'blur(12px)',
+                        }}
+                        initial={{ opacity: 0, y: -10 }} 
+                        animate={{ opacity: 1, y: 0 }} 
+                        exit={{ opacity: 0, y: -10 }}
                       >
-                        <Link to="/profile" className="block px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-gray-500/20" onClick={() => setIsUserMenuOpen(false)}>{t('navbar.profile')}</Link>
-                        <Link to="/orders" className="block px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-gray-500/20" onClick={() => setIsUserMenuOpen(false)}>{t('navbar.orders')}</Link>
-                        <button onClick={(e) => { e.stopPropagation(); toggleDarkMode(); }} className="flex items-center justify-between w-full text-left px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-gray-500/20">
+                        <Link 
+                          to="/profile" 
+                          className="block px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-white/10" 
+                          style={textStyle}
+                          onClick={() => setIsUserMenuOpen(false)}
+                        >
+                          {t('navbar.profile')}
+                        </Link>
+                        <Link 
+                          to="/orders" 
+                          className="block px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-white/10" 
+                          style={textStyle}
+                          onClick={() => setIsUserMenuOpen(false)}
+                        >
+                          {t('navbar.orders')}
+                        </Link>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); toggleDarkMode(); }} 
+                          className="flex items-center justify-between w-full text-left px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-white/10"
+                          style={textStyle}
+                        >
                           <span>{t('navbar.darkMode')}</span>
-                          <div className={`relative flex h-5 w-9 items-center rounded-full ${darkMode ? 'bg-blue-600' : 'bg-gray-200'}`}><span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${darkMode ? 'translate-x-4' : 'translate-x-0.5'}`} /></div>
-                        </button>
-                        {/* Country/Language Dropdown in User Menu (moved here, above logout) */}
-                        <div className="px-4 py-2">
-                          <div className="font-semibold mb-1">{t('navbar.language')}</div>
-                          <div className="relative">
-                            <button
-                              onClick={() => setIsCountryDropdownOpen((v) => !v)}
-                              className="flex items-center w-full px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition"
-                            >
-                              {selectedCountry.icon}
-                              <span className="ml-1">{selectedCountry.name}</span>
-                            </button>
-                            <AnimatePresence>
-                              {isCountryDropdownOpen && (
-                                <motion.div
-                                  className={`absolute left-0 mt-1 w-32 rounded-md shadow-lg z-30 ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-white text-gray-700'} ring-1 ring-black ring-opacity-5`}
-                                  initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                                >
-                                  {countryOptions.map((option) => (
-                                    <button
-                                      key={option.code}
-                                      onClick={() => {
-                                        setSelectedCountry(option);
-                                        setIsCountryDropdownOpen(false);
-                                        // Do NOT close the user menu here
-                                      }}
-                                      className={`flex items-center w-full px-3 py-2 text-left hover:bg-gray-500/20 ${selectedCountry.code === option.code ? 'font-semibold' : ''}`}
-                                    >
-                                      {option.icon}
-                                      <span className="ml-1">{option.name}</span>
-                                    </button>
-                                  ))}
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
+                          <div className={`relative flex h-5 w-9 items-center rounded-full ${darkMode ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                            <div className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${darkMode ? 'translate-x-4' : 'translate-x-0.5'}`} />
                           </div>
-                        </div>
-                        <button onClick={() => { logout(); setIsUserMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-gray-500/20">{t('navbar.logout')}</button>
+                        </button>
+                        <button 
+                          onClick={logout} 
+                          className="block w-full text-left px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-red-500/20 text-red-500"
+                        >
+                          {t('navbar.logout')}
+                        </button>
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
               </>
             ) : (
-              // --- Logged-OUT User View ---
               <>
-                <Link to="/cart" className="relative p-1">
-                  <ShoppingCart className={`h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)] ${darkMode ? 'text-white' : 'text-gray-600'}`} />
-                  {itemCount > 0 && <div className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[clamp(0.7rem,2vw,1rem)] w-[clamp(1.3rem,2.5vw,1.7rem)] h-[clamp(1.3rem,2.5vw,1.7rem)] rounded-full flex items-center justify-center">{itemCount}</div>}
-                </Link>
+                {/* Dark Mode Toggle for Non-Users */}
+                <button 
+                  onClick={toggleDarkMode} 
+                  className="p-0.5 hover:scale-105 transition-transform"
+                >
+                  {darkMode ? 
+                    <Sun className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" style={iconStyle} /> : 
+                    <Moon className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" style={iconStyle} />
+                  }
+                </button>
 
-                <div className="flex items-center">
-                  <button onClick={toggleDarkMode} className=" rounded-full ml-1">
-                    {darkMode ? 
-                      <Sun className="h-[clamp(1.2rem,3vw,1.8rem)] w-[clamp(1.2rem,3vw,1.8rem)] text-yellow-400" /> : 
-                      <Moon className="h-[clamp(1.2rem,3vw,1.8rem)] w-[clamp(1.2rem,3vw,1.8rem)] text-gray-500" />
-                    }
+                {/* Country Selector */}
+                <div className="relative" ref={countryDropdownRef}>
+                  <button 
+                    onClick={() => setIsCountryDropdownOpen(!isCountryDropdownOpen)} 
+                    className="p-0.5 hover:scale-105 transition-transform"
+                  >
+                    {selectedCountry.icon}
                   </button>
-                  <Link to="/login" className={` px-3 py-1.5 rounded-md text-[clamp(1rem,2vw,1.2rem)] font-medium ${darkMode ? 'text-white hover:text-gray-300' : 'text-gray-600 hover:text-blue-600'}`}>
+                  <AnimatePresence>
+                    {isCountryDropdownOpen && (
+                      <motion.div
+                        className="absolute right-0 w-36 mt-1 py-0.5 rounded-md shadow-lg z-20 ring-1 ring-black ring-opacity-5"
+                        style={{
+                          backgroundColor: dynamicBg.backgroundColor || (darkMode ? '#374151' : '#ffffff'),
+                          backdropFilter: 'blur(12px)',
+                          WebkitBackdropFilter: 'blur(12px)',
+                        }}
+                        initial={{ opacity: 0, y: -10 }} 
+                        animate={{ opacity: 1, y: 0 }} 
+                        exit={{ opacity: 0, y: -10 }}
+                      >
+                        {countryOptions.map((country) => (
+                          <button
+                            key={country.code}
+                            onClick={() => {
+                              setSelectedCountry(country);
+                              setIsCountryDropdownOpen(false);
+                            }}
+                            className="flex items-center w-full text-left px-4 py-2 text-[clamp(0.9rem,2vw,1.1rem)] hover:bg-white/10"
+                            style={textStyle}
+                          >
+                            {country.icon} {country.name}
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Login/Register Links */}
+                <div className="hidden sm:flex items-center space-x-2">
+                  <Link
+                    to="/register"
+                    className="text-[clamp(1rem,2vw,1.2rem)] font-medium hover:underline"
+                    style={textStyle}
+                  >
+                    {t('navbar.register')}
+                  </Link>
+                  <Link
+                    to="/login"
+                    className="text-[clamp(1rem,2vw,1.2rem)] font-medium hover:underline"
+                    style={textStyle}
+                  >
                     {t('navbar.login')}
                   </Link>
                 </div>
@@ -232,10 +415,13 @@ const navigationItems = [
 
             {/* Mobile Menu Toggle */}
             <div className="md:hidden flex items-center">
-              <button onClick={() => setIsOpen(!isOpen)} className={`p-0.5 ${darkMode ? 'text-white' : 'text-gray-600'}`}>
+              <button 
+                onClick={() => setIsOpen(!isOpen)} 
+                className="p-0.5 hover:scale-105 transition-transform"
+              >
                 {isOpen ? 
-                  <X className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" /> : 
-                  <Menu className="h-[clamp(1.5rem,3.5vw,2rem)] w-[clamp(1.5rem,3.5vw,2rem)]" />
+                  <X className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" style={iconStyle} /> : 
+                  <Menu className="h-[clamp(1.5rem,3.5vw,2rem)] w-[clamp(1.5rem,3.5vw,2rem)]" style={iconStyle} />
                 }
               </button>
             </div>
@@ -251,6 +437,11 @@ const navigationItems = [
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0, transition: { opacity: { duration: 0.15 }, height: { duration: 0.25 } } }}
               transition={{ type: "tween", duration: 0.25 }}
+              style={{
+                backgroundColor: dynamicBg.backgroundColor || 'transparent',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+              }}
             >
               <motion.div
                 className="px-1 pt-1 pb-2 space-y-0.5"
@@ -268,7 +459,8 @@ const navigationItems = [
                   >
                     <Link
                       to={item.path}
-                      className={`block px-3 py-2 rounded-md text-[clamp(1rem,2vw,1.2rem)] font-medium ${darkMode ? 'text-white hover:bg-gray-700' : 'text-black hover:bg-gray-100'}`}
+                      className="block px-3 py-2 rounded-md text-[clamp(1rem,2vw,1.2rem)] font-medium hover:bg-white/10"
+                      style={textStyle}
                       onClick={() => setIsOpen(false)}
                     >
                       {item.name}
