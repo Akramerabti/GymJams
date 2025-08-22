@@ -87,7 +87,7 @@ const SocialLoginButtons = ({ onAccountCreated }) => {
     const returnTo = encodeURIComponent(currentUrl);
     
     // Direct redirect to OAuth endpoint
-    const oauthUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/google?returnTo=${returnTo}`;
+    const oauthUrl = `${import.meta.env.VITE_API_URL || 'https://gymtonic.onrender.com/api'}/auth/google?returnTo=${returnTo}`;
     
     // For mobile apps, you might want to handle this differently
     if (window.ReactNativeWebView) {
