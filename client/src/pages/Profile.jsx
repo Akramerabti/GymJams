@@ -750,10 +750,10 @@ const Profile = () => {
                                   <AlertCircle className="h-5 w-5 text-yellow-400" />
                                 </div>
                                 <div className="ml-3">
-                                  <h3 className={`text-sm font-medium`}>
+                                  <h3 className={`text-sm font-medium text-yellow-500`}>
                                     Payout Setup Required
                                   </h3>
-                                  <div className={`mt-2 text-sm`}>
+                                  <div className={`mt-2 text-sm text-yellow-500`}>
                                     <p>To receive payments from your clients, you need to set up your payout information.</p>
                                   </div>
                                   <div className="mt-4">
@@ -780,10 +780,10 @@ const Profile = () => {
                                   <Clock className="h-5 w-5 text-purple-400" />
                                 </div>
                                 <div className="ml-3">
-                                  <h3 className={`text-sm font-medium`}>
+                                  <h3 className={`text-sm font-medium text-purple-500`}>
                                     Pending Verification
                                   </h3>
-                                  <div className={`mt-2 text-sm`}>
+                                  <div className={`mt-2 text-sm text-purple-500`}>
                                     <p>Your account is under review. The following documents are pending verification:</p>
                                     <ul className="list-disc list-inside mt-2">
                                       {profileData.pendingVerification.map((requirement, index) => (
@@ -801,10 +801,10 @@ const Profile = () => {
                                   <Clock className="h-5 w-5 text-blue-400" />
                                 </div>
                                 <div className="ml-3">
-                                  <h3 className={`text-sm font-medium`}>
+                                  <h3 className={`text-sm font-medium text-blue-500`}>
                                     Payout Setup In Progress
                                   </h3>
-                                  <div className={`mt-2 text-sm`}>
+                                  <div className={`mt-2 text-sm text-blue-500`}>
                                     <p>Your payout setup is in progress. Please complete the onboarding process.</p>
                                   </div>
                                   <div className="mt-4">
@@ -830,10 +830,10 @@ const Profile = () => {
                                   <CheckCircle className="h-5 w-5 text-green-400" />
                                 </div>
                                 <div className="ml-3">
-                                  <h3 className={`text-sm font-medium`}>
+                                  <h3 className={`text-sm font-medium text-green-500`}>
                                     Payout Setup Complete
                                   </h3>
-                                  <div className={`mt-2 text-sm`}>
+                                  <div className={`mt-2 text-sm text-green-500`}>
                                     <p>Your payout information has been set up successfully. You can now receive payments from your clients.</p>
                                   </div>
                                   <div className="mt-4">

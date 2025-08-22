@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import adService from './services/adsense';
 import AdDebugger from './components/blog/AdDebugger';
@@ -97,78 +97,125 @@ function CoachProfileModalManager() {
   return <CoachProfileCompletionModal isOpen={showCoachProfileModal} onClose={() => setShowCoachProfileModal(false)} />;
 }
 
+// Authentication monitor component
+function AuthMonitor({ setShowMobileGatekeeper }) {
+  const { user, token, isTokenValid } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  useEffect(() => {
+    const checkAuthStatus = () => {
+      const isMobile = window.innerWidth <= 768;
+      const isAuthenticated = !!(token && isTokenValid() && user);
+      const isOAuthCallback = location.pathname === '/oauth-callback';
+      const isEmailVerification = location.pathname === '/email-verification-notification';
+      const isVerifyEmail = location.pathname.includes('/verify-email');
+      
+      // Don't show gatekeeper on these specific pages
+      const exemptPages = ['/oauth-callback', '/email-verification-notification', '/verify-email'];
+      const isExemptPage = exemptPages.some(page => location.pathname.includes(page));
+      
+      if (isMobile && !isAuthenticated && !isExemptPage) {
+        setShowMobileGatekeeper(true);
+      } else {
+        setShowMobileGatekeeper(false);
+      }
+    };
+    
+    // Check immediately
+    checkAuthStatus();
+    
+    // Check on window resize
+    window.addEventListener('resize', checkAuthStatus);
+    
+    return () => {
+      window.removeEventListener('resize', checkAuthStatus);
+    };
+  }, [token, user, isTokenValid, location.pathname, setShowMobileGatekeeper]);
+  
+  return null;
+}
+
 // Main App component
 function App() {
-  const { checkAuth, logout, user } = useAuth();
+  const { checkAuth, logout, user, token, isTokenValid } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [location, setLocation] = useState(null);
   const [showMobileGatekeeper, setShowMobileGatekeeper] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Check if we're returning from OAuth
+  // Handle logout events
   useEffect(() => {
-    const checkOAuthReturn = () => {
-      // Check if we're on the OAuth callback page
-      if (window.location.pathname === '/oauth-callback') {
-        // Don't show mobile gatekeeper on OAuth callback
-        setShowMobileGatekeeper(false);
+    const handleLogoutEvent = () => {
+      const isMobile = window.innerWidth <= 768;
+      if (isMobile) {
+        // Clear all auth-related storage
+        localStorage.removeItem('token');
+        localStorage.removeItem('hasCompletedOnboarding');
         sessionStorage.removeItem('mobileGatekeeperOpen');
+        
+        // Show mobile gatekeeper
+        setShowMobileGatekeeper(true);
+        
+        // Navigate to home
+        window.location.href = '/';
       }
     };
     
-    checkOAuthReturn();
-  }, []);
-
-  useEffect(() => {
-    const checkMobile = () => {
-      const mobile = window.innerWidth <= 768;
-      setIsMobile(mobile);
-      return mobile;
+    // Listen for custom logout event
+    window.addEventListener('user-logout', handleLogoutEvent);
+    
+    return () => {
+      window.removeEventListener('user-logout', handleLogoutEvent);
     };
-    
-    const mobile = checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    // Don't show gatekeeper if:
-    // 1. Not mobile
-    // 2. Already has token
-    // 3. Already completed onboarding
-    // 4. On OAuth callback page
-    // 5. Was redirected for OAuth (check sessionStorage)
-    const hasCompletedOnboarding = localStorage.getItem('hasCompletedOnboarding');
-    const token = localStorage.getItem('token');
-    const isOAuthCallback = window.location.pathname === '/oauth-callback';
-    const wasOAuthRedirect = sessionStorage.getItem('mobileGatekeeperOpen') === 'true';
-    
-    if (mobile && !token && !hasCompletedOnboarding && !isOAuthCallback && !wasOAuthRedirect) {
-      setShowMobileGatekeeper(true);
-    }
-    
-    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const handleAccountCreated = (userData, token) => {
-    setShowMobileGatekeeper(false);
-    sessionStorage.removeItem('mobileGatekeeperOpen');
-    checkAuth();
-  };
-
+  // Initial authentication check
   useEffect(() => {
-    const validateTokenOnLoad = async () => {
+    const initializeAuth = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (token) {
+        const storedToken = localStorage.getItem('token');
+        if (storedToken) {
           const isValid = await checkAuth();
           if (!isValid) {
-            logout();
+            // Token is invalid, clear everything
+            localStorage.removeItem('token');
+            localStorage.removeItem('hasCompletedOnboarding');
+            
+            // Check if mobile and show gatekeeper
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+              setShowMobileGatekeeper(true);
+            }
+          }
+        } else {
+          // No token, check if mobile
+          const isMobile = window.innerWidth <= 768;
+          if (isMobile) {
+            setShowMobileGatekeeper(true);
           }
         }
       } catch (error) {
-        console.error('Auth check error:', error);
-        logout();
+        console.error('Auth initialization error:', error);
+      } finally {
+        setIsInitialized(true);
       }
     };
 
+    initializeAuth();
+  }, [checkAuth]);
+
+  // Handle successful account creation/login
+  const handleAccountCreated = (userData, status) => {
+    setShowMobileGatekeeper(false);
+    sessionStorage.removeItem('mobileGatekeeperOpen');
+    
+    // Don't reload for successful login - let React handle the navigation
+    // The auth state update will automatically trigger the proper UI update
+  };
+
+  // Initialize other services
+  useEffect(() => {
     const initGAM = async (retryCount = 0) => {
       try {
         await adService.init();
@@ -181,13 +228,17 @@ function App() {
       }
     };
 
-    Promise.all([
-      validateTokenOnLoad(),
-      initGAM()
-    ]).catch(error => {
-      console.error('App initialization error:', error);
-    });
-  }, [checkAuth, logout]);
+    initGAM();
+  }, []);
+
+  // Don't render until initialized
+  if (!isInitialized) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <I18nextProvider i18n={i18n}>
@@ -195,6 +246,9 @@ function App() {
         <SocketProvider>
           <GuestFlowProvider>
             <Router>
+              {/* Auth Monitor - Inside Router to use location */}
+              <AuthMonitor setShowMobileGatekeeper={setShowMobileGatekeeper} />
+              
               <Layout showMobileGatekeeper={showMobileGatekeeper}>
                 <Routes>
                   {/* Public Routes */}

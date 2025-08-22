@@ -12,7 +12,15 @@ const ProtectedRoute = ({ children }) => {
     const validateAuth = async () => {
       if (!user || !isTokenValid()) {
         await logout();
-        navigate('/login', { state: { from: location }, replace: true });
+        
+        // Dispatch logout event for mobile gatekeeper
+        window.dispatchEvent(new Event('user-logout'));
+        
+        // For desktop, navigate to login
+        const isMobile = window.innerWidth <= 768;
+        if (!isMobile) {
+          navigate('/login', { state: { from: location }, replace: true });
+        }
       } else {
         setIsChecking(false);
       }
@@ -30,6 +38,12 @@ const ProtectedRoute = ({ children }) => {
   }
 
   if (!user) {
+    // For mobile, the gatekeeper will handle authentication
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) {
+      return null; // The mobile gatekeeper will show
+    }
+    
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

@@ -257,7 +257,6 @@ const useAuthStore = create(
         }
       },
 
-      // Logout
       logout: async () => {
         const { setLoading, setError, reset } = get();
         setLoading(true);
@@ -275,10 +274,12 @@ const useAuthStore = create(
       
           // Clear ALL relevant storage items
           localStorage.removeItem('token');
-          localStorage.removeItem('accessToken'); // Add this line
+          localStorage.removeItem('accessToken');
           localStorage.removeItem('cart-storage');
           localStorage.removeItem('persist:auth-storage');
-          sessionStorage.removeItem('accessToken'); // Add this line if using sessionStorage
+          localStorage.removeItem('hasCompletedOnboarding'); // Add this
+          sessionStorage.removeItem('accessToken');
+          sessionStorage.removeItem('mobileGatekeeperOpen'); // Add this
       
           // Reset store state
           reset();
@@ -293,8 +294,14 @@ const useAuthStore = create(
       
           setLoading(false);
       
-          // Refresh the page to ensure clean state
-          window.location.href = window.location.origin;
+          // Dispatch logout event for mobile gatekeeper
+          window.dispatchEvent(new Event('user-logout'));
+      
+          // For desktop, redirect to home
+          const isMobile = window.innerWidth <= 768;
+          if (!isMobile) {
+            window.location.href = window.location.origin;
+          }
         }
       },
 

@@ -11,7 +11,7 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess, onShowCropModal }) 
   const [loading, setLoading] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   // Define the base URL
-  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const baseUrl = import.meta.env.VITE_API_URL || 'https://gymtonic.onrender.com';
   // Get fallback image URL from centralized function
   const fallbackAvatarUrl = getFallbackAvatarUrl();
 
@@ -19,14 +19,8 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess, onShowCropModal }) 
     const fetchProfile = async () => {
       try {
         const response = await api.get('/auth/profile');
-        //('Full profile response:', response.data);
         if (response.data.profileImage) {
-          //('Profile image URL received:', response.data.profileImage);
-          //('Profile image URL length:', response.data.profileImage.length);
-          //('Profile image URL type:', typeof response.data.profileImage);
           setImageUrl(response.data.profileImage);
-        } else {
-          //('No profile image in response');
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
@@ -97,7 +91,6 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess, onShowCropModal }) 
     setLoading(true);
 
     try {
-      //('🔄 Starting profile image upload...');
       const formData = new FormData();
       formData.append('profileImage', file);
 
@@ -107,15 +100,12 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess, onShowCropModal }) 
         },
       });
 
-      //('✅ Upload response:', response.data);
-
       if (response.data.profileImage) {
         // Construct the full URL if it's a relative path
         const fullImageUrl = response.data.profileImage.startsWith('http')
           ? response.data.profileImage
           : `${baseUrl}${response.data.profileImage}`;
 
-        //('🎯 New profile image URL:', fullImageUrl);
         setImageUrl(fullImageUrl);
         onUploadSuccess(fullImageUrl);
       }
@@ -125,21 +115,21 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess, onShowCropModal }) 
       toast.success('Profile image uploaded successfully!');
     } catch (error) {
       console.error('❌ Upload failed:', error);
-      console.error('❌ Upload error details:', error.response?.data);
       toast.error('Failed to upload image. Please try again.');
     } finally {
       setLoading(false);
     }
   };
+
   return (
     <div className="flex flex-col items-center">
       <div className="relative">
-        {/* Attractive background with gradient and blur effects */}
-        <div className="absolute -inset-4 bg-gradient-to-r from-purple-400 via-pink-500 to-orange-400 rounded-full blur-md opacity-75 animate-pulse"></div>
-        <div className="absolute -inset-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-400 rounded-full blur-sm opacity-60"></div>
+        {/* Gradient background effects - reduced size for mobile */}
+        <div className="absolute -inset-3 md:-inset-4 bg-gradient-to-r from-purple-400 via-pink-500 to-orange-400 rounded-full blur-md opacity-75 animate-pulse"></div>
+        <div className="absolute -inset-1.5 md:-inset-2 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-400 rounded-full blur-sm opacity-60"></div>
         
-        {/* Main profile image container */}
-        <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-2xl bg-white">
+        {/* Main profile image container - responsive sizing */}
+        <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-4 border-white shadow-2xl bg-white">
           {previewUrl ? (
             <img
               src={previewUrl}
@@ -152,18 +142,13 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess, onShowCropModal }) 
               alt="Profile"
               className="w-full h-full object-cover"
               crossOrigin="anonymous"
-              onLoad={(e) => {
-                //('✅ Image loaded successfully:', e.target.src);
-              }}
               onError={(e) => {
                 console.error('❌ Image load error:', e.target.src);
-                console.error('❌ This likely means the file doesn\'t exist in Supabase storage');
                 e.target.onerror = null; // Prevent infinite loop
                 e.target.src = fallbackAvatarUrl; // Use fallback image URL
                 
                 // If this is a Supabase URL that failed, clear it from state
                 if (e.target.src.includes('supabase.co')) {
-                  //('🧹 Clearing broken Supabase URL from state');
                   setImageUrl('');
                 }
               }}
@@ -171,11 +156,11 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess, onShowCropModal }) 
           )}
         </div>
 
-        {/* Camera Icon for Mobile with improved styling */}
+        {/* Camera Icon - responsive sizing and positioning */}
         <label
           htmlFor="profileImageUpload"
-          className="absolute bottom-0 right-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full p-3 cursor-pointer hover:from-blue-600 hover:to-purple-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-110"
-          style={{ touchAction: 'manipulation' }} // Ensure touch events work properly
+          className="absolute -bottom-1 -right-1 md:bottom-0 md:right-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full p-2 md:p-3 cursor-pointer hover:from-blue-600 hover:to-purple-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-110"
+          style={{ touchAction: 'manipulation' }}
           onClick={() => {
             // Clear the file input value to allow selecting the same file again
             const input = document.getElementById('profileImageUpload');
@@ -191,14 +176,14 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess, onShowCropModal }) 
             setPreviewUrl('');
           }}
         >
-          <Camera className="w-5 h-5 text-white" />
+          <Camera className="w-4 h-4 md:w-5 md:h-5 text-white" />
           <input
             id="profileImageUpload"
             type="file"
             accept="image/*"
             onChange={handleFileChange}
             className="hidden"
-            style={{ display: 'none' }} // Ensure the input is hidden but accessible
+            style={{ display: 'none' }}
           />
         </label>
       </div>
@@ -207,8 +192,8 @@ const ProfileImageUpload = ({ currentImage, onUploadSuccess, onShowCropModal }) 
         <Button
           onClick={handleUpload}
           disabled={loading}
-          className="mt-4 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-semibold px-6 py-2 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
-          style={{ touchAction: 'manipulation' }} // Ensure touch events work properly
+          className="mt-3 md:mt-4 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-medium text-sm md:text-base px-4 md:px-6 py-2 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+          style={{ touchAction: 'manipulation' }}
         >
           {loading ? 'Uploading...' : 'Save Image'}
         </Button>

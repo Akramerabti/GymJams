@@ -206,273 +206,333 @@ const Navbar = () => {
   };
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[9999]" style={navbarStyle}>
-      <div className="max-w-7xl mx-auto px-8 sm:px-14">
-        <div className="flex justify-between items-center h-16">
+    <>
+      {/* Safe Area CSS Variables Setup */}
+      <style jsx>{`
+        :root {
+          --safe-area-inset-top: env(safe-area-inset-top);
+          --safe-area-inset-right: env(safe-area-inset-right);
+          --safe-area-inset-bottom: env(safe-area-inset-bottom);
+          --safe-area-inset-left: env(safe-area-inset-left);
+        }
+        
+        /* Fallback for devices without safe area support */
+        @supports not (padding: env(safe-area-inset-top)) {
+          :root {
+            --safe-area-inset-top: 0px;
+            --safe-area-inset-right: 0px;
+            --safe-area-inset-bottom: 0px;
+            --safe-area-inset-left: 0px;
+          }
+        }
+        
+        .safe-area-navbar {
+          padding-top: var(--safe-area-inset-top);
+          padding-left: var(--safe-area-inset-left);
+          padding-right: var(--safe-area-inset-right);
+        }
+        
+        /* Additional top padding for devices with notches/camera cutouts */
+        @media screen and (max-width: 768px) {
+          .safe-area-navbar {
+            padding-top: max(var(--safe-area-inset-top), 8px);
+          }
+        }
+        
+        /* Special handling for iPhone X and newer models */
+        @supports (padding: env(safe-area-inset-top)) {
+          .safe-area-navbar {
+            padding-top: max(var(--safe-area-inset-top), 12px);
+          }
+        }
+        
+        /* Handle landscape orientation on phones with notches */
+        @media screen and (max-width: 768px) and (orientation: landscape) {
+          .safe-area-navbar {
+            padding-top: max(var(--safe-area-inset-top), 4px);
+            padding-left: max(var(--safe-area-inset-left), 12px);
+            padding-right: max(var(--safe-area-inset-right), 12px);
+          }
+        }
+        
+        /* Ensure dropdowns don't get cut off by safe areas */
+        .safe-area-dropdown {
+          max-height: calc(100vh - var(--safe-area-inset-top) - var(--safe-area-inset-bottom) - 100px);
+          margin-right: var(--safe-area-inset-right);
+        }
+      `}</style>
+      
+      <div 
+        className="fixed top-0 left-0 right-0 z-[9999] safe-area-navbar" 
+        style={navbarStyle}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
 
-          {/* ======== Logo Section (Left) ======== */}
-          <div className="flex items-center">
-            <Link to="/" className="flex-shrink-0 flex items-center space-x-1">
-              <img
-                src="/Picture2.png"
-                alt="Gymtonic Logo"
-                className="h-[clamp(2.1rem,5vw,3.1rem)] w-auto"
-              />
-              <span
-                className="text-[clamp(1.1rem,4vw,1.7rem)] font-extrabold"
-                style={{ 
-                  fontFamily: 'Montserrat, sans-serif',
-                  ...textStyle
-                }}
-              >
-                GYMTONIC
-              </span>
-            </Link>
-          </div>
-
-          {/* ======== Desktop Navigation (Center) ======== */}
-          <div className="hidden md:flex items-center space-x-2">
-            {navigationItems.map((item) => (
-              <Link
-                key={item.name}
-                to={item.path}
-                className="text-[clamp(0.95rem,2vw,1.25rem)] font-medium transition-all duration-300 px-3 py-2 rounded-md hover:bg-white/10"
-                style={{
-                  ...textStyle,
-                  fontWeight: location.pathname === item.path ? '600' : '500',
-                  textDecoration: location.pathname === item.path ? 'underline' : 'none',
-                  textUnderlineOffset: '4px',
-                }}
-              >
-                {item.name}
+            {/* ======== Logo Section (Left) ======== */}
+            <div className="flex items-center">
+              <Link to="/" className="flex-shrink-0 flex items-center space-x-1">
+                <img
+                  src="/Picture2.png"
+                  alt="Gymtonic Logo"
+                  className="h-[clamp(2.1rem,5vw,3.1rem)] w-auto"
+                />
+                <span
+                  className="text-[clamp(1.1rem,4vw,1.7rem)] font-extrabold"
+                  style={{ 
+                    fontFamily: 'Montserrat, sans-serif',
+                    ...textStyle
+                  }}
+                >
+                  GYMTONIC
+                </span>
               </Link>
-            ))}
-          </div>
+            </div>
 
-          {/* ======== Right Section (Icons & Menus) ======== */}
-          <div className="flex items-center space-x-1 sm:space-x-2">
-            {user && isTokenValid() ? (
-              <>
-                {/* Coins Display */}
-                <div className="hidden sm:flex items-center space-x-1">
-                  <Coins 
-                    className="h-[clamp(1.2rem,3vw,1.8rem)] w-[clamp(1.2rem,3vw,1.8rem)]" 
-                    style={{ color: '#facc15' }} // Always gold/yellow
-                  />
-                  <span 
-                    className="font-medium text-[clamp(1rem,2vw,1.2rem)]"
-                    style={textStyle}
-                  >
-                    {balance}
-                  </span>
-                </div>
-
-                {/* Shopping Cart */}
-                <Link to="/cart" className="relative p-0.5 hover:scale-105 transition-transform">
-                  <ShoppingCart 
-                    className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" 
-                    style={iconStyle}
-                  />
-                  {itemCount > 0 && (
-                    <div className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[clamp(0.7rem,2vw,1rem)] w-[clamp(1.3rem,2.5vw,1.7rem)] h-[clamp(1.3rem,2.5vw,1.7rem)] rounded-full flex items-center justify-center">
-                      {itemCount}
-                    </div>
-                  )}
+            {/* ======== Desktop Navigation (Center) ======== */}
+            <div className="hidden md:flex items-center space-x-2">
+              {navigationItems.map((item) => (
+                <Link
+                  key={item.name}
+                  to={item.path}
+                  className="text-[clamp(0.95rem,2vw,1.25rem)] font-medium transition-all duration-300 px-3 py-2 rounded-md hover:bg-white/10"
+                  style={{
+                    ...textStyle,
+                    fontWeight: location.pathname === item.path ? '600' : '500',
+                    textDecoration: location.pathname === item.path ? 'underline' : 'none',
+                    textUnderlineOffset: '4px',
+                  }}
+                >
+                  {item.name}
                 </Link>
+              ))}
+            </div>
 
-                {/* User Menu */}
-                <div className="relative" ref={userMenuRef}>
-                  <button 
-                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} 
-                    className="p-0.5 hover:scale-105 transition-transform"
-                  >
-                    <User 
+            {/* ======== Right Section (Icons & Menus) ======== */}
+            <div className="flex items-center space-x-1 sm:space-x-2">
+              {user && isTokenValid() ? (
+                <>
+                  {/* Coins Display */}
+                  <div className="hidden sm:flex items-center space-x-1">
+                    <Coins 
+                      className="h-[clamp(1.2rem,3vw,1.8rem)] w-[clamp(1.2rem,3vw,1.8rem)]" 
+                      style={{ color: '#facc15' }} // Always gold/yellow
+                    />
+                    <span 
+                      className="font-medium text-[clamp(1rem,2vw,1.2rem)]"
+                      style={textStyle}
+                    >
+                      {balance}
+                    </span>
+                  </div>
+
+                  {/* Shopping Cart */}
+                  <Link to="/cart" className="relative p-0.5 hover:scale-105 transition-transform">
+                    <ShoppingCart 
                       className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" 
                       style={iconStyle}
                     />
-                  </button>
-                  <AnimatePresence>
-                    {isUserMenuOpen && (
-                      <motion.div
-                        className="absolute right-0 w-44 mt-1 py-0.5 rounded-md shadow-lg z-20 ring-1 ring-black ring-opacity-5"
-                        style={{
-                          backgroundColor: dynamicBg.backgroundColor || (darkMode ? '#374151' : '#ffffff'),
-                          backdropFilter: 'blur(12px)',
-                          WebkitBackdropFilter: 'blur(12px)',
-                        }}
-                        initial={{ opacity: 0, y: -10 }} 
-                        animate={{ opacity: 1, y: 0 }} 
-                        exit={{ opacity: 0, y: -10 }}
-                      >
-                        <Link 
-                          to="/profile" 
-                          className="block px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-white/10" 
-                          style={textStyle}
-                          onClick={() => setIsUserMenuOpen(false)}
-                        >
-                          {t('navbar.profile')}
-                        </Link>
-                        <Link 
-                          to="/orders" 
-                          className="block px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-white/10" 
-                          style={textStyle}
-                          onClick={() => setIsUserMenuOpen(false)}
-                        >
-                          {t('navbar.orders')}
-                        </Link>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); toggleDarkMode(); }} 
-                          className="flex items-center justify-between w-full text-left px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-white/10"
-                          style={textStyle}
-                        >
-                          <span>{t('navbar.darkMode')}</span>
-                          <div className={`relative flex h-5 w-9 items-center rounded-full ${darkMode ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                            <div className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${darkMode ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                          </div>
-                        </button>
-                        <button 
-                          onClick={logout} 
-                          className="block w-full text-left px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-red-500/20 text-red-500"
-                        >
-                          {t('navbar.logout')}
-                        </button>
-                      </motion.div>
+                    {itemCount > 0 && (
+                      <div className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[clamp(0.7rem,2vw,1rem)] w-[clamp(1.3rem,2.5vw,1.7rem)] h-[clamp(1.3rem,2.5vw,1.7rem)] rounded-full flex items-center justify-center">
+                        {itemCount}
+                      </div>
                     )}
-                  </AnimatePresence>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* Dark Mode Toggle for Non-Users */}
-                <button 
-                  onClick={toggleDarkMode} 
-                  className="p-0.5 hover:scale-105 transition-transform"
-                >
-                  {darkMode ? 
-                    <Sun className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" style={iconStyle} /> : 
-                    <Moon className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" style={iconStyle} />
-                  }
-                </button>
+                  </Link>
 
-                {/* Country Selector */}
-                <div className="relative" ref={countryDropdownRef}>
-                  <button 
-                    onClick={() => setIsCountryDropdownOpen(!isCountryDropdownOpen)} 
-                    className="p-0.5 hover:scale-105 transition-transform"
-                  >
-                    {selectedCountry.icon}
-                  </button>
-                  <AnimatePresence>
-                    {isCountryDropdownOpen && (
-                      <motion.div
-                        className="absolute right-0 w-36 mt-1 py-0.5 rounded-md shadow-lg z-20 ring-1 ring-black ring-opacity-5"
-                        style={{
-                          backgroundColor: dynamicBg.backgroundColor || (darkMode ? '#374151' : '#ffffff'),
-                          backdropFilter: 'blur(12px)',
-                          WebkitBackdropFilter: 'blur(12px)',
-                        }}
-                        initial={{ opacity: 0, y: -10 }} 
-                        animate={{ opacity: 1, y: 0 }} 
-                        exit={{ opacity: 0, y: -10 }}
-                      >
-                        {countryOptions.map((country) => (
-                          <button
-                            key={country.code}
-                            onClick={() => {
-                              setSelectedCountry(country);
-                              setIsCountryDropdownOpen(false);
-                            }}
-                            className="flex items-center w-full text-left px-4 py-2 text-[clamp(0.9rem,2vw,1.1rem)] hover:bg-white/10"
+                  {/* User Menu */}
+                  <div className="relative" ref={userMenuRef}>
+                    <button 
+                      onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} 
+                      className="p-0.5 hover:scale-105 transition-transform"
+                    >
+                      <User 
+                        className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" 
+                        style={iconStyle}
+                      />
+                    </button>
+                    <AnimatePresence>
+                      {isUserMenuOpen && (
+                        <motion.div
+                          className="absolute right-0 w-44 mt-1 py-0.5 rounded-md shadow-lg z-20 ring-1 ring-black ring-opacity-5 safe-area-dropdown"
+                          style={{
+                            backgroundColor: dynamicBg.backgroundColor || (darkMode ? '#374151' : '#ffffff'),
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                          }}
+                          initial={{ opacity: 0, y: -10 }} 
+                          animate={{ opacity: 1, y: 0 }} 
+                          exit={{ opacity: 0, y: -10 }}
+                        >
+                          <Link 
+                            to="/profile" 
+                            className="block px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-white/10" 
+                            style={textStyle}
+                            onClick={() => setIsUserMenuOpen(false)}
+                          >
+                            {t('navbar.profile')}
+                          </Link>
+                          <Link 
+                            to="/orders" 
+                            className="block px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-white/10" 
+                            style={textStyle}
+                            onClick={() => setIsUserMenuOpen(false)}
+                          >
+                            {t('navbar.orders')}
+                          </Link>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); toggleDarkMode(); }} 
+                            className="flex items-center justify-between w-full text-left px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-white/10"
                             style={textStyle}
                           >
-                            {country.icon} {country.name}
+                            <span>{t('navbar.darkMode')}</span>
+                            <div className={`relative flex h-5 w-9 items-center rounded-full ${darkMode ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                              <div className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${darkMode ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                            </div>
                           </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Login/Register Links */}
-                <div className="hidden sm:flex items-center space-x-2">
-                  <Link
-                    to="/register"
-                    className="text-[clamp(1rem,2vw,1.2rem)] font-medium hover:underline"
-                    style={textStyle}
+                          <button 
+                            onClick={logout} 
+                            className="block w-full text-left px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-red-500/20 text-red-500"
+                          >
+                            {t('navbar.logout')}
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Dark Mode Toggle for Non-Users */}
+                  <button 
+                    onClick={toggleDarkMode} 
+                    className="p-0.5 hover:scale-105 transition-transform"
                   >
-                    {t('navbar.register')}
-                  </Link>
-                  <Link
-                    to="/login"
-                    className="text-[clamp(1rem,2vw,1.2rem)] font-medium hover:underline"
-                    style={textStyle}
-                  >
-                    {t('navbar.login')}
-                  </Link>
-                </div>
-              </>
-            )}
+                    {darkMode ? 
+                      <Sun className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" style={iconStyle} /> : 
+                      <Moon className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" style={iconStyle} />
+                    }
+                  </button>
 
-            {/* Mobile Menu Toggle */}
-            <div className="md:hidden flex items-center">
-              <button 
-                onClick={() => setIsOpen(!isOpen)} 
-                className="p-0.5 hover:scale-105 transition-transform"
-              >
-                {isOpen ? 
-                  <X className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" style={iconStyle} /> : 
-                  <Menu className="h-[clamp(1.5rem,3.5vw,2rem)] w-[clamp(1.5rem,3.5vw,2rem)]" style={iconStyle} />
-                }
-              </button>
+                  {/* Country Selector */}
+                  <div className="relative" ref={countryDropdownRef}>
+                    <button 
+                      onClick={() => setIsCountryDropdownOpen(!isCountryDropdownOpen)} 
+                      className="p-0.5 hover:scale-105 transition-transform"
+                    >
+                      {selectedCountry.icon}
+                    </button>
+                    <AnimatePresence>
+                      {isCountryDropdownOpen && (
+                        <motion.div
+                          className="absolute right-0 w-36 mt-1 py-0.5 rounded-md shadow-lg z-20 ring-1 ring-black ring-opacity-5 safe-area-dropdown"
+                          style={{
+                            backgroundColor: dynamicBg.backgroundColor || (darkMode ? '#374151' : '#ffffff'),
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                          }}
+                          initial={{ opacity: 0, y: -10 }} 
+                          animate={{ opacity: 1, y: 0 }} 
+                          exit={{ opacity: 0, y: -10 }}
+                        >
+                          {countryOptions.map((country) => (
+                            <button
+                              key={country.code}
+                              onClick={() => {
+                                setSelectedCountry(country);
+                                setIsCountryDropdownOpen(false);
+                              }}
+                              className="flex items-center w-full text-left px-4 py-2 text-[clamp(0.9rem,2vw,1.1rem)] hover:bg-white/10"
+                              style={textStyle}
+                            >
+                              {country.icon} {country.name}
+                            </button>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Login/Register Links */}
+                  <div className="hidden sm:flex items-center space-x-2">
+                    <Link
+                      to="/register"
+                      className="text-[clamp(1rem,2vw,1.2rem)] font-medium hover:underline"
+                      style={textStyle}
+                    >
+                      {t('navbar.register')}
+                    </Link>
+                    <Link
+                      to="/login"
+                      className="text-[clamp(1rem,2vw,1.2rem)] font-medium hover:underline"
+                      style={textStyle}
+                    >
+                      {t('navbar.login')}
+                    </Link>
+                  </div>
+                </>
+              )}
+
+              {/* Mobile Menu Toggle */}
+              <div className="md:hidden flex items-center">
+                <button 
+                  onClick={() => setIsOpen(!isOpen)} 
+                  className="p-0.5 hover:scale-105 transition-transform"
+                >
+                  {isOpen ? 
+                    <X className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" style={iconStyle} /> : 
+                    <Menu className="h-[clamp(1.5rem,3.5vw,2rem)] w-[clamp(1.5rem,3.5vw,2rem)]" style={iconStyle} />
+                  }
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Mobile Navigation Dropdown */}
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              className="md:hidden overflow-hidden"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0, transition: { opacity: { duration: 0.15 }, height: { duration: 0.25 } } }}
-              transition={{ type: "tween", duration: 0.25 }}
-              style={{
-                backgroundColor: dynamicBg.backgroundColor || 'transparent',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-              }}
-            >
+          {/* Mobile Navigation Dropdown */}
+          <AnimatePresence>
+            {isOpen && (
               <motion.div
-                className="px-1 pt-1 pb-2 space-y-0.5"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1, transition: { delay: 0.08, duration: 0.18 } }}
-                exit={{ opacity: 0, transition: { duration: 0.13 } }}
+                className="md:hidden overflow-hidden safe-area-dropdown"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0, transition: { opacity: { duration: 0.15 }, height: { duration: 0.25 } } }}
+                transition={{ type: "tween", duration: 0.25 }}
+                style={{
+                  backgroundColor: dynamicBg.backgroundColor || 'transparent',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                }}
               >
-                {navigationItems.map((item) => (
-                  <motion.div
-                    key={item.name}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 8 }}
-                    transition={{ duration: 0.18 }}
-                  >
-                    <Link
-                      to={item.path}
-                      className="block px-3 py-2 rounded-md text-[clamp(1rem,2vw,1.2rem)] font-medium hover:bg-white/10"
-                      style={textStyle}
-                      onClick={() => setIsOpen(false)}
+                <motion.div
+                  className="px-1 pt-1 pb-2 space-y-0.5"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1, transition: { delay: 0.08, duration: 0.18 } }}
+                  exit={{ opacity: 0, transition: { duration: 0.13 } }}
+                >
+                  {navigationItems.map((item) => (
+                    <motion.div
+                      key={item.name}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 8 }}
+                      transition={{ duration: 0.18 }}
                     >
-                      {item.name}
-                    </Link>
-                  </motion.div>
-                ))}
+                      <Link
+                        to={item.path}
+                        className="block px-3 py-2 rounded-md text-[clamp(1rem,2vw,1.2rem)] font-medium hover:bg-white/10"
+                        style={textStyle}
+                        onClick={() => setIsOpen(false)}
+                      >
+                        {item.name}
+                      </Link>
+                    </motion.div>
+                  ))}
+                </motion.div>
               </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 
