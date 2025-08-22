@@ -1,11 +1,115 @@
-
 import React from 'react';
+import { useAuth } from '../stores/authStore'; // Adjust path as needed
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
-const SocialLoginButtons = () => {
+const SocialLoginButtons = ({ onAccountCreated }) => {
+  const navigate = useNavigate();
+  const { setUser, setToken } = useAuth(); // Adjust based on your auth store methods
+
   const handleGoogleLogin = () => {
-    window.location.href = `${import.meta.env.VITE_API_URL || 'https://gymtonic.onrender.com/api'}/auth/google`;
-  };
+    const width = 500;
+    const height = 600;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    
+    const popup = window.open(
+      `${import.meta.env.VITE_API_URL || 'https://gymtonic.onrender.com/api'}/auth/google`,
+      'googleLogin',
+      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
+    );
 
+    // Listen for messages from the popup
+    const handleMessage = (event) => {
+      // Verify origin for security
+      const expectedOrigin = import.meta.env.VITE_API_URL || 'https://gymtonic.onrender.com';
+      if (!expectedOrigin.includes(event.origin) && event.origin !== window.location.origin) {
+        console.warn('Received message from unexpected origin:', event.origin);
+        return;
+      }
+
+      if (event.data.type === 'OAUTH_SUCCESS') {
+        popup?.close();
+        handleOAuthSuccess(event.data);
+      } else if (event.data.type === 'OAUTH_ERROR') {
+        popup?.close();
+        handleOAuthError(event.data.error);
+      }
+    };
+
+    const handleOAuthSuccess = (data) => {
+      if (data.requiresCompletion) {
+        // User needs to complete their profile
+        if (data.existingUser) {
+          // Existing user with incomplete profile
+          toast.info('Please complete your profile to continue');
+          localStorage.setItem('tempToken', data.tempToken);
+          navigate('/complete-profile', { 
+            state: { 
+              user: data.user,
+              isExistingUser: true 
+            } 
+          });
+        } else {
+          // New user from OAuth
+          toast.info('Welcome! Please complete your profile to get started');
+          localStorage.setItem('tempToken', data.tempToken);
+          navigate('/complete-oauth-profile', { 
+            state: { 
+              oauthProfile: data.oauthProfile 
+            } 
+          });
+        }
+      } else {
+        // Complete user - successful login
+        const { token, user } = data;
+        
+        // Store token and user data
+        localStorage.setItem('token', token);
+        if (setToken) setToken(token);
+        if (setUser) setUser(user);
+        
+        // Mark onboarding as complete
+        localStorage.setItem('hasCompletedOnboarding', 'true');
+        
+        toast.success('Login successful!');
+        
+        // Call the success callback if provided (for MobileGatekeeper)
+        if (onAccountCreated) {
+          onAccountCreated(user, 'logged_in_successfully');
+        } else {
+          // Navigate to dashboard or home
+          navigate('/dashboard');
+        }
+      }
+    };
+
+    const handleOAuthError = (errorMessage) => {
+      console.error('OAuth error:', errorMessage);
+      toast.error('Authentication failed', {
+        description: errorMessage || 'Please try again'
+      });
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    // Check if popup is closed manually
+    const checkClosed = setInterval(() => {
+      if (popup?.closed) {
+        clearInterval(checkClosed);
+        window.removeEventListener('message', handleMessage);
+      }
+    }, 1000);
+
+    // Clean up after 5 minutes
+    setTimeout(() => {
+      if (!popup?.closed) {
+        popup?.close();
+      }
+      clearInterval(checkClosed);
+      window.removeEventListener('message', handleMessage);
+    }, 300000);
+  };
 
   return (
     <div className="space-y-3">

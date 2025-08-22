@@ -30,7 +30,6 @@ import Shop from './pages/Shop';
 import Cart from './pages/Cart';
 import ShopCheckout from './pages/ShopCheckout';
 import SubscriptionCheckout from './pages/SubscriptionCheckout';
-import Login from './pages/Login';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
 import VerifyEmail from './pages/VerifyEmail';
@@ -258,7 +257,6 @@ function App() {
                   <Route path="/cart" element={<Cart />} />
                   <Route path="/shop-checkout" element={<ShopCheckout />} />
                   <Route path="/subscription-checkout" element={<SubscriptionCheckout />} />
-                  <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/verify-email" element={<VerifyEmail />} />
                   <Route path="/email-verification-notification" element={<EmailVerificationNotification />} />

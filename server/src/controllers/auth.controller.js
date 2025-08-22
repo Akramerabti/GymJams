@@ -45,6 +45,22 @@ export const logout = async (req, res) => {
 export const register = async (req, res) => {
   try {
     const { email, password, firstName, lastName, phone } = req.body;
+
+    // Format phone to international format if needed
+    let formattedPhone = phone;
+    if (typeof phone === 'string') {
+      let cleanPhone = phone.trim();
+      if (!cleanPhone.startsWith('+')) {
+        cleanPhone = cleanPhone.replace(/\D/g, '');
+        if (cleanPhone.length === 10) {
+          formattedPhone = `+1${cleanPhone}`;
+        } else if (cleanPhone.length === 11 && cleanPhone.startsWith('1')) {
+          formattedPhone = `+${cleanPhone}`;
+        } else {
+          formattedPhone = `+1${cleanPhone}`;
+        }
+      }
+    }
     
     console.log('📝 REGISTRATION ATTEMPT:', {
       email: email ? email.toLowerCase() : 'NO EMAIL PROVIDED',
@@ -56,27 +72,30 @@ export const register = async (req, res) => {
       timestamp: new Date().toISOString()
     });
 
+
     // Check if all required fields are provided
-    if (!email || !password || !firstName || !lastName || !phone) {
+    if (!email || !password || !firstName || !lastName || !formattedPhone) {
       console.log('❌ REGISTRATION FAILED: Missing required fields');
       return res.status(400).json({ message: 'All fields are required' });
     }
 
     // Check if user already exists
+
     const existingUser = await User.findOne({ 
       $or: [
         { email: email.toLowerCase() },
-        { phone: phone }
+        { phone: formattedPhone }
       ]
     });
+
 
     if (existingUser) {
       if (existingUser.email === email.toLowerCase()) {
         console.log('❌ REGISTRATION FAILED: Email already exists:', email.toLowerCase());
         return res.status(400).json({ message: 'This email is already registered' });
       }
-      if (existingUser.phone === phone) {
-        console.log('❌ REGISTRATION FAILED: Phone already exists:', phone);
+      if (existingUser.phone === formattedPhone) {
+        console.log('❌ REGISTRATION FAILED: Phone already exists:', formattedPhone);
         return res.status(400).json({ message: 'This phone number is already registered' });
       }
     }
@@ -111,12 +130,13 @@ export const register = async (req, res) => {
 
     console.log('👤 Creating user in database...');
     // Create user in the database
+
     const user = await User.create({
       email: email.toLowerCase(),
       password: hashedPassword,
       firstName,
       lastName,
-      phone,
+      phone: formattedPhone,
       stripeCustomerId: stripeCustomer.id,
       verificationToken,
       verificationTokenExpires

@@ -128,11 +128,9 @@ const Profile = () => {
       if (response.status === 200) {
         toast.success('Account deleted successfully');
         await logout();
-        
-        // Dispatch custom logout event for mobile gatekeeper
+  
         window.dispatchEvent(new Event('user-logout'));
         
-        // For mobile, the gatekeeper will handle the redirect
         const isMobile = window.innerWidth <= 768;
         if (!isMobile) {
           navigate('/login');
@@ -468,7 +466,7 @@ const Profile = () => {
             </div>
           ) : (
             /* Mobile Header for Member */
-            <div className='bg-white rounded-xl shadow-sm p-4 md:p-6'>
+            <div className='bg-white rounded-xl shadow-sm p-4 md:p-6 mt-10'>
               <div className="flex items-center justify-between">
                 <h1 className="text-xl md:text-2xl font-bold flex items-center">
                   <User className="w-6 h-6 md:w-8 md:h-8 mr-2" />
