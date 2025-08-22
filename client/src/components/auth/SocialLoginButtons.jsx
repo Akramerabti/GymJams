@@ -1,114 +1,105 @@
-import React from 'react';
-import { useAuth } from '../../stores/authStore'; // Adjust path as needed
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { useAuth } from '../../stores/authStore';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 
 const SocialLoginButtons = ({ onAccountCreated }) => {
   const navigate = useNavigate();
-  const { setUser, setToken } = useAuth(); // Adjust based on your auth store methods
+  const location = useLocation();
+  const { setUser, setToken, loginWithToken } = useAuth();
 
-  const handleGoogleLogin = () => {
-    const width = 500;
-    const height = 600;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-    
-    const popup = window.open(
-      `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/google`,
-      'googleLogin',
-      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
-    );
+  // Handle OAuth callback when component mounts (if there are URL params)
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      const urlParams = new URLSearchParams(location.search);
+      const token = urlParams.get('token');
+      const tempToken = urlParams.get('tempToken');
+      const loginSuccess = urlParams.get('loginSuccess');
+      const error = urlParams.get('error');
+      const existingUser = urlParams.get('existingUser');
 
-    // Listen for messages from the popup
-    const handleMessage = (event) => {
-      // Verify origin for security
-      const expectedOrigin = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      if (!expectedOrigin.includes(event.origin) && event.origin !== window.location.origin) {
-        console.warn('Received message from unexpected origin:', event.origin);
+      // Handle error
+      if (error) {
+        toast.error('Authentication failed', {
+          description: decodeURIComponent(error)
+        });
+        // Clean up URL
+        navigate(location.pathname, { replace: true });
         return;
       }
 
-      if (event.data.type === 'OAUTH_SUCCESS') {
-        popup?.close();
-        handleOAuthSuccess(event.data);
-      } else if (event.data.type === 'OAUTH_ERROR') {
-        popup?.close();
-        handleOAuthError(event.data.error);
+      // Handle successful login with complete profile
+      if (token && loginSuccess) {
+        try {
+          const userData = await loginWithToken(token);
+          
+          // Store token and user data
+          localStorage.setItem('token', token);
+          if (setToken) setToken(token);
+          if (setUser && userData?.user) setUser(userData.user);
+          
+          // Mark onboarding as complete
+          localStorage.setItem('hasCompletedOnboarding', 'true');
+          
+          toast.success('Login successful!');
+          
+          // Call the success callback if provided
+          if (onAccountCreated) {
+            onAccountCreated(userData?.user, 'logged_in_successfully');
+          } else {
+            navigate('/dashboard');
+          }
+          
+          // Clean up URL
+          navigate(location.pathname, { replace: true });
+        } catch (err) {
+          console.error('Token login error:', err);
+          toast.error('Login failed', {
+            description: 'Please try again'
+          });
+          // Clean up URL
+          navigate(location.pathname, { replace: true });
+        }
+        return;
       }
-    };
 
-    const handleOAuthSuccess = (data) => {
-      if (data.requiresCompletion) {
-        // User needs to complete their profile
-        if (data.existingUser) {
-          // Existing user with incomplete profile
+      // Handle temporary token (profile completion needed)
+      if (tempToken) {
+        localStorage.setItem('tempToken', tempToken);
+        
+        if (existingUser === 'true') {
           toast.info('Please complete your profile to continue');
-          localStorage.setItem('tempToken', data.tempToken);
-          navigate('/complete-profile', { 
-            state: { 
-              user: data.user,
-              isExistingUser: true 
-            } 
-          });
+          navigate('/complete-profile');
         } else {
-          // New user from OAuth
           toast.info('Welcome! Please complete your profile to get started');
-          localStorage.setItem('tempToken', data.tempToken);
-          navigate('/complete-oauth-profile', { 
-            state: { 
-              oauthProfile: data.oauthProfile 
-            } 
-          });
+          navigate('/complete-oauth-profile');
         }
-      } else {
-        // Complete user - successful login
-        const { token, user } = data;
-        
-        // Store token and user data
-        localStorage.setItem('token', token);
-        if (setToken) setToken(token);
-        if (setUser) setUser(user);
-        
-        // Mark onboarding as complete
-        localStorage.setItem('hasCompletedOnboarding', 'true');
-        
-        toast.success('Login successful!');
-        
-        // Call the success callback if provided (for MobileGatekeeper)
-        if (onAccountCreated) {
-          onAccountCreated(user, 'logged_in_successfully');
-        } else {
-          // Navigate to dashboard or home
-          navigate('/dashboard');
-        }
+        return;
       }
     };
 
-    const handleOAuthError = (errorMessage) => {
-      console.error('OAuth error:', errorMessage);
-      toast.error('Authentication failed', {
-        description: errorMessage || 'Please try again'
-      });
-    };
+    handleOAuthCallback();
+  }, [location.search, navigate, setUser, setToken, loginWithToken, onAccountCreated, location.pathname]);
 
-    window.addEventListener('message', handleMessage);
-
-    // Check if popup is closed manually
-    const checkClosed = setInterval(() => {
-      if (popup?.closed) {
-        clearInterval(checkClosed);
-        window.removeEventListener('message', handleMessage);
-      }
-    }, 1000);
-
-    // Clean up after 5 minutes
-    setTimeout(() => {
-      if (!popup?.closed) {
-        popup?.close();
-      }
-      clearInterval(checkClosed);
-      window.removeEventListener('message', handleMessage);
-    }, 300000);
+  const handleGoogleLogin = () => {
+    // Get current URL to return to after OAuth
+    const currentUrl = window.location.href.split('?')[0]; // Remove any existing query params
+    const returnTo = encodeURIComponent(currentUrl);
+    
+    // Direct redirect to OAuth endpoint
+    const oauthUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/google?returnTo=${returnTo}`;
+    
+    // For mobile apps, you might want to handle this differently
+    if (window.ReactNativeWebView) {
+      // Handle React Native WebView
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'OAUTH_REDIRECT',
+        url: oauthUrl
+      }));
+    } else {
+      // Regular web redirect
+      window.location.href = oauthUrl;
+    }
   };
 
   return (

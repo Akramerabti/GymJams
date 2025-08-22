@@ -28,109 +28,154 @@ passport.use(
   })
 );
 
+// Google OAuth Strategy - Updated for clean redirect flow
 passport.use(
   new GoogleStrategy(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      // Fix the callback URL to remove any duplicate '/api'
       callbackURL: `${process.env.BACKEND_URL}/auth/google/callback`,
-      profileFields: ['id', 'displayName', 'name', 'emails', 'photos'],
       scope: ['profile', 'email']
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        // Check if user already exists with this Google ID
-        let user = await User.findOne({ 'oauth.googleId': profile.id });
+        logger.info('Google OAuth Profile received:', {
+          id: profile.id,
+          email: profile.emails?.[0]?.value,
+          name: profile.displayName
+        });
         
-        if (user) {
-          // User exists - allow login if profile is complete
-          if (user.phone && user.lastName) {
-            return done(null, user);
-          } else {
-            // User exists but profile is incomplete - require completion
-            return done(null, { 
-              isIncomplete: true, 
-              existingUser: user,
-              requiresCompletion: true 
-            });
-          }
-        }
-        
-        // Check if user with same email exists (for account linking)
-        if (profile.emails && profile.emails.length > 0) {
-          user = await User.findOne({ email: profile.emails[0].value });
-          
-          if (user) {
-            // Link Google account to existing user if they have complete profile
-            if (user.phone && user.lastName) {
-              user.oauth = {
-                ...user.oauth,
-                googleId: profile.id,
-                lastProvider: 'google'
-              };
-              user.isEmailVerified = true; // Trust Google's email verification
-              await user.save();
-              return done(null, user);
-            } else {
-              // Existing user but incomplete profile - require completion
-              return done(null, { 
-                isIncomplete: true, 
-                existingUser: user,
-                requiresCompletion: true 
-              });
-            }
-          }
-        }
-        
-        // New user - DON'T create user yet, just return OAuth profile data
-        const nameArray = profile.displayName ? profile.displayName.split(' ') : [];
+        // Extract profile information
+        const googleId = profile.id;
+        const email = profile.emails?.[0]?.value;
+        const displayName = profile.displayName || '';
+        const nameArray = displayName.split(' ');
         const firstName = nameArray[0] || profile.name?.givenName || '';
         const lastName = nameArray.slice(1).join(' ') || profile.name?.familyName || '';
+        const profileImage = profile.photos?.[0]?.value || '';
         
-        // Check what fields are missing
+        if (!email) {
+          logger.error('No email found in Google profile');
+          return done(new Error('No email found in Google profile'), null);
+        }
+
+        // Check if user already exists with this Google ID
+        let existingUser = await User.findOne({ 'oauth.googleId': googleId });
+        
+        if (existingUser) {
+          // User with this Google ID exists
+          const needsPhone = !existingUser.phone || existingUser.phone === '';
+          const needsLastName = !existingUser.lastName || existingUser.lastName === '';
+            
+          if (needsPhone || needsLastName) {
+            // Existing Google user needs to complete profile
+            return done(null, {
+              requiresCompletion: true,
+              existingUser: existingUser
+            });
+          } else {
+            // Complete existing Google user - ready to login
+            return done(null, existingUser);
+          }
+        }
+
+        // Check if user exists with this email (for account linking)
+        existingUser = await User.findOne({ email: email.toLowerCase() });
+        
+        if (existingUser) {
+          // User with this email exists - link Google account
+          const needsPhone = !existingUser.phone || existingUser.phone === '';
+          const needsLastName = !existingUser.lastName || existingUser.lastName === '';
+          
+          // Link Google ID to existing account
+          existingUser.oauth = {
+            ...existingUser.oauth,
+            googleId: googleId,
+            lastProvider: 'google'
+          };
+          existingUser.isEmailVerified = true; // Trust Google's email verification
+          
+          // Update profile image if user doesn't have one
+          if (!existingUser.profileImage && profileImage) {
+            existingUser.profileImage = profileImage;
+          }
+          
+          await existingUser.save();
+          
+          if (needsPhone || needsLastName) {
+            // Existing user needs to complete profile
+            return done(null, {
+              requiresCompletion: true,
+              existingUser: existingUser
+            });
+          } else {
+            // Complete existing user - ready to login
+            return done(null, existingUser);
+          }
+        }
+        
+        // New user - prepare OAuth profile for completion
         const needsLastName = !lastName || lastName.trim() === '';
         const needsPhoneNumber = true; // Always need phone for new OAuth users
         
-        // Return OAuth profile data without creating user
+        const oauthProfile = {
+          googleId,
+          email: email.toLowerCase(),
+          firstName,
+          lastName,
+          profileImage,
+          provider: 'google',
+          isEmailVerified: true, // Google emails are pre-verified
+          needsLastName,
+          needsPhoneNumber
+        };
+        
+        // Return OAuth profile data for completion
         return done(null, {
-          isIncomplete: true,
-          oauthProfile: {
-            googleId: profile.id,
-            email: profile.emails[0].value,
-            firstName: firstName,
-            lastName: lastName || '',
-            profileImage: profile.photos[0]?.value || '',
-            provider: 'google',
-            needsLastName: needsLastName,
-            needsPhoneNumber: needsPhoneNumber
-          },
-          requiresCompletion: true
+          requiresCompletion: true,
+          oauthProfile
         });
         
       } catch (error) {
-        logger.error('Google strategy error:', error);
-        return done(error, false);
+        logger.error('Google OAuth Strategy Error:', error);
+        return done(error, null);
       }
     }
   )
 );
 
-// Required for Passport session
+
+// Serialize user for session (required by Passport but we're not using sessions)
 passport.serializeUser((user, done) => {
-  done(null, user.id);
+  // Handle both user objects and OAuth response objects
+  if (user._id) {
+    done(null, user._id);
+  } else if (user.existingUser?._id) {
+    done(null, user.existingUser._id);
+  } else {
+    // For OAuth completion cases, we'll serialize the whole object
+    done(null, user);
+  }
 });
 
-passport.deserializeUser(async (id, done) => {
+// Deserialize user from session
+passport.deserializeUser(async (data, done) => {
   try {
-    const user = await User.findById(id).select('-password');
-    done(null, user);
+    // If it's a MongoDB ObjectId string, fetch the user
+    if (typeof data === 'string' && data.match(/^[0-9a-fA-F]{24}$/)) {
+      const user = await User.findById(data).select('-password');
+      done(null, user);
+    } else {
+      // For OAuth completion objects, return as-is
+      done(null, data);
+    }
   } catch (error) {
+    logger.error('Deserialize user error:', error);
     done(error, null);
   }
 });
 
-// Middleware to handle authentication
+// Middleware to handle JWT authentication
 export const authenticateJWT = passport.authenticate('jwt', { session: false });
 
 // Handle authentication errors
