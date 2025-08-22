@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAuth } from '../stores/authStore'; // Adjust path as needed
+import { useAuth } from '../../stores/authStore'; // Adjust path as needed
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
