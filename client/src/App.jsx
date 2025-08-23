@@ -54,6 +54,7 @@ import ApplicationForm from './pages/CustomerService/application';
 import OAuthCallback from './pages/OAuthCallback';
 import Blog from './pages/Blog';
 import BlogPost from './components/blog/BlogPost';
+import CompleteOAuthProfile from './components/auth/CompleteOAuthProfile';
 
 // Common Components
 import LocationBanner from './components/common/LocationBanner';
@@ -158,6 +159,7 @@ function App() {
                   <Route path="/register" element={<Register />} />
                   <Route path="/verify-email" element={<VerifyEmail />} />
                   <Route path="/email-verification-notification" element={<EmailVerificationNotification />} />
+                  <Route path="/complete-oauth-profile" element={<CompleteOAuthProfile />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/dashboard" element={<Dashboard />} />
