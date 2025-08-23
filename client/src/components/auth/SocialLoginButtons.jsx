@@ -41,13 +41,10 @@ const SocialLoginButtons = ({ onAccountCreated }) => {
           localStorage.setItem('hasCompletedOnboarding', 'true');
           
           if (onAccountCreated) {
-            onAccountCreated(userData?.user, 'logged_in_successfully');
-          } else {
-            navigate('/'); // Redirect to home page instead of dashboard
-          }
-          
-          // Clean up URL
-          navigate(location.pathname, { replace: true });
+  onAccountCreated(userData?.user, 'logged_in_successfully');
+} else {
+  navigate('/', { replace: true }); // Redirect to home and remove query params
+}
         } catch (err) {
           console.error('Token login error:', err);
           toast.error('Login failed', {
