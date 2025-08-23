@@ -66,12 +66,11 @@ const BrowserGoogleAuthButton = ({ onAccountCreated }) => {
         if (setUser && userData?.user) setUser(userData.user);
         localStorage.setItem('hasCompletedOnboarding', 'true');
 
-        toast.success('Login successful!');
         
         if (onAccountCreated) {
           onAccountCreated(userData?.user, 'logged_in_successfully');
         } else {
-          navigate('/dashboard');
+          navigate('/');
         }
       }
 

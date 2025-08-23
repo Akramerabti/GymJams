@@ -142,10 +142,13 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
       // Store completion flag
       localStorage.setItem('hasCompletedOnboarding', 'true');
       
-      // Call success callback after a delay
       setTimeout(() => {
-        onAccountCreated({ email: data.email }, 'logged_in_successfully');
-      }, 2000);
+  if (onAccountCreated) {
+    onAccountCreated({ email: data.email }, 'logged_in_successfully');
+  } else {
+    navigate('/');
+  }
+}, 2000);
       
     } catch (err) {
       const MAX_RETRIES = 3;

@@ -37,17 +37,13 @@ const SocialLoginButtons = ({ onAccountCreated }) => {
           localStorage.setItem('token', token);
           if (setToken) setToken(token);
           if (setUser && userData?.user) setUser(userData.user);
-          
-          // Mark onboarding as complete
+
           localStorage.setItem('hasCompletedOnboarding', 'true');
           
-          toast.success('Login successful!');
-          
-          // Call the success callback if provided
           if (onAccountCreated) {
             onAccountCreated(userData?.user, 'logged_in_successfully');
           } else {
-            navigate('/dashboard');
+            navigate('/'); // Redirect to home page instead of dashboard
           }
           
           // Clean up URL
@@ -87,7 +83,7 @@ const SocialLoginButtons = ({ onAccountCreated }) => {
     const returnTo = encodeURIComponent(currentUrl);
     
     // Direct redirect to OAuth endpoint
-    const oauthUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/google?returnTo=${returnTo}`;
+    const oauthUrl = `${import.meta.env.VITE_API_URL || 'https://gymtonic.onrender.com/api'}/auth/google?returnTo=${returnTo}`;
     
     // For mobile apps, you might want to handle this differently
     if (window.ReactNativeWebView) {
