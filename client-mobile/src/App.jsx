@@ -55,6 +55,7 @@ import ApplicationForm from './pages/CustomerService/application';
 import OAuthCallback from './pages/OAuthCallback';
 import Blog from './pages/Blog';
 import BlogPost from './components/blog/BlogPost';
+import CompleteOAuthProfile from './components/auth/CompleteOAuthProfile';
 
 // Common Components
 import LocationBanner from './components/common/LocationBanner';
@@ -271,6 +272,7 @@ function App() {
                   <Route path="/gymbros" element={<GymBros />} />
                   <Route path="/orders" element={<Orders />} />
                   <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
+                  <Route path="/complete-oauth-profile" element={<CompleteOAuthProfile />} />
                   <Route path="/about" element={<AboutUs />} />
                   <Route path="/faq" element={<FAQ />} />
                   <Route path="/returns" element={<Returns />} />
