@@ -1,4 +1,4 @@
-import SocialLoginButtons from './auth/SocialLoginButtons';
+import BrowserGoogleAuthButton from './auth/BrowserGoogleAuthButton';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Mail, Lock, Phone, Eye, EyeOff, CheckCircle2, Loader2, ArrowLeft } from 'lucide-react';
@@ -454,7 +454,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                 }}
               >
                 {/* Social Login Buttons */}
-                <SocialLoginButtons />
+                <BrowserGoogleAuthButton />
 
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
@@ -577,7 +577,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                     </div>
 
                     {/* Social Login Buttons */}
-                    <SocialLoginButtons />
+                    <BrowserGoogleAuthButton />
 
                     <div className="relative">
                       <div className="absolute inset-0 flex items-center">

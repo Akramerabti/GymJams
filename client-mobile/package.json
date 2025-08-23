@@ -11,6 +11,8 @@
  },
  "dependencies": {
   "@capacitor/android": "^7.4.2",
+  "@capacitor/app": "^7.0.2",
+  "@capacitor/browser": "^7.0.2",
   "@capacitor/cli": "^7.4.2",
   "@capacitor/core": "^7.4.2",
   "@capacitor/device": "^7.0.2",
@@ -112,6 +114,7 @@
   "eslint-plugin-react-hooks": "^5.0.0",
   "eslint-plugin-react-refresh": "^0.4.16",
   "globals": "^15.14.0",
+  "typescript": "^5.9.2",
   "vite": "^6.2.2"
  }
 }

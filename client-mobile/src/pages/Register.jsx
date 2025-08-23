@@ -8,7 +8,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
 import { countryCodes, formatE164, isValidPhoneNumber } from '../utils/phoneUtils';
-import SocialLoginButtons from '../components/auth/SocialLoginButtons';
+import SocialLoginButtons from '../components/auth/BrowserGoogleAuthButton';
 
 const Register = () => {
   const navigate = useNavigate();

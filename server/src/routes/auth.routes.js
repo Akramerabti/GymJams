@@ -28,11 +28,15 @@ router.post('/phone-login', loginWithPhone);
 router.post('/phone-register', registerWithPhone);
 router.post('/complete-oauth-profile', optionalAuthenticate, completeOAuthProfile);
 
-// OAuth routes - Clean redirect implementation
+// OAuth Routes - Now properly handling both web and mobile
+
+// Standard web OAuth route
 router.get('/google', (req, res, next) => {
     // Store the return URL for after authentication
     const returnTo = req.query.returnTo || req.headers.referer || process.env.CLIENT_URL || 'http://localhost:5173';
     req.session.returnTo = returnTo;
+    // Clear any mobile redirect URI to ensure this is treated as web
+    req.session.mobileRedirectUri = null;
     
     passport.authenticate('google', { 
         scope: ['profile', 'email'],
@@ -40,52 +44,111 @@ router.get('/google', (req, res, next) => {
     })(req, res, next);
 });
 
+// Mobile OAuth route - specifically for mobile apps
+router.get('/google/mobile', (req, res, next) => {
+    // Store the mobile redirect URI for callback
+    const redirectUri = req.query.redirectUri || 'com.akram.gymtonic://oauth/callback';
+    req.session.mobileRedirectUri = redirectUri;
+    // Clear any web return URL to ensure this is treated as mobile
+    req.session.returnTo = null;
+    
+    passport.authenticate('google', { 
+        scope: ['profile', 'email'],
+        session: false 
+    })(req, res, next);
+});
+
+// Unified callback that handles both web and mobile
 router.get('/google/callback', 
     passport.authenticate('google', { session: false }),
     (req, res) => {
         try {
             const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+            const mobileRedirectUri = req.session?.mobileRedirectUri;
             const returnTo = req.session?.returnTo || clientUrl;
+            
+            // Determine if this is a mobile callback
+            const isMobileCallback = !!mobileRedirectUri;
+            
+            console.log('OAuth callback - isMobile:', isMobileCallback, 'mobileRedirectUri:', mobileRedirectUri);
             
             // Handle authentication failure
             if (!req.user) {
                 console.error('OAuth: No user returned from Google');
-                return res.redirect(`${clientUrl}/login?error=${encodeURIComponent('Authentication failed. Please try again.')}`);
+                const errorMessage = encodeURIComponent('Authentication failed. Please try again.');
+                
+                if (isMobileCallback) {
+                    return res.redirect(`${mobileRedirectUri}?error=${errorMessage}`);
+                } else {
+                    return res.redirect(`${clientUrl}/login?error=${errorMessage}`);
+                }
             }
 
-            // Handle different OAuth response types
+            // Handle profile completion requirement
             if (req.user.requiresCompletion) {
+                let tempToken;
+                
                 if (req.user.existingUser) {
-                    // Existing user with incomplete profile - redirect to complete profile
-                    const tempToken = generateToken({ 
+                    // Existing user with incomplete profile
+                    tempToken = generateToken({ 
                         id: req.user.existingUser._id,
                         isTemporary: true,
                         requiresCompletion: true 
                     });
-                    
-                    // Store temp token in a way that the client can access it
-                    return res.redirect(`${clientUrl}/complete-profile?tempToken=${tempToken}&existingUser=true&userId=${req.user.existingUser._id}`);
                 } else {
-                    // New user - redirect to OAuth profile completion
-                    const tempToken = generateToken({ 
+                    // New user
+                    tempToken = generateToken({ 
                         oauthProfile: req.user.oauthProfile,
                         isTemporary: true,
                         requiresCompletion: true 
                     });
-                    
-                    return res.redirect(`${clientUrl}/complete-oauth-profile?tempToken=${tempToken}`);
                 }
-            } else {
-                // Complete user - successful login
-                const token = generateToken({ id: req.user._id });
+
+                const existingUserParam = req.user.existingUser ? 'true' : 'false';
                 
-                // Redirect with token - the frontend will handle storing it
+                if (isMobileCallback) {
+                    // Mobile: Send to deep link
+                    return res.redirect(`${mobileRedirectUri}?tempToken=${tempToken}&existingUser=${existingUserParam}`);
+                } else {
+                    // Web: Send to appropriate completion page
+                    if (req.user.existingUser) {
+                        return res.redirect(`${clientUrl}/complete-profile?tempToken=${tempToken}&existingUser=${existingUserParam}&userId=${req.user.existingUser._id}`);
+                    } else {
+                        return res.redirect(`${clientUrl}/complete-oauth-profile?tempToken=${tempToken}`);
+                    }
+                }
+            }
+
+            // Complete user - successful login
+            const token = generateToken({ id: req.user._id, email: req.user.email });
+            
+            if (isMobileCallback) {
+                // Mobile: Send to deep link
+                console.log('Redirecting mobile user to:', `${mobileRedirectUri}?token=${token}&loginSuccess=true`);
+                return res.redirect(`${mobileRedirectUri}?token=${token}&loginSuccess=true`);
+            } else {
+                // Web: Send to return URL
+                console.log('Redirecting web user to:', `${returnTo}?token=${token}&loginSuccess=true`);
                 return res.redirect(`${returnTo}?token=${token}&loginSuccess=true`);
             }
+            
         } catch (error) {
             console.error('OAuth callback error:', error);
-            const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-            return res.redirect(`${clientUrl}/login?error=${encodeURIComponent('An error occurred during authentication. Please try again.')}`);
+            const errorMessage = encodeURIComponent('An error occurred during authentication. Please try again.');
+            
+            const mobileRedirectUri = req.session?.mobileRedirectUri;
+            if (mobileRedirectUri) {
+                return res.redirect(`${mobileRedirectUri}?error=${errorMessage}`);
+            } else {
+                const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+                return res.redirect(`${clientUrl}/login?error=${errorMessage}`);
+            }
+        } finally {
+            // Clean up session
+            if (req.session) {
+                req.session.mobileRedirectUri = null;
+                req.session.returnTo = null;
+            }
         }
     }
 );
