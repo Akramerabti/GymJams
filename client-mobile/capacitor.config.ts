@@ -1,4 +1,3 @@
-// capacitor.config.ts
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
@@ -16,6 +15,32 @@ const config: CapacitorConfig = {
     },
     StatusBar: {
       style: 'dark'
+    },
+    // Location plugin configuration
+    Geolocation: {
+      // Request permissions on plugin load
+      requestPermissions: true,
+      // Enable high accuracy by default
+      enableHighAccuracy: true
+    },
+    // Camera plugin configuration
+    Camera: {
+      // Request permissions on plugin load
+      requestPermissions: true,
+      // Enable selection from gallery
+      allowGallerySelection: true,
+      // Default camera quality
+      quality: 90
+    },
+    // Filesystem plugin configuration
+    Filesystem: {
+      // Request permissions on plugin load  
+      requestPermissions: true
+    },
+    // Preferences for secure storage
+    Preferences: {
+      // Use secure storage when available
+      secure: true
     }
   }
 };

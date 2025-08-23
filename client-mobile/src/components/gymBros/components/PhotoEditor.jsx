@@ -4,6 +4,7 @@ import { Upload, X, Crop, Loader, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { getFallbackAvatarUrl } from '../../../utils/imageUtils';
+import { usePermissions } from '../../../contexts/PermissionContext';
 import { 
   DndContext, 
   closestCenter, 
@@ -564,6 +565,13 @@ const PhotoEditor = React.forwardRef(({ photos = [], onPhotosChange, maxPhotos =
   // State for the cropper
   const [cropImage, setCropImage] = useState(null);
   const [cropIndex, setCropIndex] = useState(null);
+
+   const { 
+    hasCameraPermission, 
+    requestCameraPermission,
+    hasFileSystemPermission,
+    requestFileSystemPermission 
+  } = usePermissions();
   
   // State for active drag item
   const [activeId, setActiveId] = useState(null);
@@ -681,9 +689,26 @@ useEffect(() => {
     }
   };
   
-  // Handle file selection
-  const handleFileSelect = (e, index) => {
+   const handleFileSelect = async (e, index) => {
     if (!e.target.files || e.target.files.length === 0) return;
+    
+    // Check camera permission first
+    if (!hasCameraPermission) {
+      const granted = await requestCameraPermission();
+      if (!granted) {
+        toast.error('Camera permission is required to upload photos');
+        return;
+      }
+    }
+
+    // Check file system permission
+    if (!hasFileSystemPermission) {
+      const granted = await requestFileSystemPermission();
+      if (!granted) {
+        toast.error('File access permission is required to upload photos');
+        return;
+      }
+    }
     
     const file = e.target.files[0];
     
