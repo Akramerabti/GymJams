@@ -443,7 +443,7 @@ const Navbar = () => {
      <div className="fixed top-0 left-0 right-0 z-[9999] safe-area-navbar">
         <div className="navbar-container">
           <div className="max-w-[95vw] mx-auto px-4">
-            <div className="flex justify-between items-end h-18 ">
+            <div className="flex justify-between items-end h-22 ">
               {/* Left Side - Back Arrow (only show on non-home pages) */}
               {!isHomePage && (
                 <Link

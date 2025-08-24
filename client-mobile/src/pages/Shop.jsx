@@ -217,7 +217,7 @@ const Shop = () => {
 
 return (
 <div
-  className={`container mx-auto px-4 py-8 mt-25 ${isDarkMode ? 'text-gray-100' : ''}`}
+  className={`container mx-auto px-4 py-8 mt-15 ${isDarkMode ? 'text-gray-100' : ''}`}
   style={{ 
     paddingTop: 'calc(var(--navbar-height, 4rem) + 2rem)', // Added extra padding
     minHeight: 'calc(100vh - var(--navbar-height, 4rem))' // Ensure full viewport height
