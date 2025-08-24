@@ -101,7 +101,7 @@ const BrowserGoogleAuthButton = ({ onAccountCreated }) => {
     setIsLoading(true);
     
     try {
-      const baseUrl = process.env.VITE_API_URL || 'https://gymtonic.onrender.com/api';
+      const baseUrl = import.meta.env.VITE_API_URL || 'https://gymtonic.onrender.com/api';
       console.log('Base URL:', baseUrl);
       console.log('Is native platform:', Capacitor.isNativePlatform());
       

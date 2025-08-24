@@ -2,12 +2,10 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
-import { useTheme } from '../../contexts/ThemeContext';
 
-const Layout = ({ children, showMobileGatekeeper }) => {
+const Layout = ({ children, showMobileGatekeeper = false }) => {
   const location = useLocation();
   const [showFooter, setShowFooter] = useState(true);
-  const { darkMode } = useTheme();
   const navbarRef = useRef(null);
 
   // Hide scrollbars when mobile gatekeeper is shown
@@ -34,6 +32,18 @@ const Layout = ({ children, showMobileGatekeeper }) => {
       document.body.style.height = '';
     };
   }, [showMobileGatekeeper]);
+
+  // Force dark mode classes on document
+  useEffect(() => {
+    document.documentElement.classList.add('dark');
+    document.body.classList.add('dark', 'bg-gray-900', 'text-white');
+    
+    return () => {
+      // Optional cleanup, but we always want dark mode
+      // document.documentElement.classList.remove('dark');
+      // document.body.classList.remove('dark', 'bg-gray-900', 'text-white');
+    };
+  }, []);
 
   useEffect(() => {
     const updateNavbarHeight = () => {
@@ -113,16 +123,14 @@ const Layout = ({ children, showMobileGatekeeper }) => {
   }
 
   return (
-    <div className={`flex flex-col min-h-screen ${darkMode ? 'dark-theme' : ''}`}>
+    <div className="flex flex-col min-h-screen dark-theme bg-gray-900 text-white">
       {/* Navbar */}
       <div ref={navbarRef}>
         <Navbar />
       </div>
       
       {/* Main Content */}
-      <main className={`flex-grow transition-colors duration-300 ${
-        darkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'
-      }`}>
+      <main className="flex-grow transition-colors duration-300 bg-gray-900 text-gray-100">
         <div className="w-full max-w-full">
           {children}
         </div>

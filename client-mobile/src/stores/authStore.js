@@ -257,7 +257,8 @@ const useAuthStore = create(
         }
       },
 
-      logout: async () => {
+      
+logout: async () => {
         const { setLoading, setError, reset } = get();
         setLoading(true);
       
@@ -277,9 +278,9 @@ const useAuthStore = create(
           localStorage.removeItem('accessToken');
           localStorage.removeItem('cart-storage');
           localStorage.removeItem('persist:auth-storage');
-          localStorage.removeItem('hasCompletedOnboarding'); // Add this
+          localStorage.removeItem('hasCompletedOnboarding');
           sessionStorage.removeItem('accessToken');
-          sessionStorage.removeItem('mobileGatekeeperOpen'); // Add this
+          sessionStorage.removeItem('mobileGatekeeperOpen');
       
           // Reset store state
           reset();
@@ -297,11 +298,13 @@ const useAuthStore = create(
           // Dispatch logout event for mobile gatekeeper
           window.dispatchEvent(new Event('user-logout'));
       
-          // For desktop, redirect to home
+          // For mobile users, don't redirect - let the mobile gatekeeper modal handle it
+          // For desktop users, redirect to home
           const isMobile = window.innerWidth <= 768;
           if (!isMobile) {
             window.location.href = window.location.origin;
           }
+          // Mobile users will see the gatekeeper modal automatically due to our state logic
         }
       },
 
@@ -531,6 +534,7 @@ export const useAuth = () => {
     token: store.token,
     loading: store.loading,
     error: store.error,
+    isAuthenticated: store.isAuthenticated, // ← FIXED: Added this
     isTokenValid: store.isTokenValid, 
     login: store.login,
     loginWithToken: store.loginWithToken, 
@@ -541,9 +545,11 @@ export const useAuth = () => {
     register: store.register,
     verifyEmail: store.verifyEmail,
     resendVerificationEmail: store.resendVerificationEmail,
-    registerResetCallback: store.registerResetCallback,
+    registerResetCallback: store.registerResetCallback, // ← This might not exist, remove if causing errors
     showOnboarding: store.showOnboarding,
     setShowOnboarding: store.setShowOnboarding,
+    setUser: store.setUser, // ← FIXED: Added this (needed for OAuth)
+    setToken: store.setToken, // ← FIXED: Added this (needed for OAuth)
     syncLocationOnLogin: store.syncLocationOnLogin,
     refreshUserLocation: store.refreshUserLocation,
     reverseGeocode: store.reverseGeocode,

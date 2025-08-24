@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, ShoppingCart, User, Coins, Sun, Moon, Globe } from 'lucide-react';
+import { Menu, X, ShoppingCart, User, Coins, Globe } from 'lucide-react';
 import { useAuth } from '../../stores/authStore';
 import useCartStore from '@/stores/cartStore';
 import { usePoints } from '../../hooks/usePoints';
-import { useTheme } from '../../contexts/ThemeContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 
@@ -19,7 +18,6 @@ const Navbar = () => {
   const { user, logout, isTokenValid } = useAuth();
   const itemCount = useCartStore((state) => state.getItemCount());
   const { balance, fetchPoints } = usePoints();
-  const { darkMode, toggleDarkMode } = useTheme();
   const { t, i18n } = useTranslation();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -54,14 +52,14 @@ const Navbar = () => {
     { name: t('navbar.contact'), path: '/contact' },
   ];
 
-  // 🎨 DYNAMIC BACKGROUND COLOR DETECTION
+  // 🎨 DYNAMIC BACKGROUND COLOR DETECTION (DARK MODE ONLY)
   useEffect(() => {
     const detectBackgroundColor = () => {
       // Get the element behind the navbar
       const elements = document.elementsFromPoint(window.innerWidth / 2, 100);
       
       let backgroundColor = 'transparent';
-      let textColor = darkMode ? 'white' : 'black';
+      let textColor = 'white'; // Always white text for dark mode
       
       for (const element of elements) {
         if (element.tagName === 'HTML' || element.tagName === 'BODY') continue;
@@ -76,39 +74,33 @@ const Navbar = () => {
           
           if (rgbMatch || rgbaMatch) {
             const [, r, g, b] = rgbMatch || rgbaMatch;
-            const brightness = (parseInt(r) * 299 + parseInt(g) * 587 + parseInt(b) * 114) / 1000;
             
             // Create a semi-transparent version of the detected color
             const alpha = 0.8;
             backgroundColor = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-            textColor = brightness > 128 ? 'black' : 'white';
+            textColor = 'white'; // Always white for dark mode
             break;
           }
         }
       }
       
-      // Fallback based on current page and scroll position
+      // Fallback based on current page and scroll position (DARK MODE)
       if (backgroundColor === 'transparent') {
         if (location.pathname === '/') {
           // Home page - gradient based on scroll
           const progress = Math.min(scrollY / 1000, 1);
           if (progress < 0.33) {
             backgroundColor = `rgba(30, 58, 138, ${0.3 + progress * 0.4})`; // Blue
-            textColor = 'white';
           } else if (progress < 0.66) {
             backgroundColor = `rgba(79, 70, 229, ${0.3 + progress * 0.4})`; // Indigo
-            textColor = 'white';
           } else {
             backgroundColor = `rgba(126, 34, 206, ${0.3 + progress * 0.4})`; // Purple
-            textColor = 'white';
           }
         } else {
-          // Other pages - adapt to theme
-          backgroundColor = darkMode 
-            ? 'rgba(17, 24, 39, 0.8)' // Dark gray
-            : 'rgba(255, 255, 255, 0.8)'; // Light white
-          textColor = darkMode ? 'white' : 'black';
+          // Other pages - dark theme only
+          backgroundColor = 'rgba(17, 24, 39, 0.8)'; // Dark gray
         }
+        textColor = 'white';
       }
       
       setDynamicBg({ backgroundColor, textColor });
@@ -140,7 +132,7 @@ const Navbar = () => {
       window.removeEventListener('resize', detectBackgroundColor);
       observer.disconnect();
     };
-  }, [location.pathname, darkMode, scrollY]);
+  }, [location.pathname, scrollY]);
 
   useEffect(() => {
     if (user && !isTokenValid()) {
@@ -186,22 +178,22 @@ const Navbar = () => {
     i18n.changeLanguage(selectedCountry.code);
   }, [selectedCountry, i18n]);
 
-  // 🎨 DYNAMIC STYLING
+  // 🎨 DYNAMIC STYLING (DARK MODE ONLY)
   const navbarStyle = {
     backgroundColor: dynamicBg.backgroundColor || 'transparent',
     backdropFilter: 'blur(12px)',
     WebkitBackdropFilter: 'blur(12px)',
-    borderBottom: `1px solid ${dynamicBg.textColor === 'white' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
+    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
     transition: 'all 0.3s ease-in-out',
   };
 
   const textStyle = {
-    color: dynamicBg.textColor || (darkMode ? 'white' : 'black'),
+    color: 'white',
     transition: 'color 0.3s ease-in-out',
   };
 
   const iconStyle = {
-    color: dynamicBg.textColor || (darkMode ? 'white' : 'black'),
+    color: 'white',
     transition: 'color 0.3s ease-in-out',
   };
 
@@ -266,7 +258,8 @@ const Navbar = () => {
         className="fixed top-0 left-0 right-0 z-[9999] safe-area-navbar" 
         style={navbarStyle}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* WIDER CONTAINER - Increased from max-w-7xl to max-w-[95vw] */}
+        <div className="max-w-[95vw] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
 
             {/* ======== Logo Section (Left) ======== */}
@@ -278,10 +271,9 @@ const Navbar = () => {
                   className="h-[clamp(2.1rem,5vw,3.1rem)] w-auto"
                 />
                 <span
-                  className="text-[clamp(1.1rem,4vw,1.7rem)] font-extrabold"
+                  className="text-[clamp(1.1rem,4vw,1.7rem)] font-extrabold text-white"
                   style={{ 
                     fontFamily: 'Montserrat, sans-serif',
-                    ...textStyle
                   }}
                 >
                   GYMTONIC
@@ -295,9 +287,8 @@ const Navbar = () => {
                 <Link
                   key={item.name}
                   to={item.path}
-                  className="text-[clamp(0.95rem,2vw,1.25rem)] font-medium transition-all duration-300 px-3 py-2 rounded-md hover:bg-white/10"
+                  className="text-[clamp(0.95rem,2vw,1.25rem)] font-medium transition-all duration-300 px-3 py-2 rounded-md hover:bg-white/10 text-white"
                   style={{
-                    ...textStyle,
                     fontWeight: location.pathname === item.path ? '600' : '500',
                     textDecoration: location.pathname === item.path ? 'underline' : 'none',
                     textUnderlineOffset: '4px',
@@ -319,8 +310,7 @@ const Navbar = () => {
                       style={{ color: '#facc15' }} // Always gold/yellow
                     />
                     <span 
-                      className="font-medium text-[clamp(1rem,2vw,1.2rem)]"
-                      style={textStyle}
+                      className="font-medium text-[clamp(1rem,2vw,1.2rem)] text-white"
                     >
                       {balance}
                     </span>
@@ -329,8 +319,7 @@ const Navbar = () => {
                   {/* Shopping Cart */}
                   <Link to="/cart" className="relative p-0.5 hover:scale-105 transition-transform">
                     <ShoppingCart 
-                      className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" 
-                      style={iconStyle}
+                      className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)] text-white" 
                     />
                     {itemCount > 0 && (
                       <div className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[clamp(0.7rem,2vw,1rem)] w-[clamp(1.3rem,2.5vw,1.7rem)] h-[clamp(1.3rem,2.5vw,1.7rem)] rounded-full flex items-center justify-center">
@@ -346,52 +335,34 @@ const Navbar = () => {
                       className="p-0.5 hover:scale-105 transition-transform"
                     >
                       <User 
-                        className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" 
-                        style={iconStyle}
+                        className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)] text-white" 
                       />
                     </button>
                     <AnimatePresence>
                       {isUserMenuOpen && (
                         <motion.div
-                          className="absolute right-0 w-44 mt-1 py-0.5 rounded-md shadow-lg z-20 ring-1 ring-black ring-opacity-5 safe-area-dropdown"
-                          style={{
-                            backgroundColor: dynamicBg.backgroundColor || (darkMode ? '#374151' : '#ffffff'),
-                            backdropFilter: 'blur(12px)',
-                            WebkitBackdropFilter: 'blur(12px)',
-                          }}
+                          className="absolute right-0 w-44 mt-1 py-0.5 rounded-md shadow-lg z-20 ring-1 ring-black ring-opacity-5 safe-area-dropdown bg-gray-800/90 backdrop-blur-xl"
                           initial={{ opacity: 0, y: -10 }} 
                           animate={{ opacity: 1, y: 0 }} 
                           exit={{ opacity: 0, y: -10 }}
                         >
                           <Link 
                             to="/profile" 
-                            className="block px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-white/10" 
-                            style={textStyle}
+                            className="block px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-white/10 text-white" 
                             onClick={() => setIsUserMenuOpen(false)}
                           >
                             {t('navbar.profile')}
                           </Link>
                           <Link 
                             to="/orders" 
-                            className="block px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-white/10" 
-                            style={textStyle}
+                            className="block px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-white/10 text-white" 
                             onClick={() => setIsUserMenuOpen(false)}
                           >
                             {t('navbar.orders')}
                           </Link>
                           <button 
-                            onClick={(e) => { e.stopPropagation(); toggleDarkMode(); }} 
-                            className="flex items-center justify-between w-full text-left px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-white/10"
-                            style={textStyle}
-                          >
-                            <span>{t('navbar.darkMode')}</span>
-                            <div className={`relative flex h-5 w-9 items-center rounded-full ${darkMode ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                              <div className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${darkMode ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                            </div>
-                          </button>
-                          <button 
                             onClick={logout} 
-                            className="block w-full text-left px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-red-500/20 text-red-500"
+                            className="block w-full text-left px-4 py-2 text-[clamp(1rem,2vw,1.15rem)] hover:bg-red-500/20 text-red-400"
                           >
                             {t('navbar.logout')}
                           </button>
@@ -402,17 +373,6 @@ const Navbar = () => {
                 </>
               ) : (
                 <>
-                  {/* Dark Mode Toggle for Non-Users */}
-                  <button 
-                    onClick={toggleDarkMode} 
-                    className="p-0.5 hover:scale-105 transition-transform"
-                  >
-                    {darkMode ? 
-                      <Sun className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" style={iconStyle} /> : 
-                      <Moon className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" style={iconStyle} />
-                    }
-                  </button>
-
                   {/* Country Selector */}
                   <div className="relative" ref={countryDropdownRef}>
                     <button 
@@ -424,12 +384,7 @@ const Navbar = () => {
                     <AnimatePresence>
                       {isCountryDropdownOpen && (
                         <motion.div
-                          className="absolute right-0 w-36 mt-1 py-0.5 rounded-md shadow-lg z-20 ring-1 ring-black ring-opacity-5 safe-area-dropdown"
-                          style={{
-                            backgroundColor: dynamicBg.backgroundColor || (darkMode ? '#374151' : '#ffffff'),
-                            backdropFilter: 'blur(12px)',
-                            WebkitBackdropFilter: 'blur(12px)',
-                          }}
+                          className="absolute right-0 w-36 mt-1 py-0.5 rounded-md shadow-lg z-20 ring-1 ring-black ring-opacity-5 safe-area-dropdown bg-gray-800/90 backdrop-blur-xl"
                           initial={{ opacity: 0, y: -10 }} 
                           animate={{ opacity: 1, y: 0 }} 
                           exit={{ opacity: 0, y: -10 }}
@@ -441,8 +396,7 @@ const Navbar = () => {
                                 setSelectedCountry(country);
                                 setIsCountryDropdownOpen(false);
                               }}
-                              className="flex items-center w-full text-left px-4 py-2 text-[clamp(0.9rem,2vw,1.1rem)] hover:bg-white/10"
-                              style={textStyle}
+                              className="flex items-center w-full text-left px-4 py-2 text-[clamp(0.9rem,2vw,1.1rem)] hover:bg-white/10 text-white"
                             >
                               {country.icon} {country.name}
                             </button>
@@ -450,24 +404,6 @@ const Navbar = () => {
                         </motion.div>
                       )}
                     </AnimatePresence>
-                  </div>
-
-                  {/* Login/Register Links */}
-                  <div className="hidden sm:flex items-center space-x-2">
-                    <Link
-                      to="/register"
-                      className="text-[clamp(1rem,2vw,1.2rem)] font-medium hover:underline"
-                      style={textStyle}
-                    >
-                      {t('navbar.register')}
-                    </Link>
-                    <Link
-                      to="/login"
-                      className="text-[clamp(1rem,2vw,1.2rem)] font-medium hover:underline"
-                      style={textStyle}
-                    >
-                      {t('navbar.login')}
-                    </Link>
                   </div>
                 </>
               )}
@@ -479,8 +415,8 @@ const Navbar = () => {
                   className="p-0.5 hover:scale-105 transition-transform"
                 >
                   {isOpen ? 
-                    <X className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)]" style={iconStyle} /> : 
-                    <Menu className="h-[clamp(1.5rem,3.5vw,2rem)] w-[clamp(1.5rem,3.5vw,2rem)]" style={iconStyle} />
+                    <X className="h-[clamp(1.5rem,3.5vw,2.1rem)] w-[clamp(1.5rem,3.5vw,2.1rem)] text-white" /> : 
+                    <Menu className="h-[clamp(1.5rem,3.5vw,2rem)] w-[clamp(1.5rem,3.5vw,2rem)] text-white" />
                   }
                 </button>
               </div>
@@ -491,16 +427,11 @@ const Navbar = () => {
           <AnimatePresence>
             {isOpen && (
               <motion.div
-                className="md:hidden overflow-hidden safe-area-dropdown"
+                className="md:hidden overflow-hidden safe-area-dropdown bg-gray-800/90 backdrop-blur-xl"
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0, transition: { opacity: { duration: 0.15 }, height: { duration: 0.25 } } }}
                 transition={{ type: "tween", duration: 0.25 }}
-                style={{
-                  backgroundColor: dynamicBg.backgroundColor || 'transparent',
-                  backdropFilter: 'blur(12px)',
-                  WebkitBackdropFilter: 'blur(12px)',
-                }}
               >
                 <motion.div
                   className="px-1 pt-1 pb-2 space-y-0.5"
@@ -518,8 +449,7 @@ const Navbar = () => {
                     >
                       <Link
                         to={item.path}
-                        className="block px-3 py-2 rounded-md text-[clamp(1rem,2vw,1.2rem)] font-medium hover:bg-white/10"
-                        style={textStyle}
+                        className="block px-3 py-2 rounded-md text-[clamp(1rem,2vw,1.2rem)] font-medium hover:bg-white/10 text-white"
                         onClick={() => setIsOpen(false)}
                       >
                         {item.name}

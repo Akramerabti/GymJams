@@ -25,7 +25,8 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
 
   // Use the same auth hooks as LoginForm and Register
   const { login, register } = useAuth();
-  const navigate = useNavigate();
+  // Remove useNavigate to avoid Router context issues
+  // const navigate = useNavigate();
 
   useEffect(() => {
     if (isOpen && currentScreen === 'loading') {
@@ -56,6 +57,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      document.body.classList.add('dark', 'bg-gray-900');
     } else {
       document.body.style.overflow = '';
     }
@@ -126,7 +128,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Login handler matching LoginForm.jsx exactly
+  // Enhanced login handler with persistent storage
   const handleLogin = async (data = formData, retryCount = 0) => {
     if (!validateStep(1)) return;
     
@@ -136,19 +138,22 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
       setErrors({});
       await login(data.email, data.password);
       
+      // Enhanced persistence flags
+      localStorage.setItem('hasCompletedOnboarding', 'true');
+      localStorage.setItem('userLoginMethod', 'email_password');
+      localStorage.setItem('persistentLogin', 'true');
+      
       // Set success screen first
       setCurrentScreen('success');
       
-      // Store completion flag
-      localStorage.setItem('hasCompletedOnboarding', 'true');
-      
       setTimeout(() => {
-  if (onAccountCreated) {
-    onAccountCreated({ email: data.email }, 'logged_in_successfully');
-  } else {
-    navigate('/');
-  }
-}, 2000);
+        if (onAccountCreated) {
+          onAccountCreated({ email: data.email }, 'logged_in_successfully');
+        } else {
+          // Use window.location instead of navigate
+          window.location.href = '/';
+        }
+      }, 2000);
       
     } catch (err) {
       const MAX_RETRIES = 3;
@@ -204,7 +209,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
     }
   };
 
-  // Registration handler matching Register.jsx exactly
+  // Enhanced registration handler with persistent storage
   const handleSignup = async () => {
     if (!validateStep(2)) return;
     
@@ -218,23 +223,24 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
       console.log('Registration response:', response);
       
       if (response && (response.token || response.user)) {
+        // Enhanced persistence flags
+        localStorage.setItem('hasCompletedOnboarding', 'true');
+        localStorage.setItem('userLoginMethod', 'email_registration');
+        localStorage.setItem('persistentLogin', 'true');
+        
         toast.success('Registration successful!', {
           description: 'Please check your email to verify your account.'
         });
         
         const encodedEmail = encodeURIComponent(registrationData.email);
         localStorage.setItem('verificationEmail', registrationData.email);
-        localStorage.setItem('hasCompletedOnboarding', 'true');
         
         // Set success screen first
         setCurrentScreen('success');
         
         // Navigate after success screen
         setTimeout(() => {
-          navigate(`/email-verification-notification?email=${encodedEmail}`, {
-            replace: true,
-            state: { email: registrationData.email }
-          });
+          const encodedEmail = encodeURIComponent(registrationData.email);
           window.location.href = `/email-verification-notification?email=${encodedEmail}`;
         }, 2000);
         
@@ -398,7 +404,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
     );
   }
 
-  // Auth Screen
+  // Auth Screen - Enhanced for dark mode
   return (
     <div className="fixed inset-0 z-50 bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 overflow-hidden">
       <div className="h-full flex flex-col">
@@ -442,8 +448,8 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
           </motion.p>
         </div>
 
-        {/* Form Container */}
-        <div className="flex-1 bg-gradient-to-br from-gray-800/90 via-gray-800/90 to-gray-900/90 backdrop-blur-xl rounded-t-3xl border-t border-white/10 overflow-hidden">
+        {/* Form Container - Enhanced dark styling */}
+        <div className="flex-1 bg-gradient-to-br from-gray-800/95 via-gray-800/95 to-gray-900/95 backdrop-blur-xl rounded-t-3xl border-t border-white/10 overflow-hidden">
           <div className="h-full overflow-y-auto px-6 py-6">
             {authMode === 'login' ? (
               // Login Form
@@ -478,7 +484,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                       autoComplete="email"
                       value={formData.email}
                       onChange={(e) => handleInputChange('email', e.target.value)}
-                      className={`w-full pl-10 pr-4 py-3 bg-gray-700/50 border-2 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
+                      className={`w-full pl-10 pr-4 py-3 bg-gray-700/60 border-2 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
                         errors.email ? 'border-red-500' : 'border-gray-600'
                       }`}
                       placeholder="Enter your email"
@@ -499,7 +505,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                       autoComplete="current-password"
                       value={formData.password}
                       onChange={(e) => handleInputChange('password', e.target.value)}
-                      className={`w-full pl-10 pr-12 py-3 bg-gray-700/50 border-2 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
+                      className={`w-full pl-10 pr-12 py-3 bg-gray-700/60 border-2 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
                         errors.password ? 'border-red-500' : 'border-gray-600'
                       }`}
                       placeholder="Enter your password"
@@ -553,7 +559,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                 </p>
               </motion.form>
             ) : (
-              // Signup Form with Steps
+              // Signup Form with Steps (Enhanced for dark mode)
               <AnimatePresence mode="wait">
                 {step === 1 ? (
                   // Step 1: Personal Info
@@ -591,7 +597,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                       </div>
                     </div>
 
-                    {/* First Name */}
+                    {/* Form fields with enhanced dark styling */}
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">First Name</label>
                       <div className="relative">
@@ -601,7 +607,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                           autoComplete="given-name"
                           value={formData.firstName}
                           onChange={(e) => handleInputChange('firstName', e.target.value)}
-                          className={`w-full pl-10 pr-4 py-3 bg-gray-700/50 border-2 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
+                          className={`w-full pl-10 pr-4 py-3 bg-gray-700/60 border-2 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
                             errors.firstName ? 'border-red-500' : 'border-gray-600'
                           }`}
                           placeholder="Enter your first name"
@@ -612,7 +618,6 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                       )}
                     </div>
 
-                    {/* Last Name */}
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">Last Name</label>
                       <div className="relative">
@@ -622,7 +627,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                           autoComplete="family-name"
                           value={formData.lastName}
                           onChange={(e) => handleInputChange('lastName', e.target.value)}
-                          className={`w-full pl-10 pr-4 py-3 bg-gray-700/50 border-2 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
+                          className={`w-full pl-10 pr-4 py-3 bg-gray-700/60 border-2 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
                             errors.lastName ? 'border-red-500' : 'border-gray-600'
                           }`}
                           placeholder="Enter your last name"
@@ -633,7 +638,6 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                       )}
                     </div>
 
-                    {/* Email */}
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
                       <div className="relative">
@@ -643,7 +647,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                           autoComplete="email"
                           value={formData.email}
                           onChange={(e) => handleInputChange('email', e.target.value)}
-                          className={`w-full pl-10 pr-4 py-3 bg-gray-700/50 border-2 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
+                          className={`w-full pl-10 pr-4 py-3 bg-gray-700/60 border-2 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
                             errors.email ? 'border-red-500' : 'border-gray-600'
                           }`}
                           placeholder="Enter your email"
@@ -679,7 +683,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                     </p>
                   </motion.form>
                 ) : (
-                  // Step 2: Account Security
+                  // Step 2: Account Security (with dark styling)
                   <motion.form
                     key="step2"
                     initial={{ opacity: 0, x: 50 }}
@@ -705,12 +709,11 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                     <button
                       type="button"
                       onClick={() => setStep(1)}
-                      className="mb-4 p-2 rounded-lg bg-gray-700/50 text-gray-300 hover:text-white transition-colors"
+                      className="mb-4 p-2 rounded-lg bg-gray-700/60 text-gray-300 hover:text-white transition-colors"
                     >
                       <ArrowLeft className="w-5 h-5" />
                     </button>
 
-                    {/* Phone */}
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">Phone Number</label>
                       <div className="relative">
@@ -720,7 +723,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                           autoComplete="tel"
                           value={formData.phone}
                           onChange={(e) => handleInputChange('phone', e.target.value)}
-                          className={`w-full pl-10 pr-4 py-3 bg-gray-700/50 border-2 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
+                          className={`w-full pl-10 pr-4 py-3 bg-gray-700/60 border-2 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
                             errors.phone ? 'border-red-500' : 'border-gray-600'
                           }`}
                           placeholder="Enter your phone number"
@@ -731,7 +734,6 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                       )}
                     </div>
 
-                    {/* Password */}
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
                       <div className="relative">
@@ -741,7 +743,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                           autoComplete="new-password"
                           value={formData.password}
                           onChange={(e) => handleInputChange('password', e.target.value)}
-                          className={`w-full pl-10 pr-12 py-3 bg-gray-700/50 border-2 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
+                          className={`w-full pl-10 pr-12 py-3 bg-gray-700/60 border-2 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
                             errors.password ? 'border-red-500' : 'border-gray-600'
                           }`}
                           placeholder="Create a password"
@@ -759,7 +761,6 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                       )}
                     </div>
 
-                    {/* Confirm Password */}
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">Confirm Password</label>
                       <div className="relative">
@@ -769,7 +770,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                           autoComplete="new-password"
                           value={formData.confirmPassword}
                           onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                          className={`w-full pl-10 pr-12 py-3 bg-gray-700/50 border-2 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
+                          className={`w-full pl-10 pr-12 py-3 bg-gray-700/60 border-2 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
                             errors.confirmPassword ? 'border-red-500' : 'border-gray-600'
                           }`}
                           placeholder="Confirm your password"

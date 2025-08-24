@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { toast } from 'sonner';
 import adService from './services/adsense';
 import AdDebugger from './components/blog/AdDebugger';
 import { I18nextProvider } from 'react-i18next';
@@ -55,6 +56,7 @@ import OAuthCallback from './pages/OAuthCallback';
 import Blog from './pages/Blog';
 import BlogPost from './components/blog/BlogPost';
 import CompleteOAuthProfile from './components/auth/CompleteOAuthProfile';
+import MobileGatekeeper from './components/MobileGateKeeper';
 
 // Common Components
 import LocationBanner from './components/common/LocationBanner';
@@ -63,6 +65,103 @@ import PermissionsModal from './components/common/PermissionsModal';
 
 // Constants
 const FIVE_MINUTES = 5 * 60 * 1000;
+
+// OAuth Callback Handler Component
+function OAuthCallbackHandler() {
+  const location = useLocation();
+  const { loginWithToken, setUser, setToken } = useAuth();
+  const [isProcessingCallback, setIsProcessingCallback] = useState(false);
+
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      const urlParams = new URLSearchParams(location.search);
+      const token = urlParams.get('token');
+      const tempToken = urlParams.get('tempToken');
+      const error = urlParams.get('error');
+      const loginSuccess = urlParams.get('loginSuccess');
+      const existingUser = urlParams.get('existingUser');
+
+      // Only process if we have OAuth parameters and haven't processed yet
+      if ((token || tempToken || error) && !isProcessingCallback) {
+        console.log('🔍 OAuth callback detected:', { 
+          token: !!token, 
+          tempToken: !!tempToken, 
+          error, 
+          loginSuccess,
+          existingUser 
+        });
+
+        setIsProcessingCallback(true);
+
+        try {
+          // Clean the URL first
+          const cleanUrl = window.location.pathname;
+          window.history.replaceState(null, null, cleanUrl);
+
+          if (error) {
+            console.error('❌ OAuth error:', error);
+            toast.error('Authentication failed', {
+              description: decodeURIComponent(error)
+            });
+            return;
+          }
+
+          // Handle successful login with complete profile
+          if (token && loginSuccess) {
+            console.log('✅ OAuth login successful, processing token...');
+            
+            try {
+              const userData = await loginWithToken(token);
+              
+              // Set persistent login flags
+              localStorage.setItem('hasCompletedOnboarding', 'true');
+              localStorage.setItem('userLoginMethod', 'google_oauth');
+              localStorage.setItem('persistentLogin', 'true');
+              
+              console.log('✅ User data received:', userData);
+              toast.success('Successfully logged in with Google!');
+              
+              // Force a small delay to ensure everything is set
+              setTimeout(() => {
+                window.location.reload();
+              }, 500);
+              
+            } catch (loginError) {
+              console.error('❌ Login with token failed:', loginError);
+              toast.error('Login failed', {
+                description: 'Please try again'
+              });
+            }
+          }
+
+          // Handle profile completion needed
+          if (tempToken) {
+            console.log('🔧 Profile completion needed');
+            localStorage.setItem('tempToken', tempToken);
+            
+            if (existingUser === 'true') {
+              toast.info('Please complete your profile to continue');
+              window.location.href = '/complete-profile';
+            } else {
+              toast.info('Welcome! Please complete your profile to get started');
+              window.location.href = '/complete-oauth-profile';
+            }
+          }
+
+        } catch (error) {
+          console.error('❌ OAuth callback processing error:', error);
+          toast.error('Authentication failed', {
+            description: 'Please try again'
+          });
+        }
+      }
+    };
+
+    handleOAuthCallback();
+  }, [location.search, loginWithToken, isProcessingCallback]);
+
+  return null; // This component doesn't render anything
+}
 
 // Modal manager component (must be inside Router)
 function CoachProfileModalManager() {
@@ -154,9 +253,11 @@ function PermissionsModalManager() {
 
 // Main App component with permissions integration
 function AppContent() {
-  const { checkAuth, logout } = useAuth();
+  const { checkAuth, logout, user, isAuthenticated } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [location, setLocation] = useState(null);
+  const [showMobileGatekeeper, setShowMobileGatekeeper] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const { 
     isInitialized: permissionsInitialized, 
     currentLocation, 
@@ -171,19 +272,90 @@ function AppContent() {
     }
   }, [currentLocation]);
 
+  // Check if we're returning from OAuth
+  useEffect(() => {
+    const checkOAuthReturn = () => {
+      // Check if we're on the OAuth callback page
+      if (window.location.pathname === '/oauth-callback') {
+        // Don't show mobile gatekeeper on OAuth callback
+        setShowMobileGatekeeper(false);
+        sessionStorage.removeItem('mobileGatekeeperOpen');
+      }
+    };
+    
+    checkOAuthReturn();
+  }, []);
+
+  // Mobile detection and gatekeeper logic
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      return mobile;
+    };
+    
+    const mobile = checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    // Don't show gatekeeper if:
+    // 1. Not mobile
+    // 2. Already has token
+    // 3. User is authenticated
+    // 4. Already completed onboarding
+    // 5. On OAuth callback page
+    // 6. Was redirected for OAuth (check sessionStorage)
+    // 7. Is native app
+    const hasCompletedOnboarding = localStorage.getItem('hasCompletedOnboarding');
+    const token = localStorage.getItem('token');
+    const isOAuthCallback = window.location.pathname === '/oauth-callback';
+    const wasOAuthRedirect = sessionStorage.getItem('mobileGatekeeperOpen') === 'true';
+    
+    if (mobile && 
+        !token && 
+        !isAuthenticated && 
+        !user && 
+        !hasCompletedOnboarding && 
+        !isOAuthCallback && 
+        !wasOAuthRedirect && 
+        !isNative) {
+      setShowMobileGatekeeper(true);
+    } else {
+      setShowMobileGatekeeper(false);
+    }
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, [isAuthenticated, user, isNative]);
+
+  // Handle account creation from mobile gatekeeper
+  const handleAccountCreated = (userData, token) => {
+    setShowMobileGatekeeper(false);
+    sessionStorage.removeItem('mobileGatekeeperOpen');
+    checkAuth();
+  };
+
   // Initialize app
   useEffect(() => {
     const validateTokenOnLoad = async () => {
       try {
         const token = localStorage.getItem('token');
+        console.log('🔍 Checking for existing token:', !!token);
+        
         if (token) {
+          console.log('✅ Token found, validating...');
           const isValid = await checkAuth();
+          console.log('🔍 Token validation result:', isValid);
+          
           if (!isValid) {
+            console.log('❌ Token invalid, logging out...');
             logout();
+          } else {
+            console.log('✅ Token valid, user authenticated');
           }
+        } else {
+          console.log('ℹ️ No token found');
         }
       } catch (error) {
-        console.error('Auth check error:', error);
+        console.error('❌ Auth check error:', error);
         logout();
       }
     };
@@ -217,6 +389,15 @@ function AppContent() {
     }
   }, [checkAuth, logout, permissionsInitialized, isNative]);
 
+  // Debug auth state
+  useEffect(() => {
+    console.log('🔍 Auth state changed:', { 
+      user: !!user, 
+      isAuthenticated, 
+      userId: user?.id 
+    });
+  }, [user, isAuthenticated]);
+
   // Handle location updates
   const handleLocationSet = async (newLocation) => {
     setLocation(newLocation);
@@ -232,7 +413,6 @@ function AppContent() {
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Initializing app...</p>
         </div>
       </div>
     );
@@ -240,7 +420,10 @@ function AppContent() {
 
   return (
     <Router>
-      <Layout>
+      <Layout showMobileGatekeeper={showMobileGatekeeper}>
+        {/* OAuth Callback Handler - must be inside Router */}
+        <OAuthCallbackHandler />
+        
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<Home />} />
@@ -271,7 +454,7 @@ function AppContent() {
           <Route path="/oauth-callback" element={<OAuthCallback />} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/blog/:slug" element={<BlogPost />} />
-          
+
           {/* Protected Routes */}
           <Route path="/profile" element={
             <ProtectedRoute>
@@ -295,14 +478,25 @@ function AppContent() {
           <Onboarding onClose={() => setShowOnboarding(false)} />
         )}
 
-        {/* Global Components */}
-        <LocationBanner onLocationSet={handleLocationSet} />
-        <CoachProfileModalManager />
-        <PermissionsModalManager />
+        {/* Only show these when mobile gatekeeper is not active */}
+        {!showMobileGatekeeper && (
+          <>
+            <LocationBanner onLocationSet={handleLocationSet} />
+            <CoachProfileModalManager />
+            <PermissionsModalManager />
+          </>
+        )}
 
         <Toaster />
         {process.env.NODE_ENV !== 'production' && !isNative && <AdDebugger />}
       </Layout>
+
+      {/* Mobile Gatekeeper - Outside Layout */}
+      <MobileGatekeeper 
+        isOpen={showMobileGatekeeper}
+        onAccountCreated={handleAccountCreated}
+        onClose={() => setShowMobileGatekeeper(false)}
+      />
     </Router>
   );
 }
