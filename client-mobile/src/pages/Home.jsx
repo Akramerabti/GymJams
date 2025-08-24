@@ -41,7 +41,6 @@ const Home = () => {
   const { balance } = usePoints();
   
   const [isLoaded, setIsLoaded] = useState(false);
-  const [menuActive] = useState(true); // always open
 
   // 5 main feature buttons arranged in circle
   const circleButtons = [
@@ -147,264 +146,146 @@ const Home = () => {
           50% { transform: translateY(-20px); }
         }
 
-        /* Radial Menu Styles */
-        .radial-menu {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translateX(-50%) translateY(-50%);
-          width: 5em;
-          height: 5em;
-          z-index: 20;
+        /* New Circular Menu Styles */
+        .circular-menu {
+          margin: 0 auto;
+          position: relative;
+          width: 70px;
+          height: 70px;
+          margin-top: 80px;
+          margin-bottom: 80px;
         }
 
-        .btn {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
+        .menu-btn {
+          width: 70px;
+          height: 70px;
           border-radius: 50%;
+          position: absolute;
+          overflow: hidden;
+          cursor: pointer;
           background: rgba(255, 255, 255, 0.15);
-          opacity: 0;
-          z-index: -10;
-          cursor: pointer;
-          transition: opacity 1s, z-index 0.3s, transform 1s;
-          transform: translateX(0);
-          border: none;
-          outline: none;
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+          transition: all 0.3s cubic-bezier(.25,.8,.25,1);
         }
 
-        .btn.trigger {
+        .menu-btn:hover {
+          transform: scale(1.1);
+          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Center button (points) */
+        .menu-btn:first-child {
+          z-index: 10;
+          background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Feature buttons positioning */
+        .menu-btn:nth-child(2) {
+          top: -150px;
           opacity: 1;
-          z-index: 100;
-          cursor: pointer;
-          transition: transform 0.3s;
+          animation: slideIn1 0.6s ease-out forwards;
+          animation-delay: 0.1s;
         }
 
-        .btn.trigger:hover {
-          transform: scale(1.2);
-        }
-
-        .btn.trigger:hover .line {
-          background-color: rgba(255, 255, 255, 0.7);
-        }
-
-        .btn.trigger:hover .line:before,
-        .btn.trigger:hover .line:after {
-          background-color: rgba(255, 255, 255, 0.7);
-        }
-
-        .line {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translateX(-50%) translateY(-50%);
-          width: 60%;
-          height: 6px;
-          background: rgba(255, 255, 255, 0.8);
-          border-radius: 6px;
-          transition: background-color 0.3s, height 0.3s, top 0.3s;
-        }
-
-        .line:before,
-        .line:after {
-          content: "";
-          display: block;
-          position: absolute;
-          left: 0;
-          width: 100%;
-          height: 6px;
-          background: rgba(255, 255, 255, 0.8);
-          border-radius: 6px;
-          transition: background-color 0.3s, transform 0.3s;
-        }
-
-        .line:before {
-          top: -12px;
-          transform-origin: 15% 100%;
-        }
-
-        .line:after {
-          top: 12px;
-          transform-origin: 25% 30%;
-        }
-
-        .rotater {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          transform-origin: 50% 50%;
-        }
-
-        .btn-icon {
-          opacity: 0;
-          z-index: -10;
-        }
-
-        .icon-container {
-  text-align: center;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-       .icon-bg {
-  width: 4rem;
-  height: 4rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  margin: 0 auto 0.5rem;
-  position: relative;
-}
-
-        .icon {
-          width: 2rem;
-          height: 2rem;
-          color: white;
-        }
-
-        .icon-label {
-          position: absolute;
-          top: 100%;
-          left: 50%;
-          transform: translateX(-50%);
-          white-space: nowrap;
-          pointer-events: none;
-        }
-
-        .icon-title {
-          color: white;
-          font-weight: bold;
-          font-size: 0.875rem;
-          margin-bottom: 0.25rem;
-        }
-
-        .icon-desc {
-          color: rgba(165, 180, 252, 1);
-          font-size: 0.75rem;
-        }
-
-        /* Active state */
-        .radial-menu.active .btn-icon {
+        .menu-btn:nth-child(3) {
+          top: -92px;
+          left: 120px;
           opacity: 1;
-          z-index: 50;
+          animation: slideIn2 0.6s ease-out forwards;
+          animation-delay: 0.2s;
         }
 
-        .radial-menu.active .trigger .line {
-          height: 0px;
-          top: 45%;
+        .menu-btn:nth-child(4) {
+          top: 40px;
+          left: 150px;
+          opacity: 1;
+          animation: slideIn3 0.6s ease-out forwards;
+          animation-delay: 0.3s;
         }
 
-        .radial-menu.active .trigger .line:before {
-          transform: rotate(45deg);
-          width: 110%;
+        .menu-btn:nth-child(5) {
+          top: 40px;
+          left: -150px;
+          opacity: 1;
+          animation: slideIn4 0.6s ease-out forwards;
+          animation-delay: 0.4s;
         }
 
-        .radial-menu.active .trigger .line:after {
-          transform: rotate(-45deg);
-          width: 110%;
+        .menu-btn:nth-child(6) {
+          top: -92px;
+          left: -120px;
+          opacity: 1;
+          animation: slideIn5 0.6s ease-out forwards;
+          animation-delay: 0.5s;
         }
 
-        /* Individual rotater positioning for 5 elements */
-        .rotater:nth-child(1) {
-          transform: rotate(-36deg);
-        }
-        .rotater:nth-child(2) {
-          transform: rotate(36deg);
-        }
-        .rotater:nth-child(3) {
-          transform: rotate(108deg);
-        }
-        .rotater:nth-child(4) {
-          transform: rotate(180deg);
-        }
-        .rotater:nth-child(5) {
-          transform: rotate(252deg);
+        @keyframes slideIn1 {
+          from { transform: translateY(50px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
         }
 
-        .radial-menu.active .rotater:nth-child(1) .btn-icon {
-  transform: translateY(-8em);
-}
-.radial-menu.active .rotater:nth-child(2) .btn-icon {
-  transform: translateY(-8em);
-}
-.radial-menu.active .rotater:nth-child(3) .btn-icon {
-  transform: translateY(-8em);
-}
-.radial-menu.active .rotater:nth-child(4) .btn-icon {
-  transform: translateY(-8em);
-}
-.radial-menu.active .rotater:nth-child(5) .btn-icon {
-  transform: translateY(-8em);
-}
+        @keyframes slideIn2 {
+          from { transform: translate(-50px, 50px); opacity: 0; }
+          to { transform: translate(0, 0); opacity: 1; }
+        }
 
-/* Counter-rotate the icon containers to keep content upright */
-.radial-menu.active .rotater:nth-child(1) .icon-container {
-  transform: rotate(36deg);
-  transform-origin: center center;
-}
-.radial-menu.active .rotater:nth-child(2) .icon-container {
-  transform: rotate(-36deg);
-  transform-origin: center center;
-}
-.radial-menu.active .rotater:nth-child(3) .icon-container {
-  transform: rotate(-108deg);
-  transform-origin: center center;
-}
-.radial-menu.active .rotater:nth-child(4) .icon-container {
-  transform: rotate(-180deg);
-  transform-origin: center center;
-}
-.radial-menu.active .rotater:nth-child(5) .icon-container {
-  transform: rotate(-252deg);
-  transform-origin: center center;
-}
+        @keyframes slideIn3 {
+          from { transform: translateX(-50px); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
 
+        @keyframes slideIn4 {
+          from { transform: translateX(50px); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideIn5 {
+          from { transform: translate(50px, 50px); opacity: 0; }
+          to { transform: translate(0, 0); opacity: 1; }
+        }
+
+        .menu-icon {
+          width: 28px;
+          height: 28px;
+          color: white;
+          margin-bottom: 4px;
+        }
+
+        .menu-label {
+          color: white;
+          font-size: 12px;
+          font-weight: 600;
+          text-align: center;
+        }
 
         /* Main content styles */
         .main-content {
-          margin-top: 80px;
+          margin-top: 40px;
         }
 
         @media (max-width: 768px) {
           .main-content {
-            margin-top: 70px;
+            margin-top: 20px;
             padding: 1rem;
           }
           
-          .circle-container {
+          .circular-menu {
             transform: scale(0.8);
+            margin-top: 60px;
+            margin-bottom: 60px;
           }
 
-          .radial-menu.active .rotater .btn-icon {
-            transform: translateY(-8em) !important;
-          }
-
-          .icon-bg {
-            width: 3rem;
-            height: 3rem;
-          }
-
-          .icon {
-            width: 1.5rem;
-            height: 1.5rem;
-          }
-
-          .icon-title {
-            font-size: 0.75rem;
-          }
-
-          .icon-desc {
-            font-size: 0.625rem;
-          }
+          .menu-btn:nth-child(2) { top: -110px; }
+          .menu-btn:nth-child(3) { top: -35px; left: 96px; }
+          .menu-btn:nth-child(4) { top: 75px; left: 75px; }
+          .menu-btn:nth-child(5) { top: 75px; left: -75px; }
+          .menu-btn:nth-child(6) { top: -35px; left: -96px; }
         }
       `}</style>
 
@@ -453,65 +334,39 @@ const Home = () => {
         </div>
 
         {/* Content */}
-        <div className="relative z-10 main-content pb-8 ">
-          <div className="max-w-6xl mx-auto mt-30">
+        <div className="relative z-10 main-content pb-8">
+          <div className="max-w-6xl mx-auto mt-45">
 
-            {/* Radial Navigation */}
-            <motion.div
-              className="relative flex items-center justify-center mb-30 circle-container mt-20"
-              style={{ height: '80px', width: '80px', margin: '0 auto' }}
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 1, duration: 2, type: "spring" }}
-            >
-
-              {/* Center Points Display as menu trigger (no lines) */}
+            {/* Circular Menu Navigation */}
+            <div className="circular-menu">
+              {/* Center Points Button */}
               <motion.div
-                className="absolute z-10 glass-morphism rounded-full w-14 h-14 flex flex-col items-center justify-center btn trigger"
+                className="menu-btn"
+                onClick={() => handleNavigate('/profile')}
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ delay: 0.1, type: "spring", stiffness: 300 }}
-                onClick={() => handleNavigate('/profile')}
-                style={{ cursor: 'pointer' }}
               >
-                <Coins className="w-6 h-6 text-yellow-400 mb-1" />
+                <Coins className="w-6 h-6 text-yellow-400" />
                 <span className="text-white font-bold text-lg">{balance || 1250}</span>
-                <span className="text-indigo-300 text-xs">points</span>
               </motion.div>
 
-              {/* Radial Menu Structure */}
-              <div className={`radial-menu ${menuActive ? 'active' : ''}`}>
-                {/* Trigger is now the center points display above, so remove this */}
-                <div className="icons">
-                  {circleButtons.map((button, index) => (
-                    <div key={button.name} className="rotater">
-                      <motion.div
-                        className="btn btn-icon"
-                        onClick={() => handleNavigate(button.route)}
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ delay: 1 + index * 0.1 }}
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        <div className="icon-container">
-                          <div className={`icon-bg`}>
-                            <button.icon className="icon" />
-                          </div>
-                          <div className="icon-label">
-                            <h3 className="icon-title">{button.name}</h3>
-                          </div>
-                        </div>
-                      </motion.div>
-                    </div>
-                  ))}
+              {/* Feature Buttons */}
+              {circleButtons.map((button, index) => (
+                <div
+                  key={button.name}
+                  className="menu-btn"
+                  onClick={() => handleNavigate(button.route)}
+                >
+                  <button.icon className="menu-icon" />
+                  <span className="menu-label">{button.name}</span>
                 </div>
-              </div>
-            </motion.div>
+              ))}
+            </div>
 
             {/* Social Map Section */}
             <motion.div
-              className="mb-12 mt-40 "
+              className="mb-12 mt-25"
               initial={{ y: 30, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 1, duration: 0.6 }}
