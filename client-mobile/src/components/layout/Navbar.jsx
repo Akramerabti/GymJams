@@ -367,7 +367,7 @@ const Navbar = () => {
             transform: translate(-80px, -15px);
           }
           .cn-wrapper.home-menu.opened-nav li:nth-child(2) { 
-            transform: translate(0px, -95px);
+            transform: translate(0px, 95px);
           }
           .cn-wrapper.home-menu.opened-nav li:nth-child(3) { 
             transform: translate(80px, -15px);
@@ -405,16 +405,16 @@ const Navbar = () => {
 
           /* Home page extra small mobile */
           .cn-wrapper.home-menu.opened-nav li:nth-child(1) { 
-            transform: translate(-70px, -10px);
+            transform: translate(-70px, 10px);
           }
           .cn-wrapper.home-menu.opened-nav li:nth-child(2) { 
-            transform: translate(0px, -80px);
+            transform: translate(-25px, 40px);
           }
           .cn-wrapper.home-menu.opened-nav li:nth-child(3) { 
-            transform: translate(70px, -10px);
+            transform: translate(70px, 10px);
           }
           .cn-wrapper.home-menu.opened-nav li:nth-child(4) { 
-            transform: translate(0px, 5px);
+            transform: translate(25px, 40px);
           }
 
           /* Regular navigation extra small mobile */
@@ -440,7 +440,7 @@ const Navbar = () => {
         }
       `}</style>
       
-     <div className="fixed top-0 left-0 right-0 z-[9999] safe-area-navbar pt-safe">
+     <div className="fixed top-0 left-0 right-0 z-[9999] safe-area-navbar">
         <div className="navbar-container">
           <div className="max-w-[95vw] mx-auto px-4">
             <div className="flex justify-between items-end h-18 ">
