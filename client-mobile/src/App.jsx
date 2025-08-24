@@ -286,45 +286,25 @@ function AppContent() {
     checkOAuthReturn();
   }, []);
 
-  // Mobile detection and gatekeeper logic
-  useEffect(() => {
-    const checkMobile = () => {
-      const mobile = window.innerWidth <= 768;
-      setIsMobile(mobile);
-      return mobile;
-    };
-    
-    const mobile = checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    // Don't show gatekeeper if:
-    // 1. Not mobile
-    // 2. Already has token
-    // 3. User is authenticated
-    // 4. Already completed onboarding
-    // 5. On OAuth callback page
-    // 6. Was redirected for OAuth (check sessionStorage)
-    // 7. Is native app
-    const hasCompletedOnboarding = localStorage.getItem('hasCompletedOnboarding');
-    const token = localStorage.getItem('token');
-    const isOAuthCallback = window.location.pathname === '/oauth-callback';
-    const wasOAuthRedirect = sessionStorage.getItem('mobileGatekeeperOpen') === 'true';
-    
-    if (mobile && 
-        !token && 
-        !isAuthenticated && 
-        !user && 
-        !hasCompletedOnboarding && 
-        !isOAuthCallback && 
-        !wasOAuthRedirect && 
-        !isNative) {
-      setShowMobileGatekeeper(true);
-    } else {
-      setShowMobileGatekeeper(false);
-    }
-    
-    return () => window.removeEventListener('resize', checkMobile);
-  }, [isAuthenticated, user, isNative]);
+// Mobile Gatekeeper logic - SIMPLE: Not authenticated = show gatekeeper
+useEffect(() => {
+  console.log('🔍 Mobile Gatekeeper Check:', {
+    isAuthenticated,
+    hasUser: !!user,
+    pathname: window.location.pathname
+  });
+
+  const token = localStorage.getItem('token');
+  const isOAuthCallback = window.location.pathname === '/oauth-callback';
+  
+  // SIMPLE RULE: If not authenticated AND not on OAuth callback, show gatekeeper
+  const shouldShowGatekeeper = !isAuthenticated && !user && !token && !isOAuthCallback;
+  
+  console.log('🚪 Should show Mobile Gatekeeper:', shouldShowGatekeeper);
+  
+  setShowMobileGatekeeper(shouldShowGatekeeper);
+  
+}, [isAuthenticated, user]);
 
   // Handle account creation from mobile gatekeeper
   const handleAccountCreated = (userData, token) => {
