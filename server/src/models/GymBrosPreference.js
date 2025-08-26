@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 const gymBrosPreferenceSchema = new mongoose.Schema({
+  // User identification - only one should be present per document
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -15,14 +16,20 @@ const gymBrosPreferenceSchema = new mongoose.Schema({
     type: String,
     sparse: true // Allow this to be optional
   },
+  
+  // Matching preferences
   ageRange: {
     min: {
       type: Number,
-      default: 18
+      default: 18,
+      min: 18,
+      max: 99
     },
     max: {
       type: Number,
-      default: 99
+      default: 99,
+      min: 18,
+      max: 99
     }
   },
   genderPreference: {
@@ -39,23 +46,32 @@ const gymBrosPreferenceSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
+  // FIXED: preferredTime should be a single string, not array
   preferredTime: {
-    type: [String],
-    default: []
+    type: String,
+    enum: ['Morning', 'Afternoon', 'Evening', 'Late Night', 'Flexible', 'Weekends Only', 'Any'],
+    default: 'Any'
   },
   maxDistance: {
     type: Number,
-    default: 50 // km
+    default: 50, // km
+    min: 1,
+    max: 100
   },
+  
+  // Interaction tracking - MAIN LEVEL (not duplicated)
   likedProfiles: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'GymBrosProfile'
+    ref: 'GymBrosProfile',
+    index: true // Add index for better query performance
   }],
   dislikedProfiles: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'GymBrosProfile'
+    ref: 'GymBrosProfile',
+    index: true // Add index for better query performance
   }],
-  // Settings
+  
+  // App settings
   settings: {
     showMe: {
       type: Boolean,
@@ -92,28 +108,40 @@ const gymBrosPreferenceSchema = new mongoose.Schema({
         type: String,
         enum: ['everyone', 'matches', 'nobody'],
         default: 'everyone'
-      },
-      likedProfiles: {
-        type: [mongoose.Schema.Types.ObjectId],
-        ref: 'User',
-        default: [],
-        index: true  // Add index for better performance
-      },
-      
-      dislikedProfiles: {
-        type: [mongoose.Schema.Types.ObjectId],
-        ref: 'User',
-        default: [],
-        index: true  // Add index for better performance
-      },
+      }
+      // REMOVED: Duplicate likedProfiles and dislikedProfiles from here
     }
   }
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  // Add compound index to prevent duplicate preferences
+  index: [
+    { userId: 1 }, 
+    { profileId: 1 }, 
+    { phone: 1 }
+  ]
+});
 
 gymBrosPreferenceSchema.index({ userId: 1 }, { sparse: true });
-gymBrosPreferenceSchema.index({ profileId: 1 }, { sparse: true });
-gymBrosPreferenceSchema.index({ phone: 1 }, { sparse: true });
 
+gymBrosPreferenceSchema.index({ profileId: 1 }, { 
+  sparse: true,
+  unique: true // Unique only when profileId exists  
+});
+
+gymBrosPreferenceSchema.index({ phone: 1 }, { 
+  sparse: true,
+  unique: true // Unique only when phone exists
+});
+
+// Add compound index for better query performance
+gymBrosPreferenceSchema.index({ 
+  userId: 1, 
+  profileId: 1, 
+  phone: 1 
+}, { sparse: true });
+
+// Pre-save validation to ensure at least one identifier exists
 gymBrosPreferenceSchema.pre('save', function(next) {
   if (!this.userId && !this.profileId && !this.phone) {
     next(new Error('Either userId, profileId, or phone must be provided'));
@@ -121,6 +149,22 @@ gymBrosPreferenceSchema.pre('save', function(next) {
     next();
   }
 });
+
+// Add method to get the user identifier
+gymBrosPreferenceSchema.methods.getUserIdentifier = function() {
+  return this.userId || this.profileId || this.phone;
+};
+
+// Add static method to find preferences by any identifier
+gymBrosPreferenceSchema.statics.findByAnyId = function(userId, profileId, phone) {
+  const query = { $or: [] };
+  
+  if (userId) query.$or.push({ userId });
+  if (profileId) query.$or.push({ profileId });  
+  if (phone) query.$or.push({ phone });
+  
+  return this.findOne(query);
+};
 
 const GymBrosPreference = mongoose.model('GymBrosPreference', gymBrosPreferenceSchema);
 

@@ -61,45 +61,44 @@ const handleVerifyCode = async (codeOverride) => {
       console.log('📱 Profile check response:', profileCheckResponse);
 
       if (profileCheckResponse.success) {
-        // Check for authenticated user account
-        if (profileCheckResponse.user && profileCheckResponse.token) {
-          hasAccount = true;
-          userData = profileCheckResponse.user;
-          
-          try {
-            await loginWithToken(profileCheckResponse.token, profileCheckResponse.user);
-            hasProfile = true; // If login succeeds, assume they have profile
-            setVerificationStep('account_exists');
-            
-            onVerified(
-              true, 
-              profileCheckResponse.user, 
-              profileCheckResponse.token, 
-              profileCheckResponse.profile
-            );
-            toast.success('Welcome back! Logged in successfully.');
-            return;
-          } catch (loginError) {
-            console.error('Login error:', loginError);
-            toast.error('Login failed. Please try again.');
-            return;
-          }
-        }
-        
-        // Check for guest profile
+        // Check if profile exists (regardless of user account status)
         if (profileCheckResponse.hasProfile && profileCheckResponse.profile) {
           hasProfile = true;
           profileData = profileCheckResponse.profile;
-          setVerificationStep('account_exists');
           
-          onVerified(
-            true, 
-            null, // No user account, this is guest flow
-            profileCheckResponse.token || verifyResponse.token,
-            profileCheckResponse.profile
-          );
-          toast.success('Welcome back! Profile found.');
-          return;
+          // If there's also a user account, try to login
+          if (profileCheckResponse.user && profileCheckResponse.token) {
+            try {
+              await loginWithToken(profileCheckResponse.token, profileCheckResponse.user);
+              hasAccount = true;
+              userData = profileCheckResponse.user;
+              
+              setVerificationStep('account_exists');
+              onVerified(
+                true, 
+                profileCheckResponse.user, 
+                profileCheckResponse.token, 
+                { hasProfile: true, profile: profileCheckResponse.profile }
+              );
+              toast.success('Welcome back! Logged in successfully.');
+              return;
+            } catch (loginError) {
+              console.error('Login error:', loginError);
+              toast.error('Login failed. Please try again.');
+              return;
+            }
+          } else {
+            // Profile exists but no user account (guest profile)
+            setVerificationStep('account_exists');
+            onVerified(
+              true, 
+              null, // No user account, this is guest flow
+              profileCheckResponse.token || verifyResponse.token,
+              { hasProfile: true, profile: profileCheckResponse.profile }
+            );
+            toast.success('Welcome back! Profile found.');
+            return;
+          }
         }
       }
     } catch (profileCheckError) {
@@ -135,7 +134,6 @@ const handleVerifyCode = async (codeOverride) => {
     setIsLoading(false);
   }
 };
-
 
   const handleSendVerificationCode = async () => {
     if (!phone || phone.trim() === '') {

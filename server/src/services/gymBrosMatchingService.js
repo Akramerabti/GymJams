@@ -79,11 +79,21 @@ export const getRecommendedProfiles = async (userProfile, filters = {}) => {
     
     const userPrefs = await GymBrosPreference.findOne(prefQuery);
     
+     logger.info(`=== EXCLUSION DEBUG ===`);
+    logger.info(`User: ${userProfile._id}`);
+    logger.info(`User preferences found: ${!!userPrefs}`);
+    
+    if (userPrefs) {
+      logger.info(`Liked profiles count: ${userPrefs.likedProfiles?.length || 0}`);
+      logger.info(`Disliked profiles count: ${userPrefs.dislikedProfiles?.length || 0}`);
+      logger.info(`Liked profiles: ${userPrefs.likedProfiles?.map(id => id.toString()) || []}`);
+      logger.info(`Disliked profiles: ${userPrefs.dislikedProfiles?.map(id => id.toString()) || []}`);
+    }
     // Build exclusion list - profiles already interacted with
     const excludedIds = [...userIdentifiers]; // Start with user's own IDs
     
     // Add liked and disliked profiles
-    if (userPrefs) {
+     if (userPrefs) {
       if (userPrefs.likedProfiles && Array.isArray(userPrefs.likedProfiles)) {
         const likedIds = userPrefs.likedProfiles.map(id => id.toString());
         excludedIds.push(...likedIds);
@@ -94,6 +104,26 @@ export const getRecommendedProfiles = async (userProfile, filters = {}) => {
       }
     }
     
+    logger.info(`Total excluded IDs: ${excludedIds.length}`);
+    logger.info(`Excluded IDs: ${excludedIds}`);
+    logger.info(`=== END EXCLUSION DEBUG ===`);
+
+     const existingMatches = await GymBrosMatch.find({
+      users: { $in: userIdentifiers },
+      active: true
+    });
+
+    const matchedUserIds = [];
+    existingMatches.forEach(match => {
+      match.users.forEach(userId => {
+        const userIdStr = userId.toString();
+        if (!userIdentifiers.includes(userIdStr)) {
+          matchedUserIds.push(userIdStr);
+        }
+      });
+    });
+
+     excludedIds.push(...matchedUserIds);
     logger.info(`Excluded ${excludedIds.length} profiles from recommendations`);
     
     // Get users who have already liked this user - CRITICAL FEATURE
@@ -492,10 +522,13 @@ export const findSuperLikes = async (profileId) => {
   }
 };
 
-// Updated processFeedback function with improved interaction handling
+// Fixed processFeedback function in gymBrosMatchingService.js
+
 export const processFeedback = async (userId, targetId, feedbackType, viewDuration = 0, isGuest = false) => {
   try {
-    logger.info(`Processing ${feedbackType} from ${userId} to ${targetId} (duration: ${viewDuration}ms, isGuest: ${isGuest})`);
+    logger.info(`=== FEEDBACK DEBUG ===`);
+    logger.info(`Processing ${feedbackType}: ${userId} -> ${targetId}`);
+    logger.info(`isGuest: ${isGuest}, viewDuration: ${viewDuration}`);
 
     // Find target profile to ensure it exists
     let targetProfile;
@@ -553,112 +586,75 @@ export const processFeedback = async (userId, targetId, feedbackType, viewDurati
     
     logger.info(`Using preference query: ${JSON.stringify(prefQuery)}`);
     
-    // First, try to find existing preferences - don't use upsert yet
-    let preferences = await GymBrosPreference.findOne(prefQuery);
+    // CRITICAL FIX: Use findOneAndUpdate with upsert to handle the unique index issue
+    const targetIdStr = targetProfile._id.toString();
     
-    // Build document for new preferences if needed
-    const newPrefsData = {
-      ...prefQuery,
-      likedProfiles: [],
-      dislikedProfiles: []
-    };
-    
-    // If this is a new profile and we're copying default preferences,
-    // make sure to normalize any enum values to lowercase
-    if (!preferences) {
-      // This fixes the capitalization issue with genderPreference
-      if (newPrefsData.genderPreference && typeof newPrefsData.genderPreference === 'string') {
-        newPrefsData.genderPreference = newPrefsData.genderPreference.toLowerCase();
-      }
+    // Build the update operation
+    let updateOperation;
+    if (feedbackType === 'like') {
+      updateOperation = {
+        $addToSet: { likedProfiles: targetProfile._id },
+        $pull: { dislikedProfiles: targetProfile._id }
+      };
+    } else {
+      updateOperation = {
+        $addToSet: { dislikedProfiles: targetProfile._id },
+        $pull: { likedProfiles: targetProfile._id }
+      };
     }
     
-    // If preferences exist, update them
-    if (preferences) {
-      logger.info(`Found existing preferences for query: ${JSON.stringify(prefQuery)}`);
-      
-      // Check if this profile is already in the appropriate list
-      const targetIdStr = targetProfile._id.toString();
-      const alreadyInList = preferences[feedbackType === 'like' ? 'likedProfiles' : 'dislikedProfiles']
-        .some(id => id.toString() === targetIdStr);
-      
-      if (!alreadyInList) {
-        // Add to the appropriate list only if not already present
-        preferences[feedbackType === 'like' ? 'likedProfiles' : 'dislikedProfiles'].push(targetProfile._id);
-        
-        // Remove from opposite list if present
-        const oppositeList = feedbackType === 'like' ? 'dislikedProfiles' : 'likedProfiles';
-        preferences[oppositeList] = preferences[oppositeList].filter(id => 
-          id.toString() !== targetIdStr
-        );
-        
-        // Save with error handling
-        try {
-          await preferences.save();
-          logger.info(`Successfully saved ${feedbackType} interaction`);
-        } catch (saveError) {
-          // Handle specific validation errors
-          if (saveError.name === 'ValidationError') {
-            // Fix common issues
-            if (saveError.errors.genderPreference) {
-              logger.info('Fixing genderPreference capitalization issue');
-              preferences.genderPreference = preferences.genderPreference.toLowerCase();
-              await preferences.save();
-            } else {
-              throw saveError;
-            }
-          } else {
-            throw saveError;
-          }
+    // Prepare the document for creation if it doesn't exist
+    // CRITICAL: Don't include likedProfiles/dislikedProfiles here to avoid conflicts
+    const setOnInsertData = {
+      ...prefQuery,
+      workoutTypes: [],
+      experienceLevel: 'Any',      // Capital A to match enum
+      preferredTime: 'Any',        // Check your schema for correct case
+      genderPreference: 'All',     // Capital A to match enum
+      ageRange: { min: 18, max: 99 },
+      maxDistance: 50,
+      settings: {
+        showMe: true,
+        notifications: {
+          matches: true,
+          messages: true,
+          profileUpdates: true
+        },
+        privacy: {
+          showWorkoutTypes: true,
+          showExperienceLevel: true,
+          showGoals: true,
+          profileVisibility: 'everyone'
         }
-      } else {
-        logger.info(`Profile ${targetIdStr} is already in ${feedbackType} list, skipping update`);
       }
+    };
+
+    if (isGuest) {
+  setOnInsertData.profileId = userId; // For guests, userId is actually profileId
+} else {
+  setOnInsertData.userId = userId;
+}
+    
+    // Use findOneAndUpdate with upsert to either update existing or create new
+    const result = await GymBrosPreference.findOneAndUpdate(
+      prefQuery,
+      {
+        $setOnInsert: setOnInsertData,
+        ...updateOperation
+      },
+      { 
+        upsert: true, 
+        new: true, 
+        runValidators: true 
+      }
+    );
+    
+    if (result) {
+      logger.info(`Successfully processed ${feedbackType} - document ${result.isNew ? 'created' : 'updated'}`);
+      logger.info(`Current liked: ${result.likedProfiles?.length || 0}, disliked: ${result.dislikedProfiles?.length || 0}`);
     } else {
-      // If no preferences exist, create new ones with the correct identifier
-      // IMPORTANT: Set arrays to avoid null errors
-      newPrefsData.likedProfiles = feedbackType === 'like' ? [targetProfile._id] : [];
-      newPrefsData.dislikedProfiles = feedbackType === 'dislike' ? [targetProfile._id] : [];
-      
-      // Ensure genderPreference is lowercase if present
-      if (newPrefsData.genderPreference && typeof newPrefsData.genderPreference === 'string') {
-        newPrefsData.genderPreference = newPrefsData.genderPreference.toLowerCase();
-      }
-      
-      try {
-        const newPrefs = new GymBrosPreference(newPrefsData);
-        await newPrefs.save();
-        logger.info(`Created new preferences for ${JSON.stringify(prefQuery)}`);
-      } catch (createError) {
-        logger.error('Error creating preferences:', createError);
-        
-        // If it's a validation error, try to fix common issues
-        if (createError.name === 'ValidationError') {
-          if (createError.errors.genderPreference) {
-            logger.info('Fixing genderPreference validation issue');
-            
-            // Skip setting genderPreference entirely
-            delete newPrefsData.genderPreference;
-            
-            const fixedPrefs = new GymBrosPreference(newPrefsData);
-            await fixedPrefs.save();
-            logger.info('Successfully created preferences without genderPreference');
-          } else {
-            throw createError;
-          }
-        } else if (createError.code === 11000) {
-          // Direct update to handle duplicate key issues
-          logger.warn('Duplicate key error, using direct update');
-          
-          const updateOperation = feedbackType === 'like' 
-            ? { $addToSet: { likedProfiles: targetProfile._id }, $pull: { dislikedProfiles: targetProfile._id } }
-            : { $addToSet: { dislikedProfiles: targetProfile._id }, $pull: { likedProfiles: targetProfile._id } };
-            
-          const updateResult = await GymBrosPreference.updateOne(prefQuery, updateOperation);
-          logger.info(`Update result: ${JSON.stringify(updateResult)}`);
-        } else {
-          throw createError;
-        }
-      }
+      logger.error(`Failed to process ${feedbackType} - no result returned`);
+      return false;
     }
     
     // Update metrics for the target profile
@@ -682,9 +678,12 @@ export const processFeedback = async (userId, targetId, feedbackType, viewDurati
       }
     }
     
+    logger.info(`=== END FEEDBACK DEBUG ===`);
     return true;
   } catch (error) {
-    logger.error(`Error processing ${feedbackType} feedback:`, error);
+    logger.error(`=== FEEDBACK ERROR ===`);
+    logger.error(`Error processing ${feedbackType}:`, error);
+    logger.error(`Stack trace:`, error.stack);
     return false;
   }
 };

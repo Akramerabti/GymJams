@@ -362,6 +362,8 @@ const DiscoverTab = ({
           toast.success('Superstar Like sent!');
         }
       }
+
+      invalidate('profiles');
   
        if (matchResult) {
         console.log('MATCH DETECTED with profile:', currentProfile.name);
@@ -369,8 +371,6 @@ const DiscoverTab = ({
         // Store matched profile and show modal
         setMatchedProfile({ ...currentProfile });
 
-        // ADD: Invalidate caches after match
-        invalidate('profiles');
         invalidate('matches');
 
         // Wait for animation to complete before showing match modal
@@ -384,17 +384,16 @@ const DiscoverTab = ({
       }
 
 
-      // If no match, advance to next profile after animation completes
-      setTimeout(() => {
-        setCurrentIndex(prevIndex => prevIndex + 1);
-        // Reset processing state to allow new swipes
-        setProcessingSwipe(false);
-        swipeLockRef.current = false;
-        // Reset force direction to null
-        setForceSwipeDirection(null);
-        // Reset last processed profile
-        lastProcessedProfileRef.current = null; // 🔴 Reset here
-      }, 500);
+setTimeout(() => {
+  setCurrentIndex(prevIndex => prevIndex + 1);
+  // Reset processing state to allow new swipes
+  setProcessingSwipe(false);
+  swipeLockRef.current = false;
+  // Reset force direction to null
+  setForceSwipeDirection(null);
+  // Reset last processed profile
+  lastProcessedProfileRef.current = null;
+}, 500);
     } catch (error) {
       console.error(`Error handling ${direction} swipe:`, error);
       toast.error('Failed to process your action');

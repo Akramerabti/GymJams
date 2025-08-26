@@ -790,24 +790,18 @@ export const getGymBrosProfiles = async (req, res, next) => {
 
 export const likeGymBrosProfile = async (req, res) => {
   try {
+    logger.info(`=== LIKE CONTROLLER DEBUG ===`);
+    logger.info(`Profile ID: ${req.params.profileId}`);
+    logger.info(`Effective user: ${JSON.stringify(getEffectiveUser(req))}`);
+    
     const { profileId } = req.params;
     const viewDuration = req.body.viewDuration || 0;
     
-    // Get effective user (either authenticated or guest)
     const effectiveUser = getEffectiveUser(req);
-    
-    // No user context available
-    if (!effectiveUser.userId && !effectiveUser.profileId) {
-      return res.status(401).json({ 
-        success: false,
-        message: 'Authentication or verified phone required'
-      });
-    }
-    
-    // Process the like interaction
     const userIdentifier = effectiveUser.userId || effectiveUser.profileId;
     
-    // Use isGuest parameter to ensure proper handling
+    logger.info(`Calling processFeedback with userIdentifier: ${userIdentifier}`);
+    
     const result = await processFeedback(
       userIdentifier, 
       profileId, 
@@ -816,6 +810,8 @@ export const likeGymBrosProfile = async (req, res) => {
       effectiveUser.isGuest
     );
     
+    logger.info(`processFeedback result: ${result}`);
+    logger.info(`=== END LIKE CONTROLLER DEBUG ===`);
     // Check if this created a match
     const isMatch = await checkForMatch(
       userIdentifier, 

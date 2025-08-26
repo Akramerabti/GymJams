@@ -173,24 +173,49 @@ const useGymBrosData = create((set, get) => ({
     }
   },
   
-  // Invalidate cache for a specific type
-  invalidate: (type) => {
-    set(state => ({
+invalidate: (type) => {
+  set(state => {
+    const newState = {
       lastFetch: { ...state.lastFetch, [type]: null }
-    }));
-  },
+    };
+    
+    // Actually clear the cached data too, not just the timestamp
+    switch (type) {
+      case 'profiles':
+        newState.profiles = [];
+        break;
+      case 'users':
+        newState.users = [];
+        break;
+      case 'matches':
+        newState.matches = [];
+        break;
+      case 'gyms':
+        newState.gyms = [];
+        break;
+    }
+    
+    console.log(`🗑️ Invalidated ${type} cache and cleared data`);
+    return newState;
+  });
+},
 
-  // Clear all cache
-  clearCache: () => {
-    set({
-      lastFetch: {
-        users: null,
-        gyms: null,
-        profiles: null,
-        matches: null
-      }
-    });
-  }
+// Clear all cache - also improve this
+clearCache: () => {
+  set({
+    lastFetch: {
+      users: null,
+      gyms: null,
+      profiles: null,
+      matches: null
+    },
+    users: [],
+    gyms: [],
+    profiles: [],
+    matches: []
+  });
+  console.log('🗑️ Cleared all cached data');
+}
 }));
 
 export default useGymBrosData;

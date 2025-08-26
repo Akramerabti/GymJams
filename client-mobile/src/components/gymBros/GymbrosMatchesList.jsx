@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Dumbbell, Lock, MessageCircle, Star, Shield, ChevronRight, 
@@ -50,6 +51,7 @@ const GymbrosMatchesList = () => {
   const matchesCarouselRef = useRef(null);
   const userIdRef = useRef(null);
   const lastLikesCountFetchRef = useRef(0);
+  const navigate = useNavigate();
   
   // Get user ID for real-time updates
   const userId = user?.id || user?.user?.id;
