@@ -9,6 +9,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { formatImageUrl, getFallbackAvatarUrl } from '../../utils/imageUtils';
 import { usePermissions } from '../../contexts/PermissionContext';
+import { ImageService } from '../gymBros/components/ImageUtils';
+import AvatarDisplay from '../gymBros/components/AvatarDisplay';
 import gymbrosService from '../../services/gymbros.service';
 import gymBrosLocationService from '../../services/gymBrosLocation.service';
 
@@ -87,8 +89,14 @@ const NoMatchesShowcase = ({ userProfile, onStartSwiping }) => {
               })
             ]);
             
-            // Filter to get a representative sample
-            setNearbyUsers(Array.isArray(users) ? users.slice(0, 8) : []); // Show up to 8 users
+            // Process users to handle location overlaps and add position offsets
+            const processedUsers = addLocationOffsets(
+              Array.isArray(users) ? users.slice(0, 8) : [], 
+              location, 
+              userProfile
+            );
+            
+            setNearbyUsers(processedUsers);
             setNearbyGyms(Array.isArray(gyms) ? gyms.slice(0, 12) : []); // Show up to 12 gyms
           } catch (error) {
             console.error('Error fetching map data:', error);
@@ -112,6 +120,131 @@ const NoMatchesShowcase = ({ userProfile, onStartSwiping }) => {
     fetchRealData();
   }, [currentLocation, userProfile]);
 
+  // Enhanced location offset logic with grouping support
+  const addLocationOffsets = (users, currentLocation, userProfile) => {
+    if (!users || users.length === 0) return users;
+
+    const processedUsers = [...users];
+    const locationGroups = new Map();
+
+    // First pass: group ALL users by similar locations
+    processedUsers.forEach((user, index) => {
+      if (!user.lat || !user.lng) return;
+
+      const locationKey = `${Math.round(user.lat * 1000)}_${Math.round(user.lng * 1000)}`;
+      if (!locationGroups.has(locationKey)) {
+        locationGroups.set(locationKey, []);
+      }
+      locationGroups.get(locationKey).push({ user, index });
+    });
+
+    // Check if current user location overlaps with any user group
+    let currentUserLocationKey = null;
+    if (currentLocation && userProfile) {
+      currentUserLocationKey = `${Math.round(currentLocation.lat * 1000)}_${Math.round(currentLocation.lng * 1000)}`;
+    }
+
+    // Debug: Log grouping info for showcase
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Showcase Location Groups:', Array.from(locationGroups.entries()).map(([key, group]) => ({
+        key,
+        count: group.length,
+        users: group.map(g => g.user.name || g.user.id || g.user._id),
+        overlapsCurrentUser: key === currentUserLocationKey,
+        hasMainUser: group.some(g => userProfile && (g.user.id === userProfile.id || g.user._id === userProfile._id))
+      })));
+    }
+
+    locationGroups.forEach((group, locationKey) => {
+      const overlapsCurrentUser = locationKey === currentUserLocationKey;
+      const hasMainUserInGroup = group.some(({ user }) => 
+        userProfile && (user.id === userProfile.id || user._id === userProfile._id)
+      );
+
+      // Skip if only 1 user and doesn't overlap with current user
+      if (group.length <= 1 && !overlapsCurrentUser) return;
+
+      const centerLat = group[0].user.lat;
+      const centerLng = group[0].user.lng;
+      
+      // If current user location overlaps but main user isn't in the group, use current user location as center
+      let actualCenterLat = centerLat;
+      let actualCenterLng = centerLng;
+      
+      if (overlapsCurrentUser && currentLocation) {
+        actualCenterLat = currentLocation.lat;
+        actualCenterLng = currentLocation.lng;
+      }
+      
+      // Calculate optimal radius based on group size - larger for showcase visibility
+      const baseRadius = 0.005; // ~222 meters (doubled for better visibility)
+      const totalUsersToOffset = overlapsCurrentUser ? group.length + 1 : group.length; // +1 for main user space
+      const radiusMultiplier = Math.max(1, Math.sqrt(totalUsersToOffset) * 0.8);
+      const optimalRadius = baseRadius * radiusMultiplier;
+
+      let offsetIndex = 0; // Track position for non-main users
+
+      group.forEach(({ user, index }, groupIndex) => {
+        // NEVER offset the main user, even if they're in a cluster
+        if (userProfile && (user.id === userProfile.id || user._id === userProfile._id)) {
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`Showcase: Skipping offset for main user ${user.id || user._id} in cluster ${locationKey}`);
+          }
+          return;
+        }
+
+        const userId = user.id || user._id || `user-${index}`;
+        
+        // Calculate position around circle, skipping the "main user" position if current user overlaps
+        if (overlapsCurrentUser) {
+          // Reserve position 0 for main user (even though they're not being moved)
+          offsetIndex++;
+        }
+        
+        const angleStep = (2 * Math.PI) / totalUsersToOffset;
+        const userAngle = offsetIndex * angleStep;
+        offsetIndex++;
+
+        const latOffset = optimalRadius * Math.cos(userAngle);
+        const lngOffset = optimalRadius * Math.sin(userAngle);
+
+        // Debug: Log offset details for showcase
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`Showcase: Offsetting user ${userId} in cluster ${locationKey}:`, {
+            groupIndex,
+            offsetIndex: offsetIndex - 1,
+            totalUsersToOffset,
+            angle: (userAngle * 180 / Math.PI).toFixed(1) + '°',
+            radius: (optimalRadius * 111000).toFixed(0) + 'm',
+            overlapsCurrentUser,
+            hasMainUserInGroup,
+            original: [actualCenterLat.toFixed(6), actualCenterLng.toFixed(6)],
+            new: [(actualCenterLat + latOffset).toFixed(6), (actualCenterLng + lngOffset).toFixed(6)]
+          });
+        }
+
+        // Update the user's position in the processed array
+        processedUsers[index] = {
+          ...user,
+          lat: actualCenterLat + latOffset,
+          lng: actualCenterLng + lngOffset,
+          originalLat: user.lat,
+          originalLng: user.lng,
+          wasOffset: true,
+          offsetReason: overlapsCurrentUser ? 'current-user-cluster' : 'user-clustering',
+          clusterInfo: {
+            centerLat: actualCenterLat,
+            centerLng: actualCenterLng,
+            totalUsers: totalUsersToOffset,
+            userPosition: offsetIndex - 1
+          }
+        };
+      });
+    });
+
+    return processedUsers;
+  };
+
   // Mobile-optimized Map component for static display
   const StaticMapView = () => {
     const MapUpdater = () => {
@@ -129,23 +262,15 @@ const NoMatchesShowcase = ({ userProfile, onStartSwiping }) => {
     const renderMarkers = () => {
       const markers = [];
 
-      // User's location marker (primary) - larger for mobile
+      // User's location marker (primary) - using ImageService for consistency
       if (mapCenter) {
-        const userIcon = L.divIcon({
-          className: 'custom-user-marker',
-          html: `
-            <div class="relative">
-              <div class="absolute inset-0 bg-blue-500 rounded-full animate-ping opacity-75 w-10 h-10"></div>
-              <div class="relative w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full border-3 border-white shadow-xl flex items-center justify-center">
-                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                </svg>
-              </div>
-            </div>
-          `,
-          iconSize: [40, 40],
-          iconAnchor: [20, 20]
-        });
+        const userIcon = ImageService.createImageIcon(
+          userProfile?.avatar,
+          userProfile?.gender || 'Male',
+          true, // isCurrentUser
+          {},
+          userProfile?.id || userProfile?._id
+        );
 
         markers.push(
           <Marker key="user-location" position={mapCenter} icon={userIcon} />
@@ -158,46 +283,44 @@ const NoMatchesShowcase = ({ userProfile, onStartSwiping }) => {
             center={mapCenter}
             radius={1500} // 1.5km radius for mobile
             pathOptions={{
-              color: '#3B82F6',
-              fillColor: '#3B82F6',
-              fillOpacity: 0.1,
+              color: '#60A5FA',
+              fillColor: '#60A5FA',
+              fillOpacity: 0.15,
               weight: 2,
-              opacity: 0.5,
+              opacity: 0.6,
               dashArray: '8, 12',
             }}
           />
         );
       }
 
-      // Nearby users markers - optimized for mobile
+      // Nearby users markers - using smaller custom icons to prevent overlap
       nearbyUsers.forEach((user, index) => {
         if (user.lat && user.lng) {
+          // Skip rendering the main user here (they're already rendered above at exact location)
+          if (userProfile && (user.id === userProfile.id || user._id === userProfile._id)) {
+            return;
+          }
+
+          const userId = user.id || user._id;
           const isMatch = user.source === 'match' || user.isMatch;
           const isGymMember = user.source === 'gym_member' || user.sharedGym;
           const isRecommendation = user.source === 'recommendation' || user.isRecommendation;
 
-          const userMarkerIcon = L.divIcon({
-            className: 'custom-nearby-marker',
-            html: `
-              <div class="w-8 h-8 bg-gradient-to-br ${
-                isMatch ? 'from-pink-400 to-pink-600' :
-                isGymMember ? 'from-orange-400 to-orange-600' :
-                'from-purple-400 to-purple-600'
-              } rounded-full border-2 border-white shadow-lg flex items-center justify-center">
-                <span class="text-white text-sm font-bold">
-                  ${isMatch ? '❤️' : isGymMember ? '🏋️' : '⭐'}
-                </span>
-              </div>
-            `,
-            iconSize: [32, 32],
-            iconAnchor: [16, 16]
-          });
+          // Use ImageService for consistent sizing - same as main user
+          const userIcon = ImageService.createImageIcon(
+            user.avatar,
+            user.gender || 'Male',
+            false, // not current user
+            { isMatch, isGymMember, isRecommendation },
+            userId
+          );
 
           markers.push(
             <Marker
-              key={`user-${user.id || user._id}-${index}`}
+              key={`user-${userId}-${index}`}
               position={[user.lat, user.lng]}
-              icon={userMarkerIcon}
+              icon={userIcon}
             />
           );
         }
@@ -239,14 +362,13 @@ const NoMatchesShowcase = ({ userProfile, onStartSwiping }) => {
     };
 
     return (
-      <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-lg">
+      <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-200">
         <MapContainer
           center={mapCenter}
           zoom={12}
           style={{ 
             height: '100%', 
-            width: '100%',
-            minHeight: '250px' // Ensure minimum height for mobile
+            width: '100%'
           }}
           zoomControl={false}
           attributionControl={false}
@@ -258,31 +380,33 @@ const NoMatchesShowcase = ({ userProfile, onStartSwiping }) => {
           keyboard={false}
           ref={mapRef}
         >
+          {/* Dark theme tile layer */}
           <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           />
           <MapUpdater />
           {renderMarkers()}
         </MapContainer>
 
-        {/* Mobile-optimized map overlay with live stats */}
-        <div className="absolute bottom-2 left-2 right-2 bg-white/95 backdrop-blur-sm rounded-lg p-2 shadow-md">
+        {/* Mobile-optimized map overlay with live stats - Dark theme */}
+        <div className="absolute bottom-2 left-2 right-2 bg-gray-900/95 backdrop-blur-sm rounded-lg p-2 shadow-md border border-gray-700">
           <div className="flex items-center justify-between mb-1">
-            <h3 className="font-semibold text-gray-800 text-xs">Nearby Activity</h3>
-            <span className="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-1 rounded-full">Live</span>
+            <h3 className="font-semibold text-gray-200 text-xs">Nearby Activity</h3>
+            <span className="text-xs text-blue-400 font-medium bg-blue-900/50 px-2 py-1 rounded-full border border-blue-600">Live</span>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center">
             <div>
-              <div className="text-sm font-bold text-pink-600">{nearbyUsers.filter(u => u.source === 'match' || u.isMatch).length}</div>
-              <div className="text-xs text-gray-600">Matches</div>
+              <div className="text-sm font-bold text-pink-400">{nearbyUsers.filter(u => u.source === 'match' || u.isMatch).length}</div>
+              <div className="text-xs text-gray-400">Matches</div>
             </div>
             <div>
-              <div className="text-sm font-bold text-orange-600">{nearbyUsers.filter(u => u.source === 'gym_member' || u.sharedGym).length}</div>
-              <div className="text-xs text-gray-600">Gym Buddies</div>
+              <div className="text-sm font-bold text-orange-400">{nearbyUsers.filter(u => u.source === 'gym_member' || u.sharedGym).length}</div>
+              <div className="text-xs text-gray-400">Gym Buddies</div>
             </div>
             <div>
-              <div className="text-sm font-bold text-green-600">{nearbyGyms.length}</div>
-              <div className="text-xs text-gray-600">Gyms</div>
+              <div className="text-sm font-bold text-green-400">{nearbyGyms.length}</div>
+              <div className="text-xs text-gray-400">Gyms</div>
             </div>
           </div>
         </div>
@@ -292,33 +416,33 @@ const NoMatchesShowcase = ({ userProfile, onStartSwiping }) => {
 
   if (isLoading) {
     return (
-      <div className="h-full w-full bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-4 flex items-center justify-center">
+      <div className="h-48 w-full bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-4 flex items-center justify-center rounded-2xl">
         <div className="text-center">
-          <Loader className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">Loading Your Area</h3>
-          <p className="text-gray-600 text-sm">Finding potential matches and nearby gyms...</p>
+          <Loader className="h-6 w-6 animate-spin text-blue-500 mx-auto mb-3" />
+          <h3 className="text-base font-semibold text-gray-800 mb-1">Loading Your Area</h3>
+          <p className="text-gray-600 text-xs">Finding potential matches and nearby gyms...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full w-full">
-      <div className="h-full max-w-6xl mx-auto flex flex-col">
-
-
-        {/* Main showcase area - Mobile-first horizontal layout (1/4 profile, 3/4 map) */}
-        <div className="flex-1 relative mb-3">
-          <div className="h-full flex gap-2 min-h-[300px]">
-            {/* Left side - User Profile Display - 1/4 width */}
+    <div className="w-full">
+      <div className="max-w-6xl mx-auto flex flex-col">
+        {/* Main showcase area - Reduced height, Mobile-first horizontal layout */}
+        <div className="relative mb-4">
+          <div className="flex gap-3 h-48"> {/* Reduced from min-h-[300px] to h-48 */}
+            
+            {/* Left side - User Profile Display - 1/4 width, content-based height, centered */}
             <motion.div 
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="w-1/4 bg-white/80 backdrop-blur-sm rounded-2xl p-2 shadow-lg flex flex-col items-center justify-center"
+              onClick={onStartSwiping}
+              className="w-1/4 backdrop-blur-sm rounded-2xl p-3 shadow-lg flex flex-col justify-center items-center bg-white/10 border border-white/20 cursor-pointer hover:bg-white/15 transition-all duration-200"
             >
               {/* Profile Image - Responsive to container */}
-              <div className="relative mb-2">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border-3 border-white shadow-lg">
+              <div className="relative mb-3">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-white shadow-lg">
                   {userProfile?.images && userProfile.images.length > 0 ? (
                     <img
                       src={formatImageUrl(userProfile.images[0], getFallbackAvatarUrl())}
@@ -339,7 +463,7 @@ const NoMatchesShowcase = ({ userProfile, onStartSwiping }) => {
                     />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
-                      <User className="w-8 h-8 text-gray-400" />
+                      <User className="w-6 h-6 text-gray-400" />
                     </div>
                   )}
                 </div>
@@ -348,15 +472,10 @@ const NoMatchesShowcase = ({ userProfile, onStartSwiping }) => {
                 </div>
               </div>
 
-              {/* Profile Info - Compact for narrow width */}
-              <div className="text-center mb-2 w-full">
-                <h3 className="text-sm font-bold text-gray-800 mb-1 leading-tight">
-                  {userProfile?.name || 'Your Name'}
-                  {userProfile?.age && <span className="block text-xs text-gray-500">{userProfile.age}</span>}
-                </h3>
-                
+              {/* Profile Info - Compact */}
+              <div className="text-center mb-3 w-full">
                 {userProfile?.location && (
-                  <div className="flex items-center justify-center text-gray-600 mb-1">
+                  <div className="flex items-center justify-center text-white/80 mb-2">
                     <MapPin className="w-3 h-3 mr-1 flex-shrink-0" />
                     <span className="text-xs leading-tight text-center">
                       {(() => {
@@ -383,57 +502,40 @@ const NoMatchesShowcase = ({ userProfile, onStartSwiping }) => {
                     </span>
                   </div>
                 )}
-
-                {/* Tags - Stacked vertically for narrow width */}
-                <div className="space-y-1 mb-2">
-                  {userProfile?.experienceLevel && (
-                    <span className="block px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full text-center">
-                      {userProfile.experienceLevel}
-                    </span>
-                  )}
-                  {userProfile?.workoutTypes && userProfile.workoutTypes.length > 0 && (
-                    <span className="block px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full text-center">
-                      {userProfile.workoutTypes[0].length > 8 ? 
-                        userProfile.workoutTypes[0].substring(0, 8) + '...' : 
-                        userProfile.workoutTypes[0]
-                      }
-                      {userProfile.workoutTypes.length > 1 && <span className="block text-xs">+{userProfile.workoutTypes.length - 1}</span>}
-                    </span>
-                  )}
-                </div>
               </div>
-
-              {/* Action button - Compact for mobile */}
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={onStartSwiping}
-                className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold py-2 px-2 rounded-lg shadow-lg text-xs"
+              
+              {/* Tempting call-to-action - Not a button */}
+              <motion.div
+                whileHover={{ scale: 1.02, x: 2 }}
+                className="flex items-center text-white/90 text-xs font-medium"
               >
-                Start →
-              </motion.button>
+                <span className="mr-1">Tap to explore</span>
+                <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
+              </motion.div>
             </motion.div>
 
             {/* Right side - Real Map View - 3/4 width */}
             <motion.div 
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="w-3/4"
+              onClick={onStartSwiping}
+              className="w-3/4 cursor-pointer"
             >
               <StaticMapView />
             </motion.div>
           </div>
         </div>
 
-        <div className="text-center mb-3 mt-3">
-          
-          <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-2">
+        {/* Bottom text section - Reduced spacing */}
+        <div className="text-center mb-2">
+          <h2 className="text-lg md:text-xl font-bold text-white mb-2">
             Your Perfect Gym Partner is Out There!
           </h2>
-          <p className="text-gray-600 text-sm max-w-xl mx-auto px-2">
+          <p className="text-gray-300 text-sm max-w-xl mx-auto px-2">
             Here's your fitness community - see who's active at nearby gyms and in your area.
           </p>
         </div>
+
       </div>
     </div>
   );

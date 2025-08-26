@@ -808,6 +808,155 @@ const GymBrosMap = ({ userProfile }) => {
     return null;
   };
 
+const addLocationOffsets = (users, currentLocation, userProfile) => {
+  if (!users || users.length === 0) return users;
+
+  const processedUsers = [...users];
+  const locationGroups = new Map();
+
+  // First pass: group ALL users by similar locations (including main user for grouping purposes)
+  processedUsers.forEach((user, index) => {
+    if (!user.lat || !user.lng) return;
+
+    const locationKey = `${Math.round(user.lat * 1000)}_${Math.round(user.lng * 1000)}`;
+    if (!locationGroups.has(locationKey)) {
+      locationGroups.set(locationKey, []);
+    }
+    locationGroups.get(locationKey).push({ user, index });
+  });
+
+  // ALSO add current user's location to grouping if it overlaps with any user group
+  if (currentLocation && userProfile) {
+    const currentUserLocationKey = `${Math.round(currentLocation.lat * 1000)}_${Math.round(currentLocation.lng * 1000)}`;
+    
+    // Check if any users are at the current user's location
+    const usersAtCurrentLocation = processedUsers.filter(user => {
+      const userLocationKey = `${Math.round(user.lat * 1000)}_${Math.round(user.lng * 1000)}`;
+      return userLocationKey === currentUserLocationKey;
+    });
+
+    // If there are users at current user's location, add them to a group that includes the main user conceptually
+    if (usersAtCurrentLocation.length > 0) {
+      if (!locationGroups.has(currentUserLocationKey)) {
+        locationGroups.set(currentUserLocationKey, []);
+      }
+      // The group already contains the users, we just need to track that main user is here too
+    }
+  }
+
+  // Debug: Log grouping info
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Location Groups:', Array.from(locationGroups.entries()).map(([key, group]) => {
+      const currentUserLocationKey = currentLocation ? 
+        `${Math.round(currentLocation.lat * 1000)}_${Math.round(currentLocation.lng * 1000)}` : null;
+      
+      return {
+        key,
+        count: group.length,
+        users: group.map(g => g.user.name || g.user.id || g.user._id),
+        overlapsCurrentUser: key === currentUserLocationKey,
+        hasMainUser: group.some(g => userProfile && (g.user.id === userProfile.id || g.user._id === userProfile._id))
+      };
+    }));
+  }
+
+  locationGroups.forEach((group, locationKey) => {
+    // Now we process groups with 2+ users OR groups that overlap with current user location
+    const currentUserLocationKey = currentLocation ? 
+      `${Math.round(currentLocation.lat * 1000)}_${Math.round(currentLocation.lng * 1000)}` : null;
+    
+    const overlapsCurrentUser = locationKey === currentUserLocationKey;
+    const hasMainUserInGroup = group.some(({ user }) => 
+      userProfile && (user.id === userProfile.id || user._id === userProfile._id)
+    );
+
+    // Skip if only 1 user and doesn't overlap with current user
+    if (group.length <= 1 && !overlapsCurrentUser) return;
+
+    const centerLat = group[0].user.lat;
+    const centerLng = group[0].user.lng;
+    
+    // If current user location overlaps but main user isn't in the group, use current user location as center
+    let actualCenterLat = centerLat;
+    let actualCenterLng = centerLng;
+    
+    if (overlapsCurrentUser && currentLocation) {
+      actualCenterLat = currentLocation.lat;
+      actualCenterLng = currentLocation.lng;
+    }
+    
+    // Calculate optimal radius based on group size
+    const baseRadius = 0.003; // ~111 meters
+    const totalUsersToOffset = overlapsCurrentUser ? group.length + 1 : group.length; // +1 for main user space
+    const radiusMultiplier = Math.max(1, Math.sqrt(totalUsersToOffset) * 0.8);
+    const optimalRadius = baseRadius * radiusMultiplier;
+
+    let offsetIndex = 0; // Track position for non-main users
+
+    group.forEach(({ user, index }, groupIndex) => {
+      // NEVER offset the main user, even if they're in a cluster
+      if (userProfile && (user.id === userProfile.id || user._id === userProfile._id)) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`Skipping offset for main user ${user.id || user._id} in cluster ${locationKey}`);
+        }
+        return;
+      }
+
+      const userId = user.id || user._id || `user-${index}`;
+      
+      // Calculate position around circle, skipping the "main user" position if current user overlaps
+      if (overlapsCurrentUser) {
+        // Reserve position 0 for main user (even though they're not being moved)
+        offsetIndex++;
+      }
+      
+      const angleStep = (2 * Math.PI) / totalUsersToOffset;
+      const userAngle = offsetIndex * angleStep;
+      offsetIndex++;
+
+      const latOffset = optimalRadius * Math.cos(userAngle);
+      const lngOffset = optimalRadius * Math.sin(userAngle);
+
+      // Debug: Log offset details
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`Offsetting user ${userId} in cluster ${locationKey}:`, {
+          groupIndex,
+          offsetIndex: offsetIndex - 1,
+          totalUsersToOffset,
+          angle: (userAngle * 180 / Math.PI).toFixed(1) + '°',
+          radius: (optimalRadius * 111000).toFixed(0) + 'm',
+          overlapsCurrentUser,
+          hasMainUserInGroup,
+          original: [actualCenterLat.toFixed(6), actualCenterLng.toFixed(6)],
+          new: [(actualCenterLat + latOffset).toFixed(6), (actualCenterLng + lngOffset).toFixed(6)]
+        });
+      }
+
+      // Update the user's position in the processed array
+      processedUsers[index] = {
+        ...user,
+        lat: actualCenterLat + latOffset,
+        lng: actualCenterLng + lngOffset,
+        originalLat: user.lat,
+        originalLng: user.lng,
+        wasOffset: true,
+        offsetReason: overlapsCurrentUser ? 'current-user-cluster' : 'user-clustering',
+        clusterInfo: {
+          centerLat: actualCenterLat,
+          centerLng: actualCenterLng,
+          totalUsers: totalUsersToOffset,
+          userPosition: offsetIndex - 1
+        }
+      };
+    });
+  });
+
+  return processedUsers;
+};
+const spacedFilteredUsers = useMemo(() => {
+  return addLocationOffsets(filteredUsers, currentLocation, userProfile);
+}, [filteredUsers, currentLocation, userProfile]);
+
   const renderMembershipCircles = () => {
     const circles = [];
     
@@ -949,118 +1098,171 @@ const GymBrosMap = ({ userProfile }) => {
     });
   };
 
-  // Render markers with enhanced image handling and random mirroring
-  const renderMarkers = () => {
-    const markers = [];
+const renderMarkers = () => {
+  const markers = [];
 
-    // Current user marker
-    if (currentLocation) {
+  // Current user marker - ALWAYS use exact current location, never offset
+  if (currentLocation) {
+    markers.push(
+      <Marker
+        key="current-user-location"
+        position={[currentLocation.lat, currentLocation.lng]} // Always exact position
+        icon={ImageService.createImageIcon(
+          avatar, 
+          userGender, 
+          true, 
+          {}, 
+          userProfile?.id || userProfile?._id
+        )}
+        eventHandlers={{
+          click: handleCurrentUserClick
+        }}
+      >
+        <Popup>
+          <div className="min-w-48 text-center">
+            <AvatarDisplay 
+              avatar={avatar} 
+              userGender={userGender} 
+              size={60} 
+            />
+            <h3 className="font-semibold text-gray-900 mt-2">You are here</h3>
+            <p className="text-sm text-gray-500">Your current location</p>
+          </div>
+        </Popup>
+      </Marker>
+    );
+
+    // Add a subtle circle around current user if there are other users nearby
+    const nearbyUsers = spacedFilteredUsers.filter(user => {
+      if (!user.originalLat || !user.originalLng) return false;
+      const distance = DistanceUtils.calculateDistance(
+        currentLocation.lat, 
+        currentLocation.lng, 
+        user.originalLat, 
+        user.originalLng
+      );
+      return distance < 0.5; // Within 500m
+    });
+
+    if (nearbyUsers.length > 0) {
       markers.push(
-        <Marker
-          key="current-user-location"
-          position={[currentLocation.lat, currentLocation.lng]}
-          icon={ImageService.createImageIcon(
-            avatar, 
-            userGender, 
-            true, 
-            {}, 
-            userProfile?.id || userProfile?._id
-          )}
-          eventHandlers={{
-            click: handleCurrentUserClick
+        <Circle
+          key="current-user-area"
+          center={[currentLocation.lat, currentLocation.lng]}
+          radius={150} // 150m radius
+          pathOptions={{
+            color: '#10B981',
+            fillColor: '#10B981',
+            fillOpacity: 0.1,
+            weight: 2,
+            opacity: 0.6,
+            dashArray: '5, 10',
           }}
-        >
-        </Marker>
+        />
       );
     }
+  }
 
-    // Add membership circles for user's gyms
-    const membershipCircles = renderMembershipCircles();
-    markers.push(...membershipCircles);
-
-    filteredUsers
-      .filter(user => user.lat && user.lng)
-      .forEach(user => {
-        const userId = user.id || user._id;
-        const isMatch = user.source === 'match' || user.isMatch;
-        const isGymMember = user.source === 'gym_member' || user.sharedGym;
-        const isRecommendation = user.source === 'recommendation' || user.isRecommendation;
-        
-        markers.push(
-          <Marker 
-            key={`user-${userId}`} 
-            position={[user.lat, user.lng]} 
-            icon={ImageService.createImageIcon(
-              user.avatar, 
-              user.gender || 'Male', 
-              false, 
-              { isMatch, isGymMember, isRecommendation },
-              userId
-            )}
-            eventHandlers={{
-              click: () => handleMarkerClick('user', user)
-            }}
-          >
-            <Popup>
-              <div className="min-w-48 text-center">
-                <AvatarDisplay 
-                  avatar={user.avatar} 
-                  userGender={user.gender || 'Male'} 
-                  userId={userId}
-                  size={60} 
-                />
-                <h3 className="font-semibold text-gray-900 mt-2">{user.name}</h3>
-                <p className="text-sm text-gray-500">{user.age} • {user.experienceLevel}</p>
-                
-                {/* Distance indicator */}
-                {currentLocation && (
-                  <p className="text-xs text-gray-400 mt-1">
-                    {DistanceUtils.calculateDistance(
-                      currentLocation.lat, 
-                      currentLocation.lng, 
-                      user.lat, 
-                      user.lng
-                    ).toFixed(1)} km away
-                  </p>
+  // Add membership circles for user's gyms
+  const membershipCircles = renderMembershipCircles();
+  markers.push(...membershipCircles);
+  
+  // Other users - use offset positions, EXCLUDE main user
+  spacedFilteredUsers
+    .filter(user => user.lat && user.lng)
+    .filter(user => {
+      // CRITICAL: Exclude the main user from being rendered here
+      return !(user.id === userProfile?.id || user._id === userProfile?._id);
+    })
+    .forEach(user => {
+      const userId = user.id || user._id;
+      const isMatch = user.source === 'match' || user.isMatch;
+      const isGymMember = user.source === 'gym_member' || user.sharedGym;
+      const isRecommendation = user.source === 'recommendation' || user.isRecommendation;
+      
+      markers.push(
+        <Marker 
+          key={`user-${userId}`} 
+          position={[user.lat, user.lng]} 
+          icon={ImageService.createImageIcon(
+            user.avatar, 
+            user.gender || 'Male', 
+            false, 
+            { isMatch, isGymMember, isRecommendation },
+            userId
+          )}
+          eventHandlers={{
+            click: () => handleMarkerClick('user', user)
+          }}
+        >
+          <Popup>
+            <div className="min-w-48 text-center">
+              <AvatarDisplay 
+                avatar={user.avatar} 
+                userGender={user.gender || 'Male'} 
+                userId={userId}
+                size={60} 
+              />
+              <h3 className="font-semibold text-gray-900 mt-2">{user.name}</h3>
+              <p className="text-sm text-gray-500">{user.age} • {user.experienceLevel}</p>
+              
+              {/* Distance indicator - use original location for accurate distance */}
+              {currentLocation && (
+                <p className="text-xs text-gray-400 mt-1">
+                  {DistanceUtils.calculateDistance(
+                    currentLocation.lat, 
+                    currentLocation.lng, 
+                    user.originalLat || user.lat,
+                    user.originalLng || user.lng
+                  ).toFixed(1)} km away
+                </p>
+              )}
+              
+              {/* Show offset indicator for debugging */}
+              {user.wasOffset && process.env.NODE_ENV === 'development' && (
+                <p className="text-xs text-blue-500 mt-1">
+                  Position adjusted ({user.offsetReason})
+                </p>
+              )}
+              
+              {/* Enhanced relationship indicators */}
+              <div className="mt-2 space-y-1">
+                {isMatch && (
+                  <div className="inline-flex items-center gap-1 px-2 py-1 bg-pink-100 text-pink-800 text-xs rounded-full">
+                    <span>❤️</span>
+                    <span className="font-medium">It's a Match!</span>
+                  </div>
                 )}
                 
-                {/* Enhanced relationship indicators */}
-                <div className="mt-2 space-y-1">
-                  {isMatch && (
-                    <div className="inline-flex items-center gap-1 px-2 py-1 bg-pink-100 text-pink-800 text-xs rounded-full">
-                      <span>❤️</span>
-                      <span className="font-medium">It's a Match!</span>
-                    </div>
-                  )}
-                  
-                  {isGymMember && !isMatch && (
-                    <div className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full">
-                      <span>🏋️</span>
-                      <span className="font-medium">Gym Buddy</span>
-                    </div>
-                  )}
-                  
-                  {isRecommendation && !isMatch && !isGymMember && (
-                    <div className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
-                      <span>⭐</span>
-                      <span className="font-medium">Recommended</span>
-                    </div>
-                  )}
-                </div>
+                {isGymMember && !isMatch && (
+                  <div className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full">
+                    <span>🏋️</span>
+                    <span className="font-medium">Gym Buddy</span>
+                  </div>
+                )}
                 
-                <button 
-                  onClick={() => handleMarkerClick('user', user)}
-                  className="mt-3 px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors"
-                >
-                  View Profile →
-                </button>
+                {isRecommendation && !isMatch && !isGymMember && (
+                  <div className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
+                    <span>⭐</span>
+                    <span className="font-medium">Recommended</span>
+                  </div>
+                )}
               </div>
-            </Popup>
-          </Marker>
-        );
-      });
+              
+              <button 
+                onClick={() => handleMarkerClick('user', user)}
+                className="mt-3 px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                View Profile →
+              </button>
+            </div>
+          </Popup>
+        </Marker>
+      );
+    });
+  
     
-    // Gym markers with enhanced membership status
+    // Gym markers with enhanced membership status (unchanged)
     filteredGyms
       .filter(gym => {
         if (gym.location?.coordinates && Array.isArray(gym.location.coordinates)) {

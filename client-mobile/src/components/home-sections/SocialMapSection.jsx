@@ -23,6 +23,7 @@ import NoMatchesShowcase from './NoMatchesShowcase';
 const SocialMapSection = ({ onNavigate }) => {
   const [gymBrosData, setGymBrosData] = useState(null);
   const [gymBrosLoading, setGymBrosLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState(null); // ← Add userProfile state
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isSwipeAnimating, setIsSwipeAnimating] = useState(false);
   const carouselRef = useRef(null);
@@ -75,10 +76,13 @@ const SocialMapSection = ({ onNavigate }) => {
     const fetchGymBrosData = async () => {
       try {
         setGymBrosLoading(true);
+        
+        // Fetch GymBros profile
         const profileResponse = await gymBrosService.getGymBrosProfile();
         
         if (profileResponse.hasProfile) {
           try {
+            // Fetch matches
             const matchesData = await gymBrosService.getMatches();
             setGymBrosData({
               hasProfile: true,
@@ -91,8 +95,32 @@ const SocialMapSection = ({ onNavigate }) => {
         } else {
           setGymBrosData({ hasProfile: false });
         }
+
+        // ← CRITICAL FIX: Fetch user profile data
+        try {
+          const initData = await gymBrosService.initializeGymBros();
+          if (initData.hasProfile && initData.profile) {
+            setUserProfile(initData.profile);
+          } else {
+            // Try to get guest profile if authenticated user doesn't have profile
+            const guestToken = localStorage.getItem('gymbros_guest_token');
+            if (guestToken) {
+              gymBrosService.setGuestToken(guestToken);
+              const gymBrosResponse = await gymBrosService.getGymBrosProfile();
+              if (gymBrosResponse && gymBrosResponse.profile) {
+                setUserProfile(gymBrosResponse.profile);
+              }
+            }
+          }
+        } catch (profileError) {
+          console.error('Error fetching user profile:', profileError);
+          // Set userProfile to null if we can't fetch it
+          setUserProfile(null);
+        }
+        
       } catch {
         setGymBrosData({ hasProfile: false });
+        setUserProfile(null);
       } finally {
         setGymBrosLoading(false);
       }
@@ -144,22 +172,22 @@ const SocialMapSection = ({ onNavigate }) => {
   if (gymBrosData?.hasProfile) {
     return (
       <motion.div
-        className="glass-card rounded-3xl p-6 mb-8 overflow-hidden mt-0"
+        className="glass-card rounded-3xl p-6 mb-8 overflow-hidden mt-25"
         initial={{ y: 30, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.8, duration: 0.6 }}
       >
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl md:text-3xl font-bold text-white flex items-center">
+          <h2 className="text-xl md:text-3xl font-bold text-white flex items-center">
             <MapPin className="w-7 h-7 mr-3 text-red-400" />
-            GymBros Map
+            Social Map
           </h2>
           <motion.button
             className="flex items-center text-orange-300 hover:text-orange-200 font-semibold text-sm md:text-base"
             whileHover={{ x: 5 }}
             onClick={() => onNavigate('/gymbros')}
           >
-            Explore <ArrowRight className="w-4 h-4 ml-2" />
+         <ArrowRight className="w-7 h-4 ml-2" />
           </motion.button>
         </div>
 
@@ -251,9 +279,9 @@ const SocialMapSection = ({ onNavigate }) => {
           </>
         ) : (
            <NoMatchesShowcase
-    userProfile={null} // or pass a mock user profile if you want
-    onStartSwiping={() => onNavigate('/gymbros')}
-  />
+             userProfile={userProfile} // ← Now using the actual fetched userProfile
+             onStartSwiping={() => onNavigate('/gymbros')}
+           />
         )}
       </motion.div>
     );
@@ -277,13 +305,12 @@ const SocialMapSection = ({ onNavigate }) => {
 
       <div className="relative z-10">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl md:text-3xl font-bold text-white flex items-center">
-            <Heart className="w-7 h-7 mr-3 text-pink-400" />
-            Meet GymBros
+          <h2 className="text-xl md:text-3xl font-bold text-white flex items-center">
+            <MapPin className="w-7 h-7 mr-3 text-pink-400" />
+            Social Map
           </h2>
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-yellow-400 animate-pulse" />
-            <span className="text-yellow-300 text-sm font-medium">New!</span>
           </div>
         </div>
 

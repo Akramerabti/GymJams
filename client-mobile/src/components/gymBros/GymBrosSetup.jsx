@@ -250,22 +250,16 @@ const GymBrosSetup = ({ onProfileCreated }) => {
     setProfileData(prev => ({ ...prev, phone }));
   };
 
-  // Handle login with existing phone
-  const handleLoginWithPhone = () => {
-    // Go directly to phone verification step for login
-    setShowPhoneLogin(true);
-    
-    // Find the phone verification step index
-    const phoneVerificationIndex = steps.findIndex(step => step.id === 'phone');
-    if (phoneVerificationIndex !== -1) {
-      setCurrentStep(phoneVerificationIndex);
-    }
-    
-    toast.info(
-      'Account found with this phone number',
-      { description: 'Please verify to log in' }
-    );
-  };
+const handleLoginWithPhone = () => {
+  setAuthMode('login');
+  setShowPhoneLogin(true);
+  
+  const phoneVerificationIndex = steps.findIndex(step => step.id === 'phone');
+  if (phoneVerificationIndex !== -1) {
+    setCurrentStep(phoneVerificationIndex);
+  }
+
+};
 
   const handleExistingAccountFound = (phone) => {
     setAuthMode('login');
@@ -291,75 +285,53 @@ const GymBrosSetup = ({ onProfileCreated }) => {
     goToNextStep();
   };
 
-  const handlePhoneVerified = async (verified, userData = null, token = null, profileData = null) => {
-    setIsPhoneVerified(verified);
-    
-    if (token) {
-      setVerificationToken(token);
+  const handlePhoneVerified = async (verified, userData = null, token = null, existingProfileData = null) => {
+  setIsPhoneVerified(verified);
+  
+  if (token) {
+    setVerificationToken(token);
+  }
+  
+  if (userData) {
+
+    if (userData.firstName) {
+      setProfileData(prev => ({
+        ...prev,
+        name: userData.firstName + (userData.lastName ? ' ' + userData.lastName : '')
+      }));
     }
     
-    // If we received user data, we've successfully logged in
-    if (userData) {
-      console.log('Phone verification successful - user logged in:', userData);
-      
-      // Update profile data with user information
-      if (userData.firstName) {
-        setProfileData(prev => ({
-          ...prev,
-          name: userData.firstName + (userData.lastName ? ' ' + userData.lastName : '')
-        }));
-      }
-      
-      // Check if user has a COMPLETE profile
-      if (profileData && profileData.hasProfile && profileData.profile) {
-        const profile = profileData.profile;
-        
-        // Verify the profile has all required fields for GymBros
-        const hasRequiredFields = profile.age && 
-                                 profile.gender && 
-                                 profile.height && 
-                                 profile.experienceLevel && 
-                                 profile.preferredTime && 
-                                 profile.location && 
-                                 profile.location.lat && 
-                                 profile.location.lng && 
-                                 profile.location.address;
-        
-        if (hasRequiredFields) {
-          console.log('User has a complete profile:', profile);
-          onProfileCreated(profile);
-          return; // Exit early as we're done
-        } else {
-          console.log('User has incomplete profile, continuing with setup');
-          // Pre-fill any existing data
-          if (profile.name) setProfileData(prev => ({ ...prev, name: profile.name }));
-          if (profile.age) setProfileData(prev => ({ ...prev, age: profile.age }));
-          if (profile.gender) setProfileData(prev => ({ ...prev, gender: profile.gender }));
-          if (profile.height) setProfileData(prev => ({ ...prev, height: profile.height }));
-          if (profile.experienceLevel) setProfileData(prev => ({ ...prev, experienceLevel: profile.experienceLevel }));
-          if (profile.preferredTime) setProfileData(prev => ({ ...prev, preferredTime: profile.preferredTime }));
-          if (profile.location) setProfileData(prev => ({ ...prev, location: profile.location }));
-          if (profile.workoutTypes) setProfileData(prev => ({ ...prev, workoutTypes: profile.workoutTypes }));
-          if (profile.interests) setProfileData(prev => ({ ...prev, interests: profile.interests }));
-          if (profile.goals) setProfileData(prev => ({ ...prev, goals: profile.goals }));
-          if (profile.work) setProfileData(prev => ({ ...prev, work: profile.work }));
-          if (profile.studies) setProfileData(prev => ({ ...prev, studies: profile.studies }));
-          // Handle gym data if available
-          if (profile.primaryGym) setProfileData(prev => ({ ...prev, selectedGyms: [profile.primaryGym] }));
-          if (profile.gyms && profile.gyms.length > 0) {
-            const gymsList = profile.gyms.map(g => g.gym || g);
-            setProfileData(prev => ({ ...prev, selectedGyms: gymsList }));
-          }
-        }
-      }
-    
-      // Continue with setup process
-      goToNextStep();
-    } else {
-      // Guest user verification - just move to next step
-      goToNextStep();
+    if (existingProfileData && existingProfileData.hasProfile && existingProfileData.profile) {
+
+      onProfileCreated(existingProfileData.profile);
+      return;
     }
-  };
+
+    goToNextStep();
+    return;
+  }
+
+  
+  try {
+
+    const profileCheckResponse = await gymbrosService.checkProfileWithVerifiedPhone(
+      profileData.phone, 
+      token
+    );
+
+    if (profileCheckResponse.success && profileCheckResponse.hasProfile && profileCheckResponse.profile) {
+
+      onProfileCreated(profileCheckResponse.profile);
+      return;
+    }
+
+  } catch (profileCheckError) {
+    console.warn('⚠️ Profile check failed:', profileCheckError);
+    console.log('📝 Continuing with new profile creation');
+  }
+  
+  goToNextStep();
+};
   
   const handleSubmit = async () => {
     if (!isPhoneVerified) {

@@ -26,71 +26,87 @@ const PhoneVerification = ({
   const [isExistingAccountFlow, setIsExistingAccountFlow] = useState(false);
   const inputRefs = useRef([]);
 
-  // Enhanced verification code handler
-  const handleVerifyCode = async () => {
-    const code = otpValues.join('');
-    if (code.length !== 6) {
-      toast.error('Please enter the complete 6-digit code');
+const handleVerifyCode = async (codeOverride) => {
+  const code = codeOverride || otpValues.join('');
+  if (code.length !== 6) {
+    toast.error('Please enter the full 6-digit code.');
+    return;
+  }
+  setIsLoading(true);
+
+  try {
+    
+    const verifyResponse = await gymbrosService.verifyCode(phone, code);
+
+    if (!verifyResponse.success) {
+      toast.error(verifyResponse.message || 'Invalid verification code');
       return;
     }
-    
-    setIsLoading(true);
-    
-    try {
-      console.log('🔐 Verifying code for phone:', phone, 'exists:', phoneExists);
-      const response = await gymbrosService.verifyCode(phone, code);
-      console.log('🔐 Verification response:', response);
+
+    if (verifyResponse.guestToken) {
+      gymbrosService.setGuestToken(verifyResponse.guestToken);
+    }
+
+    setVerificationStep('verified');
+
+    if (phoneExists) {
       
-      if (response.success) {
-        setVerificationStep('verified');
-        
-        // CHECK 1: If response contains user data and token, this is a LOGIN
-        if (response.user && response.token) {
-          console.log('🎉 EXISTING ACCOUNT LOGIN - User authenticated:', response.user);
+      try {
+        const profileCheckResponse = await gymbrosService.checkProfileWithVerifiedPhone(
+          phone, 
+          verifyResponse.token
+        );
+
+        if (profileCheckResponse.success) {
+
+          if (profileCheckResponse.user && profileCheckResponse.token) {
+            
+            try {
+              await loginWithToken(profileCheckResponse.token, profileCheckResponse.user);
+
+              onVerified(
+                true, 
+                profileCheckResponse.user, 
+                profileCheckResponse.token, 
+                profileCheckResponse.profile
+              );
+              toast.success('Welcome back! Logged in successfully.');
+              return;
+
+            } catch (loginError) {
+              toast.error('Login failed. Please try again.');
+              return;
+            }
+          }
           
-          // This is an existing user logging in
-          try {
-            await loginWithToken(response.token, response.user);
-            console.log('✅ User logged in successfully with token');
+          if (profileCheckResponse.hasProfile && profileCheckResponse.profile) {
             
-            // Call onVerified with user data to indicate successful login
-            onVerified(true, response.user, response.token, response.profile || null);
-            
-            toast.success('Welcome back! Logged in successfully.');
-            return;
-            
-          } catch (loginError) {
-            console.error('❌ Error logging in with token:', loginError);
-            toast.error('Login failed. Please try again.');
+            onVerified(
+              true, 
+              null, // No user account, this is guest flow
+              profileCheckResponse.token || verifyResponse.token,
+              profileCheckResponse.profile
+            );
+            toast.success('Welcome back! Profile found.');
             return;
           }
         }
         
-        // CHECK 2: If we know this phone exists but didn't get user data, something went wrong
-        if (phoneExists && !response.user) {
-          console.error('⚠️ Phone exists but no user data returned - this is a backend issue');
-          toast.error('Login failed. Please contact support.');
-          return;
-        }
-        
-        // CHECK 3: This is a new account/guest verification
-        console.log('📝 NEW ACCOUNT/GUEST - Phone verified for new account');
-        onVerified(true, null, response.token || verificationToken, null);
-        toast.success('Phone verified successfully!');
-        
-      } else {
-        console.error('❌ Verification failed:', response.message);
-        toast.error(response.message || 'Invalid verification code');
+      } catch (profileCheckError) {
+        console.warn('⚠️ Profile check failed:', profileCheckError);
       }
-    } catch (error) {
-      console.error('❌ Error verifying code:', error);
-      toast.error('Verification failed. Please try again.');
-    } finally {
-      setIsLoading(false);
     }
-  };
 
-  // Enhanced send verification handler
+    onVerified(true, null, verifyResponse.token, null);
+    toast.success('Phone verified successfully!');
+
+  } catch (error) {
+    toast.error('Verification failed. Please try again.');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
   const handleSendVerificationCode = async () => {
     if (!phone || phone.trim() === '') {
       setPhoneError('Please enter your phone number');
@@ -164,33 +180,46 @@ const PhoneVerification = ({
     }
   };
 
+  // Timer countdown for resend
+  useEffect(() => {
+    let interval = null;
+    if (timer > 0) {
+      interval = setInterval(() => {
+        setTimer(timer => timer - 1);
+      }, 1000);
+    } else if (timer === 0) {
+      clearInterval(interval);
+    }
+    return () => clearInterval(interval);
+  }, [timer]);
+
   const handleOtpChange = (index, value) => {
-    // Only allow single digits
-    if (value.length > 1) {
-      value = value.slice(-1);
-    }
-    
-    if (!/^\d*$/.test(value)) {
-      return; // Only allow digits
-    }
-    
-    const newOtpValues = [...otpValues];
-    newOtpValues[index] = value;
-    setOtpValues(newOtpValues);
-    
-    // Auto-move to next input if value is entered
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-    
-    // Auto-verify when all 6 digits are entered
-    if (newOtpValues.join('').length === 6 && newOtpValues.every(v => v !== '')) {
-      setTimeout(() => {
-        setOtpValues(newOtpValues);
-        setTimeout(handleVerifyCode, 100);
-      }, 50);
-    }
-  };
+  // Only allow single digits
+  if (value.length > 1) {
+    value = value.slice(-1);
+  }
+  
+  if (!/^\d*$/.test(value)) {
+    return; // Only allow digits
+  }
+  
+  const newOtpValues = [...otpValues];
+  newOtpValues[index] = value;
+  setOtpValues(newOtpValues);
+  
+  // Auto-move to next input if value is entered
+  if (value && index < 5) {
+    inputRefs.current[index + 1]?.focus();
+  }
+  
+  // Auto-verify when all 6 digits are entered
+  if (newOtpValues.join('').length === 6 && newOtpValues.every(v => v !== '')) {
+    // Pass the complete code directly instead of relying on state
+    setTimeout(() => {
+      handleVerifyCode(newOtpValues.join('')); // Pass the complete code here
+    }, 100);
+  }
+};
 
   const handleOtpKeyDown = (index, e) => {
     // Handle navigation
