@@ -35,7 +35,6 @@ const handleVerifyCode = async (codeOverride) => {
   setIsLoading(true);
 
   try {
-    
     const verifyResponse = await gymbrosService.verifyCode(phone, code);
 
     if (!verifyResponse.success) {
@@ -47,63 +46,96 @@ const handleVerifyCode = async (codeOverride) => {
       gymbrosService.setGuestToken(verifyResponse.guestToken);
     }
 
-    setVerificationStep('verified');
+    // STEP 1: Phone code is verified, now check if account/profile exists
+    let hasAccount = false;
+    let hasProfile = false;
+    let userData = null;
+    let profileData = null;
 
-    if (phoneExists) {
-      
-      try {
-        const profileCheckResponse = await gymbrosService.checkProfileWithVerifiedPhone(
-          phone, 
-          verifyResponse.token
-        );
+    try {
+      const profileCheckResponse = await gymbrosService.checkProfileWithVerifiedPhone(
+        phone, 
+        verifyResponse.token
+      );
 
-        if (profileCheckResponse.success) {
+      console.log('📱 Profile check response:', profileCheckResponse);
 
-          if (profileCheckResponse.user && profileCheckResponse.token) {
-            
-            try {
-              await loginWithToken(profileCheckResponse.token, profileCheckResponse.user);
-
-              onVerified(
-                true, 
-                profileCheckResponse.user, 
-                profileCheckResponse.token, 
-                profileCheckResponse.profile
-              );
-              toast.success('Welcome back! Logged in successfully.');
-              return;
-
-            } catch (loginError) {
-              toast.error('Login failed. Please try again.');
-              return;
-            }
-          }
+      if (profileCheckResponse.success) {
+        // Check for authenticated user account
+        if (profileCheckResponse.user && profileCheckResponse.token) {
+          hasAccount = true;
+          userData = profileCheckResponse.user;
           
-          if (profileCheckResponse.hasProfile && profileCheckResponse.profile) {
+          try {
+            await loginWithToken(profileCheckResponse.token, profileCheckResponse.user);
+            hasProfile = true; // If login succeeds, assume they have profile
+            setVerificationStep('account_exists');
             
             onVerified(
               true, 
-              null, // No user account, this is guest flow
-              profileCheckResponse.token || verifyResponse.token,
+              profileCheckResponse.user, 
+              profileCheckResponse.token, 
               profileCheckResponse.profile
             );
+            toast.success('Welcome back! Logged in successfully.');
+            return;
+          } catch (loginError) {
+            console.error('Login error:', loginError);
+            toast.error('Login failed. Please try again.');
             return;
           }
         }
         
-      } catch (profileCheckError) {
-        console.warn('⚠️ Profile check failed:', profileCheckError);
+        // Check for guest profile
+        if (profileCheckResponse.hasProfile && profileCheckResponse.profile) {
+          hasProfile = true;
+          profileData = profileCheckResponse.profile;
+          setVerificationStep('account_exists');
+          
+          onVerified(
+            true, 
+            null, // No user account, this is guest flow
+            profileCheckResponse.token || verifyResponse.token,
+            profileCheckResponse.profile
+          );
+          toast.success('Welcome back! Profile found.');
+          return;
+        }
       }
+    } catch (profileCheckError) {
+      console.warn('⚠️ Profile check failed:', profileCheckError);
+      // Continue to show "no account" flow
     }
 
-    onVerified(true, null, verifyResponse.token, null);
+    // STEP 2: Phone is verified but NO account/profile exists
+    // Handle based on the user's intent (login vs signup)
+    if (isLoginFlow) {
+      // User expects account to exist but none found
+      console.log('📱 LOGIN FLOW: No account found - show account not found error');
+      setVerificationStep('no_account_login');
+      return;
+    } else {
+      // User is creating new account (signup flow) - this is expected
+      console.log('📱 SIGNUP FLOW: No account found - this is expected, proceed with creation');
+      setVerificationStep('no_account_signup');
+      
+      // Store verification token and proceed
+      setVerificationToken(verifyResponse.token);
+      localStorage.setItem('verificationToken', verifyResponse.token);
+      localStorage.setItem('verifiedPhone', phone);
+      
+      onVerified(true, null, verifyResponse.token, null);
+      return;
+    }
 
   } catch (error) {
+    console.error('Verification error:', error);
     toast.error('Verification failed. Please try again.');
   } finally {
     setIsLoading(false);
   }
 };
+
 
   const handleSendVerificationCode = async () => {
     if (!phone || phone.trim() === '') {
@@ -218,6 +250,82 @@ const handleVerifyCode = async (codeOverride) => {
     }, 100);
   }
 };
+
+const renderVerificationStep = () => {
+  if (verificationStep === 'no_account_login') {
+    return (
+      <div className="flex flex-col items-center justify-center py-4">
+        <div className="bg-red-500/20 backdrop-blur-sm rounded-full p-4 mb-4 border border-red-400/30">
+          <Phone className="w-10 h-10 text-red-300" />
+        </div>
+        <h3 className="text-lg font-bold text-red-300 mb-2">Account Not Found</h3>
+        <p className="text-center text-white mb-2">No account exists for this phone number</p>
+        <p className="text-center font-semibold text-white text-lg">{phone}</p>
+        
+        <div className="mt-4 p-4 bg-blue-500/10 backdrop-blur-sm rounded-lg border border-blue-400/30">
+          <p className="text-blue-200 text-sm text-center mb-3">
+            Would you like to create a new account instead?
+          </p>
+          <button
+            onClick={() => {
+              // Switch to signup flow and continue with account creation
+              setVerificationStep('no_account_signup');
+              if (verificationToken) {
+                localStorage.setItem('verificationToken', verificationToken);
+                localStorage.setItem('verifiedPhone', phone);
+                onVerified(true, null, verificationToken, null);
+              }
+            }}
+            className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold py-3 px-6 rounded-xl hover:from-blue-600 hover:to-purple-600 transition-all duration-300"
+          >
+            Create New Account
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (verificationStep === 'no_account_signup') {
+    return (
+      <div className="flex flex-col items-center justify-center py-4">
+        <div className="bg-green-500/20 backdrop-blur-sm rounded-full p-4 mb-4 border border-green-400/30">
+          <CheckCircle className="w-10 h-10 text-green-300" />
+        </div>
+        <h3 className="text-lg font-bold text-green-300 mb-2">Phone Verified!</h3>
+        <p className="text-center text-white mb-2">Ready to create your GymBros profile</p>
+        <p className="text-center font-semibold text-white text-lg">{phone}</p>
+        
+        <div className="mt-4 p-4 bg-blue-500/10 backdrop-blur-sm rounded-lg border border-blue-400/30">
+          <p className="text-blue-200 text-sm text-center mb-3">
+            Let's get you set up with a new account!
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (verificationStep === 'account_exists') {
+    return (
+      <div className="flex flex-col items-center justify-center py-4">
+        <div className="bg-green-500/20 backdrop-blur-sm rounded-full p-4 mb-4 border border-green-400/30">
+          <CheckCircle className="w-10 h-10 text-green-300" />
+        </div>
+        <h3 className="text-lg font-bold text-green-300 mb-2">Welcome Back!</h3>
+        <p className="text-center text-white mb-2">Account found and verified</p>
+        <p className="text-center font-semibold text-white text-lg">{phone}</p>
+        
+        <div className="mt-4 p-4 bg-green-500/10 backdrop-blur-sm rounded-lg border border-green-400/30">
+          <p className="text-green-200 text-sm text-center">
+            Redirecting you to the app...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
+
 
   const handleOtpKeyDown = (index, e) => {
     // Handle navigation
@@ -464,18 +572,20 @@ const handleVerifyCode = async (codeOverride) => {
           </div>
         </>
       )}
+
+      {(verificationStep === 'account_exists' || verificationStep === 'no_account') && renderVerificationStep()}
       
-      {verificationStep === 'verified' && (
-        <div className="flex flex-col items-center justify-center py-4">
-          <div className="bg-green-100 rounded-full p-3 mb-4">
-            <CheckCircle className="w-10 h-10 text-green-600" />
-          </div>
-          <h3 className="text-xl font-bold text-green-600 mb-2">Phone Verified!</h3>
-          <p className={`text-center mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            Your phone number has been successfully verified.
-          </p>
+       {verificationStep === 'verified' && (
+      <div className="flex flex-col items-center justify-center py-4">
+        <div className="bg-green-100 rounded-full p-3 mb-4">
+          <CheckCircle className="w-10 h-10 text-green-600" />
         </div>
-      )}
+        <h3 className="text-xl font-bold text-green-600 mb-2">Phone Verified!</h3>
+        <p className={`text-center mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+          Your phone number has been successfully verified.
+        </p>
+      </div>
+    )}
       
       {phoneExists && verificationStep === 'verified' && !isLoginFlow && (
         <div className={`p-4 rounded-lg border ${

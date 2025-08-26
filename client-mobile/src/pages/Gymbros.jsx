@@ -113,37 +113,8 @@ const [currentIndex, setCurrentIndex] = useState(0);
 
   const [userProfile, setUserProfile] = useState(null)
 
-   useEffect(() => {
-    console.log('🔄 Guest profile sync check:', {
-      isGuest,
-      hasGuestProfile: !!guestProfile,
-      guestProfileId: guestProfile?._id,
-      currentHasProfile: hasProfile,
-      guestLoading
-    });
-
-    // If we have a guest profile from context, use it immediately
-    if (isGuest && guestProfile && !guestLoading) {
-      console.log('✅ Using guest profile from context:', guestProfile);
-      
-      setUserProfile(guestProfile);
-      setHasProfile(true);
-      setLoading(false);
-      
-      // Don't call initializeWithSingleCall again - we have the data
-      return;
-    }
-    
-    // If guest but no profile, they need to complete setup
-    if (isGuest && !guestProfile && !guestLoading) {
-      console.log('📝 Guest without profile - needs setup');
-      setHasProfile(false);
-      setUserProfile(null);
-      setLoading(false);
-      return;
-    }
-
-  }, [isGuest, guestProfile, guestLoading]);
+  const [initializationComplete, setInitializationComplete] = useState(false);
+  const [initializationAttempted, setInitializationAttempted] = useState(false);
   
 
   useEffect(() => {
@@ -175,120 +146,152 @@ const initializeAuthenticatedUser = async () => {
     }
   };
 
-  useEffect(() => {
-    console.log('🚀 GymBros initialization:', { 
-      isAuthenticated, 
-      isGuest, 
-      verifiedPhone, 
-      guestLoading,
-      guestToken: !!localStorage.getItem('gymbros_guest_token'),
-      verificationToken: !!localStorage.getItem('verificationToken')
-    });
+useEffect(() => {
+  console.log('🚀 GymBros initialization:', { 
+    isAuthenticated, 
+    isGuest, 
+    verifiedPhone, 
+    guestLoading,
+    guestToken: !!localStorage.getItem('gymbros_guest_token'),
+    verificationToken: !!localStorage.getItem('verificationToken')
+  });
 
-    // Wait for guest context to load
-    if (guestLoading) {
-      console.log('⏳ Waiting for guest context to load...');
-      return;
-    }
+  const initializeApp = async () => {
+    try {
+      setLoading(true);
 
-    const initializeApp = async () => {
-      try {
-        setLoading(true);
+      // Case 1: Authenticated user
+      if (isAuthenticated) {
+        console.log('👤 Authenticated user, clearing guest state');
+        clearGuestState();
+        await initializeAuthenticatedUser();
+        setInitializationComplete(true); // ✅ ADD THIS
+        return;
+      }
 
-        // Case 1: Authenticated user
-        if (isAuthenticated) {
-          console.log('👤 Authenticated user, clearing guest state');
-          clearGuestState();
-          await initializeAuthenticatedUser();
-          return;
-        }
+      // Check what tokens we have immediately - don't wait for guest context
+      const guestToken = localStorage.getItem('gymbros_guest_token');
+      const verificationToken = localStorage.getItem('verificationToken');
+      const verifiedPhoneLocal = localStorage.getItem('verifiedPhone');
 
-        // Case 2: Guest with profile
-        if (isGuest && guestProfile) {
-          console.log('🎫 Guest with existing profile');
-          setHasProfile(true);
-          setShowLoginPrompt(false);
-          await fetchProfiles();
-          return;
-        }
+      // Case 2: No tokens at all - show login immediately
+      if (!guestToken && !verificationToken && !verifiedPhoneLocal) {
+        console.log('❌ No authentication tokens found - show login immediately');
+        setShowLoginPrompt(true);
+        setLoading(false);
+        setInitializationComplete(true); // ✅ ADD THIS
+        return;
+      }
 
-        // Case 3: Guest token exists but no profile loaded yet
-        const guestToken = localStorage.getItem('gymbros_guest_token');
-        const verificationToken = localStorage.getItem('verificationToken');
-        const verifiedPhoneLocal = localStorage.getItem('verifiedPhone');
-
-        if (guestToken) {
-          console.log('🎫 Found guest token, attempting to load profile');
-          gymbrosService.setGuestToken(guestToken);
+      // Case 3: Has guest token - test it directly
+      if (guestToken) {
+        console.log('🎫 Found guest token, testing directly');
+        gymbrosService.setGuestToken(guestToken);
+        
+        try {
+          const response = await gymbrosService.getGymBrosProfile();
           
-          try {
-            await fetchGuestProfile();
-            // After fetching, check if we got a profile
-            if (guestProfile) {
+          if (response.hasProfile) {
+            console.log('✅ Guest has profile');
+            setHasProfile(true);
+            setShowLoginPrompt(false);
+          } else {
+            console.log('📝 Guest token valid but no profile - show setup');
+            setHasProfile(false);
+            setShowLoginPrompt(false);
+          }
+        } catch (error) {
+          console.error('❌ Guest token test failed:', error);
+          
+          // Clear invalid token
+          if (error.response?.status === 401 || error.response?.status === 429) {
+            localStorage.removeItem('gymbros_guest_token');
+            gymbrosService.clearGuestState();
+          }
+          
+          setShowLoginPrompt(true);
+        }
+        
+        setLoading(false);
+        setInitializationComplete(true); // ✅ ADD THIS
+        return;
+      }
+
+      // Case 4: Has verification token but no guest token
+      if (verificationToken && verifiedPhoneLocal) {
+        console.log('📱 Found verification token, checking profile');
+        
+        try {
+          const response = await gymbrosService.checkProfileWithVerifiedPhone(
+            verifiedPhoneLocal,
+            verificationToken
+          );
+          
+          if (response.guestToken) {
+            gymbrosService.setGuestToken(response.guestToken);
+            localStorage.setItem('gymbros_guest_token', response.guestToken);
+            
+            if (response.profile) {
               setHasProfile(true);
               setShowLoginPrompt(false);
             } else {
-              // Have token but no profile - send to setup
               setHasProfile(false);
               setShowLoginPrompt(false);
             }
-          } catch (error) {
-            console.error('Error loading guest profile with token:', error);
-            // Token might be invalid, clear it
-            if (error.response?.status === 401) {
-              localStorage.removeItem('gymbros_guest_token');
-              setShowLoginPrompt(true);
-            }
-          }
-          return;
-        }
-
-        // Case 4: Verified phone but no token (possible after phone verification)
-        if (verifiedPhoneLocal && verificationToken) {
-          console.log('📱 Found verified phone, checking for profile');
-          
-          try {
-            const response = await gymbrosService.checkProfileWithVerifiedPhone(
-              verifiedPhoneLocal,
-              verificationToken
-            );
-            
-            if (response.guestToken) {
-              gymbrosService.setGuestToken(response.guestToken);
-              localStorage.setItem('gymbros_guest_token', response.guestToken);
-              
-              if (response.profile) {
-                setHasProfile(true);
-                setShowLoginPrompt(false);
-              } else {
-                // Verified but no profile yet
-                setHasProfile(false);
-                setShowLoginPrompt(false);
-              }
-            } else {
-              setShowLoginPrompt(true);
-            }
-          } catch (error) {
-            console.error('Error checking profile with verified phone:', error);
+          } else {
             setShowLoginPrompt(true);
           }
-          return;
+        } catch (error) {
+          console.error('❌ Verification token check failed:', error);
+          setShowLoginPrompt(true);
         }
-
-        // Case 5: No authentication at all
-        console.log('❌ No authentication found, showing login prompt');
-        setShowLoginPrompt(true);
-
-      } catch (error) {
-        console.error('❌ Error during initialization:', error);
-        setShowLoginPrompt(true);
-      } finally {
+        
         setLoading(false);
+        setInitializationComplete(true); // ✅ ADD THIS
+        return;
       }
-    };
 
+      // Fallback - show login
+      setShowLoginPrompt(true);
+      setLoading(false);
+      setInitializationComplete(true); // ✅ ADD THIS
+
+    } catch (error) {
+      console.error('❌ Error during initialization:', error);
+      setShowLoginPrompt(true);
+      setLoading(false);
+      setInitializationComplete(true); // ✅ ADD THIS
+    }
+  };
+
+  // Only initialize if not already attempted
+  if (!initializationAttempted) {
+    setInitializationAttempted(true);
     initializeApp();
-  }, [isAuthenticated, isGuest, guestProfile, guestLoading, verifiedPhone]);
+  }
+}, [isAuthenticated, initializationAttempted]); 
+
+useEffect(() => {
+  // Only process if initialization is not yet complete
+  if (initializationComplete || !initializationAttempted) return;
+  
+  // If guest profile becomes available after initial load
+  if (isGuest && guestProfile && !hasProfile) {
+    console.log('✅ Guest profile became available after initialization');
+    setUserProfile(guestProfile);
+    setHasProfile(true);
+    setLoading(false);
+    setInitializationComplete(true);
+  }
+  
+  // If guest loses profile
+  if (isGuest && !guestProfile && !guestLoading && hasProfile) {
+    console.log('📝 Guest profile was removed');
+    setHasProfile(false);
+    setUserProfile(null);
+    setInitializationComplete(true);
+  }
+}, [isGuest, guestProfile, guestLoading, hasProfile, initializationComplete, initializationAttempted]);
 
 
    const combineProfiles = (userModel, gymBrosModel) => {
@@ -1076,7 +1079,7 @@ const renderHeader = () => {
     }
   };
 
-  if (loading || guestLoading) {
+ if ((loading || guestLoading) && !initializationComplete) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-pulse flex flex-col items-center">

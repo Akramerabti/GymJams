@@ -176,20 +176,43 @@ const AutoLocationStep = ({
         return;
       }
 
-      // 2. Check backend for logged-in users
-      if (user || phone) {
+      // 2. Check backend for logged-in users ONLY (skip for guest users)
+      // Only check backend if user has an ID (authenticated) or if we have a phone with user data
+      const isAuthenticatedUser = user && user._id;
+      const isRegisteredGuest = phone && user && !user._id;
+      
+      if (isAuthenticatedUser || isRegisteredGuest) {
         try {
-          const locationCheck = await gymBrosLocationService.shouldSkipLocationStep(user, phone);
+          console.log('🔍 Checking backend location for user:', { isAuthenticatedUser, isRegisteredGuest, phone });
+          const locationCheck = await gymBrosLocationService.checkExistingLocation(user, phone);
           
-          if (locationCheck.skipStep && locationCheck.locationData) {
-            console.log('🗄️ Using backend location:', locationCheck.locationData);
+          if (locationCheck.hasLocation && locationCheck.locationData) {
+            console.log('🗄️ Backend returned location data:', locationCheck.locationData);
             
-            // Convert backend data to our simplified format
+            let city = locationCheck.locationData.city || locationCheck.locationData.address;
+            
+            // If backend has coordinates but no proper city name, geocode them
+            if (locationCheck.locationData.lat && locationCheck.locationData.lng && (!city || city === 'Unknown City')) {
+              console.log('🌍 Geocoding coordinates for proper city name...');
+              try {
+                city = await getCityFromCoordinates(
+                  locationCheck.locationData.lat, 
+                  locationCheck.locationData.lng
+                );
+                console.log('🌍 Geocoded city:', city);
+              } catch (geocodeError) {
+                console.warn('Geocoding failed, using fallback:', geocodeError);
+                city = city || 'Unknown City';
+              }
+            }
+            
             const simplifiedLocation = {
               lat: locationCheck.locationData.lat,
               lng: locationCheck.locationData.lng,
-              city: locationCheck.locationData.city || locationCheck.locationData.address || 'Unknown City'
+              city: city
             };
+            
+            console.log('📍 Final processed location:', simplifiedLocation);
             
             // Store in localStorage for future use
             storeLocationData(simplifiedLocation);
@@ -204,6 +227,8 @@ const AutoLocationStep = ({
           console.warn('Backend location check failed:', error);
           // Continue to auto-request location
         }
+      } else {
+        console.log('👤 Pure guest user detected, skipping backend location check');
       }
 
       // 3. Auto-request user's current location
@@ -215,7 +240,7 @@ const AutoLocationStep = ({
       setStep('picker');
       setLoading(false);
     }
-  }, []); // Empty dependency array to prevent infinite loop
+  }, [user, phone]); // Add user and phone to dependencies
 
   // Initialize on component mount
   useEffect(() => {

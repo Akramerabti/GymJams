@@ -588,6 +588,7 @@ const handleGymMemberships = async (profile) => {
   handleLoginWithPhone,
   isPhoneVerified,
   setIsPhoneVerified, // Add this line
+  setVerificationToken,
   authMode,
   showPhoneLogin,
   imageUploaderRef,

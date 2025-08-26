@@ -526,6 +526,7 @@ export const buildSteps = ({
   handleLoginWithPhone,
   handlePhoneChange,
   handlePhoneVerified,
+  setVerificationToken,
   handleExistingAccountFound,
   handleContinueWithNewAccount,
   handleInterestToggle,
@@ -565,7 +566,7 @@ export const buildSteps = ({
     }
   ];
 
- if (!isAuthenticated || !hasVerifiedPhone) {
+if (!isAuthenticated || !hasVerifiedPhone) {
   stepsList.push({
     id: 'phone',
     title: authMode === 'login' ? "Log in with your phone" : "Verify your phone number",
@@ -574,48 +575,70 @@ export const buildSteps = ({
       "We'll send a verification code",
     icon: <Phone size={24} />,
     isValid: () => isPhoneVerified || hasVerifiedPhone,
-    component: (hasVerifiedPhone || isPhoneVerified) ? (
-      <div className="w-full space-y-4">
-        <div className="text-center space-y-1 mb-6">
-          <h2 className="text-xl font-bold text-white">{authMode === 'login' ? 'Log in with your phone' : 'Verify your phone number'}</h2>
-          <p className="text-white/80 text-sm">{authMode === 'login' ? "We'll verify your identity" : "We'll send a verification code"}</p>
-        </div>
-        
-        <div className="flex flex-col items-center justify-center py-4">
-          <div className="bg-green-500/20 backdrop-blur-sm rounded-full p-4 mb-4 border border-green-400/30">
-            <CheckCircle className="w-10 h-10 text-green-300" />
-          </div>
-          <h3 className="text-lg font-bold text-green-300 mb-2">Phone Verified!</h3>
-          <p className="text-center text-white mb-2">Your phone number has been successfully verified</p>
-          <p className="text-center font-semibold text-white text-lg">{profileData.phone}</p>
-          
-         <button
-    type="button"
-    onClick={() => {
-      // Allow user to change phone number
-      handleChange('phone', '');
-      setIsPhoneVerified(false); // Now this function is available
-    }}
-    className="mt-4 text-sm text-white/70 hover:text-white transition-colors underline"
-  >
-    Change phone number
-  </button>
-        </div>
-      </div>
-    ) : (
+    component: (
       <div className="w-full space-y-4">
         <div className="text-center space-y-1 mb-4">
-          <h2 className="text-xl font-bold text-white">{authMode === 'login' ? 'Log in with your phone' : 'Verify your phone number'}</h2>
-          <p className="text-white/80 text-sm">{authMode === 'login' ? "We'll verify your identity" : "We'll send a verification code"}</p>
+          <h2 className="text-xl font-bold text-white">
+            {authMode === 'login' ? 'Log in with your phone' : 'Verify your phone number'}
+          </h2>
+          <p className="text-white/80 text-sm">
+            {authMode === 'login' ? "We'll verify your identity" : "We'll send a verification code"}
+          </p>
         </div>
+        
         <PhoneVerification
           phone={profileData.phone}
           onChange={handlePhoneChange}
-          onVerified={(verified, userData, token, profileData) => {
-            if (verified && userData?.phone) {
-              handleChange('phone', userData.phone);
+          onVerified={(verified, userData, token, existingProfileData) => {
+            console.log('📱 Phone verification result:', {
+              verified,
+              hasUserData: !!userData,
+              hasToken: !!token, 
+              hasProfileData: !!existingProfileData
+            });
+
+            if (verified) {
+              // Update phone in profile data
+              if (userData?.phone) {
+                handleChange('phone', userData.phone);
+              } else if (!profileData.phone) {
+                // Store the verified phone if not already stored
+                const storedPhone = localStorage.getItem('verifiedPhone');
+                if (storedPhone) {
+                  handleChange('phone', storedPhone);
+                }
+              }
+
+              // Handle different verification outcomes
+              if (existingProfileData && existingProfileData.profile) {
+                // User has existing profile - redirect to main app
+                console.log('✅ Existing profile found, redirecting to app');
+                handlePhoneVerified(verified, userData, token, existingProfileData);
+                return;
+              }
+
+              if (userData) {
+                // User has account but no profile - this is rare but possible
+                console.log('👤 User account found but no GymBros profile');
+                handlePhoneVerified(verified, userData, token, null);
+                return;
+              }
+
+              // No existing account/profile - proceed with account creation
+              console.log('🆕 New user - proceeding with account creation');
+              setIsPhoneVerified(true);
+              
+              // Set verification token for profile creation
+              if (token) {
+                setVerificationToken(token);
+                localStorage.setItem('verificationToken', token);
+              }
+              
+              // Move to next step (basic info)
+              setTimeout(() => {
+                goToNextStep();
+              }, 1500); // Give user time to see the "create account" message
             }
-            handlePhoneVerified(verified, userData, token, profileData);
           }}
           isLoginFlow={authMode === 'login'}
           onExistingAccountFound={handleExistingAccountFound}
