@@ -367,13 +367,13 @@ const Navbar = () => {
             transform: translate(-80px, -15px);
           }
           .cn-wrapper.home-menu.opened-nav li:nth-child(2) { 
-            transform: translate(0px, 95px);
+            transform: translate(-30px, 20px);
           }
           .cn-wrapper.home-menu.opened-nav li:nth-child(3) { 
             transform: translate(80px, -15px);
           }
           .cn-wrapper.home-menu.opened-nav li:nth-child(4) { 
-            transform: translate(0px, 10px);
+            transform: translate(30px, 20px);
           }
 
           /* Regular navigation mobile adjustments */
@@ -443,7 +443,7 @@ const Navbar = () => {
      <div className="fixed top-0 left-0 right-0 z-[9999] safe-area-navbar">
         <div className="navbar-container">
           <div className="max-w-[95vw] mx-auto px-4">
-            <div className="flex justify-between items-end h-22 ">
+            <div className="flex justify-between items-end h-24 ">
               {/* Left Side - Back Arrow (only show on non-home pages) */}
               {!isHomePage && (
                 <Link

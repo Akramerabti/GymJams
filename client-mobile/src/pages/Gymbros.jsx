@@ -1094,7 +1094,7 @@ const renderHeader = () => {
   return (
   <>
     <FooterHider />
-    <div className="gymbros-main-container fixed inset-0 top-16 flex flex-col max-w-2xl mx-auto bg-white overflow-hidden">
+    <div className="fixed inset-0 pt-24 flex flex-col max-w-2xl mx-auto bg-white overflow-hidden">
       
       {/* Header */}
       <div className="flex-shrink-0 z-30 sticky top-0">

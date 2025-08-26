@@ -1137,7 +1137,7 @@ const ClientDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen mt-10 bg-gradient-to-b from-gray-50 to-blue-50 dark:from-gray-950 dark:to-indigo-950 py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
+    <div className="min-h-screen mt-20 bg-gradient-to-b from-gray-50 to-blue-50 dark:from-gray-950 dark:to-indigo-950 py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Welcome Header */}
         <WelcomeHeader

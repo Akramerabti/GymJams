@@ -4,7 +4,7 @@
  * PURPOSE: Clean utility dashboard for navigation and feature preview
  * LAYOUT:
  * - 5 circular buttons arranged in a circle with points in center
- * - Social map preview section
+ * - Social map preview section (now using SocialMapSection component)
  * - Games preview section
  * - All designed for redirects, not embedded content
  */
@@ -20,13 +20,11 @@ import {
   Gamepad2, 
   GraduationCap, 
   BarChart3,
-  MapPin,
   Activity,
   Dumbbell,
   Coins,
   Play,
   ArrowRight,
-  Map,
   ChevronRight,
   Gift,
   Star,
@@ -34,6 +32,8 @@ import {
   Clock,
   ExternalLink
 } from 'lucide-react';
+
+import SocialMapSection from '../components/home-sections/SocialMapSection';
 
 const Home = () => {
   const navigate = useNavigate();
@@ -44,6 +44,13 @@ const Home = () => {
 
   // 5 main feature buttons arranged in circle
   const circleButtons = [
+     { 
+      name: 'GymBros', 
+      icon: Users, 
+      route: '/gymbros', 
+      gradient: 'from-orange-400 to-red-500',
+      description: 'Social'
+    }, 
     { 
       name: 'Shop', 
       icon: ShoppingBag, 
@@ -51,20 +58,7 @@ const Home = () => {
       gradient: 'from-emerald-400 to-teal-500',
       description: 'Supplements'
     },
-    { 
-      name: 'Coaching', 
-      icon: GraduationCap, 
-      route: '/coaching', 
-      gradient: 'from-purple-400 to-indigo-500',
-      description: 'Training'
-    },
-    { 
-      name: 'GymBros', 
-      icon: Users, 
-      route: '/gymbros', 
-      gradient: 'from-orange-400 to-red-500',
-      description: 'Social'
-    },
+  
     { 
       name: 'Games', 
       icon: Gamepad2, 
@@ -78,6 +72,12 @@ const Home = () => {
       route: '/dashboard', 
       gradient: 'from-blue-400 to-cyan-500',
       description: 'Progress'
+    }, { 
+      name: 'Coaching', 
+      icon: GraduationCap, 
+      route: '/coaching', 
+      gradient: 'from-purple-400 to-indigo-500',
+      description: 'Training'
     }
   ];
 
@@ -89,14 +89,6 @@ const Home = () => {
     { id: 'roulette', name: 'Roulette', icon: Shield, players: '167 online', status: 'Classic' }
   ];
 
-  // Social map data
-  const nearbyUsers = [
-    { name: 'Alex M.', distance: '0.3 mi', status: 'working out', avatar: '🏃' },
-    { name: 'Sarah K.', distance: '0.8 mi', status: 'online', avatar: '💪' },
-    { name: 'Mike R.', distance: '1.2 mi', status: 'finished workout', avatar: '🔥' }
-  ];
-
-  
   useEffect(() => {
     const timer = setTimeout(() => setIsLoaded(true), 300);
     return () => clearTimeout(timer);
@@ -128,6 +120,15 @@ const Home = () => {
         html {
           -ms-overflow-style: none;
           scrollbar-width: none;
+        }
+        
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
         }
         
         .aurora-bg {
@@ -335,7 +336,7 @@ const Home = () => {
 
         {/* Content */}
         <div className="relative z-10 main-content pb-8">
-          <div className="max-w-6xl mx-auto mt-45">
+          <div className="max-w-6xl mx-auto mt-50">
 
             {/* Circular Menu Navigation */}
             <div className="circular-menu">
@@ -364,56 +365,8 @@ const Home = () => {
               ))}
             </div>
 
-            {/* Social Map Section */}
-            <motion.div
-              className="mb-12 mt-25"
-              initial={{ y: 30, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 1, duration: 0.6 }}
-            >
-              <div className="glass-card rounded-3xl p-8">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-3xl font-bold text-white flex items-center">
-                    <MapPin className="w-8 h-8 mr-3 text-red-400" />
-                    Social Map
-                  </h2>
-                  <motion.button
-                    className="flex items-center text-orange-300 hover:text-orange-200 font-semibold"
-                    whileHover={{ x: 5 }}
-                    onClick={() => handleNavigate('/gymbros')}
-                  >
-                    Open Full Map <ArrowRight className="w-5 h-5 ml-2" />
-                  </motion.button>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                  {nearbyUsers.map((user, index) => (
-                    <motion.div
-                      key={user.name}
-                      className="glass-morphism p-4 rounded-2xl text-center"
-                      initial={{ y: 20, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      transition={{ delay: 1.2 + index * 0.1 }}
-                      whileHover={{ scale: 1.05 }}
-                    >
-                      <span className="text-4xl mb-3 block">{user.avatar}</span>
-                      <h3 className="text-white font-bold">{user.name}</h3>
-                      <p className="text-orange-300 text-sm">{user.distance}</p>
-                      <p className="text-indigo-300 text-xs">{user.status}</p>
-                    </motion.div>
-                  ))}
-                </div>
-                
-                <motion.button
-                  className="w-full bg-gradient-to-r from-red-500/20 to-pink-500/20 border-2 border-red-500/30 text-red-300 py-4 rounded-2xl hover:from-red-500/30 hover:to-pink-500/30 transition-all duration-300 font-bold text-lg"
-                  whileHover={{ scale: 1.02 }}
-                  onClick={() => handleNavigate('/gymbros')}
-                >
-                  <Map className="w-6 h-6 inline mr-3" />
-                  Explore GymBros Map
-                </motion.button>
-              </div>
-            </motion.div>
+            {/* Social Map Section - Now using the new component */}
+            <SocialMapSection onNavigate={handleNavigate} />
 
             {/* Games Section */}
             <motion.div

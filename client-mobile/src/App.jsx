@@ -59,7 +59,6 @@ import CompleteOAuthProfile from './components/auth/CompleteOAuthProfile';
 import MobileGatekeeper from './components/MobileGateKeeper';
 
 // Common Components
-import LocationBanner from './components/common/LocationBanner';
 import CoachProfileCompletionModal from './components/common/CoachProfileCompletionModal';
 import PermissionsModal from './components/common/PermissionsModal';
 
@@ -255,9 +254,7 @@ function PermissionsModalManager() {
 function AppContent() {
   const { checkAuth, logout, user, isAuthenticated } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [location, setLocation] = useState(null);
   const [showMobileGatekeeper, setShowMobileGatekeeper] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
   const { 
     isInitialized: permissionsInitialized, 
     currentLocation, 
@@ -265,12 +262,7 @@ function AppContent() {
     isNative
   } = usePermissions();
 
-  // Update location when permissions context provides it
-  useEffect(() => {
-    if (currentLocation) {
-      setLocation(currentLocation);
-    }
-  }, [currentLocation]);
+
 
   // Check if we're returning from OAuth
   useEffect(() => {
@@ -378,15 +370,6 @@ useEffect(() => {
     });
   }, [user, isAuthenticated]);
 
-  // Handle location updates
-  const handleLocationSet = async (newLocation) => {
-    setLocation(newLocation);
-    // Optionally trigger a location update in the permissions context
-    if (newLocation) {
-      await updateLocation();
-    }
-  };
-
   // Show loading screen while permissions are initializing
   if (!permissionsInitialized) {
     return (
@@ -461,7 +444,6 @@ useEffect(() => {
         {/* Only show these when mobile gatekeeper is not active */}
         {!showMobileGatekeeper && (
           <>
-            <LocationBanner onLocationSet={handleLocationSet} />
             <CoachProfileModalManager />
             <PermissionsModalManager />
           </>
@@ -486,13 +468,13 @@ function App() {
   return (
     <I18nextProvider i18n={i18n}>
       <ThemeProvider>
-        <SocketProvider>
-          <GuestFlowProvider>
-            <PermissionsProvider>
+        <PermissionsProvider>         
+          <SocketProvider>          
+            <GuestFlowProvider>
               <AppContent />
-            </PermissionsProvider>
-          </GuestFlowProvider>
-        </SocketProvider>
+            </GuestFlowProvider>
+          </SocketProvider>
+        </PermissionsProvider>
       </ThemeProvider>
     </I18nextProvider>
   );

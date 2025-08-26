@@ -178,7 +178,7 @@ const useAuthStore = create(
         }
       },
 
-      // Login with email and password
+      // Login with email and password - REMOVED AUTOMATIC LOCATION SYNC
       login: async (email, password) => {
         const { setLoading, setError, setUser, setToken } = get();
         setLoading(true);
@@ -201,8 +201,8 @@ const useAuthStore = create(
             usePoints.getState().updatePointsInBackend((user.points)+100);
           }
 
-          // Sync location data after successful login
-          await get().syncLocationOnLogin(user);
+          // REMOVED: await get().syncLocationOnLogin(user);
+          // Location sync now handled by PermissionsContext
       
           return response.data;
         } catch (error) {
@@ -214,6 +214,7 @@ const useAuthStore = create(
         }
       },
 
+      // Login with token - REMOVED AUTOMATIC LOCATION SYNC
       loginWithToken: async (token) => {
         const { setLoading, setError, setUser, setToken } = get();
         setLoading(true);
@@ -244,8 +245,8 @@ const useAuthStore = create(
             usePoints.getState().updatePointsInBackend((user.points)+100);
           }
 
-          // Sync location data after successful token login
-          await get().syncLocationOnLogin(user);
+          // REMOVED: await get().syncLocationOnLogin(user);
+          // Location sync now handled by PermissionsContext
           
           return { token, user };
         } catch (error) {
@@ -257,8 +258,8 @@ const useAuthStore = create(
         }
       },
 
-      
-logout: async () => {
+      // Logout
+      logout: async () => {
         const { setLoading, setError, reset } = get();
         setLoading(true);
       
@@ -308,7 +309,7 @@ logout: async () => {
         }
       },
 
-      // Check authentication
+      // Check authentication - REMOVED AUTOMATIC LOCATION SYNC
       checkAuth: async () => {
         const { token, setUser, isTokenValid } = get();
 
@@ -326,13 +327,15 @@ logout: async () => {
           if (response.data.points !== undefined) {
             usePoints.getState().setBalance(response.data.points);
           }
-          if (!(user.user.hasReceivedFirstLoginBonus)) {
+          
+          // Handle first login bonus properly
+          if (user && !(user.hasReceivedFirstLoginBonus)) {
             set({ showOnboarding: true }); 
-            usePoints.getState().updatePointsInBackend((user.user.points)+100);
+            usePoints.getState().updatePointsInBackend((user.points || 0) + 100);
           }
 
-          // Sync location data on auth check
-          await get().syncLocationOnLogin(user.user);
+          // REMOVED: await get().syncLocationOnLogin(user.user);
+          // Location sync now handled by PermissionsContext
 
           return true;
         } catch (error) {
@@ -341,7 +344,8 @@ logout: async () => {
         }
       },
 
-      // New method to sync location data on login
+      // UPDATED: Only sync existing location data between localStorage and backend
+      // NO automatic geolocation requests
       syncLocationOnLogin: async (user) => {
         try {
           // Helper function to check if location data is complete
@@ -353,25 +357,12 @@ logout: async () => {
           const localLocation = localStorage.getItem('userLocation');
           const parsedLocalLocation = localLocation ? JSON.parse(localLocation) : null;
           
-          // Check if user has given location permission before
-          const hasLocationPermission = parsedLocalLocation || hasCompleteLocationData(user.location);
-          
-          if (hasLocationPermission) {
-            // User has provided location before - fetch fresh location
-            await get().refreshUserLocation(user);
-          } else {
-            // Handle first-time location sync scenarios:
-            // 1. User has location in localStorage but not in backend -> Upload to backend
-            // 2. User has location in backend but not in localStorage -> Download to localStorage  
-            // 3. User has different locations -> Use the more recent one
-            // 4. User has no location anywhere -> Do nothing (LocationBanner will handle)
-            
-            if (hasCompleteLocationData(parsedLocalLocation) && !hasCompleteLocationData(user.location)) {
-              // Case 1: Upload localStorage location to backend
-              
+          // Only sync existing data - NO automatic geolocation requests
+          if (hasCompleteLocationData(parsedLocalLocation) && !hasCompleteLocationData(user.location)) {
+            // Case 1: Upload localStorage location to backend
+            try {
               const response = await api.put('/user/location', parsedLocalLocation);
               if (response.status === 200) {
-                // Update user in store
                 const updatedUser = {
                   ...user,
                   location: parsedLocalLocation,
@@ -380,33 +371,40 @@ logout: async () => {
                 };
                 get().setUser(updatedUser);
               }
-            } else if (hasCompleteLocationData(user.location) && !hasCompleteLocationData(parsedLocalLocation)) {
-              // Case 2: Download backend location to localStorage
-              
+            } catch (error) {
+              console.warn('Failed to upload location to backend:', error);
+            }
+          } else if (hasCompleteLocationData(user.location) && !hasCompleteLocationData(parsedLocalLocation)) {
+            // Case 2: Download backend location to localStorage
+            try {
               const locationData = {
                 lat: user.location.lat,
                 lng: user.location.lng,
                 city: user.location.city,
                 address: user.location.address || '',
-                source: 'backend'
+                source: 'backend',
+                timestamp: user.location.updatedAt || new Date().toISOString()
               };
               
               localStorage.setItem('userLocation', JSON.stringify(locationData));
               
-              // Update user flags since they now have complete location
               const updatedUser = {
                 ...user,
                 hasCompleteLocation: true,
                 needsLocationUpdate: false
               };
               get().setUser(updatedUser);
-            } else if (hasCompleteLocationData(parsedLocalLocation) && hasCompleteLocationData(user.location)) {
-              // Case 3: Both exist - compare timestamps or coordinates
+            } catch (error) {
+              console.warn('Failed to save location to localStorage:', error);
+            }
+          } else if (hasCompleteLocationData(parsedLocalLocation) && hasCompleteLocationData(user.location)) {
+            // Case 3: Both exist - use the more recent one
+            try {
               const localTime = new Date(parsedLocalLocation.timestamp || 0);
               const backendTime = new Date(user.location.updatedAt || 0);
               
-              // If backend is more recent, update localStorage
               if (backendTime > localTime) {
+                // Backend is more recent - update localStorage
                 const locationData = {
                   lat: user.location.lat,
                   lng: user.location.lng,
@@ -418,13 +416,14 @@ logout: async () => {
                 localStorage.setItem('userLocation', JSON.stringify(locationData));
               }
               
-              // Both locations exist, so user has complete location
               const updatedUser = {
                 ...user,
                 hasCompleteLocation: true,
                 needsLocationUpdate: false
               };
               get().setUser(updatedUser);
+            } catch (error) {
+              console.warn('Failed to sync location data:', error);
             }
           }
           
@@ -434,66 +433,9 @@ logout: async () => {
         }
       },
 
-      // New method to refresh user location on login/reload
-      refreshUserLocation: async (user) => {
-        try {
-          // Check if geolocation is available
-          if (!navigator.geolocation) {
-            return;
-          }
-          
-          // Get fresh GPS coordinates
-          const position = await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(
-              resolve,
-              reject,
-              {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0 // Don't use cached position
-              }
-            );
-          });
-          
-          const { latitude, longitude } = position.coords;
-          
-          // Reverse geocode to get current city
-          const cityName = await get().reverseGeocode(latitude, longitude);
-          
-          const freshLocationData = {
-            lat: latitude,
-            lng: longitude,
-            city: cityName,
-            address: '',
-            source: 'fresh-gps',
-            timestamp: new Date().toISOString()
-          };
-          
-          // Update localStorage
-          localStorage.setItem('userLocation', JSON.stringify(freshLocationData));
-          
-          // Update backend if user is logged in
-          if (user?.id) {
-            const response = await api.put('/user/location', freshLocationData);
-            
-            if (response.status === 200) {
-              // Update user in store
-              const updatedUser = {
-                ...user,
-                location: freshLocationData,
-                hasCompleteLocation: true,
-                needsLocationUpdate: false
-              };
-              get().setUser(updatedUser);
-            }
-          }
-          
-        } catch (error) {
-          // Don't throw error - user might have revoked location permission
-        }
-      },
+      // REMOVED: refreshUserLocation method entirely - it was causing geolocation violations
 
-      // Helper method for reverse geocoding
+      // Keep helper method for reverse geocoding (used by PermissionsContext if needed)
       reverseGeocode: async (lat, lng) => {
         try {
           const response = await fetch(
@@ -534,7 +476,7 @@ export const useAuth = () => {
     token: store.token,
     loading: store.loading,
     error: store.error,
-    isAuthenticated: store.isAuthenticated, // ← FIXED: Added this
+    isAuthenticated: store.isAuthenticated,
     isTokenValid: store.isTokenValid, 
     login: store.login,
     loginWithToken: store.loginWithToken, 
@@ -545,14 +487,14 @@ export const useAuth = () => {
     register: store.register,
     verifyEmail: store.verifyEmail,
     resendVerificationEmail: store.resendVerificationEmail,
-    registerResetCallback: store.registerResetCallback, // ← This might not exist, remove if causing errors
+    // REMOVED: registerResetCallback - doesn't exist in the store
     showOnboarding: store.showOnboarding,
     setShowOnboarding: store.setShowOnboarding,
-    setUser: store.setUser, // ← FIXED: Added this (needed for OAuth)
-    setToken: store.setToken, // ← FIXED: Added this (needed for OAuth)
-    syncLocationOnLogin: store.syncLocationOnLogin,
-    refreshUserLocation: store.refreshUserLocation,
-    reverseGeocode: store.reverseGeocode,
+    setUser: store.setUser,
+    setToken: store.setToken,
+    syncLocationOnLogin: store.syncLocationOnLogin, // Keep for manual sync if needed
+    // REMOVED: refreshUserLocation - no longer exists
+    reverseGeocode: store.reverseGeocode, // Keep as utility function
   };
 };
 

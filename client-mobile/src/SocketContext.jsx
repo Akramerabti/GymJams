@@ -1,6 +1,8 @@
+// Updated SocketContext.jsx - Uses PermissionsContext instead of direct GPS
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './stores/authStore';
+import { usePermissions } from './contexts/PermissionContext'; // 🚀 NEW - Use PermissionsContext
 import { toast } from 'sonner';
 import { Award, AlertTriangle, MapPin, Users } from 'lucide-react';
 import useGymBrosData from '../src/hooks/useGymBrosData';
@@ -42,9 +44,15 @@ export const SocketProvider = ({ children }) => {
   const mapSubscriptionsRef = useRef(new Set());
   const lastLocationUpdateRef = useRef(null);
   const locationUpdateIntervalRef = useRef(null);
-  const locationTimeoutRef = useRef(null); // MOVED HERE - OUTSIDE useEffect!
   
   const { user, isAuthenticated } = useAuth();
+  
+  // 🚀 NEW - Use PermissionsContext instead of direct GPS
+  const { 
+    hasLocationPermission, 
+    currentLocation, 
+    isInitialized: permissionsInitialized 
+  } = usePermissions();
 
   // Initialize socket connection
   useEffect(() => {
@@ -283,11 +291,6 @@ export const SocketProvider = ({ children }) => {
         clearInterval(locationUpdateIntervalRef.current);
         locationUpdateIntervalRef.current = null;
       }
-      
-      if (locationTimeoutRef.current) {
-        clearTimeout(locationTimeoutRef.current);
-        locationTimeoutRef.current = null;
-      }
     };
   }, [isAuthenticated, user]);
 
@@ -437,61 +440,50 @@ export const SocketProvider = ({ children }) => {
     return () => clearInterval(cleanup);
   }, []);
 
-  // IMPROVED: Auto-send location updates with smarter logic
+  // 🚀 UPDATED - Use PermissionsContext location for auto-updates
   useEffect(() => {
-    if (!connected || !user) return;
+    if (!connected || !user || !permissionsInitialized) return;
 
-    // Function to attempt location update
-    const attemptLocationUpdate = async () => {
+    // Only proceed if we have location permission and current location
+    if (!hasLocationPermission || !currentLocation) return;
+
+    // Function to send location update to socket
+    const sendLocationUpdate = async () => {
       try {
-        // Check if we have permission first
-        const permissionState = await gymBrosLocationService.checkLocationPermission();
+        // Process location for backend compatibility
+        const processedLocation = gymBrosLocationService.processLocationFromPermissions(currentLocation);
         
-        if (permissionState === 'denied') {
-          console.log('📍 Location permission denied, skipping auto-update');
-          return;
-        }
-
-        // Use the enhanced service with background priority
-        const location = await gymBrosLocationService.getCurrentLocation({ 
-          priority: 'background',
-          force: false // Don't force if cached location is available
-        });
-        
-        if (location) {
+        if (processedLocation) {
           updateUserLocation({
-            lat: location.lat,
-            lng: location.lng
-          }, location.accuracy);
+            lat: processedLocation.lat,
+            lng: processedLocation.lng
+          }, processedLocation.accuracy);
+
+          // Also sync with backend
+          await gymBrosLocationService.updateUserLocationRealtime(processedLocation);
         }
       } catch (error) {
-        // Only log significant errors, not timeouts for background sync
-        if (error.code !== 3) { // Not a timeout error
-          console.warn('📍 Background location update failed:', error.message);
-        }
+        console.warn('📍 Socket location update failed:', error.message);
+        // Don't show toast for background sync failures
       }
     };
 
-    // Initial location update (delayed to avoid conflicts with manual requests)
-    locationTimeoutRef.current = setTimeout(() => {
-      attemptLocationUpdate();
+    // Initial location update (delayed to avoid conflicts)
+    const initialTimeout = setTimeout(() => {
+      sendLocationUpdate();
     }, 30000); // Wait 30 seconds before first auto-update
 
-    // Set up interval for periodic updates (every 10 minutes instead of 2)
-    locationUpdateIntervalRef.current = setInterval(attemptLocationUpdate, 10 * 60 * 1000);
+    // Set up interval for periodic updates (every 10 minutes)
+    locationUpdateIntervalRef.current = setInterval(sendLocationUpdate, 10 * 60 * 1000);
 
     return () => {
+      clearTimeout(initialTimeout);
       if (locationUpdateIntervalRef.current) {
         clearInterval(locationUpdateIntervalRef.current);
         locationUpdateIntervalRef.current = null;
       }
-      
-      if (locationTimeoutRef.current) {
-        clearTimeout(locationTimeoutRef.current);
-        locationTimeoutRef.current = null;
-      }
     };
-  }, [connected, user, updateUserLocation]);
+  }, [connected, user, permissionsInitialized, hasLocationPermission, currentLocation, updateUserLocation]);
 
   const contextValue = {
     socket: socketRef.current,

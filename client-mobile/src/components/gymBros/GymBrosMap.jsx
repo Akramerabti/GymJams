@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { usePermissions } from '../../contexts/PermissionContext'; // Add this import
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -7,12 +8,13 @@ import { Search, Filter, Calendar, MapPin, Dumbbell, Users, RefreshCw, X, Buildi
 import MouseAvatarDesigner from './components/MouseAvatarDesigner';
 import AvatarDisplay from './components/AvatarDisplay';
 import MapSidePanel from './components/MapSidePanel';
+import LocationRequiredModal from '../common/LocationRequestModal'; // Add this import
 import { ImageService, DistanceUtils, FilterUtils } from './components/ImageUtils';
 import gymbrosService from '../../services/gymbros.service';
 import { useSocket } from '../../SocketContext';
 import { toast } from 'sonner';
-import gymBrosLocationService from '../../services/gymBrosLocation.service';
 import useGymBrosData from '../../hooks/useGymBrosData';
+
 let MarkerClusterGroup;
 try {
   MarkerClusterGroup = require('react-leaflet-cluster').default;
@@ -529,38 +531,8 @@ const MapUpdater = ({ center, zoom }) => {
   return null;
 };
 
-// Error Display Component
-const ErrorDisplay = ({ error, onRetry, type = 'general' }) => {
-  const getErrorMessage = () => {
-    switch (type) {
-      case 'users': return 'Failed to load gym partners';
-      case 'gyms': return 'Failed to load gyms';
-      case 'events': return 'Failed to load events';
-      case 'location': return 'Failed to get your location';
-      default: return 'Something went wrong';
-    }
-  };
 
-  return (
-    <div className="bg-red-50 border border-red-200 rounded-lg p-4 m-4">
-      <div className="flex items-center gap-2 mb-2">
-        <AlertTriangle className="h-5 w-5 text-red-500" />
-        <h3 className="font-medium text-red-800">{getErrorMessage()}</h3>
-      </div>
-      <p className="text-sm text-red-600 mb-3">{error}</p>
-      {onRetry && (
-        <button
-          onClick={onRetry}
-          className="text-sm bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded"
-        >
-          Try Again
-        </button>
-      )}
-    </div>
-  );
-};
-
-// Main GymBrosMap Component
+// Main GymBrosMap Component - CLEANED VERSION
 const GymBrosMap = ({ userProfile }) => {
   const { 
     users: rawUsers, 
@@ -571,9 +543,21 @@ const GymBrosMap = ({ userProfile }) => {
     invalidate
   } = useGymBrosData();
 
-  // Location and loading states
-  const [locationStatus, setLocationStatus] = useState('loading'); // loading, loaded, error
-  const [currentLocation, setCurrentLocation] = useState(null);
+  // PermissionsContext integration
+  const {
+    hasLocationPermission,
+    currentLocation,
+    locationError,
+    requestLocationPermission,
+    isInitialized: permissionsInitialized,
+    permissions
+  } = usePermissions();
+
+  // Location modal states
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [locationRequesting, setLocationRequesting] = useState(false);
+
+  // Map states
   const [mapReady, setMapReady] = useState(false);
   const [profileRefreshTrigger, setProfileRefreshTrigger] = useState(0);
   
@@ -583,6 +567,7 @@ const GymBrosMap = ({ userProfile }) => {
   const [showFilters, setShowFilters] = useState(false);
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
   const [mapZoom, setMapZoom] = useState(13);
+  const [currentZoom, setCurrentZoom] = useState(13);
   const mapRef = useRef();
   const { socket, connected } = useSocket();
 
@@ -606,7 +591,6 @@ const GymBrosMap = ({ userProfile }) => {
     experienceLevel: null,
     genderPreference: null,
     workoutTypes: [],
-    // User type visibility toggles - only matches visible by default
     showRecommended: false,
     showMatches: true,
     showGymMembers: false,
@@ -618,6 +602,100 @@ const GymBrosMap = ({ userProfile }) => {
 
   const { darkMode } = useTheme();
   const userGender = userProfile?.gender || 'Male';
+
+  // Check location permission and show modal if needed
+  useEffect(() => {
+    if (!permissionsInitialized) return;
+
+    console.log('🗺️ GymBrosMap: Permission status check', {
+      hasLocationPermission,
+      permissionStatus: permissions.location.status,
+      currentLocation: !!currentLocation
+    });
+
+    if (!hasLocationPermission && permissions.location.status !== 'granted') {
+      // Show location modal if permission is not granted
+      setShowLocationModal(true);
+      setMapReady(false);
+    } else if (hasLocationPermission && currentLocation) {
+      // Permission granted and location available
+      handleLocationReady(currentLocation);
+    } else if (hasLocationPermission && !currentLocation) {
+      // Permission granted but no location yet - trigger location update
+      handleRequestLocationUpdate();
+    }
+  }, [permissionsInitialized, hasLocationPermission, currentLocation, permissions.location.status]);
+
+  // Handle location ready
+  const handleLocationReady = async (location) => {
+    try {
+      console.log('🗺️ GymBrosMap: Location ready', location);
+      
+      setMapCenter([location.lat, location.lng]);
+      setShowLocationModal(false);
+      
+      // Start fetching map data with location-based filters
+      const locationFilters = {
+        maxDistance: filters.maxDistance,
+        lat: location.lat,
+        lng: location.lng
+      };
+      
+      await Promise.all([
+        fetchUsers(locationFilters),
+        fetchGyms()
+      ]);
+      
+      setMapReady(true);
+      setLoading(false);
+      
+    } catch (error) {
+      console.error('Error handling location ready:', error);
+      toast.error('Failed to load map data');
+      setLoading(false);
+    }
+  };
+
+  // Handle location permission request
+  const handleLocationRequest = async () => {
+    setLocationRequesting(true);
+    
+    try {
+      console.log('🗺️ GymBrosMap: Requesting location permission');
+      const granted = await requestLocationPermission(true);
+      
+      if (granted) {
+        console.log('✅ Location permission granted');
+        // The useEffect will handle the rest when currentLocation updates
+      } else {
+        console.log('❌ Location permission denied');
+        toast.error('Location access is required to use GymBros Map');
+      }
+    } catch (error) {
+      console.error('Failed to request location:', error);
+      toast.error('Failed to request location permission');
+    } finally {
+      setLocationRequesting(false);
+    }
+  };
+
+  // Handle location update request (when permission exists but no current location)
+  const handleRequestLocationUpdate = async () => {
+    try {
+      console.log('🗺️ GymBrosMap: Updating location');
+      // This will trigger the PermissionsContext to get fresh location
+      // The location will be provided via currentLocation when ready
+    } catch (error) {
+      console.error('Failed to update location:', error);
+    }
+  };
+
+  // Close location modal (for "Not Now" option)
+  const handleCloseLocationModal = () => {
+    setShowLocationModal(false);
+    toast.info('GymBros Map requires location access to show nearby gyms and partners');
+    // Optionally redirect user away from map or show alternative content
+  };
 
   // Apply filters and search to users and gyms
   const { filteredUsers, filteredGyms } = useMemo(() => {
@@ -650,8 +728,6 @@ const GymBrosMap = ({ userProfile }) => {
 
     // Apply user-specific filters
     users = FilterUtils.filterUsers(users, filters);
-
-    // Apply gym-specific filters
     gyms = FilterUtils.filterGyms(gyms, filters);
 
     // Apply visibility filters
@@ -665,53 +741,10 @@ const GymBrosMap = ({ userProfile }) => {
     return { filteredUsers: users, filteredGyms: gyms };
   }, [rawUsers, rawGyms, searchQuery, filters, currentLocation]);
 
-  // Handle geolocation completion
-  const handleLocationFound = async (location) => {
-    try {
-      setCurrentLocation(location);
-      setMapCenter([location.lat, location.lng]);
-      setLocationStatus('loaded');
-      
-      // Update backend with location
-      try {
-        await gymBrosLocationService.updateUserLocationRealtime({
-          lat: location.lat,
-          lng: location.lng,
-          accuracy: convertAccuracyToEnum(location.accuracy),
-          source: 'gps',
-          timestamp: new Date().toISOString()
-        });
-      } catch (error) {
-        console.warn('Failed to update backend location:', error);
-      }
-      
-      // Start fetching map data with location-based filters
-      const locationFilters = {
-        maxDistance: filters.maxDistance,
-        lat: location.lat,
-        lng: location.lng
-      };
-      
-      await Promise.all([
-        fetchUsers(locationFilters),
-        fetchGyms()
-      ]);
-      
-      setMapReady(true);
-      setLoading(false);
-      
-    } catch (error) {
-      console.error('Error handling location:', error);
-      handleLocationError(error);
-    }
-  };
-
-  const handleLocationError = (error) => {
-    console.error('Location error:', error);
-    setLocationStatus('error');
-    toast.error('Location access is required to use GymBros Map');
-  };
-
+  // REMOVE these old functions - they're from the old geolocation system:
+  // - handleLocationFound (not needed with PermissionsContext)
+  // - handleLocationError (not needed with PermissionsContext)
+  
   const handleProfileUpdate = () => {
     // Trigger a profile refresh
     setProfileRefreshTrigger(prev => prev + 1);
@@ -721,204 +754,200 @@ const GymBrosMap = ({ userProfile }) => {
     window.dispatchEvent(event);
   };
 
-const getUserGymIds = (userProfile) => {
-  const gymIds = new Set();
-  
-  // Early return if userProfile is null or undefined
-  if (!userProfile) {
-    return [];
-  }
-  
-  // Add primary gym
-  if (userProfile.primaryGym) {
-    gymIds.add(userProfile.primaryGym.toString());
-  }
-  
-  // Add gyms from the gyms array
-  if (userProfile.gyms && Array.isArray(userProfile.gyms)) {
-    userProfile.gyms.forEach((gymAssoc) => {
-      // Check if gym is active
-      const isActiveGym = 
-        (gymAssoc.isActive === true) && // Must be explicitly true
-        gymAssoc.gym; // gym exists
-        
-      if (isActiveGym) {
-        const gymId = gymAssoc.gym._id || gymAssoc.gym;
-        gymIds.add(gymId.toString());
-      }
-    });
-  }
-  
-  return Array.from(gymIds);
-};
-
-const MapZoomHandler = ({ onZoomChange }) => {
-  const map = useMap();
-  
-  useEffect(() => {
-    if (!map) return;
+  const getUserGymIds = (userProfile) => {
+    const gymIds = new Set();
     
-    const handleZoom = () => {
-      onZoomChange(map.getZoom());
-    };
+    // Early return if userProfile is null or undefined
+    if (!userProfile) {
+      return [];
+    }
     
-    // Initial zoom
-    handleZoom();
+    // Add primary gym
+    if (userProfile.primaryGym) {
+      gymIds.add(userProfile.primaryGym.toString());
+    }
     
-    map.on('zoomend', handleZoom);
+    // Add gyms from the gyms array
+    if (userProfile.gyms && Array.isArray(userProfile.gyms)) {
+      userProfile.gyms.forEach((gymAssoc) => {
+        // Check if gym is active
+        const isActiveGym = 
+          (gymAssoc.isActive === true) && // Must be explicitly true
+          gymAssoc.gym; // gym exists
+          
+        if (isActiveGym) {
+          const gymId = gymAssoc.gym._id || gymAssoc.gym;
+          gymIds.add(gymId.toString());
+        }
+      });
+    }
     
-    return () => {
-      map.off('zoomend', handleZoom);
-    };
-  }, [map, onZoomChange]);
-  
-  return null;
-};
+    return Array.from(gymIds);
+  };
 
-// Add zoom state to the GymBrosMap component
-const [currentZoom, setCurrentZoom] = useState(13);
-
-
- const renderMembershipCircles = () => {
-  const circles = [];
-  
-  // Add null check for userProfile
-  if (!userProfile) {
-    return circles;
-  }
-  
-  const userGymIds = getUserGymIds(userProfile);
-  
-  if (userGymIds.length === 0) {
-    return circles;
-  }
-  
-  const memberGyms = filteredGyms.filter(gym => {
-    const gymId = gym._id || gym.id;
-    return userGymIds.includes(gymId.toString());
-  });
-  
-  memberGyms
-    .filter(gym => {
-      // Ensure gym has valid coordinates
-      let hasValidCoords = false;
-      let lat, lng;
+  const MapZoomHandler = ({ onZoomChange }) => {
+    const map = useMap();
+    
+    useEffect(() => {
+      if (!map) return;
       
-      if (gym.location?.coordinates && Array.isArray(gym.location.coordinates)) {
-        [lng, lat] = gym.location.coordinates;
-        hasValidCoords = lat && lng && !isNaN(lat) && !isNaN(lng);
-      } else {
-        lat = gym.lat || gym.location?.lat;
-        lng = gym.lng || gym.location?.lng;
-        hasValidCoords = lat && lng && !isNaN(lat) && !isNaN(lng);
-      }
-      
-      return hasValidCoords;
-    })
-    .forEach(gym => {
-      let lat, lng;
-      if (gym.location?.coordinates && Array.isArray(gym.location.coordinates)) {
-        [lng, lat] = gym.location.coordinates;
-      } else {
-        lat = gym.lat || gym.location?.lat;
-        lng = gym.lng || gym.location?.lng;
-      }
-      
-      const gymId = gym._id || gym.id;
-      
-      // Calculate zoom-responsive radius
-      // Base radius scales with zoom level to appear consistent visually
-      const getZoomAdjustedRadius = (baseRadius, zoom) => {
-        // Radius scaling formula - circles get smaller as you zoom out
-        const zoomFactor = Math.pow(2, Math.max(0, 15 - zoom));
-        return Math.max(50, baseRadius * zoomFactor); // Minimum 50m radius
+      const handleZoom = () => {
+        onZoomChange(map.getZoom());
       };
       
-      const baseRadius = 100; // Base radius in meters
-      const radius = getZoomAdjustedRadius(baseRadius, currentZoom);
+      // Initial zoom
+      handleZoom();
       
-      // Main membership circle (blue with transparency)
-      circles.push(
-        <Circle
-          key={`membership-circle-${gymId}`}
-          center={[lat, lng]}
-          radius={radius}
-          pathOptions={{
-            color: '#2563EB',        // Stronger blue border
-            fillColor: '#3B82F6',    // Blue fill
-            fillOpacity: 0.2,        // Adjusted for better visibility
-            weight: 3,               // Border thickness
-            opacity: 0.8,            // Border opacity
-            dashArray: '8, 12',      // Dashed pattern
-          }}
-        />
-      );
+      map.on('zoomend', handleZoom);
       
-      // Add animated pulse circle for better visibility
-      circles.push(
-        <Circle
-          key={`membership-pulse-${gymId}`}
-          center={[lat, lng]}
-          radius={radius + getZoomAdjustedRadius(30, currentZoom)}
-          pathOptions={{
-            color: '#1D4ED8',        // Darker blue
-            fillColor: 'transparent',
-            fillOpacity: 0,
-            weight: 2,
-            opacity: 0.6,
-            dashArray: '4, 12',      // Different dotted pattern
-          }}
-        />
-      );
-      
-      // Add inner circle for primary gym
-      const isPrimaryGym = userProfile?.primaryGym && 
-                          userProfile.primaryGym.toString() === gymId.toString();
-      
-      if (isPrimaryGym) {
+      return () => {
+        map.off('zoomend', handleZoom);
+      };
+    }, [map, onZoomChange]);
+    
+    return null;
+  };
+
+  const renderMembershipCircles = () => {
+    const circles = [];
+    
+    // Add null check for userProfile
+    if (!userProfile) {
+      return circles;
+    }
+    
+    const userGymIds = getUserGymIds(userProfile);
+    
+    if (userGymIds.length === 0) {
+      return circles;
+    }
+    
+    const memberGyms = filteredGyms.filter(gym => {
+      const gymId = gym._id || gym.id;
+      return userGymIds.includes(gymId.toString());
+    });
+    
+    memberGyms
+      .filter(gym => {
+        // Ensure gym has valid coordinates
+        let hasValidCoords = false;
+        let lat, lng;
+        
+        if (gym.location?.coordinates && Array.isArray(gym.location.coordinates)) {
+          [lng, lat] = gym.location.coordinates;
+          hasValidCoords = lat && lng && !isNaN(lat) && !isNaN(lng);
+        } else {
+          lat = gym.lat || gym.location?.lat;
+          lng = gym.lng || gym.location?.lng;
+          hasValidCoords = lat && lng && !isNaN(lat) && !isNaN(lng);
+        }
+        
+        return hasValidCoords;
+      })
+      .forEach(gym => {
+        let lat, lng;
+        if (gym.location?.coordinates && Array.isArray(gym.location.coordinates)) {
+          [lng, lat] = gym.location.coordinates;
+        } else {
+          lat = gym.lat || gym.location?.lat;
+          lng = gym.lng || gym.location?.lng;
+        }
+        
+        const gymId = gym._id || gym.id;
+        
+        // Calculate zoom-responsive radius
+        // Base radius scales with zoom level to appear consistent visually
+        const getZoomAdjustedRadius = (baseRadius, zoom) => {
+          // Radius scaling formula - circles get smaller as you zoom out
+          const zoomFactor = Math.pow(2, Math.max(0, 15 - zoom));
+          return Math.max(50, baseRadius * zoomFactor); // Minimum 50m radius
+        };
+        
+        const baseRadius = 100; // Base radius in meters
+        const radius = getZoomAdjustedRadius(baseRadius, currentZoom);
+        
+        // Main membership circle (blue with transparency)
         circles.push(
           <Circle
-            key={`primary-gym-${gymId}`}
+            key={`membership-circle-${gymId}`}
             center={[lat, lng]}
-            radius={radius * 0.6} // Inner circle is 60% of main circle
+            radius={radius}
             pathOptions={{
-              color: '#1E40AF',      // Darker blue for primary
-              fillColor: '#3B82F6',
-              fillOpacity: 0.4,      // More opaque for primary
-              weight: 2,
-              opacity: 1,
+              color: '#2563EB',        // Stronger blue border
+              fillColor: '#3B82F6',    // Blue fill
+              fillOpacity: 0.2,        // Adjusted for better visibility
+              weight: 3,               // Border thickness
+              opacity: 0.8,            // Border opacity
+              dashArray: '8, 12',      // Dashed pattern
             }}
           />
         );
         
-        // Add a small center dot for primary
+        // Add animated pulse circle for better visibility
         circles.push(
           <Circle
-            key={`primary-center-${gymId}`}
+            key={`membership-pulse-${gymId}`}
             center={[lat, lng]}
-            radius={Math.max(10, getZoomAdjustedRadius(8, currentZoom))} // Zoom-responsive center dot
+            radius={radius + getZoomAdjustedRadius(30, currentZoom)}
             pathOptions={{
-              color: '#1E40AF',
-              fillColor: '#1E40AF',
-              fillOpacity: 1,
+              color: '#1D4ED8',        // Darker blue
+              fillColor: 'transparent',
+              fillOpacity: 0,
               weight: 2,
-              opacity: 1,
+              opacity: 0.6,
+              dashArray: '4, 12',      // Different dotted pattern
             }}
           />
         );
-      }
-    });
-  
-  return circles;
-};
+        
+        // Add inner circle for primary gym
+        const isPrimaryGym = userProfile?.primaryGym && 
+                            userProfile.primaryGym.toString() === gymId.toString();
+        
+        if (isPrimaryGym) {
+          circles.push(
+            <Circle
+              key={`primary-gym-${gymId}`}
+              center={[lat, lng]}
+              radius={radius * 0.6} // Inner circle is 60% of main circle
+              pathOptions={{
+                color: '#1E40AF',      // Darker blue for primary
+                fillColor: '#3B82F6',
+                fillOpacity: 0.4,      // More opaque for primary
+                weight: 2,
+                opacity: 1,
+              }}
+            />
+          );
+          
+          // Add a small center dot for primary
+          circles.push(
+            <Circle
+              key={`primary-center-${gymId}`}
+              center={[lat, lng]}
+              radius={Math.max(10, getZoomAdjustedRadius(8, currentZoom))} // Zoom-responsive center dot
+              pathOptions={{
+                color: '#1E40AF',
+                fillColor: '#1E40AF',
+                fillOpacity: 1,
+                weight: 2,
+                opacity: 1,
+              }}
+            />
+          );
+        }
+      });
+    
+    return circles;
+  };
 
-const handleOpenSidePanel = (type, data) => {
-  setSidePanel({
-    isOpen: true,
-    data,
-    type
-  });
-};
+  const handleOpenSidePanel = (type, data) => {
+    setSidePanel({
+      isOpen: true,
+      data,
+      type
+    });
+  };
 
   // Render markers with enhanced image handling and random mirroring
   const renderMarkers = () => {
@@ -1152,14 +1181,14 @@ const handleOpenSidePanel = (type, data) => {
                 </div>
                 
                 <button 
-  onClick={(e) => {
-    e.stopPropagation();
-    handleOpenSidePanel('gym', { ...gym, lat, lng });
-  }}
-  className="mt-3 w-full px-3 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors"
->
-  View Details →
-</button>
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenSidePanel('gym', { ...gym, lat, lng });
+                  }}
+                  className="mt-3 w-full px-3 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  View Details →
+                </button>
               </div>
             </Popup>
           </Marker>
@@ -1212,21 +1241,9 @@ const handleOpenSidePanel = (type, data) => {
     }
   };
 
-  const convertAccuracyToEnum = (numericAccuracy) => {
-    if (typeof numericAccuracy !== 'number' || isNaN(numericAccuracy)) {
-      return 'medium';
-    }
-    
-    if (numericAccuracy < 10) return 'high';
-    if (numericAccuracy < 100) return 'medium';
-    if (numericAccuracy < 500) return 'low';
-    return 'approximate';
-  };
-
   const handleRefresh = async () => {
     setLoading(true);
     
-    // Fetch with current location and filters for optimized backend queries
     const locationFilters = currentLocation ? {
       maxDistance: filters.maxDistance,
       lat: currentLocation.lat,
@@ -1249,7 +1266,6 @@ const handleOpenSidePanel = (type, data) => {
   const handleFiltersApply = (newFilters) => {
     setFilters(newFilters);
     
-    // If max distance changed significantly, refetch from backend
     if (Math.abs(newFilters.maxDistance - filters.maxDistance) > 10 && currentLocation) {
       const locationFilters = {
         maxDistance: newFilters.maxDistance,
@@ -1262,23 +1278,53 @@ const handleOpenSidePanel = (type, data) => {
     }
   };
 
-  // Main render logic
-  if (locationStatus === 'loading' || locationStatus === 'error') {
+  // Show loading screen while permissions are initializing
+  if (!permissionsInitialized) {
     return (
-      <GeolocationLoadingScreen 
-        onLocationFound={handleLocationFound}
-        onLocationError={handleLocationError}
-      />
+      <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-300">Initializing permissions...</p>
+        </div>
+      </div>
     );
   }
 
-  if (!mapReady || loading) {
+  // Show location modal if location permission is needed
+  if (showLocationModal) {
     return (
-      <div className="flex items-center justify-center h-full bg-gray-50">
+      <>
+        {/* Background map (blurred/disabled) */}
+        <div className="relative w-full h-full">
+          <div className="absolute inset-0 bg-gray-200 dark:bg-gray-800 flex items-center justify-center">
+            <div className="text-center text-gray-500 dark:text-gray-400">
+              <MapPin className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">GymBros Map</p>
+              <p className="text-sm">Location access required</p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Location Required Modal */}
+        <LocationRequiredModal
+          isOpen={showLocationModal}
+          onRequestLocation={handleLocationRequest}
+          onClose={handleCloseLocationModal}
+          permissionStatus={permissions.location.status}
+          isRequesting={locationRequesting}
+        />
+      </>
+    );
+  }
+
+  // Show loading screen while map is not ready
+  if (!mapReady || loading || !currentLocation) {
+    return (
+      <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
           <Loader className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-2" />
-          <p className="text-gray-600">
-            {locationStatus === 'loaded' ? 'Loading map data...' : 'Preparing map...'}
+          <p className="text-gray-600 dark:text-gray-300">
+            {currentLocation ? 'Loading map data...' : 'Getting your location...'}
           </p>
         </div>
       </div>
@@ -1298,49 +1344,47 @@ const handleOpenSidePanel = (type, data) => {
       />
         
       <MapContainer
-  center={mapCenter}
-  zoom={mapZoom}
-  style={{ height: '100%', width: '100%', borderRadius: '1rem', boxShadow: '0 4px 24px rgba(0,0,0,0.12)' }}
-  ref={mapRef}
-  className={`z-10 custom-leaflet-map${darkMode ? ' gymbros-map-dark' : ''}`}
-  zoomControl={false}
-  attributionControl={false} 
->
-  <TileLayer
-    url={darkMode
-      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-      : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'}
-    attribution=""
-  />
-  <MapUpdater center={mapCenter} zoom={mapZoom} />
-  <MapZoomHandler onZoomChange={setCurrentZoom} />
-  <MapEventHandler 
-    onMarkerClick={handleMarkerClick} 
-    currentUserLocation={currentLocation}
-  />
-  
-  {MarkerClusterGroup ? (
-    <MarkerClusterGroup>
-      {renderMarkers()}
-    </MarkerClusterGroup>
-  ) : (
-    renderMarkers()
-  )}
-</MapContainer>
+        center={mapCenter}
+        zoom={mapZoom}
+        style={{ height: '100%', width: '100%', borderRadius: '1rem', boxShadow: '0 4px 24px rgba(0,0,0,0.12)' }}
+        ref={mapRef}
+        className={`z-10 custom-leaflet-map${darkMode ? ' gymbros-map-dark' : ''}`}
+        zoomControl={false}
+        attributionControl={false} 
+      >
+        <TileLayer
+          url={darkMode
+            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+            : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'}
+          attribution=""
+        />
+        <MapUpdater center={mapCenter} zoom={mapZoom} />
+        <MapZoomHandler onZoomChange={setCurrentZoom} />
+        <MapEventHandler 
+          onMarkerClick={handleMarkerClick} 
+          currentUserLocation={currentLocation}
+        />
+        
+        {MarkerClusterGroup ? (
+          <MarkerClusterGroup>
+            {renderMarkers()}
+          </MarkerClusterGroup>
+        ) : (
+          renderMarkers()
+        )}
+      </MapContainer>
       
-      
-      {/* Side Panel */}
+      {/* All existing modals and panels remain the same */}
       <MapSidePanel 
-  isOpen={sidePanel.isOpen}
-  onClose={() => setSidePanel({ isOpen: false, data: null, type: null })}
-  data={sidePanel.data}
-  type={sidePanel.type}
-  currentLocation={currentLocation}
-  userProfile={userProfile} // Add this prop
-  onProfileUpdate={handleProfileUpdate} // Add this prop
-/>
+        isOpen={sidePanel.isOpen}
+        onClose={() => setSidePanel({ isOpen: false, data: null, type: null })}
+        data={sidePanel.data}
+        type={sidePanel.type}
+        currentLocation={currentLocation}
+        userProfile={userProfile}
+        onProfileUpdate={handleProfileUpdate}
+      />
 
-      {/* Map Filters Modal */}
       <MapFilters
         isOpen={showFilters}
         onClose={() => setShowFilters(false)}
@@ -1348,7 +1392,6 @@ const handleOpenSidePanel = (type, data) => {
         onApply={handleFiltersApply}
       />
       
-      {/* Enhanced Avatar Designer Modal */}
       {showAvatarDesigner && (
         <MouseAvatarDesigner
           currentAvatar={avatar}
@@ -1358,16 +1401,17 @@ const handleOpenSidePanel = (type, data) => {
         />
       )}
 
-      {/* Debug Panel - Only show in development */}
+      {/* Updated Debug Panel - FIXED REFERENCES */}
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed bottom-20 right-4 bg-black bg-opacity-75 text-white p-3 rounded-lg text-xs max-w-sm z-40">
           <h4 className="font-bold mb-2">🐛 Debug Info</h4>
           <div className="space-y-1">
-            <div>Raw Users: {rawUsers.length} | Filtered: {filteredUsers.length}</div>
-            <div>Raw Gyms: {rawGyms.length} | Filtered: {filteredGyms.length}</div>
-            <div>Location Status: {locationStatus}</div>
+            <div>Permission Status: {permissions.location.status}</div>
+            <div>Has Permission: {hasLocationPermission ? 'Yes' : 'No'}</div>
             <div>Current Location: {currentLocation ? `[${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}]` : 'None'}</div>
             <div>Map Ready: {mapReady ? 'Yes' : 'No'}</div>
+            <div>Raw Users: {rawUsers.length} | Filtered: {filteredUsers.length}</div>
+            <div>Raw Gyms: {rawGyms.length} | Filtered: {filteredGyms.length}</div>
             <div>Search: "{searchQuery}"</div>
             <div>Max Distance: {filters.maxDistance}km</div>
             <div>User Gyms: {userProfile ? getUserGymIds(userProfile).length : 0}</div>

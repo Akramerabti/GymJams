@@ -1,7 +1,5 @@
-// client/src/services/ImageService.js - Centralized Image and Avatar Management
-import React, { useState } from 'react';
+// client/src/services/ImageService.js - Centralized Image and Avatar Management (Pure JS)
 import L from 'leaflet';
-import { Loader } from 'lucide-react';
 
 class ImageService {
   static getSupabaseBaseUrl() {
@@ -188,45 +186,6 @@ class ImageService {
     return types[type] || types.gym;
   }
 }
-
-// Enhanced Avatar Display Component with loading states and mirroring
-export const AvatarDisplay = ({ avatar, userGender, userId, size = 90, className = "", allowMirroring = false }) => {
-  const [imageError, setImageError] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const avatarUrl = ImageService.getAvatarUrl(avatar, userGender, size);
-  const fallbackUrl = ImageService.getDefaultAvatar(userGender, size);
-  
-  // Apply random mirroring if enabled
-  const shouldMirror = allowMirroring && ImageService.getRandomMirrorHash(userId);
-
-  return (
-    <div className={`relative ${className}`} style={{ width: size, height: size }}>
-      {loading && (
-        <div className="absolute inset-0 bg-gray-200 rounded-full flex items-center justify-center">
-          <Loader className="h-4 w-4 animate-spin text-gray-400" />
-        </div>
-      )}
-      <img
-        src={imageError ? fallbackUrl : avatarUrl}
-        alt="Avatar"
-        style={{
-          width: size,
-          height: size,
-          objectFit: 'contain',
-          borderRadius: '0',
-          background: 'transparent',
-          display: loading ? 'none' : 'block',
-          transform: shouldMirror ? 'scaleX(-1)' : 'none'
-        }}
-        onLoad={() => setLoading(false)}
-        onError={() => {
-          setImageError(true);
-          setLoading(false);
-        }}
-      />
-    </div>
-  );
-};
 
 // Utility functions for filtering
 export const FilterUtils = {

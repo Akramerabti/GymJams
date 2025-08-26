@@ -1,14 +1,30 @@
+// Updated LocationRequestModal.jsx - Uses PermissionsContext instead of direct GPS
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, X, Navigation, AlertCircle, CheckCircle, Globe } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePermissions } from '../../contexts/PermissionContext'; // 🚀 NEW - Use PermissionsContext
 import locationService from '../../services/location.service';
+import gymBrosLocationService from '../../services/gymBrosLocation.service';
 
-const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable Location Access" }) => {
+const LocationRequestModal = ({ 
+  isOpen, 
+  onClose, 
+  onLocationSet, 
+  title = "Enable Location Access" 
+}) => {
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [locationSuccess, setLocationSuccess] = useState(false);
   const [locationCity, setLocationCity] = useState('');
   const [error, setError] = useState('');
+
+  // 🚀 NEW - Use PermissionsContext
+  const {
+    hasLocationPermission,
+    currentLocation,
+    requestLocationPermission,
+    permissions
+  } = usePermissions();
 
   useEffect(() => {
     if (isOpen) {
@@ -19,74 +35,91 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
     }
   }, [isOpen]);
 
-  const handleGPSLocation = async () => {
-  setIsGettingLocation(true);
-  setError('');
-
-  try {
-    // Import the enhanced service
-    const { default: enhancedGymBrosLocationService } = await import('../../services/gymBrosLocation.service');
-    
-    const locationData = await enhancedGymBrosLocationService.getCurrentLocation({
-      priority: 'precise', // Use precise for manual requests
-      force: true
-    });
-    
-    handleLocationSuccess(locationData);
-  } catch (error) {
-    console.error('GPS location failed:', error);
-    let errorMessage = 'Unable to get your precise location';
-    
-    if (error.code === 1) {
-      errorMessage = 'Location access denied. Try auto-detect instead.';
-    } else if (error.code === 2) {
-      errorMessage = 'Location unavailable. Try auto-detect instead.';
-    } else if (error.code === 3) {
-      errorMessage = 'Location request timed out. Try auto-detect instead.';
+  // 🚀 NEW - Watch for location updates from PermissionsContext
+  useEffect(() => {
+    if (currentLocation && !locationSuccess) {
+      handleLocationSuccess(currentLocation);
     }
-    
-    setError(errorMessage);
-    toast.error('GPS location failed');
-  } finally {
-    setIsGettingLocation(false);
-  }
-};
+  }, [currentLocation, locationSuccess]);
+
+  // Handle auto-detect (IP-based location)
+  const handleAutoDetect = async () => {
+    setIsGettingLocation(true);
+    setError('');
+
+    try {
+      // Use IP-based location fallback
+      const locationData = await gymBrosLocationService.getLocationByIP();
+      
+      if (locationData) {
+        handleLocationSuccess(locationData);
+      } else {
+        throw new Error('Auto-detection failed');
+      }
+    } catch (error) {
+      console.error('Auto-detect location failed:', error);
+      setError('Auto-detection failed. Try using precise location instead.');
+      toast.error('Auto-detection failed');
+    } finally {
+      setIsGettingLocation(false);
+    }
+  };
+
+  // Handle GPS location via PermissionsContext
+  const handleGPSLocation = async () => {
+    setIsGettingLocation(true);
+    setError('');
+
+    try {
+      console.log('🗺️ LocationRequestModal: Requesting GPS location via PermissionsContext');
+      
+      // Use PermissionsContext to request location
+      const granted = await requestLocationPermission(true);
+      
+      if (granted) {
+        console.log('✅ Location permission granted via modal');
+        // Location will be provided via currentLocation effect
+        // Keep loading state until location arrives
+      } else {
+        console.log('❌ Location permission denied via modal');
+        setError('Location access denied. Please enable location in your browser settings.');
+        toast.error('Location access denied');
+        setIsGettingLocation(false);
+      }
+    } catch (error) {
+      console.error('GPS location failed:', error);
+      let errorMessage = 'Unable to get your precise location';
+      
+      if (error.code === 1) {
+        errorMessage = 'Location access denied. Try auto-detect instead.';
+      } else if (error.code === 2) {
+        errorMessage = 'Location unavailable. Try auto-detect instead.';
+      } else if (error.code === 3) {
+        errorMessage = 'Location request timed out. Try auto-detect instead.';
+      }
+      
+      setError(errorMessage);
+      toast.error('GPS location failed');
+      setIsGettingLocation(false);
+    }
+  };
 
   const handleLocationSuccess = (locationData) => {
+    console.log('📍 LocationRequestModal: Location success', locationData);
+    
+    // Store location using location service
     locationService.storeLocation(locationData);
     
+    // Call parent callback
     onLocationSet?.(locationData);
     
-    setLocationCity(locationData.city);
+    setLocationCity(locationData.city || 'Your location');
     setLocationSuccess(true);
+    setIsGettingLocation(false); // Stop loading
     
     setTimeout(() => {
       onClose();
     }, 2000);
-  };
-
-  const getCurrentLocation = async () => {
-    return handleGPSLocation();
-  };
-
-  const reverseGeocode = async (lat, lng) => {
-    try {
-      const response = await fetch(
-        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        const city = data.city || data.locality || data.principalSubdivision || 'Unknown City';
-        return city;
-      }
-      
-      console.warn('⚠️ LocationRequestModal: Reverse geocoding API response not OK:', response.status);
-      return 'Unknown City';
-    } catch (error) {
-      console.error('❌ LocationRequestModal: Reverse geocoding error:', error);
-      return 'Unknown City';
-    }
   };
 
   if (!isOpen) return null;
@@ -179,7 +212,7 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
                   
                   <button
                     onClick={handleGPSLocation}
-                    disabled={isGettingLocation || !navigator.geolocation}
+                    disabled={isGettingLocation}
                     className="w-full border-2 border-blue-300 text-blue-700 py-2 px-3 rounded-lg text-sm font-medium flex items-center justify-center space-x-2 hover:border-blue-400 hover:bg-blue-50 transition-colors disabled:opacity-50"
                   >
                     <Navigation className="w-4 h-4" />
