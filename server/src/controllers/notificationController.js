@@ -199,42 +199,42 @@ export const sendToUser = async (userId, notification, options = {}) => {
              (url.startsWith('http://') || url.startsWith('https://'));
     };
     
-    // Build FCM message with proper field validation
-    const message = {
-      notification: {
-        title: notification.title,
-        body: notification.body,
-        icon: isValidIconUrl(notification.icon) ? notification.icon : DEFAULT_ICON_URL,
-        ...(isValidImageUrl(notification.image) && { image: notification.image })
-      },
-      data: sanitizedData,
-      android: {
-        notification: {
-          channelId: getChannelId(notification.category, notification.subType),
-          priority: 'high',
-          defaultSound: true,
-          defaultVibrateTimings: true,
-          // Only include color if it's a valid hex color
-          ...(notification.color && typeof notification.color === 'string' && notification.color.match(/^#[0-9A-F]{6}$/i) && { 
-            color: notification.color 
-          })
+
+const message = {
+  notification: {
+    title: notification.title,
+    body: notification.body,
+
+    ...(isValidImageUrl(notification.image) && { image: notification.image })
+  },
+  data: sanitizedData,
+  android: {
+    notification: {
+      channelId: getChannelId(notification.category, notification.subType),
+      priority: 'high',
+      defaultSound: true,
+      defaultVibrateTimings: true,
+      icon: isValidIconUrl(notification.icon) ? notification.icon : DEFAULT_ICON_URL, // <-- Only here!
+      ...(notification.color && typeof notification.color === 'string' && notification.color.match(/^#[0-9A-F]{6}$/i) && { 
+        color: notification.color 
+      })
+    },
+    data: sanitizedData
+  },
+  apns: {
+    payload: {
+      aps: {
+        alert: {
+          title: notification.title,
+          body: notification.body
         },
-        data: sanitizedData
-      },
-      apns: {
-        payload: {
-          aps: {
-            alert: {
-              title: notification.title,
-              body: notification.body
-            },
-            sound: 'default',
-            badge: 1
-          }
-        }
-      },
-      tokens: fcmTokens
-    };
+        sound: 'default',
+        badge: 1
+      }
+    }
+  },
+  tokens: fcmTokens
+};
 
     // Add custom options
     if (options.ttl) {
