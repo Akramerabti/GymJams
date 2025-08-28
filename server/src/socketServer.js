@@ -329,3 +329,41 @@ export const emitToUsers = (event, data, userIds = null) => {
     logger.error(`Error emitting ${event}:`, error);
   }
 };
+
+// Unified function to notify users about various events
+export const notifyUser = (userId, eventType, data) => {
+  if (!ioInstance) {
+    logger.error('Socket.io instance not initialized');
+    return false;
+  }
+  
+  try {
+    const socketId = activeUsers.get(userId.toString());
+    if (socketId) {
+      ioInstance.to(socketId).emit(eventType, data);
+      logger.info(`${eventType} notification sent to user ${userId}`);
+      return true;
+    } else {
+      logger.info(`User ${userId} is offline, ${eventType} notification will be delivered when they connect`);
+      return false;
+    }
+  } catch (error) {
+    logger.error(`Error sending ${eventType} notification:`, error);
+    return false;
+  }
+};
+
+// Specific function to notify a client about goal approval (preserved for backward compatibility)
+export const notifyGoalApproval = (userId, goalData) => {
+  return notifyUser(userId, 'goalApproved', goalData);
+};
+
+// Specific function to notify a client about goal rejection (preserved for backward compatibility)
+export const notifyGoalRejection = (userId, goalData) => {
+  return notifyUser(userId, 'goalRejected', goalData);
+};
+
+// New function to notify about a new match
+export const notifyNewMatch = (userId, matchData) => {
+  return notifyUser(userId, 'newMatch', matchData);
+};

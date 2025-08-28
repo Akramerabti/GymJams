@@ -9,6 +9,21 @@ import { getIoInstance, activeUsers, notifyGoalApproval, notifyGoalRejection } f
 import Session from '../models/Session.js';
 import CouponCode from '../models/CouponCode.js';
 
+import { 
+  sendSubscriptionCancellationNotification,
+  sendNewClientAssignmentNotification,
+  sendNewGoalNotification,
+  sendGoalUpdatedNotification,
+  sendGoalRemovedNotification,
+  sendGoalCompletionRequestNotification,
+  sendGoalApprovedNotification,
+  sendGoalRejectedNotification,
+  sendSessionRequestNotification,
+  sendNewMessageNotification,
+  sendSubscriptionRenewalNotification,
+  sendSubscriptionEndedNotification
+} from './notificationController.js';
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 const PLANS = {
@@ -299,6 +314,15 @@ export const finishCurrentMonth = async (req, res) => {
       } catch (emailError) {
         logger.error('Failed to send finish current month email:', emailError);
       }
+    }
+
+    if (subscription.user) {
+      await sendSubscriptionCancellationNotification(subscription.user, {
+        subscriptionId: subscription._id,
+        isRefundEligible: isRefundEligible,
+        endDate: isRefundEligible ? new Date() : subscription.currentPeriodEnd,
+        refundAmount: isRefundEligible ? Math.round(PLANS[subscription.subscription].price * 0.4 * 100) : null
+      });
     }
 
     res.json({
@@ -856,6 +880,19 @@ export const assignCoach = async (req, res) => {
       await updatedSubscription.populate('assignedCoach', 
         'firstName lastName profileImage bio rating socialLinks specialties');
 
+        try {
+  await sendNewClientAssignmentNotification(selectedCoach._id, {
+    subscriptionId: subscription._id,
+    clientId: subscription.user || null,
+    clientName: clientName,
+    clientProfileImage: req.user?.profileImage || null,
+    assignmentDate: new Date(),
+    planType: subscription.subscription
+  });
+} catch (notificationError) {
+  logger.error('Failed to send coach assignment notification:', notificationError);
+}
+
       return res.json({
         message: 'Coach assigned successfully',
         coach: updatedSubscription.assignedCoach,
@@ -978,6 +1015,14 @@ export const handleWebhook = async (event) => {
                 startDate: dbSubscription.startDate,
                 accessToken: dbSubscription.accessToken
               }, userEmail, 'deleted', isGuest);
+
+              if (dbSubscription.user) {
+      await sendSubscriptionEndedNotification(dbSubscription.user, {
+        subscriptionId: dbSubscription._id,
+        endDate: dbSubscription.endDate,
+        planType: dbSubscription.subscription
+      });
+    }
             } catch (emailError) {
               logger.error('Failed to send subscription end email:', emailError);
             }
@@ -1058,6 +1103,18 @@ export const handleWebhook = async (event) => {
             dbSubscription.status = 'active';
             
             await dbSubscription.save();
+
+             if (dbSubscription.user) {
+    try {
+      await sendSubscriptionRenewalNotification(dbSubscription.user, {
+        subscriptionId: dbSubscription._id,
+        planType: dbSubscription.subscription,
+        nextBillingDate: dbSubscription.currentPeriodEnd
+      });
+    } catch (notificationError) {
+      logger.error('Failed to send renewal notification:', notificationError);
+    }
+  }
             logger.info(`Updated subscription ${dbSubscription._id} after successful renewal payment`);
           }
         }
@@ -1221,6 +1278,28 @@ export const messaging = async (req, res) => {
 
     // Return the updated subscription
     res.status(200).json(populatedSubscription);
+
+    try {
+  if (receiverId !== senderId) {
+    const senderInfo = populatedSubscription.user?._id.toString() === senderId ? 
+      populatedSubscription.user : populatedSubscription.assignedCoach;
+      
+    const isCoachSender = subscription.assignedCoach && 
+      senderId === subscription.assignedCoach.toString();
+      
+    await sendNewMessageNotification(receiverId, {
+      subscriptionId: subscriptionId,
+      senderId: senderId,
+      senderName: senderInfo ? `${senderInfo.firstName} ${senderInfo.lastName}` : 'Unknown',
+      senderAvatar: senderInfo?.profileImage || null,
+      message: message.content,
+      messageId: message._id,
+      isCoachSender: isCoachSender
+    });
+  }
+} catch (notificationError) {
+  logger.error('Failed to send message notification:', notificationError);
+}
 
     // After successful save, emit socket event to receiver if online
     try {
@@ -1531,6 +1610,20 @@ export const addGoal = async (req, res) => {
     subscription.goals.push(newGoal);
     await subscription.save();
     
+    if (subscription.user) {
+      try {
+        await sendNewGoalNotification(subscription.user, {
+          id: newGoal.id,
+          title: newGoal.title,
+          description: newGoal.description,
+          points: newGoal.points || 0,
+          subscriptionId: subscriptionId
+        });
+      } catch (notificationError) {
+        logger.error('Failed to send new goal notification:', notificationError);
+      }
+    }
+
     res.status(201).json(newGoal);
   } catch (error) {
     logger.error('Error adding goal:', error);
@@ -1564,6 +1657,20 @@ export const updateGoal = async (req, res) => {
     };
     
     await subscription.save();
+
+    if (subscription.user) {
+  try {
+    await sendGoalUpdatedNotification(subscription.user, {
+      id: goalId,
+      title: subscription.goals[goalIndex].title,
+      description: subscription.goals[goalIndex].description,
+      points: subscription.goals[goalIndex].points || 0,
+      subscriptionId: subscriptionId
+    });
+  } catch (notificationError) {
+    logger.error('Failed to send goal updated notification:', notificationError);
+  }
+}
     
     res.json(subscription.goals[goalIndex]);
   } catch (error) {
@@ -1582,10 +1689,22 @@ export const deleteGoal = async (req, res) => {
       return res.status(404).json({ error: 'Subscription not found' });
     }
 
-    subscription.goals = subscription.goals.filter(g => g.id !== goalId);
+    const goalToDelete = subscription.goals.find(g => g.id === goalId);
+subscription.goals = subscription.goals.filter(g => g.id !== goalId);
+await subscription.save();
     
-    await subscription.save();
-    
+if (subscription.user && goalToDelete) {
+  try {
+    await sendGoalRemovedNotification(subscription.user, {
+      id: goalId,
+      title: goalToDelete.title,
+      subscriptionId: subscriptionId
+    });
+  } catch (notificationError) {
+    logger.error('Failed to send goal removed notification:', notificationError);
+  }
+}
+
     res.json({ message: 'Goal deleted successfully' });
   } catch (error) {
     logger.error('Error deleting goal:', error);
@@ -1621,6 +1740,21 @@ export const requestGoalCompletion = async (req, res) => {
     };
     
     await subscription.save();
+
+    if (subscription.assignedCoach) {
+  try {
+    await sendGoalCompletionRequestNotification(subscription.assignedCoach, {
+      goalId: goalId,
+      goalTitle: subscription.goals[goalIndex].title,
+      clientId: subscription.user || null,
+      clientName: subscription.user ? `${subscription.user.firstName} ${subscription.user.lastName}` : 'Guest User',
+      clientProfileImage: subscription.user?.profileImage || null,
+      subscriptionId: subscriptionId
+    });
+  } catch (notificationError) {
+    logger.error('Failed to send goal completion request notification:', notificationError);
+  }
+}
     
     res.json(subscription.goals[goalIndex]);
   } catch (error) {
@@ -1721,6 +1855,17 @@ export const approveGoalCompletion = async (req, res) => {
         pointsAwarded: pointsAwarded || 0,
         status: 'completed'
       });
+
+        try {
+    await sendGoalApprovedNotification(subscription.user, {
+      goalId: goalId,
+      goalTitle: goalTitle,
+      pointsAwarded: pointsAwarded || 0,
+      subscriptionId: subscriptionId
+    });
+  } catch (notificationError) {
+    logger.error('Failed to send goal approved notification:', notificationError);
+  }
     }
     
     res.json({
@@ -1778,6 +1923,17 @@ export const rejectGoalCompletion = async (req, res) => {
         reason: reason || 'Goal completion rejected by coach',
         status: 'active'
       });
+
+       try {
+    await sendGoalRejectedNotification(subscription.user, {
+      goalId: goalId,
+      goalTitle: goalTitle,
+      reason: reason || 'Goal completion rejected by coach',
+      subscriptionId: subscriptionId
+    });
+  } catch (notificationError) {
+    logger.error('Failed to send goal rejected notification:', notificationError);
+  }
     }
     
     res.json({
@@ -2040,7 +2196,24 @@ export const requestSession = async (req, res) => {
     const session = new Session(sessionDoc);
     const savedSession = await session.save();
     
-    //('Session created successfully:', savedSession);
+    try {
+  const clientName = subscription.user ? 
+    `${subscription.user.firstName} ${subscription.user.lastName}` : 
+    'Guest User';
+    
+  await sendSessionRequestNotification(coachId, {
+    sessionId: savedSession._id,
+    clientId: subscription.user || subscriptionId,
+    clientName: clientName,
+    clientProfileImage: subscription.user?.profileImage || null,
+    date: date,
+    time: time,
+    sessionType: providedSessionType,
+    subscriptionId: subscriptionId
+  });
+} catch (notificationError) {
+  logger.error('Failed to send session request notification:', notificationError);
+}
     
     // Notify coach via socket if they're online
     const io = getIoInstance();
@@ -2251,6 +2424,20 @@ const automaticCoachAssignment = async (subscription) => {
       
       logger.info(`Successfully assigned coach ${selectedCoach._id} to subscription ${subscription._id}`);
       
+
+      try {
+  await sendNewClientAssignmentNotification(selectedCoach._id, {
+    subscriptionId: subscription._id,
+    clientId: subscription.user || null,
+    clientName: clientName,
+    clientProfileImage: req.user?.profileImage || null,
+    assignmentDate: new Date(),
+    planType: subscription.subscription
+  });
+} catch (notificationError) {
+  logger.error('Failed to send coach assignment notification:', notificationError);
+}
+
       // Send notification to client (if they have socket connection)
       try {
         const io = getIoInstance();
