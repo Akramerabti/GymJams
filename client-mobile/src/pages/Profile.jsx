@@ -5,10 +5,11 @@ import { usePoints } from '../hooks/usePoints';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
+import { Switch } from '../components/ui/switch';
 import { 
   User, Package, LogOut, Loader2, Coins, AlertCircle, CheckCircle, 
   Clock, Star, Instagram, Twitter, Youtube, Crown, Settings, 
-  Trash2, MapPin, Navigation, RotateCcw, Edit2, ChevronRight
+  Trash2, MapPin, Navigation, RotateCcw, Edit2, ChevronRight,Bell, BellOff, Volume2, VolumeX
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../services/api';
@@ -31,6 +32,10 @@ const Profile = () => {
   const [cropModalProps, setCropModalProps] = useState(null);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [isRefreshingLocation, setIsRefreshingLocation] = useState(false);
+  const [notificationPreferences, setNotificationPreferences] = useState(null);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [notificationCardExpanded, setNotificationCardExpanded] = useState(false);
+
 
   const [profileData, setProfileData] = useState({
     firstName: '',
@@ -108,6 +113,110 @@ const Profile = () => {
       fetchUserData();
     }
   }, [user, fetchPoints, navigate, isCoach]);
+
+
+  useEffect(() => {
+  const fetchNotificationPreferences = async () => {
+    try {
+      const response = await api.get('/notifications/preferences');
+      setNotificationPreferences(response.data.preferences || getDefaultPreferences());
+    } catch (error) {
+      console.error('Failed to fetch notification preferences:', error);
+      // Set default preferences if fetch fails
+      setNotificationPreferences(getDefaultPreferences());
+    }
+  };
+
+  if (user) {
+    fetchNotificationPreferences();
+  }
+}, [user]);
+
+const getDefaultPreferences = () => ({
+  pushNotifications: true,
+  emailNotifications: true,
+  gymBros: {
+    matches: true,
+    messages: true,
+    workoutInvites: true,
+    profileViews: true,
+    boosts: true
+  },
+  coaching: {
+    newClients: true,
+    clientMessages: true,
+    sessionReminders: true,
+    paymentUpdates: true,
+    coachApplications: true
+  },
+  games: {
+    dailyRewards: true,
+    streakReminders: true,
+    leaderboardUpdates: false,
+    newGames: true
+  },
+  shop: {
+    orderUpdates: true,
+    shippingNotifications: true,
+    salesAndPromotions: false,
+    stockAlerts: false,
+    cartReminders: false
+  },
+  general: {
+    systemUpdates: true,
+    maintenanceNotices: true,
+    securityAlerts: true,
+    accountUpdates: true,
+    appUpdates: false
+  },
+  quietHours: {
+    enabled: false,
+    startTime: "22:00",
+    endTime: "08:00",
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+  }
+});
+
+const updateNotificationPreference = async (category, subType, value) => {
+  setLoadingNotifications(true);
+  try {
+    const updatedPrefs = { ...notificationPreferences };
+    
+    if (subType) {
+      updatedPrefs[category] = {
+        ...updatedPrefs[category],
+        [subType]: value
+      };
+    } else {
+      updatedPrefs[category] = value;
+    }
+
+    setNotificationPreferences(updatedPrefs);
+    
+    const response = await api.put('/notifications/preferences', updatedPrefs);
+    if (response.status === 200) {
+      toast.success('Notification preferences updated');
+    }
+  } catch (error) {
+    console.error('Failed to update notification preferences:', error);
+    toast.error('Failed to update preferences');
+    
+    // Revert the change on error
+    const revertedPrefs = { ...notificationPreferences };
+    if (subType) {
+      revertedPrefs[category] = {
+        ...revertedPrefs[category],
+        [subType]: !value
+      };
+    } else {
+      revertedPrefs[category] = !value;
+    }
+    setNotificationPreferences(revertedPrefs);
+  } finally {
+    setLoadingNotifications(false);
+  }
+};
+
 
   const handleDeleteAccount = async () => {
     const confirmed = window.confirm(
@@ -224,6 +333,23 @@ const Profile = () => {
     }
     setCropModalProps(null);
   };
+
+  const NotificationToggle = ({ label, description, checked, onChange, disabled = false }) => (
+  <div className="flex items-center justify-between py-3">
+    <div className="flex-1">
+      <p className="text-sm font-medium text-gray-900">{label}</p>
+      {description && (
+        <p className="text-xs text-gray-500 mt-1">{description}</p>
+      )}
+    </div>
+    <Switch
+      checked={checked}
+      onCheckedChange={onChange}
+      disabled={disabled || loadingNotifications}
+      className="ml-4"
+    />
+  </div>
+);
 
   const isCoachProfileComplete = () => {
     const hasBasicInfo = profileData.firstName && profileData.lastName;
@@ -926,6 +1052,376 @@ const Profile = () => {
                 )}
               </CardContent>
             </Card>
+
+
+{/* Notification Preferences Card - Enhanced Collapsible */}
+<Card className='shadow-sm md:shadow-lg mb-4 md:mb-8'>
+  <CardHeader 
+    className='border-b border-gray-100 p-4 md:p-6 cursor-pointe'
+    onClick={() => setNotificationCardExpanded(!notificationCardExpanded)}
+  >
+    <div className="flex items-center justify-between">
+      <CardTitle className='text-lg md:text-xl flex items-center'>
+        <Bell className="w-5 h-5 md:w-6 md:h-6 mr-2" />
+        Notifications
+      </CardTitle>
+      <div className="flex items-center space-x-2">
+        {notificationPreferences && (
+          <div className="text-xs md:text-sm text-gray-500">
+            {notificationPreferences.pushNotifications ? 'Enabled' : 'Disabled'}
+          </div>
+        )}
+        <ChevronRight 
+          className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
+            notificationCardExpanded ? 'rotate-90' : ''
+          }`} 
+        />
+      </div>
+    </div>
+    {!notificationCardExpanded && notificationPreferences && (
+      <div className="mt-2 text-xs md:text-sm text-gray-600">
+        Click to manage your notification settings
+      </div>
+    )}
+  </CardHeader>
+  
+  {/* Collapsible Content */}
+  <div className={`overflow-hidden transition-all duration-300 ease-in-out ${
+    notificationCardExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+  }`}>
+    <CardContent className="p-4 md:p-6">
+      {notificationPreferences ? (
+        <div className="space-y-6">
+          
+          {/* Master Controls */}
+          <div className="pb-4 border-b border-gray-100">
+            <h3 className="text-base font-semibold mb-4 text-gray-900">Master Controls</h3>
+            <div className="space-y-1">
+              <NotificationToggle
+                label="Push Notifications"
+                description="Receive notifications on your device"
+                checked={notificationPreferences.pushNotifications}
+                onChange={(value) => updateNotificationPreference('pushNotifications', null, value)}
+              />
+              <NotificationToggle
+                label="Email Notifications"
+                description="Receive notifications via email"
+                checked={notificationPreferences.emailNotifications}
+                onChange={(value) => updateNotificationPreference('emailNotifications', null, value)}
+              />
+            </div>
+          </div>
+
+          {/* GymBros Notifications */}
+          <div className="pb-4 border-b border-gray-100">
+            <h3 className="text-base font-semibold mb-4 text-gray-900 flex items-center">
+              <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+              GymBros
+            </h3>
+            <div className="space-y-1">
+              <NotificationToggle
+                label="New Matches"
+                description="When you match with a new gym buddy"
+                checked={notificationPreferences.gymBros?.matches}
+                onChange={(value) => updateNotificationPreference('gymBros', 'matches', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+              <NotificationToggle
+                label="Messages"
+                description="When someone sends you a message"
+                checked={notificationPreferences.gymBros?.messages}
+                onChange={(value) => updateNotificationPreference('gymBros', 'messages', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+              <NotificationToggle
+                label="Workout Invites"
+                description="When someone invites you to workout"
+                checked={notificationPreferences.gymBros?.workoutInvites}
+                onChange={(value) => updateNotificationPreference('gymBros', 'workoutInvites', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+              <NotificationToggle
+                label="Profile Views"
+                description="When someone views your profile"
+                checked={notificationPreferences.gymBros?.profileViews}
+                onChange={(value) => updateNotificationPreference('gymBros', 'profileViews', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+              <NotificationToggle
+                label="Boosts"
+                description="When your boosts are activated or expire"
+                checked={notificationPreferences.gymBros?.boosts}
+                onChange={(value) => updateNotificationPreference('gymBros', 'boosts', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+            </div>
+          </div>
+
+          {/* Coaching Notifications - Different based on role */}
+          <div className="pb-4 border-b border-gray-100">
+            <h3 className="text-base font-semibold mb-4 text-gray-900 flex items-center">
+              <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+              Coaching
+              {isCoach && (
+                <span className="ml-2 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
+                  Coach
+                </span>
+              )}
+            </h3>
+            <div className="space-y-1">
+              {isCoach ? (
+                // Coach notifications
+                <>
+                  <NotificationToggle
+                    label="New Clients"
+                    description="When someone subscribes to your coaching"
+                    checked={notificationPreferences.coaching?.newClients}
+                    onChange={(value) => updateNotificationPreference('coaching', 'newClients', value)}
+                    disabled={!notificationPreferences.pushNotifications}
+                  />
+                  <NotificationToggle
+                    label="Client Messages"
+                    description="When clients send you messages"
+                    checked={notificationPreferences.coaching?.clientMessages}
+                    onChange={(value) => updateNotificationPreference('coaching', 'clientMessages', value)}
+                    disabled={!notificationPreferences.pushNotifications}
+                  />
+                  <NotificationToggle
+                    label="Session Reminders"
+                    description="Reminders about upcoming sessions"
+                    checked={notificationPreferences.coaching?.sessionReminders}
+                    onChange={(value) => updateNotificationPreference('coaching', 'sessionReminders', value)}
+                    disabled={!notificationPreferences.pushNotifications}
+                  />
+                  <NotificationToggle
+                    label="Payment Updates"
+                    description="When you receive payments or payouts"
+                    checked={notificationPreferences.coaching?.paymentUpdates}
+                    onChange={(value) => updateNotificationPreference('coaching', 'paymentUpdates', value)}
+                    disabled={!notificationPreferences.pushNotifications}
+                  />
+                  <NotificationToggle
+                    label="Goal Completion Requests"
+                    description="When clients request goal completion approval"
+                    checked={notificationPreferences.coaching?.goalCompletionRequests}
+                    onChange={(value) => updateNotificationPreference('coaching', 'goalCompletionRequests', value)}
+                    disabled={!notificationPreferences.pushNotifications}
+                  />
+                </>
+              ) : (
+                // Client/User notifications
+                <>
+                  <NotificationToggle
+                    label="Session Reminders"
+                    description="Reminders about your upcoming coaching sessions"
+                    checked={notificationPreferences.coaching?.sessionReminders}
+                    onChange={(value) => updateNotificationPreference('coaching', 'sessionReminders', value)}
+                    disabled={!notificationPreferences.pushNotifications}
+                  />
+                  <NotificationToggle
+                    label="Coach Messages"
+                    description="When your coach sends you messages"
+                    checked={notificationPreferences.coaching?.coachMessages}
+                    onChange={(value) => updateNotificationPreference('coaching', 'coachMessages', value)}
+                    disabled={!notificationPreferences.pushNotifications}
+                  />
+                  <NotificationToggle
+                    label="New Goals"
+                    description="When your coach assigns you new goals"
+                    checked={notificationPreferences.coaching?.newGoals}
+                    onChange={(value) => updateNotificationPreference('coaching', 'newGoals', value)}
+                    disabled={!notificationPreferences.pushNotifications}
+                  />
+                  <NotificationToggle
+                    label="Accepted Goals"
+                    description="When your coach accepts your goal completions"
+                    checked={notificationPreferences.coaching?.acceptedGoals}
+                    onChange={(value) => updateNotificationPreference('coaching', 'acceptedGoals', value)}
+                    disabled={!notificationPreferences.pushNotifications}
+                  />
+                </>
+              )}
+            </div>
+          </div>
+
+
+          {/* Games Notifications */}
+          <div className="pb-4 border-b border-gray-100">
+            <h3 className="text-base font-semibold mb-4 text-gray-900 flex items-center">
+              <div className="w-2 h-2 bg-purple-500 rounded-full mr-2"></div>
+              Games
+            </h3>
+            <div className="space-y-1">
+              <NotificationToggle
+                label="Daily Rewards"
+                description="When daily rewards are available"
+                checked={notificationPreferences.games?.dailyRewards}
+                onChange={(value) => updateNotificationPreference('games', 'dailyRewards', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+              <NotificationToggle
+                label="Streak Reminders"
+                description="Reminders to maintain your learning streak"
+                checked={notificationPreferences.games?.streakReminders}
+                onChange={(value) => updateNotificationPreference('games', 'streakReminders', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+              <NotificationToggle
+                label="Leaderboard Updates"
+                description="When your leaderboard position changes"
+                checked={notificationPreferences.games?.leaderboardUpdates}
+                onChange={(value) => updateNotificationPreference('games', 'leaderboardUpdates', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+              <NotificationToggle
+                label="New Games"
+                description="When new games are available"
+                checked={notificationPreferences.games?.newGames}
+                onChange={(value) => updateNotificationPreference('games', 'newGames', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+            </div>
+          </div>
+
+          {/* Shop Notifications */}
+          <div className="pb-4 border-b border-gray-100">
+            <h3 className="text-base font-semibold mb-4 text-gray-900 flex items-center">
+              <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
+              Shop
+            </h3>
+            <div className="space-y-1">
+              <NotificationToggle
+                label="Order Updates"
+                description="Updates about your orders"
+                checked={notificationPreferences.shop?.orderUpdates}
+                onChange={(value) => updateNotificationPreference('shop', 'orderUpdates', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+              <NotificationToggle
+                label="Shipping Notifications"
+                description="When your orders are shipped"
+                checked={notificationPreferences.shop?.shippingNotifications}
+                onChange={(value) => updateNotificationPreference('shop', 'shippingNotifications', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+              <NotificationToggle
+                label="Sales & Promotions"
+                description="Special offers and discounts"
+                checked={notificationPreferences.shop?.salesAndPromotions}
+                onChange={(value) => updateNotificationPreference('shop', 'salesAndPromotions', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+              <NotificationToggle
+                label="Stock Alerts"
+                description="When items you want are back in stock"
+                checked={notificationPreferences.shop?.stockAlerts}
+                onChange={(value) => updateNotificationPreference('shop', 'stockAlerts', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+              <NotificationToggle
+                label="Cart Reminders"
+                description="Reminders about items left in your cart"
+                checked={notificationPreferences.shop?.cartReminders}
+                onChange={(value) => updateNotificationPreference('shop', 'cartReminders', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+            </div>
+          </div>
+
+          {/* General Notifications */}
+          <div className="pb-4 border-b border-gray-100">
+            <h3 className="text-base font-semibold mb-4 text-gray-900 flex items-center">
+              <div className="w-2 h-2 bg-gray-500 rounded-full mr-2"></div>
+              General
+            </h3>
+            <div className="space-y-1">
+              <NotificationToggle
+                label="System Updates"
+                description="Important app updates and announcements"
+                checked={notificationPreferences.general?.systemUpdates}
+                onChange={(value) => updateNotificationPreference('general', 'systemUpdates', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+              <NotificationToggle
+                label="Maintenance Notices"
+                description="Scheduled maintenance notifications"
+                checked={notificationPreferences.general?.maintenanceNotices}
+                onChange={(value) => updateNotificationPreference('general', 'maintenanceNotices', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+              <NotificationToggle
+                label="Security Alerts"
+                description="Important security-related notifications"
+                checked={notificationPreferences.general?.securityAlerts}
+                onChange={(value) => updateNotificationPreference('general', 'securityAlerts', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+              <NotificationToggle
+                label="Account Updates"
+                description="Changes to your account settings"
+                checked={notificationPreferences.general?.accountUpdates}
+                onChange={(value) => updateNotificationPreference('general', 'accountUpdates', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+            </div>
+          </div>
+
+          {/* Quiet Hours */}
+          <div>
+            <h3 className="text-base font-semibold mb-4 text-gray-900 flex items-center">
+              <Clock className="w-4 h-4 mr-2" />
+              Quiet Hours
+            </h3>
+            <div className="space-y-4">
+              <NotificationToggle
+                label="Enable Quiet Hours"
+                description="Don't receive notifications during specified times"
+                checked={notificationPreferences.quietHours?.enabled}
+                onChange={(value) => updateNotificationPreference('quietHours', 'enabled', value)}
+                disabled={!notificationPreferences.pushNotifications}
+              />
+              
+              {notificationPreferences.quietHours?.enabled && (
+                <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Start Time</label>
+                      <Input
+                        type="time"
+                        value={notificationPreferences.quietHours?.startTime || "22:00"}
+                        onChange={(e) => updateNotificationPreference('quietHours', 'startTime', e.target.value)}
+                        className="text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">End Time</label>
+                      <Input
+                        type="time"
+                        value={notificationPreferences.quietHours?.endTime || "08:00"}
+                        onChange={(e) => updateNotificationPreference('quietHours', 'endTime', e.target.value)}
+                        className="text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-600 bg-blue-50 p-3 rounded">
+                    <Clock className="w-4 h-4 inline mr-1" />
+                    Quiet hours are based on your device's timezone ({notificationPreferences.quietHours?.timezone || 'UTC'})
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+        </div>
+      ) : (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin mr-2" />
+          <span className="text-gray-600">Loading notification preferences...</span>
+        </div>
+      )}
+    </CardContent>
+  </div>
+</Card>
 
             {/* Membership Status - Mobile Optimized */}
             {!isCoach && (

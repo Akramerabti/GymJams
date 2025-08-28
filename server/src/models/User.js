@@ -16,7 +16,8 @@ const userSchema = new mongoose.Schema({
       },
       message: 'This email is already registered'
     }
-  },  password: {
+  },  
+  password: {
     type: String,
     required: function() {
       // Password is only required for non-OAuth users
@@ -29,14 +30,16 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true
-  },  lastName: {
+  },  
+  lastName: {
     type: String,
     required: function() {
       // lastName is optional for OAuth users until they complete their profile
       return !this.oauth || !this.oauth.isIncomplete;
     },
     trim: true
-  },  phone: {
+  },  
+  phone: {
     type: String,
     required: function() {
       // Phone is optional for OAuth users until they complete their profile
@@ -65,7 +68,8 @@ const userSchema = new mongoose.Schema({
       },
       message: 'This phone number is already registered'
     }
-  },oauth: {
+  },
+  oauth: {
     googleId: String,
     facebookId: String,
     lastProvider: String,
@@ -82,6 +86,153 @@ const userSchema = new mongoose.Schema({
       default: false
     }
   },
+  
+  // Notification Preferences
+  notificationPreferences: {
+    // Push notification master switch
+    pushNotifications: {
+      type: Boolean,
+      default: true
+    },
+    // Email notification master switch
+    emailNotifications: {
+      type: Boolean,
+      default: true
+    },
+    
+    // Specific notification types
+    gymBros: {
+      matches: {
+        type: Boolean,
+        default: true
+      },
+      messages: {
+        type: Boolean,
+        default: true
+      },
+      workoutInvites: {
+        type: Boolean,
+        default: true
+      },
+      profileViews: {
+        type: Boolean,
+        default: true
+      },
+      boosts: {
+        type: Boolean,
+        default: true
+      }
+    },
+    
+    coaching: {
+      newClients: {
+        type: Boolean,
+        default: true
+      },
+      clientMessages: {
+        type: Boolean,
+        default: true
+      },
+      sessionReminders: {
+        type: Boolean,
+        default: true
+      },
+      paymentUpdates: {
+        type: Boolean,
+        default: true
+      },
+      coachApplications: {
+        type: Boolean,
+        default: true
+      }
+    },
+    
+    games: {
+      dailyRewards: {
+        type: Boolean,
+        default: true
+      },
+      streakReminders: {
+        type: Boolean,
+        default: true
+      },
+      leaderboardUpdates: {
+        type: Boolean,
+        default: false // Less critical, default off
+      },
+      newGames: {
+        type: Boolean,
+        default: true
+      }
+    },
+    
+    shop: {
+      orderUpdates: {
+        type: Boolean,
+        default: true
+      },
+      shippingNotifications: {
+        type: Boolean,
+        default: true
+      },
+      salesAndPromotions: {
+        type: Boolean,
+        default: false // Marketing, default off
+      },
+      stockAlerts: {
+        type: Boolean,
+        default: false // Optional feature
+      },
+      cartReminders: {
+        type: Boolean,
+        default: false // Can be annoying, default off
+      }
+    },
+    
+    general: {
+      systemUpdates: {
+        type: Boolean,
+        default: true
+      },
+      maintenanceNotices: {
+        type: Boolean,
+        default: true
+      },
+      securityAlerts: {
+        type: Boolean,
+        default: true
+      },
+      accountUpdates: {
+        type: Boolean,
+        default: true
+      },
+      appUpdates: {
+        type: Boolean,
+        default: false // Optional
+      }
+    },
+    
+    // Global preferences
+    quietHours: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      startTime: {
+        type: String, // Format: "22:00"
+        default: "22:00"
+      },
+      endTime: {
+        type: String, // Format: "08:00"
+        default: "08:00"
+      },
+      timezone: {
+        type: String,
+        default: "UTC"
+      }
+    }
+  },
+
   stripeCustomerId: {
     type: String,
     unique: true,
@@ -265,6 +416,82 @@ const userSchema = new mongoose.Schema({
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
+
+// Method to check if user should receive a specific notification
+userSchema.methods.shouldReceiveNotification = function(notificationType, subType = null) {
+  // Check if push notifications are enabled globally
+  if (!this.notificationPreferences?.pushNotifications) {
+    return false;
+  }
+  
+  // Check quiet hours
+  if (this.notificationPreferences?.quietHours?.enabled) {
+    const now = new Date();
+    const userTimezone = this.notificationPreferences.quietHours.timezone || 'UTC';
+    const currentTime = now.toLocaleTimeString('en-US', { 
+      timeZone: userTimezone,
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    
+    const startTime = this.notificationPreferences.quietHours.startTime;
+    const endTime = this.notificationPreferences.quietHours.endTime;
+    
+    // Simple time range check (doesn't handle timezone complexities perfectly)
+    if (startTime && endTime) {
+      if (startTime <= endTime) {
+        // Same day range (e.g., 09:00 to 17:00)
+        if (currentTime >= startTime && currentTime <= endTime) {
+          return false; // In quiet hours
+        }
+      } else {
+        // Overnight range (e.g., 22:00 to 08:00)
+        if (currentTime >= startTime || currentTime <= endTime) {
+          return false; // In quiet hours
+        }
+      }
+    }
+  }
+  
+  // Check specific notification type preferences
+  const prefs = this.notificationPreferences;
+  
+  switch (notificationType) {
+    case 'gymBros':
+      if (subType) {
+        return prefs?.gymBros?.[subType] !== false;
+      }
+      return true;
+      
+    case 'coaching':
+      if (subType) {
+        return prefs?.coaching?.[subType] !== false;
+      }
+      return true;
+      
+    case 'games':
+      if (subType) {
+        return prefs?.games?.[subType] !== false;
+      }
+      return true;
+      
+    case 'shop':
+      if (subType) {
+        return prefs?.shop?.[subType] !== false;
+      }
+      return true;
+      
+    case 'general':
+      if (subType) {
+        return prefs?.general?.[subType] !== false;
+      }
+      return true;
+      
+    default:
+      return true; // Default to allowing unknown types
+  }
+};
 
 userSchema.methods.checkDailyGames = function() {
   const now = new Date();

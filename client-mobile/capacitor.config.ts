@@ -5,43 +5,57 @@ const config: CapacitorConfig = {
   appName: 'GymTonic',
   webDir: 'dist',
   server: {
-    androidScheme: 'https'
+    androidScheme: 'https',
+    // iOS also uses https by default, but you can specify if needed
+    iosScheme: 'https'
   },
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,
       backgroundColor: "#1f2937",
-      showSpinner: false
+      showSpinner: false,
+      // iOS-specific splash screen settings
+      launchAutoHide: true,
+      splashFullScreen: true,
+      splashImmersive: true
     },
     StatusBar: {
-      style: 'dark'
+      style: 'dark',
+      // iOS-specific status bar settings
+      overlaysWebView: true,
+      backgroundColor: '#1f2937'
     },
     // Location plugin configuration
     Geolocation: {
-      // Request permissions on plugin load
       requestPermissions: true,
-      // Enable high accuracy by default
       enableHighAccuracy: true
     },
     // Camera plugin configuration
     Camera: {
-      // Request permissions on plugin load
       requestPermissions: true,
-      // Enable selection from gallery
       allowGallerySelection: true,
-      // Default camera quality
       quality: 90
     },
     // Filesystem plugin configuration
     Filesystem: {
-      // Request permissions on plugin load  
       requestPermissions: true
     },
     // Preferences for secure storage
     Preferences: {
-      // Use secure storage when available
       secure: true
+    },
+     PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert"]
     }
+  },
+  // iOS-specific configuration
+  ios: {
+    // Custom scheme if needed (optional)
+    scheme: 'GymTonic',
+    // Webview configuration
+    webContentsDebuggingEnabled: true, // Enable for development
+    // Handle safe area insets
+    contentInset: 'automatic'
   }
 };
 

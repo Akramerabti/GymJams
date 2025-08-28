@@ -11,46 +11,35 @@ import taskforceNotificationService from '../services/taskforceNotification.serv
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Comprehensive email normalization function
 const normalizeEmail = (email) => {
   if (!email || typeof email !== 'string' || !email.includes('@')) return email;
-  
-  // Convert to lowercase and trim whitespace
   email = email.toLowerCase().trim();
-  
-  // Remove any surrounding quotes or brackets
+
   email = email.replace(/^["'<\[\(]+|["'>\]\)]+$/g, '');
-  
-  // Split email into local and domain parts
+
   const atIndex = email.lastIndexOf('@'); // Use lastIndexOf to handle edge cases
   if (atIndex === -1) return email;
   
   let localPart = email.substring(0, atIndex);
   const domain = email.substring(atIndex + 1);
   
-  // Remove any leading/trailing dots, underscores, hyphens from local part
   localPart = localPart.replace(/^[._-]+|[._-]+$/g, '');
   
-  // Define normalization rules by domain patterns
   const normalizationRules = {
-    // Gmail and Google Workspace - remove dots and plus aliases
     'gmail.com': (local) => local.replace(/\./g, '').split('+')[0],
     'googlemail.com': (local) => local.replace(/\./g, '').split('+')[0],
-    
-    // Outlook/Hotmail - remove plus aliases but keep dots
+
     'outlook.com': (local) => local.split('+')[0],
     'hotmail.com': (local) => local.split('+')[0],
     'live.com': (local) => local.split('+')[0],
     'msn.com': (local) => local.split('+')[0],
-    
-    // Yahoo - remove plus aliases but keep dots
+
     'yahoo.com': (local) => local.split('+')[0],
     'yahoo.ca': (local) => local.split('+')[0],
     'yahoo.co.uk': (local) => local.split('+')[0],
     'yahoo.fr': (local) => local.split('+')[0],
     'ymail.com': (local) => local.split('+')[0],
-    
-    // Educational domains - normalize dots and common variations
+
     'mcgill.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
     'mail.mcgill.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
     'student.mcgill.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
@@ -60,20 +49,17 @@ const normalizeEmail = (email) => {
     'polymtl.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
     'hec.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
     
-    // More Canadian universities
     'utoronto.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
     'ubc.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
     'uwaterloo.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
     'carleton.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
     'uottawa.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
     
-    // Generic educational pattern (.edu, .ac.*, etc.)
     'edu': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
     'ac.uk': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
     'ac.ca': (local) => local.replace(/\.+/g, '.').replace(/^\.+|\.+$/g, ''),
   };
-  
-  // Apply specific domain rules
+ 
   let normalizedLocal = localPart;
   let ruleApplied = false;
   

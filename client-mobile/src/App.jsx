@@ -18,6 +18,7 @@ import { PermissionsProvider, usePermissions } from './contexts/PermissionContex
 
 // Import stores
 import { useAuth } from './stores/authStore';
+import notificationService from './services/notificationService';
 
 // Layout Components
 import Layout from './components/layout/Layout';
@@ -250,7 +251,6 @@ function PermissionsModalManager() {
   );
 }
 
-// Main App component with permissions integration
 function AppContent() {
   const { checkAuth, logout, user, isAuthenticated } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -262,7 +262,45 @@ function AppContent() {
     isNative
   } = usePermissions();
 
+  // Initialize notifications when user logs in/out
+  useEffect(() => {
+    if (user && isAuthenticated) {
+      // Initialize notifications when user is logged in
+      initializeNotifications();
+    } else {
+      // Clean up when user logs out
+      handleNotificationCleanup();
+    }
+  }, [user, isAuthenticated]);
 
+  const initializeNotifications = async () => {
+    try {
+      console.log('🔔 Initializing notifications for user:', user?.id);
+      const success = await notificationService.initialize();
+      
+      if (success) {
+        console.log('✅ Push notifications enabled');
+        
+        // Register any pending FCM token from before login
+        await notificationService.registerPendingToken();
+        console.log('✅ Pending token registration attempted');
+      } else {
+        console.log('❌ Push notifications disabled or unavailable');
+      }
+    } catch (error) {
+      console.error('❌ Error initializing notifications:', error);
+      // Don't show error toast to user as this is not critical functionality
+    }
+  };
+
+  const handleNotificationCleanup = async () => {
+    try {
+      console.log('🧹 Cleaning up notifications on logout');
+      await notificationService.unregister();
+    } catch (error) {
+      console.error('Error cleaning up notifications:', error);
+    }
+  };
 
   // Check if we're returning from OAuth
   useEffect(() => {
@@ -463,8 +501,7 @@ useEffect(() => {
   );
 }
 
-// Main App wrapper with all providers
-function App() {
+function App() {  
   return (
     <I18nextProvider i18n={i18n}>
       <ThemeProvider>

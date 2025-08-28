@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "822657582291",
+    "project_id": "gymtonic-87803",
+    "storage_bucket": "gymtonic-87803.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:822657582291:android:a057e2faa8b41630dd0026",
+        "android_client_info": {
+          "package_name": "com.akram.gymtonic"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBPX0qDSoPOw4n7WUOY3gPJhPi60RbJrfw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

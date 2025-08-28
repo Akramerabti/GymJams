@@ -17,7 +17,7 @@ const MatchModal = ({
   const handleSendMessage = () => {
     // Dispatch custom event
     const matchEvent = new CustomEvent('navigateToMatches', {
-      detail: { matchedProfile }
+      detail: { matchedProfile: matchedUser }
     });
     window.dispatchEvent(matchEvent);
     
@@ -102,7 +102,7 @@ const MatchModal = ({
     }
   };
   
-  // Format image URL
+  // Format image URL with better error handling
   const formatImageUrl = (url) => {
     if (!url) return "/api/placeholder/400/400";
     
@@ -116,9 +116,61 @@ const MatchModal = ({
     }
   };
   
-  // Get profile images
-  const currentUserImage = currentUser?.profileImage || (currentUser?.images && currentUser.images[0]);
-  const matchedUserImage = matchedUser?.profileImage || (matchedUser?.images && matchedUser.images[0]);
+  // Debug logging to help identify the issue
+  console.log('MatchModal Props:', {
+    currentUser,
+    matchedUser,
+    isVisible
+  });
+  
+  // Get profile images with better fallback logic
+  const getCurrentUserImage = () => {
+    if (!currentUser) return null;
+
+    console.log('Current User:', currentUser);
+
+    // Try multiple possible image properties
+    const possibleImages = [
+      currentUser.profileImage,
+      currentUser.images?.[0],
+      currentUser.profilePicture,
+      currentUser.avatar,
+      currentUser.photo
+    ];
+    
+    return possibleImages.find(img => img) || null;
+  };
+  
+  const getMatchedUserImage = () => {
+    if (!matchedUser) return null;
+    
+    // Try multiple possible image properties
+    const possibleImages = [
+      matchedUser.profileImage,
+      matchedUser.images?.[0],
+      matchedUser.profilePicture,
+      matchedUser.avatar,
+      matchedUser.photo
+    ];
+    
+    return possibleImages.find(img => img) || null;
+  };
+
+  const currentUserImage = getCurrentUserImage();
+  const matchedUserImage = getMatchedUserImage();
+  
+  // Get matched user name with fallback
+  const getMatchedUserName = () => {
+    if (!matchedUser) return 'your match';
+    return matchedUser.name || matchedUser.firstName || matchedUser.username || 'your match';
+  };
+
+  // Debug image URLs
+  console.log('Image URLs:', {
+    currentUserImage: formatImageUrl(currentUserImage),
+    matchedUserImage: formatImageUrl(matchedUserImage),
+    matchedUserName: getMatchedUserName()
+  });
 
   return (
     <AnimatePresence>
@@ -172,32 +224,36 @@ const MatchModal = ({
                 </motion.div>
               </div>
               
+              {/* Current user image */}
               <motion.div
                 initial={{ x: -80, rotate: -10 }}
                 animate={{ x: -40, rotate: 0 }}
-                className="absolute top-16 z-10 rounded-full border-4 border-white shadow-xl h-28 w-28 overflow-hidden"
+                className="absolute top-16 z-10 rounded-full border-4 border-white shadow-xl h-28 w-28 overflow-hidden bg-gray-200"
               >
                 <img 
                   src={formatImageUrl(currentUserImage)} 
                   alt="Your profile" 
                   className="w-full h-full object-cover"
                   onError={(e) => {
+                    console.error('Current user image failed to load:', e.target.src);
                     e.target.onerror = null;
                     e.target.src = "/api/placeholder/400/400";
                   }}
                 />
               </motion.div>
               
+              {/* Matched user image */}
               <motion.div
                 initial={{ x: 80, rotate: 10 }}
                 animate={{ x: 40, rotate: 0 }}
-                className="absolute top-16 z-10 rounded-full border-4 border-white shadow-xl h-28 w-28 overflow-hidden"
+                className="absolute top-16 z-10 rounded-full border-4 border-white shadow-xl h-28 w-28 overflow-hidden bg-gray-200"
               >
                 <img 
                   src={formatImageUrl(matchedUserImage)} 
-                  alt={matchedUser?.name || 'Match'} 
+                  alt={getMatchedUserName()} 
                   className="w-full h-full object-cover"
                   onError={(e) => {
+                    console.error('Matched user image failed to load:', e.target.src);
                     e.target.onerror = null;
                     e.target.src = "/api/placeholder/400/400";
                   }}
@@ -222,7 +278,7 @@ const MatchModal = ({
                 transition={{ delay: 0.4 }}
                 className="text-white/80 mb-8"
               >
-                You and {matchedUser?.name || 'your match'} have liked each other. Time to plan your first workout together!
+                You and {getMatchedUserName()} have liked each other. Time to plan your first workout together!
               </motion.p>
               
               {/* Action buttons */}
@@ -231,7 +287,7 @@ const MatchModal = ({
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.6 }}
-                  onClick={onSendMessage}
+                  onClick={handleSendMessage}
                   className="flex items-center justify-center bg-white text-purple-600 py-3 px-4 rounded-xl font-semibold shadow-lg hover:bg-purple-50 transition-colors"
                 >
                   <MessageSquare size={20} className="mr-2" />

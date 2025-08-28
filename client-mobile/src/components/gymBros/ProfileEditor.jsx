@@ -13,9 +13,9 @@ const CustomButton = ({ onClick, children, className = '', variant = 'primary', 
   const baseStyle = "flex items-center justify-center px-4 py-2 rounded-lg text-sm transition-all duration-200 ease-in-out font-medium";
   const variants = {
     primary: "bg-blue-600 text-white hover:bg-blue-700 shadow-md",
-    secondary: "bg-gray-200 text-gray-800 hover:bg-gray-300",
+    secondary: "bg-gray-200 text-black hover:bg-gray-300",
     danger: "bg-red-500 text-white hover:bg-red-600 shadow-md",
-    outline: "border border-gray-300 text-gray-700 hover:bg-gray-50",
+    outline: "border border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-700",
   };
 
   return (

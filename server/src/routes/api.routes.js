@@ -5,6 +5,7 @@ import orderRoutes from './order.routes.js';
 import userRoutes from './user.routes.js';
 import gymBrosRoutes from './gymBrosRoutes.js';
 import avatarRoutes from './avatar.routes.js';
+import notificationRoutes from './notification.routes.js';
 import { handleError } from '../middleware/error.middleware.js';
 
 
@@ -18,6 +19,7 @@ router.use('/users', userRoutes);
 router.use('/products', productRoutes);
 router.use('/gym-bros', gymBrosRoutes);
 router.use('/avatar', avatarRoutes);
+router.use('/notifications', notificationRoutes);
 
 // Webhook route for Stripe
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {

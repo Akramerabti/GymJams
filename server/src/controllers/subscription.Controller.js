@@ -11,7 +11,6 @@ import CouponCode from '../models/CouponCode.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// Plan configurations
 const PLANS = {
   basic: {
     name: 'Basic',
@@ -58,10 +57,9 @@ const PLANS = {
 
 export const createSetupIntent = async (req, res) => {
   try {
-    // Create a SetupIntent for saving payment method
     const setupIntent = await stripe.setupIntents.create({
       payment_method_types: ['card'],
-      usage: 'off_session', // Important for recurring payments
+      usage: 'off_session',
     });
 
     res.json({ 
@@ -79,11 +77,10 @@ export const getCurrentSubscription = async (req, res) => {
     let subscription;
 
     if (req.user) {
-      // For logged-in users
       const user = await User.findById(req.user.id).populate('subscription');
       subscription = user.subscription;
     } else {
-      // For guest users with access token
+
       const { accessToken } = req.query;
       if (!accessToken) {
         return res.status(400).json({ error: 'Access token is required for guest access' });
@@ -91,7 +88,7 @@ export const getCurrentSubscription = async (req, res) => {
 
       subscription = await Subscription.findOne({ 
         accessToken,
-        status: 'active' // Only return active subscriptions
+        status: 'active'
       });
 
       if (!subscription) {
@@ -159,15 +156,15 @@ export const getQuestionnaireStatus = async (req, res) => {
     let subscription;
 
     if (req.user) {
-      // For logged-in users: Find the most recent ACTIVE subscription for the user
+      
       subscription = await Subscription.findOne({ 
         user: req.user.id, 
         status: 'active'
       })
-      .sort({ startDate: -1 }) // Sort by startDate in descending order
+      .sort({ startDate: -1 }) 
       .exec();
     } else {
-      // For guest users: Find the most recent ACTIVE subscription using the access token
+      
       const { accessToken } = req.query;
       if (!accessToken) {
         return res.status(400).json({ error: 'Access token required for guest users' });
@@ -257,31 +254,26 @@ export const finishCurrentMonth = async (req, res) => {
   try {
     const { subscriptionId } = req.params;
 
-    // Find the subscription in the database
     const subscription = await Subscription.findById(subscriptionId);
 
     if (!subscription) {
       return res.status(404).json({ error: 'Subscription not found' });
     }
 
-    // Check if the subscription belongs to the logged-in user
     if (req.user && subscription.user?.toString() !== req.user.id) {
       return res.status(403).json({ error: 'You do not have permission to modify this subscription' });
     }
 
-    // Calculate the end date as one month after the start date
     const endDate = new Date(subscription.startDate);
     endDate.setMonth(endDate.getMonth() + 1);
 
-    // Cancel the subscription in Stripe but allow it to run until the end of the current period
     await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
       cancel_at_period_end: true,
-    });    // Update the subscription in the database
+    });    
     subscription.cancelAtPeriodEnd = true;
-    subscription.endDate = endDate; // Set the end date to one month after the start date
+    subscription.endDate = endDate;
     await subscription.save();
 
-    // Determine email and guest status
     let userEmail = null;
     let isGuest = false;
 
@@ -323,34 +315,27 @@ export const cancelSubscription = async (req, res) => {
   try {
     const { subscriptionId } = req.params;
 
-    // Find the subscription in the database
     const subscription = await Subscription.findById(subscriptionId);
     if (!subscription) {
       return res.status(404).json({ error: 'Subscription not found' });
     }
 
-    // Check if the subscription belongs to the logged-in user
     if (req.user && subscription.user?.toString() !== req.user.id) {
       return res.status(403).json({ error: 'You do not have permission to cancel this subscription' });
     }
 
-    // Check if the subscription is eligible for a refund
     const isRefundEligible = subscription.isEligibleForRefund();
 
-    // Start a database transaction
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
       if (isRefundEligible) {
-        // Immediately cancel the subscription in Stripe
         await stripe.subscriptions.cancel(subscription.stripeSubscriptionId);
 
-        // Update subscription in database
         subscription.status = 'cancelled';
         subscription.endDate = new Date();
 
-        // Retrieve the latest invoice ID for the subscription
         const subscriptionDetails = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
         const latestInvoiceId = subscriptionDetails.latest_invoice;
 
@@ -358,11 +343,8 @@ export const cancelSubscription = async (req, res) => {
           throw new Error('Latest invoice not found for the subscription');
         }
 
-        // Retrieve the latest invoice details
         const latestInvoice = await stripe.invoices.retrieve(latestInvoiceId);
 
-        // Ensure the latest invoice has a payment intent
-        // PATCH: If the invoice total is 0 (e.g., 100% discount), there will be no payment_intent
         if (!latestInvoice.payment_intent) {
           if (latestInvoice.amount_paid === 0) {
             // No refund needed for $0 invoice, just proceed
@@ -371,11 +353,9 @@ export const cancelSubscription = async (req, res) => {
             throw new Error('Payment intent not found for the latest invoice');
           }
         } else {
-          // Process a 40% refund
           const plan = PLANS[subscription.subscription];
-          const refundAmount = Math.round(plan.price * 0.4 * 100); // 40% of the plan's price in cents
+          const refundAmount = Math.round(plan.price * 0.4 * 100);
 
-          // Create a refund in Stripe
           await stripe.refunds.create({
             payment_intent: latestInvoice.payment_intent,
             amount: refundAmount,
@@ -383,7 +363,6 @@ export const cancelSubscription = async (req, res) => {
           });
         }
       } else {
-        // Mark subscription for cancellation at period end
         await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
           cancel_at_period_end: true,
         });
@@ -391,7 +370,6 @@ export const cancelSubscription = async (req, res) => {
         subscription.cancelAtPeriodEnd = true;
       }
 
-      // Remove points from the user only if the cancellation is refund-eligible
       if (isRefundEligible) {
         const userUpdate = {
           $unset: { subscription: 1 },
@@ -400,7 +378,6 @@ export const cancelSubscription = async (req, res) => {
 
         await User.findByIdAndUpdate(subscription.user, userUpdate, { session });
       } else {
-        // Only remove the subscription reference if the cancellation is not refund-eligible
         const userUpdate = {
           $unset: { subscription: 1 },
         };
@@ -408,8 +385,6 @@ export const cancelSubscription = async (req, res) => {
         await User.findByIdAndUpdate(subscription.user, userUpdate, { session });
       }
 
-
-      // Update coach metrics
       if (subscription.assignedCoach) {
         //(`Subscription ${subscription._id} cancelled - Refund: ${isRefundEligible}`);
 
@@ -727,7 +702,6 @@ export const handleSubscriptionSuccess = async (req, res) => {
   }
 };
 
-
 export const assignCoach = async (req, res) => {
   const MAX_RETRIES = 3;
   let retryCount = 0;
@@ -919,7 +893,6 @@ export const assignCoach = async (req, res) => {
     res.status(500).json({ error: errorMessage });
   }
 };
-
 
 export const handleWebhook = async (event) => {
   try {
@@ -1127,7 +1100,6 @@ export const handleWebhook = async (event) => {
   }
 };
 
-
 export const messaging = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -1293,25 +1265,21 @@ export const markMessagesAsRead = async (req, res) => {
   try {
     const { subscriptionId } = req.params;
     const { messageIds } = req.body;
-    
-    // Get the reader's ID (either from the token or the request body)
+
     const readerId = req.user?.id || req.body.readerId;
 
-    // Validate required fields
     if (!subscriptionId || !messageIds || !Array.isArray(messageIds) || messageIds.length === 0) {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({ message: 'Missing or invalid required fields' });
     }
 
-    // Validate IDs
     if (!mongoose.Types.ObjectId.isValid(subscriptionId)) {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({ message: 'Invalid subscription ID format' });
     }
 
-    // Find the subscription
     const subscription = await Subscription.findById(subscriptionId).session(session);
     if (!subscription) {
       await session.abortTransaction();
@@ -1319,13 +1287,10 @@ export const markMessagesAsRead = async (req, res) => {
       return res.status(404).json({ message: 'Subscription not found' });
     }
 
-    // Get the sender IDs of the messages being marked as read
     const senderIds = new Set();
     const validMessageIds = [];
-    
-    // Verify message IDs and collect sender information
+
     for (const id of messageIds) {
-      // Skip invalid IDs
       if (!mongoose.Types.ObjectId.isValid(id)) {
         logger.warn(`Invalid message ID format: ${id}`);
         continue;
@@ -1333,7 +1298,6 @@ export const markMessagesAsRead = async (req, res) => {
       
       validMessageIds.push(id);
       
-      // Find the message in the subscription
       const message = subscription.messages.find(m => m._id.toString() === id);
       
       // If message exists and has a sender, add it to the set
@@ -1469,7 +1433,6 @@ export const markMessagesAsRead = async (req, res) => {
   }
 };
 
-
 export const getMessages = async (req, res) => {
   try {
     const { subscriptionId } = req.params;
@@ -1535,19 +1498,6 @@ export const getMessages = async (req, res) => {
   }
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 export const addGoal = async (req, res) => {
   try {
     const { subscriptionId } = req.params;
@@ -1588,7 +1538,6 @@ export const addGoal = async (req, res) => {
   }
 };
 
-// Update an existing goal
 export const updateGoal = async (req, res) => {
   try {
     const { subscriptionId, goalId } = req.params;
@@ -1623,19 +1572,16 @@ export const updateGoal = async (req, res) => {
   }
 };
 
-// Delete a goal
 export const deleteGoal = async (req, res) => {
   try {
     const { subscriptionId, goalId } = req.params;
     
-    // Find the subscription
     const subscription = await Subscription.findById(subscriptionId);
     
     if (!subscription) {
       return res.status(404).json({ error: 'Subscription not found' });
     }
-    
-    // Remove the goal
+
     subscription.goals = subscription.goals.filter(g => g.id !== goalId);
     
     await subscription.save();
@@ -1647,7 +1593,6 @@ export const deleteGoal = async (req, res) => {
   }
 };
 
-// Request goal completion (client side)
 export const requestGoalCompletion = async (req, res) => {
   try {
     const { subscriptionId, goalId } = req.params;
@@ -1789,7 +1734,6 @@ export const approveGoalCompletion = async (req, res) => {
   }
 };
 
-// Reject a goal completion request (coach side)
 export const rejectGoalCompletion = async (req, res) => {
   try {
     const { subscriptionId, goalId } = req.params;
@@ -1846,7 +1790,6 @@ export const rejectGoalCompletion = async (req, res) => {
   }
 };
 
-// Save goals generated from questionnaire data
 export const saveQuestionnaireDerivedGoals = async (req, res) => {
   try {
     const { subscriptionId } = req.params;
@@ -1859,7 +1802,6 @@ export const saveQuestionnaireDerivedGoals = async (req, res) => {
       return res.status(404).json({ error: 'Subscription not found' });
     }
     
-    // Only add goals if they don't exist yet
     if (!subscription.goals || subscription.goals.length === 0) {
       // Create properly formatted goals
       const formattedGoals = goals.map(goal => ({
@@ -1890,12 +1832,10 @@ export const saveQuestionnaireDerivedGoals = async (req, res) => {
 
 export const getPendingGoalApprovals = async (req, res) => {
   try {
-    // Ensure the user is a coach
     if (req.user.role !== 'coach') {
       return res.status(403).json({ error: 'Only coaches can access pending goal approvals' });
     }
 
-    // Find all subscriptions where this coach is assigned
     const subscriptions = await Subscription.find({ 
       assignedCoach: req.user.id,
       status: 'active'

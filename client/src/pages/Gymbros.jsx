@@ -124,29 +124,6 @@ const [initializationAttempted, setInitializationAttempted] = useState(false);
       setActiveTab('discover');
     }
   }, [hasProfile]);
-  
-const initializeAuthenticatedUser = async () => {
-    try {
-      const initData = await gymbrosService.initializeGymBros();
-      
-      if (initData.hasProfile) {
-        setHasProfile(true);
-        setShowLoginPrompt(false);
-        
-        if (initData.profiles?.length > 0) {
-          setProfiles(initData.profiles);
-        }
-      } else {
-        setHasProfile(false);
-        setShowLoginPrompt(false);
-      }
-    } catch (error) {
-      console.error('Error initializing authenticated user:', error);
-      setHasProfile(false);
-    }
-  };
-
-
 
 useEffect(() => {
   console.log('🚀 GymBros initialization:', { 
@@ -166,7 +143,7 @@ useEffect(() => {
       if (isAuthenticated) {
         console.log('👤 Authenticated user, clearing guest state');
         clearGuestState();
-        await initializeAuthenticatedUser();
+        await initializeWithSingleCall();
         setInitializationComplete(true); // ✅ ADD THIS
         return;
       }
@@ -297,6 +274,8 @@ useEffect(() => {
 
 
    const combineProfiles = (userModel, gymBrosModel) => {
+
+    ;
     if (!userModel && !gymBrosModel) return null;
     
     // For authenticated users: merge User + GymBrosProfile

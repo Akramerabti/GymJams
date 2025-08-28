@@ -124,27 +124,6 @@ const [currentIndex, setCurrentIndex] = useState(0);
       setActiveTab('discover');
     }
   }, [hasProfile]);
-  
-const initializeAuthenticatedUser = async () => {
-    try {
-      const initData = await gymbrosService.initializeGymBros();
-      
-      if (initData.hasProfile) {
-        setHasProfile(true);
-        setShowLoginPrompt(false);
-        
-        if (initData.profiles?.length > 0) {
-          setProfiles(initData.profiles);
-        }
-      } else {
-        setHasProfile(false);
-        setShowLoginPrompt(false);
-      }
-    } catch (error) {
-      console.error('Error initializing authenticated user:', error);
-      setHasProfile(false);
-    }
-  };
 
 useEffect(() => {
   console.log('🚀 GymBros initialization:', { 
@@ -164,7 +143,7 @@ useEffect(() => {
       if (isAuthenticated) {
         console.log('👤 Authenticated user, clearing guest state');
         clearGuestState();
-        await initializeAuthenticatedUser();
+        await initializeWithSingleCall();
         setInitializationComplete(true); // ✅ ADD THIS
         return;
       }
@@ -586,24 +565,6 @@ useEffect(() => {
     console.error('❌ Error refreshing profiles:', error);
   }
 };
-
-  const checkUserProfile = async () => {
-    await initializeWithSingleCall();
-  };
-
-  function debugGuestToken() {
-    const guestToken = localStorage.getItem('gymbros_guest_token');
-    
-    if (guestToken) {
-      try {
-        const base64Url = guestToken.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
-      } catch (error) {}
-    }
-  }
 
   const fetchProfiles = async () => {
   try {
