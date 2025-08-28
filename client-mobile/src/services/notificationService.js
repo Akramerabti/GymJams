@@ -1,5 +1,5 @@
-// src/services/notificationService.js
 import { PushNotifications } from '@capacitor/push-notifications';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
 import api from './api';
@@ -63,12 +63,21 @@ class NotificationService {
       console.error('Error on registration: ' + JSON.stringify(error));
     });
 
-    // Notification received while app is in foreground
-    PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      console.log('Push received: ' + JSON.stringify(notification));
-      
-      // Show toast for foreground notifications
-      this.showForegroundNotification(notification);
+     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
+      if (document.hasFocus()) {
+        this.showForegroundNotification(notification);
+      } else {
+        await LocalNotifications.schedule({
+          notifications: [
+            {
+              title: notification.title || 'New Notification',
+              body: notification.body || '',
+              id: Date.now(),
+              schedule: { at: new Date(Date.now() + 100) }
+            }
+          ]
+        });
+      }
     });
 
     // Notification clicked/tapped (app was in background/closed)
