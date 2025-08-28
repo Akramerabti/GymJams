@@ -2,6 +2,7 @@
 import { PushNotifications } from '@capacitor/push-notifications';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
 import { toast } from 'sonner';
 import api from './api';
 
@@ -9,6 +10,7 @@ class NotificationService {
   constructor() {
     this.fcmToken = null;
     this.isInitialized = false;
+    this.isAppActive = true; // Track if app is in foreground
   }
 
   async initialize() {
@@ -22,9 +24,7 @@ class NotificationService {
       const permStatus = await PushNotifications.checkPermissions();
       
       if (permStatus.receive === 'prompt') {
-        // Request permissions
         const result = await PushNotifications.requestPermissions();
-        
         if (result.receive !== 'granted') {
           console.log('Push notification permission denied');
           return false;
@@ -34,11 +34,18 @@ class NotificationService {
         return false;
       }
 
+      // Also request local notification permissions for background notifications
+      const localPermStatus = await LocalNotifications.checkPermissions();
+      if (localPermStatus.display === 'prompt') {
+        await LocalNotifications.requestPermissions();
+      }
+
       // Register with FCM
       await PushNotifications.register();
       
-      // Set up listeners for handling incoming notifications
+      // Set up listeners
       this.setupListeners();
+      this.setupAppStateListeners();
       
       this.isInitialized = true;
       console.log('Push notifications initialized successfully');
@@ -49,13 +56,27 @@ class NotificationService {
     }
   }
 
+  setupAppStateListeners() {
+    // Track app state to determine if we should show local notifications
+    App.addListener('appStateChange', ({ isActive }) => {
+      console.log('App state changed:', isActive ? 'foreground' : 'background');
+      this.isAppActive = isActive;
+    });
+
+    // Handle app resume - clear any pending notifications
+    App.addListener('resume', () => {
+      console.log('App resumed');
+      this.isAppActive = true;
+      // Optional: Clear all local notifications when app is opened
+      LocalNotifications.cancel({ notifications: [] });
+    });
+  }
+
   setupListeners() {
     // FCM token registration successful
     PushNotifications.addListener('registration', (token) => {
       console.log('Push registration success, token: ' + token.value);
       this.fcmToken = token.value;
-      
-      // Send token to backend for storage
       this.registerTokenWithBackend(token.value);
     });
 
@@ -64,65 +85,41 @@ class NotificationService {
       console.error('Error on registration: ' + JSON.stringify(error));
     });
 
+    // Handle data-only FCM messages
     PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      console.log('Push received: ' + JSON.stringify(notification));
+      console.log('Push received (data-only): ' + JSON.stringify(notification));
       
-      this.showForegroundNotification(notification);
+      // Since we're sending data-only messages, notification.data contains everything
+      const notificationData = notification.data;
+      
+      if (this.isAppActive) {
+        // App is in foreground - show toast
+        console.log('App in foreground, showing toast');
+        this.showForegroundNotification(notificationData);
+      } else {
+        // App is in background - show local notification
+        console.log('App in background, showing local notification');
+        this.showBackgroundNotification(notificationData);
+      }
     });
 
     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
       console.log('Push action performed: ' + JSON.stringify(notification));
-
       this.handleNotificationTap(notification.notification.data);
+    });
+
+    // Handle local notification taps
+    LocalNotifications.addListener('localNotificationActionPerformed', (notification) => {
+      console.log('Local notification tapped:', notification);
+      this.handleNotificationTap(notification.notification.extra);
     });
   }
 
-  async registerTokenWithBackend(token) {
-    try {
-      const authToken = localStorage.getItem('token');
-      if (!authToken) {
-        console.log('No auth token available, will register token when user logs in');
-        // Store token locally for later registration
-        localStorage.setItem('pending_fcm_token', token);
-        return;
-      }
-
-      const response = await api.post('/notifications/register-token', {
-        fcmToken: token,
-        platform: Capacitor.getPlatform()
-      });
-      
-      if (response.status === 200) {
-        console.log('FCM token registered with backend successfully');
-        // Clear any pending token since we successfully registered
-        localStorage.removeItem('pending_fcm_token');
-      }
-    } catch (error) {
-      console.error('Error registering token with backend:', error);
-      // Store token for retry later
-      localStorage.setItem('pending_fcm_token', token);
-    }
-  }
-
-  // Call this when user logs in to register any pending FCM token
-  async registerPendingToken() {
-    try {
-      const pendingToken = localStorage.getItem('pending_fcm_token');
-      if (pendingToken && this.isInitialized) {
-        await this.registerTokenWithBackend(pendingToken);
-      } else if (this.fcmToken && this.isInitialized) {
-        await this.registerTokenWithBackend(this.fcmToken);
-      }
-    } catch (error) {
-      console.error('Error registering pending token:', error);
-    }
-  }
-
-  showForegroundNotification(notification) {
-    const { title, body, data } = notification;
+  showForegroundNotification(data) {
+    const { title, body, type } = data;
     
     // Create appropriate toast based on notification type
-    switch (data?.type) {
+    switch (type) {
       case 'match':
         toast.success(title || '🎉 New Match!', {
           description: body,
@@ -186,6 +183,37 @@ class NotificationService {
     }
   }
 
+  async showBackgroundNotification(data) {
+    try {
+      const { title, body, type, icon, color } = data;
+      
+      // Generate unique notification ID
+      const notificationId = Math.floor(Math.random() * 10000);
+      
+      // Schedule local notification with the data
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            id: notificationId,
+            title: title || 'GymTonic',
+            body: body || '',
+            largeIcon: icon || 'https://www.gymtonic.ca/Picture2.png',
+            smallIcon: 'ic_notification', // Your app's notification icon
+            iconColor: color || '#3B82F6',
+            extra: data, // Pass all data for tap handling
+            schedule: { at: new Date(Date.now() + 1000) }, // Schedule immediately
+            sound: 'default',
+            attachments: icon ? [{ id: 'icon', url: icon }] : undefined,
+          }
+        ]
+      });
+      
+      console.log(`Local notification scheduled: ${title}`);
+    } catch (error) {
+      console.error('Error showing background notification:', error);
+    }
+  }
+
   handleNotificationTap(data) {
     if (!data) return;
 
@@ -224,20 +252,53 @@ class NotificationService {
         break;
       
       default:
-        // Default navigation for unknown types
         this.navigateToRoute('/');
     }
   }
 
+  async registerTokenWithBackend(token) {
+    try {
+      const authToken = localStorage.getItem('token');
+      if (!authToken) {
+        console.log('No auth token available, will register token when user logs in');
+        localStorage.setItem('pending_fcm_token', token);
+        return;
+      }
+
+      const response = await api.post('/notifications/register-token', {
+        fcmToken: token,
+        platform: Capacitor.getPlatform()
+      });
+      
+      if (response.status === 200) {
+        console.log('FCM token registered with backend successfully');
+        localStorage.removeItem('pending_fcm_token');
+      }
+    } catch (error) {
+      console.error('Error registering token with backend:', error);
+      localStorage.setItem('pending_fcm_token', token);
+    }
+  }
+
+  async registerPendingToken() {
+    try {
+      const pendingToken = localStorage.getItem('pending_fcm_token');
+      if (pendingToken && this.isInitialized) {
+        await this.registerTokenWithBackend(pendingToken);
+      } else if (this.fcmToken && this.isInitialized) {
+        await this.registerTokenWithBackend(this.fcmToken);
+      }
+    } catch (error) {
+      console.error('Error registering pending token:', error);
+    }
+  }
+
   navigateToRoute(route) {
-    // Use your app's navigation system
-    // This example assumes you're using React Router
     if (window.location.pathname !== route) {
       window.location.href = route;
     }
   }
 
-  // Update user's notification preferences
   async updateNotificationPreferences(preferences) {
     try {
       const authToken = localStorage.getItem('token');
@@ -251,7 +312,6 @@ class NotificationService {
     }
   }
 
-  // Get delivered notifications from the device
   async getDeliveredNotifications() {
     try {
       const notificationList = await PushNotifications.getDeliveredNotifications();
@@ -262,23 +322,21 @@ class NotificationService {
     }
   }
 
-  // Clear all delivered notifications from device
   async clearAllNotifications() {
     try {
       await PushNotifications.removeAllDeliveredNotifications();
+      await LocalNotifications.cancel({ notifications: [] });
       console.log('All notifications cleared');
     } catch (error) {
       console.error('Error clearing notifications:', error);
     }
   }
 
-  // Unregister from push notifications
   async unregister() {
     try {
-      // Remove all listeners
       await PushNotifications.removeAllListeners();
+      await App.removeAllListeners();
       
-      // Inform backend that user unregistered
       const authToken = localStorage.getItem('token');
       if (authToken && this.fcmToken) {
         try {
@@ -292,8 +350,6 @@ class NotificationService {
       
       this.fcmToken = null;
       this.isInitialized = false;
-      
-      // Clear stored tokens
       localStorage.removeItem('pending_fcm_token');
       
       console.log('Push notifications unregistered');
@@ -302,21 +358,18 @@ class NotificationService {
     }
   }
 
-  // Check if notifications are properly set up
   isReady() {
     return this.isInitialized && this.fcmToken;
   }
 
-  // Get current FCM token
   getFCMToken() {
     return this.fcmToken;
   }
 
-  // Check permission status
   async getPermissionStatus() {
     try {
       if (!Capacitor.isNativePlatform()) {
-        return { receive: 'granted' }; // Web doesn't have the same permission model
+        return { receive: 'granted' };
       }
       return await PushNotifications.checkPermissions();
     } catch (error) {

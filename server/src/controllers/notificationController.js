@@ -179,67 +179,48 @@ export const sendToUser = async (userId, notification, options = {}) => {
     const sanitizedData = sanitizeDataForFCM({
       type: notification.type,
       timestamp: new Date().toISOString(),
+      // Include title and body in data payload for client-side handling
+      title: notification.title,
+      body: notification.body,
+      ...(notification.icon && { icon: notification.icon }),
+      ...(notification.image && { image: notification.image }),
+      ...(notification.color && { color: notification.color }),
       ...notification.data
     });
-    
-    // Helper function to validate icon URL
-    const isValidIconUrl = (url) => {
-      return url && 
-             typeof url === 'string' && 
-             url.trim() !== '' &&
-             (url.startsWith('http://') || url.startsWith('https://')) &&
-             (url.includes('.jpg') || url.includes('.jpeg') || url.includes('.png') || url.includes('.gif') || url.includes('.webp'));
-    };
 
-    // Helper function to validate image URL (more lenient than icon)
-    const isValidImageUrl = (url) => {
-      return url && 
-             typeof url === 'string' && 
-             url.trim() !== '' &&
-             (url.startsWith('http://') || url.startsWith('https://'));
-    };
-    
-
-const message = {
-  notification: {
-    title: notification.title,
-    body: notification.body,
-
-    ...(isValidImageUrl(notification.image) && { image: notification.image })
-  },
-  data: sanitizedData,
-  android: {
-    notification: {
-      channelId: getChannelId(notification.category, notification.subType),
-      priority: 'high',
-      defaultSound: true,
-      defaultVibrateTimings: true,
-      icon: isValidIconUrl(notification.icon) ? notification.icon : DEFAULT_ICON_URL, // <-- Only here!
-      ...(notification.color && typeof notification.color === 'string' && notification.color.match(/^#[0-9A-F]{6}$/i) && { 
-        color: notification.color 
-      })
-    },
-    data: sanitizedData
-  },
-  apns: {
-    payload: {
-      aps: {
-        alert: {
-          title: notification.title,
-          body: notification.body
+    // Create DATA-ONLY message (no notification payload)
+    const message = {
+      // Remove notification payload entirely - let client handle all display logic
+      data: sanitizedData,
+      android: {
+        // Set priority but no notification config
+        priority: 'high',
+        data: sanitizedData,
+        // Optional: Set collapse key for message grouping
+        ...(notification.collapseKey && { collapseKey: notification.collapseKey })
+      },
+      apns: {
+        // For iOS, use content-available for background processing
+        headers: {
+          'apns-push-type': 'background',
+          'apns-priority': '5'
         },
-        sound: 'default',
-        badge: 1
-      }
-    }
-  },
-  tokens: fcmTokens
-};
+        payload: {
+          aps: {
+            'content-available': 1,
+            // Don't include alert - let client decide
+            badge: 1
+          }
+        }
+      },
+      tokens: fcmTokens
+    };
 
     // Add custom options
     if (options.ttl) {
       message.android.ttl = options.ttl;
-      message.apns.headers = { 'apns-expiration': Math.floor(Date.now() / 1000) + options.ttl };
+      if (!message.apns.headers) message.apns.headers = {};
+      message.apns.headers['apns-expiration'] = Math.floor(Date.now() / 1000) + options.ttl;
     }
 
     // Send notification
@@ -270,7 +251,7 @@ const message = {
       }
     }
 
-    console.log(`Notification sent to user ${userId}: ${response.successCount}/${fcmTokens.length} successful`);
+    console.log(`Data-only notification sent to user ${userId}: ${response.successCount}/${fcmTokens.length} successful`);
     return {
       success: true,
       successCount: response.successCount,
