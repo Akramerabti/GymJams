@@ -3,6 +3,26 @@ import admin from '../config/firebase.js';
 import NotificationToken from '../models/NotificationToken.js';
 import User from '../models/User.js';
 
+// ADD THIS HELPER FUNCTION AT THE TOP
+const sanitizeDataForFCM = (data) => {
+  const sanitized = {};
+  for (const [key, value] of Object.entries(data || {})) {
+    if (value === null || value === undefined) {
+      sanitized[key] = '';
+    } else if (typeof value === 'object' && value.toString) {
+      // Handle ObjectIds and Dates
+      sanitized[key] = value.toString();
+    } else if (typeof value === 'object') {
+      // Handle other objects by stringifying
+      sanitized[key] = JSON.stringify(value);
+    } else {
+      // Convert all other types to string
+      sanitized[key] = String(value);
+    }
+  }
+  return sanitized;
+};
+
 // Register FCM token
 export const registerToken = async (req, res) => {
   try {
@@ -124,7 +144,7 @@ export const updatePreferences = async (req, res) => {
   }
 };
 
-// Core notification sending function
+// UPDATED Core notification sending function with FCM data sanitization
 export const sendToUser = async (userId, notification, options = {}) => {
   try {
     // Get user with notification preferences
@@ -154,6 +174,13 @@ export const sendToUser = async (userId, notification, options = {}) => {
 
     const fcmTokens = tokens.map(token => token.fcmToken);
     
+    // UPDATED: Sanitize notification data to ensure all values are strings
+    const sanitizedData = sanitizeDataForFCM({
+      type: notification.type,
+      timestamp: new Date().toISOString(),
+      ...notification.data
+    });
+    
     // Build FCM message
     const message = {
       notification: {
@@ -162,11 +189,7 @@ export const sendToUser = async (userId, notification, options = {}) => {
         ...(notification.icon && { icon: notification.icon }),
         ...(notification.image && { image: notification.image })
       },
-      data: {
-        type: notification.type,
-        timestamp: new Date().toISOString(),
-        ...notification.data
-      },
+      data: sanitizedData, // Use sanitized data
       android: {
         notification: {
           channelId: getChannelId(notification.category, notification.subType),
@@ -175,11 +198,7 @@ export const sendToUser = async (userId, notification, options = {}) => {
           defaultVibrateTimings: true,
           ...(notification.color && { color: notification.color })
         },
-        data: {
-          type: notification.type,
-          timestamp: new Date().toISOString(),
-          ...notification.data
-        }
+        data: sanitizedData // Use sanitized data here too
       },
       apns: {
         payload: {
