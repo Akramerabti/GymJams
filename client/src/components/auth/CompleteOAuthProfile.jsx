@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Loader2, User, Phone, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../ui/card';
@@ -27,23 +27,114 @@ const countryCodes = [
   { code: '61', name: 'Australia', flag: '🇦🇺', country: 'AU' },
 ];
 
-const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUpdate }) => {
+const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, onComplete, onUserUpdate }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
+  
+  // Initialize state with safe defaults
   const [countryCode, setCountryCode] = useState('1');
   const [countryFlag, setCountryFlag] = useState('🇺🇸'); 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [phoneInputValue, setPhoneInputValue] = useState('');
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [currentUser, setCurrentUser] = useState(user); 
+  const [submitting, setSubmitting] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
+  const [loading, setLoading] = useState(true);
   const dropdownRef = useRef(null);
+  
+  // State for user and missing fields - will be set in useEffect
+  const [currentUser, setCurrentUser] = useState(null);
+  const [missingFields, setMissingFields] = useState({
+    phone: false,
+    lastName: false
+  });
   
   const [formData, setFormData] = useState({
     phone: '',
     lastName: ''
   });
-  const [submitting, setSubmitting] = useState(false);
-  const [formErrors, setFormErrors] = useState({});  
+
+  // Initialize component state based on props or URL params
+  useEffect(() => {
+    const initializeComponent = () => {
+      try {
+        // Check if tempToken is in URL params (direct access)
+        const tempTokenFromUrl = searchParams.get('tempToken');
+        
+        if (tempTokenFromUrl) {
+          // Component accessed directly via URL with tempToken
+          console.log('Initializing with tempToken from URL');
+          
+          // Create user object from tempToken
+          const userFromToken = {
+            tempToken: tempTokenFromUrl,
+            phone: null, // Safe default
+            lastName: null, // Safe default
+            isNewUser: true
+          };
+          
+          setCurrentUser(userFromToken);
+          
+          // For tempToken users, we always need phone and lastName
+          setMissingFields({
+            phone: true,
+            lastName: true
+          });
+          
+        } else if (user) {
+          // Component used with props (from parent component)
+          console.log('Initializing with user prop:', user);
+          
+          // Safely initialize user - handle case where user might not have expected fields
+          const safeUser = {
+            phone: user.phone || null,
+            lastName: user.lastName || null,
+            tempToken: user.tempToken || null,
+            ...user // spread other properties
+          };
+          
+          setCurrentUser(safeUser);
+          
+          // Use provided missing fields or determine them
+          if (propMissingFields) {
+            setMissingFields(propMissingFields);
+          } else {
+            setMissingFields({
+              phone: !safeUser.phone,
+              lastName: !safeUser.lastName
+            });
+          }
+          
+        } else {
+          // No valid initialization data
+          console.error('No user data or tempToken provided');
+          toast.error('Authentication data missing. Please try signing in again.');
+          navigate('/login');
+          return;
+        }
+        
+        setLoading(false);
+        
+      } catch (error) {
+        console.error('Error initializing CompleteOAuthProfile:', error);
+        toast.error('Error loading profile completion. Please try again.');
+        navigate('/login');
+      }
+    };
+
+    initializeComponent();
+  }, [user, propMissingFields, searchParams, navigate]);
+
+  // Update phone format when input changes
+  useEffect(() => {
+    if (missingFields.phone && phoneInputValue) {
+      const e164Value = `+${countryCode}${phoneInputValue}`;
+      setFormData(prev => ({ ...prev, phone: e164Value }));
+    }
+  }, [phoneInputValue, countryCode, missingFields.phone]);
+
+  // Handle click outside dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -57,31 +148,26 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
     };
   }, []);
 
-  useEffect(() => {
-    if (missingFields?.phone && phoneInputValue) {
-      const e164Value = `+${countryCode}${phoneInputValue}`;
-      setFormData(prev => ({ ...prev, phone: e164Value }));
-    }
-  }, [phoneInputValue, countryCode, missingFields]);
-
+  // Validation functions
   const validatePhone = (phoneNumber) => {
     if (!phoneNumber || phoneNumber.trim() === '') {
-      return t('completeoauthprofile.phoneRequired');
+      return t('completeoauthprofile.phoneRequired') || 'Phone number is required';
     }
     const cleanPhone = phoneNumber.replace(/[^\d+]/g, '');
     if (!cleanPhone.startsWith('+') || cleanPhone.length < 10) {
-      return t('completeoauthprofile.phoneInvalid');
+      return t('completeoauthprofile.phoneInvalid') || 'Please enter a valid phone number';
     }
     return '';
   };
 
   const validateLastName = (lastName) => {
     if (!lastName || lastName.trim() === '') {
-      return t('completeoauthprofile.lastNameRequired');
+      return t('completeoauthprofile.lastNameRequired') || 'Last name is required';
     }
     return '';
   };
 
+  // Phone formatting
   const formatPhoneDisplay = (phone, code) => {
     if (!phone) return '';
     
@@ -91,6 +177,7 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
     return phone;
   };
 
+  // Event handlers
   const handleCountrySelect = (code, flag) => {
     setCountryCode(code);
     setCountryFlag(flag);
@@ -120,9 +207,11 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
     }
   };
 
+  // Form submission
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     
+    // Validation
     const errors = {};
     
     if (missingFields.phone) {
@@ -141,25 +230,42 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
     }
 
     setSubmitting(true);
+    
     try {
-
+      // Prepare update data
       const updateData = {};
-      if (missingFields.phone) updateData.phone = formData.phone;
-      if (missingFields.lastName) updateData.lastName = formData.lastName;
-      if (currentUser.tempToken) {
+      
+      if (missingFields.phone) {
+        updateData.phone = formData.phone;
+      }
+      
+      if (missingFields.lastName) {
+        updateData.lastName = formData.lastName;
+      }
+      
+      // Include tempToken if available
+      if (currentUser?.tempToken) {
         updateData.tempToken = currentUser.tempToken;
       }
 
-        const response = await api.post('/auth/complete-oauth-profile', updateData, {
-        headers: currentUser.tempToken ? {} : {
+      console.log('Submitting profile completion:', updateData);
+
+      // Make API call
+      const response = await api.post('/auth/complete-oauth-profile', updateData, {
+        headers: currentUser?.tempToken ? {} : {
           'Authorization': `Bearer ${token}`
         }
       });
 
+      console.log('Profile completion response:', response.data);
+
       if (response.data.isComplete) {
-        if (currentUser.tempToken && response.data.token) {
+        // Store new token if provided
+        if (currentUser?.tempToken && response.data.token) {
           localStorage.setItem('token', response.data.token);
         }
+
+        // Show success message
         if (response.data.bonusAwarded) {
           toast.success('Profile completed successfully! You received 100 bonus points!', {
             duration: 4000
@@ -167,43 +273,47 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
         } else {
           toast.success('Profile completed successfully!');
         }
+
+        // Update current user state
+        const updatedUser = response.data.user || currentUser;
+        setCurrentUser(updatedUser);
+        
+        if (onUserUpdate) {
+          onUserUpdate(updatedUser);
+        }
+        
+        // Show onboarding
         setShowOnboarding(true);
       } else {
         toast.error('Profile completion failed. Please try again.');
-      }    } catch (error) {
+      }
+      
+    } catch (error) {
       console.error('Profile completion error:', error);
       console.error('Error response data:', error.response?.data);
       
       const errorData = error.response?.data;
       const errorMessage = errorData?.message || 'Failed to complete profile. Please try again.';
 
-      if (errorData?.error) {
-        console.error('Server error details:', errorData.error);
-      }
-      if (errorData?.debug) {
-        console.error('Debug information:', errorData.debug);
-      }
-
+      // Handle token refresh for retries
       if (errorData?.tempToken) {
-
         const updatedUser = {
           ...currentUser,
           tempToken: errorData.tempToken
         };
         setCurrentUser(updatedUser);
-
         if (onUserUpdate) {
           onUserUpdate(updatedUser);
         }
       }
       
+      // Handle specific error types
       if (errorData?.error?.type === 'duplicate') {
         const field = errorData.error.field;
         setFormErrors({
           [field]: `This ${field} is already registered with another account. Please use a different ${field}.`
         });
       } else if (errorData?.error?.type === 'validation') {
-
         const validationErrors = {};
         if (errorData.error.fields) {
           errorData.error.fields.forEach(field => {
@@ -216,7 +326,9 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
         navigate('/login');
         return;
       } else if (errorMessage.includes('phone number is already')) {
-        setFormErrors({ phone: 'This phone number is already registered with another account. Please use a different number.' });
+        setFormErrors({ 
+          phone: 'This phone number is already registered with another account. Please use a different number.' 
+        });
       } else if (errorMessage.includes('email is already registered')) {
         toast.error('This email is already registered. Please contact support if you believe this is an error.');
       } else if (errorData?.field) {
@@ -228,11 +340,9 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
         navigate('/login');
         return;
       } else {
-        const detailMessage = errorData?.debug 
-          ? `${errorMessage} (${errorData.debug.name}: ${errorData.debug.originalMessage})`
-          : errorMessage;
-        toast.error(detailMessage);
+        toast.error(errorMessage);
       }
+      
     } finally {
       setSubmitting(false);
     }
@@ -241,12 +351,13 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
   const handleOnboardingClose = () => {
     setShowOnboarding(false);
     if (onComplete) {
-      onComplete();
+      onComplete(currentUser);
     } else {
       navigate('/');
     }
   };
 
+  // Helper functions for UI
   const getIcon = () => {
     if (missingFields.phone && missingFields.lastName) {
       return <User className="w-8 h-8 text-blue-600" />;
@@ -259,27 +370,44 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
 
   const getTitle = () => {
     if (missingFields.phone && missingFields.lastName) {
-      return t('completeoauthprofile.title');
+      return t('completeoauthprofile.title') || 'Complete Your Profile';
     } else if (missingFields.phone) {
-      return t('completeoauthprofile.addPhone');
+      return t('completeoauthprofile.addPhone') || 'Add Phone Number';
     } else if (missingFields.lastName) {
-      return t('completeoauthprofile.addLastName');
+      return t('completeoauthprofile.addLastName') || 'Complete Your Name';
     }
-    return t('completeoauthprofile.title');
+    return t('completeoauthprofile.title') || 'Complete Your Profile';
   };
 
   const getDescription = () => {
     const fields = [];
-    if (missingFields.lastName) fields.push(t('completeoauthprofile.lastName'));
-    if (missingFields.phone) fields.push(t('completeoauthprofile.phoneNumber'));
+    if (missingFields.lastName) fields.push(t('completeoauthprofile.lastName') || 'last name');
+    if (missingFields.phone) fields.push(t('completeoauthprofile.phoneNumber') || 'phone number');
+    
     if (fields.length === 1) {
-      return t('completeoauthprofile.provideOne', { field: fields[0] });
+      return t('completeoauthprofile.provideOne', { field: fields[0] }) || `Please provide your ${fields[0]} to complete your profile.`;
     } else if (fields.length === 2) {
-      return t('completeoauthprofile.provideTwo', { field1: fields[0], field2: fields[1] });
+      return t('completeoauthprofile.provideTwo', { field1: fields[0], field2: fields[1] }) || `Please provide your ${fields[0]} and ${fields[1]} to complete your profile.`;
     }
-    return t('completeoauthprofile.provideInfo');
+    return t('completeoauthprofile.provideInfo') || 'Please complete your profile information.';
   };
 
+  // Show loading while initializing
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="w-full max-w-md shadow-lg">
+          <CardContent className="flex flex-col items-center py-8">
+            <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Loading...</h2>
+            <p className="text-gray-500 text-center">Preparing profile completion</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show onboarding if completed
   if (showOnboarding) {
     return <Onboarding onClose={handleOnboardingClose} showPointsMessage={true} />;
   }
@@ -305,16 +433,17 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
           </p>
           
           <form onSubmit={handleFormSubmit}>
+            {/* Last Name Field */}
             {missingFields.lastName && (
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('completeoauthprofile.lastName')}
+                  {t('completeoauthprofile.lastName') || 'Last Name'}
                 </label>
                 <Input
                   type="text"
                   value={formData.lastName}
                   onChange={(e) => handleInputChange('lastName', e.target.value)}
-                  placeholder={t('completeoauthprofile.lastNamePlaceholder')}
+                  placeholder={t('completeoauthprofile.lastNamePlaceholder') || 'Enter your last name'}
                   className={`w-full ${formErrors.lastName ? 'border-red-500' : ''}`}
                   required
                 />
@@ -324,10 +453,11 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
               </div>
             )}
             
+            {/* Phone Number Field */}
             {missingFields.phone && (
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('completeoauthprofile.phoneNumber')}
+                  {t('completeoauthprofile.phoneNumber') || 'Phone Number'}
                 </label>
 
                 <div className="relative">
@@ -398,7 +528,8 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
                 </div>
                 
                 <p className="mt-1 text-xs text-gray-500">
-                  {t('completeoauthprofile.example', { example: countryCode === '1' ? '12042867839' : `${countryCode}XXXXXXXXX` })}
+                  {t('completeoauthprofile.example', { example: countryCode === '1' ? '12042867839' : `${countryCode}XXXXXXXXX` }) || 
+                   `Example: ${countryCode === '1' ? '12042867839' : `${countryCode}XXXXXXXXX`}`}
                 </p>
                 {formErrors.phone && (
                   <p className="mt-1 text-sm text-red-500">{formErrors.phone}</p>
@@ -406,6 +537,7 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
               </div>
             )}
             
+            {/* Submit Button */}
             <Button 
               type="submit" 
               className="w-full"
@@ -414,10 +546,10 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
               {submitting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  {t('completeoauthprofile.saving')}
+                  {t('completeoauthprofile.saving') || 'Saving...'}
                 </>
               ) : (
-                t('completeoauthprofile.completeProfile')
+                t('completeoauthprofile.completeProfile') || 'Complete Profile'
               )}
             </Button>
           </form>
@@ -425,7 +557,7 @@ const CompleteOAuthProfile = ({ user, token, missingFields, onComplete, onUserUp
         
         <CardFooter className="justify-center">
           <p className="text-xs text-gray-500 text-center">
-            {t('completeoauthprofile.infoSecure')}
+            {t('completeoauthprofile.infoSecure') || 'Your information is securely stored and will not be shared with third parties.'}
           </p>
         </CardFooter>
       </Card>
