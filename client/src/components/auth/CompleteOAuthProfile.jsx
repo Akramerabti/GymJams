@@ -10,6 +10,10 @@ import Onboarding from '../../pages/Onboarding';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../stores/authStore';
 
+console.log('api:', api);
+console.log('useAuth:', useAuth);
+console.log('Onboarding:', Onboarding);
+
 const countryCodes = [
   { code: '1', name: 'United States', flag: '🇺🇸', country: 'US' },
   { code: '1', name: 'Canada', flag: '🇨🇦', country: 'CA' },
