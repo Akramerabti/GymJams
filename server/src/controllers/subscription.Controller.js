@@ -972,12 +972,10 @@ export const handleWebhook = async (event) => {
   break;
 }
       
-       // Handle subscription updates (renewals, status changes)
-       case 'customer.subscription.updated': {
+          case 'customer.subscription.updated': {
         const updatedSubscription = event.data.object;
         logger.info('Subscription updated event:', updatedSubscription.id);
         
-        // Find the subscription in our database
         const dbSubscription = await Subscription.findOne({
           stripeSubscriptionId: updatedSubscription.id,
         });
@@ -987,13 +985,17 @@ export const handleWebhook = async (event) => {
           return;
         }
         
-        // Update our subscription with the new billing period
-        dbSubscription.currentPeriodStart = new Date(updatedSubscription.current_period_start * 1000);
-        dbSubscription.currentPeriodEnd = new Date(updatedSubscription.current_period_end * 1000);
+        // MODIFICATION: Add checks to prevent creating an invalid date
+        if (updatedSubscription.current_period_start) {
+          dbSubscription.currentPeriodStart = new Date(updatedSubscription.current_period_start * 1000);
+        }
+        if (updatedSubscription.current_period_end) {
+          dbSubscription.currentPeriodEnd = new Date(updatedSubscription.current_period_end * 1000);
+        }
+        
         dbSubscription.status = updatedSubscription.status;
         dbSubscription.cancelAtPeriodEnd = updatedSubscription.cancel_at_period_end;
         
-        // If subscription is marked as cancelled in Stripe
         if (updatedSubscription.status === 'canceled') {
           dbSubscription.status = 'cancelled';
           dbSubscription.endDate = updatedSubscription.canceled_at ? 
