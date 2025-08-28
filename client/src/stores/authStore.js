@@ -522,6 +522,8 @@ export const useAuth = () => {
   return {
     user: store.user,
     token: store.token,
+    setToken: store.setToken,
+    setUser: store.setUser,
     loading: store.loading,
     error: store.error,
     isTokenValid: store.isTokenValid, 

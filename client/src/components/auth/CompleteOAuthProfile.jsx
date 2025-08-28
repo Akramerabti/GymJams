@@ -10,10 +10,6 @@ import Onboarding from '../../pages/Onboarding';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../stores/authStore';
 
-console.log('api:', api);
-console.log('useAuth:', useAuth);
-console.log('Onboarding:', Onboarding);
-
 const countryCodes = [
   { code: '1', name: 'United States', flag: '🇺🇸', country: 'US' },
   { code: '1', name: 'Canada', flag: '🇨🇦', country: 'CA' },
@@ -36,7 +32,6 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   
-  // Import auth store to update user state after completion
   const { setUser, setToken } = useAuth();
   
   // State management
@@ -230,11 +225,10 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
       console.log('Profile completion response:', response.data);
 
       if (response.data.isComplete) {
-        // Store new token if provided and update auth store
+        // Store new token if provided
         if (currentUser?.tempToken && response.data.token) {
           localStorage.setItem('token', response.data.token);
           
-          // Update auth store with new token and user data
           setToken(response.data.token);
           setUser(response.data.user);
         }
@@ -308,7 +302,7 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
   // Show loading while initializing
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 flex items-center justify-center p-4">
         <Card className="w-full max-w-md shadow-2xl border-0">
           <CardContent className="flex flex-col items-center py-12">
             <motion.div
@@ -366,29 +360,6 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
           </div>
           
           <CardContent className="p-8">
-            {/* Welcome message with user info */}
-            {currentUser?.firstName && (
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 }}
-                className="mb-8"
-              >
-                <div className="flex items-center space-x-3 p-4 bg-green-50 rounded-xl border border-green-200">
-                  <div className="flex-shrink-0">
-                    <Sparkles className="w-6 h-6 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-green-800">
-                      Welcome, {currentUser.firstName}!
-                    </p>
-                    <p className="text-xs text-green-600">
-                      Connected via Google • Account verified
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            )}
             
             {/* Phone number form */}
             <motion.form

@@ -487,14 +487,14 @@ export const useAuth = () => {
     register: store.register,
     verifyEmail: store.verifyEmail,
     resendVerificationEmail: store.resendVerificationEmail,
-    // REMOVED: registerResetCallback - doesn't exist in the store
     showOnboarding: store.showOnboarding,
     setShowOnboarding: store.setShowOnboarding,
     setUser: store.setUser,
     setToken: store.setToken,
-    syncLocationOnLogin: store.syncLocationOnLogin, // Keep for manual sync if needed
-    // REMOVED: refreshUserLocation - no longer exists
-    reverseGeocode: store.reverseGeocode, // Keep as utility function
+    syncLocationOnLogin: store.syncLocationOnLogin,
+    reverseGeocode: store.reverseGeocode,
+    setToken: store.setToken,
+    setUser: store.setUser,
   };
 };
 
