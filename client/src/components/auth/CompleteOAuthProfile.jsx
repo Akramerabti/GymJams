@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../services/api';
 import Onboarding from '../../pages/Onboarding';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../stores/authStore';
 
 const countryCodes = [
   { code: '1', name: 'United States', flag: '🇺🇸', country: 'US' },
@@ -30,6 +31,9 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
+  
+  // Import auth store to update user state after completion
+  const { setUser, setToken } = useAuth();
   
   // State management
   const [countryCode, setCountryCode] = useState('1');
@@ -222,9 +226,13 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
       console.log('Profile completion response:', response.data);
 
       if (response.data.isComplete) {
-        // Store new token if provided
+        // Store new token if provided and update auth store
         if (currentUser?.tempToken && response.data.token) {
           localStorage.setItem('token', response.data.token);
+          
+          // Update auth store with new token and user data
+          setToken(response.data.token);
+          setUser(response.data.user);
         }
 
         // Show success message
@@ -319,7 +327,7 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
