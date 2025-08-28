@@ -3,6 +3,8 @@ import admin from '../config/firebase.js';
 import NotificationToken from '../models/NotificationToken.js';
 import User from '../models/User.js';
 
+const DEFAULT_ICON_URL = 'https://www.gymtonic.ca/Picture2.png';
+
 // ADD THIS HELPER FUNCTION AT THE TOP
 const sanitizeDataForFCM = (data) => {
   const sanitized = {};
@@ -144,7 +146,6 @@ export const updatePreferences = async (req, res) => {
   }
 };
 
-// UPDATED Core notification sending function with FCM data sanitization
 export const sendToUser = async (userId, notification, options = {}) => {
   try {
     // Get user with notification preferences
@@ -174,31 +175,51 @@ export const sendToUser = async (userId, notification, options = {}) => {
 
     const fcmTokens = tokens.map(token => token.fcmToken);
     
-    // UPDATED: Sanitize notification data to ensure all values are strings
+    // Sanitize notification data to ensure all values are strings
     const sanitizedData = sanitizeDataForFCM({
       type: notification.type,
       timestamp: new Date().toISOString(),
       ...notification.data
     });
     
-    // Build FCM message
+    // Helper function to validate icon URL
+    const isValidIconUrl = (url) => {
+      return url && 
+             typeof url === 'string' && 
+             url.trim() !== '' &&
+             (url.startsWith('http://') || url.startsWith('https://')) &&
+             (url.includes('.jpg') || url.includes('.jpeg') || url.includes('.png') || url.includes('.gif') || url.includes('.webp'));
+    };
+
+    // Helper function to validate image URL (more lenient than icon)
+    const isValidImageUrl = (url) => {
+      return url && 
+             typeof url === 'string' && 
+             url.trim() !== '' &&
+             (url.startsWith('http://') || url.startsWith('https://'));
+    };
+    
+    // Build FCM message with proper field validation
     const message = {
       notification: {
         title: notification.title,
         body: notification.body,
-        ...(notification.icon && { icon: notification.icon }),
-        ...(notification.image && { image: notification.image })
+        icon: isValidIconUrl(notification.icon) ? notification.icon : DEFAULT_ICON_URL,
+        ...(isValidImageUrl(notification.image) && { image: notification.image })
       },
-      data: sanitizedData, // Use sanitized data
+      data: sanitizedData,
       android: {
         notification: {
           channelId: getChannelId(notification.category, notification.subType),
           priority: 'high',
           defaultSound: true,
           defaultVibrateTimings: true,
-          ...(notification.color && { color: notification.color })
+          // Only include color if it's a valid hex color
+          ...(notification.color && typeof notification.color === 'string' && notification.color.match(/^#[0-9A-F]{6}$/i) && { 
+            color: notification.color 
+          })
         },
-        data: sanitizedData // Use sanitized data here too
+        data: sanitizedData
       },
       apns: {
         payload: {
