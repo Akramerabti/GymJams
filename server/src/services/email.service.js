@@ -4,6 +4,7 @@ import PDFDocument from 'pdfkit-table';
 import { formatCurrency } from '../utils/formatters.js';
 
 if (!process.env.RESEND_API_KEY) {
+  console.log('RESEND_API_KEY loaded:', process.env.RESEND_API_KEY ? 'Yes' : 'No');
   logger.error('RESEND_API_KEY is not defined');
   throw new Error('RESEND_API_KEY is required');
 }

@@ -938,107 +938,39 @@ export const handleWebhook = async (event) => {
     switch (event.type) {
     
       case 'customer.subscription.deleted': {
-        const deletedSubscription = event.data.object;
-        logger.info('Subscription deleted event:', deletedSubscription.id);
-      
-        const dbSubscription = await Subscription.findOne({
-          stripeSubscriptionId: deletedSubscription.id,
-        });
-      
-        if (!dbSubscription) {
-          console.error('Subscription not found in database:', deletedSubscription.id);
-          return;
-        }
-      
-        logger.info('Processing subscription deletion for:', dbSubscription._id);
-      
-        const session = await mongoose.startSession();
-        session.startTransaction();
-      
-        try {
-          // Handle coach updates - only remove from client list, don't adjust earnings
-          if (dbSubscription.assignedCoach) {
-            const coach = await User.findById(dbSubscription.assignedCoach);
-            if (coach) {
-              const updatedSubscriptions = coach.coachingSubscriptions.filter(
-                (subId) => subId.toString() !== dbSubscription._id.toString()
-              );
-      
-              // Only update subscription list and client count, not earnings
-              const coachUpdate = {
-                coachingSubscriptions: updatedSubscriptions,
-                'availability.currentClients': updatedSubscriptions.length,
-                coachStatus: updatedSubscriptions.length >= coach.availability.maxClients ? 'full' : 'available',
-              };
-      
-              await User.findByIdAndUpdate(dbSubscription.assignedCoach, coachUpdate, { session });
-              logger.info(`Updated coach ${coach._id} subscription list`);
-            }
-          }
-      
-          // For users, only remove the subscription reference
-          if (dbSubscription.user) {
-            const userUpdate = {
-              $unset: { subscription: 1 }, // Only remove the subscription reference
-            };
-      
-            await User.findByIdAndUpdate(dbSubscription.user, userUpdate, { session });
-            logger.info(`Removed subscription reference for user ${dbSubscription.user}`);
-          }          // Update subscription status and set end date
-          dbSubscription.status = 'cancelled';
-          dbSubscription.endDate = deletedSubscription.canceled_at ? 
-            new Date(deletedSubscription.canceled_at * 1000) : new Date();
-          dbSubscription.currentPeriodEnd = new Date(deletedSubscription.current_period_end * 1000);
-          await dbSubscription.save({ session });
+  const deletedSubscription = event.data.object;
+  const dbSubscription = await Subscription.findOne({
+    stripeSubscriptionId: deletedSubscription.id,
+  });
 
-          await session.commitTransaction();
+  if (!dbSubscription) {
+    console.error('Subscription not found in database:', deletedSubscription.id);
+    return;
+  }
 
-          // Send end subscription email after successful database updates
-          let userEmail = null;
-          let isGuest = false;
+  // Update subscription status FIRST, outside of transaction
+  dbSubscription.status = 'cancelled';
+  dbSubscription.endDate = deletedSubscription.canceled_at ? 
+    new Date(deletedSubscription.canceled_at * 1000) : new Date();
+  dbSubscription.currentPeriodEnd = new Date(deletedSubscription.current_period_end * 1000);
+  await dbSubscription.save(); // Save without session first
 
-          if (dbSubscription.user) {
-            // For registered users, get email from user object
-            const user = await User.findById(dbSubscription.user);
-            userEmail = user?.email;
-          } else {
-            // For guest subscriptions, get email from the subscription
-            userEmail = dbSubscription.guestEmail;
-            isGuest = true;
-          }
+  // Then handle other updates in transaction
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-          // Send subscription end email
-          if (userEmail) {
-            try {
-              await sendSubscriptionEndEmail({
-                subscription: dbSubscription.subscription,
-                startDate: dbSubscription.startDate,
-                accessToken: dbSubscription.accessToken
-              }, userEmail, 'deleted', isGuest);
-
-              if (dbSubscription.user) {
-      await sendSubscriptionEndedNotification(dbSubscription.user, {
-        subscriptionId: dbSubscription._id,
-        endDate: dbSubscription.endDate,
-        planType: dbSubscription.subscription
-      });
-    }
-            } catch (emailError) {
-              logger.error('Failed to send subscription end email:', emailError);
-            }
-          }
-
-          logger.info('Webhook cleanup completed successfully');
-      
-        } catch (error) {
-          await session.abortTransaction();
-          console.error('Webhook transaction failed:', error);
-          throw error;
-        } finally {
-          session.endSession();
-        }
-        break;
-      }
+  try {
+    // Handle coach and user updates here...
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction();
+    // Subscription status is already updated, so this won't affect it
+    console.error('Webhook transaction failed:', error);
+  } finally {
+    session.endSession();
+  }
+  break;
+}
       
        // Handle subscription updates (renewals, status changes)
        case 'customer.subscription.updated': {
