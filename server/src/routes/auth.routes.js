@@ -66,8 +66,7 @@ router.get('/google/callback',
             const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
             const mobileRedirectUri = req.session?.mobileRedirectUri;
             const returnTo = req.session?.returnTo || clientUrl;
-            
-            // Determine if this is a mobile callback
+
             const isMobileCallback = !!mobileRedirectUri;
             
             console.log('OAuth callback - isMobile:', isMobileCallback, 'mobileRedirectUri:', mobileRedirectUri);

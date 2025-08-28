@@ -16,7 +16,6 @@ import {
   rateCoach,
   checkUserRating,
 } from '../controllers/user.controller.js';
-import { authenticateJWT } from '../config/passport.js';
 import {
   validateProfileUpdate,
   validatePasswordReset,
@@ -27,29 +26,27 @@ import upload from '../config/multer.js';
 
 const router = express.Router();
 
-// All user routes BELOW are protected
-router.use(authenticateJWT);
-router.use(requirePhone); // Ensure users have phone numbers for all protected routes
-
+// Routes that might need optional authentication (if any)
 router.post('/update-points', optionalAuthenticate, updatePoints);
-router.post('/change-password',  validatePasswordReset, changePassword);
+
+router.use(authenticate);
+router.use(requirePhone);
+
+// Protected routes
+router.post('/change-password', validatePasswordReset, changePassword);
 router.get('/profile', getProfile);
 router.get('/points', getPoints);
 router.put('/profile', validateProfileUpdate, updateProfile);
 router.put('/location', updateLocation);
 router.post('/upload', upload.array('files'), uploadFile);
-router.post('/:coachId/user-rating', authenticate, checkUserRating);
-router.post('/:coachId/rate', authenticate, rateCoach);
-
-
+router.post('/:coachId/user-rating', checkUserRating);
+router.post('/:coachId/rate', rateCoach);
 
 router.get('/dashboard/user', getUserDashboardData);
 router.get('/dashboard/coach', getCoachDashboardData);
 router.put('/:subscriptionId/stats', updateClientStats);
-router.get('/check-games', authenticate, checkDailyGames);
-router.post('/complete', authenticate, completeGame);
-router.get('/daily-count', authenticate, dailyCount);
-
-
+router.get('/check-games', checkDailyGames);
+router.post('/complete', completeGame);
+router.get('/daily-count', dailyCount);
 
 export default router;

@@ -20,11 +20,14 @@ const OAuthCallback = () => {
     phone: false,
     lastName: false
   });
-    // Extract token and params from URL
+
+  // Extract token and params from URL
   const urlParams = new URLSearchParams(location.search);
   const authToken = urlParams.get('token');
   const tempToken = urlParams.get('tempToken');
   const isIncomplete = urlParams.get('incomplete') === 'true';
+  const existingUser = urlParams.get('existingUser') === 'true';
+  const userId = urlParams.get('userId');
   
   // Extract error if any
   const errorParam = urlParams.get('error');
@@ -33,14 +36,22 @@ const OAuthCallback = () => {
     // Handle authentication with the token from OAuth provider
     const authenticateWithToken = async () => {
       // Handle temporary token case (new user needs to complete profile)
-      if (tempToken && isIncomplete) {
+      if (tempToken) {
         try {
-          // For temporary tokens, we need to determine what fields are missing
-          // The CompleteOAuthProfile component will handle the tempToken
-          setCurrentUser({ tempToken }); // Pass the temp token through
+          // Create a proper user object for temp token scenarios
+          const tempUserObject = {
+            tempToken,
+            isNewUser: !existingUser,
+            userId: userId || null,
+            // Initialize with empty values to prevent undefined errors
+            phone: null,
+            lastName: null
+          };
+          
+          setCurrentUser(tempUserObject);
           setMissingFields({
-            phone: true,  // Always need phone for new OAuth users
-            lastName: true // Always need lastName for new OAuth users
+            phone: true,  // Always need phone for OAuth users
+            lastName: true // Always need lastName for OAuth users
           });
           setNeedsCompletion(true);
           setLoading(false);
@@ -67,8 +78,10 @@ const OAuthCallback = () => {
         // Check if profile completion is needed for existing users
         if (isIncomplete || (data?.user && data.user.oauth?.isIncomplete)) {
           const user = data.user;
-          const needsPhone = !user.phone || user.phone === '' || user.oauth?.needsPhoneNumber;
-          const needsLastName = !user.lastName || user.lastName === '' || user.oauth?.needsLastName;
+          
+          // Safely check for missing fields
+          const needsPhone = !user?.phone || user.phone === '' || user.oauth?.needsPhoneNumber;
+          const needsLastName = !user?.lastName || user.lastName === '' || user.oauth?.needsLastName;
           
           if (needsPhone || needsLastName) {
             setCurrentUser(user);
@@ -108,7 +121,7 @@ const OAuthCallback = () => {
     }
     
     authenticateWithToken();
-  }, [authToken, tempToken, loginWithToken, navigate, errorParam, isIncomplete]);
+  }, [authToken, tempToken, loginWithToken, navigate, errorParam, isIncomplete, existingUser, userId]);
 
   // Handle profile completion
   const handleProfileComplete = async (updatedUser) => {
@@ -120,10 +133,16 @@ const OAuthCallback = () => {
       try {
         await loginWithToken(newToken);
       } catch (e) {
+        console.error('Error logging in with new token:', e);
         // fallback: just redirect
       }
     }
     navigate('/');
+  };
+  
+  // Handle user object updates (for temporary token renewal)
+  const handleUserUpdate = (updatedUser) => {
+    setCurrentUser(updatedUser);
   };
   
   // If still loading
@@ -160,10 +179,6 @@ const OAuthCallback = () => {
       </div>
     );
   }
-    // Handle user object updates (for temporary token renewal)
-  const handleUserUpdate = (updatedUser) => {
-    setCurrentUser(updatedUser);
-  };
   
   // If profile completion is needed
   if (needsCompletion) {

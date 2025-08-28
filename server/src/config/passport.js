@@ -1,192 +1,173 @@
-// config/passport.js
+// server/src/config/passport.js - Improved OAuth Profile Processing
+
 import passport from 'passport';
-import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import { Strategy as FacebookStrategy } from 'passport-facebook';
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
 
-const options = {
-  jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-  secretOrKey: process.env.JWT_SECRET,
+// Enhanced profile processing function
+const processOAuthProfile = (profile) => {
+  const { id, emails, name, photos, provider } = profile;
+  
+  // Safely extract email
+  const email = emails && emails.length > 0 ? emails[0].value.toLowerCase() : null;
+  
+  // Safely extract name components
+  let firstName = '';
+  let lastName = '';
+  
+  if (name) {
+    firstName = name.givenName || '';
+    lastName = name.familyName || '';
+    
+    // If only displayName is available, try to parse it
+    if (!firstName && !lastName && name.displayName) {
+      const nameParts = name.displayName.trim().split(' ');
+      firstName = nameParts[0] || '';
+      lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+    }
+  }
+  
+  // Extract profile picture
+  const profileImage = photos && photos.length > 0 ? photos[0].value : null;
+  
+  return {
+    providerId: id,
+    provider: provider,
+    email,
+    firstName: firstName.trim(),
+    lastName: lastName.trim(),
+    profileImage,
+    // Note: phone is NEVER available from Google OAuth
+    phone: null
+  };
 };
 
-// JWT Strategy
-passport.use(
-  new JwtStrategy(options, async (jwt_payload, done) => {
-    try {
-      const user = await User.findById(jwt_payload.id).select('-password');
-      
-      if (user) {
-        return done(null, user);
-      }
-      return done(null, false);
-    } catch (error) {
-      logger.error('Passport JWT strategy error:', error);
-      return done(error, false);
+// Google OAuth Strategy
+passport.use(new GoogleStrategy({
+  clientID: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  callbackURL: "/api/auth/google/callback"
+}, async (accessToken, refreshToken, profile, done) => {
+  try {
+    logger.info('Google OAuth profile received:', {
+      id: profile.id,
+      email: profile.emails?.[0]?.value,
+      name: profile.displayName
+    });
+
+    // Process the OAuth profile
+    const oauthProfile = processOAuthProfile(profile);
+    
+    if (!oauthProfile.email) {
+      logger.error('No email found in Google OAuth profile');
+      return done(new Error('Email not provided by Google'), null);
     }
-  })
-);
 
-// Google OAuth Strategy - Updated for clean redirect flow
-passport.use(
-  new GoogleStrategy(
-    {
-      clientID: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: `${process.env.BACKEND_URL}/auth/google/callback`,
-      scope: ['profile', 'email']
-    },
-    async (accessToken, refreshToken, profile, done) => {
-      try {
-        logger.info('Google OAuth Profile received:', {
-          id: profile.id,
-          email: profile.emails?.[0]?.value,
-          name: profile.displayName
+    // Check if user already exists with this email
+    const existingUser = await User.findOne({ 
+      $or: [
+        { email: oauthProfile.email },
+        { 'oauth.googleId': oauthProfile.providerId }
+      ]
+    });
+
+    if (existingUser) {
+      // User exists - check if profile is complete
+      const needsPhone = !existingUser.phone || existingUser.phone === '';
+      const needsLastName = !existingUser.lastName || existingUser.lastName === '';
+      
+      if (needsPhone || needsLastName) {
+        // Existing user with incomplete profile
+        await User.findByIdAndUpdate(existingUser._id, {
+          'oauth.isIncomplete': true,
+          'oauth.needsPhoneNumber': needsPhone,
+          'oauth.needsLastName': needsLastName,
+          'oauth.googleId': oauthProfile.providerId,
+          // Update profile image if not set
+          ...((!existingUser.profileImage && oauthProfile.profileImage) && {
+            profileImage: oauthProfile.profileImage
+          })
         });
-        
-        // Extract profile information
-        const googleId = profile.id;
-        const email = profile.emails?.[0]?.value;
-        const displayName = profile.displayName || '';
-        const nameArray = displayName.split(' ');
-        const firstName = nameArray[0] || profile.name?.givenName || '';
-        const lastName = nameArray.slice(1).join(' ') || profile.name?.familyName || '';
-        const profileImage = profile.photos?.[0]?.value || '';
-        
-        if (!email) {
-          logger.error('No email found in Google profile');
-          return done(new Error('No email found in Google profile'), null);
-        }
 
-        // Check if user already exists with this Google ID
-        let existingUser = await User.findOne({ 'oauth.googleId': googleId });
-        
-        if (existingUser) {
-          // User with this Google ID exists
-          const needsPhone = !existingUser.phone || existingUser.phone === '';
-          const needsLastName = !existingUser.lastName || existingUser.lastName === '';
-            
-          if (needsPhone || needsLastName) {
-            // Existing Google user needs to complete profile
-            return done(null, {
-              requiresCompletion: true,
-              existingUser: existingUser
-            });
-          } else {
-            // Complete existing Google user - ready to login
-            return done(null, existingUser);
-          }
-        }
+        logger.info('Existing user needs profile completion:', {
+          userId: existingUser._id,
+          needsPhone,
+          needsLastName
+        });
 
-        // Check if user exists with this email (for account linking)
-        existingUser = await User.findOne({ email: email.toLowerCase() });
-        
-        if (existingUser) {
-          // User with this email exists - link Google account
-          const needsPhone = !existingUser.phone || existingUser.phone === '';
-          const needsLastName = !existingUser.lastName || existingUser.lastName === '';
-          
-          // Link Google ID to existing account
-          existingUser.oauth = {
-            ...existingUser.oauth,
-            googleId: googleId,
-            lastProvider: 'google'
-          };
-          existingUser.isEmailVerified = true; // Trust Google's email verification
-          
-          // Update profile image if user doesn't have one
-          if (!existingUser.profileImage && profileImage) {
-            existingUser.profileImage = profileImage;
-          }
-          
-          await existingUser.save();
-          
-          if (needsPhone || needsLastName) {
-            // Existing user needs to complete profile
-            return done(null, {
-              requiresCompletion: true,
-              existingUser: existingUser
-            });
-          } else {
-            // Complete existing user - ready to login
-            return done(null, existingUser);
-          }
-        }
-        
-        // New user - prepare OAuth profile for completion
-        const needsLastName = !lastName || lastName.trim() === '';
-        const needsPhoneNumber = true; // Always need phone for new OAuth users
-        
-        const oauthProfile = {
-          googleId,
-          email: email.toLowerCase(),
-          firstName,
-          lastName,
-          profileImage,
-          provider: 'google',
-          isEmailVerified: true, // Google emails are pre-verified
-          needsLastName,
-          needsPhoneNumber
-        };
-        
-        // Return OAuth profile data for completion
         return done(null, {
           requiresCompletion: true,
-          oauthProfile
+          existingUser: existingUser
         });
-        
-      } catch (error) {
-        logger.error('Google OAuth Strategy Error:', error);
-        return done(error, null);
       }
+      
+      // Complete existing user - just update OAuth info and login
+      await User.findByIdAndUpdate(existingUser._id, {
+        'oauth.googleId': oauthProfile.providerId,
+        'oauth.lastLogin': new Date(),
+        // Update profile image if not set
+        ...((!existingUser.profileImage && oauthProfile.profileImage) && {
+          profileImage: oauthProfile.profileImage
+        })
+      });
+
+      logger.info('Existing user login successful:', { userId: existingUser._id });
+      return done(null, existingUser);
     }
-  )
-);
 
+    // New user - check if we have enough information
+    const hasFirstName = oauthProfile.firstName && oauthProfile.firstName.length > 0;
+    const hasLastName = oauthProfile.lastName && oauthProfile.lastName.length > 0;
 
-// Serialize user for session (required by Passport but we're not using sessions)
-passport.serializeUser((user, done) => {
-  // Handle both user objects and OAuth response objects
-  if (user._id) {
-    done(null, user._id);
-  } else if (user.existingUser?._id) {
-    done(null, user.existingUser._id);
-  } else {
-    // For OAuth completion cases, we'll serialize the whole object
-    done(null, user);
-  }
-});
-
-// Deserialize user from session
-passport.deserializeUser(async (data, done) => {
-  try {
-    // If it's a MongoDB ObjectId string, fetch the user
-    if (typeof data === 'string' && data.match(/^[0-9a-fA-F]{24}$/)) {
-      const user = await User.findById(data).select('-password');
-      done(null, user);
-    } else {
-      // For OAuth completion objects, return as-is
-      done(null, data);
+    if (!hasFirstName) {
+      logger.error('No first name found in Google OAuth profile');
+      return done(new Error('First name not provided by Google'), null);
     }
-  } catch (error) {
-    logger.error('Deserialize user error:', error);
-    done(error, null);
-  }
-});
 
-// Middleware to handle JWT authentication
-export const authenticateJWT = passport.authenticate('jwt', { session: false });
+    // For new users, we always need phone and potentially lastName
+    const needsPhone = true; // Always need phone for new OAuth users
+    const needsLastName = !hasLastName;
 
-// Handle authentication errors
-export const handleAuthError = (err, req, res, next) => {
-  if (err.name === 'UnauthorizedError') {
-    return res.status(401).json({
-      message: 'Invalid token',
-      error: err.message
+    if (needsPhone || needsLastName) {
+      // New user needs profile completion
+      logger.info('New OAuth user needs profile completion:', {
+        email: oauthProfile.email,
+        needsPhone,
+        needsLastName
+      });
+
+      return done(null, {
+        requiresCompletion: true,
+        oauthProfile: oauthProfile
+      });
+    }
+
+    // Create complete new user (rare case where Google provides full name)
+    const newUser = new User({
+      email: oauthProfile.email,
+      firstName: oauthProfile.firstName,
+      lastName: oauthProfile.lastName,
+      profileImage: oauthProfile.profileImage,
+      isEmailVerified: true, // Google emails are verified
+      oauth: {
+        googleId: oauthProfile.providerId,
+        isIncomplete: false,
+        lastLogin: new Date()
+      },
+      points: 100, // Welcome bonus
+      hasReceivedFirstLoginBonus: true
     });
+
+    await newUser.save();
+    logger.info('New complete OAuth user created:', { userId: newUser._id });
+    
+    return done(null, newUser);
+
+  } catch (error) {
+    logger.error('Google OAuth strategy error:', error);
+    return done(error, null);
   }
-  next(err);
-};
+}));
 
 export default passport;
