@@ -1409,7 +1409,7 @@ export const completeOAuthProfile = async (req, res) => {
         stripeCustomerId: stripeCustomer.id,
         isEmailVerified: true, // Trust OAuth provider email verification
         oauth: {
-          googleId: oauthProfile.googleId,
+          googleId: oauthProfile.providerId, // Use providerId from the JWT token
           lastProvider: oauthProfile.provider,
           isIncomplete: false,
           needsPhoneNumber: false,
