@@ -316,7 +316,9 @@ function AppContent() {
     checkOAuthReturn();
   }, []);
 
-// Mobile Gatekeeper logic - SIMPLE: Not authenticated = show gatekeeper
+// In App.js - Update the MobileGatekeeper logic
+
+// Mobile Gatekeeper logic - Enhanced to exclude email verification routes
 useEffect(() => {
   console.log('🔍 Mobile Gatekeeper Check:', {
     isAuthenticated,
@@ -325,16 +327,33 @@ useEffect(() => {
   });
 
   const token = localStorage.getItem('token');
-  const isOAuthCallback = window.location.pathname === '/oauth-callback';
+  const currentPath = window.location.pathname;
   
-  // SIMPLE RULE: If not authenticated AND not on OAuth callback, show gatekeeper
-  const shouldShowGatekeeper = !isAuthenticated && !user && !token && !isOAuthCallback;
+  // Define routes where MobileGatekeeper should NOT show
+  const excludedRoutes = [
+    '/oauth-callback',
+    '/verify-email',
+    '/email-verification-notification',
+    '/reset-password',
+    '/forgot-password'
+  ];
   
-  console.log('🚪 Should show Mobile Gatekeeper:', shouldShowGatekeeper);
+  // Check if current path should be excluded
+  const isExcludedRoute = excludedRoutes.some(route => currentPath.startsWith(route));
+  
+  // Enhanced rule: If not authenticated AND not on excluded routes, show gatekeeper
+  const shouldShowGatekeeper = !isAuthenticated && !user && !token && !isExcludedRoute;
+  
+  console.log('🚪 Should show Mobile Gatekeeper:', {
+    shouldShowGatekeeper,
+    currentPath,
+    isExcludedRoute
+  });
   
   setShowMobileGatekeeper(shouldShowGatekeeper);
   
 }, [isAuthenticated, user]);
+
 
   // Handle account creation from mobile gatekeeper
   const handleAccountCreated = (userData, token) => {

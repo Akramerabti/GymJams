@@ -1,3 +1,4 @@
+// src/services/notificationService.js
 import { PushNotifications } from '@capacitor/push-notifications';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Capacitor } from '@capacitor/core';
@@ -63,28 +64,15 @@ class NotificationService {
       console.error('Error on registration: ' + JSON.stringify(error));
     });
 
-     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
-      if (document.hasFocus()) {
-        this.showForegroundNotification(notification);
-      } else {
-        await LocalNotifications.schedule({
-          notifications: [
-            {
-              title: notification.title || 'New Notification',
-              body: notification.body || '',
-              id: Date.now(),
-              schedule: { at: new Date(Date.now() + 100) }
-            }
-          ]
-        });
-      }
+    PushNotifications.addListener('pushNotificationReceived', (notification) => {
+      console.log('Push received: ' + JSON.stringify(notification));
+      
+      this.showForegroundNotification(notification);
     });
 
-    // Notification clicked/tapped (app was in background/closed)
     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
       console.log('Push action performed: ' + JSON.stringify(notification));
-      
-      // Handle notification tap navigation
+
       this.handleNotificationTap(notification.notification.data);
     });
   }

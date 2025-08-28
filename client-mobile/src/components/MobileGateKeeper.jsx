@@ -128,139 +128,128 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Enhanced login handler with persistent storage
   const handleLogin = async (data = formData, retryCount = 0) => {
-    if (!validateStep(1)) return;
+  if (!validateStep(1)) return;
+  
+  setIsLoading(true);
+  
+  try {
+    setErrors({});
+    await login(data.email, data.password);
     
-    setIsLoading(true);
+    // Enhanced persistence flags
+    localStorage.setItem('hasCompletedOnboarding', 'true');
+    localStorage.setItem('userLoginMethod', 'email_password');
+    localStorage.setItem('persistentLogin', 'true');
     
-    try {
-      setErrors({});
-      await login(data.email, data.password);
-      
-      // Enhanced persistence flags
-      localStorage.setItem('hasCompletedOnboarding', 'true');
-      localStorage.setItem('userLoginMethod', 'email_password');
-      localStorage.setItem('persistentLogin', 'true');
-      
-      // Set success screen first
-      setCurrentScreen('success');
-      
+    // Set success screen for login (users should see this)
+    setCurrentScreen('success');
+    
+    // Navigate after success screen
+    setTimeout(() => {
+      if (onAccountCreated) {
+        onAccountCreated({ email: data.email }, 'logged_in_successfully');
+      } else {
+        window.location.href = '/';
+      }
+    }, 2000);
+    
+  } catch (err) {
+    const MAX_RETRIES = 3;
+    if ((err.statusCode === 408 || !err.response) && retryCount < MAX_RETRIES) {
+      const nextRetry = retryCount + 1;
+      const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+      toast.info(`Retrying login attempt ${nextRetry}/${MAX_RETRIES}...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return handleLogin(data, nextRetry);
+    }
+    
+    let errorMessage = 'An unexpected error occurred. Please try again.';
+    if (err.code === 'ECONNABORTED') {
+      errorMessage = 'Request timed out. Please check your internet connection and try again.';
+    } else if (err.response) {
+      switch (err.response.status) {
+        case 400:
+          errorMessage = 'Email and password are required.';
+          break;
+        case 401:
+          errorMessage = 'Invalid email or password. Please check your credentials.';
+          break;
+        case 403:
+          errorMessage = 'Your email is not verified. Please check your inbox.';
+          break;
+        case 404:
+          errorMessage = 'User not found. Please check your email address.';
+          break;
+        case 429:
+          errorMessage = 'Too many login attempts. Please try again later.';
+          break;
+        case 500:
+          errorMessage = 'Server error. Please try again later.';
+          break;
+        default:
+          errorMessage = 'Something went wrong. Please try again.';
+      }
+    } else if (err.request) {
+      errorMessage = 'Network error. Please check your internet connection and try again.';
+    }
+    
+    setErrors({ submit: errorMessage });
+    toast.error('Login failed', { description: errorMessage });
+    
+    if (retryCount >= MAX_RETRIES) {
+      toast.info('Refreshing page...', { duration: 2000 });
       setTimeout(() => {
-        if (onAccountCreated) {
-          onAccountCreated({ email: data.email }, 'logged_in_successfully');
-        } else {
-          // Use window.location instead of navigate
-          window.location.href = '/';
-        }
+        window.location.reload();
       }, 2000);
-      
-    } catch (err) {
-      const MAX_RETRIES = 3;
-      if ((err.statusCode === 408 || !err.response) && retryCount < MAX_RETRIES) {
-        const nextRetry = retryCount + 1;
-        const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
-        toast.info(`Retrying login attempt ${nextRetry}/${MAX_RETRIES}...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return handleLogin(data, nextRetry);
-      }
-      
-      let errorMessage = 'An unexpected error occurred. Please try again.';
-      if (err.code === 'ECONNABORTED') {
-        errorMessage = 'Request timed out. Please check your internet connection and try again.';
-      } else if (err.response) {
-        switch (err.response.status) {
-          case 400:
-            errorMessage = 'Email and password are required.';
-            break;
-          case 401:
-            errorMessage = 'Invalid email or password. Please check your credentials.';
-            break;
-          case 403:
-            errorMessage = 'Your email is not verified. Please check your inbox.';
-            break;
-          case 404:
-            errorMessage = 'User not found. Please check your email address.';
-            break;
-          case 429:
-            errorMessage = 'Too many login attempts. Please try again later.';
-            break;
-          case 500:
-            errorMessage = 'Server error. Please try again later.';
-            break;
-          default:
-            errorMessage = 'Something went wrong. Please try again.';
-        }
-      } else if (err.request) {
-        errorMessage = 'Network error. Please check your internet connection and try again.';
-      }
-      
-      setErrors({ submit: errorMessage });
-      toast.error('Login failed', { description: errorMessage });
-      
-      if (retryCount >= MAX_RETRIES) {
-        toast.info('Refreshing page...', { duration: 2000 });
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
-      }
-    } finally {
-      setIsLoading(false);
     }
-  };
+  } finally {
+    setIsLoading(false);
+  }
+};
 
-  // Enhanced registration handler with persistent storage
-  const handleSignup = async () => {
-    if (!validateStep(2)) return;
+ const handleSignup = async () => {
+  if (!validateStep(2)) return;
+  
+  setIsLoading(true);
+  
+  try {
+    const { confirmPassword, ...registrationData } = formData;
+    console.log('Submitting registration:', registrationData);
     
-    setIsLoading(true);
+    const response = await register(registrationData);
+    console.log('Registration response:', response);
     
-    try {
-      const { confirmPassword, ...registrationData } = formData;
-      console.log('Submitting registration:', registrationData);
+    if (response && (response.token || response.user)) {
+      // Store verification email for later use
+      localStorage.setItem('verificationEmail', registrationData.email);
       
-      const response = await register(registrationData);
-      console.log('Registration response:', response);
-      
-      if (response && (response.token || response.user)) {
-        // Enhanced persistence flags
-        localStorage.setItem('hasCompletedOnboarding', 'true');
-        localStorage.setItem('userLoginMethod', 'email_registration');
-        localStorage.setItem('persistentLogin', 'true');
-        
-        toast.success('Registration successful!', {
-          description: 'Please check your email to verify your account.'
-        });
-        
-        const encodedEmail = encodeURIComponent(registrationData.email);
-        localStorage.setItem('verificationEmail', registrationData.email);
-        
-        // Set success screen first
-        setCurrentScreen('success');
-        
-        // Navigate after success screen
-        setTimeout(() => {
-          const encodedEmail = encodeURIComponent(registrationData.email);
-          window.location.href = `/email-verification-notification?email=${encodedEmail}`;
-        }, 2000);
-        
-        return;
-      }
-      
-      toast.error('Registration unsuccessful. No token or user returned.');
-      throw new Error('Registration unsuccessful');
-      
-    } catch (error) {
-      console.error('Registration error:', error);
-      const errorMessage = error?.response?.data?.message || error?.message || 'Registration failed. Please try again.';
-      setErrors({ submit: errorMessage });
-      toast.error('Registration failed', {
-        description: errorMessage
+      toast.success('Registration successful!', {
+        description: 'Please check your email to verify your account.'
       });
-    } finally {
-      setIsLoading(false);
+      
+      // Redirect immediately to email verification notification (no success screen)
+      const encodedEmail = encodeURIComponent(registrationData.email);
+      window.location.href = `/email-verification-notification?email=${encodedEmail}`;
+      
+      return;
     }
-  };
+    
+    toast.error('Registration unsuccessful. No token or user returned.');
+    throw new Error('Registration unsuccessful');
+    
+  } catch (error) {
+    console.error('Registration error:', error);
+    const errorMessage = error?.response?.data?.message || error?.message || 'Registration failed. Please try again.';
+    setErrors({ submit: errorMessage });
+    toast.error('Registration failed', {
+      description: errorMessage
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   const handleStepTransition = () => {
     if (validateStep(1)) {

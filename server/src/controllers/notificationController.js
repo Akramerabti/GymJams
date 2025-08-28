@@ -199,7 +199,14 @@ export const sendToUser = async (userId, notification, options = {}) => {
              (url.startsWith('http://') || url.startsWith('https://'));
     };
     
-    const message = {
+
+const message = {
+  notification: {
+    title: notification.title,
+    body: notification.body,
+
+    ...(isValidImageUrl(notification.image) && { image: notification.image })
+  },
   data: sanitizedData,
   android: {
     notification: {
@@ -207,7 +214,7 @@ export const sendToUser = async (userId, notification, options = {}) => {
       priority: 'high',
       defaultSound: true,
       defaultVibrateTimings: true,
-      icon: isValidIconUrl(notification.icon) ? notification.icon : DEFAULT_ICON_URL,
+      icon: isValidIconUrl(notification.icon) ? notification.icon : DEFAULT_ICON_URL, // <-- Only here!
       ...(notification.color && typeof notification.color === 'string' && notification.color.match(/^#[0-9A-F]{6}$/i) && { 
         color: notification.color 
       })
