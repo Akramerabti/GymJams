@@ -1,6 +1,5 @@
-// Location service for handling various location detection methods
 import { toast } from 'sonner';
-
+import { Geolocation } from '@capacitor/geolocation';
 class LocationService {
   constructor() {
     this.defaultLocation = {
@@ -47,6 +46,8 @@ class LocationService {
       return null;
     }
   }
+
+  
 
   /**
    * Get location using browser GPS (requires permission popup)
@@ -294,6 +295,69 @@ class LocationService {
     // Return default if all else fails
     return this.defaultLocation;
   }
+
+  /**
+ * Request location permission (works for both web and native)
+ */
+async requestLocationPermission() {
+  try {
+    // Check if we're in a Capacitor native environment
+    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+      
+      try {
+        const permissions = await Geolocation.requestPermissions();
+        return {
+          granted: permissions.location === 'granted',
+          status: permissions.location
+        };
+      } catch (error) {
+        console.error('Native location permission request failed:', error);
+        return { granted: false, status: 'denied' };
+      }
+    } else {
+      // Web browser - use the Permissions API if available
+      if ('permissions' in navigator) {
+        try {
+          const result = await navigator.permissions.query({ name: 'geolocation' });
+          
+          if (result.state === 'granted') {
+            return { granted: true, status: 'granted' };
+          } else if (result.state === 'prompt') {
+            // Try to trigger the permission request by calling getCurrentPosition
+            try {
+              await this.getLocationByGPS({ timeout: 1000 });
+              return { granted: true, status: 'granted' };
+            } catch (gpsError) {
+              return { granted: false, status: 'denied' };
+            }
+          } else {
+            return { granted: false, status: result.state };
+          }
+        } catch (permError) {
+          // Fallback to direct GPS request
+          try {
+            await this.getLocationByGPS({ timeout: 1000 });
+            return { granted: true, status: 'granted' };
+          } catch (gpsError) {
+            return { granted: false, status: 'denied' };
+          }
+        }
+      } else {
+        // No Permissions API - try direct GPS request
+        try {
+          await this.getLocationByGPS({ timeout: 1000 });
+          return { granted: true, status: 'granted' };
+        } catch (error) {
+          return { granted: false, status: 'denied' };
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Location permission request failed:', error);
+    return { granted: false, status: 'error' };
+  }
+}
+
 }
 
 // Create singleton instance

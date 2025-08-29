@@ -406,29 +406,54 @@ const handleAccountCreated = (userData, action) => {
   // Initialize app
   useEffect(() => {
     const validateTokenOnLoad = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        console.log('🔍 Checking for existing token:', !!token);
-        
-        if (token) {
-          console.log('✅ Token found, validating...');
-          const isValid = await checkAuth();
-          console.log('🔍 Token validation result:', isValid);
-          
-          if (!isValid) {
-            console.log('❌ Token invalid, logging out...');
-            logout();
-          } else {
-            console.log('✅ Token valid, user authenticated');
-          }
-        } else {
-          console.log('ℹ️ No token found');
-        }
-      } catch (error) {
-        console.error('❌ Auth check error:', error);
+  try {
+    const token = localStorage.getItem('token');
+    const tempToken = localStorage.getItem('tempToken');
+    console.log('🔍 Checking for existing token:', !!token);
+    
+    if (token) {
+      console.log('✅ Token found, validating...');
+      const isValid = await checkAuth();
+      console.log('🔍 Token validation result:', isValid);
+      
+      if (!isValid) {
+        console.log('❌ Token invalid, logging out...');
         logout();
+        // Force show MobileGatekeeper after invalid token
+        setShowMobileGatekeeper(true);
+      } else {
+        console.log('✅ Token valid, user authenticated');
+        // Ensure MobileGatekeeper is hidden for authenticated users
+        setShowMobileGatekeeper(false);
       }
-    };
+    } else {
+      console.log('ℹ️ No token found');
+      
+      // Check if we're on an excluded route or have tempToken
+      const currentPath = window.location.pathname;
+      const excludedRoutes = [
+        '/oauth-callback',
+        '/verify-email', 
+        '/email-verification-notification',
+        '/reset-password',
+        '/forgot-password',
+        '/complete-oauth-profile'
+      ];
+      const isExcludedRoute = excludedRoutes.some(route => currentPath.startsWith(route));
+      
+      // Force show MobileGatekeeper if no token and not on excluded route
+      if (!tempToken && !isExcludedRoute) {
+        console.log('🚪 No token found, forcing MobileGatekeeper');
+        setShowMobileGatekeeper(true);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Auth check error:', error);
+    logout();
+    // Force show MobileGatekeeper on auth errors
+    setShowMobileGatekeeper(true);
+  }
+};
 
     const initGAM = async (retryCount = 0) => {
       try {

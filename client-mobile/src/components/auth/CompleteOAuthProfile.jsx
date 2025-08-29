@@ -62,72 +62,81 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
     }
   };
 
-  // Initialize component
-  useEffect(() => {
-    const initializeComponent = () => {
-      try {
-        const tempTokenFromUrl = searchParams.get('tempToken');
+// Initialize component
+useEffect(() => {
+  const initializeComponent = () => {
+    try {
+      // Check BOTH URL parameters AND localStorage for tempToken
+      const tempTokenFromUrl = searchParams.get('tempToken');
+      const tempTokenFromStorage = localStorage.getItem('tempToken');
+      const tempToken = tempTokenFromUrl || tempTokenFromStorage;
+      
+      console.log('🔍 CompleteOAuthProfile initializing with:', {
+        tempTokenFromUrl: !!tempTokenFromUrl,
+        tempTokenFromStorage: !!tempTokenFromStorage,
+        userProp: !!user
+      });
+      
+      if (tempToken) {
+        console.log('Initializing with tempToken from', tempTokenFromUrl ? 'URL' : 'localStorage');
         
-        if (tempTokenFromUrl) {
-          console.log('Initializing with tempToken from URL');
-          
-          // Decode the JWT to get OAuth profile information
-          const tokenData = decodeJWTPayload(tempTokenFromUrl);
-          const oauthProfile = tokenData?.oauthProfile;
-          
-          if (!oauthProfile) {
-            throw new Error('Invalid token data');
-          }
-          
-          // Create user object - automatically handle lastName
-          const userFromToken = {
-            tempToken: tempTokenFromUrl,
-            phone: oauthProfile.phone || null,
-            lastName: oauthProfile.lastName && oauthProfile.lastName.trim() ? oauthProfile.lastName : 'unknown',
-            firstName: oauthProfile.firstName || null,
-            email: oauthProfile.email || null,
-            profileImage: oauthProfile.profileImage || null,
-            isNewUser: true
-          };
-          
-          setCurrentUser(userFromToken);
-          
-          console.log('OAuth profile processed:', {
-            firstName: oauthProfile.firstName,
-            lastName: userFromToken.lastName,
-            needsPhone: !oauthProfile.phone
-          });
-          
-        } else if (user) {
-          console.log('Initializing with user prop:', user);
-          
-          const safeUser = {
-            phone: user.phone || null,
-            lastName: user.lastName || 'unknown',
-            tempToken: user.tempToken || null,
-            ...user
-          };
-          
-          setCurrentUser(safeUser);
-          
-        } else {
-          console.error('No user data or tempToken provided');
-          toast.error('Authentication data missing. Please try signing in again.');
-          navigate('/login');
-          return;
+        // Decode the JWT to get OAuth profile information
+        const tokenData = decodeJWTPayload(tempToken);
+        const oauthProfile = tokenData?.oauthProfile;
+        
+        if (!oauthProfile) {
+          throw new Error('Invalid token data');
         }
         
-        setLoading(false);
+        // Create user object - automatically handle lastName
+        const userFromToken = {
+          tempToken: tempToken,
+          phone: oauthProfile.phone || null,
+          lastName: oauthProfile.lastName && oauthProfile.lastName.trim() ? oauthProfile.lastName : 'unknown',
+          firstName: oauthProfile.firstName || null,
+          email: oauthProfile.email || null,
+          profileImage: oauthProfile.profileImage || null,
+          isNewUser: true
+        };
         
-      } catch (error) {
-        console.error('Error initializing CompleteOAuthProfile:', error);
-        toast.error('Error loading profile completion. Please try again.');
+        setCurrentUser(userFromToken);
+        
+        console.log('OAuth profile processed:', {
+          firstName: oauthProfile.firstName,
+          lastName: userFromToken.lastName,
+          needsPhone: !oauthProfile.phone
+        });
+        
+      } else if (user) {
+        console.log('Initializing with user prop:', user);
+        
+        const safeUser = {
+          phone: user.phone || null,
+          lastName: user.lastName || 'unknown',
+          tempToken: user.tempToken || null,
+          ...user
+        };
+        
+        setCurrentUser(safeUser);
+        
+      } else {
+        console.error('No user data or tempToken provided');
+        toast.error('Authentication data missing. Please try signing in again.');
         navigate('/login');
+        return;
       }
-    };
+      
+      setLoading(false);
+      
+    } catch (error) {
+      console.error('Error initializing CompleteOAuthProfile:', error);
+      toast.error('Error loading profile completion. Please try again.');
+      navigate('/login');
+    }
+  };
 
-    initializeComponent();
-  }, [user, propMissingFields, searchParams, navigate]);
+  initializeComponent();
+}, [user, propMissingFields, searchParams, navigate]);
 
   // Update phone format when input changes
   useEffect(() => {
@@ -323,6 +332,24 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
   if (showOnboarding) {
     return <Onboarding onClose={handleOnboardingClose} showPointsMessage={true} />;
   }
+
+  console.log('🎨 About to render CompleteOAuthProfile:', {
+  loading,
+  showOnboarding,
+  currentUser: !!currentUser,
+  phoneError,
+  submitting
+});
+
+if (loading) {
+  console.log('🎨 Rendering loading screen');
+}
+
+if (showOnboarding) {
+  console.log('🎨 Rendering onboarding');
+}
+
+console.log('🎨 Rendering main form'); 
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 flex items-center justify-center p-4">

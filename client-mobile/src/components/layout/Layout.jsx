@@ -8,46 +8,45 @@ const Layout = ({ children, showMobileGatekeeper = false }) => {
   const [showFooter, setShowFooter] = useState(true);
   const navbarRef = useRef(null);
 
+const shouldHideLayout = showMobileGatekeeper || 
+  location.pathname === '/login' ||
+  location.pathname === '/complete-oauth-profile' ||
+  location.pathname === '/complete-profile';
+
   // Hide scrollbars when mobile gatekeeper is shown
   useEffect(() => {
-    if (showMobileGatekeeper) {
-      // Hide scrollbars on both html and body
+    if (shouldHideLayout) {
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
       document.documentElement.style.height = '100%';
       document.body.style.height = '100%';
+      document.body.classList.add('mobile-gatekeeper-active');
     } else {
-      // Restore normal scrolling when gatekeeper is closed
       document.documentElement.style.overflow = '';
       document.body.style.overflow = '';
       document.documentElement.style.height = '';
       document.body.style.height = '';
+      document.body.classList.remove('mobile-gatekeeper-active');
     }
 
     return () => {
-      // Cleanup on unmount
       document.documentElement.style.overflow = '';
       document.body.style.overflow = '';
       document.documentElement.style.height = '';
       document.body.style.height = '';
+      document.body.classList.remove('mobile-gatekeeper-active');
     };
-  }, [showMobileGatekeeper]);
+  }, [shouldHideLayout]);
 
   // Force dark mode classes on document
   useEffect(() => {
     document.documentElement.classList.add('dark');
     document.body.classList.add('dark', 'bg-gray-900', 'text-white');
-    
-    return () => {
-      // Optional cleanup, but we always want dark mode
-      // document.documentElement.classList.remove('dark');
-      // document.body.classList.remove('dark', 'bg-gray-900', 'text-white');
-    };
   }, []);
 
   useEffect(() => {
     const updateNavbarHeight = () => {
-      if (navbarRef.current) {
+      if (navbarRef.current && !shouldHideLayout) {
         const height = navbarRef.current.offsetHeight;
         document.documentElement.style.setProperty('--navbar-height', `${height}px`);
       }
@@ -59,14 +58,14 @@ const Layout = ({ children, showMobileGatekeeper = false }) => {
     return () => {
       window.removeEventListener('resize', updateNavbarHeight);
     };
-  }, []);
+  }, [shouldHideLayout]);
 
   useEffect(() => {
     const checkFooterVisibility = () => {
       const hasHideFooterClass = document.body.classList.contains('hide-footer') ||
                                 document.documentElement.classList.contains('hide-footer');
       
-      const shouldHideFooter = location.pathname === '/' || hasHideFooterClass;
+      const shouldHideFooter = location.pathname === '/' || hasHideFooterClass || shouldHideLayout;
       setShowFooter(!shouldHideFooter);
       
       if (shouldHideFooter) {
@@ -115,28 +114,23 @@ const Layout = ({ children, showMobileGatekeeper = false }) => {
       window.removeEventListener('footerHidden', handleFooterHidden);
       window.removeEventListener('footerShown', handleFooterShown);
     };
-  }, [location.pathname]);
+  }, [location.pathname, shouldHideLayout]);
 
-  // When mobile gatekeeper is shown, return nothing (layout is hidden)
-  if (showMobileGatekeeper) {
-    return <>{children}</>;
-  }
-
+if (shouldHideLayout) {
+  return <>{children}</>;  // Just return children directly, no wrapper
+}
   return (
     <div className="flex flex-col min-h-screen dark-theme bg-gray-900 text-white">
-      {/* Navbar */}
       <div ref={navbarRef}>
         <Navbar />
       </div>
       
-      {/* Main Content */}
       <main className="flex-grow transition-colors duration-300 bg-gray-900 text-gray-100">
         <div className="w-full max-w-full">
           {children}
         </div>
       </main>
       
-      {/* Footer */}
       {showFooter && <Footer />}
     </div>
   );

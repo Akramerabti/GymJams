@@ -25,7 +25,6 @@ const sanitizeDataForFCM = (data) => {
   return sanitized;
 };
 
-// Register FCM token
 export const registerToken = async (req, res) => {
   try {
     const { fcmToken, platform } = req.body;
@@ -35,23 +34,21 @@ export const registerToken = async (req, res) => {
       return res.status(400).json({ error: 'FCM token is required' });
     }
 
-    const existingToken = await NotificationToken.findOne({ fcmToken });
-    
-    if (existingToken) {
-      existingToken.userId = userId;
-      existingToken.platform = platform || existingToken.platform;
-      existingToken.isActive = true;
-      existingToken.lastUsed = new Date();
-      await existingToken.save();
-    } else {
-      await NotificationToken.create({
+    // Use findOneAndUpdate with upsert to handle duplicates atomically
+    const result = await NotificationToken.findOneAndUpdate(
+      { fcmToken }, // Find by token
+      { 
         userId,
-        fcmToken,
         platform: platform || 'android',
         isActive: true,
         lastUsed: new Date()
-      });
-    }
+      },
+      { 
+        upsert: true, // Create if doesn't exist
+        new: true,    // Return updated document
+        setDefaultsOnInsert: true
+      }
+    );
 
     console.log(`FCM token registered for user ${userId}: ${fcmToken.substring(0, 20)}...`);
     res.json({ success: true, message: 'Token registered successfully' });

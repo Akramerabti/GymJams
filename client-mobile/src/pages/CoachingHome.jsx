@@ -293,7 +293,7 @@ const CoachingHome = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-300">
+    <div className="min-h-screen mt-20 bg-white dark:bg-gray-900 transition-colors duration-300">
       {/* Hero Section with Parallax Effect */}
       <motion.section
         className="relative bg-gradient-to-b from-blue-900 to-blue-700 dark:from-blue-950 dark:to-blue-800 text-white py-20 overflow-hidden"
