@@ -37,10 +37,42 @@ import SocialMapSection from '../components/home-sections/SocialMapSection';
 
 const Home = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { balance } = usePoints();
   
   const [isLoaded, setIsLoaded] = useState(false);
+
+   useEffect(() => {
+    const token = localStorage.getItem('token');
+    const tempToken = localStorage.getItem('tempToken');
+    
+    // If no user, no token, and no tempToken, redirect to login
+    if (!user && !isAuthenticated && !token && !tempToken) {
+      console.log('🚨 Home: No authentication found, redirecting to login');
+      navigate('/login');
+      return;
+    }
+    
+    // If we have tempToken, redirect to complete profile
+    if (tempToken) {
+      console.log('🔧 Home: TempToken found, redirecting to complete profile');
+      navigate('/complete-oauth-profile');
+      return;
+    }
+    
+  }, [user, isAuthenticated, navigate]);
+
+  // Show loading if auth is still being determined
+  if (!user && !localStorage.getItem('token') && !localStorage.getItem('tempToken')) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-white">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   // 5 main feature buttons arranged in circle
   const circleButtons = [
