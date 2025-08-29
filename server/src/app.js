@@ -155,17 +155,37 @@ app.use(helmet(helmetConfig));
 // Stripe webhook endpoint - MUST come before express.json() to preserve raw body
 app.post('/api/subscription/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   const sig = req.headers['stripe-signature'];
+  const webhookReceiveTime = new Date().toISOString();
+  
+  console.log(`[WEBHOOK-${webhookReceiveTime}] Received webhook request`);
+  console.log(`[WEBHOOK-${webhookReceiveTime}] Headers:`, {
+    'content-type': req.headers['content-type'],
+    'stripe-signature': sig ? 'present' : 'missing',
+    'user-agent': req.headers['user-agent'],
+    'content-length': req.headers['content-length']
+  });
   
   try {
     if (!sig) {
-      console.error('No Stripe signature found in webhook request');
-      return res.status(400).send('No Stripe signature found');
+      console.error(`[WEBHOOK-${webhookReceiveTime}] ERROR: No Stripe signature found in webhook request`);
+      return res.status(400).json({
+        error: 'No Stripe signature found',
+        timestamp: webhookReceiveTime,
+        received: false
+      });
     }
     
     if (!process.env.STRIPE_WEBHOOK_SECRET) {
-      console.error('STRIPE_WEBHOOK_SECRET environment variable is not set');
-      return res.status(500).send('Webhook secret not configured');
+      console.error(`[WEBHOOK-${webhookReceiveTime}] ERROR: STRIPE_WEBHOOK_SECRET environment variable is not set`);
+      return res.status(500).json({
+        error: 'Webhook secret not configured',
+        timestamp: webhookReceiveTime,
+        received: false
+      });
     }
+    
+    console.log(`[WEBHOOK-${webhookReceiveTime}] Constructing event from raw body...`);
+    console.log(`[WEBHOOK-${webhookReceiveTime}] Raw body length: ${req.body?.length || 'unknown'}`);
     
     const event = stripe.webhooks.constructEvent(
       req.body,
@@ -173,13 +193,60 @@ app.post('/api/subscription/webhook', express.raw({ type: 'application/json' }),
       process.env.STRIPE_WEBHOOK_SECRET
     );
     
-    await handleWebhook(event);
+    console.log(`[WEBHOOK-${webhookReceiveTime}] Successfully constructed event: ${event.type} (${event.id})`);
+    console.log(`[WEBHOOK-${webhookReceiveTime}] Event timestamp: ${new Date(event.created * 1000).toISOString()}`);
+    console.log(`[WEBHOOK-${webhookReceiveTime}] Event livemode: ${event.livemode}`);
     
-    // Respond to Stripe
-    res.status(200).json({ received: true });
+    // Log the specific subscription ID for subscription-related events
+    if (event.type.includes('subscription') || event.type.includes('invoice')) {
+      const subscriptionId = event.data.object?.id || 
+                            event.data.object?.subscription || 
+                            'unknown';
+      console.log(`[WEBHOOK-${webhookReceiveTime}] Target subscription ID: ${subscriptionId}`);
+    }
+    
+    console.log(`[WEBHOOK-${webhookReceiveTime}] Calling handleWebhook...`);
+    await handleWebhook(event);
+    console.log(`[WEBHOOK-${webhookReceiveTime}] handleWebhook completed successfully`);
+    
+    // Respond to Stripe with detailed success info
+    const response = {
+      received: true,
+      processed: true,
+      eventId: event.id,
+      eventType: event.type,
+      timestamp: webhookReceiveTime,
+      processingTime: new Date().toISOString()
+    };
+    
+    console.log(`[WEBHOOK-${webhookReceiveTime}] Sending success response to Stripe:`, response);
+    res.status(200).json(response);
+    
   } catch (err) {
-    console.error('Webhook Error:', err);
-    res.status(400).send(`Webhook Error: ${err.message}`);
+    const errorTime = new Date().toISOString();
+    console.error(`[WEBHOOK-${webhookReceiveTime}] ERROR at ${errorTime}:`, err);
+    console.error(`[WEBHOOK-${webhookReceiveTime}] Error type:`, err.constructor.name);
+    console.error(`[WEBHOOK-${webhookReceiveTime}] Error message:`, err.message);
+    console.error(`[WEBHOOK-${webhookReceiveTime}] Error stack:`, err.stack);
+    
+    // Log additional context for signature verification errors
+    if (err.message?.includes('signature')) {
+      console.error(`[WEBHOOK-${webhookReceiveTime}] Signature verification failed`);
+      console.error(`[WEBHOOK-${webhookReceiveTime}] Webhook secret configured:`, !!process.env.STRIPE_WEBHOOK_SECRET);
+      console.error(`[WEBHOOK-${webhookReceiveTime}] Signature header:`, sig?.substring(0, 50) + '...');
+    }
+    
+    const errorResponse = {
+      error: err.message,
+      received: true,
+      processed: false,
+      timestamp: webhookReceiveTime,
+      errorTime: errorTime,
+      errorType: err.constructor.name
+    };
+    
+    console.log(`[WEBHOOK-${webhookReceiveTime}] Sending error response to Stripe:`, errorResponse);
+    res.status(400).json(errorResponse);
   }
 });
 
