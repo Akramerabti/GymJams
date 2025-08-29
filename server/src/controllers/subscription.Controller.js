@@ -1013,7 +1013,7 @@ export const handleWebhook = async (event) => {
         
         // Only process subscription invoices
         if (invoice.subscription) {
-          logger.info(`Payment succeeded for subscription: ${invoice.subscription}`);
+          console.log(`Payment succeeded for subscription: ${invoice.subscription}`);
           
           // Find the subscription in our database
           const dbSubscription = await Subscription.findOne({
@@ -1027,7 +1027,7 @@ export const handleWebhook = async (event) => {
           
           // Check if this is a renewal (not the initial payment)
           if (invoice.billing_reason === 'subscription_cycle') {
-            logger.info('This is a subscription renewal payment');
+             console.log('This is a subscription renewal payment');
             
             // Fetch the latest subscription data from Stripe
             const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
@@ -1046,10 +1046,10 @@ export const handleWebhook = async (event) => {
         nextBillingDate: dbSubscription.currentPeriodEnd
       });
     } catch (notificationError) {
-      logger.error('Failed to send renewal notification:', notificationError);
+      console.error('Failed to send renewal notification:', notificationError);
     }
   }
-            logger.info(`Updated subscription ${dbSubscription._id} after successful renewal payment`);
+            onsole.log(`Updated subscription ${dbSubscription._id} after successful renewal payment`);
           }
         }
         break;

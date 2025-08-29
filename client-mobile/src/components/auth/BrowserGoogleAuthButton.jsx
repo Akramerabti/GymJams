@@ -35,67 +35,70 @@ const BrowserGoogleAuthButton = ({ onAccountCreated }) => {
   }, []);
 
   const handleOAuthCallback = async (url) => {
-    try {
-      setIsLoading(true);
-      
-      // Parse the callback URL
-      const urlObj = new URL(url);
-      const token = urlObj.searchParams.get('token');
-      const tempToken = urlObj.searchParams.get('tempToken');
-      const error = urlObj.searchParams.get('error');
-      const loginSuccess = urlObj.searchParams.get('loginSuccess');
-      const existingUser = urlObj.searchParams.get('existingUser');
+  try {
+    setIsLoading(true);
+    
+    // Parse the callback URL
+    const urlObj = new URL(url);
+    const token = urlObj.searchParams.get('token');
+    const tempToken = urlObj.searchParams.get('tempToken');
+    const error = urlObj.searchParams.get('error');
+    const loginSuccess = urlObj.searchParams.get('loginSuccess');
+    const existingUser = urlObj.searchParams.get('existingUser');
 
-      // Close the browser on mobile
-      if (Capacitor.isNativePlatform()) {
-        await Browser.close();
-      }
-
-      if (error) {
-        toast.error('Authentication failed', {
-          description: decodeURIComponent(error)
-        });
-        return;
-      }
-
-      // Handle successful login with complete profile
-      if (token && loginSuccess) {
-        const userData = await loginWithToken(token);
-        localStorage.setItem('token', token);
-        if (setToken) setToken(token);
-        if (setUser && userData?.user) setUser(userData.user);
-        localStorage.setItem('hasCompletedOnboarding', 'true');
-
-        
-        if (onAccountCreated) {
-          onAccountCreated(userData?.user, 'logged_in_successfully');
-        } else {
-          navigate('/');
-        }
-      }
-
-      // Handle profile completion needed
-      if (tempToken) {
-        localStorage.setItem('tempToken', tempToken);
-        
-        if (existingUser === 'true') {
-          toast.info('Please complete your profile to continue');
-          navigate('/complete-profile');
-        } else {
-          toast.info('Welcome! Please complete your profile to get started');
-          navigate('/complete-oauth-profile');
-        }
-      }
-
-    } catch (error) {
-      console.error('OAuth callback error:', error);
-      toast.error('Authentication failed', {
-        description: 'Please try again'
-      });
-    } finally {
-      setIsLoading(false);
+    // Close the browser on mobile
+    if (Capacitor.isNativePlatform()) {
+      await Browser.close();
     }
-  };
+
+    if (error) {
+      toast.error('Authentication failed', {
+        description: decodeURIComponent(error)
+      });
+      return;
+    }
+
+    // Handle successful login with complete profile
+    if (token && loginSuccess) {
+      const userData = await loginWithToken(token);
+      localStorage.setItem('token', token);
+      if (setToken) setToken(token);
+      if (setUser && userData?.user) setUser(userData.user);
+      localStorage.setItem('hasCompletedOnboarding', 'true');
+      
+      if (onAccountCreated) {
+        onAccountCreated(userData?.user, 'logged_in_successfully');
+      } else {
+        window.location.href = '/';
+      }
+    }
+
+    // Handle profile completion needed
+    if (tempToken) {
+      localStorage.setItem('tempToken', tempToken);
+      
+      if (onAccountCreated) {
+        // Let MobileGatekeeper handle the navigation
+        onAccountCreated({ tempToken }, existingUser === 'true' ? 'complete_profile' : 'complete_oauth_profile');
+      } else {
+        // Fallback for non-MobileGatekeeper usage
+        if (existingUser === 'true') {
+          window.location.href = '/complete-profile';
+        } else {
+          window.location.href = '/complete-oauth-profile';
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error('OAuth callback error:', error);
+    toast.error('Authentication failed', {
+      description: 'Please try again'
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
@@ -112,6 +115,7 @@ const BrowserGoogleAuthButton = ({ onAccountCreated }) => {
         const oauthUrl = `${baseUrl}/auth/google/mobile?redirectUri=${encodeURIComponent(redirectUri)}`;
         
         console.log('Opening mobile OAuth URL:', oauthUrl);
+        
 
         await Browser.open({
           url: oauthUrl,

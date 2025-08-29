@@ -28,8 +28,6 @@ router.post('/phone-login', loginWithPhone);
 router.post('/phone-register', registerWithPhone);
 router.post('/complete-oauth-profile', optionalAuthenticate, completeOAuthProfile);
 
-// OAuth Routes - Now properly handling both web and mobile
-
 // Standard web OAuth route
 router.get('/google', (req, res, next) => {
     // Store the return URL for after authentication

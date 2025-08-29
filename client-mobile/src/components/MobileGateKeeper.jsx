@@ -452,7 +452,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                 }}
               >
                 {/* Social Login Buttons */}
-                <BrowserGoogleAuthButton />
+                <BrowserGoogleAuthButton onAccountCreated={onAccountCreated} />
 
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
@@ -575,7 +575,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
                     </div>
 
                     {/* Social Login Buttons */}
-                    <BrowserGoogleAuthButton />
+                   <BrowserGoogleAuthButton onAccountCreated={onAccountCreated} />
 
                     <div className="relative">
                       <div className="absolute inset-0 flex items-center">

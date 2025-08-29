@@ -67,7 +67,7 @@ import PermissionsModal from './components/common/PermissionsModal';
 const FIVE_MINUTES = 5 * 60 * 1000;
 
 // OAuth Callback Handler Component
-function OAuthCallbackHandler() {
+function OAuthCallbackHandler({ showMobileGatekeeper }) {
   const location = useLocation();
   const { loginWithToken, setUser, setToken } = useAuth();
   const [isProcessingCallback, setIsProcessingCallback] = useState(false);
@@ -81,6 +81,7 @@ function OAuthCallbackHandler() {
       const loginSuccess = urlParams.get('loginSuccess');
       const existingUser = urlParams.get('existingUser');
 
+      
       // Only process if we have OAuth parameters and haven't processed yet
       if ((token || tempToken || error) && !isProcessingCallback) {
         console.log('🔍 OAuth callback detected:', { 
@@ -318,16 +319,40 @@ function AppContent() {
 
 // In App.js - Update the MobileGatekeeper logic
 
-// Mobile Gatekeeper logic - Enhanced to exclude email verification routes
 useEffect(() => {
+  // Check URL parameters first
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlTempToken = urlParams.get('tempToken');
+  
+  if (urlTempToken) {
+    console.log('🔧 TempToken found in URL, storing and redirecting');
+    localStorage.setItem('tempToken', urlTempToken);
+    // Clean URL and redirect
+    window.history.replaceState(null, null, window.location.pathname);
+    setShowMobileGatekeeper(false);
+    window.location.href = '/complete-oauth-profile';
+    return;
+  }
+
   console.log('🔍 Mobile Gatekeeper Check:', {
     isAuthenticated,
     hasUser: !!user,
-    pathname: window.location.pathname
+    pathname: window.location.pathname,
+    hasToken: !!localStorage.getItem('token'),
+    hasTempToken: !!localStorage.getItem('tempToken')
   });
 
   const token = localStorage.getItem('token');
+  const tempToken = localStorage.getItem('tempToken');
   const currentPath = window.location.pathname;
+  
+  // If we have a tempToken, don't show gatekeeper
+  if (tempToken) {
+    console.log('🔧 TempToken found in localStorage, hiding gatekeeper');
+    setShowMobileGatekeeper(false);
+    return;
+  }
+  
   
   // Define routes where MobileGatekeeper should NOT show
   const excludedRoutes = [
@@ -335,19 +360,21 @@ useEffect(() => {
     '/verify-email',
     '/email-verification-notification',
     '/reset-password',
-    '/forgot-password'
+    '/forgot-password',
+    '/complete-oauth-profile'  // Add this
   ];
   
   // Check if current path should be excluded
   const isExcludedRoute = excludedRoutes.some(route => currentPath.startsWith(route));
   
   // Enhanced rule: If not authenticated AND not on excluded routes, show gatekeeper
-  const shouldShowGatekeeper = !isAuthenticated && !user && !token && !isExcludedRoute;
+  const shouldShowGatekeeper = !isAuthenticated && !user && !token && !tempToken && !isExcludedRoute;
   
   console.log('🚪 Should show Mobile Gatekeeper:', {
     shouldShowGatekeeper,
     currentPath,
-    isExcludedRoute
+    isExcludedRoute,
+    hasTempToken: !!tempToken
   });
   
   setShowMobileGatekeeper(shouldShowGatekeeper);
@@ -355,12 +382,26 @@ useEffect(() => {
 }, [isAuthenticated, user]);
 
 
-  // Handle account creation from mobile gatekeeper
-  const handleAccountCreated = (userData, token) => {
-    setShowMobileGatekeeper(false);
-    sessionStorage.removeItem('mobileGatekeeperOpen');
+const handleAccountCreated = (userData, action) => {
+  console.log('MobileGatekeeper handleAccountCreated:', { userData, action });
+  
+  setShowMobileGatekeeper(false);
+  sessionStorage.removeItem('mobileGatekeeperOpen');
+  
+  if (action === 'complete_oauth_profile') {
+    toast.info('Welcome! Please complete your profile to get started');
+    window.location.href = '/complete-oauth-profile';
+  } else if (action === 'complete_profile') {
+    toast.info('Please complete your profile to continue');
+    window.location.href = '/complete-profile';
+  } else if (action === 'logged_in_successfully') {
+    toast.success('Successfully logged in!');
+    window.location.href = '/';
+  } else {
+    // Normal completion
     checkAuth();
-  };
+  }
+};
 
   // Initialize app
   useEffect(() => {
@@ -442,7 +483,7 @@ useEffect(() => {
     <Router>
       <Layout showMobileGatekeeper={showMobileGatekeeper}>
         {/* OAuth Callback Handler - must be inside Router */}
-        <OAuthCallbackHandler />
+        <OAuthCallbackHandler showMobileGatekeeper={showMobileGatekeeper} />
         
         <Routes>
           {/* Public Routes */}
@@ -455,6 +496,7 @@ useEffect(() => {
           <Route path="/register" element={<Register />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/email-verification-notification" element={<EmailVerificationNotification />} />
+          <Route path="/login" element={<MobileGatekeeper isOpen={true} onAccountCreated={handleAccountCreated} onClose={() => {}} />} />
           <Route path="/complete-oauth-profile" element={<CompleteOAuthProfile />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />

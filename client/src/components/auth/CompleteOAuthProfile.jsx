@@ -66,6 +66,16 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
   useEffect(() => {
     const initializeComponent = () => {
       try {
+
+         console.log('🔍 CompleteOAuthProfile initializing with:', {
+        searchParams: Object.fromEntries(searchParams),
+        userProp: user,
+        localStorage: {
+          tempToken: localStorage.getItem('tempToken'),
+          token: localStorage.getItem('token')
+        }
+      });
+      
         const tempTokenFromUrl = searchParams.get('tempToken');
         
         if (tempTokenFromUrl) {
