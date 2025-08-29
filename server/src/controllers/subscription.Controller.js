@@ -1036,115 +1036,140 @@ export const handleWebhook = async (event) => {
         break;
       }
       
-      // Handle payment success events (renewals)
-      case 'invoice.payment_succeeded': {
-        const invoice = event.data.object;
-        console.log(`[${webhookId}] Processing payment success`);
-        console.log(`[${webhookId}] Invoice ID: ${invoice.id}`);
-        console.log(`[${webhookId}] Billing reason: ${invoice.billing_reason}`);
-        console.log(`[${webhookId}] Invoice subscription: ${invoice.subscription}`);
-        console.log(`[${webhookId}] Invoice status: ${invoice.status}`);
-        console.log(`[${webhookId}] Invoice amount: ${invoice.amount_paid} ${invoice.currency}`);
+     case 'invoice.payment_succeeded': {
+  const invoice = event.data.object;
+  console.log(`[${webhookId}] Processing payment success`);
+  console.log(`[${webhookId}] Invoice ID: ${invoice.id}`);
+  console.log(`[${webhookId}] Billing reason: ${invoice.billing_reason}`);
+  console.log(`[${webhookId}] Invoice status: ${invoice.status}`);
+  console.log(`[${webhookId}] Invoice amount: ${invoice.amount_paid} ${invoice.currency}`);
+  
+  // Extract subscription ID from multiple possible locations
+  let subscriptionId = invoice.subscription; // Direct property (most common)
+  
+  // If not found, try alternative locations
+  if (!subscriptionId && invoice.lines?.data?.length > 0) {
+    const firstLine = invoice.lines.data[0];
+    subscriptionId = firstLine.parent?.subscription_item_details?.subscription;
+  }
+  
+  // Try parent subscription details
+  if (!subscriptionId && invoice.parent?.subscription_details?.subscription) {
+    subscriptionId = invoice.parent.subscription_details.subscription;
+  }
+  
+  console.log(`[${webhookId}] Extracted subscription ID: ${subscriptionId}`);
+  console.log(`[${webhookId}] Subscription sources checked:`, {
+    direct: !!invoice.subscription,
+    lineItems: !!invoice.lines?.data?.[0]?.parent?.subscription_item_details?.subscription,
+    parentDetails: !!invoice.parent?.subscription_details?.subscription
+  });
+  
+  // Only process subscription invoices
+  if (subscriptionId) {
+    console.log(`[${webhookId}] Payment succeeded for subscription: ${subscriptionId}`);
+    
+    // Find the subscription in our database
+    console.log(`[${webhookId}] Searching for subscription with stripeSubscriptionId: ${subscriptionId}`);
+    const dbSubscription = await Subscription.findOne({
+      stripeSubscriptionId: subscriptionId,
+    });
+    
+    if (!dbSubscription) {
+      console.error(`[${webhookId}] ERROR: Subscription not found in database: ${subscriptionId}`);
+      console.error(`[${webhookId}] Available subscriptions in DB:`, await Subscription.find({}, 'stripeSubscriptionId _id').limit(5));
+      return;
+    }
+    
+    console.log(`[${webhookId}] Found subscription in DB: ${dbSubscription._id}`);
+    console.log(`[${webhookId}] Current DB subscription details:`, {
+      status: dbSubscription.status,
+      currentPeriodStart: dbSubscription.currentPeriodStart?.toISOString(),
+      currentPeriodEnd: dbSubscription.currentPeriodEnd?.toISOString(),
+      endDate: dbSubscription.endDate?.toISOString(),
+      cancelAtPeriodEnd: dbSubscription.cancelAtPeriodEnd,
+      updatedAt: dbSubscription.updatedAt?.toISOString()
+    });
+    
+    // Check if this is a renewal (not the initial payment)
+    if (invoice.billing_reason === 'subscription_cycle') {
+      console.log(`[${webhookId}] This is a subscription renewal payment`);
+      
+      try {
+        // Fetch the latest subscription data from Stripe
+        console.log(`[${webhookId}] Fetching latest subscription data from Stripe...`);
+        const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId);
         
-        // Only process subscription invoices
-        if (invoice.subscription) {
-          console.log(`[${webhookId}] Payment succeeded for subscription: ${invoice.subscription}`);
-          
-          // Find the subscription in our database
-          console.log(`[${webhookId}] Searching for subscription with stripeSubscriptionId: ${invoice.subscription}`);
-          const dbSubscription = await Subscription.findOne({
-            stripeSubscriptionId: invoice.subscription,
-          });
-          
-          if (!dbSubscription) {
-            console.error(`[${webhookId}] ERROR: Subscription not found in database: ${invoice.subscription}`);
-            console.error(`[${webhookId}] Available subscriptions in DB:`, await Subscription.find({}, 'stripeSubscriptionId _id').limit(5));
-            return;
-          }
-          
-          console.log(`[${webhookId}] Found subscription in DB: ${dbSubscription._id}`);
-          console.log(`[${webhookId}] Current DB subscription details:`, {
-            status: dbSubscription.status,
-            currentPeriodStart: dbSubscription.currentPeriodStart?.toISOString(),
-            currentPeriodEnd: dbSubscription.currentPeriodEnd?.toISOString(),
-            endDate: dbSubscription.endDate?.toISOString(),
-            cancelAtPeriodEnd: dbSubscription.cancelAtPeriodEnd,
-            updatedAt: dbSubscription.updatedAt?.toISOString()
-          });
-          
-          // Check if this is a renewal (not the initial payment)
-          if (invoice.billing_reason === 'subscription_cycle') {
-            console.log(`[${webhookId}] This is a subscription renewal payment`);
-            
-            try {
-              // Fetch the latest subscription data from Stripe
-              console.log(`[${webhookId}] Fetching latest subscription data from Stripe...`);
-              const stripeSubscription = await stripe.subscriptions.retrieve(invoice.subscription);
-              
-              console.log(`[${webhookId}] Stripe subscription data:`, {
-                id: stripeSubscription.id,
-                status: stripeSubscription.status,
-                currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000).toISOString(),
-                currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000).toISOString(),
-                cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
-                canceledAt: stripeSubscription.canceled_at ? new Date(stripeSubscription.canceled_at * 1000).toISOString() : null
-              });
-              
-              // Update the subscription
-              console.log(`[${webhookId}] Updating subscription in database...`);
-              const oldStatus = dbSubscription.status;
-              const oldPeriodEnd = dbSubscription.currentPeriodEnd?.toISOString();
-              
-              dbSubscription.currentPeriodStart = new Date(stripeSubscription.current_period_start * 1000);
-              dbSubscription.currentPeriodEnd = new Date(stripeSubscription.current_period_end * 1000);
-              dbSubscription.status = 'active';
-              
-              // Clear endDate if it was set (from cleanup job)
-              if (dbSubscription.endDate) {
-                console.log(`[${webhookId}] Clearing endDate that was previously set: ${dbSubscription.endDate.toISOString()}`);
-                dbSubscription.endDate = undefined;
-              }
-              
-              console.log(`[${webhookId}] About to save subscription with changes:`, {
-                oldStatus,
-                newStatus: dbSubscription.status,
-                oldPeriodEnd,
-                newPeriodEnd: dbSubscription.currentPeriodEnd.toISOString(),
-                endDateCleared: dbSubscription.endDate === undefined
-              });
-              
-              await dbSubscription.save();
-              console.log(`[${webhookId}] Successfully saved subscription ${dbSubscription._id}`);
-              
-              // Send renewal notification
-              if (dbSubscription.user) {
-                try {
-                  console.log(`[${webhookId}] Sending renewal notification to user: ${dbSubscription.user}`);
-                  await sendSubscriptionRenewalNotification(dbSubscription.user, {
-                    subscriptionId: dbSubscription._id,
-                    planType: dbSubscription.subscription,
-                    nextBillingDate: dbSubscription.currentPeriodEnd
-                  });
-                  console.log(`[${webhookId}] Renewal notification sent successfully`);
-                } catch (notificationError) {
-                  console.error(`[${webhookId}] Failed to send renewal notification:`, notificationError);
-                }
-              }
-              
-              console.log(`[${webhookId}] Successfully updated subscription ${dbSubscription._id} after successful renewal payment`);
-              
-            } catch (stripeError) {
-              console.error(`[${webhookId}] Error retrieving subscription from Stripe:`, stripeError);
-              throw stripeError;
-            }
-          } else {
-            console.log(`[${webhookId}] Skipping non-renewal payment (billing_reason: ${invoice.billing_reason})`);
-          }
-        } else {
-          console.log(`[${webhookId}] Skipping non-subscription invoice`);
+        console.log(`[${webhookId}] Stripe subscription data:`, {
+          id: stripeSubscription.id,
+          status: stripeSubscription.status,
+          currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000).toISOString(),
+          currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000).toISOString(),
+          cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+          canceledAt: stripeSubscription.canceled_at ? new Date(stripeSubscription.canceled_at * 1000).toISOString() : null
+        });
+        
+        // Update the subscription
+        console.log(`[${webhookId}] Updating subscription in database...`);
+        const oldStatus = dbSubscription.status;
+        const oldPeriodEnd = dbSubscription.currentPeriodEnd?.toISOString();
+        
+        dbSubscription.currentPeriodStart = new Date(stripeSubscription.current_period_start * 1000);
+        dbSubscription.currentPeriodEnd = new Date(stripeSubscription.current_period_end * 1000);
+        dbSubscription.status = 'active';
+        
+        // Clear endDate if it was set (from cleanup job)
+        if (dbSubscription.endDate) {
+          console.log(`[${webhookId}] Clearing endDate that was previously set: ${dbSubscription.endDate.toISOString()}`);
+          dbSubscription.endDate = undefined;
         }
-        break;
+        
+        console.log(`[${webhookId}] About to save subscription with changes:`, {
+          oldStatus,
+          newStatus: dbSubscription.status,
+          oldPeriodEnd,
+          newPeriodEnd: dbSubscription.currentPeriodEnd.toISOString(),
+          endDateCleared: dbSubscription.endDate === undefined
+        });
+        
+        await dbSubscription.save();
+        console.log(`[${webhookId}] Successfully saved subscription ${dbSubscription._id}`);
+        
+        // Send renewal notification
+        if (dbSubscription.user) {
+          try {
+            console.log(`[${webhookId}] Sending renewal notification to user: ${dbSubscription.user}`);
+            await sendSubscriptionRenewalNotification(dbSubscription.user, {
+              subscriptionId: dbSubscription._id,
+              planType: dbSubscription.subscription,
+              nextBillingDate: dbSubscription.currentPeriodEnd
+            });
+            console.log(`[${webhookId}] Renewal notification sent successfully`);
+          } catch (notificationError) {
+            console.error(`[${webhookId}] Failed to send renewal notification:`, notificationError);
+          }
+        }
+        
+        console.log(`[${webhookId}] Successfully updated subscription ${dbSubscription._id} after successful renewal payment`);
+        
+      } catch (stripeError) {
+        console.error(`[${webhookId}] Error retrieving subscription from Stripe:`, stripeError);
+        throw stripeError;
       }
+    } else {
+      console.log(`[${webhookId}] Skipping non-renewal payment (billing_reason: ${invoice.billing_reason})`);
+    }
+  } else {
+    console.log(`[${webhookId}] Skipping invoice - no subscription ID found`);
+    console.log(`[${webhookId}] Invoice structure for debugging:`, {
+      hasSubscriptionProperty: 'subscription' in invoice,
+      hasLinesData: !!invoice.lines?.data?.length,
+      hasParentDetails: !!invoice.parent,
+      invoiceKeys: Object.keys(invoice).slice(0, 10) // First 10 keys for debugging
+    });
+  }
+  break;
+}
       
       // Handle payment failures
       case 'invoice.payment_failed': {
