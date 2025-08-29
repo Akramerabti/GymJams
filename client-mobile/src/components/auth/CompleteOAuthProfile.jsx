@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Loader2, Phone, ChevronDown, Globe, Shield, Sparkles } from 'lucide-react';
+import { Loader2, Phone, ChevronDown, Globe, Shield, Sparkles, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -44,6 +44,7 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
   const [phoneError, setPhoneError] = useState('');
   const [loading, setLoading] = useState(true);
   const dropdownRef = useRef(null);
+  const [showSuccess, setShowSuccess] = useState(false);
   
   const [currentUser, setCurrentUser] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -259,8 +260,13 @@ useEffect(() => {
           onUserUpdate(updatedUser);
         }
         
-        // Show onboarding
-        setShowOnboarding(true);
+        setShowSuccess(true);
+
+          setTimeout(() => {
+    setShowSuccess(false);
+    setShowOnboarding(true);
+  }, 2500);
+
       } else {
         toast.error('Profile completion failed. Please try again.');
       }
@@ -327,6 +333,57 @@ useEffect(() => {
       </div>
     );
   }
+
+  if (showSuccess) {
+  return (
+    <div className="fixed inset-0 z-50 bg-gradient-to-br from-green-900 via-emerald-900 to-teal-900 overflow-hidden">
+      <div className="h-full flex items-center justify-center px-6">
+        <motion.div
+          className="text-center"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6 }}
+        >
+          <motion.div
+            className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-green-400 to-teal-400 rounded-full flex items-center justify-center shadow-2xl"
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ delay: 0.3, type: "spring", stiffness: 260, damping: 20 }}
+          >
+            <CheckCircle2 className="w-10 h-10 text-white" />
+          </motion.div>
+
+          <motion.h1
+            className="text-3xl font-black text-white mb-3"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+          >
+            Profile Complete!
+          </motion.h1>
+
+          <motion.p
+            className="text-lg text-green-200 mb-2"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7 }}
+          >
+            Welcome to GymTonic!
+          </motion.p>
+
+          <motion.p
+            className="text-emerald-300"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.9 }}
+          >
+            Get ready to transform your fitness journey
+          </motion.p>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
 
   // Show onboarding if completed
   if (showOnboarding) {
