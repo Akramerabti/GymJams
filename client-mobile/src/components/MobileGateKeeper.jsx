@@ -26,51 +26,14 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
   const loginTimeoutRef = useRef(null);
   const successScreenStartTimeRef = useRef(null);
 
-  // Use the same auth hooks as LoginForm and Register
   const { login, register } = useAuth();
-
-  // DEBUG: Track screen changes
-  useEffect(() => {
-    console.log('🖥️ SCREEN CHANGE:', {
-      previousScreen: currentScreen,
-      newScreen: currentScreen,
-      timestamp: new Date().toISOString(),
-      isOpen,
-      authMode
-    });
-    
-    if (currentScreen === 'success') {
-      successScreenStartTimeRef.current = Date.now();
-      console.log('⏱️ SUCCESS SCREEN STARTED at:', successScreenStartTimeRef.current);
-    }
-  }, [currentScreen]);
-
-  // DEBUG: Track isOpen changes
-  useEffect(() => {
-    console.log('🚪 GATEKEEPER isOpen CHANGED:', {
-      isOpen,
-      currentScreen,
-      timestamp: new Date().toISOString(),
-      hasTimeout: !!loginTimeoutRef.current
-    });
-
-    if (!isOpen && currentScreen === 'success') {
-      const duration = successScreenStartTimeRef.current 
-        ? Date.now() - successScreenStartTimeRef.current 
-        : 'unknown';
-      console.log('⚠️ GATEKEEPER CLOSED DURING SUCCESS SCREEN! Duration shown:', duration + 'ms');
-    }
-  }, [isOpen, currentScreen]);
 
   useEffect(() => {
     if (isOpen && currentScreen === 'loading') {
-      console.log('⏳ Starting loading timer...');
       const timer = setTimeout(() => {
-        console.log('⏳ Loading timer complete, switching to auth');
         setCurrentScreen('auth');
       }, 2500);
       return () => {
-        console.log('⏳ Cleaning up loading timer');
         clearTimeout(timer);
       };
     }
@@ -78,7 +41,6 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
 
   useEffect(() => {
     if (isOpen) {
-      console.log('🔄 GATEKEEPER OPENED - Resetting state');
       setCurrentScreen('loading');
       setAuthMode('login');
       setStep(1);
@@ -92,7 +54,6 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
       });
       setErrors({});
     } else {
-      // Reset screen to loading when closed to prevent showing success screen on logout
       setCurrentScreen('loading');
     }
   }, [isOpen]);
@@ -123,17 +84,14 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
   useEffect(() => {
     return () => {
       if (loginTimeoutRef.current) {
-        console.log('🧹 Clearing login timeout on cleanup');
         clearTimeout(loginTimeoutRef.current);
         loginTimeoutRef.current = null;
       }
     };
   }, []);
 
-  // Clear timeout when isOpen becomes false
   useEffect(() => {
     if (!isOpen && loginTimeoutRef.current) {
-      console.log('🧹 Clearing login timeout - gatekeeper closed');
       clearTimeout(loginTimeoutRef.current);
       loginTimeoutRef.current = null;
     }
@@ -191,161 +149,103 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
   };
 
   const handleLogin = async (data = formData, retryCount = 0) => {
-  if (!validateStep(1)) return;
-  
-  console.log('🔐 LOGIN PROCESS STARTED:', {
-    email: data.email,
-    retryCount,
-    timestamp: new Date().toISOString()
-  });
-  
-  setIsLoading(true);
-  
-  try {
-    setErrors({});
+    if (!validateStep(1)) return;
+    
+    setIsLoading(true);
+    
+    try {
+      setErrors({});
 
-    // CRITICAL DEBUG: Log the exact moment we set success screen
-    console.log('🎯 SETTING SUCCESS SCREEN BEFORE LOGIN...');
-    console.log('🎯 Current state before success:', {
-      currentScreen,
-      isOpen,
-      isLoading,
-      timestamp: new Date().toISOString()
-    });
-    
-    setCurrentScreen('success');
-    
-    // Immediate verification that state was set
-    console.log('✅ SUCCESS SCREEN SET - Waiting 100ms before login call');
-    
-    // CRITICAL: Call onAccountCreated IMMEDIATELY to set App.js protection
-    if (onAccountCreated) {
-      console.log('📞 CALLING onAccountCreated IMMEDIATELY to set protection');
-      onAccountCreated({ email: data.email }, 'logged_in_successfully');
-    }
-    
-    // Small delay to ensure success screen renders first
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    console.log('🔐 CALLING LOGIN API...');
-    // Now perform login
-    await login(data.email, data.password);
-    console.log('✅ LOGIN API SUCCESSFUL');
+      setCurrentScreen('success');
+      
+      if (onAccountCreated) {
+        onAccountCreated({ email: data.email }, 'logged_in_successfully');
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      await login(data.email, data.password);
  
-    // Enhanced persistence flags
-    localStorage.setItem('hasCompletedOnboarding', 'true');
-    localStorage.setItem('userLoginMethod', 'email_password');
-    localStorage.setItem('persistentLogin', 'true');
-    
-    console.log('💾 PERSISTENT FLAGS SET');
-    
-    // Set timeout for closing (but don't call onAccountCreated again)
-    console.log('⏰ SETTING SUCCESS TIMEOUT (3000ms)');
-    
-    loginTimeoutRef.current = setTimeout(() => {
-      console.log('⏰ SUCCESS TIMEOUT FIRED!');
-      console.log('⏰ Current state when timeout fires:', {
-        isOpen,
-        currentScreen,
-        hasGatekeeper: !!document.querySelector('[data-gatekeeper="true"]'),
-        timestamp: new Date().toISOString()
-      });
+      localStorage.setItem('hasCompletedOnboarding', 'true');
+      localStorage.setItem('userLoginMethod', 'email_password');
+      localStorage.setItem('persistentLogin', 'true');
       
-      // Guard check: only execute if gatekeeper is still open
-      if (!isOpen) {
-        console.log('🚫 Login timeout fired but gatekeeper already closed - skipping');
-        return;
+      loginTimeoutRef.current = setTimeout(() => {
+        if (!isOpen) {
+          return;
+        }
+        
+        loginTimeoutRef.current = null;
+        
+        if (onClose) {
+          onClose();
+        }
+        
+        if (window.location.pathname !== '/') {
+          window.location.href = '/';
+        }
+      }, 3000);
+      
+    } catch (err) {
+      if (loginTimeoutRef.current) {
+        clearTimeout(loginTimeoutRef.current);
+        loginTimeoutRef.current = null;
       }
-      
-      console.log('🔄 Success screen complete, processing completion...');
-      
-      // Clear the timeout reference
-      loginTimeoutRef.current = null;
-      
-      // Close the gatekeeper since App.js should have the protection in place
-      if (onClose) {
-        console.log('📞 CALLING onClose callback');
-        onClose();
-      }
-      
-      // Only redirect if we're not already on the home page
-      if (window.location.pathname !== '/') {
-        console.log('🏠 REDIRECTING TO HOME');
-        window.location.href = '/';
-      } else {
-        console.log('🏠 Already on home page, no redirect needed');
-      }
-    }, 3000);
-    
-    console.log('⏰ SUCCESS TIMEOUT REFERENCE SET:', !!loginTimeoutRef.current);
-    
-  } catch (err) {
-    console.error('❌ LOGIN ERROR:', err);
-    
-    // Clear timeout on error
-    if (loginTimeoutRef.current) {
-      console.log('🧹 Clearing timeout due to login error');
-      clearTimeout(loginTimeoutRef.current);
-      loginTimeoutRef.current = null;
-    }
 
-    const MAX_RETRIES = 3;
-    if ((err.statusCode === 408 || !err.response) && retryCount < MAX_RETRIES) {
-      const nextRetry = retryCount + 1;
-      const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
-      console.log('🔄 RETRYING LOGIN:', { nextRetry, delay });
-      toast.info(`Retrying login attempt ${nextRetry}/${MAX_RETRIES}...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return handleLogin(data, nextRetry);
-    }
-    
-    console.log('❌ Setting screen back to auth due to error');
-    setCurrentScreen('auth');
-
-    let errorMessage = 'An unexpected error occurred. Please try again.';
-    if (err.code === 'ECONNABORTED') {
-      errorMessage = 'Request timed out. Please check your internet connection and try again.';
-    } else if (err.response) {
-      switch (err.response.status) {
-        case 400:
-          errorMessage = 'Email and password are required.';
-          break;
-        case 401:
-          errorMessage = 'Invalid email or password. Please check your credentials.';
-          break;
-        case 403:
-          errorMessage = 'Your email is not verified. Please check your inbox.';
-          break;
-        case 404:
-          errorMessage = 'User not found. Please check your email address.';
-          break;
-        case 429:
-          errorMessage = 'Too many login attempts. Please try again later.';
-          break;
-        case 500:
-          errorMessage = 'Server error. Please try again later.';
-          break;
-        default:
-          errorMessage = 'Something went wrong. Please try again.';
+      const MAX_RETRIES = 3;
+      if ((err.statusCode === 408 || !err.response) && retryCount < MAX_RETRIES) {
+        const nextRetry = retryCount + 1;
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+        toast.info(`Retrying login attempt ${nextRetry}/${MAX_RETRIES}...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return handleLogin(data, nextRetry);
       }
-    } else if (err.request) {
-      errorMessage = 'Network error. Please check your internet connection and try again.';
+      
+      setCurrentScreen('auth');
+
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+      if (err.code === 'ECONNABORTED') {
+        errorMessage = 'Request timed out. Please check your internet connection and try again.';
+      } else if (err.response) {
+        switch (err.response.status) {
+          case 400:
+            errorMessage = 'Email and password are required.';
+            break;
+          case 401:
+            errorMessage = 'Invalid email or password. Please check your credentials.';
+            break;
+          case 403:
+            errorMessage = 'Your email is not verified. Please check your inbox.';
+            break;
+          case 404:
+            errorMessage = 'User not found. Please check your email address.';
+            break;
+          case 429:
+            errorMessage = 'Too many login attempts. Please try again later.';
+            break;
+          case 500:
+            errorMessage = 'Server error. Please try again later.';
+            break;
+          default:
+            errorMessage = 'Something went wrong. Please try again.';
+        }
+      } else if (err.request) {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      }
+      
+      setErrors({ submit: errorMessage });
+      toast.error('Login failed', { description: errorMessage });
+      
+      if (retryCount >= MAX_RETRIES) {
+        toast.info('Refreshing page...', { duration: 2000 });
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      }
+    } finally {
+      setIsLoading(false);
     }
-    
-    setErrors({ submit: errorMessage });
-    toast.error('Login failed', { description: errorMessage });
-    
-    if (retryCount >= MAX_RETRIES) {
-      toast.info('Refreshing page...', { duration: 2000 });
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
-    }
-  } finally {
-    console.log('🔐 LOGIN PROCESS COMPLETE - Setting isLoading to false');
-    setIsLoading(false);
-  }
-};
+  };
 
   const handleSignup = async () => {
     if (!validateStep(2)) return;
@@ -354,20 +254,15 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
     
     try {
       const { confirmPassword, ...registrationData } = formData;
-      console.log('Submitting registration:', registrationData);
-      
       const response = await register(registrationData);
-      console.log('Registration response:', response);
       
       if (response && (response.token || response.user)) {
-        // Store verification email for later use
         localStorage.setItem('verificationEmail', registrationData.email);
         
         toast.success('Registration successful!', {
           description: 'Please check your email to verify your account.'
         });
         
-        // Redirect immediately to email verification notification (no success screen)
         const encodedEmail = encodeURIComponent(registrationData.email);
         window.location.href = `/email-verification-notification?email=${encodedEmail}`;
         
@@ -378,7 +273,6 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
       throw new Error('Registration unsuccessful');
       
     } catch (error) {
-      console.error('Registration error:', error);
       const errorMessage = error?.response?.data?.message || error?.message || 'Registration failed. Please try again.';
       setErrors({ submit: errorMessage });
       toast.error('Registration failed', {
@@ -395,15 +289,11 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
     }
   };
 
-  // DEBUG: Log when component would be hidden
   if (!isOpen) {
-    console.log('🚪 GATEKEEPER NOT RENDERING - isOpen is false');
     return null;
   }
 
-  // Loading Screen
   if (currentScreen === 'loading') {
-    console.log('⏳ RENDERING LOADING SCREEN');
     return (
       <div className="fixed inset-0 z-50 bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 overflow-hidden" data-gatekeeper="true" data-screen="loading">
         <div className="h-full flex flex-col">
@@ -484,19 +374,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
     );
   }
 
-  // Success Screen
   if (currentScreen === 'success') {
-    const timeShown = successScreenStartTimeRef.current 
-      ? Date.now() - successScreenStartTimeRef.current 
-      : 0;
-    
-    console.log('🎉 RENDERING SUCCESS SCREEN', {
-      timeShown: timeShown + 'ms',
-      hasTimeout: !!loginTimeoutRef.current,
-      isOpen,
-      timestamp: new Date().toISOString()
-    });
-
     return (
       <div className="fixed inset-0 z-50 bg-gradient-to-br from-green-900 via-emerald-900 to-teal-900 overflow-hidden" data-gatekeeper="true" data-screen="success">
         <div className="h-full flex items-center justify-center px-6">
@@ -505,18 +383,12 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.6 }}
-            onAnimationComplete={() => {
-              console.log('✨ SUCCESS SCREEN ANIMATION COMPLETE');
-            }}
           >
             <motion.div
               className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-green-400 to-teal-400 rounded-full flex items-center justify-center shadow-2xl"
               initial={{ scale: 0, rotate: -180 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ delay: 0.3, type: "spring", stiffness: 260, damping: 20 }}
-              onAnimationComplete={() => {
-                console.log('✨ SUCCESS ICON ANIMATION COMPLETE');
-              }}
             >
               <CheckCircle2 className="w-10 h-10 text-white" />
             </motion.div>
@@ -553,7 +425,6 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
     );
   }
 
-  // Auth Screen - Enhanced for dark mode
   return (
     <div className="fixed inset-0 z-50 bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 overflow-hidden">
       <div className="h-full flex flex-col">
