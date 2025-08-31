@@ -17,20 +17,11 @@ const Dashboard = () => {
     const validateAccess = async () => {
       setLoading(true);
       try {
-        // Check for logged-in user first
         if (user) {
-          // Validate user has required role
-          if (!['user', 'admin', 'taskforce', 'coach'].includes(user.user?.role || user.role)) {
-            console.error('Invalid user role:', user);
-            toast.error('Invalid user role');
-            navigate('/');
-            return;
-          }
           setHasAccess(true);
           return;
         }
 
-        // If no logged-in user, check for access token in the state, URL, or localStorage
         const accessToken = location.state?.accessToken || // Check state
                            new URLSearchParams(location.search).get('accessToken') || // Check URL query params
                            localStorage.getItem('accessToken'); // Check localStorage

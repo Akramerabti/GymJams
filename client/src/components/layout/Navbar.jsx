@@ -37,7 +37,7 @@ const Navbar = () => {
 
 const isTaskforceOrAdmin = () => {
   const role = getUserrole(user);
-  return ['taskforce', 'admin', 'marketing', 'affiliate'].includes(role);
+  return ['taskforce', 'admin', 'marketing'].includes(role);
 };
 
 const navigationItems = [

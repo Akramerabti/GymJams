@@ -19,10 +19,9 @@ import {
   Users, 
   Gamepad2, 
   GraduationCap, 
-  BarChart3,
-  Activity,
   Dumbbell,
   Coins,
+  MessageCircle,
   Play,
   ArrowRight,
   ChevronRight,
@@ -70,12 +69,12 @@ const Home = () => {
       description: 'Play & Win'
     },
     { 
-      name: 'Analytics', 
-      icon: BarChart3, 
-      route: '/dashboard', 
-      gradient: 'from-blue-400 to-cyan-500',
-      description: 'Progress'
-    }, { 
+  name: 'Contact', 
+  icon: MessageCircle, 
+  route: '/contact', 
+  gradient: 'from-blue-400 to-cyan-500',
+  description: 'Support'
+}, { 
       name: 'Coaching', 
       icon: GraduationCap, 
       route: '/coaching', 
@@ -521,7 +520,9 @@ const Home = () => {
                 transition={{ delay: 0.1, type: "spring", stiffness: 300 }}
               >
                 <Coins className="w-6 h-6 text-yellow-400" />
-                <span className="text-white font-bold text-lg">{balance || 1250}</span>
+                <span className="text-white font-bold text-lg">
+                {balance !== null && balance !== undefined ? balance : ''}
+              </span>
               </motion.div>
 
               {/* Feature Buttons */}

@@ -148,43 +148,43 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleLogin = async (data = formData, retryCount = 0) => {
-    if (!validateStep(1)) return;
+const handleLogin = async (data = formData, retryCount = 0) => {
+  if (!validateStep(1)) return;
+  
+  setIsLoading(true);
+  
+  try {
+    setErrors({});
     
-    setIsLoading(true);
+    // Keep user on auth screen during login attempt
+    // setCurrentScreen('success'); // ❌ REMOVE THIS LINE
     
-    try {
-      setErrors({});
-
-      setCurrentScreen('success');
+    await login(data.email, data.password); // ← Login attempt first
+    
+    // ✅ ONLY set success screen AFTER login succeeds
+    setCurrentScreen('success');
+    
+    if (onAccountCreated) {
+      onAccountCreated({ email: data.email }, 'logged_in_successfully');
+    }
+    
+    localStorage.setItem('hasCompletedOnboarding', 'true');
+    localStorage.setItem('userLoginMethod', 'email_password');
+    localStorage.setItem('persistentLogin', 'true');
+    
+    loginTimeoutRef.current = setTimeout(() => {
+      if (!isOpen) return;
       
-      if (onAccountCreated) {
-        onAccountCreated({ email: data.email }, 'logged_in_successfully');
+      loginTimeoutRef.current = null;
+      
+      if (onClose) {
+        onClose();
       }
       
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      await login(data.email, data.password);
- 
-      localStorage.setItem('hasCompletedOnboarding', 'true');
-      localStorage.setItem('userLoginMethod', 'email_password');
-      localStorage.setItem('persistentLogin', 'true');
-      
-      loginTimeoutRef.current = setTimeout(() => {
-        if (!isOpen) {
-          return;
-        }
-        
-        loginTimeoutRef.current = null;
-        
-        if (onClose) {
-          onClose();
-        }
-        
-        if (window.location.pathname !== '/') {
-          window.location.href = '/';
-        }
-      }, 3000);
+      if (window.location.pathname !== '/') {
+        window.location.href = '/';
+      }
+    }, 3000);
       
     } catch (err) {
       if (loginTimeoutRef.current) {
