@@ -256,6 +256,9 @@ function AppContent() {
   const { checkAuth, logout, user, isAuthenticated } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showMobileGatekeeper, setShowMobileGatekeeper] = useState(false);
+  const [isShowingLoginSuccess, setIsShowingLoginSuccess] = useState(false);
+  const [loginSuccessStartTime, setLoginSuccessStartTime] = useState(null);
+  const successTimeoutRef = useRef(null);
   const { 
     isInitialized: permissionsInitialized, 
     currentLocation, 
@@ -263,12 +266,38 @@ function AppContent() {
     isNative
   } = usePermissions();
 
+  // NEW: Debug state changes with detailed logging
+  useEffect(() => {
+    console.log('🏠 APP STATE CHANGE:', {
+      showMobileGatekeeper,
+      isAuthenticated,
+      hasUser: !!user,
+      userId: user?.id,
+      isShowingLoginSuccess,
+      loginSuccessStartTime,
+      hasSuccessTimeout: !!successTimeoutRef.current,
+      timestamp: new Date().toISOString()
+    });
+
+    // Log when we detect the user becomes authenticated during success flow
+    if (isAuthenticated && user && showMobileGatekeeper && isShowingLoginSuccess) {
+      const duration = loginSuccessStartTime ? Date.now() - loginSuccessStartTime : 'unknown';
+      console.log('⚠️ CRITICAL: User became authenticated while showing login success!', {
+        duration: duration + 'ms',
+        aboutToCloseGatekeeper: true,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }, [showMobileGatekeeper, isAuthenticated, user, isShowingLoginSuccess, loginSuccessStartTime]);
+
   // Initialize notifications when user logs in/out
   useEffect(() => {
     if (user && isAuthenticated) {
+      console.log('🔔 AUTH STATE: User logged in, initializing notifications');
       // Initialize notifications when user is logged in
       initializeNotifications();
     } else {
+      console.log('🔔 AUTH STATE: User logged out, cleaning up notifications');
       // Clean up when user logs out
       handleNotificationCleanup();
     }
@@ -308,6 +337,7 @@ function AppContent() {
     const checkOAuthReturn = () => {
       // Check if we're on the OAuth callback page
       if (window.location.pathname === '/oauth-callback') {
+        console.log('🔄 OAuth callback detected - hiding mobile gatekeeper');
         // Don't show mobile gatekeeper on OAuth callback
         setShowMobileGatekeeper(false);
         sessionStorage.removeItem('mobileGatekeeperOpen');
@@ -317,9 +347,35 @@ function AppContent() {
     checkOAuthReturn();
   }, []);
 
-// In App.js - Update the MobileGatekeeper logic
-
 useEffect(() => {
+  console.log('🔍 GATEKEEPER LOGIC TRIGGERED:', {
+    trigger: 'useEffect dependency change',
+    isShowingLoginSuccess,
+    hasSuccessTimeout: !!successTimeoutRef.current,
+    isAuthenticated,
+    hasUser: !!user,
+    currentShowGatekeeper: showMobileGatekeeper,
+    timestamp: new Date().toISOString()
+  });
+
+  // CRITICAL: Don't auto-close during login success flow
+  if (isShowingLoginSuccess) {
+    console.log('🎉 PROTECTION: Skipping gatekeeper auto-close - login success in progress');
+    console.log('🎉 SUCCESS DETAILS:', {
+      startTime: loginSuccessStartTime,
+      elapsed: loginSuccessStartTime ? Date.now() - loginSuccessStartTime + 'ms' : 'unknown',
+      hasTimeout: !!successTimeoutRef.current
+    });
+    return;
+  }
+
+  // ADDITIONAL PROTECTION: Don't close if gatekeeper has an active success timeout
+  // This handles cases where isShowingLoginSuccess might not be set but timeout is active
+  if (successTimeoutRef.current && showMobileGatekeeper) {
+    console.log('🎉 TIMEOUT PROTECTION: Skipping gatekeeper auto-close - success timeout active');
+    return;
+  }
+
   // Check URL parameters first
   const urlParams = new URLSearchParams(window.location.search);
   const urlTempToken = urlParams.get('tempToken');
@@ -339,7 +395,9 @@ useEffect(() => {
     hasUser: !!user,
     pathname: window.location.pathname,
     hasToken: !!localStorage.getItem('token'),
-    hasTempToken: !!localStorage.getItem('tempToken')
+    hasTempToken: !!localStorage.getItem('tempToken'),
+    isShowingLoginSuccess,
+    currentGatekeeperState: showMobileGatekeeper
   });
 
   const token = localStorage.getItem('token');
@@ -353,7 +411,6 @@ useEffect(() => {
     return;
   }
   
-  
   // Define routes where MobileGatekeeper should NOT show
   const excludedRoutes = [
     '/oauth-callback',
@@ -361,7 +418,7 @@ useEffect(() => {
     '/email-verification-notification',
     '/reset-password',
     '/forgot-password',
-    '/complete-oauth-profile'  // Add this
+    '/complete-oauth-profile'
   ];
   
   // Check if current path should be excluded
@@ -370,21 +427,90 @@ useEffect(() => {
   // Enhanced rule: If not authenticated AND not on excluded routes, show gatekeeper
   const shouldShowGatekeeper = !isAuthenticated && !user && !token && !tempToken && !isExcludedRoute;
   
-  console.log('🚪 Should show Mobile Gatekeeper:', {
+  console.log('🚪 Gatekeeper Decision:', {
     shouldShowGatekeeper,
     currentPath,
     isExcludedRoute,
-    hasTempToken: !!tempToken
+    hasTempToken: !!tempToken,
+    isShowingLoginSuccess,
+    hasActiveTimeout: !!successTimeoutRef.current,
+    willChangeState: shouldShowGatekeeper !== showMobileGatekeeper
   });
   
-  setShowMobileGatekeeper(shouldShowGatekeeper);
+  // Only update if the state actually needs to change
+  if (shouldShowGatekeeper !== showMobileGatekeeper) {
+    console.log('🔄 GATEKEEPER STATE CHANGE:', {
+      from: showMobileGatekeeper,
+      to: shouldShowGatekeeper,
+      reason: shouldShowGatekeeper ? 'User not authenticated' : 'User authenticated',
+      timestamp: new Date().toISOString()
+    });
+    setShowMobileGatekeeper(shouldShowGatekeeper);
+  }
   
-}, [isAuthenticated, user]);
+}, [isAuthenticated, user, isShowingLoginSuccess, showMobileGatekeeper, successTimeoutRef.current]);
 
-
-const handleAccountCreated = (userData, action) => {
-  console.log('MobileGatekeeper handleAccountCreated:', { userData, action });
+ const handleAccountCreated = (userData, action) => {
+  console.log('📞 APP handleAccountCreated CALLED:', { 
+    userData, 
+    action, 
+    currentGatekeeperState: showMobileGatekeeper,
+    timestamp: new Date().toISOString()
+  });
   
+  // Handle login success case - START success screen protection
+  if (action === 'logged_in_successfully') {
+    console.log('🎉 LOGIN SUCCESS DETECTED - Starting success screen protection');
+    
+    // Set success screen state to prevent auto-closing
+    setIsShowingLoginSuccess(true);
+    setLoginSuccessStartTime(Date.now());
+    
+    // Clear any existing timeout
+    if (successTimeoutRef.current) {
+      console.log('🧹 Clearing existing success timeout');
+      clearTimeout(successTimeoutRef.current);
+    }
+    
+    // Set timeout to end success screen protection and close gatekeeper
+    successTimeoutRef.current = setTimeout(() => {
+      console.log('⏰ SUCCESS SCREEN TIMEOUT - Ending protection and closing gatekeeper');
+      console.log('⏰ FINAL SUCCESS STATS:', {
+        totalDuration: Date.now() - loginSuccessStartTime + 'ms',
+        userStillAuthenticated: isAuthenticated,
+        gatekeeperStillOpen: showMobileGatekeeper
+      });
+      
+      // End success screen protection
+      setIsShowingLoginSuccess(false);
+      setLoginSuccessStartTime(null);
+      
+      // Close gatekeeper
+      setShowMobileGatekeeper(false);
+      sessionStorage.removeItem('mobileGatekeeperOpen');
+      
+      // Clear timeout reference
+      successTimeoutRef.current = null;
+      
+      // Redirect if needed
+      if (window.location.pathname !== '/') {
+        console.log('🏠 Redirecting to home after successful login');
+        window.location.href = '/';
+      }
+      
+    }, 4000); // Give full 4 seconds for success screen
+    
+    console.log('⏰ SUCCESS PROTECTION TIMEOUT SET:', {
+      timeoutId: successTimeoutRef.current,
+      duration: '4000ms',
+      protectionActive: true
+    });
+    
+    return; // Don't process further
+  }
+  
+  // For all other actions, close the gatekeeper immediately
+  console.log('📞 Non-login action, closing gatekeeper immediately:', action);
   setShowMobileGatekeeper(false);
   sessionStorage.removeItem('mobileGatekeeperOpen');
   
@@ -394,66 +520,82 @@ const handleAccountCreated = (userData, action) => {
   } else if (action === 'complete_profile') {
     toast.info('Please complete your profile to continue');
     window.location.href = '/complete-profile';
-  } else if (action === 'logged_in_successfully') {
-    toast.success('Successfully logged in!');
-    window.location.href = '/';
   } else {
     // Normal completion
+    console.log('📞 Calling checkAuth for action:', action);
     checkAuth();
   }
 };
 
+  // Cleanup success timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (successTimeoutRef.current) {
+        console.log('🧹 Cleaning up success timeout on unmount');
+        clearTimeout(successTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Initialize app
   useEffect(() => {
-    const validateTokenOnLoad = async () => {
-  try {
-    const token = localStorage.getItem('token');
-    const tempToken = localStorage.getItem('tempToken');
-    console.log('🔍 Checking for existing token:', !!token);
+    console.log('🚀 APP INITIALIZATION EFFECT TRIGGERED');
     
-    if (token) {
-      console.log('✅ Token found, validating...');
-      const isValid = await checkAuth();
-      console.log('🔍 Token validation result:', isValid);
-      
-      if (!isValid) {
-        console.log('❌ Token invalid, logging out...');
+    const validateTokenOnLoad = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const tempToken = localStorage.getItem('tempToken');
+        console.log('🔍 Token validation - Checking for existing token:', !!token);
+        
+        if (token) {
+          console.log('✅ Token found, validating...');
+          const isValid = await checkAuth();
+          console.log('🔍 Token validation result:', isValid);
+          
+          if (!isValid) {
+            console.log('❌ Token invalid, logging out and showing gatekeeper');
+            logout();
+            // Force show MobileGatekeeper after invalid token
+            setShowMobileGatekeeper(true);
+          } else {
+            console.log('✅ Token valid, user authenticated - hiding gatekeeper');
+            // Ensure MobileGatekeeper is hidden for authenticated users
+            setShowMobileGatekeeper(false);
+          }
+        } else {
+          console.log('ℹ️ No token found - checking if gatekeeper should show');
+          
+          // Check if we're on an excluded route or have tempToken
+          const currentPath = window.location.pathname;
+          const excludedRoutes = [
+            '/oauth-callback',
+            '/verify-email', 
+            '/email-verification-notification',
+            '/reset-password',
+            '/forgot-password',
+            '/complete-oauth-profile'
+          ];
+          const isExcludedRoute = excludedRoutes.some(route => currentPath.startsWith(route));
+          
+          // Force show MobileGatekeeper if no token and not on excluded route
+          if (!tempToken && !isExcludedRoute) {
+            console.log('🚪 No token found, forcing MobileGatekeeper');
+            setShowMobileGatekeeper(true);
+          } else {
+            console.log('🚪 Not showing MobileGatekeeper:', {
+              hasTempToken: !!tempToken,
+              isExcludedRoute,
+              currentPath
+            });
+          }
+        }
+      } catch (error) {
+        console.error('❌ Auth check error:', error);
         logout();
-        // Force show MobileGatekeeper after invalid token
-        setShowMobileGatekeeper(true);
-      } else {
-        console.log('✅ Token valid, user authenticated');
-        // Ensure MobileGatekeeper is hidden for authenticated users
-        setShowMobileGatekeeper(false);
-      }
-    } else {
-      console.log('ℹ️ No token found');
-      
-      // Check if we're on an excluded route or have tempToken
-      const currentPath = window.location.pathname;
-      const excludedRoutes = [
-        '/oauth-callback',
-        '/verify-email', 
-        '/email-verification-notification',
-        '/reset-password',
-        '/forgot-password',
-        '/complete-oauth-profile'
-      ];
-      const isExcludedRoute = excludedRoutes.some(route => currentPath.startsWith(route));
-      
-      // Force show MobileGatekeeper if no token and not on excluded route
-      if (!tempToken && !isExcludedRoute) {
-        console.log('🚪 No token found, forcing MobileGatekeeper');
+        // Force show MobileGatekeeper on auth errors
         setShowMobileGatekeeper(true);
       }
-    }
-  } catch (error) {
-    console.error('❌ Auth check error:', error);
-    logout();
-    // Force show MobileGatekeeper on auth errors
-    setShowMobileGatekeeper(true);
-  }
-};
+    };
 
     const initGAM = async (retryCount = 0) => {
       try {
@@ -475,26 +617,44 @@ const handleAccountCreated = (userData, action) => {
 
     // Wait for permissions to be initialized before fully starting the app
     if (permissionsInitialized) {
+      console.log('🚀 Permissions initialized, starting app validation');
       Promise.all([
         validateTokenOnLoad(),
         initGAM()
       ]).catch(error => {
         console.error('App initialization error:', error);
       });
+    } else {
+      console.log('⏳ Waiting for permissions to initialize...');
     }
   }, [checkAuth, logout, permissionsInitialized, isNative]);
 
-  // Debug auth state
+  // Enhanced auth state debugging
   useEffect(() => {
-    console.log('🔍 Auth state changed:', { 
+    console.log('🔍 AUTH STATE CHANGE DETECTED:', { 
       user: !!user, 
       isAuthenticated, 
-      userId: user?.id 
+      userId: user?.id,
+      showMobileGatekeeper,
+      isShowingLoginSuccess,
+      timestamp: new Date().toISOString()
     });
-  }, [user, isAuthenticated]);
+
+    // Special logging when user becomes authenticated
+    if (user && isAuthenticated && !isShowingLoginSuccess) {
+      console.log('✅ USER FULLY AUTHENTICATED:', {
+        userId: user.id,
+        email: user.email,
+        gatekeeperOpen: showMobileGatekeeper,
+        shouldCloseGatekeeper: showMobileGatekeeper,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }, [user, isAuthenticated, showMobileGatekeeper, isShowingLoginSuccess]);
 
   // Show loading screen while permissions are initializing
   if (!permissionsInitialized) {
+    console.log('⏳ RENDERING LOADING SCREEN - Permissions not initialized');
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
@@ -503,6 +663,14 @@ const handleAccountCreated = (userData, action) => {
       </div>
     );
   }
+
+  console.log('🎨 RENDERING MAIN APP:', {
+    showMobileGatekeeper,
+    isShowingLoginSuccess,
+    isAuthenticated,
+    hasUser: !!user,
+    timestamp: new Date().toISOString()
+  });
 
   return (
     <Router>
@@ -577,11 +745,20 @@ const handleAccountCreated = (userData, action) => {
         {process.env.NODE_ENV !== 'production' && !isNative && <AdDebugger />}
       </Layout>
 
-      {/* Mobile Gatekeeper - Outside Layout */}
+      {/* Enhanced Mobile Gatekeeper with debug info */}
+      {console.log('🚪 GATEKEEPER RENDER CHECK:', {
+        isOpen: showMobileGatekeeper,
+        isShowingLoginSuccess,
+        willRender: showMobileGatekeeper
+      })}
+      
       <MobileGatekeeper 
         isOpen={showMobileGatekeeper}
         onAccountCreated={handleAccountCreated}
-        onClose={() => setShowMobileGatekeeper(false)}
+        onClose={() => {
+          console.log('🚪 GATEKEEPER onClose CALLED - Manual close');
+          setShowMobileGatekeeper(false);
+        }}
       />
     </Router>
   );

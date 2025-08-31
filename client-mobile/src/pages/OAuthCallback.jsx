@@ -1,4 +1,4 @@
-// client/src/pages/OAuthCallback.jsx
+// Fixed OAuthCallback.jsx
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -20,7 +20,8 @@ const OAuthCallback = () => {
     phone: false,
     lastName: false
   });
-    // Extract token and params from URL
+
+  // Extract token and params from URL
   const urlParams = new URLSearchParams(location.search);
   const authToken = urlParams.get('token');
   const tempToken = urlParams.get('tempToken');
@@ -29,12 +30,28 @@ const OAuthCallback = () => {
   // Extract error if any
   const errorParam = urlParams.get('error');
 
+  // Handle profile completion success
+  const handleProfileComplete = (completedUser) => {
+    console.log('✅ Profile completion successful:', completedUser);
+    setNeedsCompletion(false); // This is the key fix - set to false
+    
+    // Navigate to home page
+    navigate('/');
+  };
+
+  // Handle user update from profile completion
+  const handleUserUpdate = (updatedUser) => {
+    console.log('🔄 User updated:', updatedUser);
+    setCurrentUser(updatedUser);
+  };
+
   useEffect(() => {
     // Handle authentication with the token from OAuth provider
     const authenticateWithToken = async () => {
       // Handle temporary token case (new user needs to complete profile)
       if (tempToken && isIncomplete) {
         try {
+          console.log('🔧 Temporary token found, needs completion');
           // For temporary tokens, we need to determine what fields are missing
           // The CompleteOAuthProfile component will handle the tempToken
           setCurrentUser({ tempToken }); // Pass the temp token through
@@ -53,106 +70,61 @@ const OAuthCallback = () => {
         }
       }
 
-      // Handle regular authentication token
-      if (!authToken) {
-        setError('No authentication token found');
-        setLoading(false);
+      // Handle regular token case (existing user or complete profile)
+      if (authToken) {
+        try {
+          console.log('🔑 Regular auth token found');
+          await loginWithToken(authToken);
+          toast.success('Login successful!');
+          navigate('/');
+        } catch (error) {
+          console.error('Authentication error:', error);
+          setError('Authentication failed');
+        }
+      }
+
+      // Handle error case
+      if (errorParam) {
+        console.error('OAuth error:', errorParam);
+        setError(`OAuth error: ${errorParam}`);
+        toast.error('OAuth authentication failed');
+        navigate('/login');
         return;
       }
-      
-      try {
-        // Attempt to login with the token
-        const data = await loginWithToken(authToken);
-        
-        // Check if profile completion is needed for existing users
-        if (isIncomplete || (data?.user && data.user.oauth?.isIncomplete)) {
-          const user = data.user;
-          const needsPhone = !user.phone || user.phone === '' || user.oauth?.needsPhoneNumber;
-          const needsLastName = !user.lastName || user.lastName === '' || user.oauth?.needsLastName;
-          
-          if (needsPhone || needsLastName) {
-            setCurrentUser(user);
-            setMissingFields({
-              phone: needsPhone,
-              lastName: needsLastName
-            });
-            setNeedsCompletion(true);
-            setLoading(false);
-            return;
-          }
-        }
-        
-        // Successful login with complete profile
-        toast.success('Successfully logged in!');
-        navigate('/');
-      } catch (error) {
-        console.error('OAuth callback error:', error);
-        setError(error.message || 'Authentication failed');
-        setLoading(false);
-      }
-    };
-    
-    // Handle error parameter
-    if (errorParam) {
-      let errorMessage = 'Authentication failed';
-      if (errorParam === 'google-auth-failed') {
-        errorMessage = 'Google authentication failed. Please try again.';
-      } else if (errorParam === 'oauth-processing-failed') {
-        errorMessage = 'There was an error processing your authentication. Please try again.';
-      } else {
-        errorMessage = decodeURIComponent(errorParam);
-      }
-      setError(errorMessage);
-      setLoading(false);
-      return;
-    }
-    
-    authenticateWithToken();
-  }, [authToken, tempToken, loginWithToken, navigate, errorParam, isIncomplete]);
 
-  // Handle profile completion
-  const handleProfileComplete = async (updatedUser) => {
-    setCurrentUser(updatedUser);
-    toast.success('Profile completed successfully!');
-    // If a new token was set in localStorage, use it to log in
-    const newToken = localStorage.getItem('token');
-    if (newToken) {
-      try {
-        await loginWithToken(newToken);
-      } catch (e) {
-        // fallback: just redirect
+      // If no token at all, redirect to login
+      if (!tempToken && !authToken) {
+        console.log('❌ No authentication tokens found');
+        navigate('/login');
+        return;
       }
-    }
-    navigate('/');
-  };
-  
-  // If still loading
+
+      setLoading(false);
+    };
+
+    authenticateWithToken();
+  }, [location.search, loginWithToken, navigate, authToken, tempToken, isIncomplete, errorParam]);
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Card className="w-full max-w-md p-6 shadow-lg">
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="w-full max-w-md">
           <CardContent className="flex flex-col items-center py-8">
-            <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Completing authentication...</h2>
-            <p className="text-gray-500 text-center">Please wait while we log you in</p>
+            <Loader2 className="w-8 h-8 animate-spin mb-4" />
+            <p className="text-gray-600">Completing authentication...</p>
           </CardContent>
         </Card>
       </div>
     );
   }
-  
-  // If there was an error
+
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Card className="w-full max-w-md p-6 shadow-lg">
-          <CardContent className="flex flex-col items-center py-8">
-            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
-              <span className="text-red-600 text-2xl">!</span>
-            </div>
-            <h2 className="text-xl font-semibold mb-2">Authentication Failed</h2>
-            <p className="text-gray-500 text-center mb-6">{error}</p>
-            <Button onClick={() => navigate('/login')} className="w-full">
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardContent className="py-8 text-center">
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={() => navigate('/login')}>
               Return to Login
             </Button>
           </CardContent>
@@ -160,31 +132,29 @@ const OAuthCallback = () => {
       </div>
     );
   }
-    // Handle user object updates (for temporary token renewal)
-  const handleUserUpdate = (updatedUser) => {
-    setCurrentUser(updatedUser);
-  };
-  
-  // If profile completion is needed
+
+  // Render profile completion if needed
   if (needsCompletion) {
     return (
-      <CompleteOAuthProfile 
+      <CompleteOAuthProfile
         user={currentUser}
         token={token}
         missingFields={missingFields}
-        onComplete={handleProfileComplete}
+        onComplete={handleProfileComplete} // Pass the fixed callback
         onUserUpdate={handleUserUpdate}
       />
     );
   }
 
-  // Fallback (shouldn't reach here normally)
+  // Default fallback
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="text-center">
-        <Loader2 className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-4" />
-        <p>Redirecting to home page...</p>
-      </div>
+    <div className="min-h-screen flex items-center justify-center">
+      <Card className="w-full max-w-md">
+        <CardContent className="py-8 text-center">
+          <Loader2 className="w-8 h-8 animate-spin mb-4 mx-auto" />
+          <p className="text-gray-600">Redirecting...</p>
+        </CardContent>
+      </Card>
     </div>
   );
 };

@@ -16,14 +16,16 @@ import {
   Trophy,
   MessageCircle
 } from 'lucide-react';
+import { toast } from 'sonner';
 import gymBrosService from '../../services/gymbros.service';
 import { formatImageUrl, getFallbackAvatarUrl } from '../../utils/imageUtils';
 import NoMatchesShowcase from './NoMatchesShowcase';
+import MatchesStackedDeck from './MatchesStackedDeck';
 
 const SocialMapSection = ({ onNavigate }) => {
   const [gymBrosData, setGymBrosData] = useState(null);
   const [gymBrosLoading, setGymBrosLoading] = useState(true);
-  const [userProfile, setUserProfile] = useState(null); // ← Add userProfile state
+  const [userProfile, setUserProfile] = useState(null);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isSwipeAnimating, setIsSwipeAnimating] = useState(false);
   const carouselRef = useRef(null);
@@ -96,7 +98,7 @@ const SocialMapSection = ({ onNavigate }) => {
           setGymBrosData({ hasProfile: false });
         }
 
-        // ← CRITICAL FIX: Fetch user profile data
+        // Fetch user profile data
         try {
           const initData = await gymBrosService.initializeGymBros();
           if (initData.hasProfile && initData.profile) {
@@ -114,7 +116,6 @@ const SocialMapSection = ({ onNavigate }) => {
           }
         } catch (profileError) {
           console.error('Error fetching user profile:', profileError);
-          // Set userProfile to null if we can't fetch it
           setUserProfile(null);
         }
         
@@ -128,6 +129,42 @@ const SocialMapSection = ({ onNavigate }) => {
 
     fetchGymBrosData();
   }, []);
+
+  // Handle opening chat with a match
+  const handleOpenChat = async (match) => {
+    try {
+      const targetIdentifier = match.userId || match._id;
+      const matchData = await gymBrosService.findMatch(targetIdentifier);
+      
+      // Handle different response cases
+      if (matchData === 'auth-required') {
+        toast.error('Please log in to start conversations');
+        return onNavigate('/login');
+      }
+      
+      if (!matchData?.matchId) {
+        // Create new match if one doesn't exist
+        const newMatch = await gymBrosService.createMatch(targetIdentifier);
+        if (!newMatch?.matchId) {
+          return toast.error('Could not start conversation');
+        }
+      }
+      
+      // Navigate to full GymBros page where chat can be opened
+      onNavigate('/gymbros');
+      
+      // Emit an event to highlight this specific match
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('highlightMatch', {
+          detail: { matchedProfile: match }
+        }));
+      }, 500);
+
+    } catch (error) {
+      console.error('Chat open error:', error);
+      toast.error(error.response?.data?.message || 'Failed to open chat');
+    }
+  };
 
   const nextCard = () => {
     if (isSwipeAnimating) return;
@@ -168,7 +205,7 @@ const SocialMapSection = ({ onNavigate }) => {
     );
   }
 
-  // Case 1: User has GymBros profile - Show overview with matches
+  // Case 1: User has GymBros profile - Show stacked deck with matches
   if (gymBrosData?.hasProfile) {
     return (
       <motion.div
@@ -187,102 +224,34 @@ const SocialMapSection = ({ onNavigate }) => {
             whileHover={{ x: 5 }}
             onClick={() => onNavigate('/gymbros')}
           >
-         <ArrowRight className="w-7 h-4 ml-2" />
+            <ArrowRight className="w-7 h-4 ml-2" />
           </motion.button>
         </div>
 
         {gymBrosData.recentMatches && gymBrosData.recentMatches.length > 0 ? (
-          <>
-            {/* Stats Row */}
-            <div className="grid grid-cols-3 gap-3 mb-6">
-              <div className="glass-morphism p-3 rounded-xl text-center">
-                <Users className="w-5 h-5 text-blue-400 mx-auto mb-1" />
-                <p className="text-white font-bold text-lg">{gymBrosData.matchesCount}</p>
-                <p className="text-gray-300 text-xs">Connections</p>
-              </div>
-              <div className="glass-morphism p-3 rounded-xl text-center">
-                <Star className="w-5 h-5 text-red-400 mx-auto mb-1" />
-                <p className="text-white font-bold text-lg">12</p>
-                <p className="text-gray-300 text-xs">Active Now</p>
-              </div>
-              <div className="glass-morphism p-3 rounded-xl text-center">
-                <MessageCircle className="w-5 h-5 text-green-400 mx-auto mb-1" />
-                <p className="text-white font-bold text-lg">3</p>
-                <p className="text-gray-300 text-xs">New Messages</p>
-              </div>
-            </div>
-
-            {/* Horizontal Scrolling Match Cards */}
-            <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-white font-semibold">Recent Connections</h3>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => scrollCarousel('left')}
-                    className="p-2 rounded-full glass-morphism hover:bg-white/20 transition-all"
-                  >
-                    <ChevronLeft className="w-4 h-4 text-white" />
-                  </button>
-                  <button
-                    onClick={() => scrollCarousel('right')}
-                    className="p-2 rounded-full glass-morphism hover:bg-white/20 transition-all"
-                  >
-                    <ChevronRight className="w-4 h-4 text-white" />
-                  </button>
-                </div>
-              </div>
-
-              <div
-                ref={carouselRef}
-                className="flex gap-3 overflow-x-auto scrollbar-hide pb-2"
-                style={{ scrollSnapType: 'x mandatory' }}
-              >
-                {gymBrosData.recentMatches.map((match, index) => (
-                  <motion.div
-                    key={match._id || index}
-                    className="flex-shrink-0 glass-morphism rounded-2xl overflow-hidden cursor-pointer hover:scale-105 transition-all duration-300 snap-start"
-                    style={{ width: '100px', scrollSnapAlign: 'start' }}
-                    onClick={() => onNavigate('/gymbros')}
-                    whileHover={{ y: -5 }}
-                  >
-                    <div className="relative h-24">
-                      <img
-                        src={formatImageUrl(match.profileImage, getFallbackAvatarUrl())}
-                        alt={match.name || 'Match'}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.src = getFallbackAvatarUrl();
-                        }}
-                      />
-                      <div className="absolute top-2 right-2 w-3 h-3 bg-green-500 rounded-full border border-white"></div>
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-                        <p className="text-white text-xs font-semibold truncate">
-                          {(match.name || 'Unknown').split(' ')[0]}
-                        </p>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-
-            {/* Action Button */}
-            <motion.button
-              className="w-full bg-gradient-to-r from-red-500/20 to-pink-500/20 border-2 border-red-500/30 text-red-300 py-4 rounded-2xl hover:from-red-500/30 hover:to-pink-500/30 transition-all duration-300 font-bold text-lg mt-6"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => onNavigate('/gymbros')}
-            >
-              <Map className="w-6 h-6 inline mr-3" />
-              Open Full Map
-            </motion.button>
-          </>
+          <MatchesStackedDeck
+            gymBrosData={gymBrosData}
+            userProfile={userProfile}
+            onNavigate={onNavigate}
+            onOpenChat={handleOpenChat}
+          />
         ) : (
-           <NoMatchesShowcase
-             userProfile={userProfile} // ← Now using the actual fetched userProfile
-             onStartSwiping={() => onNavigate('/gymbros')}
-           />
+          <NoMatchesShowcase
+            userProfile={userProfile}
+            onStartSwiping={() => onNavigate('/gymbros')}
+          />
         )}
+
+        {/* Action Button */}
+        <motion.button
+          className="w-full bg-gradient-to-r from-red-500/20 to-pink-500/20 border-2 border-red-500/30 text-red-300 py-4 rounded-2xl hover:from-red-500/30 hover:to-pink-500/30 transition-all duration-300 font-bold text-lg mt-6"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => onNavigate('/gymbros')}
+        >
+          <Map className="w-6 h-6 inline mr-3" />
+          Open Full Map
+        </motion.button>
       </motion.div>
     );
   }

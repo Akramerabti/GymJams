@@ -42,37 +42,8 @@ const Home = () => {
   
   const [isLoaded, setIsLoaded] = useState(false);
 
-   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const tempToken = localStorage.getItem('tempToken');
-    
-    // If no user, no token, and no tempToken, redirect to login
-    if (!user && !isAuthenticated && !token && !tempToken) {
-      console.log('🚨 Home: No authentication found, redirecting to login');
-      navigate('/login');
-      return;
-    }
-    
-    // If we have tempToken, redirect to complete profile
-    if (tempToken) {
-      console.log('🔧 Home: TempToken found, redirecting to complete profile');
-      navigate('/complete-oauth-profile');
-      return;
-    }
-    
-  }, [user, isAuthenticated, navigate]);
-
-  // Show loading if auth is still being determined
-  if (!user && !localStorage.getItem('token') && !localStorage.getItem('tempToken')) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p className="text-white">Loading...</p>
-        </div>
-      </div>
-    );
-  }
+  // Remove the problematic auth check useEffect that was causing early returns
+  // Let the App-level MobileGatekeeper handle authentication flow instead
 
   // 5 main feature buttons arranged in circle
   const circleButtons = [
@@ -130,6 +101,9 @@ const Home = () => {
     navigate(route);
   };
 
+  // Show loading while isLoaded is false (but don't return early based on auth)
+  const showLoadingScreen = !isLoaded;
+
   return (
     <>
       <style jsx>{`
@@ -178,6 +152,115 @@ const Home = () => {
           0%, 100% { transform: translateY(0px); }
           50% { transform: translateY(-20px); }
         }
+
+        .animated-orbs {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.floating-orb-1 {
+  animation: float1 8s ease-in-out infinite;
+}
+
+.floating-orb-2 {
+  animation: float2 12s ease-in-out infinite;
+}
+
+.floating-orb-3 {
+  animation: float3 10s ease-in-out infinite;
+}
+
+.floating-orb-4 {
+  animation: float4 15s ease-in-out infinite;
+}
+
+.floating-orb-5 {
+  animation: float5 9s ease-in-out infinite;
+}
+
+.floating-orb-6 {
+  animation: float6 11s ease-in-out infinite;
+}
+
+.floating-orb-7 {
+  animation: float7 14s ease-in-out infinite;
+}
+
+.floating-orb-8 {
+  animation: float8 7s ease-in-out infinite;
+}
+
+.floating-orb-9 {
+  animation: float9 13s ease-in-out infinite;
+}
+
+.floating-orb-10 {
+  animation: float10 16s ease-in-out infinite;
+}
+
+@keyframes float7 {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  50% { transform: translate(-70px, 80px) scale(1.3); }
+}
+
+@keyframes float8 {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  25% { transform: translate(80px, -60px) scale(0.7); }
+  75% { transform: translate(-40px, 70px) scale(1.1); }
+}
+
+@keyframes float9 {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  40% { transform: translate(60px, 90px) scale(0.9); }
+  80% { transform: translate(-80px, -70px) scale(1.2); }
+}
+
+@keyframes float10 {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  30% { transform: translate(-90px, 50px) scale(1.1); }
+  70% { transform: translate(70px, -80px) scale(0.8); }
+}
+
+@keyframes float1 {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  25% { transform: translate(30px, -40px) scale(1.1); }
+  50% { transform: translate(-20px, -60px) scale(0.9); }
+  75% { transform: translate(-40px, -30px) scale(1.05); }
+}
+
+@keyframes float2 {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  33% { transform: translate(-50px, 40px) scale(0.8); }
+  66% { transform: translate(60px, -20px) scale(1.2); }
+}
+
+@keyframes float3 {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  30% { transform: translate(40px, 50px) scale(1.1); }
+  70% { transform: translate(-30px, -40px) scale(0.9); }
+}
+
+@keyframes float4 {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  25% { transform: translate(-60px, -30px) scale(0.7); }
+  50% { transform: translate(50px, 60px) scale(1.3); }
+  75% { transform: translate(20px, -50px) scale(1.1); }
+}
+
+@keyframes float5 {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  40% { transform: translate(-40px, 30px) scale(1.2); }
+  80% { transform: translate(35px, -45px) scale(0.8); }
+}
+
+@keyframes float6 {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  20% { transform: translate(55px, -25px) scale(1.1); }
+  60% { transform: translate(-45px, 40px) scale(0.9); }
+  90% { transform: translate(25px, 30px) scale(1.15); }
+}
 
         /* New Circular Menu Styles */
         .circular-menu {
@@ -324,7 +407,7 @@ const Home = () => {
 
       {/* Loading Screen */}
       <AnimatePresence>
-        {!isLoaded && (
+        {showLoadingScreen && (
           <motion.div
             initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -359,12 +442,69 @@ const Home = () => {
         {/* Aurora Background */}
         <div className="absolute inset-0 aurora-bg opacity-60" />
         
-        {/* Floating Background Elements */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="floating-orb absolute top-20 left-10 w-24 h-24 bg-purple-500/10 rounded-full blur-xl" />
-          <div className="floating-orb absolute top-40 right-20 w-32 h-32 bg-blue-500/10 rounded-full blur-xl" style={{animationDelay: '-2s'}} />
-          <div className="floating-orb absolute bottom-20 left-1/4 w-28 h-28 bg-emerald-500/10 rounded-full blur-xl" style={{animationDelay: '-4s'}} />
-        </div>
+        {/* Animated Background Orbs */}
+<div className="animated-orbs">
+  <motion.div 
+    className="floating-orb-1 absolute top-20 left-16 w-20 h-20 bg-gradient-to-r from-purple-500/25 to-indigo-500/25 rounded-full blur-md"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ delay: 0.5, duration: 2 }}
+  />
+  <motion.div 
+    className="floating-orb-2 absolute top-60 right-20 w-24 h-24 bg-gradient-to-r from-blue-500/30 to-cyan-500/25 rounded-full blur-md"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ delay: 1, duration: 2 }}
+  />
+  <motion.div 
+    className="floating-orb-3 absolute bottom-32 left-1/4 w-18 h-18 bg-gradient-to-r from-emerald-500/25 to-teal-500/25 rounded-full blur-sm"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ delay: 1.5, duration: 2 }}
+  />
+  <motion.div 
+    className="floating-orb-4 absolute top-1/3 right-1/3 w-16 h-16 bg-gradient-to-r from-orange-500/25 to-pink-500/25 rounded-full blur-md"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ delay: 2, duration: 2 }}
+  />
+  <motion.div 
+    className="floating-orb-5 absolute bottom-20 right-32 w-28 h-28 bg-gradient-to-r from-indigo-500/20 to-purple-500/30 rounded-full blur-md"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ delay: 0.8, duration: 2 }}
+  />
+  <motion.div 
+    className="floating-orb-6 absolute top-40 left-1/3 w-14 h-14 bg-gradient-to-r from-pink-500/30 to-red-500/25 rounded-full blur-sm"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ delay: 1.2, duration: 2 }}
+  />
+  <motion.div 
+    className="floating-orb-7 absolute top-80 left-20 w-22 h-22 bg-gradient-to-r from-cyan-500/25 to-blue-500/25 rounded-full blur-sm"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ delay: 0.3, duration: 2 }}
+  />
+  <motion.div 
+    className="floating-orb-8 absolute bottom-60 right-1/4 w-16 h-16 bg-gradient-to-r from-yellow-500/20 to-orange-500/25 rounded-full blur-md"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ delay: 2.2, duration: 2 }}
+  />
+  <motion.div 
+    className="floating-orb-9 absolute top-1/4 left-1/2 w-20 h-20 bg-gradient-to-r from-violet-500/25 to-purple-500/25 rounded-full blur-sm"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ delay: 1.8, duration: 2 }}
+  />
+  <motion.div 
+    className="floating-orb-10 absolute bottom-40 left-40 w-18 h-18 bg-gradient-to-r from-rose-500/25 to-pink-500/25 rounded-full blur-sm"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ delay: 2.5, duration: 2 }}
+  />
+</div>
 
         {/* Content */}
         <div className="relative z-10 main-content pb-8">
