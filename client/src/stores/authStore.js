@@ -178,41 +178,52 @@ const useAuthStore = create(
         }
       },
 
-      // Login with email and password
       login: async (email, password) => {
-        const { setLoading, setError, setUser, setToken } = get();
-        setLoading(true);
-        setError(null);
+  const { setLoading, setError, setUser, setToken } = get();
+  setLoading(true);
+  setError(null);
 
-        try {
-          const response = await api.post('/auth/login', { email, password });
-          const { user, token } = response.data;
+  try {
+    const response = await api.post('/auth/login', { email, password });
+    const { user, token } = response.data;
 
-          // Set user and token in the store
-          setToken(token);
-          setUser(user);
+    // Set user and token in the store
+    setToken(token);
+    setUser(user);
 
-          // Update points balance
-          if (user.points !== undefined) {
-            usePoints.getState().setBalance(user.points);
-          }
-          if (!(user.hasReceivedFirstLoginBonus)) {
-            set({ showOnboarding: true }); 
-            usePoints.getState().updatePointsInBackend((user.points)+100);
-          }
+    // Update points balance
+    if (user.points !== undefined) {
+      usePoints.getState().setBalance(user.points);
+    }
+    if (!(user.hasReceivedFirstLoginBonus)) {
+      set({ showOnboarding: true }); 
+      usePoints.getState().updatePointsInBackend((user.points)+100);
+    }
 
-          // Sync location data after successful login
-          await get().syncLocationOnLogin(user);
-      
-          return response.data;
-        } catch (error) {
-          const message = error.response?.data?.message || 'Login failed';
-          setError(message);
-          throw error;
-        } finally {
-          setLoading(false);
-        }
-      },
+    // Sync location data after successful login
+    await get().syncLocationOnLogin(user);
+        
+    return response.data;
+  } catch (error) {
+    const message = error.response?.data?.message || 'Login failed';
+    
+    // Check if this is an OAuth user trying to login with password
+    if (error.response?.data?.isOAuthUser) {
+      // Instead of showing error, redirect to password setup
+      throw {
+        ...error,
+        isOAuthUser: true,
+        email: email,
+        redirectToPasswordSetup: true
+      };
+    }
+    
+    setError(message);
+    throw error;
+  } finally {
+    setLoading(false);
+  }
+},
 
       loginWithToken: async (token) => {
         const { setLoading, setError, setUser, setToken } = get();

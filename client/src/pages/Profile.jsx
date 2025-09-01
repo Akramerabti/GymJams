@@ -52,16 +52,16 @@ const Profile = () => {
   });
 
   const isCoach = user?.user?.role === 'coach' || user?.role === 'coach';
-
+  const isAffiliate = user?.user?.role === 'affiliate' || user?.role === 'affiliate';
+  const canReceivePayouts = isCoach || isAffiliate;
 
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-
         const [profileResponse, subscriptionResponse, payoutSetupResponse] = await Promise.all([
           api.get('/auth/profile'),
           api.get('/subscription/current'),
-          isCoach ? api.get('/stripe/check-payout-setup') : Promise.resolve({ data: { payoutSetupComplete: false } })
+          canReceivePayouts ? api.get('/stripe/check-payout-setup') : Promise.resolve({ data: { payoutSetupComplete: false } })
         ]);
   
         const userData = profileResponse.data;
@@ -110,7 +110,7 @@ const Profile = () => {
     if (user) {
       fetchUserData();
     }
-  }, [user, fetchPoints, navigate, isCoach]);
+  }, [user, fetchPoints, navigate, canReceivePayouts]);
 
   const handleDeleteAccount = async () => {
     const confirmed = window.confirm(
@@ -466,7 +466,8 @@ const Profile = () => {
 
   return (
     <div className="min-h-screen mt-10 bg-gray-50 relative">
-      <div className="container mx-auto px-4 py-8">        <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="container mx-auto px-4 py-8">
+        <form onSubmit={handleSubmit} className="space-y-6">
           {isCoach ? (
             <div className="relative bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-800 h-48">
               {/* Animated background elements */}
@@ -635,6 +636,128 @@ const Profile = () => {
                     />
                   </div>
 
+                  {/* Payout Setup Section - Now visible for both coaches and affiliates */}
+                  {canReceivePayouts && (
+                    <div className="mt-6 mb-6">
+                      <label className={`block text-sm font-medium mb-1`}>
+                        {isCoach ? 'Coach Payout Setup' : 'Affiliate Payout Setup'}
+                      </label>
+                      {!profileData.stripeAccountId ? (
+                        <div className='bg-yellow-50 p-4 rounded-lg border border-yellow-200'>
+                          <div className="flex items-start">
+                            <div className="flex-shrink-0">
+                              <AlertCircle className="h-5 w-5 text-yellow-400" />
+                            </div>
+                            <div className="ml-3">
+                              <h3 className={`text-sm font-medium text-yellow-500`}>
+                                Payout Setup Required
+                              </h3>
+                              <div className={`mt-2 text-sm text-yellow-500`}>
+                                <p>To receive {isCoach ? 'payments from your clients' : 'affiliate commissions'}, you need to set up your payout information.</p>
+                              </div>
+                              <div className="mt-4">
+                                <Button
+                                  type="button"
+                                  onClick={() => setShowStripeOnboarding(true)}
+                                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                                  disabled={redirecting}
+                                >
+                                  {redirecting ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                  ) : (
+                                    'Set Up Payouts'
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : profileData.pendingVerification && profileData.pendingVerification.length > 0 ? (
+                        <div className='bg-purple-50 p-4 rounded-lg border border-purple-200'>
+                          <div className="flex items-start">
+                            <div className="flex-shrink-0">
+                              <Clock className="h-5 w-5 text-purple-400" />
+                            </div>
+                            <div className="ml-3">
+                              <h3 className={`text-sm font-medium text-purple-500`}>
+                                Pending Verification
+                              </h3>
+                              <div className={`mt-2 text-sm text-purple-500`}>
+                                <p>Your account is under review. The following documents are pending verification:</p>
+                                <ul className="list-disc list-inside mt-2">
+                                  {profileData.pendingVerification.map((requirement, index) => (
+                                    <li key={index}>{requirement}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : !profileData.payoutSetupComplete ? (
+                        <div className='bg-blue-50 p-4 rounded-lg border border-blue-200'>
+                          <div className="flex items-start">
+                            <div className="flex-shrink-0">
+                              <Clock className="h-5 w-5 text-blue-400" />
+                            </div>
+                            <div className="ml-3">
+                              <h3 className={`text-sm font-medium text-blue-500`}>
+                                Payout Setup In Progress
+                              </h3>
+                              <div className={`mt-2 text-sm text-blue-500`}>
+                                <p>Your payout setup is in progress. Please complete the onboarding process.</p>
+                              </div>
+                              <div className="mt-4">
+                                <Button
+                                  onClick={handleCompletePayoutSetup}
+                                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                                  disabled={redirecting}
+                                >
+                                  {redirecting ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                  ) : (
+                                    'Complete Setup'
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className='bg-green-50 p-4 rounded-lg border border-green-200'>
+                          <div className="flex items-start">
+                            <div className="flex-shrink-0">
+                              <CheckCircle className="h-5 w-5 text-green-400" />
+                            </div>
+                            <div className="ml-3">
+                              <h3 className={`text-sm font-medium text-green-500`}>
+                                Payout Setup Complete
+                              </h3>
+                              <div className={`mt-2 text-sm text-green-500`}>
+                                <p>Your payout information has been set up successfully. You can now receive payments from your clients.</p>
+                              </div>
+                              <div className="mt-4">
+                                <Button
+                                  onClick={handleViewPayoutDashboard}
+                                  variant="outline"
+                                  className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm ${
+                                    'text-green-700 bg-green-100 hover:bg-green-200'
+                                  }`}
+                                  disabled={redirecting}
+                                >
+                                  {redirecting ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                  ) : (
+                                    'View Payout Dashboard'
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Coach-Specific Fields */}
                   {isCoach && (
                     <>                      {/* Bio */}
@@ -737,192 +860,71 @@ const Profile = () => {
                             />
                           </div>
                         </div>
+                      </div>
 
-                        
-                      {/* Payout Setup Section */}
-                      {isCoach && (
-                        <div className="mt-6 mb-6">
-                          <label className={`block text-sm font-medium mb-1`}>Payout Setup</label>
-                          {!profileData.stripeAccountId ? (
-                            <div className='bg-yellow-50 p-4 rounded-lg border border-yellow-200'>
-                              <div className="flex items-start">
-                                <div className="flex-shrink-0">
-                                  <AlertCircle className="h-5 w-5 text-yellow-400" />
-                                </div>
-                                <div className="ml-3">
-                                  <h3 className={`text-sm font-medium text-yellow-500`}>
-                                    Payout Setup Required
-                                  </h3>
-                                  <div className={`mt-2 text-sm text-yellow-500`}>
-                                    <p>To receive payments from your clients, you need to set up your payout information.</p>
-                                  </div>
-                                  <div className="mt-4">
-                                    <Button
-                                      type="button"
-                                      onClick={() => setShowStripeOnboarding(true)}
-                                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-                                      disabled={redirecting}
-                                    >
-                                      {redirecting ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                      ) : (
-                                        'Set Up Payouts'
-                                      )}
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ) : profileData.pendingVerification && profileData.pendingVerification.length > 0 ? (
-                            <div className='bg-purple-50 p-4 rounded-lg border border-purple-200'>
-                              <div className="flex items-start">
-                                <div className="flex-shrink-0">
-                                  <Clock className="h-5 w-5 text-purple-400" />
-                                </div>
-                                <div className="ml-3">
-                                  <h3 className={`text-sm font-medium text-purple-500`}>
-                                    Pending Verification
-                                  </h3>
-                                  <div className={`mt-2 text-sm text-purple-500`}>
-                                    <p>Your account is under review. The following documents are pending verification:</p>
-                                    <ul className="list-disc list-inside mt-2">
-                                      {profileData.pendingVerification.map((requirement, index) => (
-                                        <li key={index}>{requirement}</li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ) : !profileData.payoutSetupComplete ? (
-                            <div className='bg-blue-50 p-4 rounded-lg border border-blue-200'>
-                              <div className="flex items-start">
-                                <div className="flex-shrink-0">
-                                  <Clock className="h-5 w-5 text-blue-400" />
-                                </div>
-                                <div className="ml-3">
-                                  <h3 className={`text-sm font-medium text-blue-500`}>
-                                    Payout Setup In Progress
-                                  </h3>
-                                  <div className={`mt-2 text-sm text-blue-500`}>
-                                    <p>Your payout setup is in progress. Please complete the onboarding process.</p>
-                                  </div>
-                                  <div className="mt-4">
-                                    <Button
-                                      onClick={handleCompletePayoutSetup}
-                                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-                                      disabled={redirecting}
-                                    >
-                                      {redirecting ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                      ) : (
-                                        'Complete Setup'
-                                      )}
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className='bg-green-50 p-4 rounded-lg border border-green-200'>
-                              <div className="flex items-start">
-                                <div className="flex-shrink-0">
-                                  <CheckCircle className="h-5 w-5 text-green-400" />
-                                </div>
-                                <div className="ml-3">
-                                  <h3 className={`text-sm font-medium text-green-500`}>
-                                    Payout Setup Complete
-                                  </h3>
-                                  <div className={`mt-2 text-sm text-green-500`}>
-                                    <p>Your payout information has been set up successfully. You can now receive payments from your clients.</p>
-                                  </div>
-                                  <div className="mt-4">
-                                    <Button
-                                      onClick={handleViewPayoutDashboard}
-                                      variant="outline"
-                                      className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm ${
-                                        'text-green-700 bg-green-100 hover:bg-green-200'
-                                      }`}
-                                      disabled={redirecting}
-                                    >
-                                      {redirecting ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                      ) : (
-                                        'View Payout Dashboard'
-                                      )}
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                        {/* Specialties */}
-                        <div>
-                          <label className={`block text-sm font-medium mb-3`}>Specialties</label>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {[
-                              'Weight Training',
-                              'Cardio',
-                              'CrossFit',
-                              'Yoga',
-                              'Nutrition',
-                              'Powerlifting',
-                              'Bodybuilding',
-                              'HIIT',
-                              'Sports Performance',
-                              'Weight Loss'
-                            ].map((specialty) => (
-                              <div
-                                key={specialty}
+                      {/* Specialties */}
+                      <div>
+                        <label className={`block text-sm font-medium mb-3`}>Specialties</label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {[
+                            'Weight Training',
+                            'Cardio',
+                            'CrossFit',
+                            'Yoga',
+                            'Nutrition',
+                            'Powerlifting',
+                            'Bodybuilding',
+                            'HIIT',
+                            'Sports Performance',
+                            'Weight Loss'
+                          ].map((specialty) => (
+                            <div
+                              key={specialty}
+                              className={`
+                                flex items-center space-x-3 p-4 rounded-lg transition-all
+                                ${profileData.specialties.includes(specialty)
+                                  ? 'bg-blue-50 border border-blue-200 shadow-sm'
+                                  : 'bg-white border border-gray-200 hover:border-blue-300 hover:shadow-md'
+                                }
+                                ${editing ? 'cursor-pointer' : 'cursor-not-allowed'}
+                              `}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={profileData.specialties.includes(specialty)}
+                                onChange={(e) => {
+                                  if (editing) {
+                                    setProfileData(prev => ({
+                                      ...prev,
+                                      specialties: e.target.checked
+                                        ? [...prev.specialties, specialty]
+                                        : prev.specialties.filter(s => s !== specialty)
+                                    }));
+                                  }
+                                }}
+                                disabled={!editing}
                                 className={`
-                                  flex items-center space-x-3 p-4 rounded-lg transition-all
+                                  w-5 h-5 rounded border-2 transition-all
                                   ${profileData.specialties.includes(specialty)
-                                    ? 'bg-blue-50 border border-blue-200 shadow-sm'
-                                    : 'bg-white border border-gray-200 hover:border-blue-300 hover:shadow-md'
+                                    ? 'border-blue-500 bg-blue-500'
+                                    : 'border-gray-300 bg-white'
                                   }
                                   ${editing ? 'cursor-pointer' : 'cursor-not-allowed'}
                                 `}
+                              />
+                              <span
+                                className={`
+                                  text-sm font-medium
+                                  ${profileData.specialties.includes(specialty)
+                                    ? 'text-blue-700'
+                                    : 'text-gray-700'
+                                  }
+                                `}
                               >
-                                <input
-                                  type="checkbox"
-                                  checked={profileData.specialties.includes(specialty)}
-                                  onChange={(e) => {
-                                    if (editing) {
-                                      setProfileData(prev => ({
-                                        ...prev,
-                                        specialties: e.target.checked
-                                          ? [...prev.specialties, specialty]
-                                          : prev.specialties.filter(s => s !== specialty)
-                                      }));
-                                    }
-                                  }}
-                                  disabled={!editing}
-                                  className={`
-                                    w-5 h-5 rounded border-2 transition-all
-                                    ${profileData.specialties.includes(specialty)
-                                      ? 'border-blue-500 bg-blue-500'
-                                      : 'border-gray-300 bg-white'
-                                    }
-                                    ${editing ? 'cursor-pointer' : 'cursor-not-allowed'}
-                                  `}
-                                />
-                                <span
-                                  className={`
-                                    text-sm font-medium
-                                    ${profileData.specialties.includes(specialty)
-                                      ? 'text-blue-700'
-                                      : 'text-gray-700'
-                                    }
-                                  `}
-                                >
-                                  {specialty}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
+                                {specialty}
+                              </span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </>

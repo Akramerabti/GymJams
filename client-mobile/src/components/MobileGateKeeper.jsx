@@ -1,10 +1,11 @@
 import BrowserGoogleAuthButton from './auth/BrowserGoogleAuthButton';
 import React, { useState, useEffect, useRef} from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Mail, Lock, Phone, Eye, EyeOff, CheckCircle2, Loader2, ArrowLeft } from 'lucide-react';
+import { User, Mail, Lock, Phone, Eye, EyeOff, CheckCircle2, Loader2, ArrowLeft, Key } from 'lucide-react';
 import { useAuth } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import api from '../services/api';
 
 const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
   const [currentScreen, setCurrentScreen] = useState('loading');
@@ -22,6 +23,11 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState(1);
+  
+  // New states for OAuth password setup
+  const [passwordSetupEmail, setPasswordSetupEmail] = useState('');
+  const [emailSent, setEmailSent] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
   const loginTimeoutRef = useRef(null);
   const successScreenStartTimeRef = useRef(null);
@@ -53,6 +59,9 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
         confirmPassword: ''
       });
       setErrors({});
+      setPasswordSetupEmail('');
+      setEmailSent(false);
+      setCooldown(0);
     } else {
       setCurrentScreen('loading');
     }
@@ -69,6 +78,16 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
       document.body.style.overflow = '';
     };
   }, [isOpen]);
+
+  // Cooldown timer for password setup email
+  useEffect(() => {
+    if (cooldown > 0) {
+      const timer = setInterval(() => {
+        setCooldown(current => current - 1);
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [cooldown]);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -148,6 +167,22 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleSendPasswordSetupEmail = async () => {
+    setIsLoading(true);
+    try {
+      await api.post('/auth/forgot-password', { email: passwordSetupEmail });
+      
+      setEmailSent(true);
+      setCooldown(60);
+      toast.success('Password setup email sent!');
+    } catch (error) {
+      console.error('Error sending password setup email:', error);
+      toast.error('Failed to send email. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
 const handleLogin = async (data = formData, retryCount = 0) => {
   if (!validateStep(1)) return;
   
@@ -156,12 +191,8 @@ const handleLogin = async (data = formData, retryCount = 0) => {
   try {
     setErrors({});
     
-    // Keep user on auth screen during login attempt
-    // setCurrentScreen('success'); // ❌ REMOVE THIS LINE
+    await login(data.email, data.password);
     
-    await login(data.email, data.password); // ← Login attempt first
-    
-    // ✅ ONLY set success screen AFTER login succeeds
     setCurrentScreen('success');
     
     if (onAccountCreated) {
@@ -192,6 +223,15 @@ const handleLogin = async (data = formData, retryCount = 0) => {
         loginTimeoutRef.current = null;
       }
 
+      // ✅ CHECK FOR OAUTH USER FIRST - before retry logic
+      if (err.isOAuthUser || err.redirectToPasswordSetup || err.response?.data?.isOAuthUser) {
+        // Set up password setup screen instead of redirecting externally
+        setPasswordSetupEmail(data.email);
+        setCurrentScreen('password-setup');
+        setIsLoading(false);
+        return;
+      }
+
       const MAX_RETRIES = 3;
       if ((err.statusCode === 408 || !err.response) && retryCount < MAX_RETRIES) {
         const nextRetry = retryCount + 1;
@@ -209,6 +249,13 @@ const handleLogin = async (data = formData, retryCount = 0) => {
       } else if (err.response) {
         switch (err.response.status) {
           case 400:
+            // ✅ ADDITIONAL CHECK in 400 status handling
+            if (err.response.data?.isOAuthUser) {
+              setPasswordSetupEmail(data.email);
+              setCurrentScreen('password-setup');
+              setIsLoading(false);
+              return;
+            }
             errorMessage = 'Email and password are required.';
             break;
           case 401:
@@ -420,6 +467,161 @@ const handleLogin = async (data = formData, retryCount = 0) => {
               Get ready to transform your fitness journey
             </motion.p>
           </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ NEW PASSWORD SETUP SCREEN - stays within mobile app
+  if (currentScreen === 'password-setup') {
+    if (emailSent) {
+      return (
+        <div className="fixed inset-0 z-50 bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 overflow-hidden">
+          <div className="h-full flex flex-col">
+            <div className="pt-20 pb-4 px-6">
+              <div className="mx-auto mb-4 bg-gradient-to-br from-blue-400 to-green-500 rounded-2xl flex items-center justify-center shadow-xl"
+                style={{ width: 'clamp(4rem, 15vw, 6rem)', height: 'clamp(4rem, 15vw, 6rem)' }}>
+                <Mail className="text-white" style={{ fontSize: 'clamp(1.5rem, 5vw, 2rem)' }} />
+              </div>
+
+              <h1 className="font-bold text-white text-center mb-2"
+                style={{ fontSize: 'clamp(1.3rem, 5vw, 2rem)' }}>
+                Check Your Email
+              </h1>
+
+              <p className="text-blue-200 text-center"
+                style={{ fontSize: 'clamp(0.9rem, 3.5vw, 1.1rem)' }}>
+                We sent a password setup link
+              </p>
+            </div>
+
+            <div className="flex-1 bg-gradient-to-br from-gray-800/95 via-gray-800/95 to-gray-900/95 backdrop-blur-xl rounded-t-3xl border-t border-white/10 overflow-hidden">
+              <div className="h-full overflow-y-auto px-6 py-6">
+                <motion.div
+                  className="space-y-4"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <div className="text-center space-y-4">
+                    <p className="text-sm text-gray-300">
+                      We sent a password setup link to:
+                    </p>
+                    <p className="font-medium text-white text-lg">{passwordSetupEmail}</p>
+                    <p className="text-sm text-gray-400">
+                      Click the link in the email to create your password. If you don't see it, check your spam folder.
+                    </p>
+                    
+                    <div className="pt-4">
+                      <button
+                        onClick={handleSendPasswordSetupEmail}
+                        disabled={cooldown > 0 || isLoading}
+                        className="w-full bg-gradient-to-r from-blue-500 to-green-500 text-white font-bold py-3 rounded-xl shadow-xl hover:shadow-2xl transition-all disabled:opacity-50"
+                      >
+                        {cooldown > 0 
+                          ? `Resend email (${cooldown}s)` 
+                          : isLoading 
+                            ? 'Sending...' 
+                            : 'Resend setup email'
+                        }
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setCurrentScreen('auth');
+                      setPasswordSetupEmail('');
+                      setEmailSent(false);
+                      setCooldown(0);
+                    }}
+                    className="w-full mt-6 bg-gray-700/60 text-gray-300 py-3 rounded-xl hover:bg-gray-600/60 transition-colors flex items-center justify-center"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Back to Login
+                  </button>
+                </motion.div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="fixed inset-0 z-50 bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 overflow-hidden">
+        <div className="h-full flex flex-col">
+          <div className="pt-20 pb-4 px-6">
+            <div className="mx-auto mb-4 bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl flex items-center justify-center shadow-xl"
+              style={{ width: 'clamp(4rem, 15vw, 6rem)', height: 'clamp(4rem, 15vw, 6rem)' }}>
+              <Key className="text-white" style={{ fontSize: 'clamp(1.5rem, 5vw, 2rem)' }} />
+            </div>
+
+            <h1 className="font-bold text-white text-center mb-2"
+              style={{ fontSize: 'clamp(1.3rem, 5vw, 2rem)' }}>
+              Set Up Your Password
+            </h1>
+
+            <p className="text-amber-200 text-center"
+              style={{ fontSize: 'clamp(0.9rem, 3.5vw, 1.1rem)' }}>
+              Your account uses Google sign-in
+            </p>
+          </div>
+
+          <div className="flex-1 bg-gradient-to-br from-gray-800/95 via-gray-800/95 to-gray-900/95 backdrop-blur-xl rounded-t-3xl border-t border-white/10 overflow-hidden">
+            <div className="h-full overflow-y-auto px-6 py-6">
+              <motion.div
+                className="space-y-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <div className="text-center space-y-4">
+                  <p className="text-sm text-gray-300 mb-4">
+                    Your account <strong className="text-white">{passwordSetupEmail}</strong> was created using Google sign-in.
+                  </p>
+                  <p className="text-sm text-gray-400 mb-6">
+                    To also be able to login with email and password, we'll send you a secure link to set up your password.
+                  </p>
+                </div>
+
+                <div className="bg-blue-900/30 border border-blue-500/30 rounded-lg p-4">
+                  <h3 className="text-sm font-medium text-blue-300 mb-2">What happens next:</h3>
+                  <ul className="text-sm text-blue-200 space-y-1">
+                    <li>• We'll send you a secure setup link via email</li>
+                    <li>• Click the link to create your password</li>
+                    <li>• You can then login with either Google or email/password</li>
+                  </ul>
+                </div>
+
+                <button
+                  onClick={handleSendPasswordSetupEmail}
+                  disabled={isLoading}
+                  className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold py-3 rounded-xl shadow-xl hover:shadow-2xl transition-all disabled:opacity-50 flex items-center justify-center"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Sending Setup Email...
+                    </>
+                  ) : (
+                    'Send Password Setup Email'
+                  )}
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setCurrentScreen('auth');
+                    setPasswordSetupEmail('');
+                    setEmailSent(false);
+                    setCooldown(0);
+                  }}
+                  className="w-full bg-gray-700/60 text-gray-300 py-3 rounded-xl hover:bg-gray-600/60 transition-colors flex items-center justify-center"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Login
+                </button>
+              </motion.div>
+            </div>
+          </div>
         </div>
       </div>
     );

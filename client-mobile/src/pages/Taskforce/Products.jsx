@@ -15,6 +15,7 @@ import {
   Search, ViewIcon, GridIcon, Menu, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { Input } from "@/components/ui/input";
+import AmbassadorCodeManager from './components/AmbassadorCodeManager';
 import { 
   Select, SelectContent, SelectGroup, SelectItem, 
   SelectLabel, SelectTrigger, SelectValue 
@@ -619,6 +620,11 @@ const Products = ({ onRefreshDashboard }) => {
                 <span className="hidden sm:inline">Coupon Codes</span>
                 <span className="sm:hidden">Coupons</span>
               </TabsTrigger>
+              <TabsTrigger value="ambassador-codes" className="gap-2">
+              <TagIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">Ambassador Codes</span>
+              <span className="sm:hidden">Ambassador</span>
+            </TabsTrigger>
               {productToEdit && (
                 <TabsTrigger value="edit-product" className="gap-2">
                   <PlusCircle className="h-4 w-4" />
@@ -1051,6 +1057,21 @@ const Products = ({ onRefreshDashboard }) => {
                 </CardContent>
               </Card>
             </TabsContent>
+            <TabsContent value="ambassador-codes" className="mt-0">
+            <Card>
+              <CardHeader>
+                <CardTitle>Ambassador Code Management</CardTitle>
+                <CardDescription>
+                  Create and manage ambassador referral codes. Ambassadors earn commission equal to the discount given.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AmbassadorCodeManager />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+            
           </Tabs>
         </CardContent>
       </Card>

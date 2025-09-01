@@ -14,6 +14,7 @@ import supportTicketRoutes from './supportTicket.routes.js';
 import blogRoutes from './blog.routes.js'; // Import the blog routes
 import thirdPartyLogisticsRoutes from './thirdPartyLogistics.routes.js'; // Import the 3PL routes
 import notificationRoutes from './notification.routes.js'; // Import the notification routes
+import ambassadorRoutes from './ambassador.routes.js'; // Import the ambassador routes
 
 const router = express.Router();
 
@@ -33,6 +34,7 @@ router.use('/support-tickets', supportTicketRoutes);
 router.use('/blog', blogRoutes);
 router.use('/3pl', thirdPartyLogisticsRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/ambassador', ambassadorRoutes);
 
 // Health check route
 router.get('/health', (req, res) => {

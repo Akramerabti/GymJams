@@ -26,7 +26,6 @@ export const processWeeklyCoachPayouts = async () => {
           description: `Weekly coach payout for ${new Date().toLocaleDateString()}`
         });
 
-        // Update coach earnings record
         await User.findByIdAndUpdate(coach._id, {
           $inc: {
             'earnings.totalEarned': coach.earnings.pendingAmount,
@@ -144,9 +143,80 @@ export const cleanupSubscriptions = async () => {
   }
 };
 
-// Initialize weekly cron job
+export const cleanupCoachSubscriptions = async () => {
+  try {
+    
+    const coaches = await User.find({ 
+      role: 'coach',
+      coachingSubscriptions: { $exists: true, $ne: [] }
+    });
+    
+    for (const coach of coaches) {
+
+      const activeSubscriptions = await Subscription.find({
+        _id: { $in: coach.coachingSubscriptions },
+        status: 'active'
+      }).select('_id user guestEmail subscription');
+      
+      activeSubscriptions.forEach((sub, index) => {
+        console.log(`  ${index + 1}. ${sub._id} - ${sub.subscription} plan - ${sub.user ? 'Registered user' : 'Guest'}`);
+      });
+      
+      const activeIds = activeSubscriptions.map(sub => sub._id);
+      const removedCount = coach.coachingSubscriptions.length - activeIds.length;
+      
+      if (removedCount > 0) {
+
+        const inactiveIds = coach.coachingSubscriptions.filter(id => 
+          !activeIds.some(activeId => activeId.toString() === id.toString())
+        );
+        
+        await User.findByIdAndUpdate(coach._id, {
+          coachingSubscriptions: activeIds,
+          'availability.currentClients': activeIds.length,
+          coachStatus: activeIds.length >= coach.availability.maxClients ? 'full' : 'available'
+        });
+
+      } else {
+        console.log(`✅ Coach ${coach._id} subscription list is already clean`);
+      }
+    }
+    
+    console.log('\n🎉 Coach subscription cleanup completed!');
+    
+    // Return summary
+    return {
+      coachesProcessed: coaches.length,
+      message: 'Cleanup completed successfully'
+    };
+    
+  } catch (error) {
+    console.error('❌ Error during coach subscription cleanup:', error);
+    throw error;
+  }
+};
+
+// Add route to trigger cleanup manually
+export const triggerCleanup = async (req, res) => {
+  try {
+    // Add admin check if needed
+    if (req.user.role !== 'admin' && req.user.email !== 'your-admin@email.com') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    const result = await cleanupCoachSubscriptions();
+    res.json({
+      message: 'Subscription cleanup completed',
+      ...result,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Manual cleanup trigger failed:', error);
+    res.status(500).json({ error: 'Failed to cleanup subscriptions' });
+  }
+};
+
 export const initializeCoachPayouts = () => {
-  // Run every Sunday at midnight (0 0 * * 0)
   cron.schedule('0 0 * * 0', async () => {
     try {
       await processWeeklyCoachPayouts();
@@ -159,10 +229,13 @@ export const initializeCoachPayouts = () => {
 
 
 export const initializeSubcleanupJobs = () => {
-  //('Running daily subscription cleanup');
-
   cron.schedule('0 */2 * * *', async () => {
-    logger.info('Running daily subscription cleanup');
     await cleanupSubscriptions();
+    
+    try {
+      await cleanupCoachSubscriptions();
+    } catch (error) {
+      logger.error('Coach subscription cleanup failed:', error);
+    }
   });
 };

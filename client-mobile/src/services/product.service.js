@@ -321,9 +321,9 @@ const productService = {
     }
   },
 
-  async validateCouponCode({ code, userId, productId, category }) {
+   async validateCouponCode({ code, userId, productId, category, type = 'all' }) {
     try {
-      const response = await api.post('/products/coupon-codes/validate', { code, userId, productId, category });
+      const response = await api.post('/products/coupon-codes/validate', { code, userId, productId, category, type });
       return response.data;
     } catch (error) {
       console.error('Failed to validate coupon code:', error);

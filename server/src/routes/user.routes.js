@@ -15,12 +15,14 @@ import {
   uploadFile,
   rateCoach,
   checkUserRating,
+  getAmbassadors
 } from '../controllers/user.controller.js';
+
 import {
   validateProfileUpdate,
   validatePasswordReset,
 } from '../middleware/validate.middleware.js';
-import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
+import { authenticate, optionalAuthenticate, isTaskforce } from '../middleware/auth.middleware.js';
 import { requirePhone, requireCompleteProfile } from '../middleware/requirePhone.middleware.js';
 import upload from '../config/multer.js';
 
@@ -48,5 +50,6 @@ router.put('/:subscriptionId/stats', updateClientStats);
 router.get('/check-games', checkDailyGames);
 router.post('/complete', completeGame);
 router.get('/daily-count', dailyCount);
+router.get('/ambassadors', authenticate, isTaskforce, getAmbassadors);
 
 export default router;

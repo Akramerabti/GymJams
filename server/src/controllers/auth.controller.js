@@ -219,6 +219,14 @@ export const login = async (req, res) => {
       lastLogin: user.lastLogin
     });
 
+       if (!user.password) {
+      console.log('❌ LOGIN FAILED: OAuth user attempting password login');
+      return res.status(400).json({ 
+        message: 'This account was created using Google sign-in. Please use "Continue with Google" to login.',
+        isOAuthUser: true 
+      });
+    }
+    
     console.log('🔑 Comparing passwords...');
     console.log('  - Provided password:', password);
     console.log('  - Stored password hash:', user.password);

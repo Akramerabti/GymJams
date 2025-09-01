@@ -206,10 +206,22 @@ const useAuthStore = create(
       
           return response.data;
         } catch (error) {
-          const message = error.response?.data?.message || 'Login failed';
-          setError(message);
-          throw error;
-        } finally {
+  const message = error.response?.data?.message || 'Login failed';
+  
+  // Check if this is an OAuth user trying to login with password
+  if (error.response?.data?.isOAuthUser) {
+    // Throw enhanced error for MobileGatekeeper to catch
+    throw {
+      ...error,
+      isOAuthUser: true,
+      email: email,
+      redirectToPasswordSetup: true
+    };
+  }
+  
+  setError(message);
+  throw error;
+} finally {
           setLoading(false);
         }
       },

@@ -567,3 +567,23 @@ export const checkUserRating = async (req, res) => {
     res.status(500).json({ error: 'Failed to check user rating' });
   }
 };
+
+export const getAmbassadors = async (req, res) => {
+  try {
+    const ambassadors = await User.find({ 
+      role: 'affiliate' 
+    }).select('firstName lastName email _id').sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: ambassadors
+    });
+  } catch (error) {
+    console.error('Error fetching ambassadors:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch ambassadors',
+      error: error.message
+    });
+  }
+};

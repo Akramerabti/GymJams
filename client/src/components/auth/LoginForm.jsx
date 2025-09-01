@@ -35,58 +35,70 @@ const LoginForm = () => {
   });
 
   const onSubmit = async (data, retryCount = 0) => {
-    try {
-      setError('');
-      await login(data.email, data.password);
-      navigate('/');
-    } catch (err) {
-      const MAX_RETRIES = 3;
-      if ((err.statusCode === 408 || !err.response) && retryCount < MAX_RETRIES) {
-        const nextRetry = retryCount + 1;
-        const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
-        toast.info(`Retrying login attempt ${nextRetry}/${MAX_RETRIES}...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return onSubmit(data, nextRetry);
-      }
-      let errorMessage = 'An unexpected error occurred. Please try again.';
-      if (err.code === 'ECONNABORTED') {
-        errorMessage = 'Request timed out. Please check your internet connection and try again.';
-      } else if (err.response) {
-        switch (err.response.status) {
-          case 400:
-            errorMessage = 'Email and password are required.';
-            break;
-          case 401:
-            errorMessage = 'Invalid email or password. Please check your credentials.';
-            break;
-          case 403:
-            errorMessage = 'Your email is not verified. Please check your inbox.';
-            break;
-          case 404:
-            errorMessage = 'User not found. Please check your email address.';
-            break;
-          case 429:
-            errorMessage = 'Too many login attempts. Please try again later.';
-            break;
-          case 500:
-            errorMessage = 'Server error. Please try again later.';
-            break;
-          default:
-            errorMessage = 'Something went wrong. Please try again.';
-        }
-      } else if (err.request) {
-        errorMessage = 'Network error. Please check your internet connection and try again.';
-      }
-      setError(errorMessage);
-      toast.error('Login failed', { description: errorMessage });
-      if (retryCount >= MAX_RETRIES) {
-        toast.info('Refreshing page...', { duration: 2000 });
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
-      }
+  try {
+    setError('');
+    await login(data.email, data.password);
+    navigate('/');
+  } catch (err) {
+    if (err.isOAuthUser || err.redirectToPasswordSetup || err.response?.data?.isOAuthUser) {
+      navigate(`/setup-password?email=${encodeURIComponent(data.email)}`);
+      return;
     }
-  };
+
+    const MAX_RETRIES = 3;
+    if ((err.statusCode === 408 || !err.response) && retryCount < MAX_RETRIES) {
+      const nextRetry = retryCount + 1;
+      const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+      toast.info(`Retrying login attempt ${nextRetry}/${MAX_RETRIES}...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return onSubmit(data, nextRetry);
+    }
+
+    let errorMessage = 'An unexpected error occurred. Please try again.';
+    if (err.code === 'ECONNABORTED') {
+      errorMessage = 'Request timed out. Please check your internet connection and try again.';
+    } else if (err.response) {
+      switch (err.response.status) {
+        case 400:
+          if (err.response.data?.isOAuthUser) {
+            navigate(`/setup-password?email=${encodeURIComponent(data.email)}`);
+            return;
+          }
+          errorMessage = 'Email and password are required.';
+          break;
+        case 401:
+          errorMessage = 'Invalid email or password. Please check your credentials.';
+          break;
+        case 403:
+          errorMessage = 'Your email is not verified. Please check your inbox.';
+          break;
+        case 404:
+          errorMessage = 'User not found. Please check your email address.';
+          break;
+        case 429:
+          errorMessage = 'Too many login attempts. Please try again later.';
+          break;
+        case 500:
+          errorMessage = 'Server error. Please try again later.';
+          break;
+        default:
+          errorMessage = 'Something went wrong. Please try again.';
+      }
+    } else if (err.request) {
+      errorMessage = 'Network error. Please check your internet connection and try again.';
+    }
+    
+    setError(errorMessage);
+    toast.error('Login failed', { description: errorMessage });
+    
+    if (retryCount >= MAX_RETRIES) {
+      toast.info('Refreshing page...', { duration: 2000 });
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    }
+  }
+};
 
   const handleResendVerificationEmail = async () => {
     try {

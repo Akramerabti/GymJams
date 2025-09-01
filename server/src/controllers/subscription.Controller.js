@@ -8,6 +8,8 @@ import mongoose from 'mongoose';
 import { getIoInstance, activeUsers, notifyGoalApproval, notifyGoalRejection } from '../socketServer.js';
 import Session from '../models/Session.js';
 import CouponCode from '../models/CouponCode.js';
+import { handleCoachingRenewalCommission, processCommission } from './ambassador.controller.js';
+import { validateCouponCode } from './couponCode.controller.js';
 
 import { 
   sendSubscriptionCancellationNotification,
@@ -660,22 +662,27 @@ export const handleSubscriptionSuccess = async (req, res) => {
       }
 
 
-      if (promoCode && promoDiscount && user) {
-        await CouponCode.updateOne(
-          { code: promoCode.toUpperCase() },
-          { $addToSet: { usedBy: user.id } }
-        );
-  
-        const updatedCoupon = await CouponCode.findOne({ code: promoCode.toUpperCase() });
-        if (
-          updatedCoupon &&
-          typeof updatedCoupon.maxUses === 'number' &&
-          updatedCoupon.maxUses > 0 &&
-          updatedCoupon.usedBy.length >= updatedCoupon.maxUses
-        ) {
-          await CouponCode.deleteOne({ code: promoCode.toUpperCase() });
-        }
-      }
+      if (promoCode && promoDiscount) {
+  try {
+    
+    // Re-validate to check if it's an ambassador code
+    const mockReq = { body: { code: promoCode, type: 'coaching', userId: user?.id } };
+    const mockRes = {
+      status: (code) => ({ json: (data) => data }),
+      json: (data) => data
+    };
+    
+    await validateCouponCode(mockReq, mockRes);
+    
+    // Check if response indicates ambassador code
+    if (mockRes.lastResponse?.codeType === 'ambassador') {
+      await processCommission(mockRes.lastResponse.data._id, createdSubscription, 'coaching_monthly', 1);
+      logger.info(`[Subscription] Processed ambassador commission for first month`);
+    }
+  } catch (error) {
+    logger.error('[Subscription] Error processing ambassador commission:', error);
+  }
+}
 
       return {
         subscription: createdSubscription,
@@ -1148,6 +1155,39 @@ export const handleWebhook = async (event) => {
           } catch (notificationError) {
             console.error(`[${webhookId}] Failed to send renewal notification:`, notificationError);
           }
+        }
+
+        // ========================================
+        // AMBASSADOR COMMISSION PROCESSING FOR RENEWALS
+        // ========================================
+        
+        // Calculate which month this renewal represents
+        const monthsSinceStart = Math.floor(
+          (new Date() - new Date(dbSubscription.startDate)) / (1000 * 60 * 60 * 24 * 30)
+        ) + 1;
+        
+        console.log(`[${webhookId}] Processing ambassador commission check for month ${monthsSinceStart}`);
+        
+        try {
+          await handleCoachingRenewalCommission(dbSubscription, monthsSinceStart);
+          console.log(`[${webhookId}] Successfully processed ambassador renewal commission check for month ${monthsSinceStart}`);
+        } catch (commissionError) {
+          console.error(`[${webhookId}] Error handling ambassador renewal commission:`, commissionError);
+          // Don't fail the webhook for commission errors
+        }
+
+               if (dbSubscription.assignedCoach) {
+          const plan = PLANS[dbSubscription.subscription];
+          const coachShare = Math.round(plan.price * 0.6 * 100); // 60% to coach
+              
+          await User.findByIdAndUpdate(
+            dbSubscription.assignedCoach,
+            {
+              $inc: { 'earnings.pendingAmount': coachShare }
+            }
+          );
+          
+          console.log(`Added ${coachShare} cents to coach ${dbSubscription.assignedCoach} for renewal`);
         }
         
         console.log(`[${webhookId}] Successfully updated subscription ${dbSubscription._id} after successful renewal payment`);
