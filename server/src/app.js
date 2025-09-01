@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import 'dotenv/config';
 import { initializeCoachPayouts, initializeSubcleanupJobs } from './services/coach.service.js';
+import { initializeAmbassadorPayouts } from './services/ambassador.service.js';
 import setupGeospatialIndexes from './utils/setupGeospatialIndexes.js';
 
 // Import configurations
@@ -380,5 +381,6 @@ process.on('SIGTERM', () => {
 // Add near bottom with other initializations
 initializeCoachPayouts();
 initializeSubcleanupJobs();
+initializeAmbassadorPayouts(); // Initialize ambassador payout processing
 
 export default app;

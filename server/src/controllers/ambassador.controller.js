@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 import AmbassadorCode from '../models/AmbassadorCode.js';
 import CommissionTransaction from '../models/CommissionTransaction.js';
@@ -303,7 +304,6 @@ export const processCommission = async (ambassadorCodeId, orderOrSubscription, t
       throw new Error('Ambassador code not found');
     }
 
-    // NEW: Validate ambassador can receive payouts before processing commission
     if (!ambassadorCode.ambassador.payoutSetupComplete || !ambassadorCode.ambassador.stripeAccountId) {
       logger.error(`[COMMISSION ERROR] Ambassador ${ambassadorCode.ambassador.email} does not have payout setup complete. Skipping commission.`);
       throw new Error('Ambassador payout setup not complete - cannot process commission');
@@ -312,7 +312,6 @@ export const processCommission = async (ambassadorCodeId, orderOrSubscription, t
     let originalAmount, commissionAmount, relatedId, customerInfo;
     
     if (type === 'coaching_monthly') {
-      // For coaching subscriptions
       const PLANS = {
         basic: { price: 39.99 },
         premium: { price: 69.99 },
@@ -322,24 +321,57 @@ export const processCommission = async (ambassadorCodeId, orderOrSubscription, t
       const planPrice = PLANS[orderOrSubscription.subscription]?.price || 0;
       originalAmount = Math.round(planPrice * 100); // in cents
       
-      // Commission comes from company's 40% share, max 40% of plan price
-      const maxCommission = Math.round(planPrice * 0.4 * 100);
-      const discountAmount = Math.round(planPrice * (ambassadorCode.discountPercentage / 100) * 100);
-      commissionAmount = Math.min(discountAmount, maxCommission);
+      // Calculate commission amount properly - 10% of the price
+      const discountAmount = Math.round(planPrice * (ambassadorCode.discountPercentage / 100) * 100); // in cents
+      commissionAmount = discountAmount; // The commission equals the discount amount
       
       relatedId = orderOrSubscription._id;
+      
+      // Fix: For subscription, we need to handle the email differently since user is just an ID reference
+      let customerEmail;
+      if (orderOrSubscription.guestEmail) {
+        // Guest user case
+        customerEmail = orderOrSubscription.guestEmail;
+      } else if (orderOrSubscription.user) {
+        // If we have a user reference, we need to fetch the user to get their email
+        const User = mongoose.model('User');
+        const userDoc = await User.findById(orderOrSubscription.user);
+        customerEmail = userDoc ? userDoc.email : null;
+      }
+      
+      if (!customerEmail) {
+        throw new Error('Could not determine customer email for commission transaction');
+      }
+      
       customerInfo = {
         customer: orderOrSubscription.user,
-        customerEmail: orderOrSubscription.user?.email || orderOrSubscription.guestEmail
+        customerEmail: customerEmail
       };
     } else {
       // For product purchases - straight commission = discount amount
       originalAmount = orderOrSubscription.totalAmount; // already in cents
       commissionAmount = Math.round(originalAmount * (ambassadorCode.discountPercentage / 100));
       relatedId = orderOrSubscription._id;
+      
+      // Fix: For product purchases, handle email similarly
+      let customerEmail;
+      if (orderOrSubscription.guestEmail) {
+        // Guest user case
+        customerEmail = orderOrSubscription.guestEmail;
+      } else if (orderOrSubscription.user) {
+        // If we have a user reference, we need to fetch the user to get their email
+        const User = mongoose.model('User');
+        const userDoc = await User.findById(orderOrSubscription.user);
+        customerEmail = userDoc ? userDoc.email : null;
+      }
+      
+      if (!customerEmail) {
+        throw new Error('Could not determine customer email for commission transaction');
+      }
+      
       customerInfo = {
         customer: orderOrSubscription.user,
-        customerEmail: orderOrSubscription.user?.email || orderOrSubscription.guestEmail
+        customerEmail: customerEmail
       };
     }
 
@@ -365,7 +397,15 @@ export const processCommission = async (ambassadorCodeId, orderOrSubscription, t
     ambassadorCode.totalCommissionEarned += commissionAmount;
     await ambassadorCode.save();
 
-    logger.info(`[COMMISSION] Created ${type} commission: $${commissionAmount/100} for ${ambassadorCode.code} - Ambassador has verified payout setup`);
+    // Update the ambassador's pending amount in their earnings object
+    await User.findByIdAndUpdate(
+      ambassadorCode.ambassador._id,
+      {
+        $inc: { 'earnings.pendingAmount': commissionAmount }
+      }
+    );
+
+    logger.info(`[COMMISSION] Created ${type} commission: $${(commissionAmount/100).toFixed(2)} for ${ambassadorCode.code} - Ambassador has verified payout setup, added to pending amount`);
     
     return commission;
   } catch (error) {
@@ -374,7 +414,97 @@ export const processCommission = async (ambassadorCodeId, orderOrSubscription, t
   }
 };
 
-// Handle coaching renewal commission (for webhook processing)
+export const clawbackAmbassadorCommissions = async (subscriptionId, ambassadorCodeId) => {
+  try {
+    logger.info(`[CLAWBACK] Starting commission clawback for subscription ${subscriptionId}`);
+    
+    // Find all commission transactions for this subscription
+    const commissions = await CommissionTransaction.find({
+      subscriptionId: subscriptionId,
+      ambassadorCode: ambassadorCodeId,
+      type: 'coaching_monthly'
+    }).populate('ambassador', 'firstName lastName email');
+
+    if (commissions.length === 0) {
+      logger.info(`[CLAWBACK] No commissions found for subscription ${subscriptionId}`);
+      return;
+    }
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      let totalClawbackAmount = 0;
+      const ambassador = commissions[0].ambassador; // All commissions should have same ambassador
+
+      for (const commission of commissions) {
+        logger.info(`[CLAWBACK] Processing commission ${commission._id} for month ${commission.monthNumber}, amount: $${(commission.commissionAmount / 100).toFixed(2)}`);
+        
+        // Only clawback pending commissions (not already paid out)
+        if (commission.status === 'pending') {
+          totalClawbackAmount += commission.commissionAmount;
+          
+          // Mark commission as failed/clawed back
+          await CommissionTransaction.findByIdAndUpdate(
+            commission._id,
+            {
+              status: 'failed',
+              failureReason: 'Subscription cancelled within refund period - commission clawed back',
+              clawbackDate: new Date()
+            },
+            { session }
+          );
+        } else {
+          logger.warn(`[CLAWBACK] Commission ${commission._id} already paid out, cannot clawback`);
+        }
+      }
+
+      // Remove the clawed back amount from ambassador's pending amount
+      if (totalClawbackAmount > 0 && ambassador) {
+        await User.findByIdAndUpdate(
+          ambassador._id,
+          {
+            $inc: { 'earnings.pendingAmount': -totalClawbackAmount }
+          },
+          { session }
+        );
+
+        // Also update the ambassador code's total commission earned
+        await AmbassadorCode.findByIdAndUpdate(
+          ambassadorCodeId,
+          {
+            $inc: { totalCommissionEarned: -totalClawbackAmount }
+          },
+          { session }
+        );
+
+        logger.info(`[CLAWBACK] Removed $${(totalClawbackAmount / 100).toFixed(2)} from ambassador ${ambassador.firstName} ${ambassador.lastName} (${ambassador.email})`);
+      }
+
+      await session.commitTransaction();
+      
+      logger.info(`[CLAWBACK] Successfully processed clawback for subscription ${subscriptionId}. Total amount: $${(totalClawbackAmount / 100).toFixed(2)}`);
+      
+      return {
+        totalClawbackAmount,
+        commissionsProcessed: commissions.length,
+        ambassador: `${ambassador?.firstName} ${ambassador?.lastName}`
+      };
+
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+
+  } catch (error) {
+    logger.error(`[CLAWBACK] Error processing commission clawback for subscription ${subscriptionId}:`, error);
+    throw error;
+  }
+};
+
+// Also update the handleCoachingRenewalCommission to only pay for first 3 months
 export const handleCoachingRenewalCommission = async (subscription, monthNumber) => {
   try {
     // Only pay commission for first 3 months
@@ -383,33 +513,41 @@ export const handleCoachingRenewalCommission = async (subscription, monthNumber)
       return;
     }
 
-    // Check if this subscription has existing commissions (meaning an ambassador code was used)
-    const existingCommissions = await CommissionTransaction.find({
-      subscriptionId: subscription._id,
-      type: 'coaching_monthly'
-    }).populate('ambassadorCode');
-
-    if (existingCommissions.length === 0) {
-      return; // No ambassador code was used initially
+    // Check if this subscription used an ambassador code
+    if (!subscription.ambassadorCode) {
+      return; // No ambassador code was used
     }
 
     // Check if commission for this month already exists
-    const existingCommission = existingCommissions.find(c => c.monthNumber === monthNumber);
+    const existingCommission = await CommissionTransaction.findOne({
+      subscriptionId: subscription._id,
+      type: 'coaching_monthly',
+      monthNumber: monthNumber
+    });
+
     if (existingCommission) {
       logger.info(`Commission for month ${monthNumber} already exists for subscription ${subscription._id}`);
       return;
     }
 
-    // Get the original ambassador code used
-    const originalAmbassadorCode = existingCommissions[0].ambassadorCode;
-    
-    if (!originalAmbassadorCode || !originalAmbassadorCode.isActive) {
+    // Verify the ambassador code is still active and ambassador has payout setup
+    const ambassadorCode = await AmbassadorCode.findById(subscription.ambassadorCode)
+      .populate('ambassador', 'payoutSetupComplete stripeAccountId firstName lastName email');
+
+    if (!ambassadorCode || !ambassadorCode.isActive) {
       logger.warn(`Ambassador code no longer active for subscription ${subscription._id}`);
       return;
     }
 
+    if (!ambassadorCode.ambassador?.payoutSetupComplete || !ambassadorCode.ambassador?.stripeAccountId) {
+      logger.error(`Ambassador ${ambassadorCode.ambassador?.email} does not have complete payout setup for renewal commission`);
+      return;
+    }
+
     // Create commission for this month
-    await processCommission(originalAmbassadorCode._id, subscription, 'coaching_monthly', monthNumber);
+    await processCommission(ambassadorCode._id, subscription, 'coaching_monthly', monthNumber);
+    
+    logger.info(`Successfully processed ambassador renewal commission for subscription ${subscription._id}, month ${monthNumber}`);
     
   } catch (error) {
     logger.error('Error handling coaching renewal commission:', error);

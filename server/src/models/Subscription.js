@@ -167,6 +167,15 @@ const subscriptionSchema = new mongoose.Schema(
       enum: ['active', 'cancelled', 'past_due', 'unpaid', 'incomplete', 'incomplete_expired'],
       default: 'active',
     },
+      ambassadorCode: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'AmbassadorCode',
+      default: null
+    },
+    ambassadorDiscount: {
+      type: Number,
+      default: null // Percentage discount applied
+    },
     startDate: {
       type: Date,
       required: true,
@@ -225,6 +234,10 @@ const subscriptionSchema = new mongoose.Schema(
     },
     coachAssignmentDate: {
       type: Date,
+    },
+    coachEarningsProcessed: {
+      type: Boolean,
+      default: false,
     },
     coachDeclineReason: String,
     coachDeclineDate: Date,

@@ -1,5 +1,6 @@
 import CouponCode from '../models/CouponCode.js';
 import AmbassadorCode from '../models/AmbassadorCode.js';
+import logger from '../utils/logger.js';
 
 export const updateCouponDiscount = async (req, res) => {
   try {
@@ -20,8 +21,6 @@ export const updateCouponDiscount = async (req, res) => {
   }
 };
 
-
-
 export const createCouponCode = async (req, res) => {
   try {
     const { code, discount, type, subscription, products, categories, maxUses, duration, duration_in_months } = req.body;
@@ -34,10 +33,17 @@ export const createCouponCode = async (req, res) => {
     if (!code || !discount || !type) {
       return res.status(400).json({ message: 'Code, discount, and type are required.' });
     }
-    const exists = await CouponCode.findOne({ code: code.toUpperCase() });
-    if (exists) {
-      return res.status(409).json({ message: 'Coupon code already exists.' });
+    
+    // Check if code exists in either CouponCode or AmbassadorCode
+    const [existingCoupon, existingAmbassador] = await Promise.all([
+      CouponCode.findOne({ code: code.toUpperCase() }),
+      AmbassadorCode.findOne({ code: code.toUpperCase() })
+    ]);
+    
+    if (existingCoupon || existingAmbassador) {
+      return res.status(409).json({ message: 'Code already exists (either as coupon or ambassador code)' });
     }
+    
     let couponData = {
       code: code.toUpperCase(),
       discount: Number(discount),
@@ -75,177 +81,143 @@ export const createCouponCode = async (req, res) => {
 
 export const validateCouponCode = async (req, res) => {
   try {
-    const { code, userId, productId, category, type = 'all' } = req.body;
-    
-    if (!code) {
-      return res.status(400).json({
-        success: false,
-        message: 'Code is required'
-      });
-    }
+    const { code, userId, productId, category, subscription } = req.body;
+    if (!code) return res.status(400).json({ message: 'Code is required.' });
 
-    const upperCode = code.toUpperCase();
-    
-    // FIRST: Try to find it as a regular coupon code (YOUR EXISTING LOGIC)
-    const coupon = await CouponCode.findOne({ 
-      code: upperCode,
-      // Your existing coupon validation logic here
-    });
+    console.log('🔍 [CODE VALIDATION] Checking code:', code.toUpperCase());
 
+    // First check if it's a regular coupon code
+    const coupon = await CouponCode.findOne({ code: code.toUpperCase() });
+    
     if (coupon) {
-      // YOUR EXISTING COUPON VALIDATION LOGIC
-      // Check if user already used it
-      if (userId && coupon.usedBy && coupon.usedBy.includes(userId)) {
-        return res.status(400).json({
-          success: false,
-          message: 'You have already used this coupon code'
-        });
+      console.log('✅ [COUPON] Found coupon code:', coupon.code);
+      
+      // Debug info
+      console.log('--- Coupon Validation Debug ---');
+      console.log('Request:', { code, userId, productId, category, subscription });
+      console.log('Coupon:', coupon);
+
+      // Check max uses
+      if (coupon.maxUses && coupon.usedBy.length >= coupon.maxUses) {
+        console.log('❌ [COUPON] Usage limit reached');
+        await CouponCode.deleteOne({ _id: coupon._id });
+        return res.status(409).json({ valid: false, message: 'Coupon code usage limit reached and deleted.' });
       }
-
-      // Check usage limits
-      if (coupon.usedCount >= coupon.maxUses) {
-        return res.status(400).json({
-          success: false,
-          message: 'This coupon has reached its usage limit'
-        });
+      
+      // If userId is provided, check if user has already used this coupon
+      if (userId && coupon.usedBy && coupon.usedBy.some(id => id.toString() === userId)) {
+        console.log('❌ [COUPON] Already used by this user');
+        return res.status(409).json({ message: 'Coupon code already used by this user.' });
       }
-
-      // Check if it applies to the requested type
-      const isValidForType = 
-        coupon.type === 'both' ||
-        coupon.type === type ||
-        (type === 'all' && (coupon.type === 'product' || coupon.type === 'coaching'));
-
-      if (!isValidForType) {
-        return res.status(400).json({
-          success: false,
-          message: 'This coupon is not valid for this type of purchase'
-        });
-      }
-
-      // Check if it applies to specific products
-      if (coupon.products && coupon.products.length > 0 && productId) {
-        if (!coupon.products.includes(productId)) {
-          return res.status(400).json({
-            success: false,
-            message: 'This coupon is not valid for this product'
-          });
+      
+      // For product coupons, check if product/category matches
+      if (coupon.type === 'product' || coupon.type === 'both') {
+        if (coupon.products.length > 0 && productId && !coupon.products.some(pid => pid.toString() === productId)) {
+          console.log('❌ [COUPON] Does not apply to this product');
+          return res.status(400).json({ message: 'Coupon does not apply to this product.' });
+        }
+        if (coupon.categories.length > 0 && category && !coupon.categories.includes(category)) {
+          console.log('❌ [COUPON] Does not apply to this category');
+          return res.status(400).json({ message: 'Coupon does not apply to this category.' });
         }
       }
-
-      // Check if it applies to specific categories
-      if (coupon.categories && coupon.categories.length > 0 && category) {
-        if (!coupon.categories.includes(category)) {
-          return res.status(400).json({
-            success: false,
-            message: 'This coupon is not valid for this category'
-          });
+      
+      // For coaching coupons, check subscription
+      if ((coupon.type === 'coaching' || coupon.type === 'both') && coupon.subscription && coupon.subscription !== 'all') {
+        if (subscription && coupon.subscription !== subscription) {
+          console.log('❌ [COUPON] Does not apply to this subscription');
+          return res.status(400).json({ message: 'Coupon does not apply to this subscription.' });
         }
       }
-
-      // Check subscription type for coaching coupons
-      if (coupon.type === 'coaching' || coupon.type === 'both') {
-        if (coupon.subscription && coupon.subscription !== 'all' && type !== coupon.subscription) {
-          return res.status(400).json({
-            success: false,
-            message: 'This coupon is not valid for this subscription type'
-          });
-        }
-      }
-
-      return res.status(200).json({
-        success: true,
-        valid: true,
-        codeType: 'coupon', // Add this to distinguish
-        code: coupon.code,
-        discount: coupon.discount,
-        couponType: coupon.type,
-        data: {
-          _id: coupon._id,
-          maxUses: coupon.maxUses,
-          usedCount: coupon.usedCount,
-          duration: coupon.duration,
-          duration_in_months: coupon.duration_in_months
-        }
+      
+      console.log('✅ [COUPON] Valid!');
+      return res.status(200).json({ 
+        valid: true, 
+        discount: coupon.discount, 
+        type: coupon.type, 
+        subscription: coupon.subscription, 
+        products: coupon.products, 
+        categories: coupon.categories,
+        codeType: 'coupon'
       });
     }
 
-    // SECOND: If not found as regular coupon, try as ambassador code
-    const ambassadorCode = await AmbassadorCode.findOne({
-      code: upperCode,
-      isActive: true
-    }).populate('ambassador', 'firstName lastName email');
-
+    // If not found as coupon, check if it's an ambassador code
+    console.log('🔍 [AMBASSADOR] Checking for ambassador code...');
+    const ambassadorCode = await AmbassadorCode.findOne({ code: code.toUpperCase() })
+      .populate('ambassador', 'firstName lastName email role payoutSetupComplete');
+    
     if (ambassadorCode) {
-      // Validate ambassador code
-      if (ambassadorCode.expiryDate && ambassadorCode.expiryDate < new Date()) {
-        return res.status(400).json({
-          success: false,
-          message: 'This ambassador code has expired'
-        });
+      console.log('✅ [AMBASSADOR] Found ambassador code:', ambassadorCode.code);
+      console.log('--- Ambassador Code Validation Debug ---');
+      console.log('Request:', { code, userId, productId, category, subscription });
+      console.log('Ambassador Code:', ambassadorCode);
+
+      // Check if code is active
+      if (!ambassadorCode.isActive) {
+        console.log('❌ [AMBASSADOR] Code is inactive');
+        return res.status(400).json({ message: 'Ambassador code is currently inactive.' });
       }
 
+      // Check expiry date
+      if (ambassadorCode.expiryDate && new Date() > new Date(ambassadorCode.expiryDate)) {
+        console.log('❌ [AMBASSADOR] Code has expired');
+        return res.status(400).json({ message: 'Ambassador code has expired.' });
+      }
+
+      // Check max uses
       if (ambassadorCode.maxUses && ambassadorCode.totalUses >= ambassadorCode.maxUses) {
-        return res.status(400).json({
-          success: false,
-          message: 'This ambassador code has reached its usage limit'
-        });
+        console.log('❌ [AMBASSADOR] Usage limit reached');
+        return res.status(409).json({ message: 'Ambassador code usage limit reached.' });
       }
 
-      // Check if user already used this ambassador code (if you want to prevent multiple uses)
-      // You could add a usedBy array to ambassador codes too if needed
-
-      // Check if it applies to the requested type
-      const validFor = ambassadorCode.validFor || ['all'];
-      const isValidForType = 
-        validFor.includes('all') ||
-        validFor.includes(type) ||
-        (type === 'all' && (validFor.includes('products') || validFor.includes('coaching')));
-
-      if (!isValidForType) {
-        return res.status(400).json({
-          success: false,
-          message: 'This ambassador code is not valid for this type of purchase'
-        });
+      // Check if ambassador has payout setup (important for commission processing)
+      if (!ambassadorCode.ambassador?.payoutSetupComplete) {
+        console.log('⚠️ [AMBASSADOR] Ambassador payout not complete, but code still valid for customer');
       }
 
-      // Ambassador codes work for all products/categories by default
-      // But you could add specific product/category restrictions if needed
+      // Convert validFor array to type string for compatibility
+      let codeType = 'both'; // default
+      if (ambassadorCode.validFor?.includes('products')) {
+        codeType = 'product';
+      } else if (ambassadorCode.validFor?.includes('coaching')) {
+        codeType = 'coaching';
+      } else if (ambassadorCode.validFor?.includes('all')) {
+        codeType = 'both';
+      }
 
+      // For product validation
+      if (codeType === 'product' && subscription) {
+        console.log('❌ [AMBASSADOR] Product-only code used for subscription');
+        return res.status(400).json({ message: 'This ambassador code is only valid for products.' });
+      }
+
+      // For coaching validation  
+      if (codeType === 'coaching' && (productId || category)) {
+        console.log('❌ [AMBASSADOR] Coaching-only code used for product');
+        return res.status(400).json({ message: 'This ambassador code is only valid for coaching subscriptions.' });
+      }
+
+      console.log('✅ [AMBASSADOR] Valid!');
       return res.status(200).json({
-        success: true,
         valid: true,
-        codeType: 'ambassador', // Add this to distinguish
-        code: ambassadorCode.code,
         discount: ambassadorCode.discountPercentage,
-        ambassador: {
-          id: ambassadorCode.ambassador._id,
-          name: `${ambassadorCode.ambassador.firstName} ${ambassadorCode.ambassador.lastName}`,
-          email: ambassadorCode.ambassador.email
-        },
-        data: {
-          _id: ambassadorCode._id,
-          maxUses: ambassadorCode.maxUses,
-          totalUses: ambassadorCode.totalUses,
-          validFor: ambassadorCode.validFor
-        }
+        type: codeType,
+        subscription: codeType === 'coaching' || codeType === 'both' ? 'all' : undefined,
+        products: [],
+        categories: [],
+        codeType: 'ambassador',
+        ambassadorName: `${ambassadorCode.ambassador?.firstName} ${ambassadorCode.ambassador?.lastName}`
       });
     }
 
-    // Code not found anywhere
-    return res.status(404).json({
-      success: false,
-      valid: false,
-      message: 'Invalid or inactive code'
-    });
+    // Code not found in either collection
+    console.log('❌ [NOT FOUND] Code not found in coupons or ambassador codes');
+    return res.status(404).json({ message: 'Invalid code.' });
 
-  } catch (error) {
-    logger.error('Error validating code:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to validate code',
-      error: error.message
-    });
+  } catch (err) {
+    console.error('Code validation error:', err);
+    res.status(500).json({ message: err.message });
   }
 };
 
@@ -255,18 +227,51 @@ export const markCouponAsUsed = async (req, res) => {
     if (!code || !userId) {
       return res.status(400).json({ message: 'Code and userId are required.' });
     }
-    const coupon = await CouponCode.findOne({ code: code.toUpperCase() });
-    if (!coupon) return res.status(404).json({ message: 'Coupon code not found.' });
 
-    // Only add user if not already present
-    if (!coupon.usedBy.some(id => id.toString() === userId)) {
-      coupon.usedBy.push(userId);
-      coupon.usedCount = (coupon.usedCount || 0) + 1;
-      await coupon.save();
+    console.log('🏷️ [MARK AS USED] Code:', code.toUpperCase(), 'User:', userId);
+
+    // First check if it's a regular coupon code
+    const coupon = await CouponCode.findOne({ code: code.toUpperCase() });
+    
+    if (coupon) {
+      console.log('✅ [COUPON] Marking coupon as used');
+      // Only add user if not already present
+      if (!coupon.usedBy.some(id => id.toString() === userId)) {
+        coupon.usedBy.push(userId);
+        coupon.usedCount = (coupon.usedCount || 0) + 1;
+        await coupon.save();
+        console.log('✅ [COUPON] Marked as used, total uses:', coupon.usedCount);
+      }
+      return res.status(200).json({ success: true, codeType: 'coupon' });
     }
 
-    res.status(200).json({ success: true });
+    // Check if it's an ambassador code
+    const ambassadorCode = await AmbassadorCode.findOne({ code: code.toUpperCase() })
+      .populate('ambassador', 'firstName lastName email');
+    
+    if (ambassadorCode) {
+      console.log('✅ [AMBASSADOR] Marking ambassador code as used');
+      
+      // Update usage count
+      ambassadorCode.totalUses = (ambassadorCode.totalUses || 0) + 1;
+      await ambassadorCode.save();
+      
+      logger.info(`[AMBASSADOR] Code ${ambassadorCode.code} used by user ${userId}. Total uses: ${ambassadorCode.totalUses}`);
+      console.log('✅ [AMBASSADOR] Marked as used, total uses:', ambassadorCode.totalUses);
+      
+      return res.status(200).json({ 
+        success: true, 
+        codeType: 'ambassador',
+        ambassadorName: `${ambassadorCode.ambassador?.firstName} ${ambassadorCode.ambassador?.lastName}`,
+        discount: ambassadorCode.discountPercentage
+      });
+    }
+
+    console.log('❌ [NOT FOUND] Code not found for marking as used');
+    return res.status(404).json({ message: 'Code not found.' });
+
   } catch (err) {
+    console.error('Error marking code as used:', err);
     res.status(500).json({ message: err.message });
   }
 };

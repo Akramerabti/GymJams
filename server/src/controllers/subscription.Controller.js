@@ -8,8 +8,9 @@ import mongoose from 'mongoose';
 import { getIoInstance, activeUsers, notifyGoalApproval, notifyGoalRejection } from '../socketServer.js';
 import Session from '../models/Session.js';
 import CouponCode from '../models/CouponCode.js';
-import { handleCoachingRenewalCommission, processCommission } from './ambassador.controller.js';
+import { handleCoachingRenewalCommission, processCommission, clawbackAmbassadorCommissions  } from './ambassador.controller.js';
 import { validateCouponCode } from './couponCode.controller.js';
+import AmbassadorCode from '../models/AmbassadorCode.js';
 
 import { 
   sendSubscriptionCancellationNotification,
@@ -351,80 +352,68 @@ export const cancelSubscription = async (req, res) => {
     }
 
     const isRefundEligible = subscription.isEligibleForRefund();
-
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
+      // Handle Stripe cancellation
       if (isRefundEligible) {
         await stripe.subscriptions.cancel(subscription.stripeSubscriptionId);
-
         subscription.status = 'cancelled';
         subscription.endDate = new Date();
 
+        // Process refund logic...
         const subscriptionDetails = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
         const latestInvoiceId = subscriptionDetails.latest_invoice;
 
-        if (!latestInvoiceId) {
-          throw new Error('Latest invoice not found for the subscription');
-        }
+        if (latestInvoiceId) {
+          const latestInvoice = await stripe.invoices.retrieve(latestInvoiceId);
+          
+          if (latestInvoice.payment_intent && latestInvoice.amount_paid > 0) {
+            const plan = PLANS[subscription.subscription];
+            const refundAmount = Math.round(plan.price * 0.4 * 100);
 
-        const latestInvoice = await stripe.invoices.retrieve(latestInvoiceId);
-
-        if (!latestInvoice.payment_intent) {
-          if (latestInvoice.amount_paid === 0) {
-            // No refund needed for $0 invoice, just proceed
-            // ...continue with cancellation logic, skip refund...
-          } else {
-            throw new Error('Payment intent not found for the latest invoice');
+            await stripe.refunds.create({
+              payment_intent: latestInvoice.payment_intent,
+              amount: refundAmount,
+              reason: 'requested_by_customer',
+            });
           }
-        } else {
-          const plan = PLANS[subscription.subscription];
-          const refundAmount = Math.round(plan.price * 0.4 * 100);
-
-          await stripe.refunds.create({
-            payment_intent: latestInvoice.payment_intent,
-            amount: refundAmount,
-            reason: 'requested_by_customer',
-          });
         }
       } else {
         await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
           cancel_at_period_end: true,
         });
-
         subscription.cancelAtPeriodEnd = true;
       }
 
-      if (isRefundEligible) {
-        const userUpdate = {
-          $unset: { subscription: 1 },
-          $inc: { points: -PLANS[subscription.subscription].points },
-        };
+      // NEW: Handle ambassador commission clawback for early cancellations
+      if (isRefundEligible && subscription.ambassadorCode) {
+        try {
+          await clawbackAmbassadorCommissions(subscription._id, subscription.ambassadorCode);
+          logger.info(`[Subscription] Clawed back ambassador commissions for early cancellation of subscription ${subscription._id}`);
+        } catch (clawbackError) {
+          logger.error('[Subscription] Error clawing back ambassador commissions:', clawbackError);
+        }
+      }
 
-        await User.findByIdAndUpdate(subscription.user, userUpdate, { session });
-      } else {
-        const userUpdate = {
-          $unset: { subscription: 1 },
-        };
-
+      // Handle user updates
+      if (subscription.user) {
+        const userUpdate = { $unset: { subscription: 1 } };
+        if (isRefundEligible) {
+          userUpdate.$inc = { points: -PLANS[subscription.subscription].points };
+        }
         await User.findByIdAndUpdate(subscription.user, userUpdate, { session });
       }
 
+      // Handle coach updates
       if (subscription.assignedCoach) {
-        //(`Subscription ${subscription._id} cancelled - Refund: ${isRefundEligible}`);
-
         const coach = await User.findById(subscription.assignedCoach).session(session);
         if (coach) {
           const updatedSubscriptions = coach.coachingSubscriptions.filter(
             (subId) => subId.toString() !== subscription._id.toString()
           );
 
-          // Calculate the refund amount (one-third of the plan's value)
-          const plan = PLANS[subscription.subscription];
-          const refundAmount = Math.round(plan.price * 100 * 0.3); // Convert to cents for Stripe
-
-          // Update coach's pendingAmount if refund is eligible
           const coachUpdate = {
             coachingSubscriptions: updatedSubscriptions,
             'availability.currentClients': updatedSubscriptions.length,
@@ -432,31 +421,24 @@ export const cancelSubscription = async (req, res) => {
           };
 
           if (isRefundEligible) {
+            const plan = PLANS[subscription.subscription];
+            const refundAmount = Math.round(plan.price * 100 * 0.3);
             coachUpdate.$inc = { 'earnings.pendingAmount': -refundAmount };
           }
 
           await User.findByIdAndUpdate(subscription.assignedCoach, coachUpdate, { session });
-          //(`Updated coach ${coach._id} metrics - Current clients: ${updatedSubscriptions.length}`);
         }
-      }      await subscription.save({ session });
-
-      await session.commitTransaction();
-
-      // Determine email and guest status
-      let userEmail = null;
-      let isGuest = false;
-
-      if (subscription.user) {
-        // For registered users, get email from user object
-        const user = await User.findById(subscription.user);
-        userEmail = user?.email;
-      } else {
-        // For guest subscriptions, get email from the subscription
-        userEmail = subscription.guestEmail;
-        isGuest = true;
       }
 
+      await subscription.save({ session });
+      await session.commitTransaction();
+
       // Send cancellation email
+      const userEmail = subscription.user ? 
+        (await User.findById(subscription.user)).email : 
+        subscription.guestEmail;
+      const isGuest = !subscription.user;
+
       if (userEmail) {
         try {
           await sendSubscriptionCancellationEmail({
@@ -477,12 +459,14 @@ export const cancelSubscription = async (req, res) => {
         refunded: isRefundEligible,
         endDate: isRefundEligible ? new Date() : subscription.currentPeriodEnd,
       });
+
     } catch (error) {
       await session.abortTransaction();
       throw error;
     } finally {
       session.endSession();
     }
+
   } catch (error) {
     logger.error('Failed to cancel subscription:', error);
     res.status(500).json({ error: 'Failed to cancel subscription' });
@@ -499,11 +483,13 @@ export const handleSubscriptionSuccess = async (req, res) => {
     if (!planType || !paymentMethodId || !email) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
+    
     let user = null;
     let stripeCustomerId = null;
+    let ambassadorCodeDoc = null; // Track the ambassador code if used
 
     result = await session.withTransaction(async () => {
-    
+      // Check for existing subscriptions to prevent duplicates
       if (req.user) {
         const existingSubscription = await Subscription.findOne({
           user: req.user.id,
@@ -513,7 +499,6 @@ export const handleSubscriptionSuccess = async (req, res) => {
         }).session(session);
 
         if (existingSubscription) {
-    
           return {
             subscription: existingSubscription,
             status: 'succeeded',
@@ -532,7 +517,6 @@ export const handleSubscriptionSuccess = async (req, res) => {
         }).session(session);
 
         if (existingSubscription) {
-   
           return {
             subscription: existingSubscription,
             status: 'succeeded',
@@ -557,26 +541,29 @@ export const handleSubscriptionSuccess = async (req, res) => {
         },
       });
 
-      // --- PROMO LOGIC: If promoCode is present and valid, create a Stripe coupon and apply it to the first invoice only ---
+      // FIXED: Enhanced promo code handling for both coupon and ambassador codes
       let couponId = null;
       let promoDiscount = null;
+      let isAmbassadorCode = false;
+      
       logger.info(`[Subscription] Incoming promoCode:`, promoCode);
+      
       if (promoCode) {
-        // Validate promo code in DB
+        // First, check if it's a regular coupon code
         const promo = await CouponCode.findOne({ code: promoCode.toUpperCase() });
-        logger.info(`[Subscription] Promo DB result:`, promo);
-        if (
-          promo &&
-          (promo.subscription === planType || promo.subscription === 'all') && // Allow 'all' to match any plan
-          (!user || !promo.usedBy.some(id => id.toString() === (user?.id || '')))
-        ) {
+        
+        if (promo && 
+            (promo.subscription === planType || promo.subscription === 'all') && 
+            (!user || !promo.usedBy.some(id => id.toString() === (user?.id || '')))) {
+          
+          // Regular coupon code found and valid
           promoDiscount = promo.discount;
-          logger.info(`[Subscription] Promo valid, discount:`, promoDiscount);
-
+          logger.info(`[Subscription] Using coupon code ${promo.code} with ${promoDiscount}% discount`);
 
           let stripeCouponParams = {
             percent_off: promo.discount
           };
+          
           if (promo.type === 'coaching') {
             stripeCouponParams.duration = promo.duration || 'once';
             if (promo.duration === 'repeating' && promo.duration_in_months) {
@@ -591,28 +578,66 @@ export const handleSubscriptionSuccess = async (req, res) => {
           const coupon = await stripe.coupons.create(stripeCouponParams);
           logger.info(`[Subscription] Stripe coupon created:`, coupon);
           couponId = coupon.id;
+          
         } else {
-          logger.info(`[Subscription] Promo invalid, not for this plan, or already used by user.`);
-        
-          if (typeof subscription !== 'undefined' && subscription && subscription.id) {
-            try {
-              await stripe.subscriptions.cancel(subscription.id);
-              logger.info(`[Subscription] Cancelled Stripe subscription due to invalid promo code: ${subscription.id}`);
-            } catch (cancelError) {
-              logger.error(`[Subscription] Failed to cancel Stripe subscription:`, cancelError);
+          // Not a valid coupon, check if it's an ambassador code
+          ambassadorCodeDoc = await AmbassadorCode.findOne({ code: promoCode.toUpperCase() })
+            .populate('ambassador', 'payoutSetupComplete stripeAccountId email firstName lastName');
+          
+          if (ambassadorCodeDoc && ambassadorCodeDoc.isActive) {
+            // Validate ambassador code is applicable to coaching
+            const isValidForCoaching = ambassadorCodeDoc.validFor.includes('coaching') || 
+                                     ambassadorCodeDoc.validFor.includes('all');
+            
+            if (!isValidForCoaching) {
+              logger.error(`[Subscription] Ambassador code ${ambassadorCodeDoc.code} is not valid for coaching subscriptions`);
+              throw new Error('Ambassador code is not valid for coaching subscriptions');
             }
-          }
 
-          throw new Error('Invalid discount code: not for this plan or already used');
+            // Check expiry
+            if (ambassadorCodeDoc.expiryDate && new Date() > new Date(ambassadorCodeDoc.expiryDate)) {
+              logger.error(`[Subscription] Ambassador code ${ambassadorCodeDoc.code} has expired`);
+              throw new Error('Ambassador code has expired');
+            }
+
+            // Check usage limits
+            if (ambassadorCodeDoc.maxUses && ambassadorCodeDoc.totalUses >= ambassadorCodeDoc.maxUses) {
+              logger.error(`[Subscription] Ambassador code ${ambassadorCodeDoc.code} usage limit reached`);
+              throw new Error('Ambassador code usage limit reached');
+            }
+
+            isAmbassadorCode = true;
+            promoDiscount = ambassadorCodeDoc.discountPercentage;
+            
+            logger.info(`[Subscription] Using ambassador code ${ambassadorCodeDoc.code} with ${promoDiscount}% discount`);
+            
+            // Create Stripe coupon for ambassador code
+            const stripeCouponParams = {
+              percent_off: promoDiscount,
+              duration: 'once' // Ambassador codes always apply once per subscription
+            };
+
+            const coupon = await stripe.coupons.create(stripeCouponParams);
+            couponId = coupon.id;
+            logger.info(`[Subscription] Created Stripe coupon for ambassador code: ${couponId}`);
+            
+          } else {
+            logger.error(`[Subscription] Invalid promo code: ${promoCode}`);
+            throw new Error('Invalid discount code: not found or not applicable to this plan');
+          }
         }
       }
 
+      // Create the Stripe subscription
       const subscriptionParams = {
         customer: stripeCustomerId,
         items: [{ price: PLANS[planType].stripePriceId }],
         payment_behavior: 'error_if_incomplete',
         expand: ['latest_invoice.payment_intent'],
-        metadata: { planType },
+        metadata: { 
+          planType,
+          ...(ambassadorCodeDoc && { ambassadorCode: ambassadorCodeDoc.code })
+        },
       };
 
       if (couponId) {
@@ -626,6 +651,7 @@ export const handleSubscriptionSuccess = async (req, res) => {
 
       const accessToken = !user ? crypto.randomBytes(32).toString('hex') : undefined;
 
+      // Create subscription data with ambassador tracking
       const subscriptionData = {
         subscription: planType,
         stripeSubscriptionId: subscription.id,
@@ -635,6 +661,11 @@ export const handleSubscriptionSuccess = async (req, res) => {
         currentPeriodStart: new Date(subscription.current_period_start * 1000),
         currentPeriodEnd: new Date(subscription.current_period_end * 1000),
         pointsAwarded: false, // Initialize pointsAwarded as false
+        // Track ambassador code if used
+        ...(ambassadorCodeDoc && { 
+          ambassadorCode: ambassadorCodeDoc._id,
+          ambassadorDiscount: promoDiscount 
+        }),
         ...(accessToken && { accessToken }),
         ...(user ? { user: user.id } : { guestEmail: email })
       };
@@ -642,6 +673,7 @@ export const handleSubscriptionSuccess = async (req, res) => {
       const newSubscription = await Subscription.create([subscriptionData], { session });
       const createdSubscription = newSubscription[0];
 
+      // Award points to user if applicable
       if (user && !createdSubscription.pointsAwarded) {
         await User.findByIdAndUpdate(
           user.id,
@@ -658,31 +690,39 @@ export const handleSubscriptionSuccess = async (req, res) => {
           { pointsAwarded: true },
           { session }
         );
-
       }
 
+      // FIXED: Process ambassador commission if ambassador code was used
+      if (ambassadorCodeDoc) {
+        try {
+          logger.info(`[Subscription] Processing ambassador commission for code ${ambassadorCodeDoc.code}`);
+          
+          await processCommission(
+            ambassadorCodeDoc._id, 
+            createdSubscription, 
+            'coaching_monthly', 
+            1 // First month
+          );
+          
+          logger.info(`[Subscription] Successfully processed ambassador commission for first month`);
+        } catch (commissionError) {
+          logger.error('[Subscription] Error processing ambassador commission:', commissionError);
+          // Don't fail the transaction for commission errors, but log them
+        }
+      }
 
-      if (promoCode && promoDiscount) {
-  try {
-    
-    // Re-validate to check if it's an ambassador code
-    const mockReq = { body: { code: promoCode, type: 'coaching', userId: user?.id } };
-    const mockRes = {
-      status: (code) => ({ json: (data) => data }),
-      json: (data) => data
-    };
-    
-    await validateCouponCode(mockReq, mockRes);
-    
-    // Check if response indicates ambassador code
-    if (mockRes.lastResponse?.codeType === 'ambassador') {
-      await processCommission(mockRes.lastResponse.data._id, createdSubscription, 'coaching_monthly', 1);
-      logger.info(`[Subscription] Processed ambassador commission for first month`);
-    }
-  } catch (error) {
-    logger.error('[Subscription] Error processing ambassador commission:', error);
-  }
-}
+      // Mark regular coupon as used if it's not an ambassador code
+      if (promoCode && !isAmbassadorCode) {
+        const coupon = await CouponCode.findOne({ code: promoCode.toUpperCase() });
+        if (coupon && user) {
+          if (!coupon.usedBy.some(id => id.toString() === user.id)) {
+            coupon.usedBy.push(user.id);
+            coupon.usedCount = (coupon.usedCount || 0) + 1;
+            await coupon.save({ session });
+            logger.info(`[Subscription] Marked coupon ${coupon.code} as used by user ${user.id}`);
+          }
+        }
+      }
 
       return {
         subscription: createdSubscription,
@@ -693,6 +733,8 @@ export const handleSubscriptionSuccess = async (req, res) => {
         status: 'succeeded'
       };
     });
+
+    // Send receipt email if not duplicate
     if (result && !result.duplicate) {
       try {
         // Determine if this is a guest subscription based on whether there's a user ID in the result
@@ -714,7 +756,7 @@ export const handleSubscriptionSuccess = async (req, res) => {
       }
     }
 
- 
+    // Return the result
     if (result) {
       res.json(result);
     } else {
@@ -726,7 +768,7 @@ export const handleSubscriptionSuccess = async (req, res) => {
     await session.abortTransaction();
 
     if (!res.headersSent) {
-      return res.status(500).json({ error: 'Failed to complete subscription process' });
+      return res.status(500).json({ error: error.message || 'Failed to complete subscription process' });
     }
   } finally {
     session.endSession();
@@ -837,8 +879,8 @@ export const assignCoach = async (req, res) => {
         subscription.coachAssignmentStatus = 'assigned';
       }
 
-      // Update coach earnings only if this is the first attempt
-      if (retryCount === 0) {
+      // Update coach earnings only if this is the first attempt or if earnings haven't been processed
+      if (retryCount === 0 || !subscription.coachEarningsProcessed) {
         await User.findByIdAndUpdate(
           coachId,
           {
@@ -846,6 +888,8 @@ export const assignCoach = async (req, res) => {
           },
           { session }
         );
+        
+        logger.info(`[Subscription] Added coach earnings of $${coachShare/100} to coach ${coachId}'s pending amount`);
       }
 
       const plan = PLANS[subscription.subscription];
@@ -853,6 +897,7 @@ export const assignCoach = async (req, res) => {
         assignedCoach: coachId,
         coachAssignmentDate: new Date(),
         coachAssignmentStatus: subscription.coachAssignmentStatus,
+        coachEarningsProcessed: true, // Mark earnings as processed
         coachPaymentDetails: {
           weeklyAmount: coachShare,
           startDate: new Date(),
@@ -888,7 +933,7 @@ export const assignCoach = async (req, res) => {
         'firstName lastName profileImage bio rating socialLinks specialties');
 
         try {
-  await sendNewClientAssignmentNotification(selectedCoach._id, {
+  await sendNewClientAssignmentNotification(updatedCoach._id, {
     subscriptionId: subscription._id,
     clientId: subscription.user || null,
     clientName: clientName,
@@ -1186,7 +1231,7 @@ export const handleWebhook = async (event) => {
               $inc: { 'earnings.pendingAmount': coachShare }
             }
           );
-          
+
           console.log(`Added ${coachShare} cents to coach ${dbSubscription.assignedCoach} for renewal`);
         }
         
