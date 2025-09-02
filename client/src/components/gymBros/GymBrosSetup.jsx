@@ -630,8 +630,8 @@ return (
     <FooterHider />
     <div className={`${
       isWelcomeStep 
-        ? 'bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-800 text-white' 
-        : 'bg-gradient-to-br from-slate-600 via-purple-400 to-indigo-500 text-white'
+        ? 'bg-gradient-to-br from-slate-600 via-gray-700 to-slate-800 text-white' 
+        : 'bg-gradient-to-br from-gray-100 via-slate-200 to-gray-300 text-gray-900'
     } gymbros-setup-fullscreen h-screen w-full flex flex-col transition-colors duration-300 relative overflow-hidden`}>
       
       {/* Animated Background Shapes for Welcome Step */}
@@ -648,7 +648,7 @@ return (
       {!isWelcomeStep && (
         <div className="w-full bg-black/20 h-2 flex-shrink-0">
           <motion.div
-            className="h-full bg-gradient-to-r from-blue-400 to-purple-400"
+            className="h-full bg-gradient-to-r from-slate-500 to-gray-600"
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.5 }}
@@ -659,7 +659,7 @@ return (
       {/* Step Counter - Hide on Welcome Step */}
       {!isWelcomeStep && (
         <div className="text-center py-4 flex-shrink-0">
-          <span className="text-white/80 text-sm">
+          <span className="text-gray-600 text-sm">
             Step {currentStep + 1} of {steps.length}
           </span>
         </div>
@@ -700,7 +700,7 @@ return (
                 flex items-center px-4 md:px-6 py-3 rounded-xl font-medium transition-all duration-300
                 ${currentStep === 0 
                   ? 'invisible' 
-                  : 'bg-white/10 hover:bg-white/20 text-white border border-white/20 shadow-lg'
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700 border border-gray-300 shadow-lg'
                 }
               `}
             >
@@ -715,8 +715,8 @@ return (
               className={`
                 flex items-center px-6 md:px-8 py-3 rounded-xl font-medium transition-all duration-300 shadow-lg
                 ${canProceed() && !loading
-                  ? 'bg-white text-gray-900 hover:bg-gray-100 transform hover:scale-105'
-                  : 'bg-gray-500 text-gray-300 cursor-not-allowed'
+                  ? 'bg-slate-700 text-white hover:bg-slate-800 transform hover:scale-105'
+                  : 'bg-gray-400 text-gray-600 cursor-not-allowed'
                 }
               `}
             >

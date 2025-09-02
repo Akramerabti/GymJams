@@ -847,16 +847,9 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
     <div className="flex flex-col h-full py-1 sm:py-2 relative z-10">
       {/* Title: Swipe and Thrive! */}
       <div className="text-center mb-2">
-        <h4 className="font-bold animate-shimmer"
+        <h4 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-600'}`}
             style={{
-              fontSize: 'clamp(10px, 2vw, 18px)',
-              background: darkMode
-                ? 'linear-gradient(135deg, #e2e8f0, #cbd5e1, #94a3b8)'
-                : 'linear-gradient(135deg, #1e293b, #334155, #475569)',
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              color: 'transparent',
-              backgroundSize: '200% auto'
+              fontSize: 'clamp(10px, 2vw, 18px)'
             }}>
           ✨ Swipe and Thrive! ✨
         </h4>
@@ -951,7 +944,12 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
           }}
         >
           <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-          <span className="relative flex items-center justify-center gap-2">
+          <span className="relative flex items-center justify-center gap-2"
+                style={{
+                  textShadow: darkMode 
+                    ? '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000'
+                    : '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000'
+                }}>
             <span className="animate-pulse">⚡</span>
             Swipe Nearby Fit Fanatics
             <span className="animate-pulse">⚡</span>

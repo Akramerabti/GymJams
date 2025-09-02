@@ -108,22 +108,32 @@ const ThemedTextarea = ({ value, onChange, placeholder, rows = 3, className = ""
   );
 };
 
-const WelcomeStep = ({ goToNextStep, handleLoginWithPhone, isAuthenticated, showPhoneLogin, screenType }) => (
-  <div className="welcome-step-container relative min-h-full overflow-x-hidden overflow-y-auto">
-    {/* Animated background gradient */}
-    <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-purple-700 to-pink-600 opacity-90 overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent"></div>
+const WelcomeStep = ({ goToNextStep, handleLoginWithPhone, isAuthenticated, showPhoneLogin, screenType }) => {
+  const { darkMode } = useTheme();
+  
+  return (
+    <div className="welcome-step-container relative min-h-full overflow-x-hidden overflow-y-auto">
+      {/* Professional background gradient */}
+      <div 
+        className="absolute inset-0 opacity-90 overflow-hidden"
+        style={{
+          background: darkMode 
+            ? 'linear-gradient(135deg, #1e293b 0%, #334155 20%, #475569 40%, #64748b 60%, #374151 80%, #1f2937 100%)'
+            : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 20%, #cbd5e1 40%, #94a3b8 60%, #64748b 80%, #475569 100%)'
+        }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent"></div>
       {/* Animated floating elements for desktop only - properly contained within viewport */}
       {screenType === 'desktop' && (
         <div className="absolute inset-0 overflow-hidden">
           <div className="welcome-step-floating absolute top-20 left-8 w-12 h-12 bg-white/10 rounded-full animate-bounce delay-1000"></div>
-          <div className="welcome-step-floating absolute top-40 right-8 w-10 h-10 bg-yellow-400/20 rounded-full animate-pulse delay-500"></div>
-          <div className="welcome-step-floating absolute bottom-32 left-1/3 w-6 h-6 bg-pink-400/30 rounded-full animate-ping delay-700"></div>
+          <div className="welcome-step-floating absolute top-40 right-8 w-10 h-10 bg-slate-400/20 rounded-full animate-pulse delay-500"></div>
+          <div className="welcome-step-floating absolute bottom-32 left-1/3 w-6 h-6 bg-slate-300/30 rounded-full animate-ping delay-700"></div>
         </div>
       )}
     </div>
     
-    <div className={`welcome-step-content relative z-10 text-center text-white min-h-full flex flex-col ${
+    <div className={`welcome-step-content relative z-10 text-center min-h-full flex flex-col ${
       screenType === 'mobile' 
         ? 'px-4 py-4' 
         : screenType === 'tablet' 
@@ -136,96 +146,144 @@ const WelcomeStep = ({ goToNextStep, handleLoginWithPhone, isAuthenticated, show
         screenType === 'mobile' ? 'mb-3 mt-1' : 'mb-4 mt-2'
       }`}>
         <div className="absolute inset-0 bg-white/20 rounded-full blur-2xl scale-150 animate-pulse"></div>
-        <div className={`relative bg-gradient-to-br from-white/20 to-white/10 backdrop-blur-lg rounded-full border border-white/30 mx-auto w-fit shadow-2xl ${
+        <div className={`relative backdrop-blur-lg rounded-full border mx-auto w-fit shadow-2xl ${
           screenType === 'mobile' ? 'p-3' : 'p-4'
-        }`}>
-          <Dumbbell className={`text-white ${
+        }`}
+             style={{
+               background: darkMode 
+                 ? 'linear-gradient(135deg, rgba(71, 85, 105, 0.3), rgba(100, 116, 139, 0.3))'
+                 : 'linear-gradient(135deg, rgba(248, 250, 252, 0.3), rgba(226, 232, 240, 0.3))',
+               borderColor: darkMode ? 'rgba(148, 163, 184, 0.3)' : 'rgba(71, 85, 105, 0.3)'
+             }}>
+          <Dumbbell className={`${darkMode ? 'text-white' : 'text-gray-700'} ${
             screenType === 'mobile' ? 'h-8 w-8' : screenType === 'tablet' ? 'h-10 w-10' : 'h-12 w-12'
           }`} />
         </div>
       </div>
       
-      {/* Main Headline - Responsive text sizing with text shadow */}
-      <div className={`welcome-step-spacing welcome-step-text-shadow space-y-1 flex-shrink-0 ${
+      {/* Main Headline - Responsive text sizing with professional colors */}
+      <div className={`welcome-step-spacing space-y-1 flex-shrink-0 ${
         screenType === 'mobile' ? 'mb-3' : 'mb-4'
       }`}>
-        <h1 className={`font-bold text-yellow-300 drop-shadow-lg leading-tight ${
+        <h1 className={`font-bold leading-tight ${
           screenType === 'mobile' 
             ? 'text-lg' 
             : screenType === 'tablet' 
             ? 'text-xl' 
             : 'text-2xl'
-        }`}>
+        }`}
+            style={{
+              color: darkMode ? '#e2e8f0' : '#334155'
+            }}>
           Find Your Perfect<br />
-          <span className="text-white">Gym Partner</span>
+          <span style={{ color: darkMode ? '#f1f5f9' : '#1e293b' }}>Gym Partner</span>
         </h1>
         
-        <p className={`text-blue-100 font-medium ${
+        <p className={`font-medium ${
           screenType === 'mobile' ? 'text-sm' : 'text-base'
-        }`}>
+        }`}
+           style={{ color: darkMode ? '#cbd5e1' : '#475569' }}>
           🚀 Transform Your Fitness Journey
         </p>
       </div>
 
-      {/* Value Props - Responsive grid with proper spacing */}
+      {/* Value Props - Responsive grid with proper spacing and professional colors */}
       <div className={`welcome-step-grid welcome-step-spacing grid gap-2 max-w-2xl mx-auto flex-shrink-0 ${
         screenType === 'mobile' 
           ? 'grid-cols-1 mb-3' 
           : 'grid-cols-3 mb-4'
       }`}>
-        <div className="bg-white/10 backdrop-blur-sm p-2.5 rounded-xl border border-white/20">
-          <Heart className={`text-pink-300 mx-auto mb-1 ${
+        <div 
+          className="backdrop-blur-sm p-2.5 rounded-xl border"
+          style={{
+            background: darkMode 
+              ? 'rgba(71, 85, 105, 0.2)' 
+              : 'rgba(248, 250, 252, 0.2)',
+            borderColor: darkMode 
+              ? 'rgba(148, 163, 184, 0.3)' 
+              : 'rgba(71, 85, 105, 0.3)'
+          }}>
+          <Heart className={`mx-auto mb-1 ${
             screenType === 'mobile' ? 'h-5 w-5' : 'h-6 w-6'
-          }`} />
-          <h3 className={`font-semibold text-white mb-1 ${
+          }`}
+                style={{ color: darkMode ? '#f472b6' : '#ec4899' }} />
+          <h3 className={`font-semibold mb-1 ${
             screenType === 'mobile' ? 'text-xs' : 'text-sm'
-          }`}>Perfect Matches</h3>
-          <p className="text-xs text-white/80">AI-powered compatibility</p>
+          }`}
+              style={{ color: darkMode ? '#f1f5f9' : '#1e293b' }}>Perfect Matches</h3>
+          <p className="text-xs"
+             style={{ color: darkMode ? 'rgba(203, 213, 225, 0.8)' : 'rgba(71, 85, 105, 0.8)' }}>AI-powered compatibility</p>
         </div>
         
-        <div className="bg-white/10 backdrop-blur-sm p-2.5 rounded-xl border border-white/20">
-          <MapPin className={`text-green-300 mx-auto mb-1 ${
+        <div 
+          className="backdrop-blur-sm p-2.5 rounded-xl border"
+          style={{
+            background: darkMode 
+              ? 'rgba(71, 85, 105, 0.2)' 
+              : 'rgba(248, 250, 252, 0.2)',
+            borderColor: darkMode 
+              ? 'rgba(148, 163, 184, 0.3)' 
+              : 'rgba(71, 85, 105, 0.3)'
+          }}>
+          <MapPin className={`mx-auto mb-1 ${
             screenType === 'mobile' ? 'h-5 w-5' : 'h-6 w-6'
-          }`} />
-          <h3 className={`font-semibold text-white mb-1 ${
+          }`}
+                  style={{ color: darkMode ? '#34d399' : '#10b981' }} />
+          <h3 className={`font-semibold mb-1 ${
             screenType === 'mobile' ? 'text-xs' : 'text-sm'
-          }`}>Local Partners</h3>
-          <p className="text-xs text-white/80">Train in your area</p>
+          }`}
+              style={{ color: darkMode ? '#f1f5f9' : '#1e293b' }}>Local Partners</h3>
+          <p className="text-xs"
+             style={{ color: darkMode ? 'rgba(203, 213, 225, 0.8)' : 'rgba(71, 85, 105, 0.8)' }}>Train in your area</p>
         </div>
         
-        <div className="bg-white/10 backdrop-blur-sm p-2.5 rounded-xl border border-white/20">
-          <Zap className={`text-yellow-300 mx-auto mb-1 ${
+        <div 
+          className="backdrop-blur-sm p-2.5 rounded-xl border"
+          style={{
+            background: darkMode 
+              ? 'rgba(71, 85, 105, 0.2)' 
+              : 'rgba(248, 250, 252, 0.2)',
+            borderColor: darkMode 
+              ? 'rgba(148, 163, 184, 0.3)' 
+              : 'rgba(71, 85, 105, 0.3)'
+          }}>
+          <Zap className={`mx-auto mb-1 ${
             screenType === 'mobile' ? 'h-5 w-5' : 'h-6 w-6'
-          }`} />
-          <h3 className={`font-semibold text-white mb-1 ${
+          }`}
+              style={{ color: darkMode ? '#fbbf24' : '#f59e0b' }} />
+          <h3 className={`font-semibold mb-1 ${
             screenType === 'mobile' ? 'text-xs' : 'text-sm'
-          }`}>Instant Connect</h3>
-          <p className="text-xs text-white/80">Start training today</p>
+          }`}
+              style={{ color: darkMode ? '#f1f5f9' : '#1e293b' }}>Instant Connect</h3>
+          <p className="text-xs"
+             style={{ color: darkMode ? 'rgba(203, 213, 225, 0.8)' : 'rgba(71, 85, 105, 0.8)' }}>Start training today</p>
         </div>
       </div>
 
-      {/* Success Stats - Compact on mobile with proper spacing */}
+      {/* Success Stats - Compact on mobile with proper spacing and professional colors */}
       <div className={`welcome-step-stats welcome-step-spacing flex-shrink-0 ${
         screenType === 'mobile' ? 'mb-3' : 'mb-4'
       }`}>
-        <p className={`text-yellow-300 font-bold mb-1 welcome-step-text-shadow ${
+        <p className={`font-bold mb-1 ${
           screenType === 'mobile' ? 'text-sm' : 'text-base'
-        }`}>Join 10,000+ Active Members</p>
+        }`}
+           style={{ color: darkMode ? '#cbd5e1' : '#475569' }}>Join 10,000+ Active Members</p>
         <div className="flex justify-center items-center space-x-1 mb-1">
           {[...Array(5)].map((_, i) => (
-            <span key={i} className={`text-yellow-300 ${
+            <span key={i} className={`text-yellow-400 ${
               screenType === 'mobile' ? 'text-sm' : 'text-base'
             }`}>⭐</span>
           ))}
-          <span className={`text-white/90 ml-2 font-medium ${
+          <span className={`ml-2 font-medium ${
             screenType === 'mobile' ? 'text-xs' : 'text-sm'
-          }`}>4.9/5 Rating</span>
+          }`}
+                style={{ color: darkMode ? 'rgba(241, 245, 249, 0.9)' : 'rgba(30, 41, 59, 0.9)' }}>4.9/5 Rating</span>
         </div>
-        <p className={`text-white/70 ${
+        <p className={`${
           screenType === 'mobile' ? 'text-xs' : 'text-sm'
-        }`}>Average 3x better workout consistency</p>
+        }`}
+           style={{ color: darkMode ? 'rgba(203, 213, 225, 0.7)' : 'rgba(71, 85, 105, 0.7)' }}>Average 3x better workout consistency</p>
       </div>
- 
       {/* Action Buttons - Flex grow to push to bottom with sticky positioning */}
       <div className={`welcome-step-actions w-full mx-auto flex-grow flex flex-col justify-end space-y-2 ${
         screenType === 'mobile' ? 'max-w-sm mb-3' : 'max-w-md mb-4'
@@ -233,9 +291,18 @@ const WelcomeStep = ({ goToNextStep, handleLoginWithPhone, isAuthenticated, show
         {!isAuthenticated && (
           <button
             onClick={handleLoginWithPhone}
-            className={`welcome-step-button w-full bg-white/15 backdrop-blur-sm border-2 border-white/40 text-white rounded-2xl font-medium hover:bg-white/25 transition-all duration-300 transform hover:scale-105 flex items-center justify-center group ${
+            className={`welcome-step-button w-full backdrop-blur-sm border-2 rounded-2xl font-medium transition-all duration-300 transform hover:scale-105 flex items-center justify-center group ${
               screenType === 'mobile' ? 'py-3 px-4 text-sm' : 'py-3 px-6 text-base'
             }`}
+            style={{
+              background: darkMode 
+                ? 'rgba(71, 85, 105, 0.2)' 
+                : 'rgba(248, 250, 252, 0.2)',
+              borderColor: darkMode 
+                ? 'rgba(148, 163, 184, 0.4)' 
+                : 'rgba(71, 85, 105, 0.4)',
+              color: darkMode ? '#f1f5f9' : '#1e293b'
+            }}
           >
             <LogIn className={`mr-2 group-hover:rotate-12 transition-transform ${
               screenType === 'mobile' ? 'h-4 w-4' : 'h-5 w-5'
@@ -248,13 +315,19 @@ const WelcomeStep = ({ goToNextStep, handleLoginWithPhone, isAuthenticated, show
         
         <button
           onClick={goToNextStep}
-          className={`welcome-step-button w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white font-bold rounded-2xl hover:from-yellow-500 hover:to-orange-600 transition-all duration-300 transform hover:scale-105 shadow-2xl flex items-center justify-center group ${
+          className={`welcome-step-button w-full font-bold rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-2xl flex items-center justify-center group ${
             screenType === 'mobile' 
               ? 'py-3 px-4 text-base' 
               : screenType === 'tablet'
               ? 'py-4 px-6 text-lg'
               : 'py-4 px-8 text-xl'
           }`}
+          style={{
+            background: darkMode 
+              ? 'linear-gradient(135deg, #475569, #64748b, #94a3b8)'
+              : 'linear-gradient(135deg, #1e293b, #334155, #475569)',
+            color: '#ffffff'
+          }}
         >
           <span className="mr-2">🔥</span>
           Start Your Journey
@@ -264,16 +337,18 @@ const WelcomeStep = ({ goToNextStep, handleLoginWithPhone, isAuthenticated, show
         </button>
       </div>
 
-      {/* Trust Indicators - Always at bottom with proper spacing */}
+      {/* Trust Indicators - Always at bottom with proper spacing and professional colors */}
       <div className="welcome-step-trust text-center flex-shrink-0 mt-auto">
-        <p className={`text-white/60 mb-1 welcome-step-text-shadow ${
+        <p className={`mb-1 ${
           screenType === 'mobile' ? 'text-xs' : 'text-sm'
-        }`}>Trusted by fitness enthusiasts worldwide</p>
-        <div className={`flex justify-center items-center text-white/40 ${
+        }`}
+           style={{ color: darkMode ? 'rgba(203, 213, 225, 0.6)' : 'rgba(71, 85, 105, 0.6)' }}>Trusted by fitness enthusiasts worldwide</p>
+        <div className={`flex justify-center items-center ${
           screenType === 'mobile' 
             ? 'space-x-3 text-xs' 
             : 'space-x-4 text-sm'
-        }`}>
+        }`}
+             style={{ color: darkMode ? 'rgba(148, 163, 184, 0.4)' : 'rgba(100, 116, 139, 0.4)' }}>
           <span>🔒 Secure</span>
           <span>✅ Verified</span>
           <span>⚡ Fast Setup</span>
@@ -281,7 +356,8 @@ const WelcomeStep = ({ goToNextStep, handleLoginWithPhone, isAuthenticated, show
       </div>
     </div>
   </div>
-);
+  );
+};
 
 // Helper to parse "5'8"" to inches
 function parseFeetInches(str) {
