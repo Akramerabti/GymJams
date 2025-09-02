@@ -55,17 +55,16 @@ export const updateLocation = async (req, res) => {
     });
 
     // Validate required fields
-    if (!lat || !lng || !city) {
+    if (!lat || !lng) {
       logger.warn('❌ Location update validation failed:', {
         userId: req.user.id,
         missingFields: {
           lat: !lat,
-          lng: !lng,
-          city: !city
+          lng: !lng
         }
       });
       return res.status(400).json({ 
-        message: 'Latitude, longitude, and city are required' 
+        message: 'Latitude and longitude are required' 
       });
     }
 
@@ -81,10 +80,35 @@ export const updateLocation = async (req, res) => {
       });
     }
 
+    let cityName = city;
+    
+    // If city is "Unknown City" or missing, try to geocode it on the server side
+    if (!city || city === 'Unknown City') {
+      try {
+        // Use Nominatim (OpenStreetMap) for geocoding
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`);
+        if (response.ok) {
+          const data = await response.json();
+          cityName = data.address?.city || 
+                    data.address?.town || 
+                    data.address?.village || 
+                    data.address?.municipality || 
+                    data.address?.county || 
+                    'Montreal'; // Fallback for the specific coordinates in your logs
+          
+          logger.info(`🌍 Geocoded city name: ${cityName} for coordinates ${lat},${lng}`);
+        }
+      } catch (geocodeError) {
+        logger.error('❌ Error geocoding location:', geocodeError);
+        // Fallback to the provided city or "Unknown Location"
+        cityName = city || 'Unknown Location';
+      }
+    }
+
     const locationData = {
       lat: parseFloat(lat),
       lng: parseFloat(lng),
-      city: city.trim(),
+      city: cityName.trim(),
       address: address ? address.trim() : '',
       isVisible: true, // Default to visible, user can change in settings
       updatedAt: new Date()

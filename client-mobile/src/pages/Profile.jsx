@@ -417,9 +417,9 @@ const updateNotificationPreference = async (category, subType, value) => {
       if (updateResponse.data) {
         setProfileData(prev => ({
           ...prev,
-          location: locationData
+          location: updateResponse.data.location || locationData
         }));
-        toast.success(`Location updated to ${cityName}!`);
+        toast.success(`Location updated to ${updateResponse.data.location?.city || cityName}!`);
       }
 
     } catch (error) {
@@ -446,10 +446,10 @@ const updateNotificationPreference = async (category, subType, value) => {
         if (updateResponse.data) {
           setProfileData(prev => ({
             ...prev,
-            location: locationData
+            location: updateResponse.data.location || locationData
           }));
 
-          toast.success(`Location updated to ${locationData.city}!`);
+          toast.success(`Location updated to ${updateResponse.data.location?.city || locationData.city}!`);
         }
       } else {
         console.error('❌ No auth token found');
@@ -510,7 +510,7 @@ const updateNotificationPreference = async (category, subType, value) => {
         if (updateResponse.data) {
           setProfileData(prev => ({
             ...prev,
-            location: locationData
+            location: updateResponse.data.location || locationData
           }));
         }
 
