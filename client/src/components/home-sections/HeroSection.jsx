@@ -330,17 +330,17 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         } ${
           darkMode
             ? 'bg-gray-800 text-white border border-white/30'
-            : 'bg-white text-gray-900 border border-black/30'
+            : 'bg-gradient-to-br from-blue-50 via-white to-purple-50 text-gray-900 border border-black/50 shadow-xl'
         }`}
         style={{
-         width: 'clamp(1rem, 10vw, 4rem)',
-          height: 'clamp(1rem, 10vw, 4rem)',
+         width: 'clamp(0.75rem, 8vw, 3rem)',
+          height: 'clamp(0.75rem, 8vw, 3rem)',
           animationDelay: hasAnimationStarted ? '0.2s' : '0s',
           animationFillMode: 'both'
         }}
       >
-        <ShoppingBag style={{ width: 'clamp(0.5rem, 4vw, 2rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
-        <span className={`absolute -bottom-6 text-xs font-medium transition-all duration-500 ${
+        <ShoppingBag style={{ width: 'clamp(0.4rem, 3vw, 1.5rem)', height: 'clamp(0.75rem, 3vw, 1.2rem)' }} />
+        <span className={`absolute -bottom-5 text-xs font-medium transition-all duration-500 ${
           darkMode ? 'text-white' : 'text-gray-900'
         }`}>{t('herosection.shop')}</span>
       </button>
@@ -353,17 +353,17 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         } ${
           darkMode
             ? 'bg-gray-800 text-white border border-white/30'
-            : 'bg-white text-gray-900 border border-black/30'
+            : 'bg-gradient-to-br from-yellow-50 via-white to-orange-50 text-gray-900 border border-black/50 shadow-xl'
         }`}
         style={{
-           width: 'clamp(1rem, 10vw, 4rem)',
-          height: 'clamp(1rem, 10vw, 4rem)',
+           width: 'clamp(0.75rem, 8vw, 3rem)',
+          height: 'clamp(0.75rem, 8vw, 3rem)',
           animationDelay: hasAnimationStarted ? '0.4s' : '0s',
           animationFillMode: 'both'
         }}
       >
-        <Trophy style={{ width: 'clamp(0.5rem, 4vw, 2rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
-        <span className={`absolute -bottom-6 text-xs font-medium transition-all duration-500 ${
+        <Trophy style={{ width: 'clamp(0.4rem, 3vw, 1.5rem)', height: 'clamp(0.75rem, 3vw, 1.2rem)' }} />
+        <span className={`absolute -bottom-5 text-xs font-medium transition-all duration-500 ${
           darkMode ? 'text-white' : 'text-gray-900'
         }`}>{t('herosection.coaching')}</span>
       </button>
@@ -376,17 +376,17 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         } ${
           darkMode
             ? 'bg-gray-800 text-white border border-white/30'
-            : 'bg-white text-gray-900 border border-black/30'
+            : 'bg-gradient-to-br from-green-50 via-white to-emerald-50 text-gray-900 border border-black/50 shadow-xl'
         }`}
         style={{
-         width: 'clamp(1rem, 10vw, 4rem)',
-          height: 'clamp(1rem, 10vw, 4rem)',
+         width: 'clamp(0.75rem, 8vw, 3rem)',
+          height: 'clamp(0.75rem, 8vw, 3rem)',
           animationDelay: hasAnimationStarted ? '0.6s' : '0s',
           animationFillMode: 'both'
         }}
       >
-        <Users style={{ width: 'clamp(0.5rem, 4vw, 2rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
-        <span className={`absolute -bottom-6 text-xs font-medium transition-all duration-500 ${
+        <Users style={{ width: 'clamp(0.4rem, 3vw, 1.5rem)', height: 'clamp(0.75rem, 3vw, 1.2rem)' }} />
+        <span className={`absolute -bottom-5 text-xs font-medium transition-all duration-500 ${
           darkMode ? 'text-white' : 'text-gray-900'
         }`}>{t('herosection.gains')}</span>
       </button>
@@ -399,17 +399,17 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         } ${
           darkMode
             ? 'bg-gray-800 text-white border border-white/30'
-            : 'bg-white text-gray-900 border border-black/30'
+            : 'bg-gradient-to-br from-purple-50 via-white to-pink-50 text-gray-900 border border-black/50 shadow-xl'
         }`}
         style={{
-         width: 'clamp(1rem, 10vw, 4rem)',
-          height: 'clamp(1rem, 10vw, 4rem)',
+         width: 'clamp(0.75rem, 8vw, 3rem)',
+          height: 'clamp(0.75rem, 8vw, 3rem)',
           animationDelay: hasAnimationStarted ? '0.8s' : '0s',
           animationFillMode: 'both'
         }}
       >
-        <Gamepad2 style={{ width: 'clamp(0.5rem, 4vw, 2rem)', height: 'clamp(1rem, 4vw, 1.5rem)' }} />
-        <span className={`absolute -bottom-6 text-xs font-medium transition-all duration-500 ${
+        <Gamepad2 style={{ width: 'clamp(0.4rem, 3vw, 1.5rem)', height: 'clamp(0.75rem, 3vw, 1.2rem)' }} />
+        <span className={`absolute -bottom-5 text-xs font-medium transition-all duration-500 ${
           darkMode ? 'text-white' : 'text-gray-900'
         }`}>{t('herosection.games')}</span>
       </button>
@@ -461,7 +461,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   contain: 'layout size'
                 }}
               >
-                {/* GymBros Section - Card Design - Reduced size */}
+                {/* GymBros Section - Card Design - Increased size for PC */}
                 <div
                   className={`flex flex-col min-h-0 transition-all duration-800 box-border px-2 overflow-hidden ${
                     hasAnimationStarted
@@ -471,48 +471,16 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                   style={{
                     animationDelay: hasAnimationStarted ? '0.3s' : '0s',
                     animationFillMode: 'both',
-                    flexBasis: '30%', // Reduced from 40% to 30%
+                    flexBasis: 'clamp(30%, 45%, 50%)', // Responsive from 30% mobile to 50% desktop
                     flexGrow: 0,
                     flexShrink: 1,
                     minHeight: 0,
-                    maxHeight: '30%', // Added explicit max height
+                    maxHeight: 'clamp(30%, 45%, 50%)', // Responsive max height
                     position: 'relative',
                     contain: 'layout size'
                   }}
                 >
-                  {(!gymBrosData?.hasProfile || (gymBrosData?.hasProfile && (!gymBrosData.recentMatches || gymBrosData.recentMatches.length === 0))) && !gymBrosLoading && (
-                    <div className="absolute inset-0 z-0 overflow-hidden rounded-2xl pointer-events-none">
-                      {/* Animated, vibrant conic gradient background for both light and dark mode, always in the background, with !important */}
-                      <div
-                        className={`absolute inset-0 w-full h-full animate-gradient-move z-0`}
-                        style={{
-                          background: darkMode
-                            ? 'conic-gradient(at top left, #7c3aed 0%, #06b6d4 25%, #f59e42 50%, #f43f5e 75%, #7c3aed 100%)'
-                            : 'conic-gradient(at top left, #f472b6 0%, #60a5fa 25%, #34d399 50%, #fbbf24 75%, #f472b6 100%)',
-                          opacity: 0.9,
-                          filter: 'blur(2px)',
-                          backgroundSize: '200% 200%',
-                          animation: 'gradient-move 8s ease-in-out infinite',
-                          pointerEvents: 'none',
-                          zIndex: 0,
-                          // Add !important to background and filter
-                          backgroundImage: `$${darkMode ? 'conic-gradient(at top left, #7c3aed 0%, #06b6d4 25%, #f59e42 50%, #f43f5e 75%, #7c3aed 100%)' : 'conic-gradient(at top left, #f472b6 0%, #60a5fa 25%, #34d399 50%, #fbbf24 75%, #f472b6 100%)'} !important`,
-                          filter: 'blur(2px) !important',
-                        }}
-                      ></div>
-                      <style>{`
-                        @keyframes gradient-move {
-                          0% { background-position: 0% 50%; }
-                          50% { background-position: 100% 50%; }
-                          100% { background-position: 0% 50%; }
-                        }
-                        .animate-gradient-move {
-                          background-size: 200% 200%;
-                          animation: gradient-move 8s ease-in-out infinite;
-                        }
-                      `}</style>
-                    </div>
-                  )}
+
                   {gymBrosLoading ? (
                     <div className={`flex-1 rounded-2xl p-4 pt-12 flex items-center justify-center shadow-xl border-2 relative overflow-hidden ${darkMode ? 'border-white/30' : 'border-black/30'}`}>
                       {/* Animated, vibrant gradient background for loading state */}
@@ -671,46 +639,90 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
                         </div>
                       )}
                     </div>                  ) : (
-  <div className="flex-1 rounded-2xl p-3 sm:p-4 mt-1 flex flex-col shadow-2xl border-2 relative overflow-hidden transition-all duration-500 hover:scale-[1.02] group"
-       style={{
-         background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 15%, #4338ca 35%, #7c3aed 55%, #c2410c 75%, #ea580c 90%, #fb923c 100%)',
-         borderImage: 'linear-gradient(135deg, #60a5fa, #a855f7, #f97316) 1',
-         borderColor: 'transparent'
-       }}>
+  <div 
+    className="flex-1 rounded-2xl p-3 sm:p-4 mt-1 flex flex-col shadow-2xl relative overflow-hidden transition-all duration-500 hover:scale-[1.009] group cursor-pointer"
+    style={{
+      background: darkMode 
+        ? 'linear-gradient(135deg, #1e293b 0%, #334155 20%, #475569 40%, #64748b 60%, #374151 80%, #1f2937 100%)'
+        : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 20%, #cbd5e1 40%, #94a3b8 60%, #64748b 80%, #475569 100%)',
+      borderColor: 'transparent'
+    }}
+    onClick={(e) => {
+      // Don't redirect if clicking on the info button, dialog content, or any interactive elements
+      if (!e.target.closest('[data-dialog-trigger]') && 
+          !e.target.closest('[data-radix-dialog-content]') &&
+          !e.target.closest('[data-radix-dialog-overlay]') &&
+          !e.target.closest('button') &&
+          !e.target.closest('[role="dialog"]')) {
+        window.location.href = '/gymbros';
+      }
+    }}
+  >
     
-    {/* Floating Bubble Images */}
+    {/* Subtle floating bubbles - reduced opacity and professional colors */}
     <div className="absolute inset-0 overflow-hidden rounded-2xl">
-      <img src="/bubble1.png" alt="bubble" className="absolute opacity-20 animate-float-1" style={{ top: '15%', left: '5%', width: '32px', height: '32px' }} />
-      <img src="/bubble2.png" alt="bubble" className="absolute opacity-15 animate-float-2" style={{ top: '70%', left: '85%', width: '24px', height: '24px' }} />
-      <img src="/bubble3.png" alt="bubble" className="absolute opacity-25 animate-float-3" style={{ top: '85%', left: '15%', width: '28px', height: '28px' }} />
-      <img src="/bubble4.png" alt="bubble" className="absolute opacity-20 animate-float-4" style={{ top: '35%', left: '75%', width: '20px', height: '20px' }} />
-      <img src="/bubble5.png" alt="bubble" className="absolute opacity-15 animate-float-1" style={{ top: '50%', left: '20%', width: '24px', height: '24px', animationDelay: '2s' }} />
+      <div className="absolute opacity-8 animate-float-1 w-4 h-4 bg-slate-300/20 rounded-full blur-sm" style={{ top: '15%', left: '5%' }} />
+      <div className="absolute opacity-6 animate-float-2 w-3 h-3 bg-slate-400/15 rounded-full blur-sm" style={{ top: '70%', left: '85%' }} />
+      <div className="absolute opacity-10 animate-float-3 w-3.5 h-3.5 bg-slate-200/25 rounded-full blur-sm" style={{ top: '85%', left: '15%' }} />
+      <div className="absolute opacity-8 animate-float-4 w-2.5 h-2.5 bg-slate-300/20 rounded-full blur-sm" style={{ top: '35%', left: '75%' }} />
+      
+      {/* Additional professional floating elements */}
+      <div className="absolute opacity-12 animate-float-1 w-3 h-3 bg-blue-gray-400/25 rounded-full blur-sm" style={{ top: '25%', left: '90%', animationDelay: '0.5s' }} />
+      <div className="absolute opacity-10 animate-float-2 w-2 h-2 bg-slate-500/20 rounded-full blur-sm" style={{ top: '60%', left: '10%', animationDelay: '1s' }} />
+      <div className="absolute opacity-14 animate-float-3 w-4 h-4 bg-gray-400/30 rounded-full blur-sm" style={{ top: '5%', left: '60%', animationDelay: '1.5s' }} />
+      <div className="absolute opacity-11 animate-float-4 w-2.5 h-2.5 bg-slate-400/25 rounded-full blur-sm" style={{ top: '95%', left: '70%', animationDelay: '2s' }} />
+      
+      <div className="absolute opacity-13 animate-float-1 w-3.5 h-3.5 bg-blue-gray-300/28 rounded-full blur-sm" style={{ top: '45%', left: '3%', animationDelay: '2.5s' }} />
+      <div className="absolute opacity-9 animate-float-2 w-2 h-2 bg-slate-600/22 rounded-full blur-sm" style={{ top: '80%', left: '50%', animationDelay: '3s' }} />
+      <div className="absolute opacity-11 animate-float-3 w-4.5 h-4.5 bg-gray-500/26 rounded-full blur-sm" style={{ top: '10%', left: '30%', animationDelay: '3.5s' }} />
+      <div className="absolute opacity-7 animate-float-4 w-2.5 h-2.5 bg-slate-400/22 rounded-full blur-sm" style={{ top: '55%', left: '95%', animationDelay: '4s' }} />
     </div>
 
-    {/* Info Button - Enhanced */}
+    {/* Info Button - Enhanced with professional styling */}
     <Dialog>
       <DialogTrigger asChild>
-        <button className="absolute top-2 right-2 z-20 p-2 rounded-full transition-all duration-300 hover:scale-110 backdrop-blur-sm hover:shadow-xl transform hover:rotate-12 group-hover:animate-bounce-subtle"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.8), rgba(139, 92, 246, 0.8), rgba(249, 115, 22, 0.6))',
-                  boxShadow: '0 0 20px rgba(59, 130, 246, 0.5), 0 0 40px rgba(139, 92, 246, 0.3)'
-                }}
-                title="What is GymBros?">
+        <button 
+          className="absolute top-2 right-2 z-20 p-2 rounded-full transition-all duration-300 hover:scale-110 backdrop-blur-sm hover:shadow-xl transform hover:rotate-12 group-hover:animate-bounce-subtle"
+          data-dialog-trigger="true"
+          style={{
+            background: darkMode 
+              ? 'linear-gradient(135deg, rgba(71, 85, 105, 0.8), rgba(100, 116, 139, 0.8), rgba(148, 163, 184, 0.6))'
+              : 'linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(51, 65, 85, 0.8), rgba(71, 85, 105, 0.6))',
+            boxShadow: darkMode 
+              ? '0 0 20px rgba(100, 116, 139, 0.5), 0 0 40px rgba(148, 163, 184, 0.3)'
+              : '0 0 20px rgba(30, 41, 59, 0.5), 0 0 40px rgba(51, 65, 85, 0.3)'
+          }}
+          title="What is GymBros?"
+        >
           <Info className="w-4 h-4 text-white drop-shadow-lg" />
         </button>
       </DialogTrigger>
       
-      <DialogContent className="max-w-lg shadow-2xl backdrop-blur-sm sm:top-1/2 top-[55%] sm:translate-y-[-50%] translate-y-[-50%] border-2"
-                     style={{
-                       background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 20%, #4338ca 40%, #7c3aed 60%, #c2410c 80%, #ea580c 100%)',
-                       borderImage: 'linear-gradient(135deg, #60a5fa, #a855f7, #f97316) 1',
-                       borderColor: 'transparent'
-                     }}>
+      <DialogContent 
+        className="max-w-lg shadow-2xl backdrop-blur-sm sm:top-1/2 top-[55%] sm:translate-y-[-50%] translate-y-[-50%] border-2"
+        data-radix-dialog-content="true"
+        style={{
+          background: darkMode 
+            ? 'linear-gradient(135deg, #1e293b 0%, #334155 20%, #475569 40%, #64748b 60%, #374151 80%, #1f2937 100%)'
+            : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 20%, #cbd5e1 40%, #94a3b8 60%, #64748b 80%, #475569 100%)',
+          borderImage: darkMode 
+            ? 'linear-gradient(135deg, #64748b, #94a3b8, #cbd5e1) 1'
+            : 'linear-gradient(135deg, #475569, #64748b, #94a3b8) 1',
+          borderColor: 'transparent'
+        }}>
         <DialogHeader className="text-center pb-4">
-          <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-200 via-purple-200 to-orange-200 bg-clip-text text-transparent animate-shimmer">
+          <DialogTitle className="text-2xl font-bold animate-shimmer"
+                       style={{
+                         background: darkMode 
+                           ? 'linear-gradient(135deg, #e2e8f0, #cbd5e1, #94a3b8)'
+                           : 'linear-gradient(135deg, #1e293b, #334155, #475569)',
+                         backgroundClip: 'text',
+                         WebkitBackgroundClip: 'text',
+                         color: 'transparent'
+                       }}>
             🏋️ GymBros Network
           </DialogTitle>
-          <DialogDescription className="text-base text-gray-200 mt-2">
+          <DialogDescription className={`text-base mt-2 ${darkMode ? 'text-gray-200' : 'text-gray-600'}`}>
             Your fitness community awaits! Connect, train, and grow together.
           </DialogDescription>
         </DialogHeader>
@@ -831,54 +843,176 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
       </DialogContent>
     </Dialog>
 
-    {/* Main Content */}
-    <div className="flex flex-col items-center justify-center h-full py-1 sm:py-2 relative z-10">
-      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center mb-1 shadow-lg animate-pulse-ring"
-           style={{
-             background: 'linear-gradient(135deg, #3b82f6, #8b5cf6, #f97316)',
-             boxShadow: '0 0 25px rgba(59, 130, 246, 0.6), 0 0 50px rgba(139, 92, 246, 0.4)'
-           }}>
-        <Users className="w-4 h-4 sm:w-4 sm:h-4 text-white drop-shadow-lg" />
+    {/* Main Content - Enhanced Onboarding Experience */}
+    <div className="flex flex-col h-full py-1 sm:py-2 relative z-10">
+      {/* Title: Swipe and Thrive! */}
+      <div className="text-center mb-2">
+        <h4 className="font-bold animate-shimmer"
+            style={{
+              fontSize: 'clamp(10px, 2vw, 18px)',
+              background: darkMode
+                ? 'linear-gradient(135deg, #e2e8f0, #cbd5e1, #94a3b8)'
+                : 'linear-gradient(135deg, #1e293b, #334155, #475569)',
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              color: 'transparent',
+              backgroundSize: '200% auto'
+            }}>
+          ✨ Swipe and Thrive! ✨
+        </h4>
       </div>
-      <p className="text-xs font-medium text-center mb-1 text-white drop-shadow-md animate-fade-in-up">
-        Connect with GymBros
-      </p>
-      <button
-        onClick={() => window.location.href = '/gymbros'}
-        className="text-xs py-1 px-3 rounded-full font-semibold transition-all duration-300 hover:scale-105 text-white animate-rainbow-border hover:animate-bounce-subtle"
-        style={{
-          background: 'linear-gradient(135deg, #3b82f6, #8b5cf6, #f97316)',
-          boxShadow: '0 0 20px rgba(59, 130, 246, 0.5), 0 0 40px rgba(139, 92, 246, 0.3)'
-        }}>
-        {t('gymBrosNetwork.getStarted')}
-      </button>
+      
+      {/* Middle: Mini swipeable cards preview (blurred for anonymity) */}
+      <div className="flex-1 flex items-center justify-center mb-2">
+        
+        <div className="flex gap-1 items-center justify-center perspective-1000" style={{ height: '100%' }}>
+          {/* Sample preview cards - blurred for anonymity - responsive sizing */}
+          {[
+            { name: 'Alex', image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=600&fit=crop&crop=face' },
+            { name: 'Sarah', image: 'https://images.unsplash.com/photo-1594736797933-d0401ba2fe65?w=400&h=600&fit=crop&crop=face' },
+            { name: 'Mike', image: 'https://images.unsplash.com/photo-1583341612074-ccea5cd64f6a?w=400&h=600&fit=crop&crop=face' },
+            { name: 'Emma', image: 'https://images.unsplash.com/photo-1548690312-e3b507d8c110?w=400&h=600&fit=crop&crop=face' }
+          ].map((user, index) => (
+            <div
+              key={index}
+              className={`relative rounded-lg overflow-hidden transition-all duration-500 hover:scale-105 animate-slide-in-stagger group-hover:animate-subtle-sway`}
+              style={{
+                // Height-based responsive sizing optimized for high-resolution PC screens
+                height: 'clamp(24px, 65%, 64px)',          // Increased from 60% to 65% and max from 48px to 64px
+                width: 'auto',                             // Auto width based on aspect ratio
+                aspectRatio: '3 / 4',                      // Maintain card aspect ratio (closer to original 24x32)
+                minWidth: '18px',                          // Minimum width for very small containers
+                maxWidth: 'clamp(36px, 10vw, 56px)',       // Increased max width for high-res screens: 36px->56px
+                transform: `translateX(${index * -8}px) rotateY(${index * 5}deg) rotateZ(${(index % 2) * 3 - 1.5}deg)`,
+                zIndex: 4 - index,
+                animationDelay: `${index * 0.1}s`,
+                filter: 'blur(2px)',                       // Anonymizing blur
+                opacity: 0.9 - (index * 0.1)
+              }}
+            >
+              <img
+                src={user.image}
+                alt="Preview"
+                className="w-full h-full object-cover"
+                style={{
+                  filter: 'blur(1px) brightness(1.1)', // Additional blur for anonymity
+                }}
+              />
+              {/* Subtle overlay to enhance anonymity */}
+              <div className="absolute inset-0 bg-white/10"></div>
+              
+              {/* Online indicator - responsive sizing */}
+              <div 
+                className="absolute bg-green-400 rounded-full animate-pulse shadow-sm"
+                style={{
+                  top: 'clamp(1px, 2%, 3px)',
+                  right: 'clamp(1px, 2%, 3px)',
+                  width: 'clamp(4px, 15%, 10px)',           // Increased responsive indicator size
+                  height: 'clamp(4px, 15%, 10px)'
+                }}
+              ></div>
+            </div>
+          ))}
+          
+          {/* Swipe indicator - responsive sizing */}
+          <div className="ml-2 flex items-center">
+            <div 
+              className="bg-white/60 rounded-full animate-pulse"
+              style={{
+                width: 'clamp(12px, 25%, 28px)',          // Increased responsive swipe line width
+                height: 'clamp(1.5px, 3%, 4px)'           // Increased responsive swipe line height
+              }}
+            ></div>
+            <div 
+              className="text-white/80 ml-1 animate-bounce-subtle"
+              style={{
+                fontSize: 'clamp(8px, 1.5vw, 18px)'       // Increased responsive arrow font size
+              }}
+            >→</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom: Animated CTA with countdown feel */}
+      <div className="text-center">
+        <button
+          onClick={() => window.location.href = '/gymbros'}
+          className="relative rounded-xl font-bold text-white transition-all duration-300 hover:scale-105 transform animate-rainbow-border hover:animate-bounce-subtle overflow-hidden group-hover:shadow-2xl"
+          style={{
+            background: darkMode 
+              ? 'linear-gradient(135deg, #475569, #64748b, #94a3b8)'
+              : 'linear-gradient(135deg, #1e293b, #334155, #475569)',
+            boxShadow: darkMode 
+              ? '0 0 20px rgba(71, 85, 105, 0.5), 0 0 40px rgba(100, 116, 139, 0.3)'
+              : '0 0 20px rgba(30, 41, 59, 0.5), 0 0 40px rgba(51, 65, 85, 0.3)',
+            // Responsive padding and font size - smaller for low-resolution PCs
+            padding: 'clamp(6px, 1.5vw, 8px) clamp(12px, 3vw, 16px)',
+            fontSize: 'clamp(9px, 1.2vw, 12px)'
+          }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+          <span className="relative flex items-center justify-center gap-2">
+            <span className="animate-pulse">⚡</span>
+            Swipe Nearby Fit Fanatics
+            <span className="animate-pulse">⚡</span>
+          </span>
+        </button>
+        {/* Additional micro-copy */}
+        <p className="mt-1 animate-fade-in-delayed"
+           style={{
+             fontSize: 'clamp(8px, 1vw, 11px)',           // Responsive micro-copy text size
+             color: darkMode ? 'rgba(226, 232, 240, 0.7)' : 'rgba(30, 41, 59, 0.7)'
+           }}>
+          Join thousands finding their perfect workout partner
+        </p>
+      </div>
     </div>
 
     {/* CSS Animations */}
     <style jsx>{`
-
-      
       @keyframes float-1 {
         0%, 100% { transform: translateY(0px) translateX(0px); }
-        33% { transform: translateY(-10px) translateX(5px); }
-        66% { transform: translateY(5px) translateX(-3px); }
+        33% { transform: translateY(-8px) translateX(3px); }
+        66% { transform: translateY(4px) translateX(-2px); }
       }
       
       @keyframes float-2 {
         0%, 100% { transform: translateY(0px) translateX(0px); }
-        25% { transform: translateY(8px) translateX(-6px); }
-        75% { transform: translateY(-6px) translateX(4px); }
+        25% { transform: translateY(6px) translateX(-4px); }
+        75% { transform: translateY(-4px) translateX(3px); }
       }
       
       @keyframes float-3 {
         0%, 100% { transform: translateY(0px) translateX(0px); }
-        50% { transform: translateY(-12px) translateX(8px); }
+        50% { transform: translateY(-8px) translateX(5px); }
       }
       
       @keyframes float-4 {
         0%, 100% { transform: translateY(0px) translateX(0px); }
-        40% { transform: translateY(6px) translateX(-4px); }
-        80% { transform: translateY(-8px) translateX(6px); }
+        40% { transform: translateY(4px) translateX(-3px); }
+        80% { transform: translateY(-6px) translateX(4px); }
+      }
+      
+      @keyframes slide-in-stagger {
+        0% { opacity: 0; transform: translateY(10px) scale(0.8); }
+        100% { opacity: 0.9; transform: translateY(0) scale(1); }
+      }
+      
+      @keyframes subtle-sway {
+        0%, 100% { transform: translateX(0) rotateZ(0deg); }
+        25% { transform: translateX(1px) rotateZ(1deg); }
+        75% { transform: translateX(-1px) rotateZ(-1deg); }
+      }
+      
+      @keyframes counter {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); color: #fbbf24; }
+        100% { transform: scale(1); }
+      }
+      
+      @keyframes fade-in-delayed {
+        0% { opacity: 0; transform: translateY(5px); }
+        100% { opacity: 0.7; transform: translateY(0); }
       }
       
       @keyframes shimmer {
@@ -911,7 +1045,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
       
       @keyframes bounce-subtle {
         0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-5px); }
+        50% { transform: translateY(-2px); }
       }
       
       @keyframes fade-in-up {
@@ -929,10 +1063,18 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         to { opacity: 1; transform: translateX(0); }
       }
       
-      .animate-float-1 { animation: float-1 6s ease-in-out infinite; }
-      .animate-float-2 { animation: float-2 8s ease-in-out infinite; }
-      .animate-float-3 { animation: float-3 7s ease-in-out infinite; }
-      .animate-float-4 { animation: float-4 5s ease-in-out infinite; }
+      .perspective-1000 { perspective: 1000px; }
+      .animate-float-1 { animation: float-1 4s ease-in-out infinite; }
+      .animate-float-2 { animation: float-2 5s ease-in-out infinite; }
+      .animate-float-3 { animation: float-3 4.5s ease-in-out infinite; }
+      .animate-float-4 { animation: float-4 3.5s ease-in-out infinite; }
+      .animate-slide-in-stagger { animation: slide-in-stagger 0.6s ease-out forwards; }
+      .animate-subtle-sway { animation: subtle-sway 3s ease-in-out infinite; }
+      .animate-counter { animation: counter 2s ease-in-out infinite; }
+      .animate-fade-in-delayed { 
+        animation: fade-in-delayed 1s ease-out 0.5s forwards;
+        opacity: 0;
+      }
       .animate-shimmer { 
         background-size: 200% auto;
         animation: shimmer 3s linear infinite; 
@@ -950,7 +1092,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
 )}
                 </div>
                
-{/* Featured Products Section */}
+{/* Featured Products Section - Reduced to accommodate larger GymBros */}
 <div
   className={`space-y-2 sm:space-y-3 flex flex-col min-h-0 transition-all duration-800 ${
     hasAnimationStarted
@@ -960,7 +1102,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   style={{
     animationDelay: hasAnimationStarted ? '0.5s' : '0s',
     animationFillMode: 'both',
-    flexBasis: '60%',
+    flexBasis: 'clamp(50%, 55%, 70%)', // Responsive from 50% mobile to 70% desktop
     flexGrow: 1,
     flexShrink: 1,
     minHeight: 0,
@@ -1003,9 +1145,9 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
     className="flex flex-row gap-4 h-full p-2 pt-0" 
     style={{ 
       height: 'calc(100% - 8px)',
-      // Fix for iOS - use explicit width calculation
-      width: `${featuredProducts.length * 180 + (featuredProducts.length - 1) * 16 + 16}px`,
-      minWidth: '100%'
+      // Dynamic width calculation - let cards size themselves based on available height
+      minWidth: '100%',
+      width: 'max-content'               // Let content determine width
     }}
   >
 {featuredProducts.map((product) => {
@@ -1018,12 +1160,14 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
       className={`bg-white dark:bg-gray-900 rounded-xl shadow-lg border-2 ${darkMode ? 'border-gray-950/60 hover:border-blue-500/100' : 'border-gray-950/60 hover:border-blue-400/70'} hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer group relative overflow-hidden`}
       onClick={() => navigate(`/product/${product.id}`)}
       style={{
-        // REMOVE aspect-ratio and use fixed dimensions
+        // Height-based responsive sizing
         flex: '0 0 auto',
-        width: '140px',        // Fixed width for iOS
-        height: '200px',       // Fixed height for iOS
-        minWidth: '140px',     // Ensure minimum width
-        maxWidth: '140px',     // Ensure maximum width
+        height: '100%',                    // Take full container height
+        width: 'auto',                     // Auto width based on aspect ratio
+        aspectRatio: '7 / 10',             // Maintain card aspect ratio
+        minWidth: '100px',                 // Minimum width for very small containers
+        maxWidth: '200px',                 // Maximum width for very large containers
+        minHeight: '120px',                // Minimum height
         contain: 'layout size strict',
         position: 'relative',
         // iOS Safari specific
@@ -1031,11 +1175,11 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         WebkitFlexGrow: 0,
       }}
     >
-      {/* Image container - FIXED HEIGHT instead of percentage */}
+      {/* Image container - Percentage-based height */}
       <div 
         className="relative overflow-hidden bg-gray-50 dark:bg-gray-800 flex-shrink-0 w-full rounded-t-xl"
         style={{ 
-          height: '120px',     // Fixed height instead of 60%
+          height: '60%',                   // Use percentage of card height
           width: '100%',
           contain: 'layout size strict',
           position: 'relative',
@@ -1092,16 +1236,16 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
         </div>
       </div>
       
-      {/* Content container - FIXED HEIGHT */}
+      {/* Content container - Percentage-based height */}
       <div 
         className="flex flex-col p-2 overflow-hidden relative"
         style={{ 
-          height: '80px',        // Fixed height (200px total - 120px image)
+          height: '40%',                   // Use percentage of card height (100% - 60% image)
           contain: 'layout size strict',
           position: 'relative'
         }}
       >
-        {/* Product name - adjusted for smaller space */}
+        {/* Product name - responsive font sizing */}
         <h4
           className={`font-semibold leading-tight ${
             darkMode ? 'text-white' : 'text-gray-900'
@@ -1113,9 +1257,9 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
             overflow: 'hidden',
             wordWrap: 'break-word',
             overflowWrap: 'break-word',
-            fontSize: '12px',       // Smaller font for compact card
-            lineHeight: '1.2',
-            maxHeight: '28.8px',    // 2 lines max
+            fontSize: 'clamp(10px, 1.2vw, 14px)',    // Responsive font size
+            lineHeight: '1.1',
+            maxHeight: '2.2em',                      // 2 lines max
             marginBottom: '4px',
             flex: '1 1 auto'
           }}
@@ -1124,16 +1268,17 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
           {product.name}
         </h4>
         
-        {/* Price section - fixed at bottom */}
+        {/* Price section - responsive positioning */}
         <div 
           className="flex items-center justify-end mt-auto"
           style={{ 
-            height: '18px',
+            height: 'auto',                          // Auto height
+            minHeight: '16px',                       // Minimum height
             flexShrink: 0,
             position: 'absolute',
-            bottom: '8px',
-            right: '8px',
-            left: '8px'
+            bottom: '6px',
+            right: '6px',
+            left: '6px'
           }}
         >
           {price.discounted ? (
@@ -1141,7 +1286,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               <span 
                 className="font-bold text-red-600 dark:text-red-400"
                 style={{ 
-                  fontSize: '12px',
+                  fontSize: 'clamp(10px, 1.1vw, 13px)',  // Responsive font
                   lineHeight: '1.1',
                   whiteSpace: 'nowrap'
                 }}
@@ -1151,7 +1296,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
               <span 
                 className="text-gray-400 dark:text-gray-500 line-through"
                 style={{ 
-                  fontSize: '10px',
+                  fontSize: 'clamp(8px, 0.9vw, 11px)',   // Responsive font
                   lineHeight: '1.1',
                   whiteSpace: 'nowrap'
                 }}
@@ -1163,7 +1308,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
             <span 
               className="font-bold text-gray-900 dark:text-white w-full text-right"
               style={{ 
-                fontSize: '12px',
+                fontSize: 'clamp(10px, 1.1vw, 13px)',    // Responsive font
                 lineHeight: '1.1',
                 whiteSpace: 'nowrap'
               }}
