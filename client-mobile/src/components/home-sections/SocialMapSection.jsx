@@ -1,78 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { 
   MapPin, 
-  ArrowRight, 
-  Users, 
-  UserPlus, 
-  Heart, 
-  Zap,
-  Star,
-  Target,
-  ChevronLeft,
-  ChevronRight,
+  ArrowRight,
   Map,
   Sparkles,
-  Trophy,
-  MessageCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import gymBrosService from '../../services/gymbros.service';
 import { formatImageUrl, getFallbackAvatarUrl } from '../../utils/imageUtils';
 import NoMatchesShowcase from './NoMatchesShowcase';
 import MatchesStackedDeck from './MatchesStackedDeck';
+import SocialMapShowcase from './SocialMapShowcase';
 
 const SocialMapSection = ({ onNavigate }) => {
   const [gymBrosData, setGymBrosData] = useState(null);
   const [gymBrosLoading, setGymBrosLoading] = useState(true);
   const [userProfile, setUserProfile] = useState(null);
-  const [currentCardIndex, setCurrentCardIndex] = useState(0);
-  const [isSwipeAnimating, setIsSwipeAnimating] = useState(false);
-  const carouselRef = useRef(null);
-
-  // Sample attraction cards for users without profile
-  const attractionCards = [
-    {
-      id: 1,
-      name: 'Alex M.',
-      age: 24,
-      distance: '0.3 mi',
-      image: '/api/placeholder/400/500',
-      interests: ['Powerlifting', 'CrossFit'],
-      status: '🔥 Just finished leg day',
-      gradient: 'from-orange-400 to-red-500'
-    },
-    {
-      id: 2,
-      name: 'Sarah K.',
-      age: 28,
-      distance: '0.8 mi', 
-      image: '/api/placeholder/400/500',
-      interests: ['Yoga', 'Running'],
-      status: '💪 Looking for workout buddy',
-      gradient: 'from-purple-400 to-pink-500'
-    },
-    {
-      id: 3,
-      name: 'Mike R.',
-      age: 26,
-      distance: '1.2 mi',
-      image: '/api/placeholder/400/500', 
-      interests: ['Bodybuilding', 'Nutrition'],
-      status: '🎯 Training for competition',
-      gradient: 'from-blue-400 to-cyan-500'
-    },
-    {
-      id: 4,
-      name: 'Emma L.',
-      age: 23,
-      distance: '1.5 mi',
-      image: '/api/placeholder/400/500',
-      interests: ['Pilates', 'Dance'],
-      status: '✨ New to the gym scene',
-      gradient: 'from-green-400 to-emerald-500'
-    }
-  ];
 
   useEffect(() => {
     const fetchGymBrosData = async () => {
@@ -166,27 +110,6 @@ const SocialMapSection = ({ onNavigate }) => {
     }
   };
 
-  const nextCard = () => {
-    if (isSwipeAnimating) return;
-    setIsSwipeAnimating(true);
-    setCurrentCardIndex((prev) => (prev + 1) % attractionCards.length);
-    setTimeout(() => setIsSwipeAnimating(false), 300);
-  };
-
-  const prevCard = () => {
-    if (isSwipeAnimating) return;
-    setIsSwipeAnimating(true);
-    setCurrentCardIndex((prev) => (prev - 1 + attractionCards.length) % attractionCards.length);
-    setTimeout(() => setIsSwipeAnimating(false), 300);
-  };
-
-  const scrollCarousel = (direction) => {
-    if (carouselRef.current) {
-      const scrollAmount = direction === 'left' ? -120 : 120;
-      carouselRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-    }
-  };
-
   if (gymBrosLoading) {
     return (
       <motion.div
@@ -209,7 +132,7 @@ const SocialMapSection = ({ onNavigate }) => {
   if (gymBrosData?.hasProfile) {
     return (
       <motion.div
-        className="glass-card rounded-3xl p-6 mb-8 overflow-hidden mt-25"
+        className="glass-card rounded-3xl p-6 mb-8 overflow-hidden mt-30"
         initial={{ y: 30, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.8, duration: 0.6 }}
@@ -218,12 +141,18 @@ const SocialMapSection = ({ onNavigate }) => {
           <h2 className="text-xl md:text-3xl font-bold text-white flex items-center">
             <MapPin className="w-7 h-7 mr-3 text-red-400" />
             Social Map
+            {gymBrosData.recentMatches && gymBrosData.recentMatches.length > 0 && (
+              <span className="text-lg md:text-2xl ml-2 text-white/80">
+                ({gymBrosData.recentMatches.length})
+              </span>
+            )}
           </h2>
           <motion.button
             className="flex items-center text-orange-300 hover:text-orange-200 font-semibold text-sm md:text-base"
             whileHover={{ x: 5 }}
             onClick={() => onNavigate('/gymbros')}
           >
+            {gymBrosData.recentMatches && gymBrosData.recentMatches.length > 0 ? 'Tap to explore' : 'Explore'}
             <ArrowRight className="w-7 h-4 ml-2" />
           </motion.button>
         </div>
@@ -259,156 +188,22 @@ const SocialMapSection = ({ onNavigate }) => {
   // Case 2: User doesn't have GymBros profile - Show attraction cards
   return (
     <motion.div
-      className="glass-card rounded-3xl p-6 mb-8 overflow-hidden relative mt-20"
+      className="glass-card rounded-3xl p-6 mb-8 overflow-hidden relative mt-30"
       initial={{ y: 30, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ delay: 0.8, duration: 0.6 }}
     >
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-4 left-4 w-2 h-2 bg-pink-400 rounded-full animate-pulse opacity-60"></div>
-        <div className="absolute top-12 right-8 w-3 h-3 bg-blue-400 rounded-full animate-bounce opacity-60"></div>
-        <div className="absolute bottom-8 left-12 w-2 h-2 bg-yellow-400 rounded-full animate-ping opacity-60"></div>
-        <div className="absolute bottom-4 right-4 w-1 h-1 bg-green-400 rounded-full animate-pulse opacity-60"></div>
-      </div>
-
-      <div className="relative z-10">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl md:text-3xl font-bold text-white flex items-center">
-            <MapPin className="w-7 h-7 mr-3 text-pink-400" />
-            Social Map
-          </h2>
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-yellow-400 animate-pulse" />
-          </div>
-        </div>
-
-        {/* Main attraction card display */}
-        <div className="relative mb-6">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentCardIndex}
-              initial={{ opacity: 0, x: 100, rotateY: -15 }}
-              animate={{ opacity: 1, x: 0, rotateY: 0 }}
-              exit={{ opacity: 0, x: -100, rotateY: 15 }}
-              transition={{ duration: 0.3 }}
-              className={`bg-gradient-to-br ${attractionCards[currentCardIndex].gradient} p-1 rounded-3xl shadow-2xl`}
-            >
-              <div className="bg-black/20 backdrop-blur-sm rounded-3xl p-6 text-center">
-                <div className="relative w-32 h-32 mx-auto mb-4">
-                  <div className="w-full h-full rounded-full overflow-hidden border-4 border-white/50 shadow-lg">
-                    <img
-                      src={attractionCards[currentCardIndex].image}
-                      alt={attractionCards[currentCardIndex].name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.src = getFallbackAvatarUrl();
-                      }}
-                    />
-                  </div>
-                  <div className="absolute -top-2 -right-2 w-8 h-8 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">
-                    <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                  </div>
-                </div>
-
-                <h3 className="text-white font-bold text-2xl mb-1">
-                  {attractionCards[currentCardIndex].name}
-                </h3>
-                <p className="text-white/80 mb-2">
-                  {attractionCards[currentCardIndex].age} • {attractionCards[currentCardIndex].distance} away
-                </p>
-                
-                <div className="flex justify-center gap-2 mb-4">
-                  {attractionCards[currentCardIndex].interests.map((interest, idx) => (
-                    <span
-                      key={idx}
-                      className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-white text-xs font-medium"
-                    >
-                      {interest}
-                    </span>
-                  ))}
-                </div>
-
-                <p className="text-white/90 text-sm mb-4 font-medium">
-                  {attractionCards[currentCardIndex].status}
-                </p>
-
-                {/* Swipe controls */}
-                <div className="flex justify-center gap-4">
-                  <motion.button
-                    className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-all duration-300"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={prevCard}
-                  >
-                    <ChevronLeft className="w-6 h-6" />
-                  </motion.button>
-                  <motion.button
-                    className="w-14 h-14 bg-pink-500/80 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-pink-500/90 transition-all duration-300"
-                    whileHover={{ scale: 1.1, rotate: 5 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => onNavigate('/gymbros')}
-                  >
-                    <Heart className="w-6 h-6 fill-current" />
-                  </motion.button>
-                  <motion.button
-                    className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-all duration-300"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={nextCard}
-                  >
-                    <ChevronRight className="w-6 h-6" />
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          </AnimatePresence>
-
-          {/* Card indicators */}
-          <div className="flex justify-center gap-2 mt-4">
-            {attractionCards.map((_, index) => (
-              <button
-                key={index}
-                className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                  index === currentCardIndex
-                    ? 'bg-white w-6'
-                    : 'bg-white/40 hover:bg-white/60'
-                }`}
-                onClick={() => setCurrentCardIndex(index)}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* CTA Section */}
-        <div className="text-center">
-          <div className="flex justify-center items-center gap-3 mb-4">
-            <div className="flex -space-x-2">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className={`w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-blue-500 border-2 border-white`}></div>
-              ))}
-            </div>
-            <span className="text-white font-medium">+1,247 members nearby</span>
-          </div>
-
-          <h3 className="text-white font-bold text-xl mb-2">Ready to Connect?</h3>
-          <p className="text-gray-300 mb-6">Join thousands of fitness enthusiasts and find your perfect workout partner!</p>
-
-          <motion.button
-            className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-bold py-4 px-6 rounded-2xl transition-all duration-300 relative overflow-hidden"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => onNavigate('/gymbros')}
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/20 to-pink-400/20 animate-pulse"></div>
-            <span className="relative flex items-center justify-center gap-2">
-              <Trophy className="w-5 h-5" />
-              Start Your GymBros Journey
-              <Zap className="w-5 h-5 animate-bounce" />
-            </span>
-          </motion.button>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl md:text-3xl font-bold text-white flex items-center">
+          <MapPin className="w-7 h-7 mr-3 text-pink-400" />
+          Social Map
+        </h2>
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-yellow-400 animate-pulse" />
         </div>
       </div>
+
+      <SocialMapShowcase onNavigate={onNavigate} />
     </motion.div>
   );
 };

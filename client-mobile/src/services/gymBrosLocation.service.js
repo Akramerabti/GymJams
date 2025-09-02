@@ -215,15 +215,32 @@ class GymBrosLocationService {
   // ✅ KEEP - Backend API Methods
   async updateUserLocationRealtime(locationData) {
     try {
+      console.log('🔄 gymBrosLocationService: Updating real-time location', {
+        locationData,
+        timestamp: new Date().toISOString()
+      });
+      
       const response = await api.post('/gym-bros/realtime/location', {
         locationData
       });
 
+      console.log('✅ gymBrosLocationService: Real-time location updated successfully', response.data);
       return response.data;
     } catch (error) {
-      console.error('Error updating real-time location:', error);
+      console.error('❌ gymBrosLocationService: Error updating real-time location:', {
+        error: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          data: error.config?.data
+        }
+      });
+      
       // Don't throw error for real-time updates to avoid disrupting UX
-      return { success: false, error: error.message };
+      return { success: false, error: error.message, details: error.response?.data };
     }
   }
 

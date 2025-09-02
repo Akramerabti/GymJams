@@ -39,11 +39,19 @@ export const SocketProvider = ({ children }) => {
     lastUpdate: null
   });
   
+  // 🚀 Smart Location Update States
+  const [isAppActive, setIsAppActive] = useState(true);
+  const [isMapActive, setIsMapActive] = useState(false);
+  const [isOnHomePage, setIsOnHomePage] = useState(false);
+  const [isOnCoachingPage, setIsOnCoachingPage] = useState(false);
+  const [userActivity, setUserActivity] = useState('normal'); // 'active', 'normal', 'background'
+  
   const { invalidate } = useGymBrosData();
   const socketRef = useRef(null);
   const mapSubscriptionsRef = useRef(new Set());
   const lastLocationUpdateRef = useRef(null);
   const locationUpdateIntervalRef = useRef(null);
+  const lastActivityRef = useRef(Date.now());
   
   const { user, isAuthenticated } = useAuth();
   
@@ -51,8 +59,93 @@ export const SocketProvider = ({ children }) => {
   const { 
     hasLocationPermission, 
     currentLocation, 
+    updateLocation,
     isInitialized: permissionsInitialized 
   } = usePermissions();
+
+  // 🚀 Smart Update System - Track app and map activity
+  useEffect(() => {
+    // Track app state changes (foreground/background)
+    const handleVisibilityChange = () => {
+      const isVisible = !document.hidden;
+      setIsAppActive(isVisible);
+      lastActivityRef.current = Date.now();
+      
+      console.log('📱 App visibility changed:', isVisible ? 'foreground' : 'background');
+      
+      // Update activity level
+      if (isVisible && isMapActive) {
+        setUserActivity('active');
+      } else if (isVisible) {
+        setUserActivity('normal');
+      } else {
+        setUserActivity('background');
+      }
+    };
+
+    // Track user interactions (mouse, touch, scroll)
+    const handleUserActivity = () => {
+      lastActivityRef.current = Date.now();
+      if (isAppActive) {
+        setUserActivity(isMapActive ? 'active' : 'normal');
+      }
+    };
+
+    // Add event listeners
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('mousedown', handleUserActivity);
+    document.addEventListener('touchstart', handleUserActivity);
+    document.addEventListener('scroll', handleUserActivity);
+    document.addEventListener('keydown', handleUserActivity);
+
+    // Check for inactivity every minute
+    const inactivityChecker = setInterval(() => {
+      const timeSinceActivity = Date.now() - lastActivityRef.current;
+      const isInactive = timeSinceActivity > 5 * 60 * 1000; // 5 minutes of inactivity
+      
+      if (isInactive && userActivity === 'active') {
+        console.log('😴 User inactive for 5+ minutes, reducing location frequency');
+        setUserActivity(isAppActive ? 'normal' : 'background');
+      }
+    }, 60 * 1000); // Check every minute
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('mousedown', handleUserActivity);
+      document.removeEventListener('touchstart', handleUserActivity);
+      document.removeEventListener('scroll', handleUserActivity);
+      document.removeEventListener('keydown', handleUserActivity);
+      clearInterval(inactivityChecker);
+    };
+  }, [isAppActive, isMapActive, userActivity]);
+
+  // 🚀 Helper function to get smart update interval
+  const getUpdateInterval = useCallback(() => {
+    switch (userActivity) {
+      case 'active':   // User actively using map
+        return 1 * 60 * 1000;    // 1 minute
+      case 'normal':   // App open but not actively using map
+        return 3 * 60 * 1000;    // 3 minutes  
+      case 'background': // App in background
+        return 10 * 60 * 1000;   // 10 minutes
+      default:
+        return 5 * 60 * 1000;    // 5 minutes default
+    }
+  }, [userActivity]);
+
+  // 🚀 Function to set map activity (call this from GymBrosMap)
+  const setMapActivityState = useCallback((isActive) => {
+    setIsMapActive(isActive);
+    lastActivityRef.current = Date.now();
+    
+    if (isActive && isAppActive) {
+      setUserActivity('active');
+      console.log('🗺️ Map is now active - increasing location update frequency');
+    } else if (isAppActive) {
+      setUserActivity('normal');
+      console.log('🗺️ Map is now inactive - normal location update frequency');
+    }
+  }, [isAppActive]);
 
   // Initialize socket connection
   useEffect(() => {
@@ -347,10 +440,15 @@ export const SocketProvider = ({ children }) => {
   const updateUserLocation = useCallback((location, accuracy = 'medium') => {
     if (!socketRef.current || !connected || !user) return;
 
-    // More aggressive throttling to prevent spam (max once per 2 minutes)
+    // More aggressive throttling to prevent spam (max once per 5 minutes for home page)
     const now = Date.now();
-    if (lastLocationUpdateRef.current && now - lastLocationUpdateRef.current < 120000) {
-      console.log('📍 Location update skipped (too recent)');
+    const minInterval = isOnHomePage ? 300000 : 120000; // 5 minutes on home, 2 minutes elsewhere
+    if (lastLocationUpdateRef.current && now - lastLocationUpdateRef.current < minInterval) {
+      console.log('📍 Location update skipped (too recent)', {
+        isOnHomePage,
+        minInterval: `${minInterval / 1000}s`,
+        timeSinceLastUpdate: `${(now - lastLocationUpdateRef.current) / 1000}s`
+      });
       return;
     }
 
@@ -440,41 +538,160 @@ export const SocketProvider = ({ children }) => {
     return () => clearInterval(cleanup);
   }, []);
 
-  // 🚀 UPDATED - Use PermissionsContext location for auto-updates
+  // 🚀 SMART - Use PermissionsContext location for adaptive auto-updates
   useEffect(() => {
-    if (!connected || !user || !permissionsInitialized) return;
+    if (!connected || !user || !permissionsInitialized) {
+      console.log('🔄 SocketContext: Skipping location update - not ready', {
+        connected,
+        hasUser: !!user,
+        permissionsInitialized
+      });
+      return;
+    }
 
-    // Only proceed if we have location permission and current location
-    if (!hasLocationPermission || !currentLocation) return;
+    // Only proceed if we have location permission
+    if (!hasLocationPermission) {
+      console.log('🔄 SocketContext: Skipping location update - no permission');
+      return;
+    }
 
     // Function to send location update to socket
-    const sendLocationUpdate = async () => {
+    const sendLocationUpdate = async (forceRefresh = false) => {
       try {
+        // 🚫 Skip location updates when on home or coaching pages
+        if (isOnHomePage || isOnCoachingPage) {
+          console.log('🚫 SocketContext: Skipping location update - on home or coaching page', {
+            isOnHomePage,
+            isOnCoachingPage,
+            forceRefresh
+          });
+          return;
+        }
+
+        console.log('📍 SocketContext: Proceeding with location update (not on restricted pages)', {
+          isOnHomePage,
+          isOnCoachingPage,
+          forceRefresh
+        });
+
+        console.log('📍 SocketContext: Preparing to send location update', {
+          forceRefresh,
+          currentLocation: !!currentLocation,
+          userActivity,
+          updateInterval: getUpdateInterval(),
+          timestamp: new Date().toISOString()
+        });
+        
+        let locationToUse = currentLocation;
+        
+        // Force a fresh location update if requested or if we don't have current location
+        if (forceRefresh || !currentLocation) {
+          console.log('🛰️ SocketContext: Requesting fresh location from PermissionsContext');
+          locationToUse = await updateLocation(true); // Force fresh location
+        }
+        
+        if (!locationToUse) {
+          console.warn('⚠️ SocketContext: No location available after update attempt');
+          return;
+        }
+        
         // Process location for backend compatibility
-        const processedLocation = gymBrosLocationService.processLocationFromPermissions(currentLocation);
+        const processedLocation = gymBrosLocationService.processLocationFromPermissions(locationToUse);
         
         if (processedLocation) {
-          updateUserLocation({
-            lat: processedLocation.lat,
-            lng: processedLocation.lng
-          }, processedLocation.accuracy);
+          console.log('📤 SocketContext: Sending location update', {
+            socketConnected: !!socketRef.current && connected,
+            userActivity,
+            processedLocation: {
+              lat: processedLocation.lat,
+              lng: processedLocation.lng,
+              source: processedLocation.source,
+              accuracy: processedLocation.accuracy,
+              city: processedLocation.city
+            }
+          });
+          
+          // Send to socket if connected
+          if (socketRef.current && connected) {
+            updateUserLocation({
+              lat: processedLocation.lat,
+              lng: processedLocation.lng
+            }, processedLocation.accuracy);
+          }
 
-          // Also sync with backend
-          await gymBrosLocationService.updateUserLocationRealtime(processedLocation);
+          // Also sync with backend API
+          const result = await gymBrosLocationService.updateUserLocationRealtime(processedLocation);
+          
+          if (result.success !== false) {
+            console.log('✅ SocketContext: Location update completed successfully');
+          } else {
+            console.error('❌ SocketContext: Backend location update failed:', result);
+          }
         }
       } catch (error) {
-        console.warn('📍 Socket location update failed:', error.message);
-        // Don't show toast for background sync failures
+        console.error('❌ SocketContext: Location update failed:', {
+          error: error.message,
+          stack: error.stack
+        });
+        // Don't show toast for background sync failures unless it's critical
       }
     };
 
-    // Initial location update (delayed to avoid conflicts)
-    const initialTimeout = setTimeout(() => {
-      sendLocationUpdate();
-    }, 30000); // Wait 30 seconds before first auto-update
+    // Clear existing interval
+    if (locationUpdateIntervalRef.current) {
+      clearInterval(locationUpdateIntervalRef.current);
+      locationUpdateIntervalRef.current = null;
+    }
 
-    // Set up interval for periodic updates (every 10 minutes)
-    locationUpdateIntervalRef.current = setInterval(sendLocationUpdate, 10 * 60 * 1000);
+    // 🚫 Skip location updates completely when on home or coaching pages
+    if (isOnHomePage || isOnCoachingPage) {
+      console.log('🚫 SocketContext: Skipping location update setup - on home or coaching page', {
+        isOnHomePage,
+        isOnCoachingPage
+      });
+      return () => {}; // Return empty cleanup function
+    }
+
+    // Send immediate location update on first connection (with forced refresh)
+    const initialTimeout = setTimeout(() => {
+      // Skip initial location update if on home page or coaching page
+      if (isOnHomePage || isOnCoachingPage) {
+        console.log('📍 SocketContext: Skipping initial location update (on home or coaching page)', {
+          isOnHomePage,
+          isOnCoachingPage
+        });
+        return;
+      }
+      
+      console.log('🚀 SocketContext: Sending initial location update with fresh GPS');
+      sendLocationUpdate(true); // Force fresh location on initial update
+    }, 5000); // Wait 5 seconds for app to stabilize
+
+    // Set up smart interval based on user activity
+    const currentInterval = getUpdateInterval();
+    console.log(`⚡ SocketContext: Setting up smart location updates`, {
+      userActivity,
+      interval: `${currentInterval / 1000}s`,
+      description: userActivity === 'active' ? 'High frequency (map active)' :
+                   userActivity === 'normal' ? 'Normal frequency (app active)' :
+                   'Low frequency (background)'
+    });
+
+    let updateCount = 0;
+    locationUpdateIntervalRef.current = setInterval(() => {
+      updateCount++;
+      // Force refresh more often when user is active
+      const refreshFrequency = userActivity === 'active' ? 2 : 3; // Every 2 updates when active, 3 when normal
+      const shouldForceRefresh = updateCount % refreshFrequency === 0;
+      
+      console.log(`⏰ SocketContext: Smart location update #${updateCount}`, {
+        userActivity,
+        willForceRefresh: shouldForceRefresh,
+        currentInterval: `${currentInterval / 1000}s`
+      });
+      
+      sendLocationUpdate(shouldForceRefresh);
+    }, currentInterval);
 
     return () => {
       clearTimeout(initialTimeout);
@@ -483,7 +700,21 @@ export const SocketProvider = ({ children }) => {
         locationUpdateIntervalRef.current = null;
       }
     };
-  }, [connected, user, permissionsInitialized, hasLocationPermission, currentLocation, updateUserLocation]);
+  }, [connected, user, permissionsInitialized, hasLocationPermission, currentLocation, updateUserLocation, updateLocation, userActivity, getUpdateInterval, isOnHomePage, isOnCoachingPage]);
+
+  // 🏠 Page tracking for smart location updates
+  const setPageState = useCallback((pageName) => {
+    const isHome = pageName === 'home' || pageName === '/';
+    const isCoaching = pageName === 'coaching' || pageName.includes('coaching');
+    setIsOnHomePage(isHome);
+    setIsOnCoachingPage(isCoaching);
+    console.log('📄 SocketContext: Page state updated', { 
+      pageName, 
+      isOnHomePage: isHome,
+      isOnCoachingPage: isCoaching,
+      willSkipLocationUpdates: isHome || isCoaching 
+    });
+  }, []);
 
   const contextValue = {
     socket: socketRef.current,
@@ -495,7 +726,14 @@ export const SocketProvider = ({ children }) => {
     unsubscribeFromMapUpdates,
     updateUserLocation,
     getRealtimeUsers,
-    getRealtimeGyms
+    getRealtimeGyms,
+    // 🚀 Smart location update controls
+    setMapActivityState,
+    setPageState,
+    userActivity,
+    isAppActive,
+    isMapActive,
+    isOnHomePage
   };
 
   return (

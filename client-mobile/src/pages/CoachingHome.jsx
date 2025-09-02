@@ -18,9 +18,11 @@ import subscriptionService from '../services/subscription.service';
 import { getFallbackAvatarUrl } from '../utils/imageUtils';
 import CoachCards from '../components/ui/CoachCards';
 import { useTranslation } from 'react-i18next';
+import { useSocket } from '../SocketContext';
 
 const CoachingHome = () => {
   const navigate = useNavigate();
+  const { setPageState } = useSocket();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const { user } = useAuth();
@@ -164,6 +166,16 @@ const CoachingHome = () => {
     fetchCoaches();
     checkSubscription();
   }, [user, navigate]);
+  
+  // Set page state to skip location updates on coaching page
+  useEffect(() => {
+    setPageState('coaching');
+    
+    // Clean up page state when component unmounts
+    return () => {
+      setPageState('other');
+    };
+  }, [setPageState]);
   
 
   const features = [

@@ -68,7 +68,7 @@ class NotificationService {
       console.log('App resumed');
       this.isAppActive = true;
       // Optional: Clear all local notifications when app is opened
-      LocalNotifications.cancel({ notifications: [] });
+      this.clearNotificationsOnResume();
     });
   }
 
@@ -322,10 +322,20 @@ class NotificationService {
     }
   }
 
+  async clearNotificationsOnResume() {
+    try {
+      // Clear all delivered local notifications when app is resumed
+      await LocalNotifications.removeAllDeliveredNotifications();
+      console.log('Cleared notifications on resume');
+    } catch (error) {
+      console.error('Error clearing notifications on resume:', error);
+    }
+  }
+
   async clearAllNotifications() {
     try {
       await PushNotifications.removeAllDeliveredNotifications();
-      await LocalNotifications.cancel({ notifications: [] });
+      await LocalNotifications.removeAllDeliveredNotifications();
       console.log('All notifications cleared');
     } catch (error) {
       console.error('Error clearing notifications:', error);

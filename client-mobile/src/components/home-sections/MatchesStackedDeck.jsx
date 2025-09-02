@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { useSprings, animated, to as interpolate } from '@react-spring/web';
 import { 
   MapPin, 
   Users, 
@@ -17,37 +17,18 @@ import gymBrosService from '../../services/gymbros.service';
 import { formatImageUrl, getFallbackAvatarUrl } from '../../utils/imageUtils';
 import useAuthStore from '../../stores/authStore';
 import ActiveStatus from '../gymBros/components/ActiveStatus';
+import { motion, AnimatePresence } from 'framer-motion';
+
+import styles from './styles.module.css';
 
 const MatchesStackedDeck = ({ gymBrosData, userProfile, onNavigate, onOpenChat }) => {
   const { user } = useAuthStore();
   const [matches, setMatches] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [newMatches, setNewMatches] = useState([]);
-  const [frontCardIndex, setFrontCardIndex] = useState(0);
-  const [animatingCardIndex, setAnimatingCardIndex] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const currentUserId = user?.id || user?.user?.id;
-
-  // Auto-cycle cards with visible animation
-  useEffect(() => {
-    if (newMatches.length <= 1) return;
-    
-    const interval = setInterval(() => {
-      // Start animation with the next card in the stack
-      const nextCard = (frontCardIndex + 1) % newMatches.length;
-      setAnimatingCardIndex(nextCard);
-      
-      // After animation completes, set it as the new front card
-      setTimeout(() => {
-        setFrontCardIndex(nextCard);
-        setAnimatingCardIndex(null);
-      }, 1800); // Slightly longer to account for the improved animation
-      
-    }, 3000); // Start new cycle every 3 seconds
-    
-    return () => clearInterval(interval);
-  }, [newMatches.length, frontCardIndex]);
 
   useEffect(() => {
     if (gymBrosData?.recentMatches) {
@@ -86,7 +67,7 @@ const MatchesStackedDeck = ({ gymBrosData, userProfile, onNavigate, onOpenChat }
 
       setMatches(matchesData);
       setConversations(conversationsList);
-      setNewMatches(newMatchesList.slice(0, 5)); // Show max 5 in stacked deck
+      setNewMatches(newMatchesList.slice(0, 6)); // Show max 6 in stacked deck
     } catch (error) {
       console.error('Error processing matches:', error);
     } finally {
@@ -112,173 +93,188 @@ const MatchesStackedDeck = ({ gymBrosData, userProfile, onNavigate, onOpenChat }
     }
   };
 
-  // Tinder-style stacked deck component
-  const StackedDeck = () => {
+  // React Spring Deck Component - Auto Left/Right Swiping
+  const SpringStackedDeck = () => {
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [direction, setDirection] = useState(1); // 1 for right, -1 for left
+    
+    // Auto-swipe cards left/right every 3 seconds
+    useEffect(() => {
+      if (newMatches.length === 0) return;
+      
+      // For single card, add subtle breathing animation
+      if (newMatches.length === 1) {
+        const interval = setInterval(() => {
+          setDirection(prev => prev * -1);
+        }, 2000);
+        return () => clearInterval(interval);
+      }
+      
+      // For multiple cards, auto-swipe
+      const interval = setInterval(() => {
+        // Alternate direction: right, left, right, left...
+        setDirection(prev => prev * -1);
+        setCurrentIndex((prevIndex) => (prevIndex + 1) % newMatches.length);
+      }, 3000);
+      
+      return () => clearInterval(interval);
+    }, [newMatches.length]);
+    
     if (newMatches.length === 0) {
       return (
-        <div className="relative h-80 flex items-center justify-center">
+        <div 
+          className="relative h-60 flex items-center justify-center cursor-pointer hover:bg-white/5 rounded-2xl transition-colors"
+          onClick={() => onNavigate('/gymbros')}
+        >
           <div className="text-center">
             <div className="w-20 h-20 mx-auto bg-gradient-to-br from-purple-400/20 to-blue-500/20 rounded-full flex items-center justify-center mb-4">
               <Users className="w-10 h-10 text-purple-400" />
             </div>
             <p className="text-white/80 font-medium">No new matches yet</p>
-            <p className="text-white/60 text-sm">Keep swiping to find connections!</p>
+            <p className="text-white/60 text-sm">Tap to find connections!</p>
           </div>
         </div>
       );
     }
 
+    // Helper functions for card positioning - simulate left/right swipe
+    const to = (i, activeIndex, swipeDirection) => {
+      // Single card case - subtle breathing animation
+      if (newMatches.length === 1) {
+        return {
+          x: 0,
+          y: 0,
+          scale: swipeDirection > 0 ? 1.02 : 0.98,
+          rot: swipeDirection > 0 ? 1 : -1,
+          opacity: 1,
+          zIndex: 100,
+        };
+      }
+      
+      // Multiple cards case - swipe animation
+      const isActive = i === activeIndex;
+      const isPrevious = i === (activeIndex - 1 + newMatches.length) % newMatches.length;
+      const isNext = i === (activeIndex + 1) % newMatches.length;
+      
+      if (isActive) {
+        return {
+          x: 0,
+          y: 0,
+          scale: 1,
+          rot: 0,
+          opacity: 1,
+          zIndex: 100,
+        };
+      } else if (isPrevious) {
+        return {
+          x: swipeDirection > 0 ? -400 : 400, // Slide off to opposite side
+          y: 0,
+          scale: 1,
+          rot: swipeDirection > 0 ? -15 : 15,
+          opacity: 0,
+          zIndex: 50,
+        };
+      } else if (isNext) {
+        return {
+          x: swipeDirection > 0 ? 400 : -400, // Come in from opposite side
+          y: 0,
+          scale: 1,
+          rot: swipeDirection > 0 ? 15 : -15,
+          opacity: 0,
+          zIndex: 50,
+        };
+      } else {
+        return {
+          x: 0,
+          y: -20,
+          scale: 0.9,
+          rot: 0,
+          opacity: 0,
+          zIndex: 10,
+        };
+      }
+    };
+    
+    const from = (_i) => ({ x: 0, rot: 0, scale: 1, y: 0, opacity: 1 });
+    
+    // Transform interpolation
+    const trans = (r, s) =>
+      `perspective(1500px) rotateX(15deg) rotateY(${r / 8}deg) rotateZ(${r}deg) scale(${s})`;
+
+    const [props, api] = useSprings(newMatches.length, i => ({
+      ...to(i, currentIndex, direction),
+      from: from(i),
+    }));
+
+    // Update springs when currentIndex changes
+    useEffect(() => {
+      api.start(i => ({
+        ...to(i, currentIndex, direction),
+        config: newMatches.length === 1 
+          ? { tension: 120, friction: 20 } // Smoother for single card breathing
+          : { tension: 200, friction: 25 }  // Snappier for multiple card swipes
+      }));
+    }, [currentIndex, direction, api, newMatches.length]);
+
     return (
-      <div className="relative h-80 flex items-center justify-center">
-        {newMatches.map((match, index) => {
-          const isFrontCard = index === frontCardIndex;
-          const isAnimatingCard = index === animatingCardIndex;
-          
-          // Calculate stack position (cards behind the front card)
-          let stackPosition = 0;
-          if (index !== frontCardIndex) {
-            // Calculate how far back this card is in the stack
-            if (index > frontCardIndex) {
-              stackPosition = index - frontCardIndex;
-            } else {
-              stackPosition = (newMatches.length - frontCardIndex) + index;
-            }
-          }
-          
-          const baseOffset = stackPosition * 12;
-          const rotationOffset = stackPosition * 2;
-          
-          // Calculate z-index - animating card should always be on top
-          let zIndexValue = 50 - stackPosition;
-          if (isFrontCard) zIndexValue = 100;
-          if (isAnimatingCard) zIndexValue = 1000;
-          
+      <div 
+        className={`${styles.container} cursor-pointer hover:bg-white/5 rounded-2xl transition-colors`}
+        onClick={() => onNavigate('/gymbros')}
+      >
+        {props.map(({ x, y, rot, scale, opacity, zIndex }, i) => {
+          const match = newMatches[i];
+          if (!match) return null;
+
           return (
-            <motion.div
-              key={match._id || index}
-              className="absolute cursor-pointer"
-              style={{ 
-                zIndex: zIndexValue // Use style prop for more reliable z-index control
-              }}
-              animate={{
-                // Enhanced animation: lift high above, move forward, then settle
-                y: isAnimatingCard 
-                  ? [-baseOffset, -120, -80, 0]  // Go higher and with more steps
-                  : isFrontCard ? 0 : -baseOffset,
-                x: isAnimatingCard 
-                  ? [baseOffset, baseOffset * 0.5, baseOffset * 0.2, 0] 
-                  : isFrontCard ? 0 : baseOffset,
-                rotate: isAnimatingCard 
-                  ? [rotationOffset, rotationOffset * 0.3, 0, 0] 
-                  : isFrontCard ? 0 : rotationOffset,
-                scale: isAnimatingCard 
-                  ? [0.9 - (stackPosition * 0.05), 1.15, 1.05, 1] 
-                  : isFrontCard ? 1 : 0.9 - (stackPosition * 0.05),
-              }}
-              transition={{
-                duration: isAnimatingCard ? 1.8 : 0.5,
-                ease: isAnimatingCard ? "easeInOut" : "easeOut",
-                times: isAnimatingCard ? [0, 0.4, 0.7, 1] : undefined
-              }}
-              onClick={() => handleCardClick(match)}
+            <animated.div 
+              className={styles.deck} 
+              key={match._id || i} 
+              style={{ x, y, zIndex }}
             >
-              <div className="w-64 h-80 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-md rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
-                {/* Profile Image */}
-                <div className="relative h-48 overflow-hidden">
-                  <motion.img
-                    src={formatImageUrlHelper(match.profileImage || (match.images && match.images[0]))}
-                    alt={match.name}
-                    className="w-full h-full object-cover"
-                    animate={{
-                      scale: (isFrontCard || isAnimatingCard) ? 1.1 : 1,
-                      transition: { duration: 0.3 }
-                    }}
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = getFallbackAvatarUrl();
-                    }}
-                  />
-                  
-                  {/* Gradient Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                  
-                  {/* Active Status Indicator */}
-                  <div className="absolute top-4 right-4">
-                    <div className="w-4 h-4 bg-green-500 rounded-full border-2 border-white shadow-lg animate-pulse"></div>
+              <animated.div
+                style={{
+                  transform: interpolate([rot, scale], trans),
+                  backgroundImage: `url(${formatImageUrlHelper(match.profileImage || (match.images && match.images[0]))})`,
+                  opacity,
+                }}
+              >
+                {/* Active Status Indicator */}
+                <div className={styles.activeStatus}></div>
+                
+                {/* Card Content Overlay */}
+                <div className={styles.cardContent}>
+                  <div className={styles.cardName}>
+                    {match.name?.split(' ')[0]}
                   </div>
-
-                  {/* Match Badge */}
-                  <motion.div 
-                    className="absolute top-4 left-4 bg-gradient-to-r from-pink-500 to-blue-500 text-white px-3 py-1 rounded-full flex items-center"
-                    animate={{
-                      scale: (isFrontCard || isAnimatingCard) ? [1, 1.1, 1] : 1,
-                      transition: { 
-                        duration: 1, 
-                        repeat: (isFrontCard || isAnimatingCard) ? Infinity : 0,
-                        repeatType: "reverse"
-                      }
-                    }}
-                  >
-                    <Zap className="w-3 h-3 mr-1" />
-                    <span className="text-xs font-bold">NEW</span>
-                  </motion.div>
-                </div>
-
-                {/* Profile Info */}
-                <div className="p-4 bg-gray-700">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-white font-bold text-lg truncate">
-                      {match.name?.split(' ')[0]}, {match.age}
-                    </h3>
-                    <div className="flex items-center text-white/70">
-                      <MapPin className="w-4 h-4 mr-1" />
-                      <span className="text-sm">{match.distance || '1.2'} mi</span>
-                    </div>
+                  <div className={styles.cardAge}>
+                    {match.age} years old
+                  </div>
+                  
+                  <div className={styles.cardInfo}>
+                    <span>
+                      <MapPin size={12} />
+                      {match.distance || '1.2'} mi away
+                    </span>
                   </div>
 
                   {/* Workout Types */}
                   {match.workoutTypes && match.workoutTypes.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      {match.workoutTypes.slice(0, 2).map((type, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2 py-1 bg-blue-500/20 backdrop-blur-sm text-blue-300 rounded-full text-xs font-medium border border-blue-400/30"
-                        >
+                    <div className={styles.workoutTags}>
+                      {match.workoutTypes.slice(0, 3).map((type, idx) => (
+                        <span key={idx} className={styles.workoutTag}>
                           {type}
                         </span>
                       ))}
-                      {match.workoutTypes.length > 2 && (
-                        <span className="px-2 py-1 bg-gray-500/20 backdrop-blur-sm text-gray-300 rounded-full text-xs font-medium border border-gray-400/30">
-                          +{match.workoutTypes.length - 2}
+                      {match.workoutTypes.length > 3 && (
+                        <span className={styles.workoutTag}>
+                          +{match.workoutTypes.length - 3}
                         </span>
                       )}
                     </div>
                   )}
-
-                  {/* Bio Preview */}
-                  {match.bio && (
-                    <p className="text-white/80 text-sm line-clamp-2 mb-3">
-                      {match.bio}
-                    </p>
-                  )}
-
-                  {/* Action Hint */}
-                  <motion.div 
-                    className="flex items-center justify-center text-white/60"
-                    animate={{
-                      opacity: (isFrontCard || isAnimatingCard) ? [0.6, 1, 0.6] : 0.6,
-                      transition: { 
-                        duration: 1.5, 
-                        repeat: (isFrontCard || isAnimatingCard) ? Infinity : 0 
-                      }
-                    }}
-                  >
-                    <Heart className="w-4 h-4 mr-2" />
-                    <span className="text-xs">Click to chat</span>
-                  </motion.div>
                 </div>
-              </div>
-            </motion.div>
+              </animated.div>
+            </animated.div>
           );
         })}
       </div>
@@ -386,38 +382,8 @@ const MatchesStackedDeck = ({ gymBrosData, userProfile, onNavigate, onOpenChat }
 
   return (
     <div className="w-full">
-      {/* Stats Row */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="glass-morphism p-3 rounded-xl text-center">
-          <Users className="w-5 h-5 text-blue-400 mx-auto mb-1" />
-          <p className="text-white font-bold text-lg">{gymBrosData.matchesCount || 0}</p>
-          <p className="text-gray-300 text-xs">Connections</p>
-        </div>
-        <div className="glass-morphism p-3 rounded-xl text-center">
-          <Star className="w-5 h-5 text-yellow-400 mx-auto mb-1" />
-          <p className="text-white font-bold text-lg">{newMatches.length}</p>
-          <p className="text-gray-300 text-xs">New Matches</p>
-        </div>
-        <div className="glass-morphism p-3 rounded-xl text-center">
-          <MessageCircle className="w-5 h-5 text-green-400 mx-auto mb-1" />
-          <p className="text-white font-bold text-lg">{conversations.length}</p>
-          <p className="text-gray-300 text-xs">Active Chats</p>
-        </div>
-      </div>
-
-      {/* New Matches Title */}
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-white font-bold text-lg flex items-center">
-          <Zap className="w-5 h-5 mr-2 text-orange-400" />
-          New Matches
-        </h3>
-        {newMatches.length > 0 && (
-          <p className="text-white/60 text-sm">Hover to preview</p>
-        )}
-      </div>
-
-      {/* Stacked Deck */}
-      <StackedDeck />
+      {/* Spring Stacked Deck */}
+      <SpringStackedDeck />
 
       {/* Messages Section */}
       <MessagesSection />

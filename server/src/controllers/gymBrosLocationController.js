@@ -1063,10 +1063,17 @@ export const updateUserLocationRealtime = async (req, res) => {
     const locationData = req.body.locationData || req.body;
     const { lat, lng, accuracy, source = 'gps', timestamp } = locationData;
 
-    console.log('Received location update:', { lat, lng, accuracy, source, timestamp }); // Debug log
+    console.log('🔄 [updateUserLocationRealtime] Received request:', {
+      body: req.body,
+      locationData,
+      extractedData: { lat, lng, accuracy, source, timestamp },
+      userAgent: req.get('User-Agent'),
+      timestamp: new Date().toISOString()
+    });
 
     // Add validation
     if (!lat || !lng) {
+      console.log('❌ [updateUserLocationRealtime] Missing coordinates:', { lat, lng });
       return res.status(400).json({
         success: false,
         message: 'Latitude and longitude are required'
@@ -1074,31 +1081,71 @@ export const updateUserLocationRealtime = async (req, res) => {
     }
 
     const effectiveUser = getEffectiveUser(req);
+    console.log('👤 [updateUserLocationRealtime] Effective user:', {
+      userId: effectiveUser.userId,
+      profileId: effectiveUser.profileId,
+      phone: effectiveUser.phone,
+      isGuest: !effectiveUser.userId,
+      hasAuth: !!req.user,
+      hasGuestUser: !!req.guestUser
+    });
 
     if (!effectiveUser.userId && !effectiveUser.profileId) {
+      console.log('❌ [updateUserLocationRealtime] No authentication:', effectiveUser);
       return res.status(401).json({
         success: false,
-        message: 'Authentication required'
+        message: 'Authentication required',
+        debug: { effectiveUser }
       });
     }
 
-    // Find user's profile
+    // Find user's profile with enhanced debugging
     let profile;
+    let lookupMethod = '';
+    
     if (effectiveUser.profileId) {
+      lookupMethod = 'profileId';
+      console.log('🔍 [updateUserLocationRealtime] Looking up by profileId:', effectiveUser.profileId);
       profile = await GymBrosProfile.findById(effectiveUser.profileId);
     } else {
+      lookupMethod = 'userId';
+      console.log('🔍 [updateUserLocationRealtime] Looking up by userId:', effectiveUser.userId);
       profile = await GymBrosProfile.findOne({ userId: effectiveUser.userId });
     }
 
+    console.log('📋 [updateUserLocationRealtime] Profile lookup result:', {
+      found: !!profile,
+      lookupMethod,
+      profile: profile ? {
+        _id: profile._id,
+        name: profile.name,
+        userId: profile.userId,
+        currentLocation: profile.location
+      } : null
+    });
+
     if (!profile) {
+      console.log('❌ [updateUserLocationRealtime] Profile not found');
       return res.status(404).json({
         success: false,
-        message: 'Profile not found'
+        message: 'Profile not found',
+        debug: {
+          lookupMethod,
+          effectiveUser,
+          searchCriteria: effectiveUser.profileId || effectiveUser.userId
+        }
       });
     }
 
+    // Store previous location for comparison
+    const previousLocation = profile.location ? {
+      lat: profile.location.lat,
+      lng: profile.location.lng,
+      lastUpdated: profile.location.lastUpdated
+    } : null;
+
     // Update location with proper structure
-    profile.location = {
+    const newLocation = {
       lat: parseFloat(lat),
       lng: parseFloat(lng),
       address: profile.location?.address || '',
@@ -1111,18 +1158,45 @@ export const updateUserLocationRealtime = async (req, res) => {
       lastUpdated: new Date(timestamp || Date.now())
     };
 
+    profile.location = newLocation;
+
+    console.log('💾 [updateUserLocationRealtime] Saving location update:', {
+      profileId: profile._id,
+      previousLocation,
+      newLocation,
+      locationChange: previousLocation ? {
+        latDiff: Math.abs(newLocation.lat - previousLocation.lat),
+        lngDiff: Math.abs(newLocation.lng - previousLocation.lng),
+        timeDiff: newLocation.lastUpdated - (previousLocation.lastUpdated || new Date(0))
+      } : 'first_time'
+    });
+
     await profile.save();
+
+    console.log('✅ [updateUserLocationRealtime] Location updated successfully');
 
     res.json({
       success: true,
-      message: 'Location updated successfully'
+      message: 'Location updated successfully',
+      debug: {
+        profileId: profile._id,
+        locationUpdated: newLocation,
+        previousLocation
+      }
     });
 
   } catch (error) {
-    console.error('Error updating realtime location:', error);
+    console.error('❌ [updateUserLocationRealtime] Error:', {
+      message: error.message,
+      stack: error.stack,
+      requestBody: req.body,
+      timestamp: new Date().toISOString()
+    });
+    
     res.status(500).json({
       success: false,
-      message: 'Error updating location'
+      message: 'Error updating location',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 };

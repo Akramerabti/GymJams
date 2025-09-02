@@ -1,0 +1,112 @@
+.container {
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  height: 280px;
+  justify-content: center;
+  position: relative;
+  user-select: none;
+  border-radius: 16px;
+  transition: background-color 0.3s ease;
+}
+
+.container:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.deck {
+  position: absolute;
+  width: 250px;
+  height: 180px;
+  will-change: transform;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.deck > div {
+  background-color: white;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center center;
+  width: 35vh;
+  max-width: 220px;
+  height: 70vh;
+  max-height: 280px;
+  will-change: transform;
+  border-radius: 16px;
+  box-shadow: 0 12.5px 100px -10px rgba(50, 50, 73, 0.4), 0 10px 10px -10px rgba(50, 50, 73, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.cardContent {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.4), transparent);
+  color: white;
+  padding: 20px;
+  z-index: 2;
+}
+
+.cardName {
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin-bottom: 4px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.cardAge {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  margin-bottom: 8px;
+}
+
+.cardInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.cardInfo span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.activeStatus {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 12px;
+  height: 12px;
+  background-color: #10b981;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  z-index: 3;
+}
+
+.workoutTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.workoutTag {
+  background: rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  color: #a5b4fc;
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 0.65rem;
+  font-weight: 500;
+  backdrop-filter: blur(4px);
+}

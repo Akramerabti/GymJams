@@ -331,23 +331,96 @@ export const PermissionsProvider = ({ children }) => {
     }
   }, [requestLocationPermission, requestCameraPermission, requestFileSystemPermission]);
 
-  // Update current location
-  const updateLocation = useCallback(async () => {
+  // Update current location - ENHANCED with real-time location
+  const updateLocation = useCallback(async (force = false) => {
     if (permissions.location.status !== 'granted') {
+      console.log('🚫 PermissionsContext: Location permission not granted, skipping update');
       return null;
     }
 
     try {
-      const location = await locationService.getBestLocation();
-      setCurrentLocation(location);
-      setLocationError(null);
-      return location;
+      console.log('📍 PermissionsContext: Requesting fresh location update', { force });
+      
+      // Always try to get fresh GPS location if forced or no current location
+      if (force || !currentLocation) {
+        console.log('🛰️ PermissionsContext: Getting fresh GPS location');
+        
+        // Log platform and device info for debugging
+        console.log('🔍 Platform Debug Info:', {
+          isNative,
+          platform: Capacitor.getPlatform(),
+          isVirtualDevice: Capacitor.isPluginAvailable('Device') ? 'checking...' : 'unknown',
+          userAgent: navigator.userAgent,
+          timestamp: new Date().toISOString()
+        });
+        
+        if (isNative) {
+          // Use Capacitor Geolocation for native apps
+          const position = await Geolocation.getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 60000 // Accept 1-minute-old location
+          });
+          
+          const freshLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy || 'high',
+            source: 'gps-native',
+            timestamp: new Date().toISOString(),
+            city: currentLocation?.city || 'Unknown City', // Keep existing city info
+            address: currentLocation?.address || 'Unknown location'
+          };
+          
+
+          
+          console.log('📍 PermissionsContext: Fresh native GPS location obtained', freshLocation);
+          setCurrentLocation(freshLocation);
+          setLocationError(null);
+          
+          // Store the fresh location
+          locationService.storeLocation(freshLocation);
+          return freshLocation;
+          
+        } else {
+          // Use browser geolocation for web
+          const freshLocation = await locationService.getLocationByGPS({
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 60000
+          });
+          
+          console.log('📍 PermissionsContext: Fresh web GPS location obtained', freshLocation);
+          setCurrentLocation(freshLocation);
+          setLocationError(null);
+          
+          // Store the fresh location
+          locationService.storeLocation(freshLocation);
+          return freshLocation;
+        }
+      } else {
+        // Use existing location service logic for non-forced updates
+        console.log('📍 PermissionsContext: Using location service for regular update');
+        const location = await locationService.getBestLocation();
+        setCurrentLocation(location);
+        setLocationError(null);
+        return location;
+      }
     } catch (error) {
-      console.error('Failed to update location:', error);
+      console.error('❌ PermissionsContext: Failed to update location:', error);
       setLocationError(error.message);
+      
+      // Fallback to stored location if available
+      const stored = locationService.getStoredLocation();
+      if (stored) {
+        console.log('📍 PermissionsContext: Using stored location as fallback', stored);
+        setCurrentLocation(stored);
+        return stored;
+      }
+      
       return null;
     }
-  }, [permissions.location.status]);
+  }, [permissions.location.status, currentLocation, isNative]);
 
   // Initialize permissions on app start
   useEffect(() => {

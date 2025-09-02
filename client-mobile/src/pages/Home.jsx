@@ -33,13 +33,26 @@ import {
 } from 'lucide-react';
 
 import SocialMapSection from '../components/home-sections/SocialMapSection';
+import { useSocket } from '../SocketContext';
 
 const Home = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const { balance } = usePoints();
+  const { setPageState } = useSocket();
   
   const [isLoaded, setIsLoaded] = useState(false);
+
+  // Set page state to skip location updates on home page
+  useEffect(() => {
+    setPageState('home');
+    setIsLoaded(true);
+    
+    // Clean up page state when component unmounts
+    return () => {
+      setPageState('other');
+    };
+  }, [setPageState]);
 
   // Remove the problematic auth check useEffect that was causing early returns
   // Let the App-level MobileGatekeeper handle authentication flow instead
@@ -396,11 +409,11 @@ const Home = () => {
             margin-bottom: 60px;
           }
 
-          .menu-btn:nth-child(2) { top: -110px; }
-          .menu-btn:nth-child(3) { top: -35px; left: 96px; }
-          .menu-btn:nth-child(4) { top: 75px; left: 75px; }
-          .menu-btn:nth-child(5) { top: 75px; left: -75px; }
-          .menu-btn:nth-child(6) { top: -35px; left: -96px; }
+          .menu-btn:nth-child(2) { top: 105px; }
+          .menu-btn:nth-child(3) { top: -75px; left: 65px; }
+          .menu-btn:nth-child(4) { top: 30px; left: 90px; }
+          .menu-btn:nth-child(5) { top: 30px; left: -90px; }
+          .menu-btn:nth-child(6) { top: -75px; left: -65px; }
         }
       `}</style>
 
@@ -507,7 +520,7 @@ const Home = () => {
 
         {/* Content */}
         <div className="relative z-10 main-content pb-8">
-          <div className="max-w-6xl mx-auto mt-50">
+          <div className="max-w-6xl mx-auto mt-40">
 
             {/* Circular Menu Navigation */}
             <div className="circular-menu">

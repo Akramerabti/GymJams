@@ -196,7 +196,6 @@ const GeolocationLoadingScreen = ({ onLocationFound, onLocationError }) => {
   );
 };
 
-// Map Controls Component
 const MapControls = ({ onSearch, onFilterToggle, loading, onRefresh, avatar, userGender, onAvatarClick }) => {
   const [query, setQuery] = useState('');
 
@@ -549,6 +548,7 @@ const GymBrosMap = ({ userProfile }) => {
     currentLocation,
     locationError,
     requestLocationPermission,
+    updateLocation,
     isInitialized: permissionsInitialized,
     permissions
   } = usePermissions();
@@ -569,7 +569,7 @@ const GymBrosMap = ({ userProfile }) => {
   const [mapZoom, setMapZoom] = useState(13);
   const [currentZoom, setCurrentZoom] = useState(13);
   const mapRef = useRef();
-  const { socket, connected } = useSocket();
+  const { socket, connected, setMapActivityState, userActivity } = useSocket();
 
   // Side panel state
   const [sidePanel, setSidePanel] = useState({
@@ -625,6 +625,46 @@ const GymBrosMap = ({ userProfile }) => {
       handleRequestLocationUpdate();
     }
   }, [permissionsInitialized, hasLocationPermission, currentLocation, permissions.location.status]);
+
+  // 🚀 Smart Location: Notify SocketContext when map is active/inactive
+  useEffect(() => {
+    // Map becomes active when it's ready and visible
+    if (mapReady && !showLocationModal && !loading) {
+      console.log('🗺️ GymBrosMap: Map is now ACTIVE - increasing location update frequency');
+      setMapActivityState(true);
+    } else {
+      console.log('🗺️ GymBrosMap: Map is now INACTIVE - normal location update frequency');
+      setMapActivityState(false);
+    }
+
+    // Cleanup when component unmounts
+    return () => {
+      setMapActivityState(false);
+    };
+  }, [mapReady, showLocationModal, loading, setMapActivityState]);
+
+  // 🚀 Smart Location: Track user interactions with map
+  useEffect(() => {
+    const mapElement = mapRef.current?._container;
+    if (!mapElement) return;
+
+    const handleMapInteraction = () => {
+      // User is actively interacting with map
+      setMapActivityState(true);
+      console.log('🗺️ User interacting with map - boosting location frequency');
+    };
+
+    // Track map interactions
+    mapElement.addEventListener('mousedown', handleMapInteraction);
+    mapElement.addEventListener('touchstart', handleMapInteraction);
+    mapElement.addEventListener('wheel', handleMapInteraction);
+
+    return () => {
+      mapElement.removeEventListener('mousedown', handleMapInteraction);
+      mapElement.removeEventListener('touchstart', handleMapInteraction);
+      mapElement.removeEventListener('wheel', handleMapInteraction);
+    };
+  }, [mapRef.current, setMapActivityState]);
 
   // Handle location ready
   const handleLocationReady = async (location) => {
@@ -1617,6 +1657,16 @@ const renderMarkers = () => {
             <div>Search: "{searchQuery}"</div>
             <div>Max Distance: {filters.maxDistance}km</div>
             <div>User Gyms: {userProfile ? getUserGymIds(userProfile).length : 0}</div>
+            <hr className="border-gray-500 my-2" />
+            <div className="text-yellow-300">🚀 Smart Location Updates:</div>
+            <div>Activity: <span className={`font-bold ${
+              userActivity === 'active' ? 'text-green-400' : 
+              userActivity === 'normal' ? 'text-yellow-400' : 'text-red-400'
+            }`}>{userActivity}</span></div>
+            <div>Update Frequency: {
+              userActivity === 'active' ? '1 min' : 
+              userActivity === 'normal' ? '3 min' : '10 min'
+            }</div>
           </div>
         </div>
       )}
