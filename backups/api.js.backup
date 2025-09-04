@@ -2,35 +2,6 @@
 import axios from 'axios';
 import { toast } from 'sonner';
 
-// Cache tokens in memory to avoid localStorage reads on every request
-let cachedToken = localStorage.getItem('token');
-let cachedGuestToken = localStorage.getItem('gymbros_guest_token');
-
-// Listen for storage changes to update cache
-window.addEventListener('storage', (e) => {
-  if (e.key === 'token') cachedToken = e.newValue;
-  if (e.key === 'gymbros_guest_token') cachedGuestToken = e.newValue;
-});
-
-// Helper functions to update cache and storage together
-const setToken = (token) => {
-  cachedToken = token;
-  if (token) {
-    localStorage.setItem('token', token);
-  } else {
-    localStorage.removeItem('token');
-  }
-};
-
-const setGuestToken = (token) => {
-  cachedGuestToken = token;
-  if (token) {
-    localStorage.setItem('gymbros_guest_token', token);
-  } else {
-    localStorage.removeItem('gymbros_guest_token');
-  }
-};
-
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
   timeout: 20000,
@@ -58,19 +29,21 @@ const onRefreshed = (token) => {
 // Add request interceptor to include auth token and guest token in every request
 api.interceptors.request.use(
   (config) => {
-    // Use cached tokens instead of localStorage reads (major performance improvement)
-    if (cachedToken) {
-      config.headers.Authorization = `Bearer ${cachedToken}`;
+    // Get regular auth token
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
     
     // Get guest token and add it as a header if available
-    if (cachedGuestToken) {
+    const guestToken = localStorage.getItem('gymbros_guest_token');
+    if (guestToken) {
       // Add as header for all requests
-      config.headers['x-gymbros-guest-token'] = cachedGuestToken;
+      config.headers['x-gymbros-guest-token'] = guestToken;
       
       // Also add to params for all requests
       config.params = config.params || {};
-      config.params.guestToken = cachedGuestToken;
+      config.params.guestToken = guestToken;
     }
     
     return config;
@@ -80,12 +53,13 @@ api.interceptors.request.use(
   }
 );
 
+
 // Add response interceptor to handle errors and token refresh
 api.interceptors.response.use(
   (response) => {
     // If response includes a guestToken, save it
     if (response.data && response.data.guestToken) {
-      setGuestToken(response.data.guestToken);
+      localStorage.setItem('gymbros_guest_token', response.data.guestToken);
       api.defaults.headers.common['x-gymbros-guest-token'] = response.data.guestToken;
     }
     
@@ -123,8 +97,8 @@ api.interceptors.response.use(
         
         const { token } = response.data;
         
-        // Update the token in cache and localStorage
-        setToken(token);
+        // Update the token in localStorage and in the original request
+        localStorage.setItem('token', token);
         originalRequest.headers.Authorization = `Bearer ${token}`;
         
         // Update token for other requests waiting for the refresh
@@ -138,11 +112,12 @@ api.interceptors.response.use(
         isRefreshing = false;
         
         // Don't clear guest token - only clear auth token
-        setToken(null);
+        localStorage.removeItem('token');
         delete api.defaults.headers.common['Authorization'];
         
         // Check if a guest token exists to avoid showing login toast for guest users
-        if (!cachedGuestToken) {
+        const guestToken = localStorage.getItem('gymbros_guest_token');
+        if (!guestToken) {
           toast.error('Your session has expired. Please log in again.');
         }
         
@@ -157,7 +132,7 @@ api.interceptors.response.use(
          originalRequest.url.includes('/profile'))) {
       
       // Check if we have a guest token
-      const guestToken = cachedGuestToken;
+      const guestToken = localStorage.getItem('gymbros_guest_token');
       
       // If this was a request without a guest token but we have one stored, retry with it
       if (guestToken && (!originalRequest.headers['x-gymbros-guest-token'] || 

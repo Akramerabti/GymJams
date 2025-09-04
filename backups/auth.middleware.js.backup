@@ -3,53 +3,30 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import rateLimit from 'express-rate-limit';
 
-// Pre-define paths to skip for faster checking
-const SKIP_RATE_LIMIT_PATHS = new Set([
-  '/uploads/',
-  '/health',
-  '/webhook',
-  '/email-webhook',
-  '/subscription/webhook'
-]);
-
-const shouldSkipRateLimit = (req) => {
-  const path = req.path;
-  return Array.from(SKIP_RATE_LIMIT_PATHS).some(skipPath => path.includes(skipPath));
-};
-
-// Optimized rate limiters with higher limits and better performance
+// Increased rate limits
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 25, // Increased from 20 for better UX
+  max: 20, // Increased from 5 to 20 requests per window
   message: { error: 'Too many authentication requests, please try again later.' },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   trustProxy: true, // Always trust proxy for proper IP handling
   keyGenerator: (req) => {
-    // Optimized IP extraction
-    const forwarded = req.headers['x-forwarded-for'];
-    if (forwarded) {
-      return forwarded.split(',')[0].trim();
-    }
-    return req.ip || req.connection.remoteAddress || 'unknown';
+    // Use the most reliable IP source available
+    return req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.connection.remoteAddress || 'unknown';
   }
 });
 
 export const apiRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // Increased from 300 for better performance
+  max: 300, // Increased from 100 to 300 requests per window
   message: { error: 'Too many API requests, please try again later.' },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   trustProxy: true, // Always trust proxy for proper IP handling
-  skip: shouldSkipRateLimit, // Skip unnecessary paths for better performance
   keyGenerator: (req) => {
-    // Optimized IP extraction
-    const forwarded = req.headers['x-forwarded-for'];
-    if (forwarded) {
-      return forwarded.split(',')[0].trim();
-    }
-    return req.ip || req.connection.remoteAddress || 'unknown';
+    // Use the most reliable IP source available
+    return req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.connection.remoteAddress || 'unknown';
   }
 });
 
@@ -115,40 +92,57 @@ export const authenticate = async (req, res, next) => {
 // Optional authentication middleware - doesn't require authentication but will use it if provided
 export const optionalAuthenticate = async (req, res, next) => {
   try {
-    // Check for regular auth token first
+    // Check if there's a token in the headers or query parameters
     let token = null;
     
+    // Check authorization header
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
-    } else if (req.query.token) {
+    } 
+    // Check query parameters (for convenience)
+    else if (req.query.token) {
       token = req.query.token;
-    }
-
-    if (token) {
-      try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.id).select('-password');
-        if (user) {
-          req.user = user;
-          return next();
-        }
-      } catch (error) {
-        // Token invalid or expired, continue as guest
+    } 
+    // Check for access token as well
+    else if (req.query.accessToken) {
+      // Handle access token for subscription access
+      // This is similar to what we have in the authenticate middleware
+      const subscription = await Subscription.findOne({
+        accessToken: req.query.accessToken,
+        status: 'active'
+      });
+      
+      if (subscription) {
+        req.user = { 
+          id: 'guest', 
+          role: 'subscriber',
+          subscription: subscription._id
+        };
+        return next();
       }
     }
 
-    // If no valid auth token, check for guest token
-    const guestToken = req.headers['x-gymbros-guest-token'] || req.query.guestToken;
-    if (guestToken) {
-      // Validate guest token format (basic validation)
-      if (guestToken.length > 10) {
-        req.guestToken = guestToken;
-      }
+    if (!token) {
+      // No token, but that's ok - continue as unauthenticated
+      return next();
     }
 
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Get user from database, excluding password
+    const user = await User.findById(decoded.id).select('-password');
+    
+    if (user) {
+      // Attach user to request object if found
+      req.user = user;
+    }
+    
     next();
   } catch (error) {
-    // Continue as guest user
+    // Token error, but that's ok for optional authentication
+    // Continue as unauthenticated
+    //('Optional auth error (continuing):', error.message);
     next();
   }
 };

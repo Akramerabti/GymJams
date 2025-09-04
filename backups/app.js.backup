@@ -16,7 +16,7 @@ import setupGeospatialIndexes from './utils/setupGeospatialIndexes.js';
 // Import configurations
 import connectDB from './config/database.js';
 import passport from './config/passport.js';
-import corsOptions from './config/cors.js'; // Using optimized CORS
+import corsOptions from './config/cors.js';
 import authRoutes from './routes/auth.routes.js';
 import { initStripe } from './config/stripe.js';
 import stripe from './config/stripe.js';
@@ -29,7 +29,7 @@ import emailWebhookRoutes from './routes/emailWebhook.routes.js';
 
 // Import middleware
 import { handleError, handleNotFound } from './middleware/error.middleware.js';
-import { authRateLimiter, apiRateLimiter } from './middleware/auth.middleware.js'; // Using optimized middleware
+import { authRateLimiter, apiRateLimiter } from './middleware/auth.middleware.js';
 import customCorsMiddleware from './middleware/custom-cors.middleware.js';
 
 // Import logger
@@ -38,14 +38,17 @@ import logger from './utils/logger.js';
 // Get __dirname equivalent in ES modules
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Load Swagger documentation
+const swaggerDocument = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, 'swagger.json'), 'utf8')
+);
+
 // Initialize express app
 const app = express();
 
-// OPTIMIZATION: Configure trust proxy early
+// Configure trust proxy settings
+// Always trust proxy since we may be behind reverse proxies/load balancers
 app.set('trust proxy', true);
-
-// OPTIMIZATION: Compression first for all responses
-app.use(compression());
 
 // Connect to MongoDB
 connectDB();
@@ -63,10 +66,28 @@ setTimeout(async () => {
 // Initialize Stripe
 initStripe();
 
-// OPTIMIZATION: Conditional helmet configuration (lighter in development)
+// Use custom CORS middleware to handle ad networks specially
+app.use(customCorsMiddleware);
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Initialize passport
+app.use(passport.initialize());
+
+// Use passport session
+app.use(passport.session());
+
 const helmetConfig = {
   crossOriginResourcePolicy: { policy: "cross-origin" },
-  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
+  contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: [
@@ -85,8 +106,7 @@ const helmetConfig = {
         "*.googletagservices.com", 
         "*.amazon-adsystem.com", 
         "*.stripe.com"
-      ],
-      connectSrc: [
+      ],      connectSrc: [
         "'self'", 
         // AdSense domains
         "*.googlesyndication.com",
@@ -128,36 +148,10 @@ const helmetConfig = {
       styleSrc: ["'self'", "'unsafe-inline'", "*.googleapis.com"],
       fontSrc: ["'self'", "*.gstatic.com", "*.googleapis.com"]
     }
-  } : false // Disable CSP in development for better performance
+  }
 };
 
 app.use(helmet(helmetConfig));
-
-// Use custom CORS middleware to handle ad networks specially
-app.use(customCorsMiddleware);
-
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-secret-key',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
-}));
-
-// Initialize passport
-app.use(passport.initialize());
-
-// Use passport session
-app.use(passport.session());
-
-// OPTIMIZATION: Pre-compile webhook paths for faster checking
-const WEBHOOK_PATHS = new Set(['/email-webhook', '/subscription/webhook']);
-
-const isWebhookPath = (path) => {
-  return WEBHOOK_PATHS.has(path) || path.includes('/webhook');
-};
 
 // Stripe webhook endpoint - MUST come before express.json() to preserve raw body
 app.post('/api/subscription/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -264,65 +258,46 @@ app.use(express.urlencoded({ extended: true }));
 // Mount webhook routes FIRST under /api (before rate limiting)
 app.use('/api', emailWebhookRoutes);
 
-// OPTIMIZATION: Apply rate limiting more efficiently
 app.use('/api/auth/login', authRateLimiter);
 app.use('/api/auth/register', authRateLimiter);
 app.use('/api/auth', apiRateLimiter);
 
 // Apply rate limiting to API routes but exclude webhooks
 app.use('/api', (req, res, next) => {
-  // Skip rate limiting for webhook endpoints using optimized checking
-  if (isWebhookPath(req.path)) {
+  // Skip rate limiting for webhook endpoints
+  if (req.path === '/email-webhook' || req.path.includes('/webhook')) {
+    //(`[RATE LIMITER] Skipping rate limit for webhook: ${req.path}`);
     return next();
   }
   // Apply rate limiting for all other API routes
   return apiRateLimiter(req, res, next);
 });
 
-// OPTIMIZATION: Conditional static file serving
-if (process.env.NODE_ENV !== 'production') {
-  app.use('/api/uploads', express.static('uploads', {
-    maxAge: '1y', // Long cache for uploads
-    etag: true,
-    lastModified: true
-  }));
-  app.use('/api/auth/uploads', express.static('uploads'));
+app.use('/api/uploads', express.static('uploads'));
+app.use('/api/auth/uploads', express.static('uploads'));
+
+// Request logging
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
 } else {
-  app.use('/api/uploads', express.static('uploads'));
-  app.use('/api/auth/uploads', express.static('uploads'));
+  app.use(morgan('combined'));
 }
 
-// OPTIMIZATION: Conditional and lighter logging
-const morganFormat = process.env.NODE_ENV === 'development' ? 'dev' : 'tiny';
-app.use(morgan(morganFormat, {
-  // Skip logging for health checks and static assets
-  skip: (req) => req.path === '/health' || req.path.includes('/uploads/')
-}));
+// Compress responses
+app.use(compression());
 
-// OPTIMIZATION: Conditional request URL logging (development only)
-if (process.env.NODE_ENV === 'development') {
-  app.use((req, res, next) => {
-    console.log(`${req.method} ${req.url} (Origin: ${req.headers.origin || 'unknown'})`);
-    next();
-  });
-}
+// Log request URLs for debugging
+app.use((req, res, next) => {
+  //(`${req.method} ${req.url} (Origin: ${req.headers.origin || 'unknown'})`);
+  next();
+});
 
-// OPTIMIZATION: Conditional API Documentation (development only)
+// API Documentation - only in development
 if (process.env.NODE_ENV === 'development') {
-  // Load Swagger documentation
-  const swaggerDocument = JSON.parse(
-    fs.readFileSync(path.resolve(__dirname, 'swagger.json'), 'utf8')
-  );
-  
   app.use(
     '/api-docs',
     swaggerUi.serve,
-    swaggerUi.setup(swaggerDocument, { 
-      explorer: true,
-      swaggerOptions: {
-        persistAuthorization: true
-      }
-    })
+    swaggerUi.setup(swaggerDocument, { explorer: true })
   );
 }
 
