@@ -640,7 +640,7 @@ const ConversionLanding = () => {
             gap: '1rem',
             position: 'relative',
             zIndex: 1,
-            paddingTop: '1rem' // Compact but proportional for desktop
+            paddingTop: '2rem'
           }}>
             <Dumbbell 
               size={60}
