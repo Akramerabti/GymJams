@@ -220,7 +220,7 @@ const navigationItems = [
                   <button onClick={toggleDarkMode} className=" rounded-full ml-1">
                     {darkMode ? 
                       <Sun className="h-[clamp(1.2rem,3vw,1.8rem)] w-[clamp(1.2rem,3vw,1.8rem)] text-yellow-400" /> : 
-                      <Moon className="h-[clamp(1.2rem,3vw,1.8rem)] w-[clamp(1.2rem,3vw,1.8rem)] text-gray-500" />
+                      <Moon className="h-[clamp(1.2rem,3vw,1.8rem)] w-[clamp(1.2rem,3vw,1.8rem] text-gray-500" />
                     }
                   </button>
                   <Link to="/login" className={` px-3 py-1.5 rounded-md text-[clamp(1rem,2vw,1.2rem)] font-medium ${darkMode ? 'text-white hover:text-gray-300' : 'text-gray-600 hover:text-blue-600'}`}>

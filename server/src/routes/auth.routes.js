@@ -30,9 +30,12 @@ router.post('/complete-oauth-profile', optionalAuthenticate, completeOAuthProfil
 
 // Standard web OAuth route
 router.get('/google', (req, res, next) => {
-    // Store the return URL for after authentication
-    const returnTo = req.query.returnTo || req.headers.referer || process.env.CLIENT_URL || 'http://localhost:5173';
-    req.session.returnTo = returnTo;
+    // For web OAuth, we'll determine redirect URL in the callback
+    // based on success/failure rather than storing referer
+    const returnTo = req.query.returnTo;
+    if (returnTo) {
+        req.session.returnTo = returnTo;
+    }
     // Clear any mobile redirect URI to ensure this is treated as web
     req.session.mobileRedirectUri = null;
     
@@ -63,8 +66,6 @@ router.get('/google/callback',
         try {
             const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
             const mobileRedirectUri = req.session?.mobileRedirectUri;
-            const returnTo = req.session?.returnTo || clientUrl;
-
             const isMobileCallback = !!mobileRedirectUri;
             
             console.log('OAuth callback - isMobile:', isMobileCallback, 'mobileRedirectUri:', mobileRedirectUri);
@@ -107,12 +108,8 @@ router.get('/google/callback',
                     // Mobile: Send to deep link
                     return res.redirect(`${mobileRedirectUri}?tempToken=${tempToken}&existingUser=${existingUserParam}`);
                 } else {
-                    // Web: Send to appropriate completion page
-                    if (req.user.existingUser) {
-                        return res.redirect(`${clientUrl}/complete-profile?tempToken=${tempToken}&existingUser=${existingUserParam}&userId=${req.user.existingUser._id}`);
-                    } else {
-                        return res.redirect(`${clientUrl}/complete-oauth-profile?tempToken=${tempToken}`);
-                    }
+                    // Web: Send to OAuth callback page for profile completion
+                    return res.redirect(`${clientUrl}/oauth-callback?tempToken=${tempToken}&existingUser=${existingUserParam}&incomplete=true`);
                 }
             }
 
@@ -120,13 +117,12 @@ router.get('/google/callback',
             const token = generateToken({ id: req.user._id, email: req.user.email });
             
             if (isMobileCallback) {
-                // Mobile: Send to deep link
                 console.log('Redirecting mobile user to:', `${mobileRedirectUri}?token=${token}&loginSuccess=true`);
                 return res.redirect(`${mobileRedirectUri}?token=${token}&loginSuccess=true`);
             } else {
-                // Web: Send to return URL
-                console.log('Redirecting web user to:', `${returnTo}?token=${token}&loginSuccess=true`);
-                return res.redirect(`${returnTo}?token=${token}&loginSuccess=true`);
+
+                console.log('Redirecting web user to OAuth callback with token');
+                return res.redirect(`${clientUrl}/oauth-callback?token=${token}&loginSuccess=true`);
             }
             
         } catch (error) {

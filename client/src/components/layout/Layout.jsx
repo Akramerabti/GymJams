@@ -3,23 +3,36 @@ import { useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../stores/authStore';
 
 const Layout = ({ children }) => {
   const location = useLocation();
   const [showFooter, setShowFooter] = useState(true);
+  const [showNavbar, setShowNavbar] = useState(true);
   const { darkMode } = useTheme();
+  const { isAuthenticated } = useAuth();
   
   // Create a ref for the Navbar wrapper
   const navbarRef = useRef(null);
 
-  // This new useEffect hook measures the Navbar's height
+  // Check if we should show the navbar
+  useEffect(() => {
+    // Hide navbar on home page for non-authenticated users (ConversionLanding)
+    const shouldHideNavbar = location.pathname === '/' && !isAuthenticated;
+    setShowNavbar(!shouldHideNavbar);
+  }, [location.pathname, isAuthenticated]);
+
+  // This useEffect hook measures the Navbar's height
   useEffect(() => {
     const updateNavbarHeight = () => {
-      if (navbarRef.current) {
+      if (navbarRef.current && showNavbar) {
         // Get the height of the navbar element
         const height = navbarRef.current.offsetHeight;
         // Set it as a CSS variable on the root HTML element
         document.documentElement.style.setProperty('--navbar-height', `${height}px`);
+      } else {
+        // If navbar is hidden, set height to 0
+        document.documentElement.style.setProperty('--navbar-height', '0px');
       }
     };
 
@@ -31,7 +44,7 @@ const Layout = ({ children }) => {
     return () => {
       window.removeEventListener('resize', updateNavbarHeight);
     };
-  }, []); // Empty dependency array ensures this runs only once on mount and unmount
+  }, [showNavbar]); // Add showNavbar to dependencies
 
   // Your existing useEffect for footer visibility
   useEffect(() => {
@@ -92,10 +105,12 @@ const Layout = ({ children }) => {
 
   return (
     <div className={`flex flex-col min-h-screen ${darkMode ? 'dark-theme' : ''}`}>
-      {/* Attach the ref to the Navbar's wrapping div */}
-      <div ref={navbarRef}>
-        <Navbar />
-      </div>
+      {/* Conditionally render navbar with ref */}
+      {showNavbar && (
+        <div ref={navbarRef}>
+          <Navbar />
+        </div>
+      )}
       <main className={`flex-grow transition-colors duration-300 ${
         darkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'
       }`}>

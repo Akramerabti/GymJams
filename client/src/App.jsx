@@ -21,8 +21,8 @@ import { useAuth } from './stores/authStore';
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
-// Page Components
-import Home from './pages/Home';
+// Page Components - Updated to use HomeWrapper instead of Home
+import HomeWrapper from './pages/HomeWrapper';
 import CoachingHome from './pages/CoachingHome';
 import Shop from './pages/Shop';
 import Cart from './pages/Cart';
@@ -69,8 +69,18 @@ function CoachProfileModalManager() {
   const [showCoachProfileModal, setShowCoachProfileModal] = useState(false);
   const location = useLocation();
   const timerRef = useRef(null);
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
+    // Only show modal for authenticated users
+    if (!isAuthenticated) {
+      setShowCoachProfileModal(false);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      return;
+    }
+
     const maybeShowModal = () => {
       if (location.pathname !== '/profile') {
         setShowCoachProfileModal(true);
@@ -78,21 +88,30 @@ function CoachProfileModalManager() {
         setShowCoachProfileModal(false);
       }
     };
+    
     maybeShowModal();
+    
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
+    
     timerRef.current = setInterval(() => {
       if (location.pathname !== '/profile') {
         setShowCoachProfileModal(true);
       }
     }, FIVE_MINUTES);
+    
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
     };
-  }, [location.pathname]);
+  }, [location.pathname, isAuthenticated]);
+
+  // Only render modal for authenticated users
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return <CoachProfileCompletionModal isOpen={showCoachProfileModal} onClose={() => setShowCoachProfileModal(false)} />;
 }
@@ -112,9 +131,6 @@ function App() {
           if (!isValid) {
             logout();
           }
-        } else {
-          // For guest users, if they have a location, just update localStorage (no API call)
-          // No need to refresh location here, just keep the value
         }
       } catch (error) {
         console.error('Auth check error:', error);
@@ -141,6 +157,7 @@ function App() {
       console.error('App initialization error:', error);
     });
   }, [checkAuth, logout]);
+
   return (
     <I18nextProvider i18n={i18n}>
       <ThemeProvider>
@@ -149,8 +166,10 @@ function App() {
             <Router>
               <Layout>
                 <Routes>
+                  {/* Home Route - Now uses HomeWrapper for conversion logic */}
+                  <Route path="/" element={<HomeWrapper />} />
+                  
                   {/* Public Routes */}
-                  <Route path="/" element={<Home />} />
                   <Route path="/coaching" element={<CoachingHome />} />
                   <Route path="/shop" element={<Shop />} />
                   <Route path="/cart" element={<Cart />} />
