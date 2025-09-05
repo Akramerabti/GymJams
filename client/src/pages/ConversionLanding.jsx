@@ -5,7 +5,7 @@ import { MapPin, Dumbbell, Trophy, ShoppingBag, Zap } from 'lucide-react';
 const ConversionLanding = () => {
   // Navigation would be handled by react-router in production
   const navigate = (route) => {
-  window.location.href = route;
+    window.location.href = route;
   };
   
   const [animationsComplete, setAnimationsComplete] = useState(false);
@@ -13,9 +13,29 @@ const ConversionLanding = () => {
   const [screenType, setScreenType] = useState('mobile');
 
   useEffect(() => {
+    // Reset default browser styles
+    const style = document.createElement('style');
+    style.textContent = `
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html, body {
+        height: 100%;
+        overflow: hidden;
+        margin: 0;
+        padding: 0;
+      }
+      #root {
+        height: 100vh;
+        overflow: hidden;
+      }
+    `;
+    document.head.appendChild(style);
+
     const checkScreenType = () => {
       const width = window.innerWidth;
-      const height = window.innerHeight;
       
       if (width < 768) {
         setScreenType('mobile');
@@ -60,6 +80,7 @@ const ConversionLanding = () => {
     return () => {
       clearTimeout(timer);
       window.removeEventListener('resize', checkScreenType);
+      document.head.removeChild(style);
     };
   }, []);
 
@@ -96,22 +117,26 @@ const ConversionLanding = () => {
   const sectionStyle = {
     height: '100%',
     width: '100%',
-    padding: 'clamp(2rem, 4vw, 3rem)',
+    padding: 'clamp(1rem, 3vw, 2rem)',
     border: '0.25rem solid var(--color-black)',
     backgroundColor: 'var(--color-white)',
     boxShadow: '0.5rem 0.5rem rgba(132, 81, 61, 0.35)',
-    margin: '0.5rem',
     borderRadius: '1rem',
     cursor: 'pointer',
     transition: 'all 0.3s ease',
     position: 'relative',
-    overflow: 'hidden'
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    boxSizing: 'border-box'
   };
 
   const titleStyle = {
     fontFamily: 'var(--font-family)',
     fontWeight: 'var(--font-weight-extrabold)',
-    fontSize: 'clamp(0.9rem, 3vw, 1.8rem)', // Reduced font size
+    fontSize: 'clamp(0.8rem, 2.5vw, 1.6rem)',
     lineHeight: '1',
     textTransform: 'uppercase',
     color: 'var(--color-yellow)',
@@ -127,14 +152,15 @@ const ConversionLanding = () => {
       4px 4px 0 #000, 5px 5px 0 #000, 6px 6px 0 #000, 7px 7px 0 #000, 8px 8px 0 #000,
       9px 9px 0 #000, 10px 10px 0 #000, 11px 11px 0 #000, 12px 12px 0 #000
     `,
-    marginBottom: '0', // Remove margin
+    margin: '0',
     textAlign: 'center'
   };
 
   // Mobile Layout
   const MobileLayout = () => (
     <div style={{ 
-      height: '100vh', // Use full viewport since navbar is hidden
+      height: '100vh',
+      width: '100vw',
       background: `
         radial-gradient(circle at 0 0, var(--color-black) 2px, transparent 2px),
         radial-gradient(circle at 15px 15px, var(--color-black) 1.5px, transparent 1.5px),
@@ -145,16 +171,19 @@ const ConversionLanding = () => {
       backgroundPosition: '0 0, 0 0, 0 0, 0 0',
       display: 'flex',
       flexDirection: 'column',
-      padding: '1rem'
+      padding: 'clamp(0.5rem, 2vw, 1rem)',
+      boxSizing: 'border-box',
+      overflow: 'hidden'
     }}>
       
-      {/* Header - Reduced size */}
+      {/* Header */}
       <motion.header 
         style={{
           textAlign: 'center',
-          paddingBottom: '1rem', // Reduced from 3rem
           color: 'var(--color-black)',
-          flexShrink: 0
+          flexShrink: 0,
+          paddingBottom: 'clamp(0.5rem, 1.5vh, 1rem)',
+          boxSizing: 'border-box'
         }}
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -162,7 +191,7 @@ const ConversionLanding = () => {
       >
         <h1 style={{
           fontFamily: 'var(--font-family)',
-          fontSize: 'clamp(2rem, 8vw, 4rem)', // Reduced size
+          fontSize: 'clamp(1.8rem, 6vw, 3.5rem)',
           fontWeight: 'var(--font-weight-extrabold)',
           color: 'var(--color-white)',
           fontStyle: 'italic',
@@ -179,20 +208,21 @@ const ConversionLanding = () => {
             4px 4px 0 #000, 5px 5px 0 #000, 6px 6px 0 #000, 7px 7px 0 #000, 8px 8px 0 #000,
             9px 9px 0 #000, 10px 10px 0 #000, 11px 11px 0 #000, 12px 12px 0 #000
           `,
-          margin: '0 0 0.5rem 0', // Reduced margin
+          margin: '0',
           lineHeight: '1'
         }}>
           GYMTONIC
         </h1>
       </motion.header>
 
-      {/* Sections Container - Takes remaining space */}
+      {/* Sections Container */}
       <div style={{
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'space-between',
-        minHeight: 0 // Important for flex children
+        gap: 'clamp(0.3rem, 1vh, 0.8rem)',
+        minHeight: 0,
+        boxSizing: 'border-box'
       }}>
 
         {/* Section 1: GymBros Near Me */}
@@ -201,8 +231,7 @@ const ConversionLanding = () => {
             ...sectionStyle,
             backgroundColor: 'var(--color-blue)',
             background: 'linear-gradient(315deg, #FFD700 0%, #FFEA64 20%, #4FC3F7 45%, var(--color-blue) 70%, #144c90 100%)',
-            flex: 1,
-            margin: '0.25rem 0' // Reduced vertical margin
+            flex: 1
           }}
           onClick={() => handleOptionClick('gymbros', '/gymbros', true)}
           whileTap={{ scale: 0.98 }}
@@ -216,10 +245,10 @@ const ConversionLanding = () => {
             alt="Muscular conversion"
             style={{
               position: 'absolute',
-              top: '35%',
-              left: '5%',
+              top: '50%',
+              left: '10%',
               transform: 'translate(-50%, -50%)',
-              width: 'clamp(100px, 30vw, 130px)',
+              width: 'clamp(80px, 25vw, 120px)',
               height: 'auto',
               opacity: 1,
               zIndex: 0
@@ -243,19 +272,19 @@ const ConversionLanding = () => {
             overflow: 'hidden',
             pointerEvents: 'none'
           }}>
-            {[...Array(8)].map((_, i) => (
+            {[...Array(6)].map((_, i) => (
               <motion.div
                 key={i}
                 style={{
                   position: 'absolute',
-                  width: '120px',
-                  height: '4px',
+                  width: '100px',
+                  height: '3px',
                   background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), rgba(255,255,255,0.3), transparent)',
-                  top: `${20 + (i * 10)}%`,
-                  right: '-120px',
+                  top: `${25 + (i * 10)}%`,
+                  right: '-100px',
                 }}
                 animate={{
-                  x: [0, -(window.innerWidth + 120)],
+                  x: [0, -(window.innerWidth + 100)],
                   opacity: [0, 0.8, 0.8, 0]
                 }}
                 transition={{
@@ -272,15 +301,14 @@ const ConversionLanding = () => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'flex-start',
+            justifyContent: 'center',
             height: '100%',
-            gap: '0.5rem',
+            gap: 'clamp(0.3rem, 1.5vh, 0.8rem)',
             position: 'relative',
-            zIndex: 1,
-            paddingTop: '0.8rem'
+            zIndex: 1
           }}>
             <Dumbbell 
-              size={clamp(30, 8, 50)} // Responsive icon size
+              size={Math.min(40, window.innerWidth * 0.08)}
               color="#4FC3F7"
               style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
             />
@@ -296,8 +324,7 @@ const ConversionLanding = () => {
             ...sectionStyle,
             backgroundColor: 'var(--color-purple)',
             background: 'radial-gradient(ellipse at center, var(--color-purple) 0%, var(--color-purple) 50%, #a855f7 85%, #c084fc 100%)',
-            flex: 1,
-            margin: '0.25rem 0'
+            flex: 1
           }}
           onClick={() => handleOptionClick('coaching', '/coaching', true)}
           whileTap={{ scale: 0.98 }}
@@ -311,10 +338,10 @@ const ConversionLanding = () => {
             alt="Coach conversion"
             style={{
               position: 'absolute',
-              top: '40%',
+              top: '50%',
               left: '35%',
               transform: 'translate(-50%, -50%)',
-              width: 'clamp(100px, 30vw, 130px)',
+              width: 'clamp(80px, 25vw, 120px)',
               height: 'auto',
               opacity: 1,
               zIndex: 0
@@ -338,19 +365,19 @@ const ConversionLanding = () => {
             overflow: 'hidden',
             pointerEvents: 'none'
           }}>
-            {[...Array(10)].map((_, i) => (
+            {[...Array(8)].map((_, i) => (
               <motion.div
                 key={i}
                 style={{
                   position: 'absolute',
-                  width: '5px',
-                  height: '120px',
+                  width: '3px',
+                  height: '100px',
                   background: 'linear-gradient(180deg, transparent, rgba(255,255,255,0.7), rgba(255,255,255,0.4), transparent)',
-                  left: `${20 + (i * 8)}%`,
-                  top: '-120px',
+                  left: `${25 + (i * 8)}%`,
+                  top: '-100px',
                 }}
                 animate={{
-                  y: [0, 500],
+                  y: [0, 400],
                   opacity: [0, 0.9, 0.6, 0]
                 }}
                 transition={{
@@ -367,15 +394,14 @@ const ConversionLanding = () => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'flex-start',
+            justifyContent: 'center',
             height: '100%',
-            gap: '0.5rem',
+            gap: 'clamp(0.3rem, 1.5vh, 0.8rem)',
             position: 'relative',
-            zIndex: 1,
-            paddingTop: '0.8rem'
+            zIndex: 1
           }}>
             <Trophy 
-              size={clamp(30, 8, 50)}
+              size={Math.min(40, window.innerWidth * 0.08)}
               color="#C084FC"
               style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
             />
@@ -391,8 +417,7 @@ const ConversionLanding = () => {
             ...sectionStyle,
             backgroundColor: 'var(--color-red)',
             background: 'linear-gradient(135deg, #FFD700 0%, #FFEA64 20%, #FF6B35 45%, var(--color-red) 70%, #B91C1C 100%)',
-            flex: 1,
-            margin: '0.25rem 0'
+            flex: 1
           }}
           onClick={() => handleOptionClick('shop', '/shop', false)}
           whileTap={{ scale: 0.98 }}
@@ -406,10 +431,10 @@ const ConversionLanding = () => {
             alt="Blonde conversion"
             style={{
               position: 'absolute',
-              top: '35%',
+              top: '50%',
               left: '65%',
               transform: 'translate(-50%, -50%)',
-              width: 'clamp(100px, 30vw, 130px)',
+              width: 'clamp(80px, 25vw, 120px)',
               height: 'auto',
               opacity: 1,
               zIndex: 0
@@ -433,20 +458,20 @@ const ConversionLanding = () => {
             overflow: 'hidden',
             pointerEvents: 'none'
           }}>
-            {[...Array(10)].map((_, i) => (
+            {[...Array(8)].map((_, i) => (
               <motion.div
                 key={i}
                 style={{
                   position: 'absolute',
-                  width: '80px',
-                  height: '3px',
+                  width: '70px',
+                  height: '2px',
                   background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.8), rgba(255,255,255,0.5), transparent)',
-                  top: `${15 + (i * 7)}%`,
-                  left: '-80px',
+                  top: `${20 + (i * 8)}%`,
+                  left: '-70px',
                   transform: `rotate(${5 + (i * 2)}deg)`
                 }}
                 animate={{
-                  x: [0, window.innerWidth + 80],
+                  x: [0, window.innerWidth + 70],
                   opacity: [0, 1, 0.7, 0]
                 }}
                 transition={{
@@ -463,19 +488,18 @@ const ConversionLanding = () => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'flex-start',
+            justifyContent: 'center',
             height: '100%',
-            gap: '0.3rem',
+            gap: 'clamp(0.3rem, 1.5vh, 0.8rem)',
             position: 'relative',
-            zIndex: 1,
-            paddingTop: '0.8rem'
+            zIndex: 1
           }}>
             <ShoppingBag 
-              size={clamp(25, 6, 40)}
+              size={Math.min(35, window.innerWidth * 0.07)}
               color="#FF6B6B"
               style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
             />
-            <h3 style={{...titleStyle, fontSize: 'clamp(1rem, 3.5vw, 1.8rem)'}}>
+            <h3 style={{...titleStyle, fontSize: 'clamp(0.9rem, 3vw, 1.6rem)'}}>
               SHOP
             </h3>
           </div>
@@ -487,7 +511,8 @@ const ConversionLanding = () => {
   // Desktop Layout
   const DesktopLayout = () => (
     <div style={{ 
-      height: '100vh', // Use full viewport since navbar is hidden
+      height: '100vh',
+      width: '100vw',
       background: `
         radial-gradient(circle at 0 0, var(--color-black) 3px, transparent 3px),
         radial-gradient(circle at 20px 20px, var(--color-black) 2px, transparent 2px),
@@ -499,16 +524,19 @@ const ConversionLanding = () => {
       backgroundPosition: '0 0, 0 0, 0 0, 0 0, 0 0',
       display: 'flex',
       flexDirection: 'column',
-      padding: '2rem'
+      padding: 'clamp(1rem, 2vw, 2rem)',
+      boxSizing: 'border-box',
+      overflow: 'hidden'
     }}>
       
       {/* Header */}
       <motion.header 
         style={{
           textAlign: 'center',
-          paddingBottom: '2rem',
           color: 'var(--color-black)',
-          flexShrink: 0
+          flexShrink: 0,
+          paddingBottom: 'clamp(1rem, 2vh, 2rem)',
+          boxSizing: 'border-box'
         }}
         initial={{ opacity: 0, y: -50 }}
         animate={{ opacity: 1, y: 0 }}
@@ -516,12 +544,12 @@ const ConversionLanding = () => {
       >
         <h1 style={{
           fontFamily: 'var(--font-family)',
-          fontSize: 'clamp(4rem, 8vw, 7.5rem)',
+          fontSize: 'clamp(3rem, 6vw, 6rem)',
           fontWeight: 'var(--font-weight-extrabold)',
           color: 'var(--color-white)',
           fontStyle: 'italic',
           letterSpacing: '-0.05em',
-          textShadow: `
+textShadow: `
             -1px -1px 0 var(--color-black), 0 -1px 0 var(--color-black), 1px -1px 0 var(--color-black), 
             -1px 0 0 var(--color-black), 1px 0 0 var(--color-black), -1px 1px 0 var(--color-black), 
             0 1px 0 var(--color-black), 1px 1px 0 var(--color-black), -2px -2px 0 var(--color-black), 
@@ -534,7 +562,7 @@ const ConversionLanding = () => {
             11px 11px 0 #000, 12px 12px 0 #000, 13px 13px 0 #000, 14px 14px 0 #000, 15px 15px 0 #000,
             16px 16px 0 #000, 17px 17px 0 #000, 18px 18px 0 #000
           `,
-          margin: '0 0 1rem 0',
+          margin: '0',
           lineHeight: '1'
         }}>
           GYMTONIC
@@ -545,12 +573,11 @@ const ConversionLanding = () => {
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: '3rem',
-        width: '100%',
+        gap: 'clamp(1rem, 3vw, 3rem)',
         flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '2rem'
+        alignItems: 'stretch',
+        boxSizing: 'border-box',
+        minHeight: 0
       }}>
         
         {/* Section 1: GymBros Near Me */}
@@ -558,9 +585,7 @@ const ConversionLanding = () => {
           style={{
             ...sectionStyle,
             backgroundColor: 'var(--color-blue)',
-            background: 'linear-gradient(315deg, #FFD700 0%, #FFEA64 20%, #4FC3F7 45%, var(--color-blue) 70%, #144c90 100%)',
-            margin: '0',
-            minHeight: 'auto'
+            background: 'linear-gradient(315deg, #FFD700 0%, #FFEA64 20%, #4FC3F7 45%, var(--color-blue) 70%, #144c90 100%)'
           }}
           onClick={() => handleOptionClick('gymbros', '/gymbros', true)}
           whileTap={{ scale: 0.98 }}
@@ -574,10 +599,10 @@ const ConversionLanding = () => {
             alt="Muscular conversion"
             style={{
               position: 'absolute',
-              top: '45%',
-              left: '-5%',
+              top: '50%',
+              left: '10%',
               transform: 'translate(-50%, -50%)',
-              width: 'clamp(120px, 25vw, 300px)',
+              width: 'clamp(120px, 20vw, 250px)',
               height: 'auto',
               opacity: 1,
               zIndex: 0
@@ -601,16 +626,16 @@ const ConversionLanding = () => {
             overflow: 'hidden',
             pointerEvents: 'none'
           }}>
-            {[...Array(12)].map((_, i) => (
+            {[...Array(10)].map((_, i) => (
               <motion.div
                 key={i}
                 style={{
                   position: 'absolute',
-                  width: '150px',
-                  height: '5px',
+                  width: '120px',
+                  height: '4px',
                   background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), rgba(255,255,255,0.3), transparent)',
-                  top: `${10 + (i * 7)}%`,
-                  right: '-150px',
+                  top: `${15 + (i * 8)}%`,
+                  right: '-120px',
                 }}
                 animate={{
                   x: [0, -650],
@@ -630,19 +655,18 @@ const ConversionLanding = () => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'flex-start',
+            justifyContent: 'center',
             height: '100%',
-            gap: '1rem',
+            gap: 'clamp(0.8rem, 2vh, 1.5rem)',
             position: 'relative',
-            zIndex: 1,
-            paddingTop: '2rem'
+            zIndex: 1
           }}>
             <Dumbbell 
-              size={60}
+              size={Math.min(60, window.innerWidth * 0.05)}
               color="#4FC3F7"
               style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
             />
-            <h3 style={{...titleStyle, fontSize: 'clamp(1rem, 2.5vw, 1.8rem)'}}>
+            <h3 style={{...titleStyle, fontSize: 'clamp(1rem, 2vw, 1.8rem)'}}>
               GYMBROS NEAR ME
             </h3>
           </div>
@@ -653,9 +677,7 @@ const ConversionLanding = () => {
           style={{
             ...sectionStyle,
             backgroundColor: 'var(--color-purple)',
-            background: 'radial-gradient(ellipse at center, var(--color-purple) 0%, var(--color-purple) 50%, #a855f7 85%, #c084fc 100%)',
-            margin: '0',
-            minHeight: 'auto'
+            background: 'radial-gradient(ellipse at center, var(--color-purple) 0%, var(--color-purple) 50%, #a855f7 85%, #c084fc 100%)'
           }}
           onClick={() => handleOptionClick('coaching', '/coaching', true)}
           whileTap={{ scale: 0.98 }}
@@ -669,10 +691,10 @@ const ConversionLanding = () => {
             alt="Coach conversion"
             style={{
               position: 'absolute',
-              top: '45%',
+              top: '50%',
               left: '30%',
               transform: 'translate(-50%, -50%)',
-              width: 'clamp(120px, 25vw, 300px)',
+              width: 'clamp(120px, 20vw, 250px)',
               height: 'auto',
               opacity: 1,
               zIndex: 0
@@ -696,16 +718,16 @@ const ConversionLanding = () => {
             overflow: 'hidden',
             pointerEvents: 'none'
           }}>
-            {[...Array(10)].map((_, i) => (
+            {[...Array(8)].map((_, i) => (
               <motion.div
                 key={i}
                 style={{
                   position: 'absolute',
-                  width: '5px',
-                  height: '140px',
+                  width: '4px',
+                  height: '120px',
                   background: 'linear-gradient(180deg, transparent, rgba(255,255,255,0.6), rgba(255,255,255,0.3), transparent)',
-                  left: `${20 + (i * 8)}%`,
-                  top: '-140px',
+                  left: `${25 + (i * 8)}%`,
+                  top: '-120px',
                 }}
                 animate={{
                   y: [0, 600],
@@ -725,19 +747,18 @@ const ConversionLanding = () => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'flex-start',
+            justifyContent: 'center',
             height: '100%',
-            gap: '1rem',
+            gap: 'clamp(0.8rem, 2vh, 1.5rem)',
             position: 'relative',
-            zIndex: 1,
-            paddingTop: '2rem'
+            zIndex: 1
           }}>
             <Trophy 
-              size={60}
+              size={Math.min(60, window.innerWidth * 0.05)}
               color="#C084FC"
               style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
             />
-            <h3 style={{...titleStyle, fontSize: 'clamp(1rem, 2.5vw, 1.8rem)'}}>
+            <h3 style={{...titleStyle, fontSize: 'clamp(1rem, 2vw, 1.8rem)'}}>
               COACHING NEAR ME
             </h3>
           </div>
@@ -748,9 +769,7 @@ const ConversionLanding = () => {
           style={{
             ...sectionStyle,
             backgroundColor: 'var(--color-red)',
-            background: 'linear-gradient(135deg, #FFD700 0%, #FFEA64 20%, #FF6B35 45%, var(--color-red) 70%, #B91C1C 100%)',
-            margin: '0',
-            minHeight: 'auto'
+            background: 'linear-gradient(135deg, #FFD700 0%, #FFEA64 20%, #FF6B35 45%, var(--color-red) 70%, #B91C1C 100%)'
           }}
           onClick={() => handleOptionClick('shop', '/shop', false)}
           whileTap={{ scale: 0.98 }}
@@ -764,10 +783,10 @@ const ConversionLanding = () => {
             alt="Blonde conversion"
             style={{
               position: 'absolute',
-              top: '45%',
+              top: '50%',
               left: '50%',
               transform: 'translate(-50%, -50%)',
-              width: 'clamp(120px, 25vw, 300px)',
+              width: 'clamp(120px, 20vw, 250px)',
               height: 'auto',
               opacity: 1,
               zIndex: 0
@@ -791,16 +810,16 @@ const ConversionLanding = () => {
             overflow: 'hidden',
             pointerEvents: 'none'
           }}>
-            {[...Array(14)].map((_, i) => (
+            {[...Array(12)].map((_, i) => (
               <motion.div
                 key={i}
                 style={{
                   position: 'absolute',
-                  width: '120px',
-                  height: '4px',
+                  width: '100px',
+                  height: '3px',
                   background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), rgba(255,255,255,0.3), transparent)',
-                  top: `${8 + (i * 6)}%`,
-                  left: '-120px',
+                  top: `${12 + (i * 6)}%`,
+                  left: '-100px',
                   transform: `rotate(${10 + (i * 2)}deg)`
                 }}
                 animate={{
@@ -821,19 +840,18 @@ const ConversionLanding = () => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'flex-start',
+            justifyContent: 'center',
             height: '100%',
-            gap: '1rem',
+            gap: 'clamp(0.8rem, 2vh, 1.5rem)',
             position: 'relative',
-            zIndex: 1,
-            paddingTop: '2rem'
+            zIndex: 1
           }}>
             <ShoppingBag 
-              size={60}
+              size={Math.min(60, window.innerWidth * 0.05)}
               color="#FF6B6B"
               style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
             />
-            <h3 style={{...titleStyle, fontSize: 'clamp(1rem, 2.5vw, 1.8rem)'}}>
+            <h3 style={{...titleStyle, fontSize: 'clamp(1rem, 2vw, 1.8rem)'}}>
               SHOP
             </h3>
           </div>
@@ -841,13 +859,6 @@ const ConversionLanding = () => {
       </div>
     </div>
   );
-
-  // Helper function for clamping values
-  const clamp = (min, vw, max) => {
-    const viewport = window.innerWidth;
-    const size = Math.max(min, Math.min(max, viewport * (vw / 100)));
-    return size;
-  };
 
   return (
     <>
@@ -860,7 +871,7 @@ const ConversionLanding = () => {
           animate={{ opacity: 1 }}
           style={{
             position: 'fixed',
-            top: 0, // Start from top since no navbar
+            top: 0,
             left: 0,
             right: 0,
             bottom: 0,
