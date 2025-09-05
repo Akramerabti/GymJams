@@ -533,6 +533,7 @@ export const useAuth = () => {
   return {
     user: store.user,
     token: store.token,
+    isAuthenticated: store.isAuthenticated,
     setToken: store.setToken,
     setUser: store.setUser,
     loading: store.loading,
