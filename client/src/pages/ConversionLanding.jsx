@@ -96,11 +96,11 @@ const ConversionLanding = () => {
   const sectionStyle = {
     height: '100%',
     width: '100%',
-    padding: 'clamp(0.5rem, 2vw, 1rem)', // Dramatically reduced to fit viewport
+    padding: 'clamp(0.5rem, 2vw, 1rem)',
     border: '0.25rem solid var(--color-black)',
     backgroundColor: 'var(--color-white)',
     boxShadow: '0.5rem 0.5rem rgba(132, 81, 61, 0.35)',
-    margin: '0', // Removed default margin
+    margin: '0',
     borderRadius: '1rem',
     cursor: 'pointer',
     transition: 'all 0.3s ease',
@@ -112,7 +112,7 @@ const ConversionLanding = () => {
   const titleStyle = {
     fontFamily: 'var(--font-family)',
     fontWeight: 'var(--font-weight-extrabold)',
-    fontSize: 'clamp(0.9rem, 3vw, 1.8rem)', // Reduced font size
+    fontSize: 'clamp(0.9rem, 3vw, 1.8rem)',
     lineHeight: '1',
     textTransform: 'uppercase',
     color: 'var(--color-yellow)',
@@ -128,14 +128,17 @@ const ConversionLanding = () => {
       4px 4px 0 #000, 5px 5px 0 #000, 6px 6px 0 #000, 7px 7px 0 #000, 8px 8px 0 #000,
       9px 9px 0 #000, 10px 10px 0 #000, 11px 11px 0 #000, 12px 12px 0 #000
     `,
-    marginBottom: '0', // Remove margin
+    marginBottom: '0',
     textAlign: 'center'
   };
 
   // Mobile Layout
   const MobileLayout = () => (
     <div style={{ 
-      height: '100vh', // Use full viewport since navbar is hidden
+      height: '100vh',
+      height: '100dvh', // Dynamic viewport height - accounts for browser UI
+      height: '100svh', // Smallest viewport height as ultimate fallback
+      WebkitHeight: '-webkit-fill-available', // Safari fallback
       background: `
         radial-gradient(circle at 0 0, var(--color-black) 2px, transparent 2px),
         radial-gradient(circle at 15px 15px, var(--color-black) 1.5px, transparent 1.5px),
@@ -148,14 +151,19 @@ const ConversionLanding = () => {
       flexDirection: 'column',
       padding: '0.5rem',
       boxSizing: 'border-box',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      position: 'fixed', // Fixed positioning to prevent any scrolling
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0
     }}>
       
       {/* Header - Reduced size */}
       <motion.header 
         style={{
           textAlign: 'center',
-          paddingBottom: '0.25rem', // Minimal padding
+          paddingBottom: '0.25rem',
           color: 'var(--color-black)',
           flexShrink: 0
         }}
@@ -165,7 +173,7 @@ const ConversionLanding = () => {
       >
         <h1 style={{
           fontFamily: 'var(--font-family)',
-          fontSize: 'clamp(1.5rem, 6vw, 2.5rem)', // Significantly reduced to save space
+          fontSize: 'clamp(1.5rem, 6vw, 2.5rem)',
           fontWeight: 'var(--font-weight-extrabold)',
           color: 'var(--color-white)',
           fontStyle: 'italic',
@@ -182,7 +190,7 @@ const ConversionLanding = () => {
             4px 4px 0 #000, 5px 5px 0 #000, 6px 6px 0 #000, 7px 7px 0 #000, 8px 8px 0 #000,
             9px 9px 0 #000, 10px 10px 0 #000, 11px 11px 0 #000, 12px 12px 0 #000
           `,
-          margin: '0', // Remove all margins
+          margin: '0',
           lineHeight: '1'
         }}>
           GYMTONIC
@@ -194,8 +202,9 @@ const ConversionLanding = () => {
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'space-between',
-        minHeight: 0 // Important for flex children
+        gap: '0.25rem', // Using gap instead of margins
+        minHeight: 0,
+        overflow: 'hidden' // Prevent any overflow
       }}>
 
         {/* Section 1: GymBros Near Me */}
@@ -204,8 +213,7 @@ const ConversionLanding = () => {
             ...sectionStyle,
             backgroundColor: 'var(--color-blue)',
             background: 'linear-gradient(315deg, #FFD700 0%, #FFEA64 20%, #4FC3F7 45%, var(--color-blue) 70%, #144c90 100%)',
-            flex: 1,
-            margin: '0.125rem 0' // Further reduced vertical margin
+            flex: 1
           }}
           onClick={() => handleOptionClick('gymbros', '/gymbros', true)}
           whileTap={{ scale: 0.98 }}
@@ -280,10 +288,10 @@ const ConversionLanding = () => {
             gap: '0.5rem',
             position: 'relative',
             zIndex: 1,
-            paddingTop: '0.25rem' // Minimal padding to fit viewport
+            paddingTop: '0.25rem'
           }}>
             <Dumbbell 
-              size={clamp(30, 8, 50)} // Responsive icon size
+              size={clamp(30, 8, 50)}
               color="#4FC3F7"
               style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
             />
@@ -299,8 +307,7 @@ const ConversionLanding = () => {
             ...sectionStyle,
             backgroundColor: 'var(--color-purple)',
             background: 'radial-gradient(ellipse at center, var(--color-purple) 0%, var(--color-purple) 50%, #a855f7 85%, #c084fc 100%)',
-            flex: 1,
-            margin: '0.125rem 0'
+            flex: 1
           }}
           onClick={() => handleOptionClick('coaching', '/coaching', true)}
           whileTap={{ scale: 0.98 }}
@@ -375,7 +382,7 @@ const ConversionLanding = () => {
             gap: '0.5rem',
             position: 'relative',
             zIndex: 1,
-            paddingTop: '0.25rem' // Minimal padding to fit viewport
+            paddingTop: '0.25rem'
           }}>
             <Trophy 
               size={clamp(30, 8, 50)}
@@ -394,8 +401,7 @@ const ConversionLanding = () => {
             ...sectionStyle,
             backgroundColor: 'var(--color-red)',
             background: 'linear-gradient(135deg, #FFD700 0%, #FFEA64 20%, #FF6B35 45%, var(--color-red) 70%, #B91C1C 100%)',
-            flex: 1,
-            margin: '0.125rem 0'
+            flex: 1
           }}
           onClick={() => handleOptionClick('shop', '/shop', false)}
           whileTap={{ scale: 0.98 }}
@@ -471,7 +477,7 @@ const ConversionLanding = () => {
             gap: '0.3rem',
             position: 'relative',
             zIndex: 1,
-            paddingTop: '0.25rem' // Minimal padding to fit viewport
+            paddingTop: '0.25rem'
           }}>
             <ShoppingBag 
               size={clamp(25, 6, 40)}
@@ -490,7 +496,8 @@ const ConversionLanding = () => {
   // Desktop Layout
   const DesktopLayout = () => (
     <div style={{ 
-      height: '100vh', // Use full viewport since navbar is hidden
+      height: '100vh',
+      height: '100dvh', // Also use dvh for desktop for consistency
       background: `
         radial-gradient(circle at 0 0, var(--color-black) 3px, transparent 3px),
         radial-gradient(circle at 20px 20px, var(--color-black) 2px, transparent 2px),
@@ -511,7 +518,7 @@ const ConversionLanding = () => {
       <motion.header 
         style={{
           textAlign: 'center',
-          paddingBottom: '0.5rem', // Minimal padding
+          paddingBottom: '0.5rem',
           color: 'var(--color-black)',
           flexShrink: 0
         }}
@@ -521,7 +528,7 @@ const ConversionLanding = () => {
       >
         <h1 style={{
           fontFamily: 'var(--font-family)',
-          fontSize: 'clamp(3rem, 6vw, 5rem)', // Reduced from 4rem-7.5rem to save space
+          fontSize: 'clamp(3rem, 6vw, 5rem)',
           fontWeight: 'var(--font-weight-extrabold)',
           color: 'var(--color-white)',
           fontStyle: 'italic',
@@ -539,7 +546,7 @@ const ConversionLanding = () => {
             11px 11px 0 #000, 12px 12px 0 #000, 13px 13px 0 #000, 14px 14px 0 #000, 15px 15px 0 #000,
             16px 16px 0 #000, 17px 17px 0 #000, 18px 18px 0 #000
           `,
-          margin: '0', // Remove all margins
+          margin: '0',
           lineHeight: '1'
         }}>
           GYMTONIC
@@ -550,12 +557,12 @@ const ConversionLanding = () => {
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: '2rem', // Reduced from 3rem
+        gap: '2rem',
         width: '100%',
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '1rem' // Reduced from 2rem
+        padding: '1rem'
       }}>
         
         {/* Section 1: GymBros Near Me */}
@@ -735,7 +742,7 @@ const ConversionLanding = () => {
             gap: '1rem',
             position: 'relative',
             zIndex: 1,
-            paddingTop: '1rem' // Compact but proportional for desktop
+            paddingTop: '1rem'
           }}>
             <Trophy 
               size={60}
@@ -831,7 +838,7 @@ const ConversionLanding = () => {
             gap: '1rem',
             position: 'relative',
             zIndex: 1,
-            paddingTop: '1rem' // Compact but proportional for desktop
+            paddingTop: '1rem'
           }}>
             <ShoppingBag 
               size={60}
@@ -865,7 +872,7 @@ const ConversionLanding = () => {
           animate={{ opacity: 1 }}
           style={{
             position: 'fixed',
-            top: 0, // Start from top since no navbar
+            top: 0,
             left: 0,
             right: 0,
             bottom: 0,
