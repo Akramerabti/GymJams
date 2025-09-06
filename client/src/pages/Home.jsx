@@ -10,16 +10,21 @@ import {
 } from '../components/home-sections';
 import { useTranslation } from 'react-i18next';
 
+const HOME_LOADED_KEY = 'gymtonic-home-loaded';
+
 const Home = () => {
   const { darkMode } = useTheme();
   const navigate = useNavigate();
   const { t } = useTranslation();
   
+  // Check if home has been loaded this session
+  const hasLoadedThisSession = sessionStorage.getItem(HOME_LOADED_KEY) === 'true';
+  
   const [visibleSections, setVisibleSections] = useState(new Set([0]));
   const [scrollY, setScrollY] = useState(0);
   const [scrollDirection, setScrollDirection] = useState('down');
   const [scrollVelocity, setScrollVelocity] = useState(0);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(hasLoadedThisSession); // Initialize based on session
   const [activeSection, setActiveSection] = useState(0);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isScrolling, setIsScrolling] = useState(false);
@@ -202,29 +207,40 @@ const Home = () => {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Enhanced page load handling
-  useEffect(() => {
+   useEffect(() => {
     if ('scrollRestoration' in window.history) {
       window.history.scrollRestoration = 'manual';
     }
 
     window.scrollTo(0, 0);
 
-    const timer = setTimeout(() => {
-      setIsLoaded(true);
+    // Skip loading animation if already loaded this session
+    if (hasLoadedThisSession) {
+      // Immediately show content without animation
       const heroElement = sectionRefs.current[0];
       if (heroElement) {
         heroElement.classList.add('animate-fadeInUp');
       }
-    }, 300);
-    
-    return () => {
-      if ('scrollRestoration' in window.history) {
-        window.history.scrollRestoration = 'auto';
-      }
-      clearTimeout(timer);
-    };
-  }, []);
+    } else {
+      // First time loading this session - show loading animation
+      sessionStorage.setItem(HOME_LOADED_KEY, 'true');
+      
+      const timer = setTimeout(() => {
+        setIsLoaded(true);
+        const heroElement = sectionRefs.current[0];
+        if (heroElement) {
+          heroElement.classList.add('animate-fadeInUp');
+        }
+      }, 300);
+      
+      return () => {
+        clearTimeout(timer);
+        if ('scrollRestoration' in window.history) {
+          window.history.scrollRestoration = 'auto';
+        }
+      };
+    }
+  }, [hasLoadedThisSession]);
 
   const handleNavigate = (route) => {
     if (route === '/demo') {
@@ -399,14 +415,14 @@ const Home = () => {
           fontSize: 'clamp(1rem, 1vw + 0.75rem, 1.125rem)',
         }}
       >
-        {!isLoaded && (
-          <div className="fixed inset-0 z-50 bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center">
-            <div className="text-center">
-              <div className="w-20 h-20 border-4 border-white/20 border-t-white rounded-full animate-spin mb-6 mx-auto"></div>
-              <p className="text-white text-xl font-medium animate-pulse">{t('home.loading')}</p>
-            </div>
+         {!isLoaded && !hasLoadedThisSession && (
+        <div className="fixed inset-0 z-50 bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4 mx-auto"></div>
+            <p className="text-white text-lg font-medium animate-pulse">{t('home.loading')}</p>
           </div>
-        )}
+        </div>
+      )}
 
         {/* Sections */}
         <section 

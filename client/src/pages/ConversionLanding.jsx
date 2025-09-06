@@ -1,22 +1,42 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { MapPin, Dumbbell, Trophy, ShoppingBag, Zap } from 'lucide-react';
 
+const ANIMATION_KEY = 'gymtonic-conversion-animated';
+
 const ConversionLanding = () => {
-  // Navigation would be handled by react-router in production
-  const navigate = (route) => {
-  window.location.href = route;
-  };
+  // Check if animations have already been shown in this session
+  const hasAnimatedThisSession = sessionStorage.getItem(ANIMATION_KEY) === 'true';
   
-  const [animationsComplete, setAnimationsComplete] = useState(false);
+  const [animationsComplete, setAnimationsComplete] = useState(hasAnimatedThisSession);
   const [selectedOption, setSelectedOption] = useState(null);
   const [screenType, setScreenType] = useState('mobile');
+  const mountedRef = useRef(false);
+  const componentId = useRef(Math.random().toString(36).substr(2, 9));
+  const animationTimerRef = useRef(null);
+
+  useEffect(() => {
+    console.log(`🎬 ConversionLanding[${componentId.current}]: Component MOUNTED`);
+    console.log(`🎬 Has animated this session: ${hasAnimatedThisSession}`);
+    mountedRef.current = true;
+    
+    return () => {
+      console.log(`🔥 ConversionLanding[${componentId.current}]: Component UNMOUNTED`);
+      mountedRef.current = false;
+      if (animationTimerRef.current) {
+        clearTimeout(animationTimerRef.current);
+        animationTimerRef.current = null;
+      }
+    };
+  }, []);
+ const navigate = (route) => {
+    window.location.href = route;
+  };
 
   useEffect(() => {
     const checkScreenType = () => {
       const width = window.innerWidth;
-      const height = window.innerHeight;
-      
       if (width < 768) {
         setScreenType('mobile');
       } else if (width >= 768 && width < 1024) {
@@ -28,37 +48,55 @@ const ConversionLanding = () => {
 
     checkScreenType();
     window.addEventListener('resize', checkScreenType);
-    
-    // Start animations after component mounts
-    const timer = setTimeout(() => {
-      setAnimationsComplete(true);
-    }, 1000);
-    
-    // Add Rubik font and CSS variables
-    const link = document.createElement('link');
-    link.href = 'https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;700;800&display=swap';
-    link.rel = 'stylesheet';
-    document.head.appendChild(link);
 
-    // Add CSS variables to document root
+    // Always apply styles
+    let link = document.querySelector('link[href*="Rubik"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.href = 'https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;700;800&display=swap';
+      link.rel = 'stylesheet';
+      document.head.appendChild(link);
+    }
+
     const root = document.documentElement;
-    root.style.setProperty('--color-black', '#000');
-    root.style.setProperty('--color-white', '#fff');
-    root.style.setProperty('--color-blue', '#1b62b9');
-    root.style.setProperty('--color-dark-blue', '#144c90');
-    root.style.setProperty('--color-purple', '#7c3aed');
-    root.style.setProperty('--color-dark-purple', '#5b21b6');
-    root.style.setProperty('--color-red', '#e63838');
-    root.style.setProperty('--color-dark-red', '#a22929');
-    root.style.setProperty('--color-yellow', '#ffea64');
-    root.style.setProperty('--color-dark-yellow', '#fddd50');
-    root.style.setProperty('--color-orange', '#ff6b35');
-    root.style.setProperty('--color-pink', '#ff006e');
-    root.style.setProperty('--font-family', 'Rubik, sans-serif');
-    root.style.setProperty('--font-weight-extrabold', '800');
+    if (!root.style.getPropertyValue('--color-black')) {
+      root.style.setProperty('--color-black', '#000');
+      root.style.setProperty('--color-white', '#fff');
+      root.style.setProperty('--color-blue', '#1b62b9');
+      root.style.setProperty('--color-dark-blue', '#144c90');
+      root.style.setProperty('--color-purple', '#7c3aed');
+      root.style.setProperty('--color-dark-purple', '#5b21b6');
+      root.style.setProperty('--color-red', '#e63838');
+      root.style.setProperty('--color-dark-red', '#a22929');
+      root.style.setProperty('--color-yellow', '#ffea64');
+      root.style.setProperty('--color-dark-yellow', '#fddd50');
+      root.style.setProperty('--color-orange', '#ff6b35');
+      root.style.setProperty('--color-pink', '#ff006e');
+      root.style.setProperty('--font-family', 'Rubik, sans-serif');
+      root.style.setProperty('--font-weight-extrabold', '800');
+    }
+
+    // Check if we should animate
+    if (hasAnimatedThisSession) {
+      console.log(`🎬 ConversionLanding[${componentId.current}]: Already animated this session, skipping animation delay`);
+      // Don't set timer, animations are already complete
+    } else {
+      console.log(`🎬 ConversionLanding[${componentId.current}]: First time this session, starting animation timer`);
+      
+      // Mark as animated immediately to prevent issues with quick refreshes
+      sessionStorage.setItem(ANIMATION_KEY, 'true');
+      
+      // Start animation timer
+      animationTimerRef.current = setTimeout(() => {
+        if (mountedRef.current) {
+          console.log(`🎬 ConversionLanding[${componentId.current}]: Animation timer fired, starting animations`);
+          setAnimationsComplete(true);
+        }
+      }, 800);
+    }
 
     return () => {
-      clearTimeout(timer);
+      clearTimeout(animationTimerRef.current);
       window.removeEventListener('resize', checkScreenType);
     };
   }, []);
@@ -96,7 +134,7 @@ const ConversionLanding = () => {
   const sectionStyle = {
     height: '100%',
     width: '100%',
-    padding: 'clamp(0.5rem, 2vw, 1rem)',
+    padding: 'clamp(1rem, 4vw, 2rem)',
     border: '0.25rem solid var(--color-black)',
     backgroundColor: 'var(--color-white)',
     boxShadow: '0.5rem 0.5rem rgba(132, 81, 61, 0.35)',
@@ -135,9 +173,7 @@ const ConversionLanding = () => {
   // Mobile Layout
   const MobileLayout = () => (
     <div style={{ 
-      height: '100vh',
-      height: '100dvh', // Dynamic viewport height - accounts for browser UI
-      height: '100svh', // Smallest viewport height as ultimate fallback
+      height: '100dvh', 
       WebkitHeight: '-webkit-fill-available', // Safari fallback
       background: `
         radial-gradient(circle at 0 0, var(--color-black) 2px, transparent 2px),
@@ -163,7 +199,7 @@ const ConversionLanding = () => {
       <motion.header 
         style={{
           textAlign: 'center',
-          paddingBottom: '0.25rem',
+          paddingBottom: '1.5rem', // Increased space for GYMTONIC
           color: 'var(--color-black)',
           flexShrink: 0
         }}
@@ -202,7 +238,7 @@ const ConversionLanding = () => {
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.25rem', // Using gap instead of margins
+        gap: '1rem', // Increased gap between sections
         minHeight: 0,
         overflow: 'hidden' // Prevent any overflow
       }}>
@@ -496,7 +532,6 @@ const ConversionLanding = () => {
   // Desktop Layout
   const DesktopLayout = () => (
     <div style={{ 
-      height: '100vh',
       height: '100dvh', // Also use dvh for desktop for consistency
       background: `
         radial-gradient(circle at 0 0, var(--color-black) 3px, transparent 3px),
@@ -518,7 +553,7 @@ const ConversionLanding = () => {
       <motion.header 
         style={{
           textAlign: 'center',
-          paddingBottom: '0.5rem',
+          paddingBottom: '2rem', // Increased space for GYMTONIC
           color: 'var(--color-black)',
           flexShrink: 0
         }}
@@ -557,7 +592,7 @@ const ConversionLanding = () => {
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: '2rem',
+        gap: '3rem', // Increased gap between sections
         width: '100%',
         flex: 1,
         alignItems: 'center',
