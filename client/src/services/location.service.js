@@ -214,22 +214,86 @@ class LocationService {
   }
 
   /**
-   * Reverse geocode coordinates to get city name
+   * Reverse geocode coordinates to get city name with fallback options
    */
   async reverseGeocode(lat, lng) {
     try {
-      const response = await fetch(
-        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        return data.city || data.locality || data.principalSubdivision || 'Unknown City';
+      // Validate coordinates
+      if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+        console.error('Invalid coordinates provided:', { lat, lng });
+        return 'Unknown City';
+      }
+
+      // Use OpenStreetMap Nominatim as primary service (free and reliable)
+      try {
+        console.log('Making reverse geocoding request to Nominatim...');
+        const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=en`;
+        
+        const nominatimResponse = await fetch(nominatimUrl, {
+          headers: {
+            'User-Agent': 'GymJams App (contact@gymjams.com)'
+          }
+        });
+        
+        console.log('Nominatim response status:', nominatimResponse.status);
+        
+        if (nominatimResponse.ok) {
+          const nominatimData = await nominatimResponse.json();
+          console.log('Nominatim response data:', nominatimData);
+          
+          if (nominatimData.address) {
+            const city = nominatimData.address.city || 
+                        nominatimData.address.town || 
+                        nominatimData.address.village || 
+                        nominatimData.address.municipality ||
+                        nominatimData.address.hamlet;
+            if (city) {
+              console.log('Successfully geocoded to city:', city);
+              return city;
+            }
+          }
+        } else {
+          console.error('Nominatim API error:', {
+            status: nominatimResponse.status,
+            statusText: nominatimResponse.statusText
+          });
+        }
+      } catch (nominatimError) {
+        console.error('Nominatim service failed:', nominatimError);
+      }
+
+      // Fallback to BigDataCloud with correct endpoint (if IP isn't banned)
+      try {
+        console.log('Trying BigDataCloud fallback...');
+        const url = `https://api.bigdatacloud.net/data/reverse-geocode?latitude=${lat}&longitude=${lng}&localityLanguage=en`;
+        
+        const response = await fetch(url);
+        
+        console.log('BigDataCloud response status:', response.status);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('BigDataCloud response data:', data);
+          const city = data.city || data.locality || data.principalSubdivision;
+          if (city) {
+            return city;
+          }
+        } else if (response.status === 402 || response.status === 403) {
+          console.warn('BigDataCloud API access restricted (likely IP banned). Using only Nominatim.');
+        } else {
+          console.error('BigDataCloud API error:', {
+            status: response.status,
+            statusText: response.statusText,
+            url: url
+          });
+        }
+      } catch (bigDataError) {
+        console.error('BigDataCloud service failed:', bigDataError);
       }
       
       return 'Unknown City';
     } catch (error) {
-      console.error('Reverse geocoding failed:', error);
+      console.error('All reverse geocoding services failed:', error);
       return 'Unknown City';
     }
   }

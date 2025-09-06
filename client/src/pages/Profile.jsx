@@ -13,6 +13,7 @@ import {
 import { toast } from 'sonner';
 import api from '../services/api';
 import ProfileImageUpload from '../components/layout/ProfileImageUpload';
+import locationService from '../services/location.service';
 import ImageCropModal from '../components/layout/ImageCropModal';
 import LocationRequestModal from '../components/common/LocationRequestModal';
 import subscriptionService from '../services/subscription.service';
@@ -257,16 +258,8 @@ const Profile = () => {
 
       const { latitude, longitude } = position.coords;
       
-      // Reverse geocode to get city
-      const response = await fetch(
-        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
-      );
-      
-      let cityName = 'Unknown City';
-      if (response.ok) {
-        const data = await response.json();
-        cityName = data.city || data.locality || data.principalSubdivision || 'Unknown City';
-      }
+      // Use the improved locationService for reverse geocoding
+      const cityName = await locationService.reverseGeocode(latitude, longitude);
 
       const locationData = {
         lat: latitude,
@@ -361,15 +354,8 @@ const Profile = () => {
 
         const { latitude, longitude } = position.coords;
         
-        const response = await fetch(
-          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
-        );
-        
-        let cityName = 'Unknown City';
-        if (response.ok) {
-          const data = await response.json();
-          cityName = data.city || data.locality || data.principalSubdivision || 'Unknown City';
-        }
+        // Use the improved locationService for reverse geocoding
+        const cityName = await locationService.reverseGeocode(latitude, longitude);
 
         const locationData = {
           lat: latitude,

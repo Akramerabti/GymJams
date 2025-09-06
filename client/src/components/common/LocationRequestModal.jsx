@@ -20,37 +20,61 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
   }, [isOpen]);
 
   const handleGPSLocation = async () => {
-  setIsGettingLocation(true);
-  setError('');
+    setIsGettingLocation(true);
+    setError('');
 
-  try {
-    // Import the enhanced service
-    const { default: enhancedGymBrosLocationService } = await import('../../services/gymBrosLocation.service');
-    
-    const locationData = await enhancedGymBrosLocationService.getCurrentLocation({
-      priority: 'precise', // Use precise for manual requests
-      force: true
-    });
-    
-    handleLocationSuccess(locationData);
-  } catch (error) {
-    console.error('GPS location failed:', error);
-    let errorMessage = 'Unable to get your precise location';
-    
-    if (error.code === 1) {
-      errorMessage = 'Location access denied. Try auto-detect instead.';
-    } else if (error.code === 2) {
-      errorMessage = 'Location unavailable. Try auto-detect instead.';
-    } else if (error.code === 3) {
-      errorMessage = 'Location request timed out. Try auto-detect instead.';
+    try {
+      // Import the enhanced service
+      const { default: enhancedGymBrosLocationService } = await import('../../services/gymBrosLocation.service');
+      
+      const locationData = await enhancedGymBrosLocationService.getCurrentLocation({
+        priority: 'precise', // Use precise for manual requests
+        force: true
+      });
+      
+      handleLocationSuccess(locationData);
+    } catch (error) {
+      console.error('GPS location failed:', error);
+      let errorMessage = 'Unable to get your precise location';
+      
+      if (error.code === 1) {
+        errorMessage = 'Location access denied. Try auto-detect instead.';
+      } else if (error.code === 2) {
+        errorMessage = 'Location unavailable. Try auto-detect instead.';
+      } else if (error.code === 3) {
+        errorMessage = 'Location request timed out. Try auto-detect instead.';
+      }
+      
+      setError(errorMessage);
+      toast.error('GPS location failed');
+    } finally {
+      setIsGettingLocation(false);
     }
-    
-    setError(errorMessage);
-    toast.error('GPS location failed');
-  } finally {
-    setIsGettingLocation(false);
-  }
-};
+  };
+
+  const handleAutoDetect = async () => {
+    setIsGettingLocation(true);
+    setError('');
+
+    try {
+      // Import the enhanced service for IP-based location
+      const { default: enhancedGymBrosLocationService } = await import('../../services/gymBrosLocation.service');
+      
+      const locationData = await enhancedGymBrosLocationService.getLocationByIP();
+      
+      if (locationData) {
+        handleLocationSuccess(locationData);
+      } else {
+        throw new Error('Auto-detection failed');
+      }
+    } catch (error) {
+      console.error('Auto-detect location failed:', error);
+      setError('Auto-detection failed. Try using precise location instead.');
+      toast.error('Auto-detection failed');
+    } finally {
+      setIsGettingLocation(false);
+    }
+  };
 
   const handleLocationSuccess = (locationData) => {
     locationService.storeLocation(locationData);
@@ -70,23 +94,7 @@ const LocationRequestModal = ({ isOpen, onClose, onLocationSet, title = "Enable 
   };
 
   const reverseGeocode = async (lat, lng) => {
-    try {
-      const response = await fetch(
-        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        const city = data.city || data.locality || data.principalSubdivision || 'Unknown City';
-        return city;
-      }
-      
-      console.warn('⚠️ LocationRequestModal: Reverse geocoding API response not OK:', response.status);
-      return 'Unknown City';
-    } catch (error) {
-      console.error('❌ LocationRequestModal: Reverse geocoding error:', error);
-      return 'Unknown City';
-    }
+    return await locationService.reverseGeocode(lat, lng);
   };
 
   if (!isOpen) return null;

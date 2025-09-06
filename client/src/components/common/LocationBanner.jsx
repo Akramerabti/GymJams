@@ -4,6 +4,7 @@ import { MapPin, X, Navigation, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../stores/authStore';
 import { useLocation } from 'react-router-dom';
+import locationService from '../../services/location.service';
 
 const LocationBanner = ({ onLocationSet }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -107,23 +108,9 @@ const LocationBanner = ({ onLocationSet }) => {
   }
 };
 
-  // Reverse geocode coordinates to get city name
+  // Use the location service for reverse geocoding
   const reverseGeocode = async (lat, lng) => {
-    try {
-      const response = await fetch(
-        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        return data.city || data.locality || data.principalSubdivision || 'Unknown City';
-      }
-      
-      return 'Unknown City';
-    } catch (error) {
-      console.error('Reverse geocoding error:', error);
-      return 'Unknown City';
-    }
+    return await locationService.reverseGeocode(lat, lng);
   };
 
   const handleDismiss = () => {

@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { jwtDecode } from 'jwt-decode';
 import api from '../services/api';
 import { usePoints } from '../hooks/usePoints';
+import locationService from '../services/location.service';
 
 const initialState = {
   user: null,
@@ -496,21 +497,7 @@ const useAuthStore = create(
 
       // Helper method for reverse geocoding
       reverseGeocode: async (lat, lng) => {
-        try {
-          const response = await fetch(
-            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
-          );
-          
-          if (response.ok) {
-            const data = await response.json();
-            return data.city || data.locality || data.principalSubdivision || 'Unknown City';
-          }
-          
-          return 'Unknown City';
-        } catch (error) {
-          console.error('❌ AuthStore: Reverse geocoding error:', error);
-          return 'Unknown City';
-        }
+        return await locationService.reverseGeocode(lat, lng);
       },
     }),
     {

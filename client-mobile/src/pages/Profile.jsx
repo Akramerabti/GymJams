@@ -18,6 +18,7 @@ import ImageCropModal from '../components/layout/ImageCropModal';
 import LocationRequestModal from '../components/common/LocationRequestModal';
 import subscriptionService from '../services/subscription.service';
 import StripeOnboardingForm from '../pages/StripeOnboardingForm';
+import locationService from '../services/location.service';
 
 const Profile = () => {
   const { user, updateProfile, logout, validatePhone } = useAuth();
@@ -375,42 +376,12 @@ const updateNotificationPreference = async (category, subType, value) => {
     setIsRefreshingLocation(true);
     
     try {
-      if (!navigator.geolocation) {
-        toast.error('Geolocation is not supported by your browser');
-        return;
-      }
-
-      const position = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          resolve,
-          reject,
-          {
-            enableHighAccuracy: true,
-            timeout: 15000,
-            maximumAge: 0
-          }
-        );
+      // Use the mobile location service which handles Capacitor integration
+      const locationData = await locationService.getLocationByGPS({
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
       });
-
-      const { latitude, longitude } = position.coords;
-      
-      const response = await fetch(
-        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
-      );
-      
-      let cityName = 'Unknown City';
-      if (response.ok) {
-        const data = await response.json();
-        cityName = data.city || data.locality || data.principalSubdivision || 'Unknown City';
-      }
-
-      const locationData = {
-        lat: latitude,
-        lng: longitude,
-        city: cityName,
-        address: '',
-        source: 'manual-refresh'
-      };
 
       const updateResponse = await api.put('/user/location', locationData);
       
@@ -419,19 +390,22 @@ const updateNotificationPreference = async (category, subType, value) => {
           ...prev,
           location: updateResponse.data.location || locationData
         }));
-        toast.success(`Location updated to ${updateResponse.data.location?.city || cityName}!`);
+        toast.success(`Location updated to ${updateResponse.data.location?.city || locationData.city}!`);
       }
 
     } catch (error) {
-      if (error.code === 1) {
-        toast.error('Location access denied. Please enable location permissions.');
-      } else if (error.code === 2) {
-        toast.error('Location unavailable. Please try again.');
-      } else if (error.code === 3) {
-        toast.error('Location request timed out. Please try again.');
-      } else {
-        toast.error('Failed to refresh location. Please try again.');
+      console.error('❌ Error refreshing location:', error);
+      
+      let errorMessage = 'Failed to refresh location. Please try again.';
+      if (error.message.includes('denied')) {
+        errorMessage = 'Location access denied. Please enable location permissions.';
+      } else if (error.message.includes('unavailable')) {
+        errorMessage = 'Location unavailable. Please try again.';
+      } else if (error.message.includes('timed out')) {
+        errorMessage = 'Location request timed out. Please try again.';
       }
+      
+      toast.error(errorMessage);
     } finally {
       setIsRefreshingLocation(false);
     }
@@ -469,41 +443,12 @@ const updateNotificationPreference = async (category, subType, value) => {
 
     if (!profileData.location?.lat || !profileData.location?.lng) {
       try {
-        if (!navigator.geolocation) {
-          return;
-        }
-
-        const position = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(
-            resolve,
-            reject,
-            {
-              enableHighAccuracy: true, 
-              timeout: 10000,
-              maximumAge: 60000 
-            }
-          );
+        // Use the mobile location service for automatic updates
+        const locationData = await locationService.getLocationByGPS({
+          enableHighAccuracy: true, 
+          timeout: 10000,
+          maximumAge: 60000 
         });
-
-        const { latitude, longitude } = position.coords;
-        
-        const response = await fetch(
-          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
-        );
-        
-        let cityName = 'Unknown City';
-        if (response.ok) {
-          const data = await response.json();
-          cityName = data.city || data.locality || data.principalSubdivision || 'Unknown City';
-        }
-
-        const locationData = {
-          lat: latitude,
-          lng: longitude,
-          city: cityName,
-          address: '',
-          source: 'login-update'
-        };
         
         const updateResponse = await api.put('/user/location', locationData);
         
@@ -516,6 +461,7 @@ const updateNotificationPreference = async (category, subType, value) => {
 
       } catch (error) {
         // Silent fail for automatic location updates
+        console.warn('Automatic location update failed:', error);
       }
     }
   };
