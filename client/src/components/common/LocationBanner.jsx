@@ -134,7 +134,7 @@ const LocationBanner = ({ onLocationSet }) => {
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
-        className="fixed bottom-3 left-1/2 transform -translate-x-1/2 w-72 max-w-[calc(100vw-1.5rem)] md:left-auto md:right-3 md:transform-none md:translate-x-0 md:max-w-xs z-50"
+        className="fixed bottom-3 left-3 right-3 md:left-auto md:right-3 md:w-72 md:max-w-xs z-50"
         style={{
           // Use dvh for better mobile viewport handling
           bottom: 'max(0.75rem, calc(100dvh - 100vh + 0.75rem))'
