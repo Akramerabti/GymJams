@@ -51,65 +51,19 @@ const LocationBanner = ({ onLocationSet }) => {
       }
     }
     
-    // Auto-fetch location if user has given permission before (for guests and users)
-    const checkAndFetchLocation = async () => {
-      if (hasLocation && navigator.geolocation) {
-        try {
-          // Try to get current position to check if permission is still granted
-          const position = await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(
-              resolve,
-              reject,
-              {
-                enableHighAccuracy: true,
-                timeout: 5000,
-                maximumAge: 0 // Force fresh reading
-              }
-            );
-          });
-
-          const { latitude, longitude } = position.coords;
-          const cityName = await reverseGeocode(latitude, longitude);
-
-          const freshLocationData = {
-            lat: latitude,
-            lng: longitude,
-            city: cityName,
-            address: '',
-            source: 'auto-refresh',
-            timestamp: new Date().toISOString()
-          };
-
-          // Update localStorage
-          localStorage.setItem('userLocation', JSON.stringify(freshLocationData));
-          
-          // Call parent callback if available
-          onLocationSet?.(freshLocationData);
-          
-          return true; // Location successfully updated
-        } catch (error) {
-          return false; // Location fetch failed
-        }
-      }
-      return false;
-    };
-
-    // Execute the location check
-    checkAndFetchLocation().then((locationFetched) => {
-      const userNeedsLocation = user ? user.needsLocationUpdate : !hasLocation;
-      const shouldShow = userNeedsLocation && 
-                        !locationFetched && 
-                        !isDismissed && 
-                        !bannerRejected;
+    // Determine if we should show the banner (NO automatic location requests)
+    const userNeedsLocation = user ? user.needsLocationUpdate : !hasLocation;
+    const shouldShow = userNeedsLocation && 
+                      !isDismissed && 
+                      !bannerRejected;
+    
+    if (shouldShow) {
+      // Reset success state when showing banner again
+      setLocationSuccess(false);
+      setLocationCity('');
       
-      if (shouldShow) {
-        // Reset success state when showing banner again
-        setLocationSuccess(false);
-        setLocationCity('');
-        
-        setTimeout(() => setIsVisible(true), 2000);
-      }
-    });
+      setTimeout(() => setIsVisible(true), 2000);
+    }
   }, [isDismissed, user, onLocationSet, location.pathname]);
 
   const getCurrentLocation = async () => {
@@ -194,6 +148,10 @@ const LocationBanner = ({ onLocationSet }) => {
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
         className="fixed bottom-3 left-1/2 transform -translate-x-1/2 w-72 max-w-[calc(100vw-1.5rem)] md:left-auto md:right-3 md:transform-none md:translate-x-0 md:max-w-xs z-50"
+        style={{
+          // Use dvh for better mobile viewport handling
+          bottom: 'max(0.75rem, calc(100dvh - 100vh + 0.75rem))'
+        }}
       >
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 backdrop-blur-sm">
           {/* Header */}
@@ -215,7 +173,9 @@ const LocationBanner = ({ onLocationSet }) => {
           </div>
 
           {/* Content */}
-
+          <p className="text-xs text-gray-600 dark:text-gray-300 mb-3">
+            Get personalized fitness coaching recommendations based on your location.
+          </p>
 
           {/* Actions */}
           <div className="flex space-x-2">
@@ -232,7 +192,7 @@ const LocationBanner = ({ onLocationSet }) => {
               ) : (
                 <>
                   <Navigation className="w-3 h-3" />
-                  <span>Allow</span>
+                  <span>Allow Location</span>
                 </>
               )}
             </button>
@@ -240,7 +200,7 @@ const LocationBanner = ({ onLocationSet }) => {
               onClick={handleDismiss}
               className="px-2 py-1.5 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
             >
-              Later
+              Not Now
             </button>
           </div>
 
@@ -248,7 +208,7 @@ const LocationBanner = ({ onLocationSet }) => {
           <div className="flex items-center space-x-1 mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
             <AlertCircle className="w-2.5 h-2.5 text-gray-400" />
             <span className="text-xs text-gray-500 dark:text-gray-400">
-              Privacy protected
+              Your privacy is protected
             </span>
           </div>
         </div>
