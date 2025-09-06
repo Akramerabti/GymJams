@@ -632,7 +632,7 @@ return (
       isWelcomeStep 
         ? 'bg-gradient-to-br from-slate-600 via-gray-700 to-slate-800 text-white' 
         : 'bg-gradient-to-br from-gray-100 via-slate-200 to-gray-300 text-gray-900'
-    } gymbros-setup-fullscreen h-screen w-full flex flex-col transition-colors duration-300 relative overflow-hidden`}>
+    } gymbros-setup-fullscreen h-[100dvh] md:h-screen w-full flex flex-col transition-colors duration-300 relative overflow-hidden`}>
       
       {/* Animated Background Shapes for Welcome Step */}
       {isWelcomeStep && (

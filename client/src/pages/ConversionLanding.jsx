@@ -12,6 +12,7 @@ const ConversionLanding = () => {
   const [animationsComplete, setAnimationsComplete] = useState(hasAnimatedThisSession);
   const [selectedOption, setSelectedOption] = useState(null);
   const [screenType, setScreenType] = useState('mobile');
+  const [backgroundVariant, setBackgroundVariant] = useState('default');
   const mountedRef = useRef(false);
   const componentId = useRef(Math.random().toString(36).substr(2, 9));
   const animationTimerRef = useRef(null);
@@ -62,6 +63,7 @@ const ConversionLanding = () => {
     if (!root.style.getPropertyValue('--color-black')) {
       root.style.setProperty('--color-black', '#000');
       root.style.setProperty('--color-white', '#fff');
+      root.style.setProperty('--color-silver', '#c0c0c0');
       root.style.setProperty('--color-blue', '#1b62b9');
       root.style.setProperty('--color-dark-blue', '#144c90');
       root.style.setProperty('--color-purple', '#7c3aed');
@@ -75,6 +77,11 @@ const ConversionLanding = () => {
       root.style.setProperty('--font-family', 'Rubik, sans-serif');
       root.style.setProperty('--font-weight-extrabold', '800');
     }
+
+    // 50% chance to use alternative background
+    const useAlternativeBackground = Math.random() < 0.5;
+    setBackgroundVariant(useAlternativeBackground ? 'alternative' : 'default');
+    console.log(`🎨 ConversionLanding[${componentId.current}]: Background variant: ${useAlternativeBackground ? 'alternative (silver)' : 'default (colorful)'}`);
 
     // Check if we should animate
     if (hasAnimatedThisSession) {
@@ -134,12 +141,12 @@ const ConversionLanding = () => {
   const sectionStyle = {
     height: '100%',
     width: '100%',
-    padding: 'clamp(1rem, 4vw, 2rem)',
+    padding: 'clamp(1.5rem, 5vw, 3rem)', // Increased padding significantly
     border: '0.25rem solid var(--color-black)',
     backgroundColor: 'var(--color-white)',
     boxShadow: '0.5rem 0.5rem rgba(132, 81, 61, 0.35)',
     margin: '0',
-    borderRadius: '1rem',
+    borderRadius: '1.2rem', // Slightly larger border radius
     cursor: 'pointer',
     transition: 'all 0.3s ease',
     position: 'relative',
@@ -170,17 +177,37 @@ const ConversionLanding = () => {
     textAlign: 'center'
   };
 
+  // Helper function to get background styles based on variant
+  const getBackgroundStyles = (isMobile = true) => {
+    const dotColor = backgroundVariant === 'alternative' ? 'var(--color-white)' : 'var(--color-black)';
+    const gradientStyle = backgroundVariant === 'alternative' 
+      ? 'linear-gradient(135deg, var(--color-white) 0%, var(--color-silver) 50%, var(--color-black) 100%)'
+      : 'linear-gradient(135deg, var(--color-orange) 0%, var(--color-red) 50%, var(--color-purple) 100%)';
+
+    const mobileBackground = `
+      radial-gradient(circle at 0 0, ${dotColor} 2px, transparent 2px),
+      radial-gradient(circle at 15px 15px, ${dotColor} 1.5px, transparent 1.5px),
+      radial-gradient(circle at 8px 25px, ${dotColor} 1px, transparent 1px),
+      ${gradientStyle}
+    `;
+
+    const desktopBackground = `
+      radial-gradient(circle at 0 0, ${dotColor} 3px, transparent 3px),
+      radial-gradient(circle at 20px 20px, ${dotColor} 2px, transparent 2px),
+      radial-gradient(circle at 10px 35px, ${dotColor} 1.5px, transparent 1.5px),
+      radial-gradient(circle at 35px 10px, ${dotColor} 1px, transparent 1px),
+      ${gradientStyle}
+    `;
+
+    return isMobile ? mobileBackground : desktopBackground;
+  };
+
   // Mobile Layout
   const MobileLayout = () => (
     <div style={{ 
       height: '100dvh', 
       WebkitHeight: '-webkit-fill-available', // Safari fallback
-      background: `
-        radial-gradient(circle at 0 0, var(--color-black) 2px, transparent 2px),
-        radial-gradient(circle at 15px 15px, var(--color-black) 1.5px, transparent 1.5px),
-        radial-gradient(circle at 8px 25px, var(--color-black) 1px, transparent 1px),
-        linear-gradient(135deg, var(--color-orange) 0%, var(--color-red) 50%, var(--color-purple) 100%)
-      `,
+      background: getBackgroundStyles(true),
       backgroundSize: '30px 30px, 30px 30px, 30px 30px, 100% 100%',
       backgroundPosition: '0 0, 0 0, 0 0, 0 0',
       display: 'flex',
@@ -199,7 +226,7 @@ const ConversionLanding = () => {
       <motion.header 
         style={{
           textAlign: 'center',
-          paddingBottom: '1.5rem', // Increased space for GYMTONIC
+          paddingBottom: '1.5rem',          paddingBottom: '0.25rem',
           color: 'var(--color-black)',
           flexShrink: 0
         }}
@@ -238,9 +265,10 @@ const ConversionLanding = () => {
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        gap: '1rem', // Increased gap between sections
+        gap: '2rem', // Much larger gap between sections
         minHeight: 0,
-        overflow: 'hidden' // Prevent any overflow
+        overflow: 'hidden', // Prevent any overflow
+        padding: '0.5rem' // Additional padding around container
       }}>
 
         {/* Section 1: GymBros Near Me */}
@@ -533,13 +561,7 @@ const ConversionLanding = () => {
   const DesktopLayout = () => (
     <div style={{ 
       height: '100dvh', // Also use dvh for desktop for consistency
-      background: `
-        radial-gradient(circle at 0 0, var(--color-black) 3px, transparent 3px),
-        radial-gradient(circle at 20px 20px, var(--color-black) 2px, transparent 2px),
-        radial-gradient(circle at 10px 35px, var(--color-black) 1.5px, transparent 1.5px),
-        radial-gradient(circle at 35px 10px, var(--color-black) 1px, transparent 1px),
-        linear-gradient(135deg, var(--color-orange) 0%, var(--color-red) 30%, var(--color-purple) 70%, #ff1493 100%)
-      `,
+      background: getBackgroundStyles(false),
       backgroundSize: '40px 40px, 40px 40px, 40px 40px, 40px 40px, 100% 100%',
       backgroundPosition: '0 0, 0 0, 0 0, 0 0, 0 0',
       display: 'flex',
@@ -553,7 +575,7 @@ const ConversionLanding = () => {
       <motion.header 
         style={{
           textAlign: 'center',
-          paddingBottom: '2rem', // Increased space for GYMTONIC
+          paddingBottom: '0.5rem',
           color: 'var(--color-black)',
           flexShrink: 0
         }}
@@ -581,7 +603,7 @@ const ConversionLanding = () => {
             11px 11px 0 #000, 12px 12px 0 #000, 13px 13px 0 #000, 14px 14px 0 #000, 15px 15px 0 #000,
             16px 16px 0 #000, 17px 17px 0 #000, 18px 18px 0 #000
           `,
-          margin: '0',
+          margin: '30px 0 20px 0',
           lineHeight: '1'
         }}>
           GYMTONIC
@@ -592,7 +614,7 @@ const ConversionLanding = () => {
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: '3rem', // Increased gap between sections
+        gap: '4rem', // Increased gap between sections
         width: '100%',
         flex: 1,
         alignItems: 'center',
@@ -905,20 +927,39 @@ const ConversionLanding = () => {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
+          transition={{ duration: 0.1 }} // Very fast transition to hide background immediately
           style={{
             position: 'fixed',
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            backdropFilter: 'blur(4px)',
+            background: getBackgroundStyles(screenType === 'mobile'), // Use same background as component
+            backgroundSize: screenType === 'mobile' 
+              ? '30px 30px, 30px 30px, 30px 30px, 100% 100%'
+              : '40px 40px, 40px 40px, 40px 40px, 40px 40px, 100% 100%',
+            backgroundPosition: screenType === 'mobile'
+              ? '0 0, 0 0, 0 0, 0 0'
+              : '0 0, 0 0, 0 0, 0 0, 0 0',
+            backdropFilter: 'blur(12px)', // Strong blur to create loading effect
+            filter: 'blur(2px)', // Additional blur on the background itself
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 50
+            zIndex: 9999 // Higher z-index to ensure it's on top
           }}
         >
+          {/* Semi-transparent overlay to improve spinner visibility */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.3)', // Light overlay for better contrast
+            zIndex: 1
+          }} />
+          
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
@@ -927,7 +968,9 @@ const ConversionLanding = () => {
               borderTop: '4px solid transparent',
               borderRadius: '50%',
               width: 'clamp(3rem, 8vw, 5rem)',
-              height: 'clamp(3rem, 8vw, 5rem)'
+              height: 'clamp(3rem, 8vw, 5rem)',
+              zIndex: 2, // Above the overlay
+              filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.5))' // Add shadow for better visibility
             }}
           />
         </motion.div>

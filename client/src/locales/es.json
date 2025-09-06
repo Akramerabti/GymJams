@@ -60,6 +60,7 @@
   "shopsection.accessories": "Accesorios",
   "shopsection.durable": "Duradero",
   "shopsection.proEquipment": "Equipo profesional",
+  "shopsection.viewAll": "Ver Todo",
   "coachingsection.videoTitle": "Experiencia de Coaching Experto",
 "coachingsection.videoDescription": "Descubre cómo nuestros entrenadores certificados transforman vidas con coaching personalizado",
 "coachingsection.certifiedTrainers": "Entrenadores certificados",
@@ -88,6 +89,17 @@
 "gymbrossection.workoutTogether": "Entrena juntos",
 "gymbrossection.trainTeam": "Entrena en equipo",
 "gymBrosNetwork.getStarted": "Comenzar",
+"gymBrosNetwork.findYourFitnessFamily": "Encuentra tu Familia Fitness",
+"gymBrosNetwork.connectWithEnthusiasts": "Conecta con Entusiastas",
+"gymBrosNetwork.buildYourNetwork": "Construye tu Red",
+"gymBrosNetwork.discoverLikeMinded": "Descubre Personas Afines",
+"gymBrosNetwork.achieveGoalsTogether": "Logra Objetivos Juntos",
+"gymBrosNetwork.partnerUpWithBuddies": "Hazte Equipo con Compañeros",
+"gymBrosNetwork.shareAndSupport": "Comparte y Apoya",
+"gymBrosNetwork.exchangeTipsCelebrateVictories": "Intercambia Consejos, Celebra Victorias",
+"gymBrosNetwork.readyToLevelUp": "¿Listo para Subir de Nivel?",
+"gymBrosNetwork.joinThousandsOfEnthusiasts": "Únete a Miles de Entusiastas",
+"gymBrosNetwork.startYourJourney": "Comienza tu Viaje 🚀",
 "completeoauthprofile.title": "Completa tu perfil",
 "completeoauthprofile.addPhone": "Agregar número de teléfono",
 "completeoauthprofile.addLastName": "Completa tu nombre",
@@ -170,5 +182,6 @@
 "coachinghome.learnMorePoints": "Saber más sobre los puntos Gymtonic",
 "coachinghome.logIn": "Iniciar sesión",
 "coachinghome.continueAnyway": "Continuar de todos modos",
-"coachinghome.getStarted": "Comenzar"
+"coachinghome.getStarted": "Comenzar",
+"coachinghome.mostPopular": "Más Popular"
 }

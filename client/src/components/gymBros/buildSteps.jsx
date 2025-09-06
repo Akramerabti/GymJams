@@ -420,22 +420,10 @@ const BasicInfoStep = ({
     }
   };
 
-  // Helper to display current height for debugging
-  const getHeightDisplay = () => {
-    if (!profileData.height) return 'Not set';
-    
-    if (profileData.heightUnit === 'inches') {
-      const inches = Number(profileData.height);
-      const feet = Math.floor(inches / 12);
-      const remainingInches = inches % 12;
-      return `${feet}'${remainingInches}" (${inches} total inches)`;
-    } else {
-      return `${profileData.height} cm`;
-    }
-  };
-
   return (
-    <div className="flex flex-col h-full max-h-[90vh] overflow-y-auto px-2 ">
+    <div className={`flex flex-col h-full ${
+      screenType === 'mobile' ? 'max-h-[90dvh]' : 'max-h-[90vh]'
+    } overflow-y-auto px-2 `}>
       {/* Main Title */}
       <div className="text-center space-y-1 mb-4">
         <h2 className="text-xl font-bold text-white">Tell us about yourself</h2>

@@ -148,14 +148,24 @@ const OAuthCallback = () => {
   // If still loading
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Card className="w-full max-w-md p-6 shadow-lg">
-          <CardContent className="flex flex-col items-center py-8">
-            <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Completing authentication...</h2>
-            <p className="text-gray-500 text-center">Please wait while we log you in</p>
-          </CardContent>
-        </Card>
+      <div 
+        className="flex items-center justify-center bg-gradient-to-br from-blue-600 via-purple-600 to-orange-600"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: '100dvh',
+          width: '100vw',
+          zIndex: 99999, // Above everything including navbar
+          isolation: 'isolate' // Creates new stacking context
+        }}
+      >
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4 mx-auto"></div>
+          <h2 className="text-xl font-semibold mb-2 text-white">Completing authentication...</h2>
+        </div>
       </div>
     );
   }

@@ -1062,7 +1062,7 @@ const renderHeader = () => {
 
  if ((loading || guestLoading) && !initializationComplete) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-[100dvh] md:h-screen">
         <div className="animate-pulse flex flex-col items-center">
           <Dumbbell size={48} className="text-blue-500 animate-bounce mb-4" />
           <p className="text-lg font-medium">Loading Gym Partners...</p>

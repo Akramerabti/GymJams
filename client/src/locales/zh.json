@@ -60,6 +60,7 @@
   "shopsection.accessories": "配件",
   "shopsection.durable": "耐用",
   "shopsection.proEquipment": "专业器材",
+  "shopsection.viewAll": "查看全部",
   "coachingsection.videoTitle": "专业教练体验",
 "coachingsection.videoDescription": "了解我们的认证教练如何通过个性化健身指导改变生活",
 "coachingsection.certifiedTrainers": "认证教练",
@@ -88,6 +89,17 @@
 "gymbrossection.workoutTogether": "一起锻炼",
 "gymbrossection.trainTeam": "团队训练",
 "gymBrosNetwork.getStarted": "开始使用",
+"gymBrosNetwork.findYourFitnessFamily": "找到你的健身家庭",
+"gymBrosNetwork.connectWithEnthusiasts": "与爱好者连接",
+"gymBrosNetwork.buildYourNetwork": "建立你的网络",
+"gymBrosNetwork.discoverLikeMinded": "发现志同道合的人",
+"gymBrosNetwork.achieveGoalsTogether": "一起实现目标",
+"gymBrosNetwork.partnerUpWithBuddies": "与伙伴组队",
+"gymBrosNetwork.shareAndSupport": "分享与支持",
+"gymBrosNetwork.exchangeTipsCelebrateVictories": "交流技巧，庆祝胜利",
+"gymBrosNetwork.readyToLevelUp": "准备好升级了吗",
+"gymBrosNetwork.joinThousandsOfEnthusiasts": "加入数千名爱好者",
+"gymBrosNetwork.startYourJourney": "开始你的旅程 🚀",
 "completeoauthprofile.title": "完善您的资料",
 "completeoauthprofile.addPhone": "添加手机号",
 "completeoauthprofile.addLastName": "完善您的姓名",
@@ -170,5 +182,6 @@
 "coachinghome.learnMorePoints": "了解 Gymtonic 积分",
 "coachinghome.logIn": "登录",
 "coachinghome.continueAnyway": "继续",
-"coachinghome.getStarted": "开始使用"
+"coachinghome.getStarted": "开始使用",
+"coachinghome.mostPopular": "最受欢迎"
 }

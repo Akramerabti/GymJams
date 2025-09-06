@@ -163,7 +163,7 @@ const GymBrosFilters = ({ isOpen, onClose, onApply }) => {
       exit={{ opacity: 0 }}
     >
       <motion.div
-        className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto mt-16 mb-16"
+        className="bg-white rounded-lg w-full max-w-md max-h-[90dvh] md:max-h-[90vh] overflow-y-auto mt-16 mb-16"
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}

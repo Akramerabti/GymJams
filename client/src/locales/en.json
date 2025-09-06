@@ -60,6 +60,7 @@
   "shopsection.accessories": "Accessories",
   "shopsection.durable": "Durable",
   "shopsection.proEquipment": "Pro Equipment",
+  "shopsection.viewAll": "View All",
   "coachingsection.videoTitle": "Expert Coaching Experience",
 "coachingsection.videoDescription": "See how our certified trainers transform lives through personalized fitness coaching",
 "coachingsection.certifiedTrainers": "Certified Trainers",
@@ -88,6 +89,17 @@
 "gymbrossection.workoutTogether": "Workout Together",
 "gymbrossection.trainTeam": "Train as a team",
 "gymBrosNetwork.getStarted": "Get Started",
+"gymBrosNetwork.findYourFitnessFamily": "Find Your Fitness Family",
+"gymBrosNetwork.connectWithEnthusiasts": "Connect with Enthusiasts",
+"gymBrosNetwork.buildYourNetwork": "Build Your Network",
+"gymBrosNetwork.discoverLikeMinded": "Discover Like-Minded",
+"gymBrosNetwork.achieveGoalsTogether": "Achieve Goals Together",
+"gymBrosNetwork.partnerUpWithBuddies": "Partner Up with Buddies",
+"gymBrosNetwork.shareAndSupport": "Share and Support",
+"gymBrosNetwork.exchangeTipsCelebrateVictories": "Exchange Tips, Celebrate Victories",
+"gymBrosNetwork.readyToLevelUp": "Ready to Level Up",
+"gymBrosNetwork.joinThousandsOfEnthusiasts": "Join Thousands of Enthusiasts",
+"gymBrosNetwork.startYourJourney": "Start Your Journey 🚀",
 "completeoauthprofile.title": "Complete Your Profile",
 "completeoauthprofile.addPhone": "Add Phone Number",
 "completeoauthprofile.addLastName": "Complete Your Name",
@@ -171,5 +183,6 @@
 "coachinghome.learnMorePoints": "Learn more about Gymtonic points",
 "coachinghome.logIn": "Log In",
 "coachinghome.continueAnyway": "Continue Anyway",
-"coachinghome.getStarted": "Get Started"
+"coachinghome.getStarted": "Get Started",
+"coachinghome.mostPopular": "Most Popular"
 }

@@ -165,6 +165,23 @@ const CoachingHome = () => {
     checkSubscription();
   }, [user, navigate]);
   
+  // Auto-scroll to plans after 2 seconds
+  useEffect(() => {
+    const autoScrollTimer = setTimeout(() => {
+      const plansSection = document.getElementById('plans');
+      if (plansSection) {
+        plansSection.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start',
+          inline: 'nearest'
+        });
+      }
+    }, 2500); // 2.5 seconds delay for smoother experience
+
+    // Cleanup timer on unmount
+    return () => clearTimeout(autoScrollTimer);
+  }, []); // Empty dependency array means this runs once on mount
+  
 
   const features = [
     {
@@ -296,7 +313,7 @@ const CoachingHome = () => {
     <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-300">
       {/* Hero Section with Parallax Effect */}
       <motion.section
-        className="relative bg-gradient-to-b from-blue-900 to-blue-700 dark:from-blue-950 dark:to-blue-800 text-white py-20 overflow-hidden"
+        className="relative bg-gradient-to-b from-blue-900 to-blue-700 dark:from-blue-950 dark:to-blue-800 text-white py-12 md:py-20 overflow-hidden min-h-[100dvh] md:min-h-[80dvh] flex items-center"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 1 }}
@@ -322,37 +339,53 @@ const CoachingHome = () => {
             >
               {t('coachinghome.heroSubtitle')}
             </motion.p>
-            <motion.button
-              onClick={() => document.getElementById('plans').scrollIntoView({ behavior: 'smooth' })}
-              className="bg-white dark:bg-gray-100 text-blue-500 dark:text-blue-300 px-8 py-3 rounded-full font-semibold hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors inline-flex items-center shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+            
+            {/* Enhanced CTA Button */}
+            <motion.div
+              className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8"
               initial={{ y: -50, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.6 }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.98 }}
             >
-              {t('coachinghome.viewPlans')}
-              <ArrowRight className="ml-2 w-5 h-5" />
-            </motion.button>
+              <motion.button
+                onClick={() => document.getElementById('plans').scrollIntoView({ behavior: 'smooth' })}
+                className="bg-yellow-500 hover:bg-yellow-400 text-gray-900 px-12 py-4 rounded-full font-bold text-lg shadow-2xl hover:shadow-yellow-500/25 transition-all duration-300 transform hover:scale-105 flex items-center group"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                {t('coachinghome.viewPlans')}
+                <ArrowRight className="ml-3 w-6 h-6 group-hover:translate-x-1 transition-transform" />
+              </motion.button>
+              
+              <motion.div 
+                className="text-center text-blue-200"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1 }}
+              >
+                <p className="text-sm font-medium">⚡ Starting at $39.99/month</p>
+                <p className="text-xs opacity-75">10-day money back guarantee</p>
+              </motion.div>
+            </motion.div>
 
             {/* Video Preview Section */}
             <motion.div 
-              className="mt-12"
+              className="mt-8 md:mt-12"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.8 }}
             >
               <div className="flex items-center justify-center mb-4">
-                <h3 className="text-lg font-semibold text-white mr-3">{t('coachinghome.seeHowItWorks')}</h3>
-                <Play className="w-5 h-5 text-blue-200" />
+                <h3 className="text-base md:text-lg font-semibold text-white mr-3">{t('coachinghome.seeHowItWorks')}</h3>
+                <Play className="w-4 h-4 md:w-5 md:h-5 text-blue-200" />
               </div>
               <motion.div
-                className="max-w-md mx-auto relative group cursor-pointer rounded-xl overflow-hidden bg-black/20 backdrop-blur-sm border border-white/10 hover:border-white/20 transition-all duration-300 shadow-xl hover:shadow-2xl"
+                className="max-w-sm md:max-w-md mx-auto relative group cursor-pointer rounded-xl overflow-hidden bg-black/20 backdrop-blur-sm border border-white/10 hover:border-white/20 transition-all duration-300 shadow-xl hover:shadow-2xl"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => handleVideoClick({
                   title: t('coachinghome.videoOverviewTitle'),
-                  thumbnail: getVideoUrl(), // Use the proper video URL function
+                  thumbnail: getVideoUrl(),
                   description: t('coachinghome.videoOverviewDesc')
                 })}
               >
@@ -376,29 +409,31 @@ const CoachingHome = () => {
                   
                   {/* Fallback content when video fails or is not available */}
                   <div className={`video-fallback absolute inset-0 ${videoLoadError || !getVideoUrl() ? 'flex' : 'hidden'} items-center justify-center bg-gradient-to-br from-blue-600 to-purple-600`}>
-                    <div className="text-center text-white p-6">
-                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/20 flex items-center justify-center">
-                        <Play className="w-8 h-8" />
+                    <div className="text-center text-white p-4 md:p-6">
+                      <div className="w-12 h-12 md:w-16 md:h-16 mx-auto mb-3 md:mb-4 rounded-full bg-white/20 flex items-center justify-center">
+                        <Play className="w-6 h-6 md:w-8 md:h-8" />
                       </div>
-                      <h4 className="text-lg font-semibold mb-2">Coaching Overview</h4>
-                      <p className="text-sm opacity-90">Click to watch our detailed coaching process</p>
-                      <p className="text-xs opacity-75 mt-2">See how our expert coaches help you achieve your goals</p>
+                      <h4 className="text-base md:text-lg font-semibold mb-2">Coaching Overview</h4>
+                      <p className="text-xs md:text-sm opacity-90">Click to watch our detailed coaching process</p>
+                      <p className="text-xs opacity-75 mt-2 hidden md:block">See how our expert coaches help you achieve your goals</p>
                       {videoLoadError && (
-                        <p className="text-xs opacity-60 mt-3 italic">
+                        <p className="text-xs opacity-60 mt-2 md:mt-3 italic">
                           Video currently unavailable - contact support if this persists
                         </p>
                       )}
                     </div>
-                  </div>                  {/* Play Button Overlay */}
+                  </div>
+                  
+                  {/* Play Button Overlay */}
                   <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-300 flex items-center justify-center">
-                    <div className="bg-white/95 rounded-full p-6 shadow-xl group-hover:scale-110 transition-transform duration-300">
-                      <Play className="w-10 h-10 text-gray-900 ml-1" style={{ color: '#1f2937' }} />
+                    <div className="bg-white/95 rounded-full p-4 md:p-6 shadow-xl group-hover:scale-110 transition-transform duration-300">
+                      <Play className="w-8 h-8 md:w-10 md:h-10 text-gray-900 ml-1" style={{ color: '#1f2937' }} />
                     </div>
                   </div>
                 </div>
-                <div className="p-4 text-center">
-                  <p className="text-white font-semibold mb-1">{t('coachinghome.videoOverviewTitle')}</p>
-                  <p className="text-blue-100 text-sm">{t('coachinghome.videoOverviewShort')}</p>
+                <div className="p-3 md:p-4 text-center">
+                  <p className="text-white font-semibold mb-1 text-sm md:text-base">{t('coachinghome.videoOverviewTitle')}</p>
+                  <p className="text-blue-100 text-xs md:text-sm">{t('coachinghome.videoOverviewShort')}</p>
                 </div>
               </motion.div>
             </motion.div>
@@ -740,10 +775,10 @@ const CoachingHome = () => {
               <motion.div
                 key={plan.id}
                 className={`
-                  ${plan.color} rounded-2xl overflow-hidden relative border-2
+                  ${plan.color} rounded-2xl overflow-visible relative border-2
                   ${plan.popular ? 'border-blue-500 dark:border-blue-600' : plan.borderColor}  
                   shadow-lg hover:shadow-xl transition-all duration-300
-                  ${plan.popular ? 'md:transform md:scale-105 z-1' : 'z-0'}
+                  ${plan.popular ? 'md:transform md:scale-105 z-10' : 'z-0'}
                 `}
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -755,7 +790,7 @@ const CoachingHome = () => {
                 }}
               >
                 {plan.popular && (
-                  <div className="absolute -top-5 inset-x-0 flex justify-center">
+                  <div className="absolute -top-4 inset-x-0 flex justify-center z-20">
                     <div className="bg-blue-600 text-white px-4 py-1 rounded-full shadow-lg text-sm font-medium flex items-center space-x-1">
                       <Star className="w-3.5 h-3.5 fill-yellow-300 text-yellow-300 mr-1" />
                       <span>{t('coachinghome.mostPopular')}</span>
@@ -782,7 +817,9 @@ const CoachingHome = () => {
                     <span className={`font-medium ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
                       {plan.pointsPerMonth} points monthly
                     </span>
-                  </div>                  <div className={`
+                  </div>
+                  
+                  <div className={`
                     p-4 rounded-xl mb-6
                     ${isDarkMode ? 'bg-gray-800/50' : 'bg-gray-50'}
                   `}>
