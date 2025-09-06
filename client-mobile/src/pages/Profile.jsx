@@ -514,7 +514,7 @@ const updateNotificationPreference = async (category, subType, value) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 md:pb-8 mt-10">
+    <div className="min-h-screen bg-gray-50 pb-20 md:pb-8 mt-20">
       <div className="container mx-auto px-4 py-4 md:py-8 max-w-7xl">
         <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
           

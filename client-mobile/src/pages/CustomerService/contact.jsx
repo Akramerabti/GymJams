@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import useAuthStore from '../../stores/authStore';
 import { 
-  Mail, Phone, MessageSquare, Send, Info, CheckCircle, Search, Home, ArrowRight
+  Mail, Phone, MessageSquare, Send, Info, CheckCircle, Search, Home, ArrowRight, UserPlus
 } from 'lucide-react';
 import applicationService from '../../services/application.service';
 import supportTicketService from '../../services/supportTicket.service';
@@ -512,7 +512,7 @@ const Contact = () => {
               <CardContent className="p-6 cursor-pointer">
                 <div className="flex flex-col items-center text-center">
                   <div className="bg-blue-100 p-3 rounded-full mb-4">
-                    <MessageSquare className="h-6 w-6 text-blue-600" />
+                    <UserPlus className="h-6 w-6 text-blue-600" />
                   </div>
                   <h3 className="font-semibold mb-1">Join Our Team</h3>
                   <p className="text-sm text-gray-500">Apply for open positions</p>
@@ -526,7 +526,7 @@ const Contact = () => {
   };
 
   return (
-    <div className="min-h-screen mt-20  bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-[100dvh] md:min-h-screen mt-10  bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-10">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Customer Support</h1>
@@ -543,7 +543,7 @@ const Contact = () => {
                 className="gap-2 rounded-md"
               >
                 <MessageSquare className="h-4 w-4" />
-                <span className="hidden sm:inline">Contact</span>
+                <span>Contact</span>
               </Button>
               <Button
                 variant={activeTab === 'faq' ? 'default' : 'ghost'}
@@ -551,7 +551,7 @@ const Contact = () => {
                 className="gap-2 rounded-md"
               >
                 <Search className="h-4 w-4" />
-                <span className="hidden sm:inline">FAQ</span>
+                <span>FAQ</span>
               </Button>
               <Button
                 variant={activeTab === 'returns' ? 'default' : 'ghost'}
@@ -559,7 +559,7 @@ const Contact = () => {
                 className="gap-2 rounded-md"
               >
                 <Mail className="h-4 w-4" />
-                <span className="hidden sm:inline">Returns</span>
+                <span>Returns</span>
               </Button>
               <Button
                 variant={activeTab === 'about' ? 'default' : 'ghost'}
@@ -567,15 +567,15 @@ const Contact = () => {
                 className="gap-2 rounded-md"
               >
                 <Info className="h-4 w-4" />
-                <span className="hidden sm:inline">About</span>
+                <span>About</span>
               </Button>
               <Button
                 variant={activeTab === 'application' ? 'default' : 'ghost'}
                 onClick={() => setActiveTab('application')}
                 className="gap-2 rounded-md"
               >
-                <MessageSquare className="h-4 w-4" />
-                <span className="hidden sm:inline">Apply</span>
+                <UserPlus className="h-4 w-4" />
+                <span>Apply</span>
               </Button>
             </div>
           </div>

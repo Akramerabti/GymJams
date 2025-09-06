@@ -65,7 +65,7 @@ const shouldHideLayout = showMobileGatekeeper ||
       const hasHideFooterClass = document.body.classList.contains('hide-footer') ||
                                 document.documentElement.classList.contains('hide-footer');
       
-      const shouldHideFooter = location.pathname === '/' || hasHideFooterClass || shouldHideLayout;
+      const shouldHideFooter = location.pathname === '/' || location.pathname === '/profile' || hasHideFooterClass || shouldHideLayout;
       setShowFooter(!shouldHideFooter);
       
       if (shouldHideFooter) {
