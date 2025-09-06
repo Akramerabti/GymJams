@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { MapPin, Dumbbell, Trophy, ShoppingBag, Zap } from 'lucide-react';
 
 const ANIMATION_KEY = 'gymtonic-conversion-animated';
@@ -8,6 +9,7 @@ const ANIMATION_KEY = 'gymtonic-conversion-animated';
 const ConversionLanding = () => {
   // Check if animations have already been shown in this session
   const hasAnimatedThisSession = sessionStorage.getItem(ANIMATION_KEY) === 'true';
+  const navigate = useNavigate();
   
   const [animationsComplete, setAnimationsComplete] = useState(hasAnimatedThisSession);
   const [selectedOption, setSelectedOption] = useState(null);
@@ -31,9 +33,6 @@ const ConversionLanding = () => {
       }
     };
   }, []);
- const navigate = (route) => {
-    window.location.href = route;
-  };
 
   useEffect(() => {
     const checkScreenType = () => {
@@ -132,6 +131,9 @@ const ConversionLanding = () => {
     if (requiresLocation) {
       await requestLocationPermission();
     }
+    
+    // Set flag to indicate navigation is happening from conversion page
+    sessionStorage.setItem('conversion-back-nav', 'true');
     
     setTimeout(() => {
       navigate(route);

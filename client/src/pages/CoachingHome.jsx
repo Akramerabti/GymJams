@@ -34,6 +34,11 @@ const CoachingHome = () => {
   const [videoLoadError, setVideoLoadError] = useState(false);  // Define the base URL
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   const { t } = useTranslation();
+  
+  // Clear conversion back navigation flag when component mounts
+  useEffect(() => {
+    sessionStorage.removeItem('conversion-back-nav');
+  }, []);
 
   // Helper function to format image URLs for Supabase compatibility
   const formatImageUrl = (imageUrl) => {
@@ -310,7 +315,7 @@ const CoachingHome = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-300">
+    <div className="min-h-screen bg-white mt-10 dark:bg-gray-900 transition-colors duration-300">
       {/* Hero Section with Parallax Effect */}
       <motion.section
         className="relative bg-gradient-to-b from-blue-900 to-blue-700 dark:from-blue-950 dark:to-blue-800 text-white py-12 md:py-20 overflow-hidden min-h-[100dvh] md:min-h-[80dvh] flex items-center"

@@ -1,16 +1,29 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../stores/authStore';
+import { useNavigate, useLocation } from 'react-router-dom';
 import ConversionLanding from './ConversionLanding';
 import Home from './Home';
 
 const HomeWrapper = () => {
   const { isAuthenticated, user, checkAuth, token, isTokenValid } = useAuth();
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
   const renderDecisionMade = useRef(false);
   const lastRenderKey = useRef(null);
   
-  // Check authentication on component mount
+  // Check for back navigation flag
+  const isBackNavigation = sessionStorage.getItem('conversion-back-nav') === 'true';
+  
   useEffect(() => {
+    // Handle back navigation - if user is back from other pages, show Home instead of ConversionLanding
+    if (isBackNavigation && isAuthenticated && user) {
+      console.log('🔙 Back navigation detected, clearing flag and showing Home');
+      sessionStorage.removeItem('conversion-back-nav');
+      setAuthCheckComplete(true);
+      return;
+    }
+    
     const performAuthCheck = async () => {
       console.log('🔍 HomeWrapper: Starting auth check...');
       
@@ -31,7 +44,16 @@ const HomeWrapper = () => {
     if (!authCheckComplete && !renderDecisionMade.current) {
       performAuthCheck();
     }
-  }, [checkAuth, authCheckComplete]);
+  }, [checkAuth, authCheckComplete, isAuthenticated, user, isBackNavigation]);
+  
+  // Clear back navigation flag when component unmounts (user leaves homepage)
+  useEffect(() => {
+    return () => {
+      if (location.pathname !== '/') {
+        sessionStorage.removeItem('conversion-back-nav');
+      }
+    };
+  }, [location.pathname]);
 
   if (!authCheckComplete) {
     console.log('🔍 HomeWrapper: Still checking auth, showing loader...');
@@ -58,7 +80,8 @@ const HomeWrapper = () => {
   }
 
   // Determine which component to render - make decision once and stick to it
-  const shouldShowConversion = !isAuthenticated || !user;
+  // Special case: if back navigation detected and user is authenticated, always show Home
+  const shouldShowConversion = !isBackNavigation && (!isAuthenticated || !user);
   const renderKey = shouldShowConversion ? 'conversion' : 'home';
   
   // Only log and update if the decision actually changed
