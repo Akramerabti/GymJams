@@ -125,8 +125,15 @@ const OAuthCallback = () => {
 
   // Handle profile completion
   const handleProfileComplete = async (updatedUser) => {
+    console.log('✅ Profile completion successful, cleaning up URL and navigating...');
     setCurrentUser(updatedUser);
+    setNeedsCompletion(false); // Important: set to false to prevent re-rendering
+    
+    // Clean up the URL immediately
+    window.history.replaceState({}, document.title, '/');
+    
     toast.success('Profile completed successfully!');
+    
     // If a new token was set in localStorage, use it to log in
     const newToken = localStorage.getItem('token');
     if (newToken) {
@@ -137,7 +144,9 @@ const OAuthCallback = () => {
         // fallback: just redirect
       }
     }
-    navigate('/');
+    
+    // Navigate to home with replace to avoid back button issues
+    navigate('/', { replace: true });
   };
   
   // Handle user object updates (for temporary token renewal)

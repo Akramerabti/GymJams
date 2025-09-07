@@ -783,3 +783,223 @@ export const sendSubscriptionEndEmail = async (subscriptionData, email, reason =
     throw error;
   }
 };
+
+// Send welcome email with temporary password and discount code
+export const sendWelcomeEmailWithCredentials = async (user, tempPassword, discountCode) => {
+  try {
+    await resend.emails.send({
+      from: 'GYMTONIC.CA <welcome@gymtonic.ca>',
+      to: user.email,
+      subject: 'Welcome to GymTonic - Your Account & Exclusive Discount!',
+      html: `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;">
+          <!-- Header -->
+          <div style="text-align: center; padding: 30px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px 15px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">🎉 Welcome to GymTonic!</h1>
+            <p style="color: #e8f2ff; margin: 10px 0 0 0; font-size: 16px;">Your fitness journey starts here</p>
+          </div>
+
+          <!-- Main Content -->
+          <div style="background-color: white; padding: 30px; border-radius: 0 0 15px 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <!-- Greeting -->
+            <div style="margin-bottom: 25px;">
+              <h2 style="color: #2d3748; margin-bottom: 15px; font-size: 24px;">Hi ${user.firstName}! 👋</h2>
+              <p style="color: #4a5568; line-height: 1.6; margin-bottom: 15px; font-size: 16px;">
+                Thank you for joining the GymTonic community! We're excited to have you on board and help you achieve your fitness goals.
+              </p>
+            </div>
+
+            <!-- Login Credentials Box -->
+            <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 25px; border-radius: 12px; margin: 25px 0; text-align: center;">
+              <h3 style="color: white; margin: 0 0 20px 0; font-size: 20px;">🔐 Your Login Credentials</h3>
+              <div style="background-color: rgba(255,255,255,0.15); padding: 20px; border-radius: 8px; margin-bottom: 15px;">
+                <p style="margin: 5px 0; color: white; font-size: 14px; opacity: 0.9;">Email:</p>
+                <p style="margin: 5px 0; color: white; font-size: 18px; font-weight: bold; word-break: break-all;">${user.email}</p>
+              </div>
+              <div style="background-color: rgba(255,255,255,0.15); padding: 20px; border-radius: 8px;">
+                <p style="margin: 5px 0; color: white; font-size: 14px; opacity: 0.9;">Temporary Password:</p>
+                <p style="margin: 5px 0; color: white; font-size: 24px; font-weight: bold; letter-spacing: 2px; font-family: 'Courier New', monospace;">${tempPassword}</p>
+              </div>
+              <p style="color: white; font-size: 13px; margin: 15px 0 0 0; opacity: 0.9;">
+                💡 We recommend changing your password after your first login
+              </p>
+            </div>
+
+            <!-- Discount Code Box -->
+            <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 25px; border-radius: 12px; margin: 25px 0; text-align: center;">
+              <h3 style="color: white; margin: 0 0 15px 0; font-size: 20px;">🎁 Your Exclusive Discount</h3>
+              <div style="background-color: rgba(255,255,255,0.2); padding: 20px; border-radius: 8px; border: 2px dashed rgba(255,255,255,0.4);">
+                <p style="margin: 5px 0; color: white; font-size: 16px; opacity: 0.9;">Discount Code:</p>
+                <p style="margin: 10px 0; color: white; font-size: 28px; font-weight: bold; letter-spacing: 3px; font-family: 'Courier New', monospace;">${discountCode}</p>
+                <p style="margin: 5px 0; color: white; font-size: 14px; opacity: 0.9;">Save 15% on the coaching plan of your choice for the first 3 months!</p>
+                <p style="margin: 5px 0; color: white; font-size: 12px; opacity: 0.8;">Also valid for a single product purchase.</p>
+              </div>
+            </div>
+
+            <!-- Call to Action -->
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.CLIENT_URL}/login" 
+                 style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 35px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
+                🚀 Start Your Journey
+              </a>
+            </div>
+
+            <!-- Features Preview -->
+            <div style="margin: 30px 0; padding: 25px; background-color: #f7fafc; border-radius: 12px; border-left: 5px solid #667eea;">
+              <h3 style="color: #2d3748; margin: 0 0 20px 0; font-size: 18px;">What's waiting for you:</h3>
+              <div style="display: grid; gap: 15px;">
+                <div style="display: flex; align-items: center; padding: 10px 0;">
+                  <span style="font-size: 24px; margin-right: 15px;">💪</span>
+                  <div>
+                    <strong style="color: #2d3748;">Find GymBros</strong>
+                    <p style="margin: 5px 0 0 0; color: #718096; font-size: 14px;">Connect with workout partners near you</p>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; padding: 10px 0;">
+                  <span style="font-size: 24px; margin-right: 15px;">🏆</span>
+                  <div>
+                    <strong style="color: #2d3748;">Personal Coaching</strong>
+                    <p style="margin: 5px 0 0 0; color: #718096; font-size: 14px;">Get guidance from certified trainers</p>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; padding: 10px 0;">
+                  <span style="font-size: 24px; margin-right: 15px;">🛒</span>
+                  <div>
+                    <strong style="color: #2d3748;">Fitness Shop</strong>
+                    <p style="margin: 5px 0 0 0; color: #718096; font-size: 14px;">Premium supplements and gear</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Security Note -->
+            <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 0; color: #856404; font-size: 14px;">
+                🔒 <strong>Security tip:</strong> Keep your login credentials safe and don't share them with anyone. 
+                If you didn't create this account, please contact our support team immediately.
+              </p>
+            </div>
+
+            <!-- Footer -->
+            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+              <p style="color: #718096; margin: 10px 0; font-size: 14px;">
+                Need help getting started? Reply to this email or visit our 
+                <a href="${process.env.CLIENT_URL}/faq" style="color: #667eea; text-decoration: none;">FAQ page</a>
+              </p>
+              <p style="color: #a0aec0; margin: 5px 0; font-size: 12px;">
+                Best regards,<br>
+                The GymTonic Team 💜
+              </p>
+            </div>
+          </div>
+        </div>
+      `
+    });
+    
+    logger.info(`Welcome email with credentials sent to ${user.email}`);
+    return true;
+  } catch (error) {
+    logger.error('Welcome email with credentials error:', error);
+    throw error;
+  }
+};
+
+// Send welcome email with discount code (for OAuth users - no password needed)
+export const sendWelcomeEmailWithDiscount = async (user, discountCode) => {
+  try {
+    await resend.emails.send({
+      from: 'GYMTONIC.CA <welcome@gymtonic.ca>',
+      to: user.email,
+      subject: 'Welcome to GymTonic - Your Exclusive 15% Discount!',
+      html: `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;">
+          <!-- Header -->
+          <div style="text-align: center; padding: 30px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px 15px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">🎉 Welcome to GymTonic!</h1>
+            <p style="color: #e8f2ff; margin: 10px 0 0 0; font-size: 16px;">Your fitness journey starts here</p>
+          </div>
+
+          <!-- Main Content -->
+          <div style="background-color: white; padding: 30px; border-radius: 0 0 15px 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <!-- Greeting -->
+            <div style="margin-bottom: 25px;">
+              <h2 style="color: #2d3748; margin-bottom: 15px; font-size: 24px;">Hi ${user.firstName}! 👋</h2>
+              <p style="color: #4a5568; line-height: 1.6; margin-bottom: 15px; font-size: 16px;">
+                Thank you for joining the GymTonic community! We're excited to have you on board and help you achieve your fitness goals.
+              </p>
+              <p style="color: #4a5568; line-height: 1.6; margin-bottom: 20px; font-size: 16px;">
+                You're all set to start exploring our platform with your Google account. No need for additional passwords!
+              </p>
+            </div>
+
+            <!-- Discount Code Section -->
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 12px; margin: 25px 0; text-align: center;">
+              <h3 style="color: white; margin: 0 0 15px 0; font-size: 20px;">🎁 Your Exclusive Discount</h3>
+              <div style="background-color: rgba(255,255,255,0.2); padding: 20px; border-radius: 8px; border: 2px dashed rgba(255,255,255,0.4);">
+                <p style="margin: 5px 0; color: white; font-size: 16px; opacity: 0.9;">Discount Code:</p>
+                <p style="margin: 10px 0; color: white; font-size: 28px; font-weight: bold; letter-spacing: 3px; font-family: 'Courier New', monospace;">${discountCode}</p>
+                <p style="margin: 5px 0; color: white; font-size: 14px; opacity: 0.9;">Save 15% on the coaching plan of your choice for the first 3 months!</p>
+                <p style="margin: 5px 0; color: white; font-size: 12px; opacity: 0.8;">Also valid for a single product purchase.</p>
+              </div>
+            </div>
+
+            <!-- Call to Action -->
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.CLIENT_URL}/coaching" 
+                 style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 35px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
+                🚀 Explore Coaching Plans
+              </a>
+            </div>
+
+            <!-- Features Preview -->
+            <div style="margin: 30px 0; padding: 25px; background-color: #f7fafc; border-radius: 12px; border-left: 5px solid #667eea;">
+              <h3 style="color: #2d3748; margin: 0 0 20px 0; font-size: 18px;">What's waiting for you:</h3>
+              <div style="display: grid; gap: 15px;">
+                <div style="display: flex; align-items: center; padding: 10px 0;">
+                  <span style="font-size: 24px; margin-right: 15px;">💪</span>
+                  <div>
+                    <strong style="color: #2d3748;">Find GymBros</strong>
+                    <p style="margin: 5px 0 0 0; color: #718096; font-size: 14px;">Connect with workout partners near you</p>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; padding: 10px 0;">
+                  <span style="font-size: 24px; margin-right: 15px;">🏆</span>
+                  <div>
+                    <strong style="color: #2d3748;">Personal Coaching</strong>
+                    <p style="margin: 5px 0 0 0; color: #718096; font-size: 14px;">Get guidance from certified trainers</p>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; padding: 10px 0;">
+                  <span style="font-size: 24px; margin-right: 15px;">🛒</span>
+                  <div>
+                    <strong style="color: #2d3748;">Fitness Shop</strong>
+                    <p style="margin: 5px 0 0 0; color: #718096; font-size: 14px;">Premium supplements and gear</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+              <p style="color: #718096; margin: 10px 0; font-size: 14px;">
+                Ready to get started? Visit our 
+                <a href="${process.env.CLIENT_URL}/coaching" style="color: #667eea; text-decoration: none;">coaching page</a>
+                to redeem your discount!
+              </p>
+              <p style="color: #a0aec0; margin: 5px 0; font-size: 12px;">
+                Best regards,<br>
+                The GymTonic Team 💜
+              </p>
+            </div>
+          </div>
+        </div>
+      `
+    });
+    
+    logger.info(`Welcome email with discount sent to ${user.email}`);
+    return true;
+  } catch (error) {
+    logger.error('Welcome email with discount error:', error);
+    throw error;
+  }
+};

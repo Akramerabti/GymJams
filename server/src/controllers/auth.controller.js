@@ -1,10 +1,11 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
+import CouponCode from '../models/CouponCode.js';
 import { createCustomer } from '../config/stripe.js';
 import logger from '../utils/logger.js';
 import crypto from 'crypto';
-import { sendVerificationEmail, sendPasswordResetEmail  } from '../services/email.service.js';
+import { sendVerificationEmail, sendPasswordResetEmail, sendWelcomeEmailWithCredentials, sendWelcomeEmailWithDiscount } from '../services/email.service.js';
 import stripe from '../config/stripe.js'; 
 import Subscription from '../models/Subscription.js';
 import PhoneVerification from '../models/PhoneVerification.js';
@@ -1397,13 +1398,17 @@ export const completeOAuthProfile = async (req, res) => {
             field: 'phone'
           });
         }
-      }      // Create Stripe customer
+      }      // Generate discount code for new OAuth users
+      const discountCode = `WELCOME15${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+      
+      // Create Stripe customer
       const stripeCustomer = await createCustomer({
         email: oauthProfile.email,
         name: `${oauthProfile.firstName} ${lastName.trim()}`,
         metadata: { 
           userId: oauthProfile.email,
-          provider: oauthProfile.provider
+          provider: oauthProfile.provider,
+          discountCode
         }
       });
 
@@ -1427,6 +1432,26 @@ export const completeOAuthProfile = async (req, res) => {
         hasReceivedFirstLoginBonus: true
       });
 
+      // Create coupon code in database for OAuth user
+      console.log('💾 Creating coupon code in database for OAuth user...');
+      await CouponCode.create({
+        code: discountCode,
+        discount: 15,
+        type: 'both', // Can be used for both products and coaching
+        subscription: 'all', // Any coaching subscription
+        duration: 'repeating',
+        duration_in_months: 3,
+        maxUses: 1, // One time use
+        usedCount: 0,
+        usedBy: [] // Will be populated when used
+      });
+
+      console.log('✅ Coupon code created in database for OAuth user:', discountCode);
+
+      // Send welcome email with discount code (no password needed for OAuth users)
+      console.log('📧 Sending welcome email with discount to OAuth user...');
+      await sendWelcomeEmailWithDiscount(newUser, discountCode);
+
 
       // Generate authentication token
       const token = jwt.sign(
@@ -1449,6 +1474,7 @@ export const completeOAuthProfile = async (req, res) => {
           role: newUser.role
         },
         token,
+        discountCode,
         isComplete: true,
         bonusAwarded: true
       });
@@ -1681,6 +1707,178 @@ export const cleanupProfileImage = async (req, res) => {
   } catch (error) {
     logger.error('Cleanup profile image error:', error);
     res.status(500).json({ message: 'Error cleaning up profile image' });
+  }
+};
+
+export const discountSignup = async (req, res) => {
+  try {
+    const { firstName, lastName, email, phone, emailConsent, source } = req.body;
+
+    console.log('🎁 DISCOUNT SIGNUP ATTEMPT:', {
+      email: email ? email.toLowerCase() : 'NO EMAIL PROVIDED',
+      firstName,
+      lastName,
+      phone,
+      emailConsent,
+      source,
+      timestamp: new Date().toISOString()
+    });
+
+    // Format phone to international format if needed
+    let formattedPhone = phone;
+    if (typeof phone === 'string') {
+      let cleanPhone = phone.trim();
+      if (!cleanPhone.startsWith('+')) {
+        cleanPhone = cleanPhone.replace(/\D/g, '');
+        if (cleanPhone.length === 10) {
+          formattedPhone = `+1${cleanPhone}`;
+        } else if (cleanPhone.length === 11 && cleanPhone.startsWith('1')) {
+          formattedPhone = `+${cleanPhone}`;
+        } else {
+          formattedPhone = `+1${cleanPhone}`;
+        }
+      }
+    }
+
+    // Check if all required fields are provided
+    if (!email || !firstName || !formattedPhone) {
+      console.log('❌ DISCOUNT SIGNUP FAILED: Missing required fields');
+      return res.status(400).json({ message: 'Email, first name, and phone number are required' });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ 
+      $or: [
+        { email: email.toLowerCase() },
+        { phone: formattedPhone }
+      ]
+    });
+
+    if (existingUser) {
+      if (existingUser.email === email.toLowerCase()) {
+        console.log('❌ DISCOUNT SIGNUP FAILED: Email already exists:', email.toLowerCase());
+        return res.status(409).json({ message: 'An account with this email already exists. Please log in instead.' });
+      }
+      if (existingUser.phone === formattedPhone) {
+        console.log('❌ DISCOUNT SIGNUP FAILED: Phone already exists:', formattedPhone);
+        return res.status(409).json({ message: 'An account with this phone number already exists. Please log in instead.' });
+      }
+    }
+
+    // Generate temporary password (8 characters: mix of letters and numbers)
+    const tempPassword = crypto.randomBytes(4).toString('hex').toUpperCase();
+    
+    console.log('🔐 Hashing temporary password...');
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(tempPassword, salt);
+
+    // Generate verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    // Generate discount code (e.g., WELCOME15 + random suffix)
+    const discountCode = `WELCOME15${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+
+    console.log('💳 Creating Stripe customer...');
+    // Create Stripe customer
+    const stripeCustomer = await createCustomer({
+      email: email.toLowerCase(),
+      name: `${firstName} ${lastName}`,
+      metadata: { 
+        userId: email.toLowerCase(),
+        source: source || 'discount_signup',
+        discountCode
+      }
+    });
+
+    console.log('👤 Creating user in database...');
+    // Create user in the database
+    const user = await User.create({
+      email: email.toLowerCase(),
+      password: hashedPassword,
+      firstName,
+      lastName: lastName || 'Unknown', // Set last name as 'Unknown' if not provided
+      phone: formattedPhone,
+      stripeCustomerId: stripeCustomer.id,
+      verificationToken,
+      verificationTokenExpires,
+      isEmailVerified: true, // Email is verified since they receive temp password via email
+      // Set notification preferences based on email consent
+      notificationPreferences: {
+        pushNotifications: true,
+        emailNotifications: emailConsent,
+        shop: {
+          orderUpdates: true,
+          shippingNotifications: true,
+          salesAndPromotions: emailConsent,
+          stockAlerts: emailConsent,
+          cartReminders: emailConsent
+        },
+        general: {
+          systemUpdates: true,
+          maintenanceNotices: true,
+          securityAlerts: true,
+          accountUpdates: true,
+          appUpdates: emailConsent
+        }
+      }
+    });
+    
+    console.log('✅ User created successfully:', {
+      userId: user._id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      discountCode
+    });
+
+    // Create coupon code in database
+    console.log('💾 Creating coupon code in database...');
+    await CouponCode.create({
+      code: discountCode,
+      discount: 15,
+      type: 'both', // Can be used for both products and coaching
+      subscription: 'all', // Any coaching subscription
+      duration: 'repeating',
+      duration_in_months: 3,
+      maxUses: 1, // One time use
+      usedCount: 0,
+      usedBy: [] // Will be populated when used
+    });
+
+    console.log('✅ Coupon code created in database:', discountCode);
+
+    // Send welcome email with temporary password and discount code
+    console.log('📧 Sending welcome email with credentials and discount...');
+    await sendWelcomeEmailWithCredentials(user, tempPassword, discountCode);
+
+    // Generate JWT token for immediate login
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Return success response
+    res.status(201).json({
+      success: true,
+      message: 'Account created successfully! Check your email for login details and discount code.',
+      token,
+      discountCode,
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        isEmailVerified: user.isEmailVerified,
+        points: user.points || 0
+      }
+    });
+  } catch (error) {
+    console.error('💥 DISCOUNT SIGNUP ERROR:', error);
+    logger.error('Discount signup error:', error);
+    res.status(500).json({ message: 'Error creating account. Please try again.' });
   }
 };
 

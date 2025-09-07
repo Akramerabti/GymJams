@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -10,11 +9,13 @@ const ConversionLanding = () => {
   // Check if animations have already been shown in this session
   const hasAnimatedThisSession = sessionStorage.getItem(ANIMATION_KEY) === 'true';
   const navigate = useNavigate();
-  
+
   const [animationsComplete, setAnimationsComplete] = useState(hasAnimatedThisSession);
   const [selectedOption, setSelectedOption] = useState(null);
   const [screenType, setScreenType] = useState('mobile');
   const [backgroundVariant, setBackgroundVariant] = useState('default');
+  const [fontLoaded, setFontLoaded] = useState(false);
+  const [showPreloader, setShowPreloader] = useState(true);
   const mountedRef = useRef(false);
   const componentId = useRef(Math.random().toString(36).substr(2, 9));
   const animationTimerRef = useRef(null);
@@ -23,9 +24,84 @@ const ConversionLanding = () => {
     console.log(`🎬 ConversionLanding[${componentId.current}]: Component MOUNTED`);
     console.log(`🎬 Has animated this session: ${hasAnimatedThisSession}`);
     mountedRef.current = true;
+
+    // Font loading logic - wait for Rubik font to be available
+    const checkFontLoaded = async () => {
+      try {
+        console.log(`🔤 ConversionLanding[${componentId.current}]: Checking if Rubik font is loaded...`);
+        
+        // Force a small delay to let fonts settle
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Check if font is already loaded using multiple methods
+        const fontCheckMethods = [
+          () => document.fonts && document.fonts.check('800 32px Rubik'),
+          () => document.fonts && document.fonts.check('bold 32px Rubik'),
+          () => {
+            // Create a test element to see if font is applied
+            const testElement = document.createElement('div');
+            testElement.style.fontFamily = 'Rubik, Arial, sans-serif';
+            testElement.style.fontWeight = '800';
+            testElement.style.fontSize = '32px';
+            testElement.style.position = 'absolute';
+            testElement.style.left = '-9999px';
+            testElement.textContent = 'GYMTONIC';
+            document.body.appendChild(testElement);
+            const computedStyle = window.getComputedStyle(testElement);
+            const actualFont = computedStyle.fontFamily;
+            document.body.removeChild(testElement);
+            console.log(`🔍 Computed font family: ${actualFont}`);
+            return actualFont.includes('Rubik') || actualFont.includes('rubik');
+          }
+        ];
+
+        let fontLoaded = false;
+        for (const method of fontCheckMethods) {
+          try {
+            if (method()) {
+              fontLoaded = true;
+              console.log(`✅ ConversionLanding[${componentId.current}]: Rubik font detected by method`);
+              break;
+            }
+          } catch (e) {
+            console.warn(`⚠️ Font check method failed:`, e);
+          }
+        }
+
+        if (fontLoaded) {
+          setFontLoaded(true);
+          // Wait a bit more to ensure rendering is complete
+          setTimeout(() => setShowPreloader(false), 200);
+          return;
+        }
+
+        // Wait for fonts to load with timeout
+        console.log(`⏳ ConversionLanding[${componentId.current}]: Waiting for fonts to load...`);
+        const fontPromise = document.fonts && document.fonts.ready ? 
+          document.fonts.ready : 
+          new Promise(resolve => setTimeout(resolve, 1500)); // Longer timeout
+        
+        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000));
+        
+        await Promise.race([fontPromise, timeoutPromise]);
+        console.log(`✅ ConversionLanding[${componentId.current}]: Font loading completed or timed out`);
+        
+        setFontLoaded(true);
+        // Fade out preloader
+        setTimeout(() => setShowPreloader(false), 300);
+        
+      } catch (error) {
+        console.error(`❌ ConversionLanding[${componentId.current}]: Font loading error:`, error);
+        // Still proceed after error
+        setFontLoaded(true);
+        setTimeout(() => setShowPreloader(false), 500);
+      }
+    };
+
+    checkFontLoaded();
     
     return () => {
-      console.log(`🔥 ConversionLanding[${componentId.current}]: Component UNMOUNTED`);
+      console.log(`🔥 ConversionLanding[${componentId.current}]: Component UNMOUNTED - This should NOT happen during normal usage!`);
       mountedRef.current = false;
       if (animationTimerRef.current) {
         clearTimeout(animationTimerRef.current);
@@ -49,13 +125,25 @@ const ConversionLanding = () => {
     checkScreenType();
     window.addEventListener('resize', checkScreenType);
 
-    // Always apply styles
+    // Always apply styles and preload font
     let link = document.querySelector('link[href*="Rubik"]');
     if (!link) {
       link = document.createElement('link');
       link.href = 'https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;700;800&display=swap';
       link.rel = 'stylesheet';
+      // Add preload for faster loading
+      link.as = 'style';
+      link.onload = function() { this.rel = 'stylesheet'; };
       document.head.appendChild(link);
+      
+      // Also add font preload for the specific weight we need
+      const preloadLink = document.createElement('link');
+      preloadLink.rel = 'preload';
+      preloadLink.as = 'font';
+      preloadLink.type = 'font/woff2';
+      preloadLink.href = 'https://fonts.gstatic.com/s/rubik/v28/iJWKBXyIfDnIV7nBrXw.woff2';
+      preloadLink.crossOrigin = 'anonymous';
+      document.head.appendChild(preloadLink);
     }
 
     const root = document.documentElement;
@@ -77,22 +165,17 @@ const ConversionLanding = () => {
       root.style.setProperty('--font-weight-extrabold', '800');
     }
 
-    // 50% chance to use alternative background
-    const useAlternativeBackground = Math.random() < 0.5;
-    setBackgroundVariant(useAlternativeBackground ? 'alternative' : 'default');
-    console.log(`🎨 ConversionLanding[${componentId.current}]: Background variant: ${useAlternativeBackground ? 'alternative (silver)' : 'default (colorful)'}`);
+    // No need to set backgroundVariant here as it's already initialized from sessionStorage
+    console.log(`🎨 ConversionLanding[${componentId.current}]: Background variant: ${backgroundVariant === 'alternative' ? 'alternative (silver)' : 'default (colorful)'}`);
 
     // Check if we should animate
-    if (hasAnimatedThisSession) {
-      console.log(`🎬 ConversionLanding[${componentId.current}]: Already animated this session, skipping animation delay`);
-      // Don't set timer, animations are already complete
-    } else {
+    if (!hasAnimatedThisSession) {
       console.log(`🎬 ConversionLanding[${componentId.current}]: First time this session, starting animation timer`);
       
       // Mark as animated immediately to prevent issues with quick refreshes
       sessionStorage.setItem(ANIMATION_KEY, 'true');
       
-      // Start animation timer
+      // Start animation timer for other elements (not header)
       animationTimerRef.current = setTimeout(() => {
         if (mountedRef.current) {
           console.log(`🎬 ConversionLanding[${componentId.current}]: Animation timer fired, starting animations`);
@@ -105,7 +188,7 @@ const ConversionLanding = () => {
       clearTimeout(animationTimerRef.current);
       window.removeEventListener('resize', checkScreenType);
     };
-  }, []);
+  }, []); // Empty dependency array to run only once
 
   const requestLocationPermission = async () => {
     if ('geolocation' in navigator) {
@@ -143,9 +226,9 @@ const ConversionLanding = () => {
   const sectionStyle = {
     height: '100%',
     width: '100%',
-    padding: 'clamp(1.5rem, 5vw, 3rem)', // Increased padding significantly
-    border: '0.25rem solid var(--color-black)',
-    backgroundColor: 'var(--color-white)',
+    padding: '2rem', // Fixed padding instead of clamp(1.5rem, 5vw, 3rem) for immediate rendering
+    border: '0.25rem solid #000000',
+    backgroundColor: '#ffffff',
     boxShadow: '0.5rem 0.5rem rgba(132, 81, 61, 0.35)',
     margin: '0',
     borderRadius: '1.2rem', // Slightly larger border radius
@@ -157,21 +240,21 @@ const ConversionLanding = () => {
   };
 
   const titleStyle = {
-    fontFamily: 'var(--font-family)',
-    fontWeight: 'var(--font-weight-extrabold)',
-    fontSize: 'clamp(0.9rem, 3vw, 1.8rem)',
+    fontFamily: 'Rubik, Arial, sans-serif',
+    fontWeight: '800',
+    fontSize: '1.2rem', // Fixed size for immediate rendering instead of clamp(0.9rem, 3vw, 1.8rem)
     lineHeight: '1',
     textTransform: 'uppercase',
-    color: 'var(--color-yellow)',
+    color: '#FFD700',
     textShadow: `
-      -1px -1px 0 var(--color-black), 0 -1px 0 var(--color-black), 1px -1px 0 var(--color-black), 
-      -1px 0 0 var(--color-black), 1px 0 0 var(--color-black), -1px 1px 0 var(--color-black), 
-      0 1px 0 var(--color-black), 1px 1px 0 var(--color-black), -2px -2px 0 var(--color-black), 
-      -1px -2px 0 var(--color-black), 0 -2px 0 var(--color-black), 1px -2px 0 var(--color-black), 
-      2px -2px 0 var(--color-black), 2px -1px 0 var(--color-black), 2px 0 0 var(--color-black), 
-      2px 1px 0 var(--color-black), 2px 2px 0 var(--color-black), 1px 2px 0 var(--color-black), 
-      0 2px 0 var(--color-black), -1px 2px 0 var(--color-black), -2px 2px 0 var(--color-black), 
-      -2px 1px 0 var(--color-black), -2px 0 0 var(--color-black), -2px -1px 0 var(--color-black),
+      -1px -1px 0 #000000, 0 -1px 0 #000000, 1px -1px 0 #000000, 
+      -1px 0 0 #000000, 1px 0 0 #000000, -1px 1px 0 #000000, 
+      0 1px 0 #000000, 1px 1px 0 #000000, -2px -2px 0 #000000, 
+      -1px -2px 0 #000000, 0 -2px 0 #000000, 1px -2px 0 #000000, 
+      2px -2px 0 #000000, 2px -1px 0 #000000, 2px 0 0 #000000, 
+      2px 1px 0 #000000, 2px 2px 0 #000000, 1px 2px 0 #000000, 
+      0 2px 0 #000000, -1px 2px 0 #000000, -2px 2px 0 #000000, 
+      -2px 1px 0 #000000, -2px 0 0 #000000, -2px -1px 0 #000000,
       4px 4px 0 #000, 5px 5px 0 #000, 6px 6px 0 #000, 7px 7px 0 #000, 8px 8px 0 #000,
       9px 9px 0 #000, 10px 10px 0 #000, 11px 11px 0 #000, 12px 12px 0 #000
     `,
@@ -181,10 +264,10 @@ const ConversionLanding = () => {
 
   // Helper function to get background styles based on variant
   const getBackgroundStyles = (isMobile = true) => {
-    const dotColor = backgroundVariant === 'alternative' ? 'var(--color-white)' : 'var(--color-black)';
+    const dotColor = backgroundVariant === 'alternative' ? '#ffffff' : '#000000';
     const gradientStyle = backgroundVariant === 'alternative' 
-      ? 'linear-gradient(135deg, var(--color-white) 0%, var(--color-silver) 50%, var(--color-black) 100%)'
-      : 'linear-gradient(135deg, var(--color-orange) 0%, var(--color-red) 50%, var(--color-purple) 100%)';
+      ? 'linear-gradient(135deg, #ffffff 0%, #c0c0c0 50%, #000000 100%)'
+      : 'linear-gradient(135deg, #ff8c00 0%, #dc2626 50%, #8b5cf6 100%)';
 
     const mobileBackground = `
       radial-gradient(circle at 0 0, ${dotColor} 2px, transparent 2px),
@@ -224,34 +307,31 @@ const ConversionLanding = () => {
       bottom: 0
     }}>
       
-      {/* Header - Reduced size */}
-      <motion.header 
+      {/* Header - ALWAYS visible and animated once */}
+      <header 
         style={{
           textAlign: 'center',
-          paddingBottom: '1.5rem',          paddingBottom: '0.25rem',
-          color: 'var(--color-black)',
+          paddingBottom: '0.25rem',
+          color: '#000000',
           flexShrink: 0
         }}
-        initial={{ opacity: 0, y: -30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
       >
         <h1 style={{
-          fontFamily: 'var(--font-family)',
-          fontSize: 'clamp(1.5rem, 6vw, 2.5rem)',
-          fontWeight: 'var(--font-weight-extrabold)',
-          color: 'var(--color-white)',
+          fontFamily: 'Rubik, Arial, sans-serif', // Direct fallback instead of CSS var
+          fontSize: '2rem', // Fixed size for immediate rendering instead of clamp(1.5rem, 6vw, 2.5rem)
+          fontWeight: '800', // Direct value instead of CSS var
+          color: '#fff', // Direct value instead of CSS var
           fontStyle: 'italic',
           letterSpacing: '-0.05em',
           textShadow: `
-            -1px -1px 0 var(--color-black), 0 -1px 0 var(--color-black), 1px -1px 0 var(--color-black), 
-            -1px 0 0 var(--color-black), 1px 0 0 var(--color-black), -1px 1px 0 var(--color-black), 
-            0 1px 0 var(--color-black), 1px 1px 0 var(--color-black), -2px -2px 0 var(--color-black), 
-            -1px -2px 0 var(--color-black), 0 -2px 0 var(--color-black), 1px -2px 0 var(--color-black), 
-            2px -2px 0 var(--color-black), 2px -1px 0 var(--color-black), 2px 0 0 var(--color-black), 
-            2px 1px 0 var(--color-black), 2px 2px 0 var(--color-black), 1px 2px 0 var(--color-black), 
-            0 2px 0 var(--color-black), -1px 2px 0 var(--color-black), -2px 2px 0 var(--color-black), 
-            -2px 1px 0 var(--color-black), -2px 0 0 var(--color-black), -2px -1px 0 var(--color-black),
+            -1px -1px 0 #000, 0 -1px 0 #000, 1px -1px 0 #000, 
+            -1px 0 0 #000, 1px 0 0 #000, -1px 1px 0 #000, 
+            0 1px 0 #000, 1px 1px 0 #000, -2px -2px 0 #000, 
+            -1px -2px 0 #000, 0 -2px 0 #000, 1px -2px 0 #000, 
+            2px -2px 0 #000, 2px -1px 0 #000, 2px 0 0 #000, 
+            2px 1px 0 #000, 2px 2px 0 #000, 1px 2px 0 #000, 
+            0 2px 0 #000, -1px 2px 0 #000, -2px 2px 0 #000, 
+            -2px 1px 0 #000, -2px 0 0 #000, -2px -1px 0 #000,
             4px 4px 0 #000, 5px 5px 0 #000, 6px 6px 0 #000, 7px 7px 0 #000, 8px 8px 0 #000,
             9px 9px 0 #000, 10px 10px 0 #000, 11px 11px 0 #000, 12px 12px 0 #000
           `,
@@ -260,7 +340,7 @@ const ConversionLanding = () => {
         }}>
           GYMTONIC
         </h1>
-      </motion.header>
+      </header>
 
       {/* Sections Container - Takes remaining space */}
       <div style={{
@@ -277,14 +357,14 @@ const ConversionLanding = () => {
         <motion.div 
           style={{
             ...sectionStyle,
-            backgroundColor: 'var(--color-blue)',
-            background: 'linear-gradient(315deg, #FFD700 0%, #FFEA64 20%, #4FC3F7 45%, var(--color-blue) 70%, #144c90 100%)',
+            backgroundColor: '#2563eb',
+            background: 'linear-gradient(315deg, #FFD700 0%, #FFEA64 20%, #4FC3F7 45%, #2563eb 70%, #144c90 100%)',
             flex: 1
           }}
           onClick={() => handleOptionClick('gymbros', '/gymbros', true)}
           whileTap={{ scale: 0.98 }}
           initial={{ opacity: 0, x: -50 }}
-          animate={animationsComplete ? { opacity: 1, x: 0 } : {}}
+          animate={animationsComplete ? { opacity: 1, x: 0 } : { opacity: 0, x: -50 }}
           transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
         >
           {/* Background image animation */}
@@ -302,7 +382,7 @@ const ConversionLanding = () => {
               zIndex: 0
             }}
             initial={{ opacity: 0, x: -(window.innerWidth + 120) }}
-            animate={animationsComplete ? { opacity: 1, x: 0 } : {}}
+            animate={animationsComplete ? { opacity: 1, x: 0 } : { opacity: 0, x: -(window.innerWidth + 120) }}
             transition={{
               duration: 1.4,
               ease: "easeOut",
@@ -371,14 +451,14 @@ const ConversionLanding = () => {
         <motion.div 
           style={{
             ...sectionStyle,
-            backgroundColor: 'var(--color-purple)',
-            background: 'radial-gradient(ellipse at center, var(--color-purple) 0%, var(--color-purple) 50%, #a855f7 85%, #c084fc 100%)',
+            backgroundColor: '#8b5cf6',
+            background: 'radial-gradient(ellipse at center, #8b5cf6 0%, #8b5cf6 50%, #a855f7 85%, #c084fc 100%)',
             flex: 1
           }}
           onClick={() => handleOptionClick('coaching', '/coaching', true)}
           whileTap={{ scale: 0.98 }}
           initial={{ opacity: 0, y: 50 }}
-          animate={animationsComplete ? { opacity: 1, y: 0 } : {}}
+          animate={animationsComplete ? { opacity: 1, y: 0 } : { opacity: 0, y: 50 }}
           transition={{ duration: 0.8, delay: 0.5, ease: "easeOut" }}
         >
           {/* Background image animation */}
@@ -396,7 +476,7 @@ const ConversionLanding = () => {
               zIndex: 0
             }}
             initial={{ opacity: 0, y: window.innerHeight + 120 }}
-            animate={animationsComplete ? { opacity: 1, y: 0 } : {}}
+            animate={animationsComplete ? { opacity: 1, y: 0 } : { opacity: 0, y: window.innerHeight + 120 }}
             transition={{
               duration: 1.4,
               ease: "easeOut",
@@ -465,14 +545,14 @@ const ConversionLanding = () => {
         <motion.div 
           style={{
             ...sectionStyle,
-            backgroundColor: 'var(--color-red)',
-            background: 'linear-gradient(135deg, #FFD700 0%, #FFEA64 20%, #FF6B35 45%, var(--color-red) 70%, #B91C1C 100%)',
+            backgroundColor: '#dc2626',
+            background: 'linear-gradient(135deg, #FFD700 0%, #FFEA64 20%, #FF6B35 45%, #dc2626 70%, #B91C1C 100%)',
             flex: 1
           }}
           onClick={() => handleOptionClick('shop', '/shop', false)}
           whileTap={{ scale: 0.98 }}
           initial={{ opacity: 0, x: 50 }}
-          animate={animationsComplete ? { opacity: 1, x: 0 } : {}}
+          animate={animationsComplete ? { opacity: 1, x: 0 } : { opacity: 0, x: 50 }}
           transition={{ duration: 0.8, delay: 0.7, ease: "easeOut" }}
         >
           {/* Background image animation */}
@@ -490,7 +570,7 @@ const ConversionLanding = () => {
               zIndex: 0
             }}
             initial={{ opacity: 0, x: window.innerWidth + 120 }}
-            animate={animationsComplete ? { opacity: 1, x: 0 } : {}}
+            animate={animationsComplete ? { opacity: 1, x: 0 } : { opacity: 0, x: window.innerWidth + 120 }}
             transition={{
               duration: 1.4,
               ease: "easeOut",
@@ -550,7 +630,7 @@ const ConversionLanding = () => {
               color="#FF6B6B"
               style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
             />
-            <h3 style={{...titleStyle, fontSize: 'clamp(1rem, 3.5vw, 1.8rem)'}}>
+            <h3 style={{...titleStyle, fontSize: '1.1rem'}}> {/* Fixed size instead of clamp(1rem, 3.5vw, 1.8rem) */}
               SHOP
             </h3>
           </div>
@@ -573,34 +653,31 @@ const ConversionLanding = () => {
       overflow: 'hidden'
     }}>
       
-      {/* Header */}
-      <motion.header 
+      {/* Header - ALWAYS visible, but animation controlled by state */}
+      <header 
         style={{
           textAlign: 'center',
           paddingBottom: '0.5rem',
-          color: 'var(--color-black)',
+          color: '#000000',
           flexShrink: 0
         }}
-        initial={{ opacity: 0, y: -50 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
       >
         <h1 style={{
-          fontFamily: 'var(--font-family)',
-          fontSize: 'clamp(3rem, 6vw, 5rem)',
-          fontWeight: 'var(--font-weight-extrabold)',
-          color: 'var(--color-white)',
+          fontFamily: 'Rubik, Arial, sans-serif', // Direct fallback instead of CSS var
+          fontSize: '4rem', // Fixed size for immediate rendering instead of clamp(3rem, 6vw, 5rem)
+          fontWeight: '800', // Direct value instead of CSS var
+          color: '#fff', // Direct value instead of CSS var
           fontStyle: 'italic',
           letterSpacing: '-0.05em',
           textShadow: `
-            -1px -1px 0 var(--color-black), 0 -1px 0 var(--color-black), 1px -1px 0 var(--color-black), 
-            -1px 0 0 var(--color-black), 1px 0 0 var(--color-black), -1px 1px 0 var(--color-black), 
-            0 1px 0 var(--color-black), 1px 1px 0 var(--color-black), -2px -2px 0 var(--color-black), 
-            -1px -2px 0 var(--color-black), 0 -2px 0 var(--color-black), 1px -2px 0 var(--color-black), 
-            2px -2px 0 var(--color-black), 2px -1px 0 var(--color-black), 2px 0 0 var(--color-black), 
-            2px 1px 0 var(--color-black), 2px 2px 0 var(--color-black), 1px 2px 0 var(--color-black), 
-            0 2px 0 var(--color-black), -1px 2px 0 var(--color-black), -2px 2px 0 var(--color-black), 
-            -2px 1px 0 var(--color-black), -2px 0 0 var(--color-black), -2px -1px 0 var(--color-black),
+            -1px -1px 0 #000, 0 -1px 0 #000, 1px -1px 0 #000, 
+            -1px 0 0 #000, 1px 0 0 #000, -1px 1px 0 #000, 
+            0 1px 0 #000, 1px 1px 0 #000, -2px -2px 0 #000, 
+            -1px -2px 0 #000, 0 -2px 0 #000, 1px -2px 0 #000, 
+            2px -2px 0 #000, 2px -1px 0 #000, 2px 0 0 #000, 
+            2px 1px 0 #000, 2px 2px 0 #000, 1px 2px 0 #000, 
+            0 2px 0 #000, -1px 2px 0 #000, -2px 2px 0 #000, 
+            -2px 1px 0 #000, -2px 0 0 #000, -2px -1px 0 #000,
             6px 6px 0 #000, 7px 7px 0 #000, 8px 8px 0 #000, 9px 9px 0 #000, 10px 10px 0 #000,
             11px 11px 0 #000, 12px 12px 0 #000, 13px 13px 0 #000, 14px 14px 0 #000, 15px 15px 0 #000,
             16px 16px 0 #000, 17px 17px 0 #000, 18px 18px 0 #000
@@ -610,7 +687,7 @@ const ConversionLanding = () => {
         }}>
           GYMTONIC
         </h1>
-      </motion.header>
+      </header>
 
       {/* Desktop Grid Layout */}
       <div style={{
@@ -628,15 +705,15 @@ const ConversionLanding = () => {
         <motion.div 
           style={{
             ...sectionStyle,
-            backgroundColor: 'var(--color-blue)',
-            background: 'linear-gradient(315deg, #FFD700 0%, #FFEA64 20%, #4FC3F7 45%, var(--color-blue) 70%, #144c90 100%)',
+            backgroundColor: '#2563eb',
+            background: 'linear-gradient(315deg, #FFD700 0%, #FFEA64 20%, #4FC3F7 45%, #2563eb 70%, #144c90 100%)',
             margin: '0',
             minHeight: 'auto'
           }}
           onClick={() => handleOptionClick('gymbros', '/gymbros', true)}
           whileTap={{ scale: 0.98 }}
           initial={{ opacity: 0, x: -100 }}
-          animate={animationsComplete ? { opacity: 1, x: 0 } : {}}
+          animate={animationsComplete ? { opacity: 1, x: 0 } : { opacity: 0, x: -100 }}
           transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
         >
           {/* Background image animation */}
@@ -654,7 +731,7 @@ const ConversionLanding = () => {
               zIndex: 0
             }}
             initial={{ opacity: 0, x: -650 }}
-            animate={animationsComplete ? { opacity: 1, x: 0 } : {}}
+            animate={animationsComplete ? { opacity: 1, x: 0 } : { opacity: 0, x: -650 }}
             transition={{
               duration: 1.4,
               ease: "easeOut",
@@ -713,7 +790,7 @@ const ConversionLanding = () => {
               color="#4FC3F7"
               style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
             />
-            <h3 style={{...titleStyle, fontSize: 'clamp(1rem, 2.5vw, 1.8rem)'}}>
+            <h3 style={{...titleStyle, fontSize: '1.4rem'}}> {/* Fixed size instead of clamp(1rem, 2.5vw, 1.8rem) */}
               GYMBROS NEAR ME
             </h3>
           </div>
@@ -723,15 +800,15 @@ const ConversionLanding = () => {
         <motion.div 
           style={{
             ...sectionStyle,
-            backgroundColor: 'var(--color-purple)',
-            background: 'radial-gradient(ellipse at center, var(--color-purple) 0%, var(--color-purple) 50%, #a855f7 85%, #c084fc 100%)',
+            backgroundColor: '#8b5cf6',
+            background: 'radial-gradient(ellipse at center, #8b5cf6 0%, #8b5cf6 50%, #a855f7 85%, #c084fc 100%)',
             margin: '0',
             minHeight: 'auto'
           }}
           onClick={() => handleOptionClick('coaching', '/coaching', true)}
           whileTap={{ scale: 0.98 }}
           initial={{ opacity: 0, y: 100 }}
-          animate={animationsComplete ? { opacity: 1, y: 0 } : {}}
+          animate={animationsComplete ? { opacity: 1, y: 0 } : { opacity: 0, y: 100 }}
           transition={{ duration: 0.8, delay: 0.5, ease: "easeOut" }}
         >
           {/* Background image animation */}
@@ -749,7 +826,7 @@ const ConversionLanding = () => {
               zIndex: 0
             }}
             initial={{ opacity: 0, y: 600 }}
-            animate={animationsComplete ? { opacity: 1, y: 0 } : {}}
+            animate={animationsComplete ? { opacity: 1, y: 0 } : { opacity: 0, y: 600 }}
             transition={{
               duration: 1.4,
               ease: "easeOut",
@@ -808,7 +885,7 @@ const ConversionLanding = () => {
               color="#C084FC"
               style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
             />
-            <h3 style={{...titleStyle, fontSize: 'clamp(1rem, 2.5vw, 1.8rem)'}}>
+            <h3 style={{...titleStyle, fontSize: '1.4rem'}}> {/* Fixed size instead of clamp(1rem, 2.5vw, 1.8rem) */}
               COACHING NEAR ME
             </h3>
           </div>
@@ -818,15 +895,15 @@ const ConversionLanding = () => {
         <motion.div 
           style={{
             ...sectionStyle,
-            backgroundColor: 'var(--color-red)',
-            background: 'linear-gradient(135deg, #FFD700 0%, #FFEA64 20%, #FF6B35 45%, var(--color-red) 70%, #B91C1C 100%)',
+            backgroundColor: '#dc2626',
+            background: 'linear-gradient(135deg, #FFD700 0%, #FFEA64 20%, #FF6B35 45%, #dc2626 70%, #B91C1C 100%)',
             margin: '0',
             minHeight: 'auto'
           }}
           onClick={() => handleOptionClick('shop', '/shop', false)}
           whileTap={{ scale: 0.98 }}
           initial={{ opacity: 0, x: 100 }}
-          animate={animationsComplete ? { opacity: 1, x: 0 } : {}}
+          animate={animationsComplete ? { opacity: 1, x: 0 } : { opacity: 0, x: 100 }}
           transition={{ duration: 0.8, delay: 0.7, ease: "easeOut" }}
         >
           {/* Background image animation */}
@@ -844,7 +921,7 @@ const ConversionLanding = () => {
               zIndex: 0
             }}
             initial={{ opacity: 0, x: 650 }}
-            animate={animationsComplete ? { opacity: 1, x: 0 } : {}}
+            animate={animationsComplete ? { opacity: 1, x: 0 } : { opacity: 0, x: 650 }}
             transition={{
               duration: 1.4,
               ease: "easeOut",
@@ -904,7 +981,7 @@ const ConversionLanding = () => {
               color="#FF6B6B"
               style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
             />
-            <h3 style={{...titleStyle, fontSize: 'clamp(1rem, 2.5vw, 1.8rem)'}}>
+            <h3 style={{...titleStyle, fontSize: '1.4rem'}}> {/* Fixed size instead of clamp(1rem, 2.5vw, 1.8rem) */}
               SHOP
             </h3>
           </div>
@@ -922,6 +999,29 @@ const ConversionLanding = () => {
 
   return (
     <>
+      {/* Font Loading Preloader - Black screen that fades out */}
+      {showPreloader && (
+        <motion.div
+          initial={{ opacity: 1 }}
+          animate={{ opacity: fontLoaded ? 0 : 1 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: '#000000',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: showPreloader ? 'all' : 'none'
+          }}
+        >
+        </motion.div>
+      )}
+
       {screenType === 'mobile' ? <MobileLayout /> : <DesktopLayout />}
 
       {/* Loading overlay */}
@@ -951,7 +1051,7 @@ const ConversionLanding = () => {
             zIndex: 9999 // Higher z-index to ensure it's on top
           }}
         >
-          {/* Semi-transparent overlay to improve spinner visibility */}
+          {/* Semi-transparent overlay to improve visibility */}
           <div style={{
             position: 'absolute',
             top: 0,
@@ -961,20 +1061,6 @@ const ConversionLanding = () => {
             backgroundColor: 'rgba(0, 0, 0, 0.3)', // Light overlay for better contrast
             zIndex: 1
           }} />
-          
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            style={{
-              border: '4px solid var(--color-yellow)',
-              borderTop: '4px solid transparent',
-              borderRadius: '50%',
-              width: 'clamp(3rem, 8vw, 5rem)',
-              height: 'clamp(3rem, 8vw, 5rem)',
-              zIndex: 2, // Above the overlay
-              filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.5))' // Add shadow for better visibility
-            }}
-          />
         </motion.div>
       )}
     </>

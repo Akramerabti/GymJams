@@ -47,6 +47,15 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
   
   const [currentUser, setCurrentUser] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [isCompleted, setIsCompleted] = useState(false);
+
+  // Early completion check to prevent re-rendering
+  useEffect(() => {
+    if (isCompleted) {
+      console.log('Component already completed, preventing re-render');
+      return;
+    }
+  }, [isCompleted]);
 
   // Function to decode JWT payload
   const decodeJWTPayload = (token) => {
@@ -80,6 +89,9 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
         
         if (tempTokenFromUrl) {
           console.log('Initializing with tempToken from URL');
+          
+          // Clean up URL immediately to prevent re-processing
+          window.history.replaceState({}, document.title, '/');
           
           // Decode the JWT to get OAuth profile information
           const tokenData = decodeJWTPayload(tempTokenFromUrl);
@@ -252,6 +264,12 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
           toast.success('Profile completed successfully!');
         }
 
+        // Store discount code if provided
+        if (response.data.discountCode) {
+          localStorage.setItem('discountCode', response.data.discountCode);
+          console.log('🎁 Discount code saved for OAuth user:', response.data.discountCode);
+        }
+
         // Update current user state
         const updatedUser = response.data.user || currentUser;
         setCurrentUser(updatedUser);
@@ -259,6 +277,12 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
         if (onUserUpdate) {
           onUserUpdate(updatedUser);
         }
+        
+        // Clean up URL immediately after successful completion
+        window.history.replaceState({}, document.title, '/');
+        
+        // Mark as completed to prevent re-rendering
+        setIsCompleted(true);
         
         // Show onboarding
         setShowOnboarding(true);
@@ -302,12 +326,22 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
 
   const handleOnboardingClose = () => {
     setShowOnboarding(false);
+    
+    // Clean up the URL by replacing it without the OAuth parameters
+    window.history.replaceState({}, document.title, '/');
+    
     if (onComplete) {
       onComplete(currentUser);
     } else {
-      navigate('/');
+      // Navigate to home and force a reload to clear any state issues
+      navigate('/', { replace: true });
     }
   };
+
+  // Early return if already completed to prevent re-rendering
+  if (isCompleted) {
+    return null;
+  }
 
   // Show loading while initializing
   if (loading) {

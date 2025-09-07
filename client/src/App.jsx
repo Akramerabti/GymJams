@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import adService from './services/adsense';
 import AdDebugger from './components/blog/AdDebugger';
 import { I18nextProvider } from 'react-i18next';
@@ -56,6 +56,7 @@ import Blog from './pages/Blog';
 import BlogPost from './components/blog/BlogPost';
 import CompleteOAuthProfile from './components/auth/CompleteOAuthProfile';
 import PasswordSetup from './components/common/PasswordSetup';
+import DiscountSignUpContainer from './components/discount/DiscountSignUpContainer';
 
 // Common Components
 import LocationBanner from './components/common/LocationBanner';
@@ -114,6 +115,250 @@ function CoachProfileModalManager() {
   }
 
   return <CoachProfileCompletionModal isOpen={showCoachProfileModal} onClose={() => setShowCoachProfileModal(false)} />;
+}
+
+// Discount signup manager - shows for non-logged in users based on visit tracking
+function DiscountSignupManager() {
+  const [showDiscountSignup, setShowDiscountSignup] = useState(false);
+  const { isAuthenticated, loginWithToken } = useAuth();
+  const location = useLocation();
+
+  // Debug function - expose to window for console access
+  useEffect(() => {
+    window.debugDiscountPopup = {
+      getStatus: () => {
+        const tracking = JSON.parse(localStorage.getItem('discountSignupTracking') || '{}');
+        const hasCreatedAccount = localStorage.getItem('hasCreatedAccount') === 'true';
+        
+        console.log('🔍 DISCOUNT POPUP STATUS:');
+        console.log('- Is Authenticated:', isAuthenticated);
+        console.log('- Has Created Account:', hasCreatedAccount);
+        console.log('- Current Page:', location.pathname);
+        console.log('- Tracking Data:', tracking);
+        console.log('- Currently Showing:', showDiscountSignup);
+        
+        return {
+          isAuthenticated,
+          hasCreatedAccount,
+          currentPage: location.pathname,
+          tracking,
+          currentlyShowing: showDiscountSignup
+        };
+      },
+      resetTracking: () => {
+        localStorage.removeItem('discountSignupTracking');
+        localStorage.removeItem('hasCreatedAccount');
+        console.log('🔄 Reset discount popup tracking - refresh page to see popup again');
+      },
+      forceShow: () => {
+        if (!isAuthenticated) {
+          setShowDiscountSignup(true);
+          console.log('🎁 Forced discount popup to show');
+        } else {
+          console.log('❌ Cannot show popup - user is authenticated');
+        }
+      },
+      forceHide: () => {
+        setShowDiscountSignup(false);
+        console.log('🚫 Forced discount popup to hide');
+      }
+    };
+
+    return () => {
+      delete window.debugDiscountPopup;
+    };
+  }, [isAuthenticated, location.pathname, showDiscountSignup]);
+
+  useEffect(() => {
+    console.log('🔍 DISCOUNT POPUP DEBUG - Checking conditions...');
+    
+    // Only show for non-authenticated users
+    if (isAuthenticated) {
+      console.log('❌ User is authenticated - popup will NOT show');
+      setShowDiscountSignup(false);
+      return;
+    }
+    console.log('✅ User is NOT authenticated - continuing checks...');
+
+    // Check if user has ever created an account on this device
+    const hasEverCreatedAccount = localStorage.getItem('hasCreatedAccount') === 'true';
+    if (hasEverCreatedAccount) {
+      console.log('❌ User has created account before - popup will NOT show');
+      setShowDiscountSignup(false);
+      return;
+    }
+    console.log('✅ User has never created account - continuing checks...');
+
+    // Track visits and dismissals
+    const getVisitData = () => {
+      const stored = localStorage.getItem('discountSignupTracking');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+      return {
+        totalVisits: 0,
+        dismissCount: 0,
+        lastDismissedAt: null,
+        visitsSinceDismissal: 0
+      };
+    };
+
+    const updateVisitData = (updates) => {
+      const current = getVisitData();
+      const updated = { ...current, ...updates };
+      localStorage.setItem('discountSignupTracking', JSON.stringify(updated));
+      return updated;
+    };
+
+    // Only show on specific pages (like home page)
+    const showOnPages = ['/', '/shop', '/coaching'];
+    const shouldShowOnThisPage = showOnPages.includes(location.pathname);
+    
+    console.log(`📍 Current page: ${location.pathname}`);
+    console.log(`📍 Show on this page: ${shouldShowOnThisPage}`);
+    
+    if (!shouldShowOnThisPage) {
+      console.log('❌ Not on a valid page for popup - popup will NOT show');
+      return;
+    }
+    console.log('✅ On valid page for popup - continuing checks...');
+
+    // Increment visit count
+    const visitData = updateVisitData({ 
+      totalVisits: getVisitData().totalVisits + 1 
+    });
+
+    console.log('📊 DISCOUNT POPUP TRACKING DATA:', {
+      totalVisits: visitData.totalVisits,
+      dismissCount: visitData.dismissCount,
+      lastDismissedAt: visitData.lastDismissedAt,
+      visitsSinceDismissal: visitData.visitsSinceDismissal
+    });
+
+    // Determine if we should show the popup
+    let shouldShow = false;
+    let reason = '';
+
+    if (visitData.dismissCount === 0) {
+      // First time visitor - show immediately (after delay)
+      shouldShow = true;
+      reason = 'First time visitor';
+    } else {
+      // Has been dismissed before - check if it's the 3rd visit since last dismissal
+      if (visitData.visitsSinceDismissal >= 3) {
+        shouldShow = true;
+        reason = '3rd+ visit since last dismissal - re-engaging user';
+      } else {
+        reason = `Only ${visitData.visitsSinceDismissal} visits since dismissal (need 3)`;
+      }
+    }
+
+    console.log(`🎯 POPUP DECISION: ${shouldShow ? 'SHOW' : 'HIDE'}`);
+    console.log(`📝 Reason: ${reason}`);
+
+    if (shouldShow) {
+      console.log('⏱️ Popup will show in 3 seconds...');
+      // Show after a short delay
+      const timer = setTimeout(() => {
+        console.log('🎁 SHOWING DISCOUNT POPUP NOW!');
+        setShowDiscountSignup(true);
+      }, 3000); // Show after 3 seconds
+      
+      return () => clearTimeout(timer);
+    } else {
+      console.log('🚫 Popup will NOT show this visit');
+    }
+  }, [isAuthenticated, location.pathname]);
+
+  const handleDismiss = () => {
+    const visitData = JSON.parse(localStorage.getItem('discountSignupTracking') || '{}');
+    
+    // Update dismissal tracking
+    const updated = {
+      ...visitData,
+      dismissCount: (visitData.dismissCount || 0) + 1,
+      lastDismissedAt: new Date().toISOString(),
+      visitsSinceDismissal: 0 // Reset counter
+    };
+    
+    localStorage.setItem('discountSignupTracking', JSON.stringify(updated));
+    console.log('❌ Discount popup dismissed. Updated tracking:', updated);
+    
+    setShowDiscountSignup(false);
+  };
+
+  const handleSignupSuccess = async (data) => {
+    console.log('Discount signup successful:', data);
+    
+    // If this is a discount signup with a token, log the user in automatically
+    if (data.type === 'discount_signup' && data.token) {
+      try {
+        // Use the token to log the user in
+        await loginWithToken(data.token);
+        
+        // Store the discount code for future use
+        if (data.discountCode) {
+          localStorage.setItem('discountCode', data.discountCode);
+        }
+        
+        console.log('✅ User automatically logged in after discount signup');
+        toast.success('Welcome to GymTonic!', {
+          description: 'You\'ve been automatically logged in with your new account!'
+        });
+      } catch (error) {
+        console.error('Failed to auto-login after discount signup:', error);
+        // If auto-login fails, still store the discount code
+        if (data.discountCode) {
+          localStorage.setItem('discountCode', data.discountCode);
+        }
+      }
+    }
+    
+    // Mark that user has created an account on this device
+    localStorage.setItem('hasCreatedAccount', 'true');
+    
+    setShowDiscountSignup(false);
+    console.log('✅ Account created - discount popup will not show again on this device');
+  };
+
+  // Track visits since last dismissal when component unmounts/location changes
+  useEffect(() => {
+    return () => {
+      const visitData = JSON.parse(localStorage.getItem('discountSignupTracking') || '{}');
+      if (visitData.dismissCount > 0) {
+        const updated = {
+          ...visitData,
+          visitsSinceDismissal: (visitData.visitsSinceDismissal || 0) + 1
+        };
+        localStorage.setItem('discountSignupTracking', JSON.stringify(updated));
+      }
+    };
+  }, [location.pathname]);
+
+  // Only show for non-authenticated users
+  if (isAuthenticated || !showDiscountSignup) {
+    return null;
+  }
+
+  return (
+    <div 
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        zIndex: 10000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '1rem'
+      }}
+    >
+      <DiscountSignUpContainer onSuccess={handleSignupSuccess} onClose={handleDismiss} />
+    </div>
+  );
 }
 
 // Main App component
@@ -226,6 +471,7 @@ function App() {
                 {/* Global Components */}
                 <LocationBanner onLocationSet={setLocation} />
                 <CoachProfileModalManager />
+                <DiscountSignupManager />
 
                 <Toaster />
                 {process.env.NODE_ENV !== 'production' && <AdDebugger />}

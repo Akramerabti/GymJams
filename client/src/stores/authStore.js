@@ -23,6 +23,11 @@ const useAuthStore = create(
       setUser: (user) => {
         set({ user, isAuthenticated: !!user });
 
+        // Mark that user has an account on this device (for discount popup tracking)
+        if (user) {
+          localStorage.setItem('hasCreatedAccount', 'true');
+        }
+
         // Update points balance when user is set
         if (user?.points !== undefined) {
           usePoints.getState().setBalance(user.points);
@@ -191,6 +196,9 @@ const useAuthStore = create(
     // Set user and token in the store
     setToken(token);
     setUser(user);
+
+    // Mark that user has an account on this device (for discount popup tracking)
+    localStorage.setItem('hasCreatedAccount', 'true');
 
     // Update points balance
     if (user.points !== undefined) {

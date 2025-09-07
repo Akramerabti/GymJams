@@ -252,6 +252,12 @@ useEffect(() => {
           toast.success('Profile completed successfully!');
         }
 
+        // Store discount code if provided
+        if (response.data.discountCode) {
+          localStorage.setItem('discountCode', response.data.discountCode);
+          console.log('🎁 Discount code saved for OAuth user:', response.data.discountCode);
+        }
+
         // Update current user state
         const updatedUser = response.data.user || currentUser;
         setCurrentUser(updatedUser);

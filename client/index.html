@@ -46,7 +46,36 @@
     </script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&display=swap" rel="stylesheet">    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Font preloading for immediate rendering -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700;800&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+    
+    <!-- Preload critical fonts -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Rubik:wght@800&display=swap" as="style">
+    
+    <!-- Force font loading with invisible text -->
+    <style>
+      /* Force font loading by rendering invisible text */
+      .font-preloader {
+        position: absolute;
+        left: -9999px;
+        top: -9999px;
+        font-family: 'Rubik', Arial, sans-serif;
+        font-weight: 800;
+        font-size: 1px;
+        opacity: 0;
+        pointer-events: none;
+      }
+      
+      /* Ensure Rubik font loads with block display */
+      body {
+        font-family: 'Rubik', Arial, sans-serif;
+        font-display: block;
+      }
+    </style>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0070f3" />
     
     <!-- Primary Meta Tags -->
@@ -91,6 +120,9 @@
     </script>
   </head>
   <body>
+    <!-- Invisible font preloader to force Rubik font loading -->
+    <div class="font-preloader">GYMTONIC</div>
+    
     <div id="root"></div>
     <div id="ad-blocker-container" style="display:none;"></div>
     <script type="module" src="/src/main.jsx"></script>

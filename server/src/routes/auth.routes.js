@@ -1,7 +1,7 @@
 import express from 'express';
 import { verifyEmail, register, login, getCoach, deleteAccount, getCoachById, getProfile, 
     updateProfile, validateToken, resendVerificationEmail, validatePhone, forgotPassword,
-    resetPassword, logout, loginWithPhone, registerWithPhone, loginWithTokenFORPHONE, completeOAuthProfile, cleanupProfileImage} from '../controllers/auth.controller.js';
+    resetPassword, logout, loginWithPhone, registerWithPhone, loginWithTokenFORPHONE, completeOAuthProfile, cleanupProfileImage, discountSignup} from '../controllers/auth.controller.js';
 import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware.js';
 import { requirePhone, requireCompleteProfile } from '../middleware/requirePhone.middleware.js';
 import { validateRegistration, validateLogin, validatePasswordReset } from '../middleware/validate.middleware.js';
@@ -27,6 +27,7 @@ router.get('/coach/:coachId', optionalAuthenticate, getCoachById);
 router.post('/phone-login', loginWithPhone);
 router.post('/phone-register', registerWithPhone);
 router.post('/complete-oauth-profile', optionalAuthenticate, completeOAuthProfile);
+router.post('/discount-signup', discountSignup);
 
 // Standard web OAuth route
 router.get('/google', (req, res, next) => {
