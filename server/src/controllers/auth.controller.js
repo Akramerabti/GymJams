@@ -1449,8 +1449,15 @@ export const completeOAuthProfile = async (req, res) => {
       console.log('✅ Coupon code created in database for OAuth user:', discountCode);
 
       // Send welcome email with discount code (no password needed for OAuth users)
-      console.log('📧 Sending welcome email with discount to OAuth user...');
-      await sendWelcomeEmailWithDiscount(newUser, discountCode);
+      try {
+        console.log('📧 Sending welcome email with discount to OAuth user...');
+        await sendWelcomeEmailWithDiscount(newUser, discountCode);
+        console.log('✅ Welcome email sent successfully to OAuth user');
+      } catch (emailError) {
+        console.error('❌ Failed to send welcome email to OAuth user:', emailError);
+        // Don't fail the entire OAuth completion if email fails
+        // The user account is still created successfully
+      }
 
 
       // Generate authentication token

@@ -907,7 +907,15 @@ export const sendWelcomeEmailWithCredentials = async (user, tempPassword, discou
 // Send welcome email with discount code (for OAuth users - no password needed)
 export const sendWelcomeEmailWithDiscount = async (user, discountCode) => {
   try {
-    await resend.emails.send({
+    console.log('🚀 Attempting to send welcome email with discount to:', user.email);
+    console.log('📋 Email details:', {
+      from: 'GYMTONIC.CA <welcome@gymtonic.ca>',
+      to: user.email,
+      subject: 'Welcome to GymTonic - Your Exclusive 15% Discount!',
+      discountCode: discountCode
+    });
+
+    const result = await resend.emails.send({
       from: 'GYMTONIC.CA <welcome@gymtonic.ca>',
       to: user.email,
       subject: 'Welcome to GymTonic - Your Exclusive 15% Discount!',
@@ -996,9 +1004,11 @@ export const sendWelcomeEmailWithDiscount = async (user, discountCode) => {
       `
     });
     
+    console.log('✅ Email send result:', result);
     logger.info(`Welcome email with discount sent to ${user.email}`);
     return true;
   } catch (error) {
+    console.error('❌ Email service error:', error);
     logger.error('Welcome email with discount error:', error);
     throw error;
   }

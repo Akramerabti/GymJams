@@ -49,14 +49,6 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isCompleted, setIsCompleted] = useState(false);
 
-  // Early completion check to prevent re-rendering
-  useEffect(() => {
-    if (isCompleted) {
-      console.log('Component already completed, preventing re-render');
-      return;
-    }
-  }, [isCompleted]);
-
   // Function to decode JWT payload
   const decodeJWTPayload = (token) => {
     try {
@@ -89,9 +81,6 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
         
         if (tempTokenFromUrl) {
           console.log('Initializing with tempToken from URL');
-          
-          // Clean up URL immediately to prevent re-processing
-          window.history.replaceState({}, document.title, '/');
           
           // Decode the JWT to get OAuth profile information
           const tokenData = decodeJWTPayload(tempTokenFromUrl);
@@ -337,11 +326,6 @@ const CompleteOAuthProfile = ({ user, token, missingFields: propMissingFields, o
       navigate('/', { replace: true });
     }
   };
-
-  // Early return if already completed to prevent re-rendering
-  if (isCompleted) {
-    return null;
-  }
 
   // Show loading while initializing
   if (loading) {
