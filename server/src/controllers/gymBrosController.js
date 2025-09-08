@@ -194,32 +194,47 @@ export const checkGymBrosProfile = async (req, res) => {
 };
 
 
-export const checkGymBrosProfileByPhone = async (req, res) => {
+export const checkGymBrosProfileAfterVerification = async (req, res) => {
   try {
-    const { verifiedPhone, verificationToken } = req.body;
+    const { phone, tempToken } = req.body;
 
-    //('Checking profile by phone:', verifiedPhone);
+    console.log('🔍 checkGymBrosProfileAfterVerification called with:', {
+      phone,
+      hasTempToken: !!tempToken
+    });
     
-    if (!verifiedPhone || !verificationToken) {
+    if (!phone || !tempToken) {
+      console.log('❌ Missing required fields:', {
+        hasPhone: !!phone,
+        hasTempToken: !!tempToken
+      });
       return res.status(400).json({ 
         success: false,
-        message: 'Phone number and verification token are required' 
+        message: 'Phone number and temp token are required' 
       });
     }
     
-    // Verify token
+    // Verify the temporary token from SMS verification
     try {
-      const decodedToken = jwt.verify(verificationToken, process.env.JWT_SECRET);
-      //('Decoded token:', decodedToken);
+      console.log('🔐 Verifying temporary token...');
+      const decodedToken = jwt.verify(tempToken, process.env.JWT_SECRET);
+      console.log('🔐 Decoded token:', {
+        phone: decodedToken.phone,
+        verified: decodedToken.verified,
+        matchesRequestPhone: decodedToken.phone === phone
+      });
+      
       // Check if token was issued for this phone and is verified
-      if (!decodedToken.phone || decodedToken.phone !== verifiedPhone || !decodedToken.verified) {
+      if (!decodedToken.phone || decodedToken.phone !== phone || !decodedToken.verified) {
+        console.log('❌ Token validation failed');
         return res.status(401).json({
           success: false,
           message: 'Invalid verification token'
         });
       }
+      console.log('✅ Token verified successfully');
     } catch (tokenError) {
-      logger.error('Token verification error:', tokenError);
+      console.error('❌ Token verification error:', tokenError.message);
       return res.status(401).json({
         success: false,
         message: 'Invalid or expired verification token'
@@ -227,16 +242,48 @@ export const checkGymBrosProfileByPhone = async (req, res) => {
     }
     
     // STEP 1: Find user with this phone number
-    const user = await User.findOne({ phone: verifiedPhone });
+    console.log('👤 Searching for user with phone:', phone);
+    const user = await User.findOne({ phone });
+    console.log('👤 User search result:', {
+      found: !!user,
+      userId: user?._id,
+      userPhone: user?.phone
+    });
     
     // If user exists, handle normally
     if (user) {
+      console.log('✅ User found, updating last login and searching for profile');
       // Update last login time
       user.lastLogin = new Date();
       await user.save();
       
       // Find GymBros profile if it exists
-      const profile = await GymBrosProfile.findOne({ userId: user._id });
+      console.log('🏋️ Searching for GymBros profile for user:', user._id);
+      let profile = await GymBrosProfile.findOne({ userId: user._id });
+      console.log('🏋️ Profile search by userId result:', {
+        found: !!profile,
+        profileId: profile?._id,
+        isComplete: profile?.isProfileComplete
+      });
+      
+      // If no profile found by userId, try searching by phone as fallback
+      if (!profile) {
+        console.log('🏋️ No profile found by userId, trying search by phone:', phone);
+        profile = await GymBrosProfile.findOne({ phone: phone });
+        console.log('🏋️ Profile search by phone result:', {
+          found: !!profile,
+          profileId: profile?._id,
+          isComplete: profile?.isProfileComplete
+        });
+        
+        // If we found a profile by phone, link it to the user
+        if (profile) {
+          console.log('🔗 Linking orphaned profile to user...');
+          profile.userId = user._id;
+          await profile.save();
+          console.log('✅ Profile linked to user successfully');
+        }
+      }
       
       // Generate authentication token
       const token = jwt.sign(
@@ -244,6 +291,12 @@ export const checkGymBrosProfileByPhone = async (req, res) => {
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
+      
+      console.log('📤 Returning user response:', {
+        hasProfile: !!profile,
+        userId: user._id,
+        hasToken: !!token
+      });
       
       // Return everything in one response - user data, token, and profile if it exists
       return res.json({
@@ -266,10 +319,16 @@ export const checkGymBrosProfileByPhone = async (req, res) => {
     }
     
     // STEP 2: If no user found, check for GymBrosProfile with this phone
-    const gymBrosProfile = await GymBrosProfile.findOne({ phone: verifiedPhone });
+    console.log('🔍 No user found, searching for GymBros profile with phone:', phone);
+    const gymBrosProfile = await GymBrosProfile.findOne({ phone });
+    console.log('🏋️ GymBros profile search result:', {
+      found: !!gymBrosProfile,
+      profileId: gymBrosProfile?._id,
+      isComplete: gymBrosProfile?.isProfileComplete
+    });
     
     if (gymBrosProfile) {
-      //('Found GymBros profile without user account:', gymBrosProfile._id);
+      console.log('✅ Found GymBros profile without user account:', gymBrosProfile._id);
       
       // Return the profile info without user data
       return res.json({
@@ -282,6 +341,164 @@ export const checkGymBrosProfileByPhone = async (req, res) => {
     }
     
     // STEP 3: No user and no profile found - return info that allows creating both
+    console.log('❌ No user or profile found for phone:', phone);
+    return res.json({
+      success: true,
+      hasProfile: false,
+      profile: null,
+      user: null,
+      needsRegistration: true,
+      verifiedPhone: phone  // Return the verified phone to use for registration
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in checkGymBrosProfileAfterVerification:', {
+      message: error.message,
+      stack: error.stack,
+      requestBody: req.body
+    });
+    res.status(500).json({
+      success: false,
+      message: 'Server error when checking profile after verification'
+    });
+  }
+};
+
+export const checkGymBrosProfileByPhone = async (req, res) => {
+  try {
+    const { verifiedPhone, verificationToken } = req.body;
+
+    console.log('🔍 checkGymBrosProfileByPhone called with:', {
+      verifiedPhone,
+      verificationToken: verificationToken ? 'present' : 'missing',
+      tokenLength: verificationToken ? verificationToken.length : 0,
+      requestBody: req.body
+    });
+    
+    if (!verifiedPhone || !verificationToken) {
+      console.log('❌ Missing required fields:', {
+        hasPhone: !!verifiedPhone,
+        hasToken: !!verificationToken
+      });
+      return res.status(400).json({ 
+        success: false,
+        message: 'Phone number and verification token are required' 
+      });
+    }
+    
+    // Verify token
+    try {
+      console.log('🔐 Verifying token...');
+      const decodedToken = jwt.verify(verificationToken, process.env.JWT_SECRET);
+      console.log('🔐 Decoded token:', {
+        phone: decodedToken.phone,
+        verified: decodedToken.verified,
+        matchesRequestPhone: decodedToken.phone === verifiedPhone
+      });
+      
+      // Check if token was issued for this phone and is verified
+      if (!decodedToken.phone || decodedToken.phone !== verifiedPhone || !decodedToken.verified) {
+        console.log('❌ Token validation failed:', {
+          hasPhone: !!decodedToken.phone,
+          phoneMatch: decodedToken.phone === verifiedPhone,
+          isVerified: decodedToken.verified
+        });
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid verification token'
+        });
+      }
+      console.log('✅ Token verified successfully');
+    } catch (tokenError) {
+      console.error('❌ Token verification error:', tokenError.message);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired verification token'
+      });
+    }
+    
+    // STEP 1: Find user with this phone number
+    console.log('👤 Searching for user with phone:', verifiedPhone);
+    const user = await User.findOne({ phone: verifiedPhone });
+    console.log('👤 User search result:', {
+      found: !!user,
+      userId: user?._id,
+      userPhone: user?.phone
+    });
+    
+    // If user exists, handle normally
+    if (user) {
+      console.log('✅ User found, updating last login and searching for profile');
+      // Update last login time
+      user.lastLogin = new Date();
+      await user.save();
+      
+      // Find GymBros profile if it exists
+      console.log('🏋️ Searching for GymBros profile for user:', user._id);
+      const profile = await GymBrosProfile.findOne({ userId: user._id });
+      console.log('🏋️ Profile search result:', {
+        found: !!profile,
+        profileId: profile?._id,
+        isComplete: profile?.isProfileComplete
+      });
+      
+      // Generate authentication token
+      const token = jwt.sign(
+        { id: user._id },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+      
+      console.log('📤 Returning user response:', {
+        hasProfile: !!profile,
+        userId: user._id,
+        hasToken: !!token
+      });
+      
+      // Return everything in one response - user data, token, and profile if it exists
+      return res.json({
+        success: true,
+        hasProfile: !!profile,
+        profile: profile || null,
+        user: {
+          id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          phone: user.phone,
+          email: user.email,
+          role: user.role,
+          isEmailVerified: user.isEmailVerified,
+          points: user.points,
+          hasReceivedFirstLoginBonus: user.hasReceivedFirstLoginBonus
+        },
+        token
+      });
+    }
+    
+    // STEP 2: If no user found, check for GymBrosProfile with this phone
+    console.log('🔍 No user found, searching for GymBros profile with phone:', verifiedPhone);
+    const gymBrosProfile = await GymBrosProfile.findOne({ phone: verifiedPhone });
+    console.log('🏋️ GymBros profile search result:', {
+      found: !!gymBrosProfile,
+      profileId: gymBrosProfile?._id,
+      isComplete: gymBrosProfile?.isProfileComplete
+    });
+    
+    if (gymBrosProfile) {
+      console.log('✅ Found GymBros profile without user account:', gymBrosProfile._id);
+      
+      // Return the profile info without user data
+      return res.json({
+        success: true,
+        hasProfile: true,
+        profile: gymBrosProfile,
+        user: null,
+        needsRegistration: true  // Flag to indicate frontend that user registration is needed
+      });
+    }
+    
+    // STEP 3: No user and no profile found - return info that allows creating both
+    console.log('❌ No user or profile found for phone:', verifiedPhone);
     return res.json({
       success: true,
       hasProfile: false,
@@ -292,7 +509,11 @@ export const checkGymBrosProfileByPhone = async (req, res) => {
     });
     
   } catch (error) {
-    logger.error('Error in checkGymBrosProfileByPhone:', error);
+    console.error('❌ Error in checkGymBrosProfileByPhone:', {
+      message: error.message,
+      stack: error.stack,
+      requestBody: req.body
+    });
     res.status(500).json({
       success: false,
       message: 'Server error when checking profile by phone'
@@ -2155,14 +2376,17 @@ export const verifyCode = async (req, res) => {
   try {
     const { phone, code } = req.body;
     
+    console.log('📞 verifyCode called with:', { phone, code });
+    
     if (!phone || !code) {
+      console.log('❌ Missing phone or code');
       return res.status(400).json({ 
         success: false,
         message: 'Phone and code are required' 
       });
     }
     
-    //('Verifying code:', code, 'for phone:', phone);
+    console.log('🔍 Looking for verification record...');
     
     // Find the verification record
     const verification = await PhoneVerification.findOne({ 
@@ -2171,13 +2395,17 @@ export const verifyCode = async (req, res) => {
       expiresAt: { $gt: new Date() } // Make sure it hasn't expired
     });
     
+    console.log('🔍 Verification record found:', !!verification);
+    
     if (!verification) {
+      console.log('❌ No valid verification record found');
       return res.status(400).json({ 
         success: false,
         message: 'Invalid or expired verification code' 
       });
     }
     
+    console.log('✅ Creating verification token...');
     // Code is valid, create a temporary verification token
     const token = jwt.sign(
       { phone, verified: true },
@@ -2190,6 +2418,13 @@ export const verifyCode = async (req, res) => {
     
     // Also generate a guest token for future API calls
     const guestToken = generateGuestToken(phone);
+    
+    console.log('📤 Sending verification response:', {
+      success: true,
+      hasToken: !!token,
+      hasGuestToken: !!guestToken,
+      tokenLength: token ? token.length : 0
+    });
     
     res.json({ 
       success: true,

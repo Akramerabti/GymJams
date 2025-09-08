@@ -35,7 +35,15 @@ const handleVerifyCode = async (codeOverride) => {
   setIsLoading(true);
 
   try {
+    console.log('📞 Verifying code:', { phone, codeLength: code.length });
     const verifyResponse = await gymbrosService.verifyCode(phone, code);
+    console.log('📞 Verify response:', {
+      success: verifyResponse.success,
+      hasToken: !!verifyResponse.token,
+      hasGuestToken: !!verifyResponse.guestToken,
+      tokenPreview: verifyResponse.token ? verifyResponse.token.substring(0, 20) + '...' : 'none',
+      fullResponse: verifyResponse
+    });
 
     if (!verifyResponse.success) {
       toast.error(verifyResponse.message || 'Invalid verification code');
@@ -53,7 +61,14 @@ const handleVerifyCode = async (codeOverride) => {
     let profileData = null;
 
     try {
-      const profileCheckResponse = await gymbrosService.checkProfileWithVerifiedPhone(
+      console.log('🔍 About to check profile with new robust method:', {
+        phone,
+        hasToken: !!verifyResponse.token,
+        tokenPreview: verifyResponse.token ? verifyResponse.token.substring(0, 20) + '...' : 'none'
+      });
+      
+      // Use the new robust endpoint that works directly with the temp token
+      const profileCheckResponse = await gymbrosService.checkProfileAfterVerification(
         phone, 
         verifyResponse.token
       );
@@ -99,6 +114,29 @@ const handleVerifyCode = async (codeOverride) => {
             toast.success('Welcome back! Profile found.');
             return;
           }
+        } else if (profileCheckResponse.user && profileCheckResponse.token) {
+          // User account exists but no GymBros profile - allow profile creation
+          console.log('👤 User account found but no GymBros profile - proceed with profile creation');
+          hasAccount = true;
+          userData = profileCheckResponse.user;
+          
+          try {
+            await loginWithToken(profileCheckResponse.token, profileCheckResponse.user);
+            
+            setVerificationStep('no_account_signup');
+            onVerified(
+              true, 
+              profileCheckResponse.user, 
+              profileCheckResponse.token, 
+              null // No profile data
+            );
+            toast.success('Account found! Let\'s create your GymBros profile.');
+            return;
+          } catch (loginError) {
+            console.error('Login error:', loginError);
+            toast.error('Login failed. Please try again.');
+            return;
+          }
         }
       }
     } catch (profileCheckError) {
@@ -108,14 +146,15 @@ const handleVerifyCode = async (codeOverride) => {
 
     // STEP 2: Phone is verified but NO account/profile exists
     // Handle based on the user's intent (login vs signup)
-    if (isLoginFlow) {
+    if (isLoginFlow && !hasAccount) {
       // User expects account to exist but none found
       console.log('📱 LOGIN FLOW: No account found - show account not found error');
       setVerificationStep('no_account_login');
       return;
     } else {
       // User is creating new account (signup flow) - this is expected
-      console.log('📱 SIGNUP FLOW: No account found - this is expected, proceed with creation');
+      // OR user has account but no profile (which is handled above)
+      console.log('📱 SIGNUP FLOW: No account/profile found - this is expected, proceed with creation');
       setVerificationStep('no_account_signup');
       
       // Store verification token and proceed
@@ -153,27 +192,8 @@ const handleVerifyCode = async (codeOverride) => {
       
       console.log('📱 Phone exists result:', exists);
       
-      // If phone exists and this isn't already a login flow, ask user intent
-      if (exists && !isLoginFlow) {
-        console.log('🔄 Phone exists, showing login option');
-        toast.info(
-          'This phone is already registered',
-          {
-            description: 'Would you like to log in with this number?',
-            action: {
-              label: 'Yes, login',
-              onClick: () => {
-                console.log('👤 User chose to login with existing account');
-                onExistingAccountFound && onExistingAccountFound(phone);
-              }
-            }
-          }
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      // Send verification code
+      // Send verification code regardless of whether phone exists
+      // We'll handle login/signup after verification
       console.log('📤 Sending verification code to:', phone);
       const response = await gymbrosService.sendVerificationCode(phone);
       console.log('📤 Send code response:', response);
@@ -257,8 +277,8 @@ const renderVerificationStep = () => {
           <Phone className="w-10 h-10 text-red-300" />
         </div>
         <h3 className="text-lg font-bold text-red-300 mb-2">Account Not Found</h3>
-        <p className="text-center text-white mb-2">No account exists for this phone number</p>
-        <p className="text-center font-semibold text-white text-lg">{phone}</p>
+        <p className="text-center text-gray-900 mb-2">No account exists for this phone number</p>
+        <p className="text-center font-semibold text-gray-900 text-lg">{phone}</p>
         
         <div className="mt-4 p-4 bg-blue-500/10 backdrop-blur-sm rounded-lg border border-blue-400/30">
           <p className="text-blue-200 text-sm text-center mb-3">
@@ -290,8 +310,8 @@ const renderVerificationStep = () => {
           <CheckCircle className="w-10 h-10 text-green-300" />
         </div>
         <h3 className="text-lg font-bold text-green-300 mb-2">Phone Verified!</h3>
-        <p className="text-center text-white mb-2">Ready to create your GymBros profile</p>
-        <p className="text-center font-semibold text-white text-lg">{phone}</p>
+        <p className="text-center text-gray-900 mb-2">Ready to create your GymBros profile</p>
+        <p className="text-center font-semibold text-gray-900 text-lg">{phone}</p>
         
         <div className="mt-4 p-4 bg-blue-500/10 backdrop-blur-sm rounded-lg border border-blue-400/30">
           <p className="text-blue-200 text-sm text-center mb-3">
@@ -309,8 +329,8 @@ const renderVerificationStep = () => {
           <CheckCircle className="w-10 h-10 text-green-300" />
         </div>
         <h3 className="text-lg font-bold text-green-300 mb-2">Welcome Back!</h3>
-        <p className="text-center text-white mb-2">Account found and verified</p>
-        <p className="text-center font-semibold text-white text-lg">{phone}</p>
+        <p className="text-center text-gray-900 mb-2">Account found and verified</p>
+        <p className="text-center font-semibold text-gray-900 text-lg">{phone}</p>
         
         <div className="mt-4 p-4 bg-green-500/10 backdrop-blur-sm rounded-lg border border-green-400/30">
           <p className="text-green-200 text-sm text-center">

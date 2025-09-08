@@ -2,7 +2,7 @@
 
 /* Force proper theming for GymBros setup */
 .gymbros-setup-fullscreen {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 .gymbros-setup-fullscreen *,
@@ -13,7 +13,7 @@
   color: inherit !important;
 }
 
-/* Ensure all text in GymBros setup is white in dark mode */
+/* Ensure all text in GymBros setup uses proper colors based on theme */
 .gymbros-setup-fullscreen input,
 .gymbros-setup-fullscreen select,
 .gymbros-setup-fullscreen textarea {

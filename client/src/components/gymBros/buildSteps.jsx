@@ -426,13 +426,13 @@ const BasicInfoStep = ({
     } overflow-y-auto px-2 `}>
       {/* Main Title */}
       <div className="text-center space-y-1 mb-4">
-        <h2 className="text-xl font-bold text-white">Tell us about yourself</h2>
-        <p className="text-white/80 text-sm">Basic information to get started</p>
+        <h2 className="text-xl font-bold text-black">Tell us about yourself</h2>
+        <p className="text-black text-sm">Basic information to get started</p>
       </div>
       
       {/* Name Input */}
       <div className="space-y-2 mb-2">
-        <label className="text-white font-medium text-sm">What's your name?</label>
+        <label className="text-black font-medium text-sm">What's your name?</label>
         <ThemedInput 
           type="text" 
           value={profileData.name} 
@@ -447,7 +447,7 @@ const BasicInfoStep = ({
       <div className={`grid gap-4 mb-2 ${screenType === 'mobile' ? 'grid-cols-1' : 'grid-cols-2'}`}>
         {/* Age */}
         <div className="space-y-2">
-          <label className="text-white font-medium text-sm">Age</label>
+          <label className="text-black font-medium text-sm">Age</label>
           <ThemedInput 
             type="number" 
             value={profileData.age} 
@@ -462,7 +462,7 @@ const BasicInfoStep = ({
 
         {/* Gender */}
         <div className="space-y-2">
-          <label className="text-white font-medium text-sm">Gender</label>
+          <label className="text-black font-medium text-sm">Gender</label>
           <ThemedSelect
             value={profileData.gender}
             onChange={(e) => handleChange('gender', e.target.value)}
@@ -501,14 +501,14 @@ const FitnessInfoStep = ({ profileData, handleWorkoutTypeToggle, handleChange, s
     <div className="w-full space-y-4">
       {/* Main Title */}
       <div className="text-center space-y-1 mb-4">
-        <h2 className="text-xl font-bold text-white">Your Fitness Profile</h2>
-        <p className="text-white/80 text-sm">Help us find compatible workout partners</p>
+        <h2 className="text-xl font-bold text-black">Your Fitness Profile</h2>
+        <p className="text-black text-sm">Help us find compatible workout partners</p>
       </div>
       
       {/* Workout Types */}
       <div className="space-y-2">
-        <label className="text-white font-medium text-sm">What workouts do you enjoy?</label>
-        <div className={`grid gap-2 ${
+        <label className="text-black font-medium text-sm">What workouts do you enjoy?</label>
+        <div className={`grid gap-2 text-black ${
           screenType === 'mobile' ? 'grid-cols-2' : 'grid-cols-3'
         }`}>
           {workoutTypes.map(type => (
@@ -516,10 +516,10 @@ const FitnessInfoStep = ({ profileData, handleWorkoutTypeToggle, handleChange, s
               key={type}
               type="button"
               onClick={() => handleWorkoutTypeToggle(type)}
-              className={`px-2 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              className={`px-2 py-1.5 rounded-full text-xs text-black font-medium transition-colors ${
                 profileData.workoutTypes.includes(type)
-                  ? 'bg-white/30 text-white border-2 border-white/40 backdrop-blur-sm'
-                  : 'bg-white/10 text-white border-2 border-white/20 hover:bg-white/20 backdrop-blur-sm'
+                  ? 'bg-white/30 text-black border-2 border-white/40 backdrop-blur-sm'
+                  : 'bg-white/10 text-black border-2 border-white/20 hover:bg-white/20 backdrop-blur-sm'
               }`}
             >
               {type}
@@ -532,17 +532,17 @@ const FitnessInfoStep = ({ profileData, handleWorkoutTypeToggle, handleChange, s
       <div className={`grid gap-4 ${screenType === 'mobile' ? 'grid-cols-1' : 'grid-cols-2'}`}>
         {/* Experience Level */}
         <div className="space-y-2">
-          <label className="text-white font-medium text-sm">Experience Level</label>
-          <div className="flex flex-col gap-2">
+          <label className="text-black font-medium text-sm">Experience Level</label>
+          <div className="flex flex-col gap-2 text-black">
             {experienceLevels.map(level => (
               <button
                 key={level}
                 type="button"
                 onClick={() => handleChange('experienceLevel', level)}
-                className={`px-3 py-2 rounded-xl text-sm flex items-center transition-colors ${
+                className={`px-3 py-2 rounded-xl text-sm flex text-black items-center transition-colors ${
                   profileData.experienceLevel === level
-                    ? 'bg-white/30 text-white border-2 border-white/40 backdrop-blur-sm'
-                    : 'bg-white/10 text-white border-2 border-white/20 hover:bg-white/20 backdrop-blur-sm'
+                    ? 'bg-white/30 text-black border-2 border-white/40 backdrop-blur-sm'
+                    : 'bg-white/10 text-black border-2 border-white/20 hover:bg-white/20 backdrop-blur-sm'
                 }`}
               >
                 <Award size={14} className="mr-2" />
@@ -554,8 +554,8 @@ const FitnessInfoStep = ({ profileData, handleWorkoutTypeToggle, handleChange, s
 
         {/* Time Preference */}
         <div className="space-y-2">
-          <label className="text-white font-medium text-sm">Preferred Time</label>
-          <div className="flex flex-wrap gap-2">
+          <label className="text-black font-medium text-sm">Preferred Time</label>
+          <div className="flex flex-wrap gap-2 text-black">
             {timePreferences.map(time => (
               <button
                 key={time}
@@ -563,8 +563,8 @@ const FitnessInfoStep = ({ profileData, handleWorkoutTypeToggle, handleChange, s
                 onClick={() => handleChange('preferredTime', time)}
                 className={`px-2 py-1.5 rounded-full text-xs font-medium transition-colors ${
                   profileData.preferredTime === time
-                    ? 'bg-white/30 text-white border-2 border-white/40 backdrop-blur-sm'
-                    : 'bg-white/10 text-white border-2 border-white/20 hover:bg-white/20 backdrop-blur-sm'
+                    ? 'bg-white/30 text-black border-2 border-white/40 backdrop-blur-sm'
+                    : 'bg-white/10 text-black border-2 border-white/20 hover:bg-white/20 backdrop-blur-sm'
                 }`}
               >
                 {time}
@@ -577,7 +577,7 @@ const FitnessInfoStep = ({ profileData, handleWorkoutTypeToggle, handleChange, s
   );
 };
 
-export const buildSteps = ({
+const buildSteps = ({
   isAuthenticated,
   user,
   profileData,
@@ -607,160 +607,140 @@ export const buildSteps = ({
   const hasVerifiedPhone = isAuthenticated && user && 
     (user.phone || (user.user && user.user.phone));
 
-  // Start with common steps
-  let stepsList = [
-    {
-      id: 'welcome',
-      title: '🔥 Welcome to GymBros',
-      subtitle: '🚀 Transform Your Fitness Journey',
-      icon: <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full blur-sm opacity-50"></div>
-        <Dumbbell className="relative h-5 w-5 text-white drop-shadow-lg" />
-      </div>,
+  // Start with phone verification step - no welcome step
+  let stepsList = [];
+
+  // Always include phone verification as first step unless user is already authenticated with a phone
+  if (!isAuthenticated || !hasVerifiedPhone) {
+    stepsList.push({
+      id: 'phone',
+      title: isAuthenticated ? "Verify your phone number" : "Enter your phone number",
+      subtitle: isAuthenticated ? 
+        "We need to verify your phone for GymBros" : 
+        "We'll verify your identity or create your account",
+      icon: <Phone size={24} />,
+      isValid: () => isPhoneVerified || hasVerifiedPhone,
       component: (
-        <WelcomeStep
+        <div className="w-full space-y-4">
+          <div className="text-center space-y-1 mb-4">
+            <h2 className="text-xl font-bold text-black">
+              {isAuthenticated ? 'Verify your phone number' : 'Enter your phone number'}
+            </h2>
+            <p className="text-black text-sm">
+              {isAuthenticated ? 
+                "We need to verify your phone for GymBros" : 
+                "We'll verify your identity or create your account"}
+            </p>
+          </div>
+          
+          <PhoneVerification
+            phone={profileData.phone}
+            onChange={handlePhoneChange}
+            onVerified={(verified, userData, token, existingProfileData) => {
+              console.log('📱 Phone verification result:', {
+                verified,
+                hasUserData: !!userData,
+                hasToken: !!token, 
+                hasProfileData: !!existingProfileData
+              });
+
+              if (verified) {
+                // Update phone in profile data
+                if (userData?.phone) {
+                  handleChange('phone', userData.phone);
+                } else if (!profileData.phone) {
+                  // Store the verified phone if not already stored
+                  const storedPhone = localStorage.getItem('verifiedPhone');
+                  if (storedPhone) {
+                    handleChange('phone', storedPhone);
+                  }
+                }
+
+                // Handle different verification outcomes
+                if (existingProfileData && existingProfileData.profile) {
+                  // User has existing profile - redirect to main app
+                  console.log('✅ Existing profile found, redirecting to app');
+                  handlePhoneVerified(verified, userData, token, existingProfileData);
+                  return;
+                }
+
+                if (userData) {
+                  // User has account but no profile - proceed with profile creation
+                  console.log('👤 User account found but no GymBros profile');
+                  handlePhoneVerified(verified, userData, token, null);
+                  return;
+                }
+
+                // No existing account/profile - proceed with account creation
+                console.log('🆕 New user - proceeding with account creation');
+                setIsPhoneVerified(true);
+                
+                // Set verification token for profile creation
+                if (token) {
+                  setVerificationToken(token);
+                  localStorage.setItem('verificationToken', token);
+                }
+                
+                // Let the parent component handle step progression
+                // Don't automatically advance here to prevent double progression
+              }
+            }}
+            isLoginFlow={false} // Always allow both login and signup
+            onExistingAccountFound={handleExistingAccountFound}
+            onContinueWithNewAccount={handleContinueWithNewAccount}
+          />
+        </div>
+      )
+    });
+  }
+  
+  // Include profile building steps (always needed for profile creation)
+  stepsList = [
+    ...stepsList,
+    {
+      id: 'basicInfo',
+      title: "Tell us about yourself",
+      subtitle: "Basic information to get started",
+      icon: <User size={24} />,
+      isValid: () => {
+        console.log('Validating basic info step:', {
+          name: profileData.name?.trim(),
+          age: profileData.age,
+          ageNumber: Number(profileData.age),
+          gender: profileData.gender,
+          height: profileData.height,
+          heightType: typeof profileData.height
+        });
+
+        const isValid = (
+          profileData.name?.trim().length > 0 &&
+          profileData.age &&
+          Number(profileData.age) >= 18 &&
+          Number(profileData.age) <= 99 &&
+          profileData.gender !== '' &&
+          profileData.height &&
+          (
+            (typeof profileData.height === 'number' && profileData.height > 0) ||
+            (typeof profileData.height === 'string' && Number(profileData.height) > 0)
+          )
+        );
+
+        console.log('BasicInfo step validation result:', isValid);
+        return isValid;
+      },
+      component: (
+        <BasicInfoStep
+          profileData={profileData}
+          handleChange={handleChange}
+          handleInputBlur={handleInputBlur}
           goToNextStep={goToNextStep}
           handleLoginWithPhone={handleLoginWithPhone}
           isAuthenticated={isAuthenticated}
           showPhoneLogin={showPhoneLogin}
           screenType={screenType}
         />
-      ),
-      isValid: () => true,
-    }
-  ];
-
-if (!isAuthenticated || !hasVerifiedPhone) {
-  stepsList.push({
-    id: 'phone',
-    title: authMode === 'login' ? "Log in with your phone" : "Verify your phone number",
-    subtitle: authMode === 'login' ? 
-      "We'll verify your identity" : 
-      "We'll send a verification code",
-    icon: <Phone size={24} />,
-    isValid: () => isPhoneVerified || hasVerifiedPhone,
-    component: (
-      <div className="w-full space-y-4">
-        <div className="text-center space-y-1 mb-4">
-          <h2 className="text-xl font-bold text-white">
-            {authMode === 'login' ? 'Log in with your phone' : 'Verify your phone number'}
-          </h2>
-          <p className="text-white/80 text-sm">
-            {authMode === 'login' ? "We'll verify your identity" : "We'll send a verification code"}
-          </p>
-        </div>
-        
-        <PhoneVerification
-          phone={profileData.phone}
-          onChange={handlePhoneChange}
-          onVerified={(verified, userData, token, existingProfileData) => {
-            console.log('📱 Phone verification result:', {
-              verified,
-              hasUserData: !!userData,
-              hasToken: !!token, 
-              hasProfileData: !!existingProfileData
-            });
-
-            if (verified) {
-              // Update phone in profile data
-              if (userData?.phone) {
-                handleChange('phone', userData.phone);
-              } else if (!profileData.phone) {
-                // Store the verified phone if not already stored
-                const storedPhone = localStorage.getItem('verifiedPhone');
-                if (storedPhone) {
-                  handleChange('phone', storedPhone);
-                }
-              }
-
-              // Handle different verification outcomes
-              if (existingProfileData && existingProfileData.profile) {
-                // User has existing profile - redirect to main app
-                console.log('✅ Existing profile found, redirecting to app');
-                handlePhoneVerified(verified, userData, token, existingProfileData);
-                return;
-              }
-
-              if (userData) {
-                // User has account but no profile - this is rare but possible
-                console.log('👤 User account found but no GymBros profile');
-                handlePhoneVerified(verified, userData, token, null);
-                return;
-              }
-
-              // No existing account/profile - proceed with account creation
-              console.log('🆕 New user - proceeding with account creation');
-              setIsPhoneVerified(true);
-              
-              // Set verification token for profile creation
-              if (token) {
-                setVerificationToken(token);
-                localStorage.setItem('verificationToken', token);
-              }
-              
-              // Move to next step (basic info)
-              setTimeout(() => {
-                goToNextStep();
-              }, 1500); // Give user time to see the "create account" message
-            }
-          }}
-          isLoginFlow={authMode === 'login'}
-          onExistingAccountFound={handleExistingAccountFound}
-          onContinueWithNewAccount={handleContinueWithNewAccount}
-        />
-      </div>
-    )
-  });
-}
-  
-  // Only include profile building steps for signup (not for login)
-  if (authMode === 'signup') {
-    stepsList = [
-      ...stepsList,
-      {
-  id: 'basicInfo',
-  title: "Tell us about yourself",
-  subtitle: "Basic information to get started",
-  icon: <User size={24} />,
-  isValid: () => {
-    console.log('Validating basic info step:', {
-      name: profileData.name?.trim(),
-      age: profileData.age,
-      ageNumber: Number(profileData.age),
-      gender: profileData.gender,
-      height: profileData.height,
-      heightType: typeof profileData.height
-    });
-
-    const isValid = (
-      profileData.name?.trim().length > 0 &&
-      profileData.age &&
-      Number(profileData.age) >= 18 &&
-      Number(profileData.age) <= 99 &&
-      profileData.gender !== '' &&
-      profileData.height &&
-      (
-        (typeof profileData.height === 'number' && profileData.height > 0) ||
-        (typeof profileData.height === 'string' && Number(profileData.height) > 0)
       )
-    );
-
-    console.log('BasicInfo step validation result:', isValid);
-    return isValid;
-  },
-  component: (
-    <BasicInfoStep
-      profileData={profileData}
-      handleChange={handleChange}
-      handleInputBlur={handleInputBlur}
-      goToNextStep={goToNextStep}
-      handleLoginWithPhone={handleLoginWithPhone}
-      isAuthenticated={isAuthenticated}
-      showPhoneLogin={showPhoneLogin}
-      screenType={screenType}
-    />
-  )
-},
+    },
       {
         id: 'photos',
         title: 'Add Your Photos',
@@ -770,8 +750,8 @@ if (!isAuthenticated || !hasVerifiedPhone) {
           <div className="w-full flex flex-col space-y-3">
             {/* Title and Instructions */}
             <div className="text-center space-y-1 flex-shrink-0">
-              <h2 className="text-xl font-bold text-white">Add Your Photos</h2>
-              <p className="text-white/80 text-sm">Show your personality - add at least 2 photos</p>
+              <h2 className="text-xl font-bold text-black">Add Your Photos</h2>
+              <p className="text-black text-sm">Show your personality - add at least 2 photos</p>
             </div>
             
             {/* Image Uploader - compact version */}
@@ -789,7 +769,7 @@ if (!isAuthenticated || !hasVerifiedPhone) {
             
             {/* Progress indicator */}
             <div className="text-center flex-shrink-0">
-              <p className="text-white/70 text-xs">
+              <p className="text-black text-xs">
                 {profileData.photos?.filter(Boolean).length || 0} / 2 photos minimum
               </p>
             </div>
@@ -825,8 +805,8 @@ if (!isAuthenticated || !hasVerifiedPhone) {
           <div className="w-full space-y-3">
             {/* Main Title */}
             <div className="text-center space-y-1 mb-4">
-              <h2 className="text-xl font-bold text-white">What interests you?</h2>
-              <p className="text-white/80 text-sm">Find partners with similar hobbies</p>
+              <h2 className="text-xl font-bold text-black">What interests you?</h2>
+              <p className="text-black text-sm">Find partners with similar hobbies</p>
             </div>
             
             <div className={`grid gap-2 ${
@@ -847,7 +827,7 @@ if (!isAuthenticated || !hasVerifiedPhone) {
                 </button>
               ))}
             </div>
-            <p className="text-sm text-white/70 text-center">
+            <p className="text-sm text-black text-center">
               Selected: {profileData.interests.length > 0 ? 
                 profileData.interests.length : 
                 'None yet - please select at least one'}
@@ -865,12 +845,12 @@ if (!isAuthenticated || !hasVerifiedPhone) {
           <div className="w-full space-y-4">
             {/* Main Title */}
             <div className="text-center space-y-1 mb-4">
-              <h2 className="text-xl font-bold text-white">Complete Your Profile</h2>
-              <p className="text-white/80 text-sm">Optional: Tell us more about yourself</p>
+              <h2 className="text-xl font-bold text-black">Complete Your Profile</h2>
+              <p className="text-black text-sm">Optional: Tell us more about yourself</p>
             </div>
             
             <div className="space-y-2">
-              <label className="text-white font-medium text-sm">Fitness Goals (Optional)</label>
+              <label className="text-black font-medium text-sm">Fitness Goals (Optional)</label>
               <ThemedTextarea 
                 value={profileData.goals} 
                 onChange={(e) => handleChange('goals', e.target.value)}
@@ -882,7 +862,7 @@ if (!isAuthenticated || !hasVerifiedPhone) {
 
             <div className={`grid gap-4 ${screenType === 'mobile' ? 'grid-cols-1' : 'grid-cols-2'}`}>
               <div className="space-y-2">
-                <label className="text-white font-medium text-sm">Work (Optional)</label>
+                <label className="text-black font-medium text-sm">Work (Optional)</label>
                 <ThemedInput 
                   type="text" 
                   value={profileData.work} 
@@ -893,7 +873,7 @@ if (!isAuthenticated || !hasVerifiedPhone) {
               </div>
 
               <div className="space-y-2">
-                <label className="text-white font-medium text-sm">Studies (Optional)</label>
+                <label className="text-black font-medium text-sm">Studies (Optional)</label>
                 <ThemedInput 
                   type="text" 
                   value={profileData.studies} 
@@ -920,8 +900,8 @@ if (!isAuthenticated || !hasVerifiedPhone) {
           <div className="w-full">
             {/* Main Title */}
             <div className="text-center space-y-1 mb-6">
-              <h2 className="text-xl font-bold text-white">Where are you located?</h2>
-              <p className="text-white/80 text-sm">Find gym partners nearby</p>
+              <h2 className="text-xl font-bold text-black">Where are you located?</h2>
+              <p className="text-black text-sm">Find gym partners nearby</p>
             </div>
             
             <AutoLocationStep
@@ -936,7 +916,7 @@ if (!isAuthenticated || !hasVerifiedPhone) {
             {/* Show nearby gyms if location is set - temporarily disabled to prevent API spam */}
             {false && profileData.location && profileData.location.lat && profileData.location.lng && (
               <div className="mt-6">
-                <h3 className="text-white font-medium text-sm mb-3">
+                <h3 className="text-black font-medium text-sm mb-3">
                   🏋️ Gyms near you
                 </h3>
                 <NearbyGymsPreview 
@@ -958,8 +938,8 @@ if (!isAuthenticated || !hasVerifiedPhone) {
           <div className="w-full">
             {/* Main Title */}
             <div className="text-center space-y-1 mb-6">
-              <h2 className="text-xl font-bold text-white">Where do you workout?</h2>
-              <p className="text-white/80 text-sm">Connect with people at your gym</p>
+              <h2 className="text-xl font-bold text-black">Where do you workout?</h2>
+              <p className="text-black text-sm">Connect with people at your gym</p>
             </div>
             <GymSelector
               location={profileData.location}
@@ -980,9 +960,8 @@ if (!isAuthenticated || !hasVerifiedPhone) {
         )
       },
     ];
-  }
 
   return stepsList;
 };
 
-export default buildSteps;
+export { buildSteps };

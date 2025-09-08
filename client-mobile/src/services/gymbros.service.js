@@ -205,8 +205,41 @@ const gymbrosService = {
     }
   },
 
-  async checkProfileWithVerifiedPhone(phone, verificationToken) {
+  async checkProfileAfterVerification(phone, tempToken) {
     try {
+      console.log('🔍 checkProfileAfterVerification called with:', {
+        phone,
+        hasTempToken: !!tempToken
+      });
+      
+      const response = await api.post('/gym-bros/profile/after-verification', {
+        phone, 
+        tempToken
+      });
+      
+      if (response.data.success && response.data.token) {
+        localStorage.setItem('token', response.data.token);
+        api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+        localStorage.removeItem('verifiedPhone');
+        localStorage.removeItem('verificationToken');
+        
+        this.clearGuestState();
+
+        return response.data;
+      } 
+      else if (response.data.guestToken) {
+        this.setGuestToken(response.data.guestToken);
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error in checkProfileAfterVerification:', error);
+      throw error;
+    }
+  },
+
+  async checkProfileWithVerifiedPhone(phone, verificationToken) {
+    try {      
       const response = await api.post('/gym-bros/profile/by-phone', {
         verifiedPhone: phone, 
         verificationToken
@@ -217,7 +250,8 @@ const gymbrosService = {
         api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
         localStorage.removeItem('verifiedPhone');
         localStorage.removeItem('verificationToken');
-        
+        this.clearGuestState();
+
         return response.data;
       } 
       else if (response.data.guestToken) {

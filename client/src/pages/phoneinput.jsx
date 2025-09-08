@@ -101,7 +101,7 @@ const PhoneInput = ({
     const e164 = digits.length > 0 ? `+${countryCode}${digits}` : '';
     onChange?.(e164);
     onValidChange?.(valid);
-  }, [inputValue, countryCode, onChange, onValidChange]);
+  }, [inputValue, countryCode]); // Removed onChange and onValidChange from dependencies
 
   const handleInputChange = (e) => {
     const input = e.target.value;

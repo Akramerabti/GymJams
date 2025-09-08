@@ -118,6 +118,28 @@ const GymBrosSetup = ({ onProfileCreated }) => {
         if (userData.phone) {
           setIsPhoneVerified(true);
           console.log('User already has a phone number, marking as verified:', userData.phone);
+          
+          // Check if this user already has a GymBros profile
+          try {
+            const profileCheckResponse = await gymbrosService.checkProfileWithVerifiedPhone(
+              userData.phone, 
+              null // No token needed for logged in user
+            );
+
+            if (profileCheckResponse.success && profileCheckResponse.hasProfile && profileCheckResponse.profile) {
+              console.log('✅ User already has a GymBros profile, redirecting to app');
+              onProfileCreated(profileCheckResponse.profile);
+              return;
+            } else {
+              console.log('👤 User logged in but no GymBros profile found, proceed with profile creation');
+              // User is logged in but no profile - proceed with profile creation
+              // Skip phone verification since user is already authenticated
+              setCurrentStep(1); // Skip phone step, go to basic info
+            }
+          } catch (error) {
+            console.warn('Failed to check existing profile:', error);
+            // Continue with normal flow
+          }
         }
 
         // Check for existing location
@@ -150,6 +172,8 @@ const GymBrosSetup = ({ onProfileCreated }) => {
         } catch (error) {
           console.warn('Failed to check existing location:', error);
         }
+      } else {
+        setCurrentStep(0);
       }
     };
 
@@ -292,8 +316,17 @@ const handlePhoneVerified = async (verified, userData = null, token = null, exis
     setVerificationToken(token);
   }
   
+  // If we have existing profile data, redirect to main app
+  if (existingProfileData && existingProfileData.hasProfile && existingProfileData.profile) {
+    console.log('✅ Profile found during verification, redirecting to app');
+    onProfileCreated(existingProfileData.profile);
+    return;
+  }
+  
+  // If we have user data but no profile, proceed with profile creation
   if (userData) {
-
+    console.log('👤 User authenticated but no profile, proceeding with profile creation');
+    
     if (userData.firstName) {
       setProfileData(prev => ({
         ...prev,
@@ -301,36 +334,14 @@ const handlePhoneVerified = async (verified, userData = null, token = null, exis
       }));
     }
     
-    if (existingProfileData && existingProfileData.hasProfile && existingProfileData.profile) {
-
-      onProfileCreated(existingProfileData.profile);
-      return;
-    }
-
-    goToNextStep();
+    // Skip to basic info step (index 1) since phone is already verified
+    setCurrentStep(1);
     return;
   }
 
-  
-  try {
-
-    const profileCheckResponse = await gymbrosService.checkProfileWithVerifiedPhone(
-      profileData.phone, 
-      token
-    );
-
-    if (profileCheckResponse.success && profileCheckResponse.hasProfile && profileCheckResponse.profile) {
-
-      onProfileCreated(profileCheckResponse.profile);
-      return;
-    }
-
-  } catch (profileCheckError) {
-    console.warn('⚠️ Profile check failed:', profileCheckError);
-    console.log('📝 Continuing with new profile creation');
-  }
-  
-  goToNextStep();
+  // No user data and no profile - proceed with new account creation
+  console.log('🆕 New user verification, proceeding with account creation');
+  setCurrentStep(1); // Go to basic info step
 };
   
   const handleSubmit = async () => {
@@ -560,18 +571,18 @@ const handleGymMemberships = async (profile) => {
 
   // Navigation functions - declare before buildSteps
   const goToNextStep = () => {
-    if (currentStep < steps.length - 1) {
+    if (safeCurrentStep < steps.length - 1) {
       setDirection(1);
-      setCurrentStep(currentStep + 1);
+      setCurrentStep(safeCurrentStep + 1);
     } else {
       handleSubmit();
     }
   };
 
   const goToPreviousStep = () => {
-    if (currentStep > 0) {
+    if (safeCurrentStep > 0) {
       setDirection(-1);
-      setCurrentStep(currentStep - 1);
+      setCurrentStep(safeCurrentStep - 1);
     }
   };
 
@@ -596,13 +607,28 @@ const handleGymMemberships = async (profile) => {
   user,
   isAuthenticated
 });
+
+  // Ensure currentStep is within bounds
+  const safeCurrentStep = Math.max(0, Math.min(currentStep, steps.length - 1));
+  
+  // Update currentStep if it's out of bounds
+  useEffect(() => {
+    if (currentStep >= steps.length && steps.length > 0) {
+      setCurrentStep(steps.length - 1);
+    } else if (currentStep < 0) {
+      setCurrentStep(0);
+    }
+  }, [currentStep, steps.length]);
   // Update progress when step changes
   useEffect(() => {
-    setProgress(((currentStep + 1) / steps.length) * 100);
-  }, [currentStep, steps.length]);
+    if (steps.length > 0) {
+      setProgress(((safeCurrentStep + 1) / steps.length) * 100);
+    }
+  }, [safeCurrentStep, steps.length]);
 
   const canProceed = () => {
-    const currentStepData = steps[currentStep];
+    if (steps.length === 0 || !steps[safeCurrentStep]) return false;
+    const currentStepData = steps[safeCurrentStep];
     return currentStepData.isValid ? currentStepData.isValid() : true;
   };
 
@@ -623,54 +649,53 @@ const handleGymMemberships = async (profile) => {
     }),
   };
 
-  const isWelcomeStep = currentStep === 0;
+  const isWelcomeStep = false; // No welcome step anymore
+  
+  // Add safety check for empty steps
+  if (steps.length === 0) {
+    return (
+      <>
+        <FooterHider />
+        <div className="bg-gradient-to-br from-gray-100 via-slate-200 to-gray-300 text-gray-900 gymbros-setup-fullscreen h-[100dvh] md:h-screen w-full flex flex-col transition-colors duration-300 relative overflow-hidden">
+          <div className="flex-1 flex flex-col justify-center items-center p-4">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading setup...</p>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
   
 return (
   <>
     <FooterHider />
-    <div className={`${
-      isWelcomeStep 
-        ? 'bg-gradient-to-br from-slate-600 via-gray-700 to-slate-800 text-white' 
-        : 'bg-gradient-to-br from-gray-100 via-slate-200 to-gray-300 text-gray-900'
-    } gymbros-setup-fullscreen h-[100dvh] md:h-screen w-full flex flex-col transition-colors duration-300 relative overflow-hidden`}>
+    <div className="bg-gradient-to-br from-gray-100 via-slate-200 to-gray-300 text-gray-900 gymbros-setup-fullscreen h-[100dvh] md:h-screen w-full flex flex-col transition-colors duration-300 relative overflow-hidden">
       
-      {/* Animated Background Shapes for Welcome Step */}
-      {isWelcomeStep && (
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-10 -left-10 w-32 h-32 bg-white/10 rounded-full animate-pulse"></div>
-          <div className="absolute top-1/4 -right-16 w-48 h-48 bg-white/5 rounded-full animate-bounce"></div>
-          <div className="absolute bottom-1/4 -left-20 w-40 h-40 bg-white/10 rounded-full animate-pulse"></div>
-          <div className="absolute -bottom-16 right-1/4 w-56 h-56 bg-white/5 rounded-full animate-pulse"></div>
-        </div>
-      )}
+      {/* Progress Bar - Always show now */}
+      <div className="w-full bg-black/20 h-2 flex-shrink-0">
+        <motion.div
+          className="h-full bg-gradient-to-r from-slate-500 to-gray-600"
+          initial={{ width: 0 }}
+          animate={{ width: `${progress}%` }}
+          transition={{ duration: 0.5 }}
+        />
+      </div>
 
-      {/* Progress Bar - Hide on Welcome Step */}
-      {!isWelcomeStep && (
-        <div className="w-full bg-black/20 h-2 flex-shrink-0">
-          <motion.div
-            className="h-full bg-gradient-to-r from-slate-500 to-gray-600"
-            initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
-            transition={{ duration: 0.5 }}
-          />
-        </div>
-      )}
-
-      {/* Step Counter - Hide on Welcome Step */}
-      {!isWelcomeStep && (
-        <div className="text-center py-4 flex-shrink-0">
-          <span className="text-gray-600 text-sm">
-            Step {currentStep + 1} of {steps.length}
-          </span>
-        </div>
-      )}
+      {/* Step Counter - Always show now */}
+      <div className="text-center py-4 flex-shrink-0">
+        <span className="text-gray-600 text-sm">
+          Step {safeCurrentStep + 1} of {steps.length}
+        </span>
+      </div>
 
       {/* Main Content - Flexible */}
       <div className="flex-1 flex flex-col justify-center p-4 min-h-0 relative z-10">
         <div className="w-full max-w-2xl mx-auto h-full flex flex-col justify-center">
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div
-              key={currentStep}
+              key={safeCurrentStep}
               custom={direction}
               variants={slideVariants}
               initial="enter"
@@ -682,58 +707,56 @@ return (
               }}
               className="w-full flex flex-col justify-center"
             >
-              {steps[currentStep].component}
+              {steps[safeCurrentStep].component}
             </motion.div>
           </AnimatePresence>
         </div>
       </div>
 
-      {/* Navigation - Fixed at bottom, hide on welcome step */}
-      {!isWelcomeStep && (
-        <div className="p-4 md:p-6 flex-shrink-0 bg-gradient-to-t from-black/10 to-transparent">
-          <div className="flex justify-between items-center max-w-2xl mx-auto">
-            {/* Back Button */}
-            <button
-              onClick={goToPreviousStep}
-              disabled={currentStep === 0}
-              className={`
-                flex items-center px-4 md:px-6 py-3 rounded-xl font-medium transition-all duration-300
-                ${currentStep === 0 
-                  ? 'invisible' 
-                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700 border border-gray-300 shadow-lg'
-                }
-              `}
-            >
-              <ChevronLeft size={20} className="mr-2" />
-              Back
-            </button>
+      {/* Navigation - Fixed at bottom, always show now */}
+      <div className="p-4 md:p-6 flex-shrink-0 bg-gradient-to-t from-black/10 to-transparent">
+        <div className="flex justify-between items-center max-w-2xl mx-auto">
+          {/* Back Button */}
+          <button
+            onClick={goToPreviousStep}
+            disabled={safeCurrentStep === 0}
+            className={`
+              flex items-center px-4 md:px-6 text-black py-3 rounded-xl font-medium transition-all duration-300
+              ${safeCurrentStep === 0 
+                ? 'invisible' 
+                : 'bg-gray-200 hover:bg-gray-300 text-black border border-gray-300 shadow-lg'
+              }
+            `}
+          >
+            <ChevronLeft size={20} className="mr-2 text-black" />
+            Back
+          </button>
 
-            {/* Next/Submit Button */}
-            <button
-              onClick={goToNextStep}
-              disabled={!canProceed() || loading}
-              className={`
-                flex items-center px-6 md:px-8 py-3 rounded-xl font-medium transition-all duration-300 shadow-lg
-                ${canProceed() && !loading
-                  ? 'bg-slate-700 text-white hover:bg-slate-800 transform hover:scale-105'
-                  : 'bg-gray-400 text-gray-600 cursor-not-allowed'
-                }
-              `}
-            >
-              {loading ? (
-                <span className="animate-spin">⏳</span>
-              ) : currentStep === steps.length - 1 ? (
-                'Complete Setup'
-              ) : (
-                'Continue'
-              )}
-              {!loading && currentStep < steps.length - 1 && (
-                <ChevronRight size={20} className="ml-2" />
-              )}
-            </button>
-          </div>
+          {/* Next/Submit Button */}
+          <button
+            onClick={goToNextStep}
+            disabled={!canProceed() || loading}
+            className={`
+              flex items-center px-6 md:px-8 py-3 rounded-xl font-medium transition-all duration-300 shadow-lg
+              ${canProceed() && !loading
+                ? 'bg-slate-700 text-white hover:bg-slate-800 transform hover:scale-105'
+                : 'bg-gray-400 text-gray-600 cursor-not-allowed'
+              }
+            `}
+          >
+            {loading ? (
+              <span className="animate-spin">⏳</span>
+            ) : safeCurrentStep === steps.length - 1 ? (
+              'Complete Setup'
+            ) : (
+              'Continue'
+            )}
+            {!loading && safeCurrentStep < steps.length - 1 && (
+              <ChevronRight size={20} className="ml-2" />
+            )}
+          </button>
         </div>
-      )}
+      </div>
     </div>
   </>
 );

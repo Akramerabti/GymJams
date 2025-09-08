@@ -27,6 +27,7 @@ import {
   sendVerificationCode,
   verifyCode,
   checkGymBrosProfileByPhone,
+  checkGymBrosProfileAfterVerification,
   convertGuestToUser,
   getWhoLikedMeCount,
   getWhoLikedMeProfiles,
@@ -77,6 +78,9 @@ router.get('/profile', optionalAuthenticate, checkGymBrosProfile);
 
 // Special route for checking profile with just phone verification
 router.post('/profile/by-phone', checkGymBrosProfileByPhone); 
+
+// New robust route that works immediately after SMS verification
+router.post('/profile/after-verification', checkGymBrosProfileAfterVerification);
 
 // Create or update GymBros profile (works for authenticated users and guests)
 router.post('/profile', optionalAuthenticate, createOrUpdateGymBrosProfile);
