@@ -36,6 +36,7 @@ module.exports = {
       'xs': '480px',  // Small mobile
       'sm': '640px',  // Tablets
       'md': '768px',  // Small laptops
+      custom875: '875px',
       'lg': '1024px', // Laptops
       'xl': '1280px', // Desktops
       '2xl': '1536px',// Large desktops
