@@ -3,7 +3,7 @@ import {
   Mail, Send, Users, Eye, MousePointer, Target, TrendingUp,
   Plus, Calendar, Filter, BarChart2, Clock, AlertCircle,
   CheckCircle, XCircle, RefreshCw, Zap, Edit, Copy,
-  TestTube, Loader2
+  TestTube, Loader2, X, Archive, EyeOff
 } from 'lucide-react';
 import { toast } from 'sonner';
 import emailMarketingService from '../../services/emailMarketing.service';
@@ -17,13 +17,22 @@ const EmailMarketing = () => {
   const [showNewCampaign, setShowNewCampaign] = useState(false);
   const [activeTab, setActiveTab] = useState('campaigns');
   const [showTemplateBuilder, setShowTemplateBuilder] = useState(false);
-  const [recipientCount, setRecipientCount] = useState(null);
-  const [loadingCount, setLoadingCount] = useState(false);
+  const [hiddenCampaigns, setHiddenCampaigns] = useState(() => {
+    // Load hidden campaigns from localStorage
+    const saved = localStorage.getItem('hiddenCampaigns');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [showHidden, setShowHidden] = useState(false);
 
   // Fetch campaigns on mount
   useEffect(() => {
     fetchCampaigns();
   }, []);
+
+  // Save hidden campaigns to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('hiddenCampaigns', JSON.stringify(hiddenCampaigns));
+  }, [hiddenCampaigns]);
 
   const fetchCampaigns = async () => {
     try {
@@ -38,7 +47,29 @@ const EmailMarketing = () => {
     }
   };
 
+  const toggleHideCampaign = (campaignId) => {
+    setHiddenCampaigns(prev => {
+      if (prev.includes(campaignId)) {
+        // Unhide
+        return prev.filter(id => id !== campaignId);
+      } else {
+        // Hide
+        return [...prev, campaignId];
+      }
+    });
+  };
+
+  // Filter campaigns based on hidden status
+  const visibleCampaigns = useMemo(() => {
+    if (showHidden) {
+      return campaigns.filter(campaign => hiddenCampaigns.includes(campaign._id));
+    }
+    return campaigns.filter(campaign => !hiddenCampaigns.includes(campaign._id));
+  }, [campaigns, hiddenCampaigns, showHidden]);
+
   const CampaignCard = ({ campaign }) => {
+    const isHidden = hiddenCampaigns.includes(campaign._id);
+    
     const getStatusIcon = () => {
       switch (campaign.status) {
         case 'sent': return <CheckCircle className="w-5 h-5 text-green-500" />;
@@ -57,16 +88,28 @@ const EmailMarketing = () => {
       : 0;
 
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
-           onClick={() => setSelectedCampaign(campaign)}>
+      <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow ${isHidden ? 'opacity-75' : ''}`}>
         <div className="flex justify-between items-start mb-4">
-          <div>
+          <div 
+            className="flex-1 cursor-pointer"
+            onClick={() => setSelectedCampaign(campaign)}
+          >
             <h3 className="text-lg font-semibold text-gray-900">{campaign.name || 'Untitled Campaign'}</h3>
             <p className="text-sm text-gray-500 mt-1">{campaign.subject}</p>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 ml-4">
             {getStatusIcon()}
             <span className="text-sm font-medium capitalize">{campaign.status}</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleHideCampaign(campaign._id);
+              }}
+              className="p-1 hover:bg-gray-100 rounded transition-colors"
+              title={isHidden ? 'Show campaign' : 'Hide campaign'}
+            >
+              {isHidden ? <Eye className="w-4 h-4 text-gray-500" /> : <EyeOff className="w-4 h-4 text-gray-500" />}
+            </button>
           </div>
         </div>
 
@@ -121,11 +164,16 @@ const EmailMarketing = () => {
         role: 'all',
         hasSubscription: undefined,
         lastActiveWithin: undefined,
-        acceptsMarketing: true
+        acceptsMarketing: undefined // Changed from true to undefined to be less restrictive
       },
       testMode: false,
       testEmail: ''
     });
+    
+    // Local state for recipient count to prevent unnecessary API calls
+    const [recipientCount, setRecipientCount] = useState(null);
+    const [loadingCount, setLoadingCount] = useState(false);
+    const [hasInitialized, setHasInitialized] = useState(false);
 
     // Create a stable reference for filters
     const filtersString = useMemo(() => {
@@ -145,14 +193,24 @@ const EmailMarketing = () => {
       }
     }, []);
 
-    // Debounce the API call
+    // Initial load - only run once when modal opens
     useEffect(() => {
+      if (!hasInitialized) {
+        updateRecipientCount(campaignData.filters);
+        setHasInitialized(true);
+      }
+    }, [hasInitialized, campaignData.filters, updateRecipientCount]);
+
+    // Debounce filter changes - skip the initial load
+    useEffect(() => {
+      if (!hasInitialized) return;
+      
       const timeoutId = setTimeout(() => {
         updateRecipientCount(campaignData.filters);
       }, 500); // Wait 500ms after last change
 
       return () => clearTimeout(timeoutId);
-    }, [filtersString, updateRecipientCount, campaignData.filters]);
+    }, [filtersString, updateRecipientCount, hasInitialized]);
 
     const handleSendCampaign = async () => {
       if (!campaignData.subject || !campaignData.htmlContent) {
@@ -169,7 +227,8 @@ const EmailMarketing = () => {
         setSending(true);
         const response = await emailMarketingService.sendCampaign(campaignData);
         
-        if (response.success) {
+        // Check if response exists and has success property
+        if (response && response.success === true) {
           toast.success(
             campaignData.testMode 
               ? 'Test email sent successfully!' 
@@ -178,11 +237,16 @@ const EmailMarketing = () => {
           setShowNewCampaign(false);
           fetchCampaigns();
         } else {
-          toast.error(response.message || 'Failed to send campaign');
+          // Handle explicit failure or missing success
+          const errorMessage = response?.message || 'Failed to send campaign';
+          toast.error(errorMessage);
+          console.error('Campaign send failed:', response);
         }
       } catch (error) {
-        toast.error('Error sending campaign');
-        console.error(error);
+        // Handle network errors or exceptions
+        const errorMessage = error.response?.data?.message || error.message || 'Error sending campaign';
+        toast.error(errorMessage);
+        console.error('Campaign send error:', error);
       } finally {
         setSending(false);
       }
@@ -271,12 +335,19 @@ const EmailMarketing = () => {
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-          <div className="p-6 border-b border-gray-200">
+        <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full h-[90dvh] flex flex-col">
+          <div className="p-6 border-b border-gray-200 flex justify-between items-center flex-shrink-0">
             <h2 className="text-2xl font-bold text-gray-900">Create Email Campaign</h2>
+            <button
+              onClick={() => setShowNewCampaign(false)}
+              className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Close"
+            >
+              <XCircle className="w-6 h-6 text-gray-500" />
+            </button>
           </div>
 
-          <div className="p-6">
+          <div className="p-6 flex-1 overflow-y-auto">
             {/* Campaign Details */}
             <div className="space-y-6">
               <div>
@@ -411,6 +482,24 @@ const EmailMarketing = () => {
                       <option value="90">Last 90 days</option>
                     </select>
                   </div>
+
+                  {/* Marketing Preferences */}
+                  <div className="mt-4">
+                    <label className="flex items-center space-x-3">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 text-blue-600 rounded"
+                        checked={campaignData.filters.acceptsMarketing === true}
+                        onChange={(e) => updateFilters('acceptsMarketing', e.target.checked ? true : undefined)}
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        Only send to users who accept marketing emails
+                      </span>
+                    </label>
+                    <p className="text-xs text-gray-500 ml-7 mt-1">
+                      Enabling this will only send to users who have opted in to marketing communications
+                    </p>
+                  </div>
                 </div>
 
                 <div className="mt-6 p-4 bg-blue-50 rounded-lg">
@@ -431,6 +520,11 @@ const EmailMarketing = () => {
                       {loadingCount ? 'Loading...' : 'Update Count'}
                     </button>
                   </div>
+                  {recipientCount !== null && recipientCount < 10 && (
+                    <p className="text-xs text-blue-700 mt-2">
+                      💡 Tip: Low recipient count? Make sure users have verified emails and try unchecking "Only send to users who accept marketing emails" to reach more users.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -466,7 +560,7 @@ const EmailMarketing = () => {
             </div>
           </div>
 
-          <div className="p-6 border-t border-gray-200 flex justify-between">
+          <div className="p-6 border-t border-gray-200 flex justify-between flex-shrink-0">
             <button
               onClick={() => setShowNewCampaign(false)}
               className="px-4 py-2 text-gray-600 hover:text-gray-800"
@@ -516,32 +610,77 @@ const EmailMarketing = () => {
 
       {/* Campaign List */}
       <div className="space-y-6">
-        <h2 className="text-xl font-semibold text-gray-900">Recent Campaigns</h2>
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl font-semibold text-gray-900">
+            {showHidden ? 'Hidden Campaigns' : 'Recent Campaigns'}
+          </h2>
+          {campaigns.length > 0 && hiddenCampaigns.length > 0 && (
+            <button
+              onClick={() => setShowHidden(!showHidden)}
+              className="text-sm text-blue-600 hover:text-blue-700 flex items-center space-x-1"
+            >
+              <Archive className="w-4 h-4" />
+              <span>{showHidden ? 'Show Active' : `Show Hidden (${hiddenCampaigns.length})`}</span>
+            </button>
+          )}
+        </div>
         
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
           </div>
-        ) : campaigns.length > 0 ? (
+        ) : visibleCampaigns.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {campaigns.map((campaign) => (
+            {visibleCampaigns.map((campaign) => (
               <CampaignCard key={campaign._id} campaign={campaign} />
             ))}
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-            <Mail className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No campaigns yet</h3>
-            <p className="text-gray-600 mb-6">
-              Create your first email campaign to engage with your users
-            </p>
-            <button
-              onClick={() => setShowNewCampaign(true)}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center space-x-2"
-            >
-              <Plus className="w-5 h-5" />
-              <span>Create Campaign</span>
-            </button>
+            {showHidden ? (
+              <>
+                <Archive className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">No hidden campaigns</h3>
+                <p className="text-gray-600 mb-6">
+                  Campaigns you hide will appear here
+                </p>
+                <button
+                  onClick={() => setShowHidden(false)}
+                  className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                >
+                  View Active Campaigns
+                </button>
+              </>
+            ) : campaigns.length === 0 ? (
+              <>
+                <Mail className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">No campaigns yet</h3>
+                <p className="text-gray-600 mb-6">
+                  Create your first email campaign to engage with your users
+                </p>
+                <button
+                  onClick={() => setShowNewCampaign(true)}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center space-x-2"
+                >
+                  <Plus className="w-5 h-5" />
+                  <span>Create Campaign</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <EyeOff className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">All campaigns are hidden</h3>
+                <p className="text-gray-600 mb-6">
+                  You've hidden all your campaigns. View hidden campaigns to see them.
+                </p>
+                <button
+                  onClick={() => setShowHidden(true)}
+                  className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                >
+                  View Hidden Campaigns
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>

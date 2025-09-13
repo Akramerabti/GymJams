@@ -440,6 +440,13 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
     const messageContent = newMessage.trim();
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const timestamp = new Date().toISOString();
+    const tempMessage = {
+      _id: tempId,
+      sender: userId || userIdRef.current,
+      content: messageContent,
+      timestamp,
+      pending: true
+    };
     
     try {
 
@@ -888,7 +895,7 @@ const GymBrosMatchChat = ({ otherUserInfo, matchId, onClose }) => {
             {groupedMessages.map((group, groupIndex) => (
               <div key={`date-${groupIndex}`} className="mb-6">
                 {/* Date separator */}
-                <div className="flex justify-center mb-4">
+                <div className="flex justify-center mb-10">
                   <div className="bg-gray-200 rounded-full px-4 py-1 text-xs text-gray-600">
                     {format(group.date, 'MMMM d, yyyy')}
                   </div>

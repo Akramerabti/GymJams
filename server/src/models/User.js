@@ -177,15 +177,15 @@ const userSchema = new mongoose.Schema({
       },
       salesAndPromotions: {
         type: Boolean,
-        default: false // Marketing, default off
+        default: true
       },
       stockAlerts: {
         type: Boolean,
-        default: false // Optional feature
+        default: true
       },
       cartReminders: {
         type: Boolean,
-        default: false // Can be annoying, default off
+        default: true
       }
     },
     
@@ -208,7 +208,7 @@ const userSchema = new mongoose.Schema({
       },
       appUpdates: {
         type: Boolean,
-        default: false // Optional
+        default: true 
       }
     },
     

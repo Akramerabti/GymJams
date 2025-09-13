@@ -2,41 +2,65 @@
 import { Resend } from 'resend';
 import User from '../models/User.js';
 import EmailCampaign from '../models/EmailCampaign.js';
+import jwt from 'jsonwebtoken';
 import logger from '../utils/logger.js';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 class EmailMarketingService {
   // Get users based on filters
-  async getTargetUsers(filters = {}) {
-    const query = { isEmailVerified: true };
-    
-    // Apply filters
-    if (filters.role && filters.role !== 'all') {
-      query.role = filters.role;
-    }
-    
-    if (filters.hasSubscription !== undefined) {
-      query.subscription = filters.hasSubscription ? { $ne: null } : null;
-    }
-    
-    if (filters.lastActiveWithin) {
-      const daysAgo = new Date();
-      daysAgo.setDate(daysAgo.getDate() - filters.lastActiveWithin);
-      query.lastLogin = { $gte: daysAgo };
-    }
-    
-    // Check notification preferences
-    if (filters.acceptsMarketing) {
-      query['notificationPreferences.emailNotifications'] = true;
-      query['notificationPreferences.shop.salesAndPromotions'] = true;
-    }
-    
-    const users = await User.find(query)
-      .select('email firstName lastName notificationPreferences role lastLogin');
-    
-    return users;
+async getTargetUsers(filters = {}) {
+  const query = { isEmailVerified: true };
+  
+  // Apply filters
+  if (filters.role && filters.role !== 'all') {
+    query.role = filters.role;
   }
+  
+  if (filters.hasSubscription !== undefined) {
+    query.subscription = filters.hasSubscription ? { $ne: null } : null;
+  }
+  
+  if (filters.lastActiveWithin) {
+    const daysAgo = new Date();
+    daysAgo.setDate(daysAgo.getDate() - filters.lastActiveWithin);
+    query.lastLogin = { $gte: daysAgo };
+  }
+  
+  // Base requirement: user must have email notifications enabled
+  query['notificationPreferences.emailNotifications'] = true;
+  
+  // Only apply marketing preference filter if explicitly requested
+  if (filters.acceptsMarketing === true) {
+    query['notificationPreferences.shop.salesAndPromotions'] = true;
+  }
+  
+  // Optional: Add campaign type handling for more granular control
+  if (filters.campaignType) {
+    switch (filters.campaignType) {
+      case 'promotional':
+        query['notificationPreferences.shop.salesAndPromotions'] = true;
+        break;
+      case 'coaching':
+        query['notificationPreferences.coaching.coachApplications'] = true;
+        break;
+      case 'games':
+        query['notificationPreferences.games.newGames'] = true;
+        break;
+      // For transactional/system emails, just require general email notifications
+      case 'transactional':
+      case 'system':
+      default:
+        // Already covered by base requirement
+        break;
+    }
+  }
+  
+  const users = await User.find(query)
+    .select('email firstName lastName notificationPreferences role lastLogin');
+  
+  return users;
+}
 
   // Send campaign to users
   async sendCampaign(campaignData) {
@@ -235,23 +259,19 @@ class EmailMarketingService {
     }
   }
   
-  // Generate unsubscribe token
   generateUnsubscribeToken(email) {
-    const jwt = require('jsonwebtoken');
     return jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '30d' });
   }
   
   // Handle unsubscribe
   async handleUnsubscribe(email, token) {
     try {
-      const jwt = require('jsonwebtoken');
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       
       if (decoded.email !== email) {
         throw new Error('Invalid unsubscribe token');
       }
-      
-      // Update user preferences
+
       await User.findOneAndUpdate(
         { email },
         {
