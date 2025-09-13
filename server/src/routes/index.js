@@ -15,6 +15,7 @@ import blogRoutes from './blog.routes.js'; // Import the blog routes
 import thirdPartyLogisticsRoutes from './thirdPartyLogistics.routes.js'; // Import the 3PL routes
 import notificationRoutes from './notification.routes.js'; // Import the notification routes
 import ambassadorRoutes from './ambassador.routes.js'; // Import the ambassador routes
+import emailMarketingRoutes from './emailMarketing.routes.js'; 
 
 const router = express.Router();
 
@@ -35,6 +36,8 @@ router.use('/blog', blogRoutes);
 router.use('/3pl', thirdPartyLogisticsRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/ambassador', ambassadorRoutes);
+router.use('/email-marketing', emailMarketingRoutes);
+
 
 // Health check route
 router.get('/health', (req, res) => {

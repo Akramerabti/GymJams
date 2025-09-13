@@ -4,7 +4,7 @@ import {
   PackageOpen, Users, HelpCircle, ClipboardList, BarChart3, 
   ArrowUp, ArrowDown, DollarSign, ShoppingCart, AlertTriangle, 
   Settings, Calendar, Search, ShoppingBag, Menu, X,
-  FileText, Archive, Edit, Pencil
+  FileText, Archive, Edit, Mail
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import Applications from './Taskforce/Applications';
 import Support from './Taskforce/Support';
 import InventoryManagement from './Taskforce/InventoryManagement';
 import BlogManagement from './Taskforce/BlogManagement';
-import AdManagement from './Taskforce/AdManagement';
+import EmailMarketing from './Taskforce/EmailMarketing';
 
 // Import services
 import productService from '../services/product.service';
@@ -261,7 +261,7 @@ const TaskForceDashboard = () => {
         {activeTab === 'applications' && <Users className="h-4 w-4" />}
         {activeTab === 'support' && <HelpCircle className="h-4 w-4" />}
         {activeTab === 'blog' && <FileText className="h-4 w-4" />}
-        {activeTab === 'ads' && <Edit className="h-4 w-4" />}
+        {activeTab === 'email' && <Mail className="h-4 w-4" />}
         <span className="capitalize flex-1 text-left">
           {activeTab}
         </span>
@@ -287,7 +287,7 @@ const TaskForceDashboard = () => {
                 {tab === 'applications' && <Users className="h-4 w-4" />}
                 {tab === 'support' && <HelpCircle className="h-4 w-4" />}
                 {tab === 'blog' && <FileText className="h-4 w-4" />}
-                {tab === 'ads' && <Edit className="h-4 w-4" />}
+                {tab === 'email' && <Mail className="h-4 w-4" />}
                 <span className="capitalize">{tab}</span>
               </Button>
             ))}
@@ -340,9 +340,9 @@ const TaskForceDashboard = () => {
               <FileText className="h-4 w-4" />
               <span className="hidden sm:inline">Blog</span>
             </TabsTrigger>
-            <TabsTrigger value="ads" className="gap-2" disabled={!slug}>
-              <Edit className="h-4 w-4" />
-              <span className="hidden sm:inline">Ad Management</span>
+            <TabsTrigger value="email" className="gap-2">
+              <Mail className="h-4 w-4" />
+              <span className="hidden sm:inline">Email Marketing</span>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -579,22 +579,9 @@ const TaskForceDashboard = () => {
           <BlogManagement />
         </TabsContent>
 
-        <TabsContent value="ads">
-          {slug ? (
-            <AdManagement />
-          ) : (
-            <div className="flex flex-col items-center justify-center py-12">
-              <Edit className="h-16 w-16 text-gray-300 mb-4" />
-              <h3 className="text-xl font-medium text-gray-900 mb-2">Ad Management</h3>
-              <p className="text-gray-500 text-center max-w-md mb-6">
-                Select a blog post from the Blog section to manage its ad placements.
-              </p>
-              <Button onClick={() => setActiveTab('blog')}>
-                Go to Blog Management
-              </Button>
-            </div>
-          )}
-        </TabsContent>
+        <TabsContent value="email">
+  <EmailMarketing />
+</TabsContent>
       </Tabs>
     </div>
   );
