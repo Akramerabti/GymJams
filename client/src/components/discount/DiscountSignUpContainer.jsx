@@ -289,7 +289,7 @@ const DiscountSignUpContainer = ({ onSuccess, onClose }) => {
           
           <button
             onClick={() => navigate('/')}
-            className={`w-full bg-gradient-to-r from-blue-600 to-purple-600 !text-white ${classes.button} px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200`}
+            className={`${isSmallViewport ? 'w-48 mx-auto' : 'w-full'} bg-gradient-to-r from-blue-600 to-purple-600 !text-white ${classes.button} px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200`}
           >
             Start Exploring
           </button>
@@ -332,7 +332,7 @@ const DiscountSignUpContainer = ({ onSuccess, onClose }) => {
 
         <form onSubmit={handleSubmit} className={classes.spacing}>
           {/* Full Name Input */}
-          <div>
+          <div className={isSmallViewport ? 'mx-4 my-4' : ''}>
             <label className={`block ${isSmallViewport ? 'text-xs' : 'text-sm'} font-medium !text-gray-700 ${isSmallViewport ? 'mb-0.5' : 'mb-1.5 sm:mb-2'}`}>
               Full Name
             </label>
@@ -361,7 +361,7 @@ const DiscountSignUpContainer = ({ onSuccess, onClose }) => {
           </div>
 
           {/* Email Input */}
-          <div>
+          <div className={isSmallViewport ? 'mx-4 my-4' : ''}>
             <label className={`block ${isSmallViewport ? 'text-xs' : 'text-sm'} font-medium !text-gray-700 ${isSmallViewport ? 'mb-0.5' : 'mb-1.5 sm:mb-2'}`}>
               Email Address
             </label>
@@ -390,7 +390,7 @@ const DiscountSignUpContainer = ({ onSuccess, onClose }) => {
           </div>
 
           {/* Phone Input */}
-          <div>
+          <div className={isSmallViewport ? 'mx-4 my-4' : ''}>
             <label className={`block ${isSmallViewport ? 'text-xs' : 'text-sm'} font-medium !text-gray-700 ${isSmallViewport ? 'mb-0.5' : 'mb-1.5 sm:mb-2'}`}>
               Phone Number
             </label>
@@ -443,7 +443,7 @@ const DiscountSignUpContainer = ({ onSuccess, onClose }) => {
                   type="tel"
                   value={phoneInputValue}
                   onChange={handlePhoneChange}
-                  className={`w-full ${isSmallViewport ? 'h-[28px] pl-4 pr-1' : 'h-[42px] sm:h-[46px] pl-9 sm:pl-10 pr-4'} border border-l-0 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent !bg-white !text-gray-900 placeholder-gray-500 ${isSmallViewport ? 'text-xs' : 'text-sm sm:text-base'} ${
+                  className={`w-full ${isSmallViewport ? 'h-[28px] pl-6 pr-1' : 'h-[42px] sm:h-[46px] pl-9 sm:pl-10 pr-4'} border border-l-0 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent !bg-white !text-gray-900 placeholder-gray-500 ${isSmallViewport ? 'text-xs' : 'text-sm sm:text-base'} ${
                     errors.phone ? 'border-red-500' : 'border-gray-300'
                   }`}
                   style={{ backgroundColor: '#ffffff !important', color: '#111827 !important' }}
@@ -460,7 +460,7 @@ const DiscountSignUpContainer = ({ onSuccess, onClose }) => {
           </div>
 
           {/* Email Consent Checkbox */}
-          <div className={`flex items-start ${isSmallViewport ? 'space-x-1' : 'space-x-2 sm:space-x-3'}`}>
+          <div className={`flex items-start ${isSmallViewport ? 'space-x-1 mx-4 my-4' : 'space-x-2 sm:space-x-3'}`}>
             <input
               type="checkbox"
               id="emailConsent"
@@ -486,7 +486,7 @@ const DiscountSignUpContainer = ({ onSuccess, onClose }) => {
           >
             {loading ? (
               <div 
-                className={`${isSmallViewport ? 'w-2.5 h-2.5' : 'w-4 h-4 sm:w-5 sm:h-5'} border-2 border-white border-t-transparent rounded-full animate-spin mr-1.5`}
+                className={`${isSmallViewport ? 'w-2.5 h-2.5 ' : 'w-4 h-4 sm:w-5 sm:h-5'} border-2 border-white border-t-transparent rounded-full animate-spin mr-1.5`}
                 style={{ borderColor: '#ffffff !important', borderTopColor: 'transparent !important' }}
               />
             ) : (
