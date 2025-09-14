@@ -66,7 +66,7 @@ import PermissionsModal from './components/common/PermissionsModal';
 // Constants
 const FIVE_MINUTES = 5 * 60 * 1000;
 
-// OAuth Callback Handler Component
+// OAuth Callback Handler Component (updated section)
 function OAuthCallbackHandler({ showMobileGatekeeper }) {
   const location = useLocation();
   const { loginWithToken, setUser, setToken } = useAuth();
@@ -98,30 +98,32 @@ function OAuthCallbackHandler({ showMobileGatekeeper }) {
             return;
           }
 
-          // Handle successful login with complete profile
-          if (token && loginSuccess) {
-            
-            try {
-              const userData = await loginWithToken(token);
-              
-              // Set persistent login flags
-              localStorage.setItem('hasCompletedOnboarding', 'true');
-              localStorage.setItem('userLoginMethod', 'google_oauth');
-              localStorage.setItem('persistentLogin', 'true');
-              
-              toast.success('Successfully logged in with Google!');
-              
-              // Force a small delay to ensure everything is set
-              setTimeout(() => {
-                window.location.reload();
-              }, 500);
-              
-            } catch (loginError) {
-              toast.error('Login failed', {
-                description: 'Please try again'
-              });
-            }
-          }
+          // In OAuthCallbackHandler function in App.js
+if (token && loginSuccess) {
+  try {
+    const userData = await loginWithToken(token);
+    
+    // Set persistent login flags
+    localStorage.setItem('hasCompletedOnboarding', 'true');
+    localStorage.setItem('userLoginMethod', 'google_oauth');
+    localStorage.setItem('persistentLogin', 'true');
+    
+    toast.success('Successfully logged in with Google!');
+    
+    // Add a flag to ensure success screen shows
+    localStorage.setItem('showLoginSuccess', 'true');
+    
+    // Redirect to home with success parameter
+    setTimeout(() => {
+      window.location.href = '/?loginSuccess=true&fromOAuth=true';
+    }, 100); // Reduced delay
+    
+  } catch (loginError) {
+    toast.error('Login failed', {
+      description: 'Please try again'
+    });
+  }
+}
 
           // Handle profile completion needed
           if (tempToken) {

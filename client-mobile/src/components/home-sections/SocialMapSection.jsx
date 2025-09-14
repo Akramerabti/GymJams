@@ -13,7 +13,7 @@ import NoMatchesShowcase from './NoMatchesShowcase';
 import MatchesStackedDeck from './MatchesStackedDeck';
 import SocialMapShowcase from './SocialMapShowcase';
 
-const SocialMapSection = ({ onNavigate }) => {
+const SocialMapSection = ({ onNavigate, onLoad, isVisible = true }) => {
   const [gymBrosData, setGymBrosData] = useState(null);
   const [gymBrosLoading, setGymBrosLoading] = useState(true);
   const [userProfile, setUserProfile] = useState(null);
@@ -68,6 +68,9 @@ const SocialMapSection = ({ onNavigate }) => {
         setUserProfile(null);
       } finally {
         setGymBrosLoading(false);
+         if (onLoad && typeof onLoad === 'function') {
+    onLoad();
+  }
       }
     };
 
@@ -110,22 +113,13 @@ const SocialMapSection = ({ onNavigate }) => {
     }
   };
 
+  // Don't render loading state, just render the component
+  if (!isVisible) {
+    return null;
+  }
+
   if (gymBrosLoading) {
-    return (
-      <motion.div
-        className="glass-card rounded-3xl p-6 mb-8"
-        initial={{ y: 30, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.8, duration: 0.6 }}
-      >
-        <div className="flex items-center justify-center h-40  mt-30">
-          <div className="relative">
-            <div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
-            <MapPin className="w-6 h-6 text-purple-400 absolute top-3 left-3" />
-          </div>
-        </div>
-      </motion.div>
-    );
+    return null; // Return null during loading, parent handles loading state
   }
 
   // Case 1: User has GymBros profile - Show stacked deck with matches

@@ -29,7 +29,7 @@ import {
   Star,
   Shield,
   Clock,
-  ExternalLink
+  Check
 } from 'lucide-react';
 
 import SocialMapSection from '../components/home-sections/SocialMapSection';
@@ -40,7 +40,8 @@ const Home = () => {
   const { user, isAuthenticated } = useAuth();
   const { balance } = usePoints();
   const { setPageState } = useSocket();
-  
+  const [socialMapLoaded, setSocialMapLoaded] = useState(false);
+  const [showSuccessScreen, setShowSuccessScreen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Set page state to skip location updates on home page
@@ -104,17 +105,46 @@ const Home = () => {
     { id: 'roulette', name: 'Roulette', icon: Shield, players: '167 online', status: 'Classic' }
   ];
 
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoaded(true), 300);
-    return () => clearTimeout(timer);
-  }, []);
+  // Check for login success parameter
+useEffect(() => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const loginSuccess = urlParams.get('loginSuccess');
+  const fromOAuth = urlParams.get('fromOAuth');
+  const showSuccess = localStorage.getItem('showLoginSuccess');
+
+  if (loginSuccess === 'true' || fromOAuth === 'true' || showSuccess === 'true') {
+    localStorage.removeItem('showLoginSuccess');
+    // Clean the URL
+    window.history.replaceState(null, null, window.location.pathname);
+    
+    // Force show success screen immediately
+    setShowSuccessScreen(true);
+    setIsLoaded(false); // Prevent other content from showing
+    setSocialMapLoaded(false); // Prevent social map from loading
+    
+    // Hide success screen after 3 seconds
+    setTimeout(() => {
+      setShowSuccessScreen(false);
+      setIsLoaded(true);
+      setSocialMapLoaded(true);
+    }, 3000);
+  } else {
+    // Normal loading flow
+    setTimeout(() => {
+      setIsLoaded(true);
+    }, 1500);
+  }
+}, []); // Empty dependency array - only run once on mount
+
+  const handleSocialMapLoad = () => {
+  setSocialMapLoaded(true);
+};
 
   const handleNavigate = (route) => {
     navigate(route);
   };
 
-  // Show loading while isLoaded is false (but don't return early based on auth)
-  const showLoadingScreen = !isLoaded;
+  const showLoadingScreen = (!isLoaded || !socialMapLoaded) && !showSuccessScreen;
 
   return (
     <>
@@ -444,6 +474,54 @@ const Home = () => {
         )}
       </AnimatePresence>
 
+      {/* Success Screen */}
+<AnimatePresence>
+  {showSuccessScreen && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5 }}
+      className="fixed inset-0 z-50 bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 flex items-center justify-center"
+    >
+      {/* Aurora Background */}
+      <div className="absolute inset-0 aurora-bg opacity-60" />
+      
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="text-center z-10"
+      >
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: 0.4, type: "spring", stiffness: 200 }}
+          className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center"
+        >
+          <Check className="w-12 h-12 text-white" />
+        </motion.div>
+        <motion.h2
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.6 }}
+          className="text-3xl font-bold text-white mb-2"
+        >
+          Welcome Back!
+        </motion.h2>
+        <motion.p
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.8 }}
+          className="text-lg text-white/80"
+        >
+          Successfully logged in with Google
+        </motion.p>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
+
       {/* Main Dashboard */}
       <motion.div
         className="min-h-screen w-full bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 relative"
@@ -552,7 +630,11 @@ const Home = () => {
             </div>
 
             {/* Social Map Section - Now using the new component */}
-            <SocialMapSection onNavigate={handleNavigate} />
+             <SocialMapSection 
+              onNavigate={handleNavigate} 
+              onLoad={handleSocialMapLoad}
+              isVisible={socialMapLoaded}
+            />
 
             {/* Games Section */}
             <motion.div
