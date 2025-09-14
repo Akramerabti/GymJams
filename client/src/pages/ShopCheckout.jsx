@@ -107,8 +107,7 @@ const ShopCheckout = () => {
   const [clientSecret, setClientSecret] = useState(null);
   const [orderId, setOrderId] = useState(null);
   const [shippingMethods, setShippingMethods] = useState([]);
-  const [loadingShippingRates, setLoadingShippingRates] = useState(false);
-  const [shippingRateError, setShippingRateError] = useState(null);
+  const [loadingShippingRates, setLoadingShippingRates] = useState(false);  
 
   const [formData, setFormData] = useState({
     shipping: {
@@ -139,69 +138,64 @@ const ShopCheckout = () => {
 
   const [formErrors, setFormErrors] = useState({});
 
-  useEffect(() => {
-    const fetchShippingRates = async () => {
-      // Only fetch shipping rates when we have enough address information
-      if (!formData.shipping.zipCode || !formData.shipping.country) {
-        return;
-      }
-      
-      try {
-        setLoadingShippingRates(true);
-        setShippingRateError(null);
-        
-        // Format items for rate request
-        const itemsForRates = items.map(item => ({
-          id: item.id,
-          quantity: item.quantity,
-          price: item.price
-        }));
-        
-        // Get rates from 3PL service
-        const response = await thirdPartyLogisticsService.getShippingRates(
-          itemsForRates,
-          formData.shipping
-        );
-        
-        if (response.rates && response.rates.length > 0) {
-          setShippingMethods(response.rates);
-          
-          // If user hasn't selected a shipping method yet, select the first one
-          if (!formData.shippingMethod) {
-            handleShippingMethodChange(response.rates[0].id);
-          }
-        } else {
-          setShippingRateError("No shipping methods available for this address");
-        }
-      } catch (error) {
-        console.error('Error fetching shipping rates:', error);
-        setShippingRateError("Could not calculate shipping rates. Please try again.");
-        
-        // Fall back to default shipping methods
-        setShippingMethods([
-          { 
-            id: 'standard', 
-            name: 'Standard Shipping', 
-            price: subtotal >= 100 ? 0 : 10,
-            estimatedDeliveryDays: { min: 3, max: 5 },
-            carrier: 'Various'
-          },
-          { 
-            id: 'express', 
-            name: 'Express Shipping', 
-            price: 25,
-            estimatedDeliveryDays: { min: 1, max: 2 },
-            carrier: 'Various'
-          }
-        ]);
-      } finally {
-        setLoadingShippingRates(false);
-      }
-    };
-    if (step === 2) {
-      fetchShippingRates();
+  // Replace the error handling section with this:
+useEffect(() => {
+  const fetchShippingRates = async () => {
+    if (!formData.shipping.zipCode || !formData.shipping.country) {
+      return;
     }
-  }, [formData.shipping.zipCode, formData.shipping.country, step]);
+    
+    try {
+      setLoadingShippingRates(true);
+      
+      const itemsForRates = items.map(item => ({
+        id: item.id,
+        quantity: item.quantity,
+        price: item.price
+      }));
+      
+      const response = await thirdPartyLogisticsService.getShippingRates(
+        itemsForRates,
+        formData.shipping
+      );
+      
+      if (response.rates && response.rates.length > 0) {
+        setShippingMethods(response.rates);
+        
+        if (!formData.shippingMethod) {
+          handleShippingMethodChange(response.rates[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching shipping rates:', error);
+      
+      // Silently fall back to default rates - never show error to user
+      const defaultRates = [
+        { 
+          id: 'standard', 
+          name: 'Standard Shipping', 
+          price: subtotal >= 100 ? 0 : 12.99,
+          estimatedDeliveryDays: { min: 3, max: 7 },
+          carrier: 'USPS'
+        },
+        { 
+          id: 'express', 
+          name: 'Express Shipping', 
+          price: 24.99,
+          estimatedDeliveryDays: { min: 1, max: 3 },
+          carrier: 'UPS'
+        }
+      ];
+      setShippingMethods(defaultRates);
+    } finally {
+      setLoadingShippingRates(false);
+    }
+  };
+  
+  if (step === 2) {
+    fetchShippingRates();
+  }
+}, [formData.shipping.zipCode, formData.shipping.country, step, subtotal]);
   
 
   useEffect(() => {
@@ -469,7 +463,7 @@ const ShopCheckout = () => {
   const finalTotal = parseFloat(Math.max(0, subtotal + shippingCost + tax - pointsDiscount).toFixed(2));
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mt-15 mx-auto px-4 py-8">
       <div className="max-w-6xl mx-auto">
         {/* Checkout Progress */}
         <div className="mb-8">
@@ -700,11 +694,6 @@ const ShopCheckout = () => {
                               <div className="text-center py-4">
                                 <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
                                 <p className="text-sm text-gray-500">Calculating shipping rates...</p>
-                              </div>
-                            ) : shippingRateError ? (
-                              <div className="p-4 border border-amber-200 bg-amber-50 rounded-md">
-                                <p className="text-amber-800 text-sm">{shippingRateError}</p>
-                                <p className="text-sm mt-2">Using default shipping options instead.</p>
                               </div>
                             ) : (
                               <RadioGroup

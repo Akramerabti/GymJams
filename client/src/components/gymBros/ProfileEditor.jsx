@@ -6,7 +6,7 @@ import {
   PauseCircle, MapPin, Save, Loader, Pencil, Info
 } from 'lucide-react';
 import gymbrosService from '../../services/gymbros.service';
-import PhotoEditor from './components/PhotoEditor'; // Import the fixed PhotoEditor
+import PhotoEditor from './components/PhotoEditor';
 
 // Reusable Button component for consistency
 const CustomButton = ({ onClick, children, className = '', variant = 'primary', disabled = false, icon: Icon = null }) => {
@@ -37,7 +37,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
   const [loading, setLoading] = useState(false);
   const [showSaveButton, setShowSaveButton] = useState(false);
   const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false);
-  const [showDeleteConfirmationDialog, setShowDeleteConfirmationDialog] = useState(false); // New state for delete confirmation
+  const [showDeleteConfirmationDialog, setShowDeleteConfirmationDialog] = useState(false);
 
   const photoEditorRef = useRef(null);
 
@@ -48,7 +48,6 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
         photos: userProfile.images || [],
       };
       setFormData(initialData);
-      // Reset showSaveButton when userProfile changes (e.g., on initial load or successful update)
       setShowSaveButton(false);
     }
   }, [userProfile]);
@@ -60,7 +59,6 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
         const currentLocation = JSON.parse(localStorage.getItem('gymBrosLocation') || localStorage.getItem('userLocation') || '{}');
         if (currentLocation && currentLocation.city && formData.location) {
           console.log('🔄 PROFILE EDITOR: Location updated, refreshing display...', currentLocation);
-          // Force re-render by updating formData if location changed
           setFormData(prev => ({
             ...prev,
             location: {
@@ -76,10 +74,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
       }
     };
 
-    // Listen for storage events (location updates)
     window.addEventListener('storage', handleLocationUpdate);
-    
-    // Also check on interval for same-tab updates
     const locationCheckInterval = setInterval(handleLocationUpdate, 3000);
 
     return () => {
@@ -99,14 +94,14 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     }
 
     // Only auto-save for dropdown selects for a smoother UX
-    if (['experienceLevel', 'preferredTime', 'gender'].includes(name)) {
+    if (['experienceLevel', 'preferredTime', 'gender', 'age', 'height'].includes(name)) {
       const dataToSubmit = {
         ...formData,
         [name]: value,
         images: formData.photos?.filter(url => !url.startsWith('blob:')) || []
       };
 
-      delete dataToSubmit.photos; // Remove UI-specific field
+      delete dataToSubmit.photos;
 
       gymbrosService.createOrUpdateProfile(dataToSubmit)
         .then(response => {
@@ -137,7 +132,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
       images: formData.photos?.filter(url => !url.startsWith('blob:')) || []
     };
 
-    delete dataToSubmit.photos; // Remove UI-specific field
+    delete dataToSubmit.photos;
 
     gymbrosService.createOrUpdateProfile(dataToSubmit)
       .then(response => {
@@ -176,6 +171,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     try {
       const validationErrors = validateForm(formData);
       if (Object.keys(validationErrors).length > 0) {
+        console.log('Validation errors found:', validationErrors); // Debug log
         setErrors(validationErrors);
         toast.error('Please fix the errors before saving.');
         setLoading(false);
@@ -217,7 +213,6 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
             finalImages.push(uploadedImageUrls[uploadedIndex]);
             uploadedIndex++;
           } else {
-            // Fallback for unexpected case where blob exists but no corresponding upload URL
             finalImages.push(url);
           }
         } else {
@@ -225,7 +220,6 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
         }
       }
 
-      // Add any remaining uploaded URLs that didn't correspond to a blob
       while (uploadedIndex < uploadedImageUrls.length) {
         finalImages.push(uploadedImageUrls[uploadedIndex]);
         uploadedIndex++;
@@ -235,7 +229,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
         ...formData,
         images: finalImages,
         profileImage: finalImages.length > 0 ? finalImages[0] : null,
-        photos: undefined // Remove the photos field used for UI
+        photos: undefined
       };
 
       const response = await gymbrosService.createOrUpdateProfile(finalData);
@@ -251,7 +245,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
           profileImage: finalImages.length > 0 ? finalImages[0] : null
         }));
         setShowSaveButton(false);
-        setActiveSection('main'); // Go back to main profile view after saving photos
+        setActiveSection('main');
       } else {
         throw new Error(response.message || 'Failed to update profile');
       }
@@ -264,6 +258,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     }
   };
 
+  // FIXED: Updated validation to only check fields that are actually rendered in the UI
   const validateForm = (data) => {
     const errors = {};
 
@@ -271,16 +266,14 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
       errors.name = 'Name is required and must be at least 2 characters.';
     }
 
-    if (!data.age || data.age < 18 || data.age > 99) {
+    // Only validate age, gender, height if they exist in the form data
+    // These fields should be added to the UI if they're required
+    if (data.age !== undefined && (data.age < 18 || data.age > 99)) {
       errors.age = 'Age must be between 18 and 99.';
     }
 
-    if (!data.gender) {
-      errors.gender = 'Gender is required.';
-    }
-
-    if (!data.height || data.height < 100 || data.height > 250) { // Assuming height in cm
-      errors.height = 'Height is required and must be realistic (e.g., 100-250 cm).';
+    if (data.height !== undefined && (data.height < 100 || data.height > 250)) {
+      errors.height = 'Height must be realistic (e.g., 100-250 cm).';
     }
 
     if (!data.workoutTypes || data.workoutTypes.length === 0) {
@@ -295,14 +288,24 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
       errors.preferredTime = 'Preferred time is required.';
     }
 
+    // Photo validation
     const validPhotos = data.photos ? data.photos.filter(p => p && !p.startsWith('blob:')) : [];
-    const pendingPhotos = photoEditorRef.current ? photoEditorRef.current.getPendingUploadsCount() || 0 : 0;
+    let pendingPhotos = 0;
+    
+    try {
+      if (photoEditorRef.current && typeof photoEditorRef.current.getPendingUploadsCount === 'function') {
+        pendingPhotos = photoEditorRef.current.getPendingUploadsCount() || 0;
+      }
+    } catch (error) {
+      console.warn('Error getting pending uploads count:', error);
+      pendingPhotos = 0;
+    }
 
     if (validPhotos.length + pendingPhotos < 2) {
       errors.photos = 'At least 2 photos are required.';
     }
 
-    // Optional fields validation (can be empty, but if present, should meet criteria)
+    // Optional fields validation
     if (data.bio && data.bio.trim().length > 500) {
       errors.bio = 'Bio cannot exceed 500 characters.';
     }
@@ -314,12 +317,12 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
   };
 
   const confirmDeleteAccount = async () => {
-    setShowDeleteConfirmationDialog(false); // Close dialog immediately
+    setShowDeleteConfirmationDialog(false);
     try {
       const response = await gymbrosService.deleteProfile();
       if (response.success) {
         toast.success('Profile deleted successfully!');
-        window.location.reload(); // Force reload to show profile creation/onboarding
+        window.location.reload();
       } else {
         throw new Error(response.message || 'Failed to delete profile');
       }
@@ -395,7 +398,6 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     const getLocationSummary = (location) => {
       if (!location) return '';
       
-      // Check if we have current localStorage location (most up-to-date)
       try {
         const currentLocation = JSON.parse(localStorage.getItem('gymBrosLocation') || localStorage.getItem('userLocation') || '{}');
         if (currentLocation && currentLocation.city) {
@@ -408,7 +410,6 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
         console.warn('Failed to parse localStorage location:', e);
       }
       
-      // Fallback to profile location
       if (typeof location === 'string') {
         const parts = location.split(',').map(part => part.trim());
         if (parts.length <= 3) return location;
@@ -433,13 +434,11 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
 
     const calculateProfileCompleteness = () => {
       const requiredFields = [
-        'name', 'age', 'gender', 'height', 'bio',
-        'workoutTypes', 'experienceLevel', 'preferredTime',
+        'name', 'bio', 'workoutTypes', 'experienceLevel', 'preferredTime',
         'goals', 'photos', 'location',
       ];
-      // Optional fields for completeness bonus
       const optionalFields = [
-        'religion', 'politicalStance', 'sexualOrientation'
+        'age', 'gender', 'height', 'religion', 'politicalStance', 'sexualOrientation'
       ];
 
       let completedFields = 0;
@@ -459,7 +458,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
 
       let optionalCompleted = 0;
       optionalFields.forEach(field => {
-        if (formData[field] && formData[field].trim().length > 0) {
+        if (formData[field] && (typeof formData[field] === 'string' ? formData[field].trim().length > 0 : true)) {
           optionalCompleted++;
         }
       });
@@ -473,15 +472,15 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     const completeness = calculateProfileCompleteness();
 
     const radius = 70;
-    const strokeWidth = 5; // Slightly thicker for better visibility
-    const normalizedRadius = radius - strokeWidth / 2; // Adjust for stroke inside/outside
+    const strokeWidth = 5;
+    const normalizedRadius = radius - strokeWidth / 2;
     const circumference = normalizedRadius * 2 * Math.PI;
     const strokeDashoffset = circumference - (completeness / 100) * circumference;
 
     return (
       <>
-        {/* Profile Picture Section - Circular Design */}
-        <div className="flex flex-col items-center mt-8 mb-10 p-4"> {/* Increased top margin */}
+        {/* Profile Picture Section */}
+        <div className="flex flex-col items-center mt-8 mb-10 p-4">
           <div className="relative" style={{ width: radius * 2, height: radius * 2 }}>
             <svg
               height={radius * 2}
@@ -489,7 +488,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
               className="absolute inset-0"
             >
               <circle
-                stroke="#e0e0e0" // Softer gray background
+                stroke="#e0e0e0"
                 fill="transparent"
                 strokeWidth={strokeWidth}
                 r={normalizedRadius}
@@ -497,7 +496,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
                 cy={radius}
               />
               <circle
-                stroke="#6366f1" // Vibrant indigo for progress
+                stroke="#6366f1"
                 fill="transparent"
                 strokeWidth={strokeWidth}
                 strokeDasharray={circumference + ' ' + circumference}
@@ -507,7 +506,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
                 cx={radius}
                 cy={radius}
                 transform={`rotate(-90 ${radius} ${radius})`}
-                className="drop-shadow-sm" // Subtle shadow for depth
+                className="drop-shadow-sm"
               />
             </svg>
 
@@ -524,7 +523,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
                   onError={(e) => {
                     console.error('Image load error:', formData.photos[0]);
                     e.target.onerror = null;
-                    e.target.src = "/api/placeholder/400/400"; // Fallback placeholder
+                    e.target.src = "/api/placeholder/400/400";
                   }}
                 />
               ) : (
@@ -532,16 +531,16 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
               )}
             </div>
 
-            <div className="absolute bottom-2 text-gray-700  right-2 z-10"> {/* Adjusted position and added z-index */}
+            <div className="absolute bottom-2 right-2 z-10">
               <CustomButton
-  onClick={(e) => {
-    e.stopPropagation();
-    setActiveSection('photos');
-  }}
-  variant="primary"
-  className="p-2 w-auto h-auto rounded-full bg-white text-gray-400 shadow-lg border border-gray-200 hover:bg-gray-50"
-  icon={(props) => <Camera {...props} className="w-5 h-5 text-gray-400" />} // Ensure gray color
-/>
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveSection('photos');
+                }}
+                variant="primary"
+                className="p-2 w-auto h-auto rounded-full bg-white text-gray-400 shadow-lg border border-gray-200 hover:bg-gray-50"
+                icon={(props) => <Camera {...props} className="w-5 h-5 text-gray-400" />}
+              />
             </div>
           </div>
 
@@ -550,7 +549,9 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
           </div>
 
           <div className="text-center mt-4">
-            <h1 className="text-3xl font-extrabold text-gray-900 leading-tight">{formData.name || 'Your Name'}{formData.age ? `, ${formData.age}` : ''}</h1>
+            <h1 className="text-3xl font-extrabold text-gray-900 leading-tight">
+              {formData.name || 'Your Name'}{formData.age ? `, ${formData.age}` : ''}
+            </h1>
             {formData.location && (
               <div className="flex items-center justify-center text-gray-600 mt-2">
                 <MapPin size={18} className="mr-1.5 text-gray-500" />
@@ -561,11 +562,69 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
         </div>
 
         {/* Profile Details Sections */}
-        <div className="px-6 space-y-8 pb-20"> {/* Increased padding and spacing */}
+        <div className="px-6 space-y-8 pb-20">
+          {/* Basic Info Section - ADD MISSING REQUIRED FIELDS */}
           <section className="bg-gray-50 p-6 rounded-xl shadow-sm">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center"><Info size={20} className="mr-2 text-blue-600" /> About Me</h2>
+            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+              <User size={20} className="mr-2 text-blue-600" /> Basic Information
+            </h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Age *</label>
+                <input
+                  type="number"
+                  name="age"
+                  value={formData.age || ''}
+                  onChange={handleChange}
+                  placeholder="Your age"
+                  min="18"
+                  max="99"
+                  className={`mt-1 block w-full p-3 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${errors.age ? 'border-red-400' : 'border-gray-300'}`}
+                />
+                {errors.age && <p className="text-red-500 text-sm mt-2">{errors.age}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Gender *</label>
+                <select
+                  name="gender"
+                  value={formData.gender || ''}
+                  onChange={handleChange}
+                  className={`mt-1 block w-full p-3 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${errors.gender ? 'border-red-400' : 'border-gray-300'}`}
+                >
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Non-binary">Non-binary</option>
+                  <option value="Other">Other</option>
+                </select>
+                {errors.gender && <p className="text-red-500 text-sm mt-2">{errors.gender}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Height (cm) *</label>
+                <input
+                  type="number"
+                  name="height"
+                  value={formData.height || ''}
+                  onChange={handleChange}
+                  placeholder="Height in cm"
+                  min="100"
+                  max="250"
+                  className={`mt-1 block w-full p-3 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${errors.height ? 'border-red-400' : 'border-gray-300'}`}
+                />
+                {errors.height && <p className="text-red-500 text-sm mt-2">{errors.height}</p>}
+              </div>
+            </div>
+          </section>
+
+          <section className="bg-gray-50 p-6 rounded-xl shadow-sm">
+            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+              <Info size={20} className="mr-2 text-blue-600" /> About Me
+            </h2>
             <EditableField
-              label="Biography"
+              label="Biography *"
               name="bio"
               value={formData.bio}
               placeholder="Tell others about yourself and your fitness journey..."
@@ -576,9 +635,11 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
           </section>
 
           <section className="bg-gray-50 p-6 rounded-xl shadow-sm">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center"><User size={20} className="mr-2 text-blue-600" /> My Fitness Journey</h2>
+            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+              <User size={20} className="mr-2 text-blue-600" /> My Fitness Journey
+            </h2>
             <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Workout Types</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Workout Types *</label>
               <div className="flex flex-wrap gap-2">
                 {workoutTypes.map(type => (
                   <CustomButton
@@ -596,7 +657,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Experience Level</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Experience Level *</label>
                 <select
                   name="experienceLevel"
                   value={formData.experienceLevel || ''}
@@ -612,7 +673,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Preferred Time</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Preferred Time *</label>
                 <select
                   name="preferredTime"
                   value={formData.preferredTime || ''}
@@ -629,7 +690,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
             </div>
 
             <EditableField
-              label="Fitness Goals"
+              label="Fitness Goals *"
               name="goals"
               value={formData.goals}
               placeholder="What are your primary fitness goals? (e.g., build muscle, lose weight, improve endurance)"
@@ -640,7 +701,9 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
           </section>
 
           <section className="bg-gray-50 p-6 rounded-xl shadow-sm">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center"><Info size={20} className="mr-2 text-blue-600" /> Personal Details (Optional)</h2>
+            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+              <Info size={20} className="mr-2 text-blue-600" /> Personal Details (Optional)
+            </h2>
             <EditableField
               label="Religion"
               name="religion"
@@ -673,7 +736,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
           <section className="bg-gray-50 p-6 rounded-xl shadow-sm">
             <h2 className="text-xl font-bold text-gray-800 mb-4">Account Settings</h2>
 
-            <div className="space-y-4"> {/* Increased spacing */}
+            <div className="space-y-4">
               <CustomButton
                 onClick={handleShareProfile}
                 variant="outline"
@@ -693,7 +756,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
               </CustomButton>
 
               <CustomButton
-                onClick={() => setShowDeleteConfirmationDialog(true)} // Open custom dialog
+                onClick={() => setShowDeleteConfirmationDialog(true)}
                 variant="danger"
                 className="w-full"
                 icon={Trash2}
@@ -795,7 +858,7 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
             <div className="flex justify-end mt-3 space-x-2">
               <CustomButton
                 type="button"
-                onClick={() => { setIsEditing(false); setFieldValue(value || ''); }} // Revert on cancel
+                onClick={() => { setIsEditing(false); setFieldValue(value || ''); }}
                 variant="outline"
               >
                 Cancel
@@ -848,7 +911,6 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
           )}
         </div>
 
-        {/* Responsive container for gallery */}
         <div className="p-6 pb-20 flex justify-center">
           <div className="w-full sm:w-full md:w-1/2 2xl:max-w-md mx-auto">
             <PhotoEditor
@@ -864,9 +926,8 @@ const EnhancedGymBrosProfile = ({ userProfile, onProfileUpdated, isGuest = false
     );
   };
 
-
   return (
-    <div className="h-full overflow-y-auto relative bg-gray-50 rounded-lg custom-scrollbar"> {/* Added custom-scrollbar class */}
+    <div className="h-dvh overflow-y-auto relative bg-gray-50 rounded-lg custom-scrollbar">
       <AnimatePresence mode="wait">
         <motion.div
           key={activeSection}

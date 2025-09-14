@@ -297,12 +297,12 @@ const ClientDetailsModal = ({ client, onClose, onSave, onExportData}) => {
   return (
     <AnimatePresence>
       <motion.div
-        key="client-details-modal"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4 overflow-y-auto"
-      >
+  ref={modalRef}
+  initial={{ scale: 0.9, opacity: 0 }}
+  animate={{ scale: 1, opacity: 1 }}
+  exit={{ scale: 0.9, opacity: 0 }}
+  className={`bg-white rounded-xl shadow-2xl overflow-auto max-h-[calc(100dvh-8rem)] ${isExpanded ? 'w-full max-w-4xl' : 'w-full max-w-2xl'}`}
+>
         <motion.div
           ref={modalRef}
           initial={{ scale: 0.9, opacity: 0 }}

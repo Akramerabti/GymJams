@@ -898,13 +898,13 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ x: '100%' }}
-        animate={{ x: 0 }}
-        exit={{ x: '100%' }}
-        transition={{ type: 'tween', ease: 'easeInOut', duration: 0.3 }}
-        className="fixed inset-0 bg-gray-50 z-[9999] flex flex-col items-center justify-center"
-      >
-        <div className="max-w-2xl w-full h-full md:h-[90vh] md:rounded-lg md:shadow-2xl bg-white flex flex-col overflow-hidden">
+  initial={{ x: '100%' }}
+  animate={{ x: 0 }}
+  exit={{ x: '100%' }}
+  transition={{ type: 'tween', ease: 'easeInOut', duration: 0.3 }}
+  className="fixed left-0 right-0 top-24 bottom-0 bg-gray-50 z-[9999] flex flex-col items-center justify-center"
+>
+       <div className="max-w-2xl w-full h-full md:h-[calc(100dvh-8rem)] md:rounded-lg md:shadow-2xl bg-white flex flex-col overflow-hidden">
           {/* Chat Header */}
           <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-4 shadow-md">
             <div className="flex items-center space-x-3">

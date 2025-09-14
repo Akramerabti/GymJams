@@ -89,7 +89,7 @@ const PointsRedemption = ({ onApplyDiscount, onRemoveDiscount, disabled, cartTot
   // If user is not logged in, show locked state
   if (!user) {
     return (
-      <div className="border rounded-md p-4 bg-gray-500">
+      <div className="border rounded-md p-4 bg-gray-50">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center">
             <h3 className="font-medium text-gray-900">Redeem Points</h3>
@@ -204,7 +204,7 @@ const PointsRedemption = ({ onApplyDiscount, onRemoveDiscount, disabled, cartTot
               size="sm"
               onClick={handleRemovePoints}
               disabled={disabled}
-              className = "text-white-800 bg-black"
+              className="text-green-800 bg-white hover:bg-green-50 border-green-200 shrink-0"
             >
               Remove
             </Button>
@@ -231,21 +231,25 @@ const PointsRedemption = ({ onApplyDiscount, onRemoveDiscount, disabled, cartTot
             </div>
           </div>
 
-          <div className="flex space-x-2">
-            <Input
-              type="number"
-              value={pointsToRedeem}
-              onChange={(e) => handlePointsChange(parseInt(e.target.value) || 0)}
-              min={0}
-              max={maxPoints}
-              step={POINTS_CONVERSION_RATE}
-              className="w-24"
-              disabled={disabled}
-            />
+          {/* Fixed mobile-responsive input and button layout */}
+          <div className="flex gap-2 w-full">
+            <div className="w-20 sm:w-24 shrink-0">
+              <Input
+                type="number"
+                value={pointsToRedeem}
+                onChange={(e) => handlePointsChange(parseInt(e.target.value) || 0)}
+                min={0}
+                max={maxPoints}
+                step={POINTS_CONVERSION_RATE}
+                className="w-full text-sm"
+                disabled={disabled}
+              />
+            </div>
             <Button 
               onClick={handleApplyPoints}
               disabled={pointsToRedeem < 1000 || pointsToRedeem > balance || disabled}
-              className="flex-1"
+              className="flex-1 min-w-0" // min-w-0 prevents flex item from overflowing
+              size="default"
             >
               Apply
             </Button>

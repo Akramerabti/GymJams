@@ -118,7 +118,7 @@ const SocialMapSection = ({ onNavigate }) => {
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.8, duration: 0.6 }}
       >
-        <div className="flex items-center justify-center h-40">
+        <div className="flex items-center justify-center h-40  mt-30">
           <div className="relative">
             <div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
             <MapPin className="w-6 h-6 text-purple-400 absolute top-3 left-3" />

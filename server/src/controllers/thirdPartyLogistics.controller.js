@@ -67,17 +67,112 @@ export const createFulfillmentOrder = async (req, res) => {
   }
 };
 
-// Get shipping rates
+// server/src/controllers/thirdPartyLogistics.controller.js
 export const getShippingRates = async (req, res) => {
   try {
-    const { items, destination, warehouseId } = req.body;
-    const rates = await ThirdPartyLogisticsService.getShippingRates(items, destination, warehouseId);
+    const { items, destination } = req.body;
+    
+    // Calculate subtotal for free shipping threshold
+    const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    
+    // Calculate total weight (approximate)
+    const totalWeight = items.reduce((sum, item) => sum + (item.quantity * 1), 0); // 1 lb average per item
+    
+    // Define shipping rates based on location and weight
+    const baseStandardRate = getBaseShippingRate(destination, totalWeight);
+    const baseExpressRate = baseStandardRate * 2.5; // Express is 2.5x standard
+    
+    // Apply free shipping for orders over $100
+    const standardRate = subtotal >= 100 ? 0 : baseStandardRate;
+    
+    const rates = [
+      {
+        id: 'standard',
+        name: 'Standard Shipping',
+        price: standardRate,
+        estimatedDeliveryDays: { min: 3, max: 7 },
+        carrier: 'USPS/UPS'
+      },
+      {
+        id: 'express',
+        name: 'Express Shipping',
+        price: baseExpressRate,
+        estimatedDeliveryDays: { min: 1, max: 3 },
+        carrier: 'UPS/FedEx'
+      }
+    ];
+    
+    // If subtotal qualifies for free shipping, add overnight option
+    if (subtotal >= 200) {
+      rates.push({
+        id: 'overnight',
+        name: 'Overnight Shipping',
+        price: baseExpressRate * 1.5,
+        estimatedDeliveryDays: { min: 1, max: 1 },
+        carrier: 'FedEx'
+      });
+    }
+    
     res.status(200).json({ rates });
   } catch (error) {
-    logger.error('Error getting shipping rates:', error);
-    res.status(500).json({ message: 'Error getting shipping rates' });
+    logger.error('Error calculating shipping rates:', error);
+    
+    // NEVER return error to user - always provide fallback rates
+    const fallbackRates = [
+      {
+        id: 'standard',
+        name: 'Standard Shipping',
+        price: 12.99,
+        estimatedDeliveryDays: { min: 3, max: 7 },
+        carrier: 'USPS'
+      },
+      {
+        id: 'express',
+        name: 'Express Shipping',
+        price: 24.99,
+        estimatedDeliveryDays: { min: 1, max: 3 },
+        carrier: 'UPS'
+      }
+    ];
+    
+    res.status(200).json({ rates: fallbackRates });
   }
 };
+
+// Helper function to calculate base shipping rate
+function getBaseShippingRate(destination, weight) {
+  const { state, country, zipCode } = destination;
+  
+  // Base rate calculation
+  let baseRate = 8.99; // Starting rate
+  
+  // Weight adjustments
+  if (weight > 5) baseRate += Math.ceil((weight - 5) / 5) * 3; // $3 per additional 5 lbs
+  
+  // Location adjustments
+  if (country !== 'United States') {
+    baseRate += 15; // International surcharge
+  } else {
+    // US state-based rates
+    const coastalStates = ['CA', 'WA', 'OR', 'NY', 'NJ', 'CT', 'MA', 'ME', 'NH', 'VT', 'RI'];
+    const centralStates = ['TX', 'OK', 'KS', 'NE', 'CO', 'WY', 'MT', 'ND', 'SD'];
+    
+    if (coastalStates.includes(state)) {
+      baseRate += 2; // Coastal surcharge
+    } else if (centralStates.includes(state)) {
+      baseRate += 0; // No adjustment for central states
+    } else {
+      baseRate += 1; // Small surcharge for other states
+    }
+    
+    // Remote zip code surcharge
+    if (zipCode && (zipCode.startsWith('99') || zipCode.startsWith('96'))) {
+      baseRate += 5; // Alaska/Hawaii surcharge
+    }
+  }
+  
+  return Math.round(baseRate * 100) / 100; // Round to 2 decimal places
+}
 
 // Update order tracking
 export const updateOrderTracking = async (req, res) => {

@@ -14,10 +14,14 @@ import {
 
 const router = express.Router();
 
-// Protect routes
-router.use(authenticate);
+// PUBLIC ENDPOINT - No auth needed for shipping rates
+router.post('/shipping/rates', getShippingRates);
 
-// Admin/Taskforce routes
+// Webhooks - no auth needed
+router.post('/webhooks/:provider', express.json(), handle3PLWebhook);
+
+// Protect admin routes
+router.use(authenticate);
 router.use(isTaskforce);
 
 // Warehouse management
@@ -31,11 +35,5 @@ router.post('/warehouses/:warehouseId/sync', syncInventory);
 // Order fulfillment
 router.post('/orders/:orderId/fulfill', createFulfillmentOrder);
 router.get('/orders/:orderId/tracking', updateOrderTracking);
-
-// Shipping rates - public endpoint
-router.post('/shipping/rates', getShippingRates);
-
-// Webhooks - no auth needed
-router.post('/webhooks/:provider', express.json(), handle3PLWebhook);
 
 export default router;
