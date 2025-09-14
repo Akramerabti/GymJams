@@ -125,10 +125,12 @@ const PaymentForm = ({ plan, clientSecret, onSuccess, onError, promoStatus: pare
       const userId = user?.user?._id || user?._id;
       // For coaching/subscription, pass subscription as plan.id
       const result = await productService.validateCouponCode({
-        code: promoCode,
-        userId,
-        subscription: plan?.id
-      });
+      code: promoCode,
+      userId,
+      couponType: 'coaching',  // Changed from subscription: plan?.id
+      subscription: plan?.id   // Keep this for backend to check plan compatibility
+    });
+    
       if (
         result.valid &&
         (result.subscription === 'all' || result.subscription === plan.id)

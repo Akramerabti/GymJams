@@ -81,7 +81,7 @@ export const createCouponCode = async (req, res) => {
 
 export const validateCouponCode = async (req, res) => {
   try {
-    const { code, userId, productId, category, subscription } = req.body;
+    const { code, userId, productId, category, subscription, couponType } = req.body;
     if (!code) return res.status(400).json({ message: 'Code is required.' });
 
     console.log('🔍 [CODE VALIDATION] Checking code:', code.toUpperCase());
@@ -94,8 +94,21 @@ export const validateCouponCode = async (req, res) => {
       
       // Debug info
       console.log('--- Coupon Validation Debug ---');
-      console.log('Request:', { code, userId, productId, category, subscription });
+      console.log('Request:', { code, userId, productId, category, subscription, couponType });
       console.log('Coupon:', coupon);
+
+      // CRITICAL: Check coupon type compatibility
+      if (couponType) {
+        if (couponType === 'product' && coupon.type === 'coaching') {
+          console.log('❌ [COUPON] Coaching coupon used in product context');
+          return res.status(400).json({ message: 'This coupon is only valid for coaching subscriptions.' });
+        }
+        if (couponType === 'coaching' && coupon.type === 'product') {
+          console.log('❌ [COUPON] Product coupon used in coaching context');
+          return res.status(400).json({ message: 'This coupon is only valid for products.' });
+        }
+        // Allow if coupon.type === 'both' or matches couponType
+      }
 
       // Check max uses
       if (coupon.maxUses && coupon.usedBy.length >= coupon.maxUses) {
@@ -111,7 +124,7 @@ export const validateCouponCode = async (req, res) => {
       }
       
       // For product coupons, check if product/category matches
-      if (coupon.type === 'product' || coupon.type === 'both') {
+      if ((coupon.type === 'product' || coupon.type === 'both') && (productId || category)) {
         if (coupon.products.length > 0 && productId && !coupon.products.some(pid => pid.toString() === productId)) {
           console.log('❌ [COUPON] Does not apply to this product');
           return res.status(400).json({ message: 'Coupon does not apply to this product.' });
@@ -150,7 +163,7 @@ export const validateCouponCode = async (req, res) => {
     if (ambassadorCode) {
       console.log('✅ [AMBASSADOR] Found ambassador code:', ambassadorCode.code);
       console.log('--- Ambassador Code Validation Debug ---');
-      console.log('Request:', { code, userId, productId, category, subscription });
+      console.log('Request:', { code, userId, productId, category, subscription, couponType });
       console.log('Ambassador Code:', ambassadorCode);
 
       // Check if code is active
@@ -186,16 +199,17 @@ export const validateCouponCode = async (req, res) => {
         codeType = 'both';
       }
 
-      // For product validation
-      if (codeType === 'product' && subscription) {
-        console.log('❌ [AMBASSADOR] Product-only code used for subscription');
-        return res.status(400).json({ message: 'This ambassador code is only valid for products.' });
-      }
-
-      // For coaching validation  
-      if (codeType === 'coaching' && (productId || category)) {
-        console.log('❌ [AMBASSADOR] Coaching-only code used for product');
-        return res.status(400).json({ message: 'This ambassador code is only valid for coaching subscriptions.' });
+      // CRITICAL: Check ambassador code type compatibility
+      if (couponType) {
+        if (couponType === 'product' && codeType === 'coaching') {
+          console.log('❌ [AMBASSADOR] Coaching-only code used for product');
+          return res.status(400).json({ message: 'This ambassador code is only valid for coaching subscriptions.' });
+        }
+        if (couponType === 'coaching' && codeType === 'product') {
+          console.log('❌ [AMBASSADOR] Product-only code used for coaching');
+          return res.status(400).json({ message: 'This ambassador code is only valid for products.' });
+        }
+        // Allow if codeType === 'both' or matches couponType
       }
 
       console.log('✅ [AMBASSADOR] Valid!');

@@ -162,7 +162,7 @@ const ProductPage = ({ isPreview = false }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 mt-15">
+    <div className="min-h-screen bg-gray-50 mt-25">
       <div className="container mx-auto px-4 py-8">
         {!isPreview && (
           <div className="flex mb-4 md:mb-6 items-center text-sm text-gray-500">

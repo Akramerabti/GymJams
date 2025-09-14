@@ -16,7 +16,6 @@ const PointsPromotion = () => {
           </div>
           <div className="flex items-center space-x-1 text-blue-600">
             <Lock className="h-4 w-4" />
-            <span className="text-xs">Exclusive for members</span>
           </div>
         </div>
         
@@ -30,8 +29,7 @@ const PointsPromotion = () => {
           </div>
           <Link to="/register">
             <Button size="sm" className="text-xs flex items-center">
-              <UserPlus className="h-3 w-3 mr-1" />
-              Sign Up
+              <UserPlus className="h-5 w-5 mx-3" />
             </Button>
           </Link>
         </div>

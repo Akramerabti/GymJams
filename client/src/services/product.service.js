@@ -321,15 +321,21 @@ const productService = {
     }
   },
 
-  async validateCouponCode({ code, userId, productId, category, type = 'all' }) {
-    try {
-      const response = await api.post('/products/coupon-codes/validate', { code, userId, productId, category, type });
-      return response.data;
-    } catch (error) {
-      console.error('Failed to validate coupon code:', error);
-      throw error;
-    }
-  },
+  async validateCouponCode({ code, userId, productId, category, couponType = 'all' }) {
+  try {
+    const response = await api.post('/products/coupon-codes/validate', { 
+      code, 
+      userId, 
+      productId, 
+      category, 
+      couponType // Pass this to backend
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to validate coupon code:', error);
+    throw error;
+  }
+},
 
   async markCouponAsUsed(code, userId) {
     try {

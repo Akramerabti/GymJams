@@ -132,7 +132,7 @@ const handleGuestCheckout = async () => {
   }
 
   return (
-    <div className="container mt-10 mx-auto px-4 py-8">
+    <div className="container mt-45 mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">Shopping Cart</h1>
 
       <div className="flex flex-col lg:flex-row gap-8">
@@ -159,10 +159,9 @@ const handleGuestCheckout = async () => {
       <Dialog open={isEmailModalOpen} onOpenChange={setIsEmailModalOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Enter Your Email</DialogTitle>
+            <DialogTitle className="text-black !important">Enter Your Email</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <Label htmlFor="email">Email</Label>
+          <div className="space-y-4 mb-3 ">
             <Input
               id="email"
               type="email"
