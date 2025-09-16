@@ -63,62 +63,82 @@ async getTargetUsers(filters = {}) {
 }
 
   // Send campaign to users
-  async sendCampaign(campaignData) {
-    try {
-      const { 
-        subject, 
-        htmlContent, 
-        filters = {}, 
-        testMode = false,
-        testEmail = null 
-      } = campaignData;
+async sendCampaign(campaignData) {
+  try {
+    const { 
+      subject, 
+      htmlContent, 
+      filters = {}, 
+      testMode = false,
+      testEmail = null 
+    } = campaignData;
+    
+    // Get target users or send test
+    let recipients = [];
+    if (testMode && testEmail) {
+      // Check if user exists in database
+      const existingUser = await User.findOne({ email: testEmail })
+        .select('email firstName lastName');
       
-      // Get target users or send test
-      let recipients = [];
-      if (testMode && testEmail) {
-        recipients = [{ email: testEmail, firstName: 'Test', lastName: 'User' }];
+      if (existingUser) {
+        recipients = [{
+          email: existingUser.email,
+          firstName: existingUser.firstName,
+          lastName: existingUser.lastName
+        }];
       } else {
-        recipients = await this.getTargetUsers(filters);
+        // User doesn't exist, use default test values
+        recipients = [{
+          email: testEmail,
+          firstName: 'Test',
+          lastName: 'User'
+        }];
       }
+    } else {
+      recipients = await this.getTargetUsers(filters);
+    }
+    
+    if (recipients.length === 0) {
+      return {
+        success: false,
+        message: 'No recipients found matching the criteria'
+      };
+    }
+    
+    // Create campaign record
+    const campaign = await EmailCampaign.create({
+      name: campaignData.name || `Campaign ${new Date().toISOString()}`,
+      subject,
+      htmlContent,
+      filters,
+      recipientCount: recipients.length,
+      status: 'sending',
+      sentBy: campaignData.sentBy
+    });
+    
+    // Send emails in batches
+    const batchSize = 50;
+    let sentCount = 0;
+    let failedCount = 0;
+    
+    for (let i = 0; i < recipients.length; i += batchSize) {
+      const batch = recipients.slice(i, i + batchSize);
       
-      if (recipients.length === 0) {
-        return {
-          success: false,
-          message: 'No recipients found matching the criteria'
-        };
-      }
-      
-      // Create campaign record
-      const campaign = await EmailCampaign.create({
-        name: campaignData.name || `Campaign ${new Date().toISOString()}`,
-        subject,
-        htmlContent,
-        filters,
-        recipientCount: recipients.length,
-        status: 'sending',
-        sentBy: campaignData.sentBy
-      });
-      
-      // Send emails in batches
-      const batchSize = 50;
-      let sentCount = 0;
-      let failedCount = 0;
-      
-      for (let i = 0; i < recipients.length; i += batchSize) {
-        const batch = recipients.slice(i, i + batchSize);
-        
-        const promises = batch.map(async (user) => {
-          try {
-            // Personalize content
-            let personalizedHtml = htmlContent
-              .replace(/{{firstName}}/g, user.firstName || 'Friend')
-              .replace(/{{email}}/g, user.email);
-            
-            // Add tracking pixel
+      const promises = batch.map(async (user) => {
+        try {
+          // Personalize content
+          let personalizedHtml = htmlContent
+            .replace(/{{firstName}}/g, user.firstName || 'Friend')
+            .replace(/{{email}}/g, user.email);
+          
+          // Add tracking pixel (skip for test mode to avoid confusion)
+          if (!testMode) {
             const trackingPixel = `<img src="${process.env.SERVER_URL}/api/email/track/${campaign._id}/${user._id}" width="1" height="1" style="display:none;" />`;
             personalizedHtml = personalizedHtml.replace('</body>', `${trackingPixel}</body>`);
-            
-            // Add unsubscribe footer
+          }
+          
+          // Add unsubscribe footer (skip for test mode)
+          if (!testMode) {
             const unsubscribeLink = `${process.env.CLIENT_URL}/unsubscribe?email=${user.email}&token=${this.generateUnsubscribeToken(user.email)}`;
             const footer = `
               <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 12px; color: #6b7280;">
@@ -130,64 +150,72 @@ async getTargetUsers(filters = {}) {
               </div>
             `;
             personalizedHtml = personalizedHtml.replace('</body>', `${footer}</body>`);
-            
-            await resend.emails.send({
-              from: 'GymTonic <info@gymtonic.ca>',
-              to: user.email,
-              subject: subject.replace(/{{firstName}}/g, user.firstName || 'Friend'),
-              html: personalizedHtml,
-              headers: {
-                'List-Unsubscribe': `<${unsubscribeLink}>`,
-                'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click'
-              }
-            });
-            
-            sentCount++;
-            return { success: true, email: user.email };
-          } catch (error) {
-            failedCount++;
-            logger.error(`Failed to send to ${user.email}:`, error);
-            return { success: false, email: user.email, error: error.message };
           }
-        });
-        
-        await Promise.all(promises);
-        
-        // Update campaign progress
-        await EmailCampaign.findByIdAndUpdate(campaign._id, {
-          sentCount,
-          failedCount
-        });
-        
-        // Rate limiting between batches
-        if (i + batchSize < recipients.length) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          const emailData = {
+            from: 'GymTonic <info@gymtonic.ca>',
+            to: user.email,
+            subject: subject.replace(/{{firstName}}/g, user.firstName || 'Friend'),
+            html: personalizedHtml
+          };
+          
+          // Add unsubscribe headers only for non-test emails
+          if (!testMode) {
+            const unsubscribeLink = `${process.env.CLIENT_URL}/unsubscribe?email=${user.email}&token=${this.generateUnsubscribeToken(user.email)}`;
+            emailData.headers = {
+              'List-Unsubscribe': `<${unsubscribeLink}>`,
+              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click'
+            };
+          }
+          
+          await resend.emails.send(emailData);
+          
+          sentCount++;
+          return { success: true, email: user.email };
+        } catch (error) {
+          failedCount++;
+          logger.error(`Failed to send to ${user.email}:`, error);
+          return { success: false, email: user.email, error: error.message };
         }
-      }
+      });
       
-      // Update final campaign status
+      await Promise.all(promises);
+      
+      // Update campaign progress
       await EmailCampaign.findByIdAndUpdate(campaign._id, {
-        status: 'sent',
-        sentAt: new Date(),
         sentCount,
         failedCount
       });
       
-      return {
-        success: true,
-        campaignId: campaign._id,
-        stats: {
-          total: recipients.length,
-          sent: sentCount,
-          failed: failedCount
-        }
-      };
-      
-    } catch (error) {
-      logger.error('Error sending campaign:', error);
-      throw error;
+      // Rate limiting between batches
+      if (i + batchSize < recipients.length) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
+    
+    // Update final campaign status
+    await EmailCampaign.findByIdAndUpdate(campaign._id, {
+      status: 'sent',
+      sentAt: new Date(),
+      sentCount,
+      failedCount
+    });
+    
+    return {
+      success: true,
+      campaignId: campaign._id,
+      stats: {
+        total: recipients.length,
+        sent: sentCount,
+        failed: failedCount
+      }
+    };
+    
+  } catch (error) {
+    logger.error('Error sending campaign:', error);
+    throw error;
   }
+}
   
   // Get campaign statistics
   async getCampaignStats(campaignId) {
