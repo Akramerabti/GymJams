@@ -343,6 +343,31 @@ const userSchema = new mongoose.Schema({
       type: Number,
       default: 0
     },
+    // Track individual pending transactions for 10-day hold logic
+    pendingTransactions: [{                       
+      subscriptionId: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'Subscription' 
+      },
+      amount: Number,
+      earnedDate: Date,
+      releaseDate: Date, // 10 days after earnedDate
+      status: { 
+        type: String, 
+        enum: ['pending', 'released', 'refund_adjusted'], 
+        default: 'pending' 
+      },
+      // Track refund adjustments
+      originalAmount: Number, // Store original amount before refund adjustments
+      refundDeduction: Number, // Amount deducted due to refund
+      isRenewal: {
+        type: Boolean,
+        default: false
+      },
+      // Track when money was actually released
+      releasedAt: Date,
+      stripeTransferId: String
+    }],
     lastPayout: {
       type: Date
     },  
@@ -350,6 +375,12 @@ const userSchema = new mongoose.Schema({
       amount: Number,
       date: Date,
       stripeTransferId: String,
+      type: {
+        type: String,
+        enum: ['pending_release', 'manual_payout'],
+        default: 'pending_release'
+      },
+      transactionCount: Number,
       subscriptions: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Subscription'

@@ -351,7 +351,7 @@ export const cancelSubscription = async (req, res) => {
       return res.status(403).json({ error: 'You do not have permission to cancel this subscription' });
     }
 
-    const isRefundEligible = subscription.isEligibleForRefund();
+    const isRefundEligible = subscription.isEligibleForRefund(); // Within 10 days
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -362,7 +362,7 @@ export const cancelSubscription = async (req, res) => {
         subscription.status = 'cancelled';
         subscription.endDate = new Date();
 
-        // Process refund logic...
+        // Process 40% refund to client
         const subscriptionDetails = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
         const latestInvoiceId = subscriptionDetails.latest_invoice;
 
@@ -371,7 +371,7 @@ export const cancelSubscription = async (req, res) => {
           
           if (latestInvoice.payment_intent && latestInvoice.amount_paid > 0) {
             const plan = PLANS[subscription.subscription];
-            const refundAmount = Math.round(plan.price * 0.4 * 100);
+            const refundAmount = Math.round(plan.price * 0.4 * 100); // 40% to client
 
             await stripe.refunds.create({
               payment_intent: latestInvoice.payment_intent,
@@ -387,11 +387,18 @@ export const cancelSubscription = async (req, res) => {
         subscription.cancelAtPeriodEnd = true;
       }
 
-      // NEW: Handle ambassador commission clawback for early cancellations
+      // Handle coach payment adjustment for early cancellations
+      if (isRefundEligible && subscription.assignedCoach) {
+        const coach = await User.findById(subscription.assignedCoach).session(session);
+        if (coach) {
+          await handleEarlyRefundAdjustment(subscription, coach, session);
+        }
+      }
+
+      // Handle ambassador commission clawback
       if (isRefundEligible && subscription.ambassadorCode) {
         try {
           await clawbackAmbassadorCommissions(subscription._id, subscription.ambassadorCode);
-          logger.info(`[Subscription] Clawed back ambassador commissions for early cancellation of subscription ${subscription._id}`);
         } catch (clawbackError) {
           logger.error('[Subscription] Error clawing back ambassador commissions:', clawbackError);
         }
@@ -406,7 +413,7 @@ export const cancelSubscription = async (req, res) => {
         await User.findByIdAndUpdate(subscription.user, userUpdate, { session });
       }
 
-      // Handle coach updates
+      // Update coach's client list
       if (subscription.assignedCoach) {
         const coach = await User.findById(subscription.assignedCoach).session(session);
         if (coach) {
@@ -414,19 +421,11 @@ export const cancelSubscription = async (req, res) => {
             (subId) => subId.toString() !== subscription._id.toString()
           );
 
-          const coachUpdate = {
+          await User.findByIdAndUpdate(subscription.assignedCoach, {
             coachingSubscriptions: updatedSubscriptions,
             'availability.currentClients': updatedSubscriptions.length,
-            coachStatus: updatedSubscriptions.length >= coach.availability.maxClients ? 'full' : 'available',
-          };
-
-          if (isRefundEligible) {
-            const plan = PLANS[subscription.subscription];
-            const refundAmount = Math.round(plan.price * 100 * 0.3);
-            coachUpdate.$inc = { 'earnings.pendingAmount': -refundAmount };
-          }
-
-          await User.findByIdAndUpdate(subscription.assignedCoach, coachUpdate, { session });
+            coachStatus: updatedSubscriptions.length >= coach.availability.maxClients ? 'full' : 'available'
+          }, { session });
         }
       }
 
@@ -452,11 +451,15 @@ export const cancelSubscription = async (req, res) => {
         }
       }
 
+      const plan = PLANS[subscription.subscription];
+      const refundAmount = isRefundEligible ? Math.round(plan.price * 0.4 * 100) : 0;
+
       res.json({
         message: isRefundEligible
-          ? 'Subscription cancelled successfully. Refund will be processed shortly.'
+          ? 'Subscription cancelled successfully. 40% refund will be processed shortly.'
           : 'Subscription will be cancelled at the end of the current billing period.',
         refunded: isRefundEligible,
+        refundAmount,
         endDate: isRefundEligible ? new Date() : subscription.currentPeriodEnd,
       });
 
@@ -470,6 +473,49 @@ export const cancelSubscription = async (req, res) => {
   } catch (error) {
     logger.error('Failed to cancel subscription:', error);
     res.status(500).json({ error: 'Failed to cancel subscription' });
+  }
+};
+
+// Helper function to handle early refund adjustments
+const handleEarlyRefundAdjustment = async (subscription, coach, session) => {
+  const plan = PLANS[subscription.subscription];
+  const subscriptionPrice = Math.round(plan.price * 100); // Full subscription price in cents
+  const originalCoachPayout = Math.round(plan.price * 0.6 * 100); // 60% of subscription
+  const deduction = Math.round(plan.price * 0.3 * 100); // 30% deduction from coach
+  const finalCoachAmount = originalCoachPayout - deduction; // $60 - $30 = $30 for $100 subscription
+
+  logger.info(`Refund adjustment calculation:
+    Subscription price: $${subscriptionPrice/100}
+    Original coach payout (60%): $${originalCoachPayout/100}
+    Deduction (30% of subscription): $${deduction/100}
+    Final coach amount: $${finalCoachAmount/100}`);
+
+  // Find pending transaction for this subscription
+  const pendingTransactionIndex = coach.earnings.pendingTransactions.findIndex(
+    tx => tx.subscriptionId.toString() === subscription._id.toString() && tx.status === 'pending'
+  );
+
+  if (pendingTransactionIndex !== -1) {
+    const pendingTransaction = coach.earnings.pendingTransactions[pendingTransactionIndex];
+    const adjustmentAmount = pendingTransaction.amount - finalCoachAmount;
+
+    // Update the pending transaction and pendingAmount
+    await User.findByIdAndUpdate(subscription.assignedCoach, {
+      $inc: { 'earnings.pendingAmount': -adjustmentAmount },
+      $set: { 
+        [`earnings.pendingTransactions.${pendingTransactionIndex}.amount`]: finalCoachAmount,
+        [`earnings.pendingTransactions.${pendingTransactionIndex}.status`]: 'refund_adjusted',
+        [`earnings.pendingTransactions.${pendingTransactionIndex}.originalAmount`]: pendingTransaction.amount,
+        [`earnings.pendingTransactions.${pendingTransactionIndex}.refundDeduction`]: adjustmentAmount
+      }
+    }, { session });
+
+    logger.info(`Adjusted pending amount for coach ${coach._id}:
+      Original pending: $${pendingTransaction.amount/100}
+      Adjusted to: $${finalCoachAmount/100}
+      Deduction: $${adjustmentAmount/100}`);
+  } else {
+    logger.warn(`Cannot adjust pending amount - no pending transaction found for subscription ${subscription._id}`);
   }
 };
 
@@ -850,22 +896,27 @@ export const assignCoach = async (req, res) => {
         return res.status(404).json({ error: 'Coach not found, unavailable, or missing required location data' });
       }
 
-      // Only verify Stripe account on first attempt
       if (retryCount === 0) {
-        stripeAccountVerified = await verifyStripeAccount(coach);
-        if (!stripeAccountVerified) {
+        try {
+          const account = await stripe.accounts.retrieve(coach.stripeAccountId);
+          if (!account.charges_enabled || !account.payouts_enabled) {
+            await session.abortTransaction();
+            return res.status(400).json({ error: 'Coach has not completed payment setup' });
+          }
+        } catch (stripeError) {
           await session.abortTransaction();
-          return res.status(400).json({ error: 'Coach has not completed payment setup' });
+          return res.status(400).json({ error: 'Coach payment setup verification failed' });
         }
-
-        // Calculate coach's share only once
-        const plan = PLANS[subscription.subscription];
-        coachShare = Math.round(plan.price * 0.6 * 100);
-        //('Coach share calculated to give to coach:', coachShare);
       }
+
+      const plan = PLANS[subscription.subscription];
+      const coachShare = Math.round(plan.price * 0.6 * 100); // 60% to coach
+      const releaseDate = new Date();
+      releaseDate.setDate(releaseDate.getDate() + 10); // 10 days from now
 
       // Proceed with MongoDB transaction
       if (subscription.assignedCoach) {
+        
         await User.findByIdAndUpdate(
           subscription.assignedCoach,
           {
@@ -881,23 +932,33 @@ export const assignCoach = async (req, res) => {
 
       // Update coach earnings only if this is the first attempt or if earnings haven't been processed
       if (retryCount === 0 || !subscription.coachEarningsProcessed) {
+        const releaseDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+
         await User.findByIdAndUpdate(
-          coachId,
-          {
-            $inc: { 'earnings.pendingAmount': coachShare }
-          },
-          { session }
-        );
-        
-        logger.info(`[Subscription] Added coach earnings of $${coachShare/100} to coach ${coachId}'s pending amount`);
+        coachId,
+        {
+          $inc: { 'earnings.pendingAmount': coachShare },
+          $push: {
+            'earnings.pendingTransactions': {
+              subscriptionId: subscription._id,
+              amount: coachShare,
+              earnedDate: new Date(),
+              releaseDate: releaseDate,
+              status: 'pending'
+            }
+          }
+        },
+        { session }
+      );
+
+logger.info(`Added $${coachShare/100} to pending for coach ${coachId}, will release on ${releaseDate.toISOString()}`);
+
       }
 
-      const plan = PLANS[subscription.subscription];
-      const updateData = {
+        const updateData = {
         assignedCoach: coachId,
         coachAssignmentDate: new Date(),
         coachAssignmentStatus: subscription.coachAssignmentStatus,
-        coachEarningsProcessed: true, // Mark earnings as processed
         coachPaymentDetails: {
           weeklyAmount: coachShare,
           startDate: new Date(),
@@ -980,6 +1041,99 @@ export const assignCoach = async (req, res) => {
       'Transaction conflict occurred. Please try again.' : 
       'Failed to assign coach';
     res.status(500).json({ error: errorMessage });
+  }
+};
+
+export const releaseReadyPendingPayments = async () => {
+  try {
+    const coaches = await User.find({
+      role: 'coach',
+      'earnings.pendingTransactions': {
+        $elemMatch: {
+          status: 'pending',
+          releaseDate: { $lte: new Date() }
+        }
+      },
+      stripeAccountId: { $exists: true, $ne: null }
+    });
+
+    let totalReleased = 0;
+    let transactionsProcessed = 0;
+
+    for (const coach of coaches) {
+      try {
+        const releasableTransactions = coach.earnings.pendingTransactions.filter(
+          tx => tx.status === 'pending' && tx.releaseDate <= new Date()
+        );
+
+        if (releasableTransactions.length === 0) continue;
+
+        const totalAmount = releasableTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+
+        if (totalAmount < 100) { // Skip if less than $1.00
+          logger.info(`Skipping coach ${coach._id} - release amount too small: ${totalAmount} cents`);
+          continue;
+        }
+
+        // Create Stripe transfer
+        const transfer = await stripe.transfers.create({
+          amount: totalAmount,
+          currency: 'cad',
+          destination: coach.stripeAccountId,
+          description: `Pending amount release for ${releasableTransactions.length} subscription(s)`,
+          metadata: {
+            coachId: coach._id.toString(),
+            releaseDate: new Date().toISOString(),
+            type: 'pending_release',
+            transactionCount: releasableTransactions.length
+          }
+        });
+
+        // Update coach record
+        await User.findByIdAndUpdate(coach._id, {
+          $inc: {
+            'earnings.pendingAmount': -totalAmount,
+            'earnings.totalEarned': totalAmount
+          },
+          $set: {
+            'earnings.pendingTransactions.$[elem].status': 'released',
+            'earnings.pendingTransactions.$[elem].releasedAt': new Date(),
+            'earnings.pendingTransactions.$[elem].stripeTransferId': transfer.id
+          },
+          $push: {
+            'earnings.payoutHistory': {
+              amount: totalAmount,
+              date: new Date(),
+              stripeTransferId: transfer.id,
+              type: 'pending_release',
+              transactionCount: releasableTransactions.length
+            }
+          }
+        }, {
+          arrayFilters: [
+            { 'elem.status': 'pending', 'elem.releaseDate': { $lte: new Date() } }
+          ]
+        });
+
+        logger.info(`Released $${totalAmount/100} to coach ${coach._id} (Transfer: ${transfer.id})`);
+        totalReleased += totalAmount;
+        transactionsProcessed += releasableTransactions.length;
+
+      } catch (error) {
+        logger.error(`Failed to release pending amount for coach ${coach._id}:`, error);
+      }
+    }
+
+    logger.info(`Pending amount release completed: ${transactionsProcessed} transactions, total: $${totalReleased/100}`);
+    return {
+      totalReleased: totalReleased / 100,
+      transactionsProcessed,
+      coachesProcessed: coaches.length
+    };
+    
+  } catch (error) {
+    logger.error('Error in pending amount release process:', error);
+    throw error;
   }
 };
 
@@ -1143,107 +1297,41 @@ export const handleWebhook = async (event) => {
       updatedAt: dbSubscription.updatedAt?.toISOString()
     });
     
-    // Check if this is a renewal (not the initial payment)
-    if (invoice.billing_reason === 'subscription_cycle') {
-      console.log(`[${webhookId}] This is a subscription renewal payment`);
-      
-      try {
-        // Fetch the latest subscription data from Stripe
-        console.log(`[${webhookId}] Fetching latest subscription data from Stripe...`);
-        const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId);
-        
-        console.log(`[${webhookId}] Stripe subscription data:`, {
-          id: stripeSubscription.id,
-          status: stripeSubscription.status,
-          currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000).toISOString(),
-          currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000).toISOString(),
-          cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
-          canceledAt: stripeSubscription.canceled_at ? new Date(stripeSubscription.canceled_at * 1000).toISOString() : null
-        });
-        
-        // Update the subscription
-        console.log(`[${webhookId}] Updating subscription in database...`);
-        const oldStatus = dbSubscription.status;
-        const oldPeriodEnd = dbSubscription.currentPeriodEnd?.toISOString();
-        
-        dbSubscription.currentPeriodStart = new Date(stripeSubscription.current_period_start * 1000);
-        dbSubscription.currentPeriodEnd = new Date(stripeSubscription.current_period_end * 1000);
-        dbSubscription.status = 'active';
-        
-        // Clear endDate if it was set (from cleanup job)
-        if (dbSubscription.endDate) {
-          console.log(`[${webhookId}] Clearing endDate that was previously set: ${dbSubscription.endDate.toISOString()}`);
-          dbSubscription.endDate = undefined;
-        }
-        
-        console.log(`[${webhookId}] About to save subscription with changes:`, {
-          oldStatus,
-          newStatus: dbSubscription.status,
-          oldPeriodEnd,
-          newPeriodEnd: dbSubscription.currentPeriodEnd.toISOString(),
-          endDateCleared: dbSubscription.endDate === undefined
-        });
-        
-        await dbSubscription.save();
-        console.log(`[${webhookId}] Successfully saved subscription ${dbSubscription._id}`);
-        
-        // Send renewal notification
-        if (dbSubscription.user) {
-          try {
-            console.log(`[${webhookId}] Sending renewal notification to user: ${dbSubscription.user}`);
-            await sendSubscriptionRenewalNotification(dbSubscription.user, {
+     if (invoice.billing_reason === 'subscription_cycle') {
+    // For renewals, add to pending amount with 10-day hold
+    if (dbSubscription.assignedCoach) {
+      const plan = PLANS[dbSubscription.subscription];
+      const coachShare = Math.round(plan.price * 0.6 * 100);
+      const releaseDate = new Date();
+      releaseDate.setDate(releaseDate.getDate() + 10);
+          
+      await User.findByIdAndUpdate(
+        dbSubscription.assignedCoach,
+        {
+          $inc: { 'earnings.pendingAmount': coachShare },
+          $push: {
+            'earnings.pendingTransactions': {
               subscriptionId: dbSubscription._id,
-              planType: dbSubscription.subscription,
-              nextBillingDate: dbSubscription.currentPeriodEnd
-            });
-            console.log(`[${webhookId}] Renewal notification sent successfully`);
-          } catch (notificationError) {
-            console.error(`[${webhookId}] Failed to send renewal notification:`, notificationError);
+              amount: coachShare,
+              earnedDate: new Date(),
+              releaseDate: releaseDate,
+              status: 'pending',
+              isRenewal: true
+            }
           }
         }
+      );
 
-        // ========================================
-        // AMBASSADOR COMMISSION PROCESSING FOR RENEWALS
-        // ========================================
-        
-        // Calculate which month this renewal represents
-        const monthsSinceStart = Math.floor(
-          (new Date() - new Date(dbSubscription.startDate)) / (1000 * 60 * 60 * 24 * 30)
-        ) + 1;
-        
-        console.log(`[${webhookId}] Processing ambassador commission check for month ${monthsSinceStart}`);
-        
-        try {
-          await handleCoachingRenewalCommission(dbSubscription, monthsSinceStart);
-          console.log(`[${webhookId}] Successfully processed ambassador renewal commission check for month ${monthsSinceStart}`);
-        } catch (commissionError) {
-          console.error(`[${webhookId}] Error handling ambassador renewal commission:`, commissionError);
-          // Don't fail the webhook for commission errors
-        }
-
-               if (dbSubscription.assignedCoach) {
-          const plan = PLANS[dbSubscription.subscription];
-          const coachShare = Math.round(plan.price * 0.6 * 100); // 60% to coach
-              
-          await User.findByIdAndUpdate(
-            dbSubscription.assignedCoach,
-            {
-              $inc: { 'earnings.pendingAmount': coachShare }
-            }
-          );
-
-          console.log(`Added ${coachShare} cents to coach ${dbSubscription.assignedCoach} for renewal`);
-        }
-        
-        console.log(`[${webhookId}] Successfully updated subscription ${dbSubscription._id} after successful renewal payment`);
-        
-      } catch (stripeError) {
-        console.error(`[${webhookId}] Error retrieving subscription from Stripe:`, stripeError);
-        throw stripeError;
-      }
-    } else {
-      console.log(`[${webhookId}] Skipping non-renewal payment (billing_reason: ${invoice.billing_reason})`);
+      logger.info(`Added $${coachShare/100} to pending amount for coach ${dbSubscription.assignedCoach} (renewal), will release on ${releaseDate.toISOString()}`);
     }
+    
+    // Release ready pending payments when processing renewals
+    try {
+      await releaseReadyPendingPayments();
+    } catch (releaseError) {
+      logger.error('Error releasing ready pending payments during renewal:', releaseError);
+    }
+  }
   } else {
     console.log(`[${webhookId}] Skipping invoice - no subscription ID found`);
     console.log(`[${webhookId}] Invoice structure for debugging:`, {

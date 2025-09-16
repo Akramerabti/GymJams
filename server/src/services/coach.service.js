@@ -6,53 +6,6 @@ import cron from 'node-cron';
 import Subscription from '../models/Subscription.js';
 import { sendSubscriptionEndEmail } from './email.service.js';
 
-
-export const processWeeklyCoachPayouts = async () => {
-  try {
-    // Find all coaches with pending earnings
-    const coaches = await User.find({
-      role: 'coach',
-      'earnings.pendingAmount': { $gt: 0 },
-      stripeAccountId: { $exists: true }
-    });
-
-    for (const coach of coaches) {
-      try {
-        // Create Stripe transfer
-        const transfer = await stripe.transfers.create({
-          amount: coach.earnings.pendingAmount,
-          currency: 'cad',
-          destination: coach.stripeAccountId,
-          description: `Weekly coach payout for ${new Date().toLocaleDateString()}`
-        });
-
-        await User.findByIdAndUpdate(coach._id, {
-          $inc: {
-            'earnings.totalEarned': coach.earnings.pendingAmount,
-            'earnings.pendingAmount': -coach.earnings.pendingAmount
-          },
-          $set: { 'earnings.lastPayout': new Date() },
-          $push: {
-            'earnings.payoutHistory': {
-              amount: coach.earnings.pendingAmount,
-              date: new Date(),
-              stripeTransferId: transfer.id,
-              subscriptions: coach.coachingSubscriptions
-            }
-          }
-        });
-
-        logger.info(`Successfully processed payout for coach ${coach._id}`);
-      } catch (error) {
-        logger.error(`Failed to process payout for coach ${coach._id}:`, error);
-      }
-    }
-  } catch (error) {
-    logger.error('Weekly coach payout processing failed:', error);
-    throw error;
-  }
-};
-
 export const cleanupSubscriptions = async () => {
   try {
     // Find all expired or cancelled subscriptions that still have assigned coaches
@@ -195,38 +148,6 @@ export const cleanupCoachSubscriptions = async () => {
     throw error;
   }
 };
-
-// Add route to trigger cleanup manually
-export const triggerCleanup = async (req, res) => {
-  try {
-    // Add admin check if needed
-    if (req.user.role !== 'admin' && req.user.email !== 'your-admin@email.com') {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-    
-    const result = await cleanupCoachSubscriptions();
-    res.json({
-      message: 'Subscription cleanup completed',
-      ...result,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Manual cleanup trigger failed:', error);
-    res.status(500).json({ error: 'Failed to cleanup subscriptions' });
-  }
-};
-
-export const initializeCoachPayouts = () => {
-  cron.schedule('0 0 * * 0', async () => {
-    try {
-      await processWeeklyCoachPayouts();
-      logger.info('Weekly coach payouts processed successfully');
-    } catch (error) {
-      logger.error('Weekly coach payout cron job failed:', error);
-    }
-  });
-};
-
 
 export const initializeSubcleanupJobs = () => {
   cron.schedule('0 */2 * * *', async () => {
