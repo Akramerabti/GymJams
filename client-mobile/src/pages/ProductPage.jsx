@@ -26,24 +26,53 @@ import { useAuth } from '@/stores/authStore';
 import useCartStore from '@/stores/cartStore';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const constructImageUrl = (path) => {
-  if (!path) return null;
+// Predefined colors for display
+const PREDEFINED_COLORS = [
+  { name: 'Black', hex: '#000000' },
+  { name: 'White', hex: '#FFFFFF' },
+  { name: 'Gray', hex: '#808080' },
+  { name: 'Navy', hex: '#000080' },
+  { name: 'Red', hex: '#FF0000' },
+  { name: 'Blue', hex: '#0000FF' },
+  { name: 'Green', hex: '#008000' },
+  { name: 'Yellow', hex: '#FFFF00' },
+  { name: 'Pink', hex: '#FFC0CB' },
+  { name: 'Purple', hex: '#800080' },
+  { name: 'Orange', hex: '#FFA500' },
+  { name: 'Brown', hex: '#A52A2A' },
+];
+
+function constructImageUrl(imageObj) {
+  if (!imageObj) return '';
   
-  // If it's already a full URL (including Supabase URLs), return as is
-  if (path.startsWith('http')) {
-    return path;
+  // Handle new format with url and color properties
+  if (typeof imageObj === 'object' && imageObj.url) {
+    const url = imageObj.url;
+    if (url.startsWith('http')) {
+      return url;
+    }
+    const apiUrl = import.meta.env.VITE_API_URL;
+    return `${apiUrl.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
   }
   
-  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-  return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
-};
+  // Handle old format (direct string URLs)
+  if (typeof imageObj === 'string') {
+    if (imageObj.startsWith('http')) {
+      return imageObj;
+    }
+    const apiUrl = import.meta.env.VITE_API_URL;
+    return `${apiUrl.replace(/\/$/, '')}/${imageObj.replace(/^\//, '')}`;
+  }
+  
+  return '';
+}
 
 const ProductPage = ({ isPreview = false }) => {
   const { productId } = useParams();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedSize, setSelectedSize] = useState(null);
+  const [selectedColor, setSelectedColor] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [isWishlist, setIsWishlist] = useState(false);
   const [showCopied, setShowCopied] = useState(false);
@@ -58,9 +87,13 @@ const ProductPage = ({ isPreview = false }) => {
     const fetchProduct = async () => {
       try {
         setLoading(true);
-        //('productId:', productId);
         const productData = await productService.getProduct(productId);
         setProduct(productData);
+        
+        // Set default selected color to the first available color
+        if (productData.colors && productData.colors.length > 0) {
+          setSelectedColor(productData.colors[0]);
+        }
       } catch (err) {
         setError(err.message);
       } finally {
@@ -95,14 +128,37 @@ const ProductPage = ({ isPreview = false }) => {
     );
   }
 
-  const productImages = [
-    ...(product.imageUrls || []).map((url) => constructImageUrl(url)),
-    constructImageUrl(product.imageUrl),
-  ].filter(Boolean);
+  // Filter images based on selected color or show all if no color selected
+  const getFilteredImages = () => {
+    if (!product.imageUrls || product.imageUrls.length === 0) {
+      return [];
+    }
+
+    if (!selectedColor) {
+      // Show all images if no color is selected
+      return product.imageUrls.map(constructImageUrl).filter(Boolean);
+    }
+
+    // Filter images for selected color, fallback to images without color assignment
+    const colorSpecificImages = product.imageUrls
+      .filter(img => img.color === selectedColor || img.color === null)
+      .map(constructImageUrl)
+      .filter(Boolean);
+
+    // If no images found for this color, show all images
+    return colorSpecificImages.length > 0 ? colorSpecificImages : 
+           product.imageUrls.map(constructImageUrl).filter(Boolean);
+  };
+
+  const productImages = getFilteredImages();
 
   if (productImages.length === 0) {
     productImages.push('/placeholder-image.jpg');
   }
+
+  const handleColorSelect = (color) => {
+    setSelectedColor(color);
+  };
 
   const handleWishlistClick = async () => {
     if (user) {
@@ -126,9 +182,7 @@ const ProductPage = ({ isPreview = false }) => {
 
   const handleReviewSubmit = async (rating) => {
     if (user) {
-     
       const userId = user.user.id || user.id;
-      const alreadyRated = product.ratedBy && product.ratedBy.includes(userId);
       try {
         await productService.addReview(product.id, { userId, rating });
         const updatedProduct = await productService.getProduct(productId);
@@ -142,27 +196,25 @@ const ProductPage = ({ isPreview = false }) => {
   };
 
   const handleAddToCartClick = async () => {
-    // Create a product object with the required properties
     const productToAdd = { 
       ...product, 
       id: product.id,
+      selectedColor,
       quantity: quantity
     };
     
-    // Add the item to the cart
     await cartStore.addItem(productToAdd, quantity);
-    
-    // Show the animation
     setIsAdded(true);
-    
-    // Reset after animation
-    setTimeout(() => {
-      setIsAdded(false);
-    }, 1500);
+    setTimeout(() => setIsAdded(false), 1500);
+  };
+
+  const getColorHex = (colorName) => {
+    const colorInfo = PREDEFINED_COLORS.find(c => c.name === colorName);
+    return colorInfo?.hex || '#ccc';
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 mt-25">
+    <div className="min-h-screen bg-gray-50 mt-15">
       <div className="container mx-auto px-4 py-8">
         {!isPreview && (
           <div className="flex mb-4 md:mb-6 items-center text-sm text-gray-500">
@@ -184,6 +236,10 @@ const ProductPage = ({ isPreview = false }) => {
                           src={image}
                           alt={`${product.name} - View ${index + 1}`}
                           className="object-cover w-full h-full"
+                          onError={(e) => {
+                            console.error('Image failed to load:', image);
+                            e.target.src = '/placeholder-image.jpg';
+                          }}
                         />
                       </div>
                     </CarouselItem>
@@ -201,6 +257,7 @@ const ProductPage = ({ isPreview = false }) => {
 
           <div className="flex-1 space-y-6">
             <h1 className="text-3xl font-bold">{product.name}</h1>
+            
             <div className="flex items-center space-x-2">
               <div className="flex items-center">
                 {[1, 2, 3, 4, 5].map((star) => (
@@ -221,26 +278,47 @@ const ProductPage = ({ isPreview = false }) => {
                     }}
                   />
                 ))}
-                <span className="ml-2 text-sm text-gray-500">{hoveredRating !== null ? `${hoveredRating} / 5` : `${product.averageRating || 0} / 5`}</span>
-
+                <span className="ml-2 text-sm text-gray-500">
+                  {hoveredRating !== null ? `${hoveredRating} / 5` : `${product.averageRating || 0} / 5`}
+                </span>
               </div>
               <span className="text-sm text-gray-500">({product.ratings?.length || 0} reviews)</span>
               {showReviewSuccess && (
                 <div className="text-green-600 text-sm ml-2">Review added!</div>
               )}
-              {showLoginDialog && (
-                <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
-                  <div className="bg-white rounded-lg shadow-lg p-6 w-80 flex flex-col items-center">
-                    <h3 className="text-lg font-semibold mb-2">Login Required</h3>
-                    <p className="text-gray-600 mb-4">You must be logged in to perform this action.</p>
-                    <Button onClick={() => window.location.href = '/login'} className="w-full mb-2">Login</Button>
-                    <Button variant="outline" onClick={() => setShowLoginDialog(false)} className="w-full">Nevermind</Button>
-                  </div>
-                </div>
-              )}
             </div>
 
             <p className="text-gray-700">{product.description}</p>
+
+            {/* Color Selection */}
+            {product.colors && product.colors.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-lg font-medium">
+                  Color: {selectedColor && <span className="text-gray-600">{selectedColor}</span>}
+                </h3>
+                <div className="flex gap-3 flex-wrap">
+                  {product.colors.map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => handleColorSelect(color)}
+                      className={`w-12 h-12 rounded-full border-2 transition-all relative ${
+                        selectedColor === color 
+                          ? 'border-blue-500 ring-2 ring-blue-200' 
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}
+                      style={{ backgroundColor: getColorHex(color) }}
+                      title={color}
+                    >
+                      {selectedColor === color && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Check className="w-4 h-4 text-white drop-shadow" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-4">
               <div className="text-2xl font-bold">
@@ -298,7 +376,7 @@ const ProductPage = ({ isPreview = false }) => {
               </div>
             </div>
 
-                 <div className="space-y-4">
+            <div className="space-y-4">
               <div className="flex items-center space-x-2 text-sm text-gray-600">
                 <Truck className="h-5 w-5" />
                 <span>Free shipping on orders over $150</span>
@@ -308,12 +386,20 @@ const ProductPage = ({ isPreview = false }) => {
                 <span>30-day return policy</span>
               </div>
             </div>
-
-           
-
-
           </div>
         </div>
+
+        {/* Login Dialog */}
+        {showLoginDialog && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
+            <div className="bg-white rounded-lg shadow-lg p-6 w-80 flex flex-col items-center">
+              <h3 className="text-lg font-semibold mb-2">Login Required</h3>
+              <p className="text-gray-600 mb-4">You must be logged in to perform this action.</p>
+              <Button onClick={() => window.location.href = '/login'} className="w-full mb-2">Login</Button>
+              <Button variant="outline" onClick={() => setShowLoginDialog(false)} className="w-full">Nevermind</Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

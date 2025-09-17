@@ -14,10 +14,22 @@ const productSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 0
-  },  category: {
+  },
+  category: {
     type: String,
     required: true,
     enum: ['Clothes', 'Machines', 'Accessories', 'CardioEquipment']
+  },
+  // Add color variants - array to support multiple colors
+  colors: [{
+    type: String,
+    trim: true
+  }],
+  // Add gender field - only relevant for Clothes category
+  gender: {
+    type: String,
+    enum: ['Men', 'Women', 'Unisex', null],
+    default: null
   },
   stockQuantity: {
     type: Number,
@@ -25,7 +37,11 @@ const productSchema = new mongoose.Schema({
     min: 0,
     default: 0
   },
-  imageUrls: [{ type: String, required: true }],
+  // Modified to support color-specific images
+  imageUrls: [{ 
+    url: { type: String, required: true },
+    color: { type: String, default: null } // Associate image with specific color
+  }],
   featured: {
     type: Boolean,
     default: false
@@ -35,8 +51,8 @@ const productSchema = new mongoose.Schema({
     default: false
   },
   specs: {
-    weight: { type: String }, // was Number
-    dimensions: { type: String }, // was Number or String, keep as String for flexibility
+    weight: { type: String },
+    dimensions: { type: String },
     material: { type: String },
     warranty: { type: String }
   },

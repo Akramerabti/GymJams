@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingBag, Star, TrendingUp, Package, ArrowRight, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import productService from '../../services/product.service';
-import { formatImageUrl } from '../../utils/imageUtils';
+import { getFirstProductImageUrl } from '../../utils/imageUtils';
 
 const ShopSection = ({ isActive, onNavigate, darkMode }) => {
   const { t } = useTranslation();
@@ -62,10 +62,8 @@ const ShopSection = ({ isActive, onNavigate, darkMode }) => {
   ];
 
   const renderProduct = (product) => {
-    const imageUrl = formatImageUrl(
-      product.imageUrls?.[0] || product.images?.[0],
-      '/Picture2.png'
-    );
+    // Use the new helper function to get the first image URL
+    const imageUrl = getFirstProductImageUrl(product, '/Picture2.png');
 
     const isDiscounted = product.discount?.percentage && 
       (!product.discount.startDate || new Date(product.discount.startDate) <= new Date()) &&
@@ -87,6 +85,25 @@ const ShopSection = ({ isActive, onNavigate, darkMode }) => {
             onError={(e) => { e.target.src = '/Picture2.png'; }}
           />
           
+          {/* Color indicator */}
+          {product.colors && product.colors.length > 0 && (
+            <div className="absolute top-2 right-2 flex gap-1">
+              {product.colors.slice(0, 3).map((color, index) => (
+                <div
+                  key={index}
+                  className="w-3 h-3 rounded-full border border-white/50 shadow-sm"
+                  style={{ backgroundColor: color.toLowerCase() }}
+                  title={color}
+                />
+              ))}
+              {product.colors.length > 3 && (
+                <span className="text-xs text-white bg-black/50 rounded-full px-1">
+                  +{product.colors.length - 3}
+                </span>
+              )}
+            </div>
+          )}
+          
           {/* Badges */}
           <div className="absolute top-2 left-2 flex flex-col gap-2">
             {product.featured && (
@@ -102,6 +119,15 @@ const ShopSection = ({ isActive, onNavigate, darkMode }) => {
             {product.stockQuantity <= 5 && product.stockQuantity > 0 && (
               <span className="px-2 py-1 rounded-full bg-orange-500 text-white text-xs font-bold animate-pulse">
                 {product.stockQuantity} left
+              </span>
+            )}
+            {/* Gender indicator for clothes */}
+            {product.category?.toLowerCase() === 'clothes' && product.gender && (
+              <span className={`px-2 py-1 rounded-full text-white text-xs font-bold ${
+                product.gender === 'Men' ? 'bg-blue-500' : 
+                product.gender === 'Women' ? 'bg-pink-500' : 'bg-purple-500'
+              }`}>
+                {product.gender}
               </span>
             )}
           </div>

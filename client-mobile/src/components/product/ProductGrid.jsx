@@ -16,9 +16,22 @@ import { useTheme } from '@/contexts/ThemeContext'; // <-- Add this import
 const ProductGrid = ({ products = [], onProductClick }) => {
   const cartStore = useCartStore(); 
   const { darkMode } = useTheme(); // <-- Use the theme context
-  const constructImageUrl = (path) => {
-    if (!path) return '/placeholder-image.jpg';
-    return path.startsWith('http') ? path : `${import.meta.env.VITE_API_URL}${path}`;
+  
+  const constructImageUrl = (imagePath) => {
+    // Handle null, undefined, or non-string values
+    if (!imagePath) return '/placeholder-image.jpg';
+    
+    // If imagePath is an object, extract the url property
+    if (typeof imagePath === 'object' && imagePath.url) {
+      imagePath = imagePath.url;
+    }
+    
+    // Ensure we have a string before calling startsWith
+    if (typeof imagePath !== 'string') {
+      return '/placeholder-image.jpg';
+    }
+    
+    return imagePath.startsWith('http') ? imagePath : `${import.meta.env.VITE_API_URL}${imagePath}`;
   };
 
   const sortedProducts = [...products].sort((a, b) => {

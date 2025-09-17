@@ -14,6 +14,16 @@ export const getFallbackAvatarUrl = () => {
 export const formatImageUrl = (imageUrl, fallbackUrl = null) => {
   if (!imageUrl) return fallbackUrl || getFallbackAvatarUrl();
   
+  // Handle new product model structure where imageUrls is an array of objects
+  if (typeof imageUrl === 'object' && imageUrl.url) {
+    imageUrl = imageUrl.url;
+  }
+  
+  // Ensure imageUrl is a string after potential object extraction
+  if (typeof imageUrl !== 'string') {
+    return fallbackUrl || getFallbackAvatarUrl();
+  }
+  
   // If it's already a blob URL or a full URL (including Supabase), return as is
   if (imageUrl.startsWith('blob:') || imageUrl.startsWith('http')) {
     return imageUrl;
@@ -34,6 +44,16 @@ export const formatImageUrl = (imageUrl, fallbackUrl = null) => {
 export const formatFileUrl = (fileUrl, fallbackUrl = null) => {
   if (!fileUrl) return fallbackUrl;
   
+  // Handle new product model structure where imageUrls is an array of objects
+  if (typeof fileUrl === 'object' && fileUrl.url) {
+    fileUrl = fileUrl.url;
+  }
+  
+  // Ensure fileUrl is a string after potential object extraction
+  if (typeof fileUrl !== 'string') {
+    return fallbackUrl;
+  }
+  
   // If it's already a blob URL or a full URL (including Supabase), return as is
   if (fileUrl.startsWith('blob:') || fileUrl.startsWith('http')) {
     return fileUrl;
@@ -50,6 +70,45 @@ export const formatFileUrl = (fileUrl, fallbackUrl = null) => {
   return `${baseUrl}/${fileUrl}`;
 };
 
+// Helper function to get the first image URL from the new product model structure
+export const getFirstProductImageUrl = (product, fallbackUrl = '/Picture3.png') => {
+  // Handle new imageUrls structure (array of objects with url and color)
+  if (product.imageUrls && Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
+    const firstImage = product.imageUrls[0];
+    if (typeof firstImage === 'object' && firstImage.url) {
+      return formatImageUrl(firstImage.url, fallbackUrl);
+    } else if (typeof firstImage === 'string') {
+      return formatImageUrl(firstImage, fallbackUrl);
+    }
+  }
+  
+  // Fallback to legacy images field
+  if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+    return formatImageUrl(product.images[0], fallbackUrl);
+  }
+  
+  return fallbackUrl;
+};
+
+// Helper function to get image URL for a specific color
+export const getProductImageUrlForColor = (product, color = null, fallbackUrl = '/Picture3.png') => {
+  if (product.imageUrls && Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
+    // If color is specified, try to find image for that color
+    if (color) {
+      const colorImage = product.imageUrls.find(img => 
+        typeof img === 'object' && img.color && img.color.toLowerCase() === color.toLowerCase()
+      );
+      if (colorImage && colorImage.url) {
+        return formatImageUrl(colorImage.url, fallbackUrl);
+      }
+    }
+    
+    // Return first available image
+    return getFirstProductImageUrl(product, fallbackUrl);
+  }
+  
+  return fallbackUrl;
+};
 
 export const getImageIdFromUrl = (url) => {
   if (!url || !(typeof url === 'string')) return null;
@@ -60,7 +119,6 @@ export const getImageIdFromUrl = (url) => {
   // Extract the filename from the path
   return url.split('/').pop();
 };
-
 
 export const isServerUrl = (url) => {
   if (!url || !(typeof url === 'string')) return false;

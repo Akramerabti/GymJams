@@ -8,6 +8,7 @@ import { getCloudinaryVideoUrl } from '../../utils/cloudinary';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogTrigger } from '../../components/ui/dialog';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { getFirstProductImageUrl } from '../../utils/imageUtils';
 
 const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   const { darkMode } = useTheme();
@@ -49,44 +50,42 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
     }
   }, [isActive, isComponentReady, showContent]);
   
-    useEffect(() => {
-    const fetchFeaturedProducts = async () => {
-      try {
-        setProductsLoading(true);
-        // Fetch only featured products
-        const response = await productService.getProducts({ featured: true });
-        const data = response.data || [];
-        const products = data.map(product => {
-          let imageUrl = '/Picture3.png';
-          if (product.imageUrls && product.imageUrls.length > 0) {
-            const imagePath = product.imageUrls[0];
-            if (imagePath.startsWith('http')) {
-              imageUrl = imagePath;
-            } else {
-              const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-              imageUrl = `${baseUrl}${imagePath.startsWith('/') ? imagePath : `/${imagePath}`}`;
-            }
-          }
-          return {
-            id: product._id,
-            name: product.name,
-            image: imageUrl,
-            price: `$${product.price?.toFixed(2) || '0.00'}`,
-            discount: product.discount,
-            originalPrice: product.price,
-            stockQuantity: product.stockQuantity,
-            preOrder: product.preOrder,
-          };
-        });
-        setFeaturedProducts(products);
-      } catch (error) {
-        setFeaturedProducts([]);
-      } finally {
-        setProductsLoading(false);
-      }
-    };
-    fetchFeaturedProducts();
-  }, []);
+    // Replace the entire fetchFeaturedProducts useEffect with this corrected version:
+
+useEffect(() => {
+  const fetchFeaturedProducts = async () => {
+    try {
+      setProductsLoading(true);
+      // Fetch only featured products
+      const response = await productService.getProducts({ featured: true });
+      console.log('Featured products data:', response.data);
+      const data = response.data || [];
+      
+      // SIMPLIFIED MAPPING - Use utility function only
+      const products = data.map(product => {
+        return {
+          id: product._id,
+          name: product.name,
+          image: getFirstProductImageUrl(product, '/Picture3.png'), // Use utility function
+          price: `$${product.price?.toFixed(2) || '0.00'}`,
+          discount: product.discount,
+          originalPrice: product.price,
+          stockQuantity: product.stockQuantity,
+          preOrder: product.preOrder,
+        };
+      });
+      
+      console.log('Processed products:', products); // Add this to debug processed data
+      setFeaturedProducts(products);
+    } catch (error) {
+      console.error('Error fetching featured products:', error); // Add error logging
+      setFeaturedProducts([]);
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+  fetchFeaturedProducts();
+}, []);
 
   useEffect(() => {
     const fetchGymBrosData = async () => {

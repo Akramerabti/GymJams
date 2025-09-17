@@ -6,7 +6,7 @@ import TextArea from "@/components/ui/TextArea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/Switch";
-import { Eye, Heart, Badge, ShoppingCart, Upload, Image as ImageIcon, Smartphone, Monitor, X, Save, ArrowLeft, Loader2, Plus, Trash } from 'lucide-react';
+import { Eye, Heart, Badge, ShoppingCart, Upload, Image as ImageIcon, Smartphone, Monitor, X, Save, ArrowLeft, Loader2, Plus, Trash, Palette } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -16,7 +16,126 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Drawer, DrawerClose, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { format } from 'date-fns';
 
-  const MobileForm = ({
+// Predefined colors
+const PREDEFINED_COLORS = [
+  { name: 'Black', hex: '#000000' },
+  { name: 'White', hex: '#FFFFFF' },
+  { name: 'Gray', hex: '#808080' },
+  { name: 'Navy', hex: '#000080' },
+  { name: 'Red', hex: '#FF0000' },
+  { name: 'Blue', hex: '#0000FF' },
+  { name: 'Green', hex: '#008000' },
+  { name: 'Yellow', hex: '#FFFF00' },
+  { name: 'Pink', hex: '#FFC0CB' },
+  { name: 'Purple', hex: '#800080' },
+  { name: 'Orange', hex: '#FFA500' },
+  { name: 'Brown', hex: '#A52A2A' },
+];
+
+// Color Selector Component
+const ColorSelector = ({ selectedColors, onColorsChange, touched, error }) => {
+  const [customColor, setCustomColor] = useState('');
+
+  const handleColorToggle = (color) => {
+    if (selectedColors.includes(color)) {
+      onColorsChange(selectedColors.filter(c => c !== color));
+    } else {
+      onColorsChange([...selectedColors, color]);
+    }
+  };
+
+  const handleAddCustomColor = () => {
+    if (customColor && !selectedColors.includes(customColor)) {
+      onColorsChange([...selectedColors, customColor]);
+      setCustomColor('');
+    }
+  };
+
+  const removeColor = (color) => {
+    onColorsChange(selectedColors.filter(c => c !== color));
+  };
+
+  return (
+    <div className="space-y-3">
+      <Label>Available Colors</Label>
+      <div className="grid grid-cols-6 gap-2">
+        {PREDEFINED_COLORS.map(({ name, hex }) => (
+          <button
+            key={name}
+            type="button"
+            onClick={() => handleColorToggle(name)}
+            className={cn(
+              "relative w-full aspect-square rounded-lg border-2 transition-all",
+              selectedColors.includes(name) 
+                ? "border-blue-500 ring-2 ring-blue-200" 
+                : "border-gray-300 hover:border-gray-400"
+            )}
+            title={name}
+          >
+            <div 
+              className="absolute inset-1 rounded-md"
+              style={{ backgroundColor: hex }}
+            />
+            {selectedColors.includes(name) && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="bg-white rounded-full p-1">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="text-blue-500">
+                    <path d="M13.354 4.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L6 11.293l6.646-6.647a.5.5 0 0 1 .708 0z"/>
+                  </svg>
+                </div>
+              </div>
+            )}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-2">
+        <Input
+          placeholder="Add custom color (e.g., Teal, Maroon)"
+          value={customColor}
+          onChange={(e) => setCustomColor(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddCustomColor())}
+          className="flex-1"
+        />
+        <Button 
+          type="button" 
+          size="sm"
+          onClick={handleAddCustomColor}
+          disabled={!customColor}
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {selectedColors.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {selectedColors.map(color => (
+            <div
+              key={color}
+              className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-sm"
+            >
+              <span>{color}</span>
+              <button
+                type="button"
+                onClick={() => removeColor(color)}
+                className="text-gray-500 hover:text-red-500"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      
+      {error && touched && (
+        <p className="text-xs text-red-500">{error}</p>
+      )}
+    </div>
+  );
+};
+
+// Mobile Form Component
+const MobileForm = ({
   product,
   errors,
   touched,
@@ -31,9 +150,15 @@ import { format } from 'date-fns';
   handleImageChange,
   removeImage,
   handleCategoryChange,
+  handleGenderChange,
+  handleColorsChange,
+  assignColorToImage,
   handleSubmit,
   setShowDetailedPreview
-}) => (
+}) => {
+  const [selectedImageIndex, setSelectedImageIndex] = useState(null);
+
+  return (
     <div className="space-y-6">
       <div className="space-y-3">
         <Label htmlFor="name">Product Name</Label>
@@ -44,14 +169,7 @@ import { format } from 'date-fns';
           onChange={handleChange}
           placeholder="Enter product name"
           className={errors.name && touched.name ? 'border-red-500' : ''}
-          error={errors.name && touched.name} // only for border color
         />
-        {/* Debug: show current value and touched */}
-        <div style={{ fontSize: '0.8em', color: '#999' }}>
-          <div>Debug: value = {product.name}</div>
-          <div>Debug: touched = {JSON.stringify(touched)}</div>
-          <div>Debug: errors = {JSON.stringify(errors)}</div>
-        </div>
         {errors.name && touched.name && (
           <p className="text-xs text-red-500">{errors.name}</p>
         )}
@@ -123,6 +241,35 @@ import { format } from 'date-fns';
         {errors.category && touched.category && <p className="text-xs text-red-500">{errors.category}</p>}
       </div>
 
+      {/* Gender selector for Clothes */}
+      {product.category === 'Clothes' && (
+        <div className="space-y-3">
+          <Label htmlFor="gender">Gender</Label>
+          <Select
+            value={product.gender || ''}
+            onValueChange={handleGenderChange}
+          >
+            <SelectTrigger className={errors.gender && touched.gender ? 'border-red-500' : ''}>
+              <SelectValue placeholder="Select gender category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Men">Men</SelectItem>
+              <SelectItem value="Women">Women</SelectItem>
+              <SelectItem value="Unisex">Unisex</SelectItem>
+            </SelectContent>
+          </Select>
+          {errors.gender && touched.gender && <p className="text-xs text-red-500">{errors.gender}</p>}
+        </div>
+      )}
+
+      {/* Color Selector */}
+      <ColorSelector
+        selectedColors={product.colors}
+        onColorsChange={handleColorsChange}
+        touched={touched.colors}
+        error={errors.colors}
+      />
+
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label htmlFor="featured">Featured Product</Label>
@@ -179,25 +326,78 @@ import { format } from 'date-fns';
           <p className="text-xs text-red-500">{errors.images}</p>
         )}
 
-        {/* Image Preview Grid */}
-        {(product.imagePreviews.length > 0) && (
-          <div className="grid grid-cols-4 gap-2 mt-3">
-            {product.imagePreviews.map((preview, index) => (
-              <div key={index} className="relative group">
-                <img
-                  src={preview}
-                  alt={`Preview ${index + 1}`}
-                  className="w-full h-16 object-cover rounded-lg border border-gray-200"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeImage(index)}
-                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X className="h-3 w-3" />
-                </button>
+        {/* Image Preview Grid with Color Assignment */}
+        {product.imagePreviews.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">Tap an image to assign it to a color</p>
+            <div className="grid grid-cols-4 gap-2">
+              {product.imagePreviews.map((preview, index) => (
+                <div key={index} className="relative group">
+                  <img
+                    src={preview.url || preview}
+                    alt={`Preview ${index + 1}`}
+                    className={cn(
+                      "w-full h-16 object-cover rounded-lg cursor-pointer",
+                      selectedImageIndex === index ? "ring-2 ring-blue-500" : ""
+                    )}
+                    onClick={() => setSelectedImageIndex(index)}
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeImage(index);
+                    }}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                  {preview.color && (
+                    <div className="absolute bottom-1 left-1 bg-black/70 text-white text-xs px-1 py-0.5 rounded">
+                      {preview.color}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {selectedImageIndex !== null && product.colors.length > 0 && (
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm font-medium mb-2">
+                  Assign color to image {selectedImageIndex + 1}:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      assignColorToImage(selectedImageIndex, null);
+                      setSelectedImageIndex(null);
+                    }}
+                    className="px-2 py-1 bg-gray-200 rounded text-xs hover:bg-gray-300"
+                  >
+                    No specific color
+                  </button>
+                  {product.colors.map(color => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => {
+                        assignColorToImage(selectedImageIndex, color);
+                        setSelectedImageIndex(null);
+                      }}
+                      className={cn(
+                        "px-2 py-1 rounded text-xs",
+                        product.imagePreviews[selectedImageIndex]?.color === color
+                          ? "bg-blue-500 text-white"
+                          : "bg-white border border-gray-300 hover:bg-gray-50"
+                      )}
+                    >
+                      {color}
+                    </button>
+                  ))}
+                </div>
               </div>
-            ))}
+            )}
           </div>
         )}
       </div>
@@ -309,8 +509,10 @@ import { format } from 'date-fns';
       </div>
     </div>
   );
+};
 
-    const DesktopForm = ({
+// Desktop Form Component
+const DesktopForm = ({
   product,
   errors,
   touched,
@@ -325,9 +527,15 @@ import { format } from 'date-fns';
   handleImageChange,
   removeImage,
   handleCategoryChange,
+  handleGenderChange,
+  handleColorsChange,
+  assignColorToImage,
   handleSubmit,
   setShowDetailedPreview
-}) => (
+}) => {
+  const [selectedImageIndex, setSelectedImageIndex] = useState(null);
+
+  return (
     <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
       {/* Form Column */}
       <div className="md:col-span-3 space-y-6">
@@ -417,31 +625,84 @@ import { format } from 'date-fns';
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="featured" className="block mb-2">Featured Product</Label>
-              <div className="flex items-center h-10">
+              {product.category === 'Clothes' ? (
+                <>
+                  <Label htmlFor="gender">Gender</Label>
+                  <Select
+                    value={product.gender || ''}
+                    onValueChange={handleGenderChange}
+                    required
+                  >
+                    <SelectTrigger className={errors.gender && touched.gender ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Select gender category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Men">Men</SelectItem>
+                      <SelectItem value="Women">Women</SelectItem>
+                      <SelectItem value="Unisex">Unisex</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {errors.gender && touched.gender && <p className="text-xs text-red-500">{errors.gender}</p>}
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="featured" className="block mb-2">Featured Product</Label>
+                  <div className="flex items-center h-10">
+                    <Switch 
+                      id="featured"
+                      checked={product.featured}
+                      onCheckedChange={handleFeaturedChange}
+                    />
+                    <span className="ml-2 text-sm text-gray-600">
+                      {product.featured ? 'Product will be featured' : 'Not featured'}
+                    </span>
+                  </div>
+                  <div className="flex items-center h-10 mt-2">
+                    <Switch
+                      id="preOrder"
+                      checked={product.preOrder}
+                      onCheckedChange={handlePreOrderChange}
+                    />
+                    <span className="ml-2 text-sm text-gray-600">
+                      {product.preOrder ? 'Pre-order enabled' : 'Not a pre-order'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Show toggles below if Clothes category is selected */}
+          {product.category === 'Clothes' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center space-x-2">
                 <Switch 
                   id="featured"
                   checked={product.featured}
                   onCheckedChange={handleFeaturedChange}
                 />
-                <span className="ml-2 text-sm text-gray-600">
-                  {product.featured ? 'Product will be featured' : 'Not featured'}
-                </span>
+                <Label htmlFor="featured">Featured Product</Label>
               </div>
-              <div className="flex items-center h-10 mt-2">
+              <div className="flex items-center space-x-2">
                 <Switch
                   id="preOrder"
                   checked={product.preOrder}
                   onCheckedChange={handlePreOrderChange}
                 />
-                <span className="ml-2 text-sm text-gray-600">
-                  {product.preOrder ? 'Pre-order enabled' : 'Not a pre-order'}
-                </span>
+                <Label htmlFor="preOrder">Pre-order Product</Label>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Image Upload Section */}
+          {/* Color Selector */}
+          <ColorSelector
+            selectedColors={product.colors}
+            onColorsChange={handleColorsChange}
+            touched={touched.colors}
+            error={errors.colors}
+          />
+
+          {/* Image Upload Section with Color Assignment */}
           <div className="space-y-2">
             <Label htmlFor="images" className="flex justify-between">
               Product Images
@@ -479,25 +740,82 @@ import { format } from 'date-fns';
               <p className="text-xs text-red-500">{errors.images}</p>
             )}
 
-            {/* Image Preview Grid */}
+            {/* Image Preview Grid with Color Assignment */}
             {product.imagePreviews.length > 0 && (
-              <div className="grid grid-cols-4 gap-4 mt-4">
-                {product.imagePreviews.map((preview, index) => (
-                  <div key={index} className="relative group">
-                    <img
-                      src={preview}
-                      alt={`Preview ${index + 1}`}
-                      className="w-full h-24 object-cover rounded-lg"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(index)}
-                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  Click on an image to assign it to a specific color variant
+                </p>
+                <div className="grid grid-cols-4 gap-4">
+                  {product.imagePreviews.map((preview, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={preview.url || preview}
+                        alt={`Preview ${index + 1}`}
+                        className={cn(
+                          "w-full h-24 object-cover rounded-lg cursor-pointer transition-all",
+                          selectedImageIndex === index 
+                            ? "ring-2 ring-blue-500" 
+                            : "hover:ring-2 hover:ring-gray-300"
+                        )}
+                        onClick={() => setSelectedImageIndex(index)}
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeImage(index);
+                        }}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                      {preview.color && (
+                        <div className="absolute bottom-1 left-1 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                          {preview.color}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {selectedImageIndex !== null && product.colors.length > 0 && (
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <p className="text-sm font-medium mb-2">
+                      Assign color to image {selectedImageIndex + 1}:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          assignColorToImage(selectedImageIndex, null);
+                          setSelectedImageIndex(null);
+                        }}
+                        className="px-3 py-1 bg-gray-200 rounded text-sm hover:bg-gray-300"
+                      >
+                        No specific color
+                      </button>
+                      {product.colors.map(color => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => {
+                            assignColorToImage(selectedImageIndex, color);
+                            setSelectedImageIndex(null);
+                          }}
+                          className={cn(
+                            "px-3 py-1 rounded text-sm transition-colors",
+                            product.imagePreviews[selectedImageIndex]?.color === color
+                              ? "bg-blue-500 text-white"
+                              : "bg-white border border-gray-300 hover:bg-gray-50"
+                          )}
+                        >
+                          {color}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                ))}
+                )}
               </div>
             )}
           </div>
@@ -627,7 +945,7 @@ import { format } from 'date-fns';
                           <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
                             {product.imagePreviews.length > 0 ? (
                               <img
-                                src={product.imagePreviews[0]}
+                                src={product.imagePreviews[0].url || product.imagePreviews[0]}
                                 alt={product.name || 'Product preview'}
                                 className="w-full h-full object-cover"
                               />
@@ -637,17 +955,26 @@ import { format } from 'date-fns';
                               </div>
                             )}
                           </div>
-                          {product.imagePreviews.length > 1 && (
-                            <div className="grid grid-cols-4 gap-2 mt-2">
-                              {product.imagePreviews.slice(0, 4).map((preview, idx) => (
-                                <div key={idx} className="aspect-square rounded overflow-hidden">
-                                  <img
-                                    src={preview}
-                                    alt={`Preview ${idx + 1}`}
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
-                              ))}
+                          
+                          {/* Color swatches in preview */}
+                          {product.colors.length > 0 && (
+                            <div className="mt-4">
+                              <p className="text-sm font-medium mb-2">Available Colors:</p>
+                              <div className="flex gap-2 flex-wrap">
+                                {product.colors.map(color => {
+                                  const colorInfo = PREDEFINED_COLORS.find(c => c.name === color);
+                                  return (
+                                    <div
+                                      key={color}
+                                      className="w-8 h-8 rounded-full border-2 border-gray-300"
+                                      style={{ 
+                                        backgroundColor: colorInfo?.hex || '#ccc',
+                                      }}
+                                      title={color}
+                                    />
+                                  );
+                                })}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -668,8 +995,14 @@ import { format } from 'date-fns';
                               </Badge>
                             )}
                           </div>
-                          {/* Add Featured and Pre-order boxes below price */}
+                          
                           <div className="flex gap-2 mb-4">
+                            <Badge variant="outline">{product.category || 'Category'}</Badge>
+                            {product.category === 'Clothes' && product.gender && (
+                              <Badge variant="outline" className="bg-purple-50">
+                                {product.gender}
+                              </Badge>
+                            )}
                             {product.featured && (
                               <span className="inline-block bg-blue-100 px-3 py-1 rounded-full text-sm text-blue-600">
                                 Featured
@@ -682,31 +1015,35 @@ import { format } from 'date-fns';
                             )}
                           </div>
                           
-                          <div className="mb-4">
-                            <Badge variant="outline">{product.category || 'Category'}</Badge>
-                          </div>
-                          
                           <p className="text-gray-700 mb-6">
                             {product.description || 'Product description will appear here.'}
                           </p>
                           
                           <div className="grid grid-cols-2 gap-4 mb-6">
-                            <div>
-                              <h3 className="text-sm font-semibold text-gray-700">Weight</h3>
-                              <p className="text-gray-600">{product.specs.weight || 'N/A'}</p>
-                            </div>
-                            <div>
-                              <h3 className="text-sm font-semibold text-gray-700">Dimensions</h3>
-                              <p className="text-gray-600">{product.specs.dimensions || 'N/A'}</p>
-                            </div>
-                            <div>
-                              <h3 className="text-sm font-semibold text-gray-700">Material</h3>
-                              <p className="text-gray-600">{product.specs.material || 'N/A'}</p>
-                            </div>
-                            <div>
-                              <h3 className="text-sm font-semibold text-gray-700">Warranty</h3>
-                              <p className="text-gray-600">{product.specs.warranty || 'N/A'}</p>
-                            </div>
+                            {product.specs.weight && (
+                              <div>
+                                <h3 className="text-sm font-semibold text-gray-700">Weight</h3>
+                                <p className="text-gray-600">{product.specs.weight}</p>
+                              </div>
+                            )}
+                            {product.specs.dimensions && (
+                              <div>
+                                <h3 className="text-sm font-semibold text-gray-700">Dimensions</h3>
+                                <p className="text-gray-600">{product.specs.dimensions}</p>
+                              </div>
+                            )}
+                            {product.specs.material && (
+                              <div>
+                                <h3 className="text-sm font-semibold text-gray-700">Material</h3>
+                                <p className="text-gray-600">{product.specs.material}</p>
+                              </div>
+                            )}
+                            {product.specs.warranty && (
+                              <div>
+                                <h3 className="text-sm font-semibold text-gray-700">Warranty</h3>
+                                <p className="text-gray-600">{product.specs.warranty}</p>
+                              </div>
+                            )}
                           </div>
                           
                           <div className="flex items-center justify-between">
@@ -745,7 +1082,7 @@ import { format } from 'date-fns';
             <div className="space-y-4">
               {product.imagePreviews.length > 0 ? (
                 <img
-                  src={product.imagePreviews[0]} // Use the first image for the quick preview
+                  src={product.imagePreviews[0].url || product.imagePreviews[0]}
                   alt="Product preview"
                   className="w-full h-48 object-cover rounded-lg"
                 />
@@ -774,10 +1111,33 @@ import { format } from 'date-fns';
                     {product.category}
                   </span>
                 )}
+                {product.category === 'Clothes' && product.gender && (
+                  <span className="inline-block bg-purple-100 px-2 py-1 ml-2 rounded-full text-sm text-purple-600">
+                    {product.gender}
+                  </span>
+                )}
                 {product.discount.percentage && (
                   <span className="inline-block bg-green-100 px-2 py-1 rounded-full text-sm text-green-600">
                     {product.discount.percentage}% off
                   </span>
+                )}
+                {product.colors.length > 0 && (
+                  <div className="flex gap-1 mt-2">
+                    {product.colors.slice(0, 5).map(color => {
+                      const colorInfo = PREDEFINED_COLORS.find(c => c.name === color);
+                      return (
+                        <div
+                          key={color}
+                          className="w-6 h-6 rounded-full border border-gray-300"
+                          style={{ backgroundColor: colorInfo?.hex || '#ccc' }}
+                          title={color}
+                        />
+                      );
+                    })}
+                    {product.colors.length > 5 && (
+                      <span className="text-xs text-gray-500 ml-1">+{product.colors.length - 5}</span>
+                    )}
+                  </div>
                 )}
                 {product.featured && (
                   <span className="inline-block bg-blue-100 ml-2 px-3 py-1 rounded-full text-sm text-blue-600">
@@ -796,12 +1156,23 @@ import { format } from 'date-fns';
       </div>
     </div>
   );
+};
 
+// Main ProductForm Component
 const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing = false }) => {
   const isMobile = useMediaQuery({ maxWidth: 768 });
   const [product, setProduct] = useState({
-    name: '', description: '', price: '', category: '', stockQuantity: '',
-    images: [], imagePreviews: [], featured: false, preOrder: false,
+    name: '', 
+    description: '', 
+    price: '', 
+    category: '', 
+    stockQuantity: '',
+    colors: [],
+    gender: null,
+    images: [], 
+    imagePreviews: [], 
+    featured: false, 
+    preOrder: false,
     specs: { weight: '', dimensions: '', material: '', warranty: '' },
     discount: { percentage: '', startDate: '', endDate: '' },
   });
@@ -812,7 +1183,6 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [existingImageCount, setExistingImageCount] = useState(0);
 
- 
   useEffect(() => {
     if (initialData && isEditing) {
       let formattedDiscount = { 
@@ -825,15 +1195,26 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
       setExistingImageCount(existingImages.length);
       
       const imagePreviews = existingImages.map(image => {
-        if (image.startsWith('http')) return image;
-        const apiUrl = import.meta.env.VITE_API_URL;
-        return `${apiUrl.replace(/\/$/, '')}/${image.replace(/^\//, '')}`;
+        if (typeof image === 'object' && image.url) {
+          return image; // Already has the correct structure
+        }
+        if (typeof image === 'string' && image.startsWith('http')) {
+          return { url: image, color: null };
+        }
+        if (typeof image === 'string') {
+          const apiUrl = import.meta.env.VITE_API_URL;
+          return { url: `${apiUrl.replace(/\/$/, '')}/${image.replace(/^\//, '')}`, color: null };
+        }
+        // Fallback for non-string, non-object values
+        return { url: '', color: null };
       });
 
       setProduct({
         ...initialData,
         price: initialData.price.toString(),
         stockQuantity: initialData.stockQuantity.toString(),
+        colors: initialData.colors || [],
+        gender: initialData.gender || null,
         discount: formattedDiscount,
         imagePreviews,
         images: [],
@@ -849,19 +1230,33 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
-    setProduct(prev => {
-      const updated = { ...prev, [name]: value };
- 
-      return updated;
-    });
-    setTouched(prev => {
-      if (prev[name]) return prev; 
-      const updated = { ...prev, [name]: true };
-
-      return updated;
-    });
+    setProduct(prev => ({ ...prev, [name]: value }));
+    setTouched(prev => ({ ...prev, [name]: true }));
     validateField(name, value);
+  };
+
+  const handleCategoryChange = (value) => {
+    setProduct(prev => ({ 
+      ...prev, 
+      category: value,
+      // Reset gender if not Clothes
+      gender: value === 'Clothes' ? prev.gender : null 
+    }));
+    if (errors.category) {
+      setErrors(prev => ({ ...prev, category: '' }));
+    }
+  };
+
+  const handleGenderChange = (value) => {
+    setProduct(prev => ({ ...prev, gender: value }));
+    if (errors.gender) {
+      setErrors(prev => ({ ...prev, gender: '' }));
+    }
+  };
+
+  const handleColorsChange = (colors) => {
+    setProduct(prev => ({ ...prev, colors }));
+    setTouched(prev => ({ ...prev, colors: true }));
   };
 
   const handleDiscountChange = (e) => {
@@ -901,19 +1296,19 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
     const files = Array.from(e.target.files);
     if (!files.length) return;
     
-    //('Selected Files:', files);
-  
     const totalImages = product.images.length + product.imagePreviews.length + files.length;
   
-    // Only enforce the maximum limit during file selection
     if (totalImages > 8) {
       setErrors({ ...errors, images: 'Maximum 8 images allowed' });
       toast.error('Maximum 8 images allowed');
       return;
     }
   
-    // Create object URLs for preview
-    const newPreviews = files.map(file => URL.createObjectURL(file));
+    const newPreviews = files.map(file => ({
+      url: URL.createObjectURL(file),
+      color: null,
+      file: file
+    }));
   
     setProduct(prev => ({
       ...prev,
@@ -926,9 +1321,7 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
   };
 
   const removeImage = (index) => {
-    // Handle differently based on whether it's a new upload or existing image
     if (index < existingImageCount) {
-      // This is an existing image, mark it for removal but keep track of it
       const newImagePreviews = [...product.imagePreviews];
       newImagePreviews.splice(index, 1);
       
@@ -938,13 +1331,13 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
         imagePreviews: newImagePreviews,
       }));
     } else {
-      // This is a newly uploaded image
       const adjustedIndex = index - existingImageCount;
       const newImages = [...product.images];
       const newPreviews = [...product.imagePreviews];
       
-      // Revoke the object URL to prevent memory leaks
-      URL.revokeObjectURL(newPreviews[index]);
+      if (newPreviews[index]?.url?.startsWith('blob:')) {
+        URL.revokeObjectURL(newPreviews[index].url);
+      }
       
       newImages.splice(adjustedIndex, 1);
       newPreviews.splice(index, 1);
@@ -959,17 +1352,21 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
     validateField('images', product.images);
   };
 
-  const handleCategoryChange = (value) => {
-    setProduct({ ...product, category: value });
-    if (errors.category) {
-      setErrors((prev) => ({ ...prev, category: '' }));
-    }
+  const assignColorToImage = (imageIndex, color) => {
+    const newPreviews = [...product.imagePreviews];
+    newPreviews[imageIndex] = {
+      ...newPreviews[imageIndex],
+      color: color
+    };
+    setProduct(prev => ({
+      ...prev,
+      imagePreviews: newPreviews
+    }));
   };
 
- const validateField = (name, value) => {
+  const validateField = (name, value) => {
     setErrors(prevErrors => {
-      const newErrors = { ...prevErrors };    
-
+      const newErrors = { ...prevErrors };
 
       switch (name) {
         case 'name':
@@ -995,7 +1392,6 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
           else delete newErrors.stockQuantity;
           break;
         case 'images':
-          // The total count includes newly added files and existing image previews
           const totalImageCount = (Array.isArray(value) ? value.length : 0) + (isEditing ? existingImageCount : 0);
 
           if (isEditing && product.imagePreviews.length >= 2) {
@@ -1021,6 +1417,9 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
     if (!product.description) newErrors.description = 'Description is required';
     if (!product.price || isNaN(product.price) || product.price <= 0) newErrors.price = 'Price must be a valid number greater than 0';
     if (!product.category) newErrors.category = 'Category is required';
+    if (product.category === 'Clothes' && !product.gender) {
+      newErrors.gender = 'Gender selection is required for clothing';
+    }
     if (!product.stockQuantity || isNaN(product.stockQuantity) || product.stockQuantity < 0) newErrors.stockQuantity = 'Stock must be a valid number 0 or greater';
     const totalImageCount = product.images.length + product.imagePreviews.length;
     if (totalImageCount < 2) newErrors.images = 'Minimum 2 images required';
@@ -1029,7 +1428,16 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setTouched({ name: true, description: true, price: true, category: true, stockQuantity: true, images: true });
+    setTouched({ 
+      name: true, 
+      description: true, 
+      price: true, 
+      category: true, 
+      stockQuantity: true, 
+      images: true,
+      gender: product.category === 'Clothes',
+      colors: true 
+    });
     
     const validationErrors = validateForm();
     setErrors(validationErrors);
@@ -1042,25 +1450,49 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
     setIsSubmitting(true);
     try {
       const formData = new FormData();
+      
+      // Basic fields
       Object.keys(product).forEach(key => {
         if (key === 'images') {
           product.images.forEach(file => formData.append('images', file));
         } else if (key === 'specs' || key === 'discount') {
           formData.append(key, JSON.stringify(product[key]));
+        } else if (key === 'colors') {
+          formData.append('colors', JSON.stringify(product.colors));
+        } else if (key === 'gender' && product.category === 'Clothes') {
+          formData.append('gender', product.gender);
         } else if (key === 'ratings') {
-          // Ensure ratings is appended as JSON, not stringified as [object Object]
           formData.append('ratings', JSON.stringify(product[key]));
         } else if (key !== 'imagePreviews') {
           formData.append(key, product[key]);
         }
       });
+
+      // Handle image color associations
+      const imageColorAssociations = [];
+      product.imagePreviews.forEach((preview, index) => {
+        if (preview.color && index >= existingImageCount) {
+          imageColorAssociations.push({
+            index: index - existingImageCount,
+            color: preview.color
+          });
+        }
+      });
+      formData.append('imageColorAssociations', JSON.stringify(imageColorAssociations));
+
       if (isEditing && initialData?._id) {
         formData.append('_id', initialData._id);
         const existingImagesFromPreviews = product.imagePreviews
-          .filter(p => !p.startsWith('blob:'))
-          .map(url => url.split('/').slice(-2).join('/'));
+          .slice(0, existingImageCount)
+          .map(preview => {
+            if (typeof preview === 'object' && preview.url) {
+              return { url: preview.url, color: preview.color };
+            }
+            return { url: preview, color: null };
+          });
         formData.append('existingImages', JSON.stringify(existingImagesFromPreviews));
       }
+
       await onAddProduct(formData);
       toast.success(isEditing ? 'Product updated successfully!' : 'Product added successfully!');
     } catch (error) {
@@ -1071,25 +1503,26 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
     }
   };
 
-
-
- const formProps = {
-      product,
-      errors,
-      touched,
-      categories,
-      isSubmitting,
-      isEditing,
-      handleChange,
-      handleDiscountChange,
-      handleSpecsChange,
-      handleFeaturedChange,
-      handlePreOrderChange,
-      handleImageChange,
-      removeImage,
-      handleCategoryChange,
-      handleSubmit,
-      setShowDetailedPreview,
+  const formProps = {
+    product,
+    errors,
+    touched,
+    categories,
+    isSubmitting,
+    isEditing,
+    handleChange,
+    handleDiscountChange,
+    handleSpecsChange,
+    handleFeaturedChange,
+    handlePreOrderChange,
+    handleImageChange,
+    removeImage,
+    handleCategoryChange,
+    handleGenderChange,
+    handleColorsChange,
+    assignColorToImage,
+    handleSubmit,
+    setShowDetailedPreview,
   };
 
   return (
@@ -1097,6 +1530,6 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
       {isMobile ? <MobileForm {...formProps} /> : <DesktopForm {...formProps} />}
     </>
   );
-}
+};
 
 export default ProductForm;

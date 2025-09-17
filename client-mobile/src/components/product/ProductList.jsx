@@ -115,41 +115,45 @@ const ProductList = ({
   };
 
   // Get the first product image, handling different possible image fields
-  const getFirstProductImage = (product) => {
-    // Check all possible image field names
-    if (Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
-      return product.imageUrls[0];
-    } else if (Array.isArray(product.images) && product.images.length > 0) {
-      return product.images[0];
-    } else {
-      return null;
-    }
-  };
+const getFirstProductImage = (product) => {
+  // Check all possible image field names
+  if (Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
+    const firstImage = product.imageUrls[0];
+    // Handle both string URLs and objects with url property
+    return typeof firstImage === 'string' ? firstImage : firstImage?.url || null;
+  } else if (Array.isArray(product.images) && product.images.length > 0) {
+    const firstImage = product.images[0];
+    // Handle both string URLs and objects with url property
+    return typeof firstImage === 'string' ? firstImage : firstImage?.url || null;
+  } else {
+    return null;
+  }
+};
 
-  // Process and normalize product image path/url
-  const getImageUrl = (imagePath) => {
-    if (!imagePath) return null;
-    
-    if (imagePath.startsWith('http')) {
-      return imagePath;
-    }
-    
-    // Ensure proper path construction with API URL
-    const apiUrl = import.meta.env.VITE_API_URL || '';
-    
-    // Handle cases where both path and API URL might have slashes
-    if (imagePath.startsWith('/') && apiUrl.endsWith('/')) {
-      return apiUrl + imagePath.substring(1);
-    }
-    
-    // Handle cases where neither has a slash
-    if (!imagePath.startsWith('/') && !apiUrl.endsWith('/')) {
-      return `${apiUrl}/${imagePath}`;
-    }
-    
-    // Default case - just concatenate them
-    return `${apiUrl}${imagePath}`;
-  };
+const getImageUrl = (imagePath) => {
+  // Add type check to ensure imagePath is a string
+  if (!imagePath || typeof imagePath !== 'string') return null;
+  
+  if (imagePath.startsWith('http')) {
+    return imagePath;
+  }
+  
+  // Ensure proper path construction with API URL
+  const apiUrl = import.meta.env.VITE_API_URL || '';
+  
+  // Handle cases where both path and API URL might have slashes
+  if (imagePath.startsWith('/') && apiUrl.endsWith('/')) {
+    return apiUrl + imagePath.substring(1);
+  }
+  
+  // Handle cases where neither has a slash
+  if (!imagePath.startsWith('/') && !apiUrl.endsWith('/')) {
+    return `${apiUrl}/${imagePath}`;
+  }
+  
+  // Default case - just concatenate them
+  return `${apiUrl}${imagePath}`;
+};
 
   // Display image thumbnail
   const getThumbnail = (product) => {
