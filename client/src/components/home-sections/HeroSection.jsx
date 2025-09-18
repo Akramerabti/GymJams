@@ -154,7 +154,7 @@ useEffect(() => {
 
   return (
   // The main container for the entire HeroSection
-    <div className="absolute inset-0" style={{ marginTop: 'var(--navbar-height, 0px)' }}>
+    <div className="relative w-full h-[100dvh] overflow-hidden">
       {!isComponentReady && (
         <div className="absolute inset-0 z-50 bg-black flex items-center justify-center">
           <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
@@ -225,7 +225,7 @@ useEffect(() => {
         }`}
       >
         {/* Mobile Layout: Two Sections Stacked */}
-        <div className="h-full flex flex-col pointer-events-auto">
+        <div className="h-full flex flex-col">
           {/* Desktop Heading - Hidden on Mobile */}
           <div className="hidden lg:block text-center">
             <p className={`text-xl lg:text-2xl max-w-3xl mx-auto leading-relaxed transition-colors duration-500 ${
@@ -240,7 +240,7 @@ useEffect(() => {
               className="relative z-20 w-full flex items-center justify-center overflow-hidden"
               style={{
                 paddingTop: 'var(--navbar-height)',
-                height: 'clamp(150px, 50vh, 150px)', 
+                height: 'clamp(150px, 50dvh, 150px)'
               }}
             >
               {/* Video Background - Full width */}
@@ -321,8 +321,15 @@ useEffect(() => {
            <div className={`py-6 px-4 relative z-5 ${darkMode ? 'bg-gray-900' : 'bg-white'}`}>
     <div className="flex justify-center items-center gap-5 sm:gap-6 md:gap-8 lg:gap-6 flex-wrap max-w-lg mx-auto">
       <button
-        onClick={() => navigateToSection(1)}
-        className={`relative rounded-full transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
+        onClick={() => {
+  console.log('Button clicked, navigating to section:', 1);
+  if (goToSection) {
+    goToSection(1);
+  } else {
+    console.error('goToSection prop not passed');
+  }
+}}
+         className={`relative rounded-full transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform z-50 pointer-events-auto ${
           hasAnimationStarted
             ? 'animate-slideDownFromVideo'
             : 'opacity-0 invisible pointer-events-none'
@@ -345,7 +352,7 @@ useEffect(() => {
       </button>
       <button
         onClick={() => navigateToSection(2)}
-        className={`relative rounded-full transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
+         className={`relative rounded-full transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform z-50 pointer-events-auto ${
           hasAnimationStarted
             ? 'animate-slideDownFromVideo'
             : 'opacity-0 invisible pointer-events-none'
@@ -368,7 +375,7 @@ useEffect(() => {
       </button>
       <button
         onClick={() => navigateToSection(3)}
-        className={`relative rounded-full transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
+         className={`relative rounded-full transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform z-50 pointer-events-auto ${
           hasAnimationStarted
             ? 'animate-slideDownFromVideo'
             : 'opacity-0 invisible pointer-events-none'
@@ -391,7 +398,7 @@ useEffect(() => {
       </button>
       <button
         onClick={() => navigateToSection(4)}
-        className={`relative rounded-full transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform ${
+         className={`relative rounded-full transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform z-50 pointer-events-auto ${
           hasAnimationStarted
             ? 'animate-slideDownFromVideo'
             : 'opacity-0 invisible pointer-events-none'
@@ -420,8 +427,8 @@ useEffect(() => {
 <div
             className={`flex-1 flex flex-col items-center justify-start px-3 sm:px-4 lg:px-8 pt-6 sm:pt-8 lg:pt-6 pb-10 sm:pb-16 ${darkMode ? 'bg-gradient-to-b from-gray-900 via-gray-900 to-white/5' : 'bg-gradient-to-b from-white via-white to-black/5'}`}
             style={{
-              minHeight: 'clamp(400px, 55vh, 900px)',
-              maxHeight: 'clamp(500px, 70vh, 1100px)',
+              minHeight: 'clamp(400px, 55dvh, 900px)',
+              maxHeight: 'clamp(500px, 70dvh, 1100px)',
               height: '100%',
               boxSizing: 'border-box',
               overflow: 'hidden', // Changed from 'visible' to 'hidden'

@@ -34,6 +34,7 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
 
   const { login, register } = useAuth();
 
+
   useEffect(() => {
     if (isOpen && currentScreen === 'loading') {
       const timer = setTimeout(() => {
@@ -85,9 +86,13 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
       const timer = setInterval(() => {
         setCooldown(current => current - 1);
       }, 1000);
-      return () => clearInterval(timer);
+      return () => {
+        clearInterval(timer);
+      };
     }
   }, [cooldown]);
+
+  // ...existing code...
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -171,12 +176,10 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
     setIsLoading(true);
     try {
       await api.post('/auth/forgot-password', { email: passwordSetupEmail });
-      
       setEmailSent(true);
       setCooldown(60);
       toast.success('Password setup email sent!');
     } catch (error) {
-      console.error('Error sending password setup email:', error);
       toast.error('Failed to send email. Please try again.');
     } finally {
       setIsLoading(false);
@@ -184,141 +187,111 @@ const MobileGatekeeper = ({ isOpen, onAccountCreated, onClose }) => {
   };
 
 const handleLogin = async (data = formData, retryCount = 0) => {
-  if (!validateStep(1)) return;
+  if (!validateStep(1)) {
+    return;
+  }
   
   setIsLoading(true);
   
   try {
     setErrors({});
-    
     await login(data.email, data.password);
-    
-    setCurrentScreen('success');
-    
-    if (onAccountCreated) {
-      onAccountCreated({ email: data.email }, 'logged_in_successfully');
-    }
-    
+    localStorage.setItem('showLoginSuccess', 'true');
     localStorage.setItem('hasCompletedOnboarding', 'true');
     localStorage.setItem('userLoginMethod', 'email_password');
     localStorage.setItem('persistentLogin', 'true');
-    
-    loginTimeoutRef.current = setTimeout(() => {
-      if (!isOpen) return;
-      
-      loginTimeoutRef.current = null;
-      
-      if (onClose) {
-        onClose();
-      }
-      
-      if (window.location.pathname !== '/') {
-        window.location.href = '/';
-      }
-    }, 3000);
-      
-    } catch (err) {
-      if (loginTimeoutRef.current) {
-        clearTimeout(loginTimeoutRef.current);
-        loginTimeoutRef.current = null;
-      }
-
-      // ✅ CHECK FOR OAUTH USER FIRST - before retry logic
-      if (err.isOAuthUser || err.redirectToPasswordSetup || err.response?.data?.isOAuthUser) {
-        // Set up password setup screen instead of redirecting externally
-        setPasswordSetupEmail(data.email);
-        setCurrentScreen('password-setup');
-        setIsLoading(false);
-        return;
-      }
-
-      const MAX_RETRIES = 3;
-      if ((err.statusCode === 408 || !err.response) && retryCount < MAX_RETRIES) {
-        const nextRetry = retryCount + 1;
-        const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
-        toast.info(`Retrying login attempt ${nextRetry}/${MAX_RETRIES}...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return handleLogin(data, nextRetry);
-      }
-      
-      setCurrentScreen('auth');
-
-      let errorMessage = 'An unexpected error occurred. Please try again.';
-      if (err.code === 'ECONNABORTED') {
-        errorMessage = 'Request timed out. Please check your internet connection and try again.';
-      } else if (err.response) {
-        switch (err.response.status) {
-          case 400:
-            // ✅ ADDITIONAL CHECK in 400 status handling
-            if (err.response.data?.isOAuthUser) {
-              setPasswordSetupEmail(data.email);
-              setCurrentScreen('password-setup');
-              setIsLoading(false);
-              return;
-            }
-            errorMessage = 'Email and password are required.';
-            break;
-          case 401:
-            errorMessage = 'Invalid email or password. Please check your credentials.';
-            break;
-          case 403:
-            errorMessage = 'Your email is not verified. Please check your inbox.';
-            break;
-          case 404:
-            errorMessage = 'User not found. Please check your email address.';
-            break;
-          case 429:
-            errorMessage = 'Too many login attempts. Please try again later.';
-            break;
-          case 500:
-            errorMessage = 'Server error. Please try again later.';
-            break;
-          default:
-            errorMessage = 'Something went wrong. Please try again.';
-        }
-      } else if (err.request) {
-        errorMessage = 'Network error. Please check your internet connection and try again.';
-      }
-      
-      setErrors({ submit: errorMessage });
-      toast.error('Login failed', { description: errorMessage });
-      
-      if (retryCount >= MAX_RETRIES) {
-        toast.info('Refreshing page...', { duration: 2000 });
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
-      }
-    } finally {
-      setIsLoading(false);
+    if (onAccountCreated) {
+      onAccountCreated({ email: data.email }, 'logged_in_successfully');
     }
-  };
+    if (onClose) {
+      onClose();
+    }
+    toast.success('Login successful!');
+    setTimeout(() => {
+      navigate('/?loginSuccess=true');
+    }, 100);
+  } catch (err) {
+    if (err.isOAuthUser || err.redirectToPasswordSetup || err.response?.data?.isOAuthUser) {
+      setPasswordSetupEmail(data.email);
+      setCurrentScreen('password-setup');
+      setIsLoading(false);
+      return;
+    }
+    const MAX_RETRIES = 3;
+    if ((err.statusCode === 408 || !err.response) && retryCount < MAX_RETRIES) {
+      const nextRetry = retryCount + 1;
+      const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+      toast.info(`Retrying login attempt ${nextRetry}/${MAX_RETRIES}...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return handleLogin(data, nextRetry);
+    }
+    let errorMessage = 'An unexpected error occurred. Please try again.';
+    if (err.code === 'ECONNABORTED') {
+      errorMessage = 'Request timed out. Please check your internet connection and try again.';
+    } else if (err.response) {
+      switch (err.response.status) {
+        case 400:
+          if (err.response.data?.isOAuthUser) {
+            setPasswordSetupEmail(data.email);
+            setCurrentScreen('password-setup');
+            setIsLoading(false);
+            return;
+          }
+          errorMessage = 'Email and password are required.';
+          break;
+        case 401:
+          errorMessage = 'Invalid email or password. Please check your credentials.';
+          break;
+        case 403:
+          errorMessage = 'Your email is not verified. Please check your inbox.';
+          break;
+        case 404:
+          errorMessage = 'User not found. Please check your email address.';
+          break;
+        case 429:
+          errorMessage = 'Too many login attempts. Please try again later.';
+          break;
+        case 500:
+          errorMessage = 'Server error. Please try again later.';
+          break;
+        default:
+          errorMessage = 'Something went wrong. Please try again.';
+      }
+    } else if (err.request) {
+      errorMessage = 'Network error. Please check your internet connection and try again.';
+    }
+    setErrors({ submit: errorMessage });
+    toast.error('Login failed', { description: errorMessage });
+    if (retryCount >= MAX_RETRIES) {
+      toast.info('Refreshing page...', { duration: 2000 });
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    }
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleSignup = async () => {
-    if (!validateStep(2)) return;
-    
+    if (!validateStep(2)) {
+      return;
+    }
     setIsLoading(true);
-    
     try {
       const { confirmPassword, ...registrationData } = formData;
       const response = await register(registrationData);
-      
       if (response && (response.token || response.user)) {
         localStorage.setItem('verificationEmail', registrationData.email);
-        
         toast.success('Registration successful!', {
           description: 'Please check your email to verify your account.'
         });
-        
         const encodedEmail = encodeURIComponent(registrationData.email);
-        window.location.href = `/email-verification-notification?email=${encodedEmail}`;
-        
+        navigate(`/email-verification-notification?email=${encodedEmail}`);
         return;
       }
-      
       toast.error('Registration unsuccessful. No token or user returned.');
       throw new Error('Registration unsuccessful');
-      
     } catch (error) {
       const errorMessage = error?.response?.data?.message || error?.message || 'Registration failed. Please try again.';
       setErrors({ submit: errorMessage });
@@ -343,79 +316,52 @@ const handleLogin = async (data = formData, retryCount = 0) => {
   if (currentScreen === 'loading') {
     return (
       <div className="fixed inset-0 z-50 bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 overflow-hidden" data-gatekeeper="true" data-screen="loading">
-        <div className="h-full flex flex-col">
-          <div className="flex-1 flex items-center justify-center px-4">
-            <motion.div 
-              className="text-center"
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
-            >
+        <div className="h-full flex flex-col items-center justify-center px-4">
+          <motion.div
+            className="mx-auto mb-8 flex items-center justify-center"
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            style={{ width: 'clamp(7rem, 30vw, 10rem)', height: 'clamp(7rem, 30vw, 10rem)' }}
+          >
+            <img
+              src="/Picture2.png"
+              alt="GymTonic"
+              style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '1.5rem', background: 'rgba(255,255,255,0.05)' }}
+            />
+          </motion.div>
+          <motion.p
+            className="text-indigo-200 font-medium mb-8 text-center"
+            style={{ fontSize: 'clamp(0.9rem, 3.5vw, 1.25rem)' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+          >
+            All for one Fitness, For All
+          </motion.p>
+          <motion.div
+            className="flex justify-center gap-2"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.2 }}
+          >
+            {[0, 1, 2].map((i) => (
               <motion.div
-                className="mx-auto mb-6 bg-gradient-to-br from-blue-400 via-indigo-500 to-purple-500 rounded-3xl flex items-center justify-center shadow-2xl"
-                style={{ width: 'clamp(4rem, 15vw, 6rem)', height: 'clamp(4rem, 15vw, 6rem)' }}
-                animate={{ 
-                  scale: [1, 1.05, 1],
-                  rotate: [0, 2, -2, 0]
+                key={i}
+                className="bg-gradient-to-r from-blue-400 to-purple-400 rounded-full"
+                style={{ width: 'clamp(0.6rem, 2vw, 1rem)', height: 'clamp(0.6rem, 2vw, 1rem)' }}
+                animate={{
+                  y: [-10, 0, -10],
+                  opacity: [0.4, 1, 0.4],
                 }}
-                transition={{ 
-                  duration: 3,
+                transition={{
+                  duration: 1.5,
                   repeat: Infinity,
-                  ease: "easeInOut"
+                  delay: i * 0.2,
                 }}
-              >
-                <div className="bg-white/90 rounded-2xl flex items-center justify-center"
-                  style={{ width: '70%', height: '70%' }}>
-                  <span className="text-transparent bg-gradient-to-br from-blue-600 to-purple-600 bg-clip-text font-bold" 
-                    style={{ fontSize: 'clamp(1.5rem, 4vw, 2rem)' }}>GT</span>
-                </div>
-              </motion.div>
-
-              <motion.h1
-                className="font-black text-white mb-2"
-                style={{ fontSize: 'clamp(1.5rem, 6vw, 2.5rem)' }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
-              >
-                GymTonic
-              </motion.h1>
-
-              <motion.p
-                className="text-indigo-200 font-medium mb-8"
-                style={{ fontSize: 'clamp(0.9rem, 3.5vw, 1.25rem)' }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.8 }}
-              >
-                Transform Your Body, Elevate Your Mind
-              </motion.p>
-
-              <motion.div
-                className="flex justify-center gap-2"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1.2 }}
-              >
-                {[0, 1, 2].map((i) => (
-                  <motion.div
-                    key={i}
-                    className="bg-gradient-to-r from-blue-400 to-purple-400 rounded-full"
-                    style={{ width: 'clamp(0.6rem, 2vw, 1rem)', height: 'clamp(0.6rem, 2vw, 1rem)' }}
-                    animate={{
-                      y: [-10, 0, -10],
-                      opacity: [0.4, 1, 0.4],
-                    }}
-                    transition={{
-                      duration: 1.5,
-                      repeat: Infinity,
-                      delay: i * 0.2,
-                    }}
-                  />
-                ))}
-              </motion.div>
-            </motion.div>
-          </div>
+              />
+            ))}
+          </motion.div>
         </div>
       </div>
     );
@@ -430,6 +376,8 @@ const handleLogin = async (data = formData, retryCount = 0) => {
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.6 }}
+            onAnimationStart={() => console.log('🚪 MOBILE_GATEKEEPER: Success screen animation started')}
+            onAnimationComplete={() => console.log('🚪 MOBILE_GATEKEEPER: Success screen animation completed')}
           >
             <motion.div
               className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-green-400 to-teal-400 rounded-full flex items-center justify-center shadow-2xl"
@@ -627,26 +575,24 @@ const handleLogin = async (data = formData, retryCount = 0) => {
     );
   }
 
+
   return (
     <div className="fixed inset-0 z-50 bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 overflow-hidden">
       <div className="h-full flex flex-col">
         {/* Header */}
         <div className="pt-20 pb-4 px-6">
           <motion.div
-            className="mx-auto mb-4 bg-gradient-to-br from-orange-500 via-red-500 to-pink-600 rounded-2xl flex items-center justify-center shadow-xl"
+            className="mx-auto mb-4 flex items-center justify-center"
             style={{ width: 'clamp(4rem, 15vw, 6rem)', height: 'clamp(4rem, 15vw, 6rem)' }}
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ type: "spring", stiffness: 260, damping: 20 }}
           >
-            <div className="bg-white/90 rounded-xl flex items-center justify-center"
-              style={{ width: '80%', height: '80%' }}>
-              <img
-                src="/Picture2.png"
-                alt="GymTonic"
-                style={{ width: '80%', height: '80%', objectFit: 'contain' }}
-              />
-            </div>
+            <img
+              src="/Picture2.png"
+              alt="GymTonic"
+              style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '1.5rem' }}
+            />
           </motion.div>
 
           <motion.h1
@@ -670,7 +616,7 @@ const handleLogin = async (data = formData, retryCount = 0) => {
           </motion.p>
         </div>
 
-        {/* Form Container - Enhanced dark styling */}
+        {/* Form Container */}
         <div className="flex-1 bg-gradient-to-br from-gray-800/95 via-gray-800/95 to-gray-900/95 backdrop-blur-xl rounded-t-3xl border-t border-white/10 overflow-hidden">
           <div className="h-full overflow-y-auto px-6 py-6">
             {authMode === 'login' ? (
@@ -681,11 +627,15 @@ const handleLogin = async (data = formData, retryCount = 0) => {
                 className="space-y-4"
                 onSubmit={(e) => {
                   e.preventDefault();
+                  console.log('🚪 MOBILE_GATEKEEPER: Login form submitted');
                   handleLogin();
                 }}
               >
                 {/* Social Login Buttons */}
-                <BrowserGoogleAuthButton onAccountCreated={onAccountCreated} />
+                <BrowserGoogleAuthButton onAccountCreated={(userData, action) => {
+                  console.log('🚪 MOBILE_GATEKEEPER: BrowserGoogleAuthButton callback:', { userData, action });
+                  onAccountCreated(userData, action);
+                }} />
 
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
@@ -734,7 +684,10 @@ const handleLogin = async (data = formData, retryCount = 0) => {
                     />
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
+                      onClick={() => {
+                        console.log('🚪 MOBILE_GATEKEEPER: Password visibility toggled');
+                        setShowPassword(!showPassword);
+                      }}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-orange-400"
                     >
                       {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -771,6 +724,7 @@ const handleLogin = async (data = formData, retryCount = 0) => {
                   <button
                     type="button"
                     onClick={() => {
+                      console.log('🚪 MOBILE_GATEKEEPER: Switching to signup mode');
                       setAuthMode('signup');
                       setErrors({});
                     }}
@@ -781,7 +735,7 @@ const handleLogin = async (data = formData, retryCount = 0) => {
                 </p>
               </motion.form>
             ) : (
-              // Signup Form with Steps (Enhanced for dark mode)
+              // Signup Form with Steps
               <AnimatePresence mode="wait">
                 {step === 1 ? (
                   // Step 1: Personal Info
@@ -793,6 +747,7 @@ const handleLogin = async (data = formData, retryCount = 0) => {
                     className="space-y-4"
                     onSubmit={(e) => {
                       e.preventDefault();
+                      console.log('🚪 MOBILE_GATEKEEPER: Step 1 form submitted');
                       handleStepTransition();
                     }}
                   >
@@ -819,7 +774,7 @@ const handleLogin = async (data = formData, retryCount = 0) => {
                       </div>
                     </div>
 
-                    {/* Form fields with enhanced dark styling */}
+                    {/* Form fields */}
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">First Name</label>
                       <div className="relative">
@@ -894,6 +849,7 @@ const handleLogin = async (data = formData, retryCount = 0) => {
                       <button
                         type="button"
                         onClick={() => {
+                          console.log('🚪 MOBILE_GATEKEEPER: Switching to login mode');
                           setAuthMode('login');
                           setErrors({});
                           setStep(1);
@@ -905,7 +861,7 @@ const handleLogin = async (data = formData, retryCount = 0) => {
                     </p>
                   </motion.form>
                 ) : (
-                  // Step 2: Account Security (with dark styling)
+                  // Step 2: Account Security
                   <motion.form
                     key="step2"
                     initial={{ opacity: 0, x: 50 }}
@@ -914,6 +870,7 @@ const handleLogin = async (data = formData, retryCount = 0) => {
                     className="space-y-4"
                     onSubmit={(e) => {
                       e.preventDefault();
+                      console.log('🚪 MOBILE_GATEKEEPER: Step 2 form submitted');
                       handleSignup();
                     }}
                   >
@@ -930,7 +887,10 @@ const handleLogin = async (data = formData, retryCount = 0) => {
 
                     <button
                       type="button"
-                      onClick={() => setStep(1)}
+                      onClick={() => {
+                        console.log('🚪 MOBILE_GATEKEEPER: Back button clicked, going to step 1');
+                        setStep(1);
+                      }}
                       className="mb-4 p-2 rounded-lg bg-gray-700/60 text-gray-300 hover:text-white transition-colors"
                     >
                       <ArrowLeft className="w-5 h-5" />

@@ -1,1068 +1,604 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Dumbbell, Trophy, ShoppingBag, Zap } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
+import { 
+  ShopSection, 
+  GymBrosSection, 
+  GamesSection, 
+  CoachingSection 
+} from '../components/home-sections';
+import ConversionHeroSection from '../components/home-sections/ConversionHeroSection';
+import { useTranslation } from 'react-i18next';
 
-const ANIMATION_KEY = 'gymtonic-conversion-animated';
+const CONVERSION_LOADED_KEY = 'gymtonic-conversion-loaded';
 
 const ConversionLanding = () => {
-  // Check if animations have already been shown in this session
-  const hasAnimatedThisSession = sessionStorage.getItem(ANIMATION_KEY) === 'true';
+  const { darkMode } = useTheme();
   const navigate = useNavigate();
-
-  const [animationsComplete, setAnimationsComplete] = useState(hasAnimatedThisSession);
-  const [selectedOption, setSelectedOption] = useState(null);
-  const [screenType, setScreenType] = useState('mobile');
-  const [backgroundVariant, setBackgroundVariant] = useState('default');
-  const [fontLoaded, setFontLoaded] = useState(false);
-  const [showPreloader, setShowPreloader] = useState(true);
-  const mountedRef = useRef(false);
-  const componentId = useRef(Math.random().toString(36).substr(2, 9));
-  const animationTimerRef = useRef(null);
-
+  const { t } = useTranslation();
+  
+  // ACTUAL random background that changes on refresh - use Date.now() to force randomization
+  const [backgroundColor] = useState(() => {
+    const seed = Date.now() + Math.random();
+    return seed % 2 > 1 ? '#ffffff' : '#000000';
+  });
+  
+  const textColor = backgroundColor === '#ffffff' ? '#000000' : '#ffffff';
+  
+  // Check if conversion has been loaded this session
+  const hasLoadedThisSession = sessionStorage.getItem(CONVERSION_LOADED_KEY) === 'true';
+  
+  const [visibleSections, setVisibleSections] = useState(new Set([0]));
+  const [scrollY, setScrollY] = useState(0);
+  const [scrollDirection, setScrollDirection] = useState('down');
+  const [scrollVelocity, setScrollVelocity] = useState(0);
+  const [isLoaded, setIsLoaded] = useState(hasLoadedThisSession);
+  const [activeSection, setActiveSection] = useState(0);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [isScrolling, setIsScrolling] = useState(false);
+  // For ConversionLanding, there's no navbar, so set to 0
+  const [navbarHeight, setNavbarHeight] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+  const [snapTimeout, setSnapTimeout] = useState(null);
+  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
+  
+  const sectionRefs = useRef([]);
+  const containerRef = useRef(null);
+  const lastScrollY = useRef(0);
+  const lastScrollTime = useRef(Date.now());
+  const animationFrameId = useRef(null);
+  const scrollTimeout = useRef(null);
+  
+  // Detect mobile, navbar height, and viewport height
   useEffect(() => {
-    console.log(`🎬 ConversionLanding[${componentId.current}]: Component MOUNTED`);
-    console.log(`🎬 Has animated this session: ${hasAnimatedThisSession}`);
-    mountedRef.current = true;
-
-    // Font loading logic - wait for Rubik font to be available
-    const checkFontLoaded = async () => {
-      try {
-        console.log(`🔤 ConversionLanding[${componentId.current}]: Checking if Rubik font is loaded...`);
-        
-        // Force a small delay to let fonts settle
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Check if font is already loaded using multiple methods
-        const fontCheckMethods = [
-          () => document.fonts && document.fonts.check('800 32px Rubik'),
-          () => document.fonts && document.fonts.check('bold 32px Rubik'),
-          () => {
-            // Create a test element to see if font is applied
-            const testElement = document.createElement('div');
-            testElement.style.fontFamily = 'Rubik, Arial, sans-serif';
-            testElement.style.fontWeight = '800';
-            testElement.style.fontSize = '32px';
-            testElement.style.position = 'absolute';
-            testElement.style.left = '-9999px';
-            testElement.textContent = 'GYMTONIC';
-            document.body.appendChild(testElement);
-            const computedStyle = window.getComputedStyle(testElement);
-            const actualFont = computedStyle.fontFamily;
-            document.body.removeChild(testElement);
-            console.log(`🔍 Computed font family: ${actualFont}`);
-            return actualFont.includes('Rubik') || actualFont.includes('rubik');
-          }
-        ];
-
-        let fontLoaded = false;
-        for (const method of fontCheckMethods) {
-          try {
-            if (method()) {
-              fontLoaded = true;
-              console.log(`✅ ConversionLanding[${componentId.current}]: Rubik font detected by method`);
-              break;
-            }
-          } catch (e) {
-            console.warn(`⚠️ Font check method failed:`, e);
-          }
-        }
-
-        if (fontLoaded) {
-          setFontLoaded(true);
-          // Wait a bit more to ensure rendering is complete
-          setTimeout(() => setShowPreloader(false), 200);
-          return;
-        }
-
-        // Wait for fonts to load with timeout
-        console.log(`⏳ ConversionLanding[${componentId.current}]: Waiting for fonts to load...`);
-        const fontPromise = document.fonts && document.fonts.ready ? 
-          document.fonts.ready : 
-          new Promise(resolve => setTimeout(resolve, 1500)); // Longer timeout
-        
-        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000));
-        
-        await Promise.race([fontPromise, timeoutPromise]);
-        console.log(`✅ ConversionLanding[${componentId.current}]: Font loading completed or timed out`);
-        
-        setFontLoaded(true);
-        // Fade out preloader
-        setTimeout(() => setShowPreloader(false), 300);
-        
-      } catch (error) {
-        console.error(`❌ ConversionLanding[${componentId.current}]: Font loading error:`, error);
-        // Still proceed after error
-        setFontLoaded(true);
-        setTimeout(() => setShowPreloader(false), 500);
-      }
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
     };
-
-    checkFontLoaded();
+    
+    const updateViewportHeight = () => {
+      setViewportHeight(window.innerHeight);
+    };
+    
+    // For ConversionLanding, explicitly check if navbar exists (it shouldn't)
+    const getNavbarHeight = () => {
+      const navbar = document.querySelector('nav, [data-navbar], .fixed.top-0, header');
+      // ConversionLanding should NOT have a navbar, so force to 0
+      setNavbarHeight(0);
+      console.log('ConversionLanding: Navbar height set to 0 (no navbar expected)');
+    };
+    
+    checkMobile();
+    getNavbarHeight();
+    updateViewportHeight();
+    
+    window.addEventListener('resize', checkMobile);
+    window.addEventListener('resize', getNavbarHeight);
+    window.addEventListener('resize', updateViewportHeight);
     
     return () => {
-      console.log(`🔥 ConversionLanding[${componentId.current}]: Component UNMOUNTED - This should NOT happen during normal usage!`);
-      mountedRef.current = false;
-      if (animationTimerRef.current) {
-        clearTimeout(animationTimerRef.current);
-        animationTimerRef.current = null;
-      }
+      window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('resize', getNavbarHeight);
+      window.removeEventListener('resize', updateViewportHeight);
     };
   }, []);
 
+  // Enhanced intersection observer with better mobile support
   useEffect(() => {
-    const checkScreenType = () => {
-      const width = window.innerWidth;
-      if (width < 768) {
-        setScreenType('mobile');
-      } else if (width >= 768 && width < 1024) {
-        setScreenType('tablet');
-      } else {
-        setScreenType('desktop');
-      }
-    };
-
-    checkScreenType();
-    window.addEventListener('resize', checkScreenType);
-
-    // Always apply styles and preload font
-    let link = document.querySelector('link[href*="Rubik"]');
-    if (!link) {
-      link = document.createElement('link');
-      link.href = 'https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;700;800&display=swap';
-      link.rel = 'stylesheet';
-      // Add preload for faster loading
-      link.as = 'style';
-      link.onload = function() { this.rel = 'stylesheet'; };
-      document.head.appendChild(link);
-      
-      // Also add font preload for the specific weight we need
-      const preloadLink = document.createElement('link');
-      preloadLink.rel = 'preload';
-      preloadLink.as = 'font';
-      preloadLink.type = 'font/woff2';
-      preloadLink.href = 'https://fonts.gstatic.com/s/rubik/v28/iJWKBXyIfDnIV7nBrXw.woff2';
-      preloadLink.crossOrigin = 'anonymous';
-      document.head.appendChild(preloadLink);
-    }
-
-    const root = document.documentElement;
-    if (!root.style.getPropertyValue('--color-black')) {
-      root.style.setProperty('--color-black', '#000');
-      root.style.setProperty('--color-white', '#fff');
-      root.style.setProperty('--color-silver', '#c0c0c0');
-      root.style.setProperty('--color-blue', '#1b62b9');
-      root.style.setProperty('--color-dark-blue', '#144c90');
-      root.style.setProperty('--color-purple', '#7c3aed');
-      root.style.setProperty('--color-dark-purple', '#5b21b6');
-      root.style.setProperty('--color-red', '#e63838');
-      root.style.setProperty('--color-dark-red', '#a22929');
-      root.style.setProperty('--color-yellow', '#ffea64');
-      root.style.setProperty('--color-dark-yellow', '#fddd50');
-      root.style.setProperty('--color-orange', '#ff6b35');
-      root.style.setProperty('--color-pink', '#ff006e');
-      root.style.setProperty('--font-family', 'Rubik, sans-serif');
-      root.style.setProperty('--font-weight-extrabold', '800');
-    }
-
-    // No need to set backgroundVariant here as it's already initialized from sessionStorage
-    console.log(`🎨 ConversionLanding[${componentId.current}]: Background variant: ${backgroundVariant === 'alternative' ? 'alternative (silver)' : 'default (colorful)'}`);
-
-    // Check if we should animate
-    if (!hasAnimatedThisSession) {
-      console.log(`🎬 ConversionLanding[${componentId.current}]: First time this session, starting animation timer`);
-      
-      // Mark as animated immediately to prevent issues with quick refreshes
-      sessionStorage.setItem(ANIMATION_KEY, 'true');
-      
-      // Start animation timer for other elements (not header)
-      animationTimerRef.current = setTimeout(() => {
-        if (mountedRef.current) {
-          console.log(`🎬 ConversionLanding[${componentId.current}]: Animation timer fired, starting animations`);
-          setAnimationsComplete(true);
-        }
-      }, 800);
-    }
-
-    return () => {
-      clearTimeout(animationTimerRef.current);
-      window.removeEventListener('resize', checkScreenType);
-    };
-  }, []); // Empty dependency array to run only once
-
-  const requestLocationPermission = async () => {
-    if ('geolocation' in navigator) {
-      try {
-        await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 300000
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const sectionIndex = parseInt(entry.target.dataset.sectionIndex);
+          setVisibleSections(prev => {
+            const newSet = new Set(prev);
+            if (entry.isIntersecting) {
+              newSet.add(sectionIndex);
+              const threshold = isMobile ? 0.3 : 0.5;
+              if (entry.intersectionRatio > threshold) {
+                setActiveSection(sectionIndex);
+              }
+            } else {
+              if (entry.intersectionRatio < 0.05) {
+                newSet.delete(sectionIndex);
+              }
+            }
+            return newSet;
           });
         });
-        return true;
-      } catch (error) {
-        return false;
+      },
+      {
+        threshold: isMobile ? [0, 0.05, 0.3, 0.7, 1] : [0, 0.1, 0.5, 0.8, 1],
+        rootMargin: isMobile ? '-10% 0px -10% 0px' : '-5% 0px -5% 0px'
       }
-    }
-    return false;
-  };
+    );
 
-  const handleOptionClick = async (option, route, requiresLocation = false) => {
-    setSelectedOption(option);
+    sectionRefs.current.forEach((ref) => {
+      if (ref) observer.observe(ref);
+    });
+
+    return () => observer.disconnect();
+  }, [isMobile]);
+
+  // Enhanced scroll handling with snap-to-center functionality
+  const handleScroll = useCallback(() => {
+    const currentScrollY = window.scrollY;
+    const currentTime = Date.now();
     
-    if (requiresLocation) {
-      await requestLocationPermission();
+    const direction = currentScrollY > lastScrollY.current ? 'down' : 'up';
+    const velocity = Math.abs(currentScrollY - lastScrollY.current) / (currentTime - lastScrollTime.current) || 0;
+    
+    setScrollY(currentScrollY);
+    setScrollDirection(direction);
+    setScrollVelocity(velocity);
+    setIsScrolling(true);
+    
+    if (snapTimeout) {
+      clearTimeout(snapTimeout);
     }
     
-    // Set flag to indicate navigation is happening from conversion page
+    if (scrollTimeout.current) {
+      clearTimeout(scrollTimeout.current);
+    }
+    
+    scrollTimeout.current = setTimeout(() => {
+      setIsScrolling(false);
+      
+      const snapDelay = isMobile ? 150 : 100;
+      const newSnapTimeout = setTimeout(() => {
+        snapToNearestSection();
+      }, snapDelay);
+      
+      setSnapTimeout(newSnapTimeout);
+    }, isMobile ? 150 : 100);
+    
+    lastScrollY.current = currentScrollY;
+    lastScrollTime.current = currentTime;
+  }, [isMobile, snapTimeout]);
+
+  // Smooth snap-to-center functionality
+  const snapToNearestSection = useCallback(() => {
+    if (isScrolling) return;
+    
+    const currentScroll = window.scrollY;
+    let nearestSection = 0;
+    let minDistance = Infinity;
+    
+    sectionRefs.current.forEach((ref, index) => {
+      if (!ref) return;
+      
+      const rect = ref.getBoundingClientRect();
+      const sectionTop = currentScroll + rect.top;
+      const sectionCenter = sectionTop + rect.height / 2;
+      const viewportCenter = currentScroll + viewportHeight / 2;
+      const distance = Math.abs(sectionCenter - viewportCenter);
+      
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestSection = index;
+      }
+    });
+    
+    const snapThreshold = viewportHeight * (isMobile ? 0.3 : 0.25);
+    if (minDistance < snapThreshold) {
+      navigateToSection(nearestSection, true);
+    }
+  }, [isScrolling, isMobile, viewportHeight]);
+
+  useEffect(() => {
+    const optimizedScrollHandler = () => {
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
+      animationFrameId.current = requestAnimationFrame(handleScroll);
+    };
+
+    window.addEventListener('scroll', optimizedScrollHandler, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', optimizedScrollHandler);
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
+      if (scrollTimeout.current) {
+        clearTimeout(scrollTimeout.current);
+      }
+      if (snapTimeout) {
+        clearTimeout(snapTimeout);
+      }
+    };
+  }, [handleScroll, snapTimeout]);
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      setMousePosition({
+        x: (e.clientX / window.innerWidth - 0.5) * 2,
+        y: (e.clientY / window.innerHeight - 0.5) * 2
+      });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
+  useEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+
+    window.scrollTo(0, 0);
+
+    if (hasLoadedThisSession) {
+      const heroElement = sectionRefs.current[0];
+      if (heroElement) {
+        heroElement.classList.add('animate-fadeInUp');
+      }
+    } else {
+      sessionStorage.setItem(CONVERSION_LOADED_KEY, 'true');
+      
+      const timer = setTimeout(() => {
+        setIsLoaded(true);
+        const heroElement = sectionRefs.current[0];
+        if (heroElement) {
+          heroElement.classList.add('animate-fadeInUp');
+        }
+      }, 300);
+      
+      return () => {
+        clearTimeout(timer);
+        if ('scrollRestoration' in window.history) {
+          window.history.scrollRestoration = 'auto';
+        }
+      };
+    }
+  }, [hasLoadedThisSession]);
+
+  const handleNavigate = (route) => {
     sessionStorage.setItem('conversion-back-nav', 'true');
     
-    setTimeout(() => {
+    if (route === '/demo') {
+      navigate('/coaching');
+    } else if (route === '/register') {
+      navigate('/register');
+    } else {
       navigate(route);
-    }, 300);
+    }
   };
 
-  const sectionStyle = {
-    height: '100%',
-    width: '100%',
-    padding: '2rem', // Fixed padding instead of clamp(1.5rem, 5vw, 3rem) for immediate rendering
-    border: '0.25rem solid #000000',
-    backgroundColor: '#ffffff',
-    boxShadow: '0.5rem 0.5rem rgba(132, 81, 61, 0.35)',
-    margin: '0',
-    borderRadius: '1.2rem', // Slightly larger border radius
-    cursor: 'pointer',
-    transition: 'all 0.3s ease',
-    position: 'relative',
-    overflow: 'hidden',
-    boxSizing: 'border-box'
-  };
+  const isSectionVisible = (index) => visibleSections.has(index);
+  const isActiveSection = (index) => activeSection === index;
 
-  const titleStyle = {
-    fontFamily: 'Rubik, Arial, sans-serif',
-    fontWeight: '800',
-    fontSize: '1.2rem', // Fixed size for immediate rendering instead of clamp(0.9rem, 3vw, 1.8rem)
-    lineHeight: '1',
-    textTransform: 'uppercase',
-    color: '#FFD700',
-    textShadow: `
-      -1px -1px 0 #000000, 0 -1px 0 #000000, 1px -1px 0 #000000, 
-      -1px 0 0 #000000, 1px 0 0 #000000, -1px 1px 0 #000000, 
-      0 1px 0 #000000, 1px 1px 0 #000000, -2px -2px 0 #000000, 
-      -1px -2px 0 #000000, 0 -2px 0 #000000, 1px -2px 0 #000000, 
-      2px -2px 0 #000000, 2px -1px 0 #000000, 2px 0 0 #000000, 
-      2px 1px 0 #000000, 2px 2px 0 #000000, 1px 2px 0 #000000, 
-      0 2px 0 #000000, -1px 2px 0 #000000, -2px 2px 0 #000000, 
-      -2px 1px 0 #000000, -2px 0 0 #000000, -2px -1px 0 #000000,
-      4px 4px 0 #000, 5px 5px 0 #000, 6px 6px 0 #000, 7px 7px 0 #000, 8px 8px 0 #000,
-      9px 9px 0 #000, 10px 10px 0 #000, 11px 11px 0 #000, 12px 12px 0 #000
-    `,
-    marginBottom: '0',
-    textAlign: 'center'
-  };
+  // Enhanced navigation with smooth scrolling - using actual viewport height
+  const navigateToSection = useCallback((sectionIndex, isSnap = false) => {
+    const targetSection = sectionRefs.current[sectionIndex];
+    if (!targetSection) {
+      console.warn('Target section not found:', sectionIndex);
+      return;
+    }
 
-  // Helper function to get background styles based on variant
-  const getBackgroundStyles = (isMobile = true) => {
-    const dotColor = backgroundVariant === 'alternative' ? '#ffffff' : '#000000';
-    const gradientStyle = backgroundVariant === 'alternative' 
-      ? 'linear-gradient(135deg, #ffffff 0%, #c0c0c0 50%, #000000 100%)'
-      : 'linear-gradient(135deg, #ff8c00 0%, #dc2626 50%, #8b5cf6 100%)';
+    if (snapTimeout) {
+      clearTimeout(snapTimeout);
+      setSnapTimeout(null);
+    }
 
-    const mobileBackground = `
-      radial-gradient(circle at 0 0, ${dotColor} 2px, transparent 2px),
-      radial-gradient(circle at 15px 15px, ${dotColor} 1.5px, transparent 1.5px),
-      radial-gradient(circle at 8px 25px, ${dotColor} 1px, transparent 1px),
-      ${gradientStyle}
-    `;
+    if (sectionIndex === 0) {
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+      setActiveSection(sectionIndex);
+      return;
+    }
 
-    const desktopBackground = `
-      radial-gradient(circle at 0 0, ${dotColor} 3px, transparent 3px),
-      radial-gradient(circle at 20px 20px, ${dotColor} 2px, transparent 2px),
-      radial-gradient(circle at 10px 35px, ${dotColor} 1.5px, transparent 1.5px),
-      radial-gradient(circle at 35px 10px, ${dotColor} 1px, transparent 1px),
-      ${gradientStyle}
-    `;
+    const sectionTop = targetSection.offsetTop;
+    // No navbar in ConversionLanding, so no navbarHeight offset needed
+    const extraOffset = isMobile && (sectionIndex === 2 || sectionIndex === 3) ? -50 : 0;
+    
+    let targetPosition;
+    if (isSnap) {
+      const sectionHeight = targetSection.offsetHeight;
+      const sectionCenter = sectionTop + sectionHeight / 2;
+      targetPosition = Math.max(0, sectionCenter - viewportHeight / 2);
+    } else {
+      targetPosition = Math.max(0, sectionTop + extraOffset);
+    }
+    
+    window.scrollTo({
+      top: targetPosition,
+      behavior: 'smooth'
+    });
+    
+    setActiveSection(sectionIndex);
+  }, [snapTimeout, isMobile, viewportHeight]);
 
-    return isMobile ? mobileBackground : desktopBackground;
-  };
-
-  // Mobile Layout
-  const MobileLayout = () => (
-    <div style={{ 
-      height: '100dvh', 
-      WebkitHeight: '-webkit-fill-available', // Safari fallback
-      background: getBackgroundStyles(true),
-      backgroundSize: '30px 30px, 30px 30px, 30px 30px, 100% 100%',
-      backgroundPosition: '0 0, 0 0, 0 0, 0 0',
-      display: 'flex',
-      flexDirection: 'column',
-      padding: '0.5rem',
-      boxSizing: 'border-box',
-      overflow: 'hidden',
-      position: 'fixed', // Fixed positioning to prevent any scrolling
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0
-    }}>
-      
-      {/* Header - ALWAYS visible and animated once */}
-      <header 
-        style={{
-          textAlign: 'center',
-          paddingBottom: '0.25rem',
-          color: '#000000',
-          flexShrink: 0
-        }}
-      >
-        <h1 style={{
-          fontFamily: 'Rubik, Arial, sans-serif', // Direct fallback instead of CSS var
-          fontSize: '2rem', // Fixed size for immediate rendering instead of clamp(1.5rem, 6vw, 2.5rem)
-          fontWeight: '800', // Direct value instead of CSS var
-          color: '#fff', // Direct value instead of CSS var
-          fontStyle: 'italic',
-          letterSpacing: '-0.05em',
-          textShadow: `
-            -1px -1px 0 #000, 0 -1px 0 #000, 1px -1px 0 #000, 
-            -1px 0 0 #000, 1px 0 0 #000, -1px 1px 0 #000, 
-            0 1px 0 #000, 1px 1px 0 #000, -2px -2px 0 #000, 
-            -1px -2px 0 #000, 0 -2px 0 #000, 1px -2px 0 #000, 
-            2px -2px 0 #000, 2px -1px 0 #000, 2px 0 0 #000, 
-            2px 1px 0 #000, 2px 2px 0 #000, 1px 2px 0 #000, 
-            0 2px 0 #000, -1px 2px 0 #000, -2px 2px 0 #000, 
-            -2px 1px 0 #000, -2px 0 0 #000, -2px -1px 0 #000,
-            4px 4px 0 #000, 5px 5px 0 #000, 6px 6px 0 #000, 7px 7px 0 #000, 8px 8px 0 #000,
-            9px 9px 0 #000, 10px 10px 0 #000, 11px 11px 0 #000, 12px 12px 0 #000
-          `,
-          margin: '0',
-          lineHeight: '1'
-        }}>
-          GYMTONIC
-        </h1>
-      </header>
-
-      {/* Sections Container - Takes remaining space */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '2rem', // Much larger gap between sections
-        minHeight: 0,
-        overflow: 'hidden', // Prevent any overflow
-        padding: '0.5rem' // Additional padding around container
-      }}>
-
-        {/* Section 1: GymBros Near Me */}
-        <motion.div 
-          style={{
-            ...sectionStyle,
-            backgroundColor: '#2563eb',
-            background: 'linear-gradient(315deg, #FFD700 0%, #FFEA64 20%, #4FC3F7 45%, #2563eb 70%, #144c90 100%)',
-            flex: 1
-          }}
-          onClick={() => handleOptionClick('gymbros', '/gymbros', true)}
-          whileTap={{ scale: 0.98 }}
-          initial={{ opacity: 0, x: -50 }}
-          animate={animationsComplete ? { opacity: 1, x: 0 } : { opacity: 0, x: -50 }}
-          transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
-        >
-          {/* Background image animation */}
-          <motion.img
-            src="/Muscular_conversion.png"
-            alt="Muscular conversion"
-            style={{
-              position: 'absolute',
-              top: '35%',
-              left: '5%',
-              transform: 'translate(-50%, -50%)',
-              width: 'clamp(100px, 30vw, 130px)',
-              height: 'auto',
-              opacity: 1,
-              zIndex: 0
-            }}
-            initial={{ opacity: 0, x: -(window.innerWidth + 120) }}
-            animate={animationsComplete ? { opacity: 1, x: 0 } : { opacity: 0, x: -(window.innerWidth + 120) }}
-            transition={{
-              duration: 1.4,
-              ease: "easeOut",
-              delay: 0.2
-            }}
-          />
-          
-          {/* Wind animation lines */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            overflow: 'hidden',
-            pointerEvents: 'none'
-          }}>
-            {[...Array(8)].map((_, i) => (
-              <motion.div
-                key={i}
-                style={{
-                  position: 'absolute',
-                  width: '120px',
-                  height: '4px',
-                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), rgba(255,255,255,0.3), transparent)',
-                  top: `${20 + (i * 10)}%`,
-                  right: '-120px',
-                }}
-                animate={{
-                  x: [0, -(window.innerWidth + 120)],
-                  opacity: [0, 0.8, 0.8, 0]
-                }}
-                transition={{
-                  duration: 2 + (i * 0.3),
-                  repeat: Infinity,
-                  ease: "easeOut",
-                  delay: i * 0.05
-                }}
-              />
-            ))}
-          </div>
-          
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            height: '100%',
-            gap: '0.5rem',
-            position: 'relative',
-            zIndex: 1,
-            paddingTop: '0.25rem'
-          }}>
-            <Dumbbell 
-              size={clamp(30, 8, 50)}
-              color="#4FC3F7"
-              style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
-            />
-            <h3 style={titleStyle}>
-              GYMBROS NEAR ME
-            </h3>
-          </div>
-        </motion.div>
-
-        {/* Section 2: Coaching Near Me */}
-        <motion.div 
-          style={{
-            ...sectionStyle,
-            backgroundColor: '#8b5cf6',
-            background: 'radial-gradient(ellipse at center, #8b5cf6 0%, #8b5cf6 50%, #a855f7 85%, #c084fc 100%)',
-            flex: 1
-          }}
-          onClick={() => handleOptionClick('coaching', '/coaching', true)}
-          whileTap={{ scale: 0.98 }}
-          initial={{ opacity: 0, y: 50 }}
-          animate={animationsComplete ? { opacity: 1, y: 0 } : { opacity: 0, y: 50 }}
-          transition={{ duration: 0.8, delay: 0.5, ease: "easeOut" }}
-        >
-          {/* Background image animation */}
-          <motion.img
-            src="/coach_conversion.png"
-            alt="Coach conversion"
-            style={{
-              position: 'absolute',
-              top: '40%',
-              left: '35%',
-              transform: 'translate(-50%, -50%)',
-              width: 'clamp(100px, 30vw, 130px)',
-              height: 'auto',
-              opacity: 1,
-              zIndex: 0
-            }}
-            initial={{ opacity: 0, y: window.innerHeight + 120 }}
-            animate={animationsComplete ? { opacity: 1, y: 0 } : { opacity: 0, y: window.innerHeight + 120 }}
-            transition={{
-              duration: 1.4,
-              ease: "easeOut",
-              delay: 0.2
-            }}
-          />
-          
-          {/* Wind animation lines */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            overflow: 'hidden',
-            pointerEvents: 'none'
-          }}>
-            {[...Array(10)].map((_, i) => (
-              <motion.div
-                key={i}
-                style={{
-                  position: 'absolute',
-                  width: '5px',
-                  height: '120px',
-                  background: 'linear-gradient(180deg, transparent, rgba(255,255,255,0.7), rgba(255,255,255,0.4), transparent)',
-                  left: `${20 + (i * 8)}%`,
-                  top: '-120px',
-                }}
-                animate={{
-                  y: [0, 500],
-                  opacity: [0, 0.9, 0.6, 0]
-                }}
-                transition={{
-                  duration: 1.8 + (i * 0.3),
-                  repeat: Infinity,
-                  ease: "easeOut",
-                  delay: i * 0.08
-                }}
-              />
-            ))}
-          </div>
-          
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            height: '100%',
-            gap: '0.5rem',
-            position: 'relative',
-            zIndex: 1,
-            paddingTop: '0.25rem'
-          }}>
-            <Trophy 
-              size={clamp(30, 8, 50)}
-              color="#C084FC"
-              style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
-            />
-            <h3 style={titleStyle}>
-              COACHING NEAR ME
-            </h3>
-          </div>
-        </motion.div>
-
-        {/* Section 3: Shop */}
-        <motion.div 
-          style={{
-            ...sectionStyle,
-            backgroundColor: '#dc2626',
-            background: 'linear-gradient(135deg, #FFD700 0%, #FFEA64 20%, #FF6B35 45%, #dc2626 70%, #B91C1C 100%)',
-            flex: 1
-          }}
-          onClick={() => handleOptionClick('shop', '/shop', false)}
-          whileTap={{ scale: 0.98 }}
-          initial={{ opacity: 0, x: 50 }}
-          animate={animationsComplete ? { opacity: 1, x: 0 } : { opacity: 0, x: 50 }}
-          transition={{ duration: 0.8, delay: 0.7, ease: "easeOut" }}
-        >
-          {/* Background image animation */}
-          <motion.img
-            src="/Blonde_conversion.png"
-            alt="Blonde conversion"
-            style={{
-              position: 'absolute',
-              top: '35%',
-              left: '65%',
-              transform: 'translate(-50%, -50%)',
-              width: 'clamp(100px, 30vw, 130px)',
-              height: 'auto',
-              opacity: 1,
-              zIndex: 0
-            }}
-            initial={{ opacity: 0, x: window.innerWidth + 120 }}
-            animate={animationsComplete ? { opacity: 1, x: 0 } : { opacity: 0, x: window.innerWidth + 120 }}
-            transition={{
-              duration: 1.4,
-              ease: "easeOut",
-              delay: 0.2
-            }}
-          />
-          
-          {/* Wind animation lines */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            overflow: 'hidden',
-            pointerEvents: 'none'
-          }}>
-            {[...Array(10)].map((_, i) => (
-              <motion.div
-                key={i}
-                style={{
-                  position: 'absolute',
-                  width: '80px',
-                  height: '3px',
-                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.8), rgba(255,255,255,0.5), transparent)',
-                  top: `${15 + (i * 7)}%`,
-                  left: '-80px',
-                  transform: `rotate(${5 + (i * 2)}deg)`
-                }}
-                animate={{
-                  x: [0, window.innerWidth + 80],
-                  opacity: [0, 1, 0.7, 0]
-                }}
-                transition={{
-                  duration: 1.5 + (i * 0.2),
-                  repeat: Infinity,
-                  ease: "easeOut",
-                  delay: i * 0.08
-                }}
-              />
-            ))}
-          </div>
-          
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            height: '100%',
-            gap: '0.3rem',
-            position: 'relative',
-            zIndex: 1,
-            paddingTop: '0.25rem'
-          }}>
-            <ShoppingBag 
-              size={clamp(25, 6, 40)}
-              color="#FF6B6B"
-              style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
-            />
-            <h3 style={{...titleStyle, fontSize: '1.1rem'}}> {/* Fixed size instead of clamp(1rem, 3.5vw, 1.8rem) */}
-              SHOP
-            </h3>
-          </div>
-        </motion.div>
-      </div>
-    </div>
+  const scrollProgress = Math.min(
+    100,
+    (scrollY / (document.documentElement.scrollHeight - viewportHeight)) * 100
   );
 
-  // Desktop Layout
-  const DesktopLayout = () => (
-    <div style={{ 
-      height: '100dvh', // Also use dvh for desktop for consistency
-      background: getBackgroundStyles(false),
-      backgroundSize: '40px 40px, 40px 40px, 40px 40px, 40px 40px, 100% 100%',
-      backgroundPosition: '0 0, 0 0, 0 0, 0 0, 0 0',
-      display: 'flex',
-      flexDirection: 'column',
-      padding: '1rem',
-      boxSizing: 'border-box',
-      overflow: 'hidden'
-    }}>
-      
-      {/* Header - ALWAYS visible, but animation controlled by state */}
-      <header 
-        style={{
-          textAlign: 'center',
-          paddingBottom: '0.5rem',
-          color: '#000000',
-          flexShrink: 0
-        }}
-      >
-        <h1 style={{
-          fontFamily: 'Rubik, Arial, sans-serif', // Direct fallback instead of CSS var
-          fontSize: '4rem', // Fixed size for immediate rendering instead of clamp(3rem, 6vw, 5rem)
-          fontWeight: '800', // Direct value instead of CSS var
-          color: '#fff', // Direct value instead of CSS var
-          fontStyle: 'italic',
-          letterSpacing: '-0.05em',
-          textShadow: `
-            -1px -1px 0 #000, 0 -1px 0 #000, 1px -1px 0 #000, 
-            -1px 0 0 #000, 1px 0 0 #000, -1px 1px 0 #000, 
-            0 1px 0 #000, 1px 1px 0 #000, -2px -2px 0 #000, 
-            -1px -2px 0 #000, 0 -2px 0 #000, 1px -2px 0 #000, 
-            2px -2px 0 #000, 2px -1px 0 #000, 2px 0 0 #000, 
-            2px 1px 0 #000, 2px 2px 0 #000, 1px 2px 0 #000, 
-            0 2px 0 #000, -1px 2px 0 #000, -2px 2px 0 #000, 
-            -2px 1px 0 #000, -2px 0 0 #000, -2px -1px 0 #000,
-            6px 6px 0 #000, 7px 7px 0 #000, 8px 8px 0 #000, 9px 9px 0 #000, 10px 10px 0 #000,
-            11px 11px 0 #000, 12px 12px 0 #000, 13px 13px 0 #000, 14px 14px 0 #000, 15px 15px 0 #000,
-            16px 16px 0 #000, 17px 17px 0 #000, 18px 18px 0 #000
-          `,
-          margin: '30px 0 20px 0',
-          lineHeight: '1'
-        }}>
-          GYMTONIC
-        </h1>
-      </header>
+  // Responsive pagination dots configuration
+  const getDotSize = () => isMobile ? 'w-2.5 h-2.5' : 'w-3 h-3';
+  const getDotSpacing = () => isMobile ? 'space-y-3' : 'space-y-4';
+  const getPaginationPosition = () => isMobile ? 'right-3 top-1/2' : 'right-6 top-1/2';
 
-      {/* Desktop Grid Layout */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: '4rem', // Increased gap between sections
-        width: '100%',
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1rem'
-      }}>
-        
-        {/* Section 1: GymBros Near Me */}
-        <motion.div 
-          style={{
-            ...sectionStyle,
-            backgroundColor: '#2563eb',
-            background: 'linear-gradient(315deg, #FFD700 0%, #FFEA64 20%, #4FC3F7 45%, #2563eb 70%, #144c90 100%)',
-            margin: '0',
-            minHeight: 'auto'
-          }}
-          onClick={() => handleOptionClick('gymbros', '/gymbros', true)}
-          whileTap={{ scale: 0.98 }}
-          initial={{ opacity: 0, x: -100 }}
-          animate={animationsComplete ? { opacity: 1, x: 0 } : { opacity: 0, x: -100 }}
-          transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
-        >
-          {/* Background image animation */}
-          <motion.img
-            src="/Muscular_conversion.png"
-            alt="Muscular conversion"
-            style={{
-              position: 'absolute',
-              top: '45%',
-              left: '-5%',
-              transform: 'translate(-50%, -50%)',
-              width: 'clamp(120px, 25vw, 300px)',
-              height: 'auto',
-              opacity: 1,
-              zIndex: 0
-            }}
-            initial={{ opacity: 0, x: -650 }}
-            animate={animationsComplete ? { opacity: 1, x: 0 } : { opacity: 0, x: -650 }}
-            transition={{
-              duration: 1.4,
-              ease: "easeOut",
-              delay: 0.2
-            }}
-          />
-          
-          {/* Wind animation lines */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            overflow: 'hidden',
-            pointerEvents: 'none'
-          }}>
-            {[...Array(12)].map((_, i) => (
-              <motion.div
-                key={i}
-                style={{
-                  position: 'absolute',
-                  width: '150px',
-                  height: '5px',
-                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), rgba(255,255,255,0.3), transparent)',
-                  top: `${10 + (i * 7)}%`,
-                  right: '-150px',
-                }}
-                animate={{
-                  x: [0, -650],
-                  opacity: [0, 0.8, 0.5, 0]
-                }}
-                transition={{
-                  duration: 2.5 + (i * 0.4),
-                  repeat: Infinity,
-                  ease: "easeOut",
-                  delay: i * 0.05
-                }}
-              />
-            ))}
-          </div>
-          
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            height: '100%',
-            gap: '1rem',
-            position: 'relative',
-            zIndex: 1,
-            paddingTop: '2rem'
-          }}>
-            <Dumbbell 
-              size={60}
-              color="#4FC3F7"
-              style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
-            />
-            <h3 style={{...titleStyle, fontSize: '1.4rem'}}> {/* Fixed size instead of clamp(1rem, 2.5vw, 1.8rem) */}
-              GYMBROS NEAR ME
-            </h3>
-          </div>
-        </motion.div>
-
-        {/* Section 2: Coaching Near Me */}
-        <motion.div 
-          style={{
-            ...sectionStyle,
-            backgroundColor: '#8b5cf6',
-            background: 'radial-gradient(ellipse at center, #8b5cf6 0%, #8b5cf6 50%, #a855f7 85%, #c084fc 100%)',
-            margin: '0',
-            minHeight: 'auto'
-          }}
-          onClick={() => handleOptionClick('coaching', '/coaching', true)}
-          whileTap={{ scale: 0.98 }}
-          initial={{ opacity: 0, y: 100 }}
-          animate={animationsComplete ? { opacity: 1, y: 0 } : { opacity: 0, y: 100 }}
-          transition={{ duration: 0.8, delay: 0.5, ease: "easeOut" }}
-        >
-          {/* Background image animation */}
-          <motion.img
-            src="/coach_conversion.png"
-            alt="Coach conversion"
-            style={{
-              position: 'absolute',
-              top: '45%',
-              left: '30%',
-              transform: 'translate(-50%, -50%)',
-              width: 'clamp(120px, 25vw, 300px)',
-              height: 'auto',
-              opacity: 1,
-              zIndex: 0
-            }}
-            initial={{ opacity: 0, y: 600 }}
-            animate={animationsComplete ? { opacity: 1, y: 0 } : { opacity: 0, y: 600 }}
-            transition={{
-              duration: 1.4,
-              ease: "easeOut",
-              delay: 0.2
-            }}
-          />
-          
-          {/* Wind animation lines */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            overflow: 'hidden',
-            pointerEvents: 'none'
-          }}>
-            {[...Array(10)].map((_, i) => (
-              <motion.div
-                key={i}
-                style={{
-                  position: 'absolute',
-                  width: '5px',
-                  height: '140px',
-                  background: 'linear-gradient(180deg, transparent, rgba(255,255,255,0.6), rgba(255,255,255,0.3), transparent)',
-                  left: `${20 + (i * 8)}%`,
-                  top: '-140px',
-                }}
-                animate={{
-                  y: [0, 600],
-                  opacity: [0, 0.8, 0.5, 0]
-                }}
-                transition={{
-                  duration: 2.2 + (i * 0.3),
-                  repeat: Infinity,
-                  ease: "easeOut",
-                  delay: i * 0.08
-                }}
-              />
-            ))}
-          </div>
-          
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            height: '100%',
-            gap: '1rem',
-            position: 'relative',
-            zIndex: 1,
-            paddingTop: '1rem'
-          }}>
-            <Trophy 
-              size={60}
-              color="#C084FC"
-              style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
-            />
-            <h3 style={{...titleStyle, fontSize: '1.4rem'}}> {/* Fixed size instead of clamp(1rem, 2.5vw, 1.8rem) */}
-              COACHING NEAR ME
-            </h3>
-          </div>
-        </motion.div>
-
-        {/* Section 3: Shop */}
-        <motion.div 
-          style={{
-            ...sectionStyle,
-            backgroundColor: '#dc2626',
-            background: 'linear-gradient(135deg, #FFD700 0%, #FFEA64 20%, #FF6B35 45%, #dc2626 70%, #B91C1C 100%)',
-            margin: '0',
-            minHeight: 'auto'
-          }}
-          onClick={() => handleOptionClick('shop', '/shop', false)}
-          whileTap={{ scale: 0.98 }}
-          initial={{ opacity: 0, x: 100 }}
-          animate={animationsComplete ? { opacity: 1, x: 0 } : { opacity: 0, x: 100 }}
-          transition={{ duration: 0.8, delay: 0.7, ease: "easeOut" }}
-        >
-          {/* Background image animation */}
-          <motion.img
-            src="/Blonde_conversion.png"
-            alt="Blonde conversion"
-            style={{
-              position: 'absolute',
-              top: '45%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: 'clamp(120px, 25vw, 300px)',
-              height: 'auto',
-              opacity: 1,
-              zIndex: 0
-            }}
-            initial={{ opacity: 0, x: 650 }}
-            animate={animationsComplete ? { opacity: 1, x: 0 } : { opacity: 0, x: 650 }}
-            transition={{
-              duration: 1.4,
-              ease: "easeOut",
-              delay: 0.2 
-            }}
-          />
-          
-          {/* Wind animation lines */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            overflow: 'hidden',
-            pointerEvents: 'none'
-          }}>
-            {[...Array(14)].map((_, i) => (
-              <motion.div
-                key={i}
-                style={{
-                  position: 'absolute',
-                  width: '120px',
-                  height: '4px',
-                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), rgba(255,255,255,0.3), transparent)',
-                  top: `${8 + (i * 6)}%`,
-                  left: '-120px',
-                  transform: `rotate(${10 + (i * 2)}deg)`
-                }}
-                animate={{
-                  x: [0, 650],
-                  opacity: [0, 0.8, 0.5, 0]
-                }}
-                transition={{
-                  duration: 1.8 + (i * 0.25),
-                  repeat: Infinity,
-                  ease: "easeOut",
-                  delay: i * 0.06
-                }}
-              />
-            ))}
-          </div>
-          
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            height: '100%',
-            gap: '1rem',
-            position: 'relative',
-            zIndex: 1,
-            paddingTop: '1rem'
-          }}>
-            <ShoppingBag 
-              size={60}
-              color="#FF6B6B"
-              style={{ filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' }}
-            />
-            <h3 style={{...titleStyle, fontSize: '1.4rem'}}> {/* Fixed size instead of clamp(1rem, 2.5vw, 1.8rem) */}
-              SHOP
-            </h3>
-          </div>
-        </motion.div>
-      </div>
-    </div>
-  );
-
-  // Helper function for clamping values
-  const clamp = (min, vw, max) => {
-    const viewport = window.innerWidth;
-    const size = Math.max(min, Math.min(max, viewport * (vw / 100)));
-    return size;
-  };
+  // Calculate the actual available height (full viewport since no navbar)
+  const availableHeight = viewportHeight;
 
   return (
     <>
-      {/* Font Loading Preloader - Black screen that fades out */}
-      {showPreloader && (
-        <motion.div
-          initial={{ opacity: 1 }}
-          animate={{ opacity: fontLoaded ? 0 : 1 }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: '#000000',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: showPreloader ? 'all' : 'none'
-          }}
-        >
-        </motion.div>
-      )}
+      <style jsx>{`
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
 
-      {screenType === 'mobile' ? <MobileLayout /> : <DesktopLayout />}
+        html, body {
+          height: 100%;
+          width: 100%;
+          overflow-x: hidden;
+        }
 
-      {/* Loading overlay */}
-      {selectedOption && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.1 }} // Very fast transition to hide background immediately
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: getBackgroundStyles(screenType === 'mobile'), // Use same background as component
-            backgroundSize: screenType === 'mobile' 
-              ? '30px 30px, 30px 30px, 30px 30px, 100% 100%'
-              : '40px 40px, 40px 40px, 40px 40px, 40px 40px, 100% 100%',
-            backgroundPosition: screenType === 'mobile'
-              ? '0 0, 0 0, 0 0, 0 0'
-              : '0 0, 0 0, 0 0, 0 0, 0 0',
-            backdropFilter: 'blur(12px)', // Strong blur to create loading effect
-            filter: 'blur(2px)', // Additional blur on the background itself
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999 // Higher z-index to ensure it's on top
-          }}
+        /* Mobile viewport fix */
+        @supports (-webkit-touch-callout: none) {
+          .conversion-section {
+            height: ${availableHeight}px;
+            min-height: ${availableHeight}px;
+          }
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        
+        @keyframes fadeInUp {
+          from { 
+            opacity: 0; 
+            transform: translateY(30px);
+          }
+          to { 
+            opacity: 1; 
+            transform: translateY(0);
+          }
+        }
+        
+        .animate-fadeIn {
+          animation: fadeIn 0.8s ease-out forwards;
+        }
+        
+        .animate-fadeInUp {
+          animation: fadeInUp 1s ease-out forwards;
+        }
+        
+        .section-hidden { 
+          opacity: 0; 
+        }
+        
+        .section-active { 
+          z-index: 10; 
+        }
+        
+        .pagination-dot {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .pagination-dot:hover {
+          transform: scale(1.2);
+        }
+        
+        .pagination-dot.active {
+          transform: scale(1.3);
+          box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+        }
+        
+        .pagination-tooltip {
+          transform: translateX(-100%) translateY(-50%);
+          transition: all 0.2s ease-out;
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        @media (max-width: 768px) {
+          .pagination-tooltip {
+            transform: translateX(-100%) translateY(-50%) scale(0.9);
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+          }
+        }
+
+        .conversion-section {
+          height: ${availableHeight}px;
+          min-height: ${availableHeight}px;
+          max-height: ${availableHeight}px;
+          width: 100vw;
+          max-width: 100vw;
+          overflow: hidden;
+          position: relative;
+          padding: clamp(1rem, 4vw, 2rem);
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          background-color: ${backgroundColor};
+          color: ${textColor};
+        }
+
+        .conversion-section * {
+          max-width: 100%;
+          box-sizing: border-box;
+        }
+
+        /* Force mobile browsers to use the correct height */
+        @media (max-width: 768px) {
+          .conversion-section {
+            padding: 1rem;
+            height: ${availableHeight}px;
+            min-height: ${availableHeight}px;
+          }
+        }
+      `}</style>
+
+      <div
+        ref={containerRef}
+        className="conversion-fluid w-full relative"
+        style={{
+          margin: 0,
+          padding: 0,
+          backgroundColor,
+          color: textColor,
+          width: '100vw',
+          maxWidth: '100vw',
+          overflowX: 'hidden'
+        }}
+      >
+        {!isLoaded && !hasLoadedThisSession && (
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ 
+              backgroundColor,
+              height: `${availableHeight}px`,
+              width: '100vw'
+            }}
+          >
+            <div className="text-center">
+              <div 
+                className="w-12 h-12 border-4 rounded-full animate-spin mb-4 mx-auto"
+                style={{ 
+                  borderColor: `${textColor}20`,
+                  borderTopColor: textColor
+                }}
+              ></div>
+              <p 
+                className="text-lg font-medium animate-pulse"
+                style={{ color: textColor }}
+              >
+                {t('home.loading')}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Hero Section */}
+        <section 
+          ref={el => sectionRefs.current[0] = el}
+          data-section-index={0}
+          className={`conversion-section ${isSectionVisible(0) ? 'animate-fadeIn' : 'section-hidden'} ${isActiveSection(0) ? 'section-active' : ''}`}
         >
-          {/* Semi-transparent overlay to improve visibility */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.3)', // Light overlay for better contrast
-            zIndex: 1
-          }} />
-        </motion.div>
-      )}
+          <ConversionHeroSection 
+            onNavigate={handleNavigate} 
+            isActive={isSectionVisible(0)}
+            goToSection={navigateToSection}
+            scrollY={scrollY}
+            backgroundColor={backgroundColor}
+            textColor={textColor}
+          />
+        </section>
+
+        {/* Shop Section */}
+        <section 
+          ref={el => sectionRefs.current[1] = el}
+          data-section-index={1}
+          className={`conversion-section ${isSectionVisible(1) ? 'animate-fadeIn' : 'section-hidden'} ${isActiveSection(1) ? 'section-active' : ''}`}
+        >
+          <ShopSection 
+            onNavigate={handleNavigate} 
+            isActive={isSectionVisible(1)}
+            scrollY={scrollY}
+            backgroundColor={backgroundColor}
+            textColor={textColor}
+          />
+        </section>
+
+        {/* Coaching Section */}
+        <section 
+          ref={el => sectionRefs.current[2] = el}
+          data-section-index={2}
+          className={`conversion-section ${isSectionVisible(2) ? 'animate-fadeIn' : 'section-hidden'} ${isActiveSection(2) ? 'section-active' : ''}`}
+        >
+          <CoachingSection 
+            onNavigate={handleNavigate} 
+            isActive={isSectionVisible(2)}
+            scrollY={scrollY}
+            scrollDirection={scrollDirection}
+            backgroundColor={backgroundColor}
+            textColor={textColor}
+          />
+        </section>
+
+        {/* GymBros Section */}
+        <section 
+          ref={el => sectionRefs.current[3] = el}
+          data-section-index={3}
+          className={`conversion-section ${isSectionVisible(3) ? 'animate-fadeIn' : 'section-hidden'} ${isActiveSection(3) ? 'section-active' : ''}`}
+        >
+          <GymBrosSection 
+            onNavigate={handleNavigate} 
+            isActive={isSectionVisible(3)}
+            scrollY={scrollY}
+            scrollVelocity={scrollVelocity}
+            backgroundColor={backgroundColor}
+            textColor={textColor}
+          />
+        </section>
+
+        {/* Games Section */}
+        <section 
+          ref={el => sectionRefs.current[4] = el}
+          data-section-index={4}
+          className={`conversion-section ${isSectionVisible(4) ? 'animate-fadeIn' : 'section-hidden'} ${isActiveSection(4) ? 'section-active' : ''}`}
+        >
+          <GamesSection 
+            onNavigate={handleNavigate} 
+            isActive={isSectionVisible(4)}
+            scrollY={scrollY}
+            isLastSection={true}
+            backgroundColor={backgroundColor}
+            textColor={textColor}
+          />
+        </section>
+
+        {/* Progress Bar */}
+        <div className="fixed top-0 left-0 w-full h-1 bg-black/10 backdrop-blur-sm z-50">
+          <div
+            className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-orange-500 transition-all duration-300 ease-out"
+            style={{ width: `${scrollProgress}%` }}
+          />
+        </div>
+
+        {/* Pagination Dots */}
+        <div className={`fixed ${getPaginationPosition()} transform -translate-y-1/2 z-40 ${getDotSpacing()}`}>
+          {[
+            { index: 0, label: t('home.sections.home') },
+            { index: 1, label: t('home.sections.shop') },
+            { index: 2, label: t('home.sections.coaching') },
+            { index: 3, label: t('home.sections.community') },
+            { index: 4, label: t('home.sections.games') }
+          ].map(({ index, label }) => (
+            <div key={index} className="relative group flex items-center">
+              <button
+                onClick={() => navigateToSection(index)}
+                className={`pagination-dot block ${getDotSize()} rounded-full relative
+                  ${isActiveSection(index)
+                    ? 'bg-blue-500 active'
+                    : (backgroundColor === '#000000' ? 'bg-gray-300/50 hover:bg-gray-100/70' : 'bg-gray-600/50 hover:bg-gray-800/70')
+                  }`}
+                aria-label={`Go to ${label} section`}
+              >
+                {isActiveSection(index) && (
+                  <span className="absolute inset-0 rounded-full bg-blue-400/30 animate-ping" />
+                )}
+              </button>
+              
+              <div className={`pagination-tooltip absolute right-6 top-1/2 px-2 py-1 rounded-md text-xs font-medium opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap shadow-lg
+                ${backgroundColor === '#000000' ? 'bg-gray-800/90 text-white' : 'bg-white/90 text-gray-800'}`}>
+                {label}
+                <div className={`absolute left-full top-1/2 -translate-y-1/2 border-4 border-transparent
+                  ${backgroundColor === '#000000' ? 'border-l-gray-800/90' : 'border-l-white/90'}`} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </>
   );
 };

@@ -2020,3 +2020,7 @@ html {
     font-size: clamp(4rem, 5vw, 7rem) !important;
   }
 }
+
+section[data-section-index="0"] {
+  opacity: 1 !important;
+}

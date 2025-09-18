@@ -301,7 +301,7 @@ const ProductPage = ({ isPreview = false }) => {
                     <button
                       key={color}
                       onClick={() => handleColorSelect(color)}
-                      className={`w-12 h-12 rounded-full border-2 transition-all relative ${
+                      className={`w-12 h-12 rounded-lg border-2 transition-all relative ${
                         selectedColor === color 
                           ? 'border-blue-500 ring-2 ring-blue-200' 
                           : 'border-gray-300 hover:border-gray-400'

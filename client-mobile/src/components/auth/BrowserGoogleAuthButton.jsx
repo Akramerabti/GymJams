@@ -34,11 +34,11 @@ const BrowserGoogleAuthButton = ({ onAccountCreated }) => {
     };
   }, []);
 
-  const handleOAuthCallback = async (url) => {
+ const handleOAuthCallback = async (url) => {
   try {
+    console.log('OAUTH: Processing callback:', url);
     setIsLoading(true);
     
-    // Parse the callback URL
     const urlObj = new URL(url);
     const token = urlObj.searchParams.get('token');
     const tempToken = urlObj.searchParams.get('tempToken');
@@ -46,55 +46,51 @@ const BrowserGoogleAuthButton = ({ onAccountCreated }) => {
     const loginSuccess = urlObj.searchParams.get('loginSuccess');
     const existingUser = urlObj.searchParams.get('existingUser');
 
-    // Close the browser on mobile
     if (Capacitor.isNativePlatform()) {
       await Browser.close();
     }
 
     if (error) {
-      toast.error('Authentication failed', {
-        description: decodeURIComponent(error)
-      });
+      toast.error('Authentication failed');
       return;
     }
 
-    // Handle successful login with complete profile
+    // Handle successful OAuth login
     if (token && loginSuccess) {
+      console.log('OAUTH: Login successful - processing');
+      
       const userData = await loginWithToken(token);
       localStorage.setItem('token', token);
       if (setToken) setToken(token);
       if (setUser && userData?.user) setUser(userData.user);
       localStorage.setItem('hasCompletedOnboarding', 'true');
       
+      // SET SUCCESS FLAG FOR HOME TO PICK UP
+      localStorage.setItem('showLoginSuccess', 'true');
+      sessionStorage.setItem('oauthLoginSuccess', 'true');
+      
+      console.log('OAUTH: Success flags set, redirecting');
+      
+      // Close gatekeeper if callback provided
       if (onAccountCreated) {
-        onAccountCreated(userData?.user, 'logged_in_successfully');
-      } else {
-        window.location.href = '/';
+        onAccountCreated(userData?.user, 'close_modal');
       }
+      
+      // Redirect to home with success parameters
+      window.location.href = '/?loginSuccess=true&fromOAuth=true';
     }
 
-    // Handle profile completion needed
+    // Handle profile completion
     if (tempToken) {
       localStorage.setItem('tempToken', tempToken);
-      
       if (onAccountCreated) {
-        // Let MobileGatekeeper handle the navigation
         onAccountCreated({ tempToken }, existingUser === 'true' ? 'complete_profile' : 'complete_oauth_profile');
-      } else {
-        // Fallback for non-MobileGatekeeper usage
-        if (existingUser === 'true') {
-          window.location.href = '/complete-profile';
-        } else {
-          window.location.href = '/complete-oauth-profile';
-        }
       }
     }
 
   } catch (error) {
-    console.error('OAuth callback error:', error);
-    toast.error('Authentication failed', {
-      description: 'Please try again'
-    });
+    console.error('OAUTH: Callback error:', error);
+    toast.error('Authentication failed');
   } finally {
     setIsLoading(false);
   }

@@ -313,10 +313,18 @@ useEffect(() => {
 
   const handleOnboardingClose = () => {
     setShowOnboarding(false);
+    
+    // ENHANCED SUCCESS INDICATORS - Ensure success screen shows on Home
+    localStorage.setItem('showLoginSuccess', 'true');
+    sessionStorage.setItem('oauthLoginSuccess', 'true');
+    
+    console.log('🎉 OAuth profile completion success - success indicators set');
+    
     if (onComplete) {
       onComplete(currentUser);
     } else {
-      navigate('/');
+      // Redirect with success parameters
+      window.location.href = '/?loginSuccess=true&fromOAuth=true';
     }
   };
 

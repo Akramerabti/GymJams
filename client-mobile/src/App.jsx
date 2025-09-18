@@ -66,7 +66,7 @@ import PermissionsModal from './components/common/PermissionsModal';
 // Constants
 const FIVE_MINUTES = 5 * 60 * 1000;
 
-// OAuth Callback Handler Component (updated section)
+// OAuth Callback Handler Component (updated section for App.jsx)
 function OAuthCallbackHandler({ showMobileGatekeeper }) {
   const location = useLocation();
   const { loginWithToken, setUser, setToken } = useAuth();
@@ -98,32 +98,36 @@ function OAuthCallbackHandler({ showMobileGatekeeper }) {
             return;
           }
 
-          // In OAuthCallbackHandler function in App.js
-if (token && loginSuccess) {
-  try {
-    const userData = await loginWithToken(token);
-    
-    // Set persistent login flags
-    localStorage.setItem('hasCompletedOnboarding', 'true');
-    localStorage.setItem('userLoginMethod', 'google_oauth');
-    localStorage.setItem('persistentLogin', 'true');
-    
-    toast.success('Successfully logged in with Google!');
-    
-    // Add a flag to ensure success screen shows
-    localStorage.setItem('showLoginSuccess', 'true');
-    
-    // Redirect to home with success parameter
-    setTimeout(() => {
-      window.location.href = '/?loginSuccess=true&fromOAuth=true';
-    }, 100); // Reduced delay
-    
-  } catch (loginError) {
-    toast.error('Login failed', {
-      description: 'Please try again'
-    });
-  }
-}
+          // Handle successful login with existing user
+          if (token && loginSuccess) {
+            try {
+              const userData = await loginWithToken(token);
+              
+              // Set persistent login flags
+              localStorage.setItem('hasCompletedOnboarding', 'true');
+              localStorage.setItem('userLoginMethod', 'google_oauth');
+              localStorage.setItem('persistentLogin', 'true');
+              
+              // ENHANCED SUCCESS INDICATORS - Multiple ways to trigger success screen
+              localStorage.setItem('showLoginSuccess', 'true');
+              sessionStorage.setItem('oauthLoginSuccess', 'true');
+              
+              console.log('🎉 OAuth login success - success indicators set');
+              
+              toast.success('Successfully logged in with Google!');
+              
+              // Small delay to ensure storage is written, then redirect with parameters
+              setTimeout(() => {
+                window.location.href = '/?loginSuccess=true&fromOAuth=true';
+              }, 100);
+              
+            } catch (loginError) {
+              console.error('Login token error:', loginError);
+              toast.error('Login failed', {
+                description: 'Please try again'
+              });
+            }
+          }
 
           // Handle profile completion needed
           if (tempToken) {
@@ -139,6 +143,7 @@ if (token && loginSuccess) {
           }
 
         } catch (error) {
+          console.error('OAuth callback error:', error);
           toast.error('Authentication failed', {
             description: 'Please try again'
           });
@@ -360,57 +365,26 @@ function AppContent() {
   }, [isAuthenticated, user, isShowingLoginSuccess, showMobileGatekeeper, successTimeoutRef.current]);
 
   const handleAccountCreated = (userData, action) => {
-    // Handle login success case - START success screen protection
-    if (action === 'logged_in_successfully') {
-      
-      // Set success screen state to prevent auto-closing
-      setIsShowingLoginSuccess(true);
-      setLoginSuccessStartTime(Date.now());
-      
-      // Clear any existing timeout
-      if (successTimeoutRef.current) {
-        clearTimeout(successTimeoutRef.current);
-      }
-      
-      // Set timeout to end success screen protection and close gatekeeper
-      successTimeoutRef.current = setTimeout(() => {
-        
-        // End success screen protection
-        setIsShowingLoginSuccess(false);
-        setLoginSuccessStartTime(null);
-        
-        // Close gatekeeper
-        setShowMobileGatekeeper(false);
-        sessionStorage.removeItem('mobileGatekeeperOpen');
-        
-        // Clear timeout reference
-        successTimeoutRef.current = null;
-        
-        // Redirect if needed
-        if (window.location.pathname !== '/') {
-          window.location.href = '/';
-        }
-        
-      }, 4000); // Give full 4 seconds for success screen
-      
-      return; // Don't process further
-    }
-    
-    // For all other actions, close the gatekeeper immediately
+  console.log('APP: handleAccountCreated:', { userData, action });
+  
+  // Simply close modal for any login success
+  if (action === 'close_modal' || action === 'logged_in_successfully') {
+    console.log('APP: Closing gatekeeper modal');
     setShowMobileGatekeeper(false);
-    sessionStorage.removeItem('mobileGatekeeperOpen');
-    
-    if (action === 'complete_oauth_profile') {
-      toast.info('Welcome! Please complete your profile to get started');
-      window.location.href = '/complete-oauth-profile';
-    } else if (action === 'complete_profile') {
-      toast.info('Please complete your profile to continue');
-      window.location.href = '/complete-profile';
-    } else {
-      // Normal completion
-      checkAuth();
-    }
-  };
+    return;
+  }
+  
+  // Handle other actions
+  setShowMobileGatekeeper(false);
+  
+  if (action === 'complete_oauth_profile') {
+    window.location.href = '/complete-oauth-profile';
+  } else if (action === 'complete_profile') {
+    window.location.href = '/complete-profile';
+  } else {
+    checkAuth();
+  }
+};
 
   // Cleanup success timeout on unmount
   useEffect(() => {

@@ -1,12 +1,5 @@
 /*
- * HOME.JSX - UTILITY DASHBOARD
- * 
- * PURPOSE: Clean utility dashboard for navigation and feature preview
- * LAYOUT:
- * - 5 circular buttons arranged in a circle with points in center
- * - Social map preview section (now using SocialMapSection component)
- * - Games preview section
- * - All designed for redirects, not embedded content
+ * HOME.JSX - SIMPLIFIED SUCCESS FLOW
  */
 
 import React, { useState, useEffect } from 'react';
@@ -29,7 +22,8 @@ import {
   Star,
   Shield,
   Clock,
-  Check
+  Check,
+  CheckCircle2
 } from 'lucide-react';
 
 import SocialMapSection from '../components/home-sections/SocialMapSection';
@@ -40,23 +34,82 @@ const Home = () => {
   const { user, isAuthenticated } = useAuth();
   const { balance } = usePoints();
   const { setPageState } = useSocket();
+  
+  // Simplified states
+  const [currentScreen, setCurrentScreen] = useState('checking'); // 'checking', 'success', 'loading', 'dashboard'
   const [socialMapLoaded, setSocialMapLoaded] = useState(false);
-  const [showSuccessScreen, setShowSuccessScreen] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
 
-  // Set page state to skip location updates on home page
   useEffect(() => {
     setPageState('home');
-    setIsLoaded(true);
-    
-    // Clean up page state when component unmounts
-    return () => {
-      setPageState('other');
-    };
+    return () => setPageState('other');
   }, [setPageState]);
 
-  // Remove the problematic auth check useEffect that was causing early returns
-  // Let the App-level MobileGatekeeper handle authentication flow instead
+  // Simple success check on mount
+useEffect(() => {
+  const checkForSuccess = () => {
+    // Check for any success indicator
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasSuccessIndicator = 
+      urlParams.get('loginSuccess') || 
+      urlParams.get('fromOAuth') ||
+      localStorage.getItem('showLoginSuccess') ||
+      localStorage.getItem('emailLoginSuccess') ||
+      sessionStorage.getItem('oauthLoginSuccess');
+
+    if (hasSuccessIndicator) {
+      console.log('🏠 HOME: Success indicator found, showing success screen');
+      
+      // Clean up all indicators
+      localStorage.removeItem('showLoginSuccess');
+      localStorage.removeItem('emailLoginSuccess');
+      sessionStorage.removeItem('oauthLoginSuccess');
+      
+      // Clean URL
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState(null, null, cleanUrl);
+      
+      // Show success screen
+      setCurrentScreen('success');
+      
+      // FIXED: Direct transition to dashboard after success (no loading screen)
+      setTimeout(() => {
+        console.log('🏠 HOME: Success screen complete, showing dashboard');
+        setCurrentScreen('dashboard');
+      }, 3000); // Show success for 3 seconds, then directly to dashboard
+      
+    } else {
+      console.log('🏠 HOME: No success indicator, normal flow');
+      // Normal flow - show loading then dashboard
+      setCurrentScreen('loading');
+      setTimeout(() => {
+        setCurrentScreen('dashboard');
+      }, 1500); // Reduced loading time for normal flow
+    }
+  };
+
+  // Check on mount
+  checkForSuccess();
+
+  // Listen for login success event (avoids page reload)
+  const handleLoginSuccess = () => {
+    console.log('🏠 HOME: Login success event received');
+    checkForSuccess();
+  };
+
+  window.addEventListener('loginSuccess', handleLoginSuccess);
+  
+  return () => {
+    window.removeEventListener('loginSuccess', handleLoginSuccess);
+  };
+}, []);
+
+  const handleSocialMapLoad = () => {
+    setSocialMapLoaded(true);
+  };
+
+  const handleNavigate = (route) => {
+    navigate(route);
+  };
 
   // 5 main feature buttons arranged in circle
   const circleButtons = [
@@ -74,7 +127,6 @@ const Home = () => {
       gradient: 'from-emerald-400 to-teal-500',
       description: 'Supplements'
     },
-  
     { 
       name: 'Games', 
       icon: Gamepad2, 
@@ -83,12 +135,13 @@ const Home = () => {
       description: 'Play & Win'
     },
     { 
-  name: 'Contact', 
-  icon: MessageCircle, 
-  route: '/contact', 
-  gradient: 'from-blue-400 to-cyan-500',
-  description: 'Support'
-}, { 
+      name: 'Contact', 
+      icon: MessageCircle, 
+      route: '/contact', 
+      gradient: 'from-blue-400 to-cyan-500',
+      description: 'Support'
+    }, 
+    { 
       name: 'Coaching', 
       icon: GraduationCap, 
       route: '/coaching', 
@@ -105,46 +158,83 @@ const Home = () => {
     { id: 'roulette', name: 'Roulette', icon: Shield, players: '167 online', status: 'Classic' }
   ];
 
-  // Check for login success parameter
-useEffect(() => {
-  const urlParams = new URLSearchParams(window.location.search);
-  const loginSuccess = urlParams.get('loginSuccess');
-  const fromOAuth = urlParams.get('fromOAuth');
-  const showSuccess = localStorage.getItem('showLoginSuccess');
+  // Success Screen
+  if (currentScreen === 'success') {
+    return (
+      <div className="fixed inset-0 z-50 bg-gradient-to-br from-green-900 via-emerald-900 to-teal-900 flex items-center justify-center">
+        <motion.div
+          className="text-center"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6 }}
+        >
+          <motion.div
+            className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-green-400 to-teal-400 rounded-full flex items-center justify-center shadow-2xl"
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ delay: 0.3, type: "spring", stiffness: 260, damping: 20 }}
+          >
+            <CheckCircle2 className="w-12 h-12 text-white" />
+          </motion.div>
 
-  if (loginSuccess === 'true' || fromOAuth === 'true' || showSuccess === 'true') {
-    localStorage.removeItem('showLoginSuccess');
-    // Clean the URL
-    window.history.replaceState(null, null, window.location.pathname);
-    
-    // Force show success screen immediately
-    setShowSuccessScreen(true);
-    setIsLoaded(false); // Prevent other content from showing
-    setSocialMapLoaded(false); // Prevent social map from loading
-    
-    // Hide success screen after 3 seconds
-    setTimeout(() => {
-      setShowSuccessScreen(false);
-      setIsLoaded(true);
-      setSocialMapLoaded(true);
-    }, 3000);
-  } else {
-    // Normal loading flow
-    setTimeout(() => {
-      setIsLoaded(true);
-    }, 1500);
+          <motion.h1
+            className="text-4xl font-black text-white mb-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+          >
+            Welcome to GymTonic!
+          </motion.h1>
+
+          <motion.p
+            className="text-xl text-green-200 mb-2"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7 }}
+          >
+            Login successful!
+          </motion.p>
+
+          <motion.p
+            className="text-lg text-emerald-300"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.9 }}
+          >
+            Get ready to transform your fitness journey
+          </motion.p>
+        </motion.div>
+      </div>
+    );
   }
-}, []); // Empty dependency array - only run once on mount
 
-  const handleSocialMapLoad = () => {
-  setSocialMapLoaded(true);
-};
-
-  const handleNavigate = (route) => {
-    navigate(route);
-  };
-
-  const showLoadingScreen = (!isLoaded || !socialMapLoaded) && !showSuccessScreen;
+  // Professional Loading Screen (no icon)
+  if (currentScreen === 'loading') {
+    return (
+      <div className="fixed inset-0 z-50 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="flex space-x-2 justify-center mb-4">
+            <motion.div
+              className="w-3 h-3 bg-gray-500 rounded-full"
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ duration: 1.4, repeat: Infinity, delay: 0 }}
+            />
+            <motion.div
+              className="w-3 h-3 bg-gray-500 rounded-full"
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ duration: 1.4, repeat: Infinity, delay: 0.2 }}
+            />
+            <motion.div
+              className="w-3 h-3 bg-gray-500 rounded-full"
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ duration: 1.4, repeat: Infinity, delay: 0.4 }}
+            />
+          </div>
+          <p className="text-gray-400 text-lg">Loading Dashboard</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -196,115 +286,44 @@ useEffect(() => {
         }
 
         .animated-orbs {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          pointer-events: none;
+        }
 
-.floating-orb-1 {
-  animation: float1 8s ease-in-out infinite;
-}
+        .floating-orb-1 {
+          animation: float1 8s ease-in-out infinite;
+        }
 
-.floating-orb-2 {
-  animation: float2 12s ease-in-out infinite;
-}
+        .floating-orb-2 {
+          animation: float2 12s ease-in-out infinite;
+        }
 
-.floating-orb-3 {
-  animation: float3 10s ease-in-out infinite;
-}
+        .floating-orb-3 {
+          animation: float3 10s ease-in-out infinite;
+        }
 
-.floating-orb-4 {
-  animation: float4 15s ease-in-out infinite;
-}
+        @keyframes float1 {
+          0%, 100% { transform: translate(0px, 0px) scale(1); }
+          25% { transform: translate(30px, -40px) scale(1.1); }
+          50% { transform: translate(-20px, -60px) scale(0.9); }
+          75% { transform: translate(-40px, -30px) scale(1.05); }
+        }
 
-.floating-orb-5 {
-  animation: float5 9s ease-in-out infinite;
-}
+        @keyframes float2 {
+          0%, 100% { transform: translate(0px, 0px) scale(1); }
+          33% { transform: translate(-50px, 40px) scale(0.8); }
+          66% { transform: translate(60px, -20px) scale(1.2); }
+        }
 
-.floating-orb-6 {
-  animation: float6 11s ease-in-out infinite;
-}
+        @keyframes float3 {
+          0%, 100% { transform: translate(0px, 0px) scale(1); }
+          30% { transform: translate(40px, 50px) scale(1.1); }
+          70% { transform: translate(-30px, -40px) scale(0.9); }
+        }
 
-.floating-orb-7 {
-  animation: float7 14s ease-in-out infinite;
-}
-
-.floating-orb-8 {
-  animation: float8 7s ease-in-out infinite;
-}
-
-.floating-orb-9 {
-  animation: float9 13s ease-in-out infinite;
-}
-
-.floating-orb-10 {
-  animation: float10 16s ease-in-out infinite;
-}
-
-@keyframes float7 {
-  0%, 100% { transform: translate(0px, 0px) scale(1); }
-  50% { transform: translate(-70px, 80px) scale(1.3); }
-}
-
-@keyframes float8 {
-  0%, 100% { transform: translate(0px, 0px) scale(1); }
-  25% { transform: translate(80px, -60px) scale(0.7); }
-  75% { transform: translate(-40px, 70px) scale(1.1); }
-}
-
-@keyframes float9 {
-  0%, 100% { transform: translate(0px, 0px) scale(1); }
-  40% { transform: translate(60px, 90px) scale(0.9); }
-  80% { transform: translate(-80px, -70px) scale(1.2); }
-}
-
-@keyframes float10 {
-  0%, 100% { transform: translate(0px, 0px) scale(1); }
-  30% { transform: translate(-90px, 50px) scale(1.1); }
-  70% { transform: translate(70px, -80px) scale(0.8); }
-}
-
-@keyframes float1 {
-  0%, 100% { transform: translate(0px, 0px) scale(1); }
-  25% { transform: translate(30px, -40px) scale(1.1); }
-  50% { transform: translate(-20px, -60px) scale(0.9); }
-  75% { transform: translate(-40px, -30px) scale(1.05); }
-}
-
-@keyframes float2 {
-  0%, 100% { transform: translate(0px, 0px) scale(1); }
-  33% { transform: translate(-50px, 40px) scale(0.8); }
-  66% { transform: translate(60px, -20px) scale(1.2); }
-}
-
-@keyframes float3 {
-  0%, 100% { transform: translate(0px, 0px) scale(1); }
-  30% { transform: translate(40px, 50px) scale(1.1); }
-  70% { transform: translate(-30px, -40px) scale(0.9); }
-}
-
-@keyframes float4 {
-  0%, 100% { transform: translate(0px, 0px) scale(1); }
-  25% { transform: translate(-60px, -30px) scale(0.7); }
-  50% { transform: translate(50px, 60px) scale(1.3); }
-  75% { transform: translate(20px, -50px) scale(1.1); }
-}
-
-@keyframes float5 {
-  0%, 100% { transform: translate(0px, 0px) scale(1); }
-  40% { transform: translate(-40px, 30px) scale(1.2); }
-  80% { transform: translate(35px, -45px) scale(0.8); }
-}
-
-@keyframes float6 {
-  0%, 100% { transform: translate(0px, 0px) scale(1); }
-  20% { transform: translate(55px, -25px) scale(1.1); }
-  60% { transform: translate(-45px, 40px) scale(0.9); }
-  90% { transform: translate(25px, 30px) scale(1.15); }
-}
-
-        /* New Circular Menu Styles */
+        /* Circular Menu Styles */
         .circular-menu {
           margin: 0 auto;
           position: relative;
@@ -439,162 +458,45 @@ useEffect(() => {
             margin-bottom: 60px;
           }
 
-          .menu-btn:nth-child(2) { top: 105px; }
-          .menu-btn:nth-child(3) { top: -75px; left: 65px; }
-          .menu-btn:nth-child(4) { top: 30px; left: 90px; }
-          .menu-btn:nth-child(5) { top: 30px; left: -90px; }
-          .menu-btn:nth-child(6) { top: -75px; left: -65px; }
+          .menu-btn:nth-child(2) { top: -120px; }
+          .menu-btn:nth-child(3) { top: -75px; left: 95px; }
+          .menu-btn:nth-child(4) { top: 30px; left: 120px; }
+          .menu-btn:nth-child(5) { top: 30px; left: -120px; }
+          .menu-btn:nth-child(6) { top: -75px; left: -95px; }
         }
       `}</style>
 
-      {/* Loading Screen */}
-      <AnimatePresence>
-        {showLoadingScreen && (
-          <motion.div
-            initial={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
-            className="fixed inset-0 z-50 bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 flex items-center justify-center"
-          >
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="text-center"
-            >
-              <motion.div
-                className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-orange-500 to-pink-600 rounded-full flex items-center justify-center"
-                animate={{ rotate: 360 }}
-                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-              >
-                <Dumbbell className="w-8 h-8 text-white" />
-              </motion.div>
-              <p className="text-white text-lg">Loading Dashboard...</p>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Success Screen */}
-<AnimatePresence>
-  {showSuccessScreen && (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.5 }}
-      className="fixed inset-0 z-50 bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 flex items-center justify-center"
-    >
-      {/* Aurora Background */}
-      <div className="absolute inset-0 aurora-bg opacity-60" />
-      
-      <motion.div
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="text-center z-10"
-      >
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: 0.4, type: "spring", stiffness: 200 }}
-          className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center"
-        >
-          <Check className="w-12 h-12 text-white" />
-        </motion.div>
-        <motion.h2
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="text-3xl font-bold text-white mb-2"
-        >
-          Welcome Back!
-        </motion.h2>
-        <motion.p
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          className="text-lg text-white/80"
-        >
-          Successfully logged in with Google
-        </motion.p>
-      </motion.div>
-    </motion.div>
-  )}
-</AnimatePresence>
-
       {/* Main Dashboard */}
       <motion.div
-        className="min-h-screen w-full bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 relative"
+        className="min-h-dvh w-full bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 relative"
         initial={{ opacity: 0 }}
-        animate={{ opacity: isLoaded ? 1 : 0 }}
+        animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
         {/* Aurora Background */}
         <div className="absolute inset-0 aurora-bg opacity-60" />
         
         {/* Animated Background Orbs */}
-<div className="animated-orbs">
-  <motion.div 
-    className="floating-orb-1 absolute top-20 left-16 w-20 h-20 bg-gradient-to-r from-purple-500/25 to-indigo-500/25 rounded-full blur-md"
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    transition={{ delay: 0.5, duration: 2 }}
-  />
-  <motion.div 
-    className="floating-orb-2 absolute top-60 right-20 w-24 h-24 bg-gradient-to-r from-blue-500/30 to-cyan-500/25 rounded-full blur-md"
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    transition={{ delay: 1, duration: 2 }}
-  />
-  <motion.div 
-    className="floating-orb-3 absolute bottom-32 left-1/4 w-18 h-18 bg-gradient-to-r from-emerald-500/25 to-teal-500/25 rounded-full blur-sm"
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    transition={{ delay: 1.5, duration: 2 }}
-  />
-  <motion.div 
-    className="floating-orb-4 absolute top-1/3 right-1/3 w-16 h-16 bg-gradient-to-r from-orange-500/25 to-pink-500/25 rounded-full blur-md"
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    transition={{ delay: 2, duration: 2 }}
-  />
-  <motion.div 
-    className="floating-orb-5 absolute bottom-20 right-32 w-28 h-28 bg-gradient-to-r from-indigo-500/20 to-purple-500/30 rounded-full blur-md"
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    transition={{ delay: 0.8, duration: 2 }}
-  />
-  <motion.div 
-    className="floating-orb-6 absolute top-40 left-1/3 w-14 h-14 bg-gradient-to-r from-pink-500/30 to-red-500/25 rounded-full blur-sm"
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    transition={{ delay: 1.2, duration: 2 }}
-  />
-  <motion.div 
-    className="floating-orb-7 absolute top-80 left-20 w-22 h-22 bg-gradient-to-r from-cyan-500/25 to-blue-500/25 rounded-full blur-sm"
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    transition={{ delay: 0.3, duration: 2 }}
-  />
-  <motion.div 
-    className="floating-orb-8 absolute bottom-60 right-1/4 w-16 h-16 bg-gradient-to-r from-yellow-500/20 to-orange-500/25 rounded-full blur-md"
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    transition={{ delay: 2.2, duration: 2 }}
-  />
-  <motion.div 
-    className="floating-orb-9 absolute top-1/4 left-1/2 w-20 h-20 bg-gradient-to-r from-violet-500/25 to-purple-500/25 rounded-full blur-sm"
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    transition={{ delay: 1.8, duration: 2 }}
-  />
-  <motion.div 
-    className="floating-orb-10 absolute bottom-40 left-40 w-18 h-18 bg-gradient-to-r from-rose-500/25 to-pink-500/25 rounded-full blur-sm"
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    transition={{ delay: 2.5, duration: 2 }}
-  />
-</div>
+        <div className="animated-orbs">
+          <motion.div 
+            className="floating-orb-1 absolute top-20 left-16 w-20 h-20 bg-gradient-to-r from-purple-500/25 to-indigo-500/25 rounded-full blur-md"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5, duration: 2 }}
+          />
+          <motion.div 
+            className="floating-orb-2 absolute top-60 right-20 w-24 h-24 bg-gradient-to-r from-blue-500/30 to-cyan-500/25 rounded-full blur-md"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1, duration: 2 }}
+          />
+          <motion.div 
+            className="floating-orb-3 absolute bottom-32 left-1/4 w-18 h-18 bg-gradient-to-r from-emerald-500/25 to-teal-500/25 rounded-full blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.5, duration: 2 }}
+          />
+        </div>
 
         {/* Content */}
         <div className="relative z-10 main-content pb-8">
@@ -629,8 +531,8 @@ useEffect(() => {
               ))}
             </div>
 
-            {/* Social Map Section - Now using the new component */}
-             <SocialMapSection 
+            {/* Social Map Section */}
+            <SocialMapSection 
               onNavigate={handleNavigate} 
               onLoad={handleSocialMapLoad}
               isVisible={socialMapLoaded}
