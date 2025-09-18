@@ -345,7 +345,7 @@ useEffect(() => {
         style={{
          width: 'clamp(0.75rem, 8vw, 3rem)',
           height: 'clamp(0.75rem, 8vw, 3rem)',
-          animationDelay: hasAnimationStarted ? '0.2s' : '0s',
+          animationDelay: hasAnimationStarted || animationsCompleted ? '0.2s' : '0s',
           animationFillMode: 'both'
         }}
       >
@@ -368,7 +368,7 @@ useEffect(() => {
         style={{
            width: 'clamp(0.75rem, 8vw, 3rem)',
           height: 'clamp(0.75rem, 8vw, 3rem)',
-          animationDelay: hasAnimationStarted ? '0.4s' : '0s',
+          animationDelay: hasAnimationStarted || animationsCompleted? '0.4s' : '0s',
           animationFillMode: 'both'
         }}
       >
@@ -391,7 +391,7 @@ useEffect(() => {
         style={{
          width: 'clamp(0.75rem, 8vw, 3rem)',
           height: 'clamp(0.75rem, 8vw, 3rem)',
-          animationDelay: hasAnimationStarted ? '0.6s' : '0s',
+          animationDelay: hasAnimationStarted || animationsCompleted? '0.6s' : '0s',
           animationFillMode: 'both'
         }}
       >
@@ -414,7 +414,7 @@ useEffect(() => {
         style={{
          width: 'clamp(0.75rem, 8vw, 3rem)',
           height: 'clamp(0.75rem, 8vw, 3rem)',
-          animationDelay: hasAnimationStarted ? '0.8s' : '0s',
+          animationDelay: hasAnimationStarted || animationsCompleted? '0.8s' : '0s',
           animationFillMode: 'both'
         }}
       >
@@ -474,12 +474,12 @@ useEffect(() => {
                 {/* GymBros Section - Card Design - Increased size for PC */}
                 <div
                   className={`flex flex-col min-h-0 transition-all duration-800 box-border px-2 overflow-hidden ${
-                    hasAnimationStarted
+                    hasAnimationStarted || animationsCompleted
                       ? 'animate-floatUpSection'
                       : 'opacity-0 translate-y-8'
                   }`}
                   style={{
-                    animationDelay: hasAnimationStarted ? '0.3s' : '0s',
+                    animationDelay: hasAnimationStarted || animationsCompleted ? '0.3s' : '0s',
                     animationFillMode: 'both',
                     flexBasis: 'clamp(30%, 45%, 50%)', // Responsive from 30% mobile to 50% desktop
                     flexGrow: 0,
@@ -1108,7 +1108,7 @@ useEffect(() => {
       : 'opacity-0 translate-y-8'
   }`}
   style={{
-    animationDelay: hasAnimationStarted ? '0.5s' : '0s',
+    animationDelay: hasAnimationStarted || animationsCompleted? '0.5s' : '0s',
     animationFillMode: 'both',
     flexBasis: 'clamp(50%, 55%, 70%)', // Responsive from 50% mobile to 70% desktop
     flexGrow: 1,
