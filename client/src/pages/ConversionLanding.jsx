@@ -418,24 +418,6 @@ const ConversionLanding = () => {
         }
       `}</style>
 
-      {/* Debug panel - remove in production */}
-      <div style={{
-        position: 'fixed',
-        top: '10px',
-        left: '10px',
-        background: 'rgba(0,0,0,0.8)',
-        color: 'white',
-        padding: '10px',
-        fontSize: '12px',
-        zIndex: 9999,
-        borderRadius: '4px'
-      }}>
-        <div>Active: {activeSection}</div>
-        <div>ScrollY: {scrollY}</div>
-        <div>DocHeight: {document.documentElement.scrollHeight}</div>
-        <div>ViewportH: {window.innerHeight}</div>
-        <div>Sections: {sectionRefs.current.length}</div>
-      </div>
 
       <div
         ref={containerRef}
