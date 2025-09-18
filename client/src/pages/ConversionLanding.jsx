@@ -56,7 +56,9 @@ const ConversionLanding = () => {
     };
     
     const updateViewportHeight = () => {
-      setViewportHeight(window.innerHeight);
+      const newHeight = window.innerHeight;
+      console.log('Viewport height updated:', newHeight);
+      setViewportHeight(newHeight);
     };
     
     // For ConversionLanding, explicitly check if navbar exists (it shouldn't)
@@ -94,6 +96,7 @@ const ConversionLanding = () => {
               newSet.add(sectionIndex);
               const threshold = isMobile ? 0.3 : 0.5;
               if (entry.intersectionRatio > threshold) {
+                console.log('Setting active section via observer:', sectionIndex);
                 setActiveSection(sectionIndex);
               }
             } else {
@@ -118,7 +121,6 @@ const ConversionLanding = () => {
     return () => observer.disconnect();
   }, [isMobile]);
 
-  // Enhanced scroll handling with snap-to-center functionality
   const handleScroll = useCallback(() => {
     const currentScrollY = window.scrollY;
     const currentTime = Date.now();
@@ -144,7 +146,21 @@ const ConversionLanding = () => {
       
       const snapDelay = isMobile ? 150 : 100;
       const newSnapTimeout = setTimeout(() => {
-        snapToNearestSection();
+        // Inline the snap logic to avoid circular dependency
+        const currentScroll = window.scrollY;
+        const currentSectionFloat = currentScroll / viewportHeight;
+        const nearestSection = Math.round(currentSectionFloat);
+        const distanceFromNearest = Math.abs(currentSectionFloat - nearestSection);
+        
+        if (distanceFromNearest > 0.1) {
+          const targetPosition = nearestSection * viewportHeight;
+          console.log('Auto-snapping to section:', nearestSection, 'position:', targetPosition);
+          window.scrollTo({
+            top: targetPosition,
+            behavior: 'smooth'
+          });
+          setActiveSection(nearestSection);
+        }
       }, snapDelay);
       
       setSnapTimeout(newSnapTimeout);
@@ -152,36 +168,53 @@ const ConversionLanding = () => {
     
     lastScrollY.current = currentScrollY;
     lastScrollTime.current = currentTime;
-  }, [isMobile, snapTimeout]);
+  }, [isMobile, snapTimeout, viewportHeight]);
 
-  // Smooth snap-to-center functionality
-  const snapToNearestSection = useCallback(() => {
-    if (isScrolling) return;
+  // FIXED: Move navigateToSection above where it's used
+  const navigateToSection = useCallback((sectionIndex, isSnap = false) => {
+    console.log('navigateToSection called with:', sectionIndex, 'isSnap:', isSnap);
+    console.log('Available sections:', sectionRefs.current.length);
+    console.log('Viewport height:', viewportHeight);
     
-    const currentScroll = window.scrollY;
-    let nearestSection = 0;
-    let minDistance = Infinity;
+    // Clamp section index to valid range
+    const clampedIndex = Math.max(0, Math.min(sectionIndex, 4));
+    if (clampedIndex !== sectionIndex) {
+      console.warn('Section index clamped from', sectionIndex, 'to', clampedIndex);
+    }
     
-    sectionRefs.current.forEach((ref, index) => {
-      if (!ref) return;
-      
-      const rect = ref.getBoundingClientRect();
-      const sectionTop = currentScroll + rect.top;
-      const sectionCenter = sectionTop + rect.height / 2;
-      const viewportCenter = currentScroll + viewportHeight / 2;
-      const distance = Math.abs(sectionCenter - viewportCenter);
-      
-      if (distance < minDistance) {
-        minDistance = distance;
-        nearestSection = index;
-      }
+    const targetSection = sectionRefs.current[clampedIndex];
+    if (!targetSection) {
+      console.error('Target section not found:', clampedIndex, 'Available refs:', sectionRefs.current.map((ref, i) => ({ index: i, exists: !!ref })));
+      return;
+    }
+
+    if (snapTimeout) {
+      clearTimeout(snapTimeout);
+      setSnapTimeout(null);
+    }
+
+    // Calculate the target scroll position
+    // Since each section takes full viewport height, multiply by index
+    const targetPosition = clampedIndex * viewportHeight;
+    
+    console.log('Scrolling to position:', targetPosition, 'for section:', clampedIndex);
+    
+    window.scrollTo({
+      top: targetPosition,
+      behavior: 'smooth'
     });
     
-    const snapThreshold = viewportHeight * (isMobile ? 0.3 : 0.25);
-    if (minDistance < snapThreshold) {
-      navigateToSection(nearestSection, true);
-    }
-  }, [isScrolling, isMobile, viewportHeight]);
+    setActiveSection(clampedIndex);
+    
+    // Add a timeout to verify scroll actually happened
+    setTimeout(() => {
+      const actualPosition = window.scrollY;
+      console.log('After scroll - Target:', targetPosition, 'Actual:', actualPosition, 'Difference:', Math.abs(targetPosition - actualPosition));
+    }, 500);
+    
+  }, [snapTimeout, viewportHeight]);
+
+  // Remove the unused snapToNearestSection function since it's inlined now
 
   useEffect(() => {
     const optimizedScrollHandler = () => {
@@ -265,49 +298,6 @@ const ConversionLanding = () => {
   const isSectionVisible = (index) => visibleSections.has(index);
   const isActiveSection = (index) => activeSection === index;
 
-  // Enhanced navigation with smooth scrolling - using actual viewport height
-  const navigateToSection = useCallback((sectionIndex, isSnap = false) => {
-    const targetSection = sectionRefs.current[sectionIndex];
-    if (!targetSection) {
-      console.warn('Target section not found:', sectionIndex);
-      return;
-    }
-
-    if (snapTimeout) {
-      clearTimeout(snapTimeout);
-      setSnapTimeout(null);
-    }
-
-    if (sectionIndex === 0) {
-      window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-      });
-      setActiveSection(sectionIndex);
-      return;
-    }
-
-    const sectionTop = targetSection.offsetTop;
-    // No navbar in ConversionLanding, so no navbarHeight offset needed
-    const extraOffset = isMobile && (sectionIndex === 2 || sectionIndex === 3) ? -50 : 0;
-    
-    let targetPosition;
-    if (isSnap) {
-      const sectionHeight = targetSection.offsetHeight;
-      const sectionCenter = sectionTop + sectionHeight / 2;
-      targetPosition = Math.max(0, sectionCenter - viewportHeight / 2);
-    } else {
-      targetPosition = Math.max(0, sectionTop + extraOffset);
-    }
-    
-    window.scrollTo({
-      top: targetPosition,
-      behavior: 'smooth'
-    });
-    
-    setActiveSection(sectionIndex);
-  }, [snapTimeout, isMobile, viewportHeight]);
-
   const scrollProgress = Math.min(
     100,
     (scrollY / (document.documentElement.scrollHeight - viewportHeight)) * 100
@@ -339,8 +329,8 @@ const ConversionLanding = () => {
         /* Mobile viewport fix */
         @supports (-webkit-touch-callout: none) {
           .conversion-section {
-            height: ${availableHeight}px;
-            min-height: ${availableHeight}px;
+            height: ${availableHeight}px !important;
+            min-height: ${availableHeight}px !important;
           }
         }
 
@@ -407,9 +397,9 @@ const ConversionLanding = () => {
         }
 
         .conversion-section {
-          height: ${availableHeight}px;
-          min-height: ${availableHeight}px;
-          max-height: ${availableHeight}px;
+          height: ${availableHeight}px !important;
+          min-height: ${availableHeight}px !important;
+          max-height: ${availableHeight}px !important;
           width: 100vw;
           max-width: 100vw;
           overflow: hidden;
@@ -432,11 +422,29 @@ const ConversionLanding = () => {
         @media (max-width: 768px) {
           .conversion-section {
             padding: 1rem;
-            height: ${availableHeight}px;
-            min-height: ${availableHeight}px;
+            height: ${availableHeight}px !important;
+            min-height: ${availableHeight}px !important;
           }
         }
       `}</style>
+
+      {/* Debug panel - remove in production */}
+      <div style={{
+        position: 'fixed',
+        top: '10px',
+        left: '10px',
+        background: 'rgba(0,0,0,0.8)',
+        color: 'white',
+        padding: '10px',
+        fontSize: '12px',
+        zIndex: 9999,
+        borderRadius: '4px'
+      }}>
+        <div>Active: {activeSection}</div>
+        <div>ScrollY: {scrollY}</div>
+        <div>ViewportH: {viewportHeight}</div>
+        <div>Sections: {sectionRefs.current.length}</div>
+      </div>
 
       <div
         ref={containerRef}
@@ -568,15 +576,18 @@ const ConversionLanding = () => {
         {/* Pagination Dots */}
         <div className={`fixed ${getPaginationPosition()} transform -translate-y-1/2 z-40 ${getDotSpacing()}`}>
           {[
-            { index: 0, label: t('home.sections.home') },
-            { index: 1, label: t('home.sections.shop') },
-            { index: 2, label: t('home.sections.coaching') },
-            { index: 3, label: t('home.sections.community') },
-            { index: 4, label: t('home.sections.games') }
+            { index: 0, label: t('home.sections.home') || 'Home' },
+            { index: 1, label: t('home.sections.shop') || 'Shop' },
+            { index: 2, label: t('home.sections.coaching') || 'Coaching' },
+            { index: 3, label: t('home.sections.community') || 'Community' },
+            { index: 4, label: t('home.sections.games') || 'Games' }
           ].map(({ index, label }) => (
             <div key={index} className="relative group flex items-center">
               <button
-                onClick={() => navigateToSection(index)}
+                onClick={() => {
+                  console.log('Dot clicked for section:', index);
+                  navigateToSection(index);
+                }}
                 className={`pagination-dot block ${getDotSize()} rounded-full relative
                   ${isActiveSection(index)
                     ? 'bg-blue-500 active'

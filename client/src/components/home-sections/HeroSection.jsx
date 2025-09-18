@@ -334,7 +334,7 @@ useEffect(() => {
   }
 }}
          className={`relative rounded-full transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform z-50 pointer-events-auto ${
-          hasAnimationStarted
+          hasAnimationStarted || animationsCompleted
             ? 'animate-slideDownFromVideo'
             : 'opacity-0 invisible pointer-events-none'
         } ${
@@ -357,7 +357,7 @@ useEffect(() => {
       <button
         onClick={() => navigateToSection(2)}
          className={`relative rounded-full transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform z-50 pointer-events-auto ${
-          hasAnimationStarted
+          hasAnimationStarted || animationsCompleted
             ? 'animate-slideDownFromVideo'
             : 'opacity-0 invisible pointer-events-none'
         } ${
@@ -380,7 +380,7 @@ useEffect(() => {
       <button
         onClick={() => navigateToSection(3)}
          className={`relative rounded-full transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform z-50 pointer-events-auto ${
-          hasAnimationStarted
+          hasAnimationStarted || animationsCompleted
             ? 'animate-slideDownFromVideo'
             : 'opacity-0 invisible pointer-events-none'
         } ${
@@ -403,7 +403,7 @@ useEffect(() => {
       <button
         onClick={() => navigateToSection(4)}
          className={`relative rounded-full transition-all duration-500 flex flex-col items-center justify-center group shadow-lg transform z-50 pointer-events-auto ${
-          hasAnimationStarted
+          hasAnimationStarted || animationsCompleted
             ? 'animate-slideDownFromVideo'
             : 'opacity-0 invisible pointer-events-none'
         } ${
@@ -1103,7 +1103,7 @@ useEffect(() => {
 {/* Featured Products Section - Reduced to accommodate larger GymBros */}
 <div
   className={`space-y-2 sm:space-y-3 flex flex-col min-h-0 transition-all duration-800 ${
-    hasAnimationStarted
+    hasAnimationStarted || animationsCompleted
       ? 'animate-floatUpSection'
       : 'opacity-0 translate-y-8'
   }`}

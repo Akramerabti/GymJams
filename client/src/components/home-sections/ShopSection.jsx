@@ -9,6 +9,7 @@ const ShopSection = ({ isActive, onNavigate, darkMode }) => {
   const [products, setProducts] = useState({ clothes: [], accessories: [] });
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('clothes');
+const [shouldAnimate, setShouldAnimate] = useState(false);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -52,9 +53,17 @@ const ShopSection = ({ isActive, onNavigate, darkMode }) => {
     };
 
     if (isActive) {
-      fetchProducts();
-    }
-  }, [isActive]);
+    fetchProducts();
+    // Add a small delay to allow scroll animation to complete
+    const timer = setTimeout(() => {
+      setShouldAnimate(true);
+    }, 500); // Adjust this delay as needed
+    
+    return () => clearTimeout(timer);
+  } else {
+    setShouldAnimate(false);
+  }
+}, [isActive]);
 
   const categories = [
     { id: 'clothes', label: t('shopsection.gymClothes'), icon: Package },
@@ -214,8 +223,8 @@ const ShopSection = ({ isActive, onNavigate, darkMode }) => {
 
       {/* Content */}
       <div className={`relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-40 transition-all duration-1000 ${
-        isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-      }`}>
+  shouldAnimate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+}`}>
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 backdrop-blur-sm border border-blue-500/20 mb-4">
@@ -225,15 +234,11 @@ const ShopSection = ({ isActive, onNavigate, darkMode }) => {
             </span>
           </div>
           
-          <h2 className={`text-4xl sm:text-5xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent ${
-            isActive ? 'animate-fade-in' : ''
-          }`}>
+          <h2 className={`text-4xl sm:text-5xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent ${shouldAnimate ? 'animate-fade-in' : ''}`}>
             {t('shopsection.premiumShop')}
           </h2>
           
-          <p className={`text-md ${darkMode ? 'text-gray-300' : 'text-gray-700'} max-w-2xl mx-auto ${
-            isActive ? 'animate-fade-in animation-delay-200' : ''
-          }`}>
+          <p className={`text-md ${darkMode ? 'text-gray-300' : 'text-gray-700'} max-w-2xl mx-auto ${shouldAnimate ? 'animate-fade-in animation-delay-200' : ''}`}>
             {t('shopsection.discover')}
           </p>
         </div>
