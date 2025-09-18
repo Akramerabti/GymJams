@@ -26,6 +26,7 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   const [mainVideoError, setMainVideoError] = useState(false);
   const [backgroundVideoKey, setBackgroundVideoKey] = useState(0);
   const [mainVideoKey, setMainVideoKey] = useState(0);
+  const [animationsCompleted, setAnimationsCompleted] = useState(false);
   const [gymBrosCarouselRef, setGymBrosCarouselRef] = useState(null);
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -42,13 +43,16 @@ const HeroSection = ({ onNavigate, isActive, goToSection }) => {
   }, [isActive]);
 
   useEffect(() => {
-    if (isActive && isComponentReady && showContent) {
-      const timer = setTimeout(() => setHasAnimationStarted(true), 100);
-      return () => clearTimeout(timer);
-    } else if (!isActive) {
-      setHasAnimationStarted(false);
-    }
-  }, [isActive, isComponentReady, showContent]);
+  if (isActive && isComponentReady && showContent && !animationsCompleted) {
+    const timer = setTimeout(() => {
+      setHasAnimationStarted(true);
+      setAnimationsCompleted(true); // Mark animations as completed
+    }, 100);
+    return () => clearTimeout(timer);
+  } else if (!isActive) {
+    setHasAnimationStarted(false);
+  }
+}, [isActive, isComponentReady, showContent, animationsCompleted]);
   
     // Replace the entire fetchFeaturedProducts useEffect with this corrected version:
 
@@ -296,7 +300,7 @@ useEffect(() => {
                   <h2 className={`
                     text-fluid-lg font-bold tracking-wider text-white drop-shadow-lg transition-all duration-1000
                     w-full max-w-full text-center
-                    ${hasAnimationStarted ? 'animate-floatOnce' : 'opacity-0 translate-y-8'}
+                    ${hasAnimationStarted || animationsCompleted ? 'animate-floatOnce' : 'opacity-0 translate-y-8'}
                   `}
                     style={{ wordBreak: 'break-word' }}
                   >
@@ -305,7 +309,7 @@ useEffect(() => {
                   <p className={`
                     text-fluid-base font-medium text-white/90 drop-shadow-md transition-all duration-1000 delay-700
                     w-full max-w-full text-center
-                    ${hasAnimationStarted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
+                    ${hasAnimationStarted || animationsCompleted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
                   `}
                     style={{ wordBreak: 'break-word' }}
                   >
