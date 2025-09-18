@@ -458,7 +458,7 @@ useEffect(() => {
             margin-bottom: 60px;
           }
 
-          .menu-btn:nth-child(2) { top: -120px; }
+          .menu-btn:nth-child(2) { top: 120px; }
           .menu-btn:nth-child(3) { top: -75px; left: 95px; }
           .menu-btn:nth-child(4) { top: 30px; left: 120px; }
           .menu-btn:nth-child(5) { top: 30px; left: -120px; }

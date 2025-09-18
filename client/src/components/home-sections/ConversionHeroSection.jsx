@@ -1,25 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, Dumbbell, Trophy, ShoppingBag, Users, Gamepad2, ArrowRight, Star, Target, MessageCircle } from 'lucide-react';
-import { useTheme } from '../../contexts/ThemeContext';
+import { ShoppingBag, Trophy, Users, Gamepad2, ArrowRight, Star, Target, MessageCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY }) => {
-  const { darkMode } = useTheme();
+const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY, backgroundColor, textColor }) => {
   const { t } = useTranslation();
   const [selectedOption, setSelectedOption] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
   const [animationsComplete, setAnimationsComplete] = useState(false);
   const [showContent, setShowContent] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
 
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
+      setViewportHeight(window.innerHeight);
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
 
-    // Initialize content visibility and animations
     const initTimer = setTimeout(() => setShowContent(true), 100);
     const animTimer = setTimeout(() => setAnimationsComplete(true), 600);
 
@@ -30,8 +29,10 @@ const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY }) =
     };
   }, []);
 
-  const requestLocationPermission = async () => {
-    if ('geolocation' in navigator) {
+  const handleOptionClick = async (option, route, requiresLocation = false) => {
+    setSelectedOption(option);
+    
+    if (requiresLocation && 'geolocation' in navigator) {
       try {
         await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -40,19 +41,9 @@ const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY }) =
             maximumAge: 300000
           });
         });
-        return true;
       } catch (error) {
-        return false;
+        console.log('Location permission denied');
       }
-    }
-    return false;
-  };
-
-  const handleOptionClick = async (option, route, requiresLocation = false) => {
-    setSelectedOption(option);
-    
-    if (requiresLocation) {
-      await requestLocationPermission();
     }
     
     setTimeout(() => {
@@ -60,26 +51,23 @@ const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY }) =
     }, 300);
   };
 
-  const navigateToSection = (sectionIndex) => {
-    if (goToSection) {
-      goToSection(sectionIndex);
-    }
-  };
+  const backgroundGradient = backgroundColor === '#000000' 
+    ? 'linear-gradient(135deg, rgba(255,140,0,0.8) 0%, rgba(220,38,38,0.8) 50%, rgba(139,92,246,0.8) 100%)'
+    : 'linear-gradient(135deg, rgba(255,140,0,0.2) 0%, rgba(220,38,38,0.2) 50%, rgba(139,92,246,0.2) 100%)';
 
-  const backgroundGradient = 'linear-gradient(135deg, #ff8c00 0%, #dc2626 50%, #8b5cf6 100%)';
   const platformFeatures = [
     {
       icon: ShoppingBag,
-      title: 'Shop Premium Gear',
-      description: 'High-quality supplements, equipment, and fitness apparel',
+      title: 'Shop',
+      description: 'Premium gear & supplements',
       color: 'from-blue-500 to-purple-600',
       route: '/shop',
       delay: 0.2
     },
     {
       icon: Trophy,
-      title: 'Expert Coaching',
-      description: 'Personalized training programs from certified professionals',
+      title: 'Coaching',
+      description: 'Expert training programs',
       color: 'from-purple-500 to-pink-600',
       route: '/coaching',
       delay: 0.4,
@@ -87,8 +75,8 @@ const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY }) =
     },
     {
       icon: Users,
-      title: 'Find Gym Partners',
-      description: 'Connect with like-minded fitness enthusiasts nearby',
+      title: 'GymBros',
+      description: 'Find workout partners',
       color: 'from-green-500 to-blue-600',
       route: '/gymbros',
       delay: 0.6,
@@ -96,127 +84,110 @@ const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY }) =
     },
     {
       icon: Gamepad2,
-      title: 'Fitness Games',
-      description: 'Gamify your workout routine with interactive challenges',
+      title: 'Games',
+      description: 'Gamify your fitness',
       color: 'from-orange-500 to-red-600',
       route: '/games',
       delay: 0.8
     }
   ];
 
+  // Calculate responsive sizes based on viewport
+  const cardHeight = isMobile ? Math.min(120, viewportHeight * 0.15) : 200;
+  const headerSize = isMobile ? Math.min(48, viewportHeight * 0.08) : 80;
+  const iconSize = isMobile ? 'w-12 h-12' : 'w-16 h-16';
+
   return (
-    <div className="absolute inset-0" style={{ marginTop: 'var(--navbar-height, 0px)' }}>
-      <div className={`w-full h-full transition-all duration-700 ${showContent ? 'opacity-100' : 'opacity-0'}`}>
-        {/* Background with dot pattern */}
+    <div className="absolute inset-0 flex flex-col" style={{ backgroundColor, color: textColor }}>
+      <div className={`w-full h-full transition-all duration-700 ${showContent ? 'opacity-100' : 'opacity-0'} flex flex-col`}>
+        
+        {/* Background gradient overlay */}
         <div 
           className="absolute inset-0"
-          style={{
-            background: `
-              radial-gradient(circle at 0 0, #000000 ${isMobile ? '2px' : '3px'}, transparent ${isMobile ? '2px' : '3px'}),
-              radial-gradient(circle at ${isMobile ? '15px 15px' : '20px 20px'}, #000000 ${isMobile ? '1.5px' : '2px'}, transparent ${isMobile ? '1.5px' : '2px'}),
-              radial-gradient(circle at ${isMobile ? '8px 25px' : '10px 35px'}, #000000 ${isMobile ? '1px' : '1.5px'}, transparent ${isMobile ? '1px' : '1.5px'}),
-              ${backgroundGradient}
-            `,
-            backgroundSize: `${isMobile ? '30px 30px' : '40px 40px'}, ${isMobile ? '30px 30px' : '40px 40px'}, ${isMobile ? '30px 30px' : '40px 40px'}, 100% 100%`,
-            backgroundPosition: '0 0, 0 0, 0 0, 0 0',
-          }}
+          style={{ background: backgroundGradient }}
         />
 
-        {/* Content container */}
-        <div className="relative z-10 h-full flex flex-col" style={{ minHeight: '100dvh' }}>
+        {/* Content wrapper - fills height with proper padding */}
+        <div className="relative z-10 h-full flex flex-col p-4 md:p-8">
           
-          {/* Header Section */}
-          <header className="text-center py-8 px-4">
+          {/* Header - Responsive sizing */}
+          <header className={`text-center ${isMobile ? 'mb-4' : 'mb-8'}`}>
             <motion.div
-              initial={{ opacity: 0, y: -50 }}
-              animate={animationsComplete ? { opacity: 1, y: 0 } : { opacity: 0, y: -50 }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
+              initial={{ opacity: 0, y: -30 }}
+              animate={animationsComplete ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.8 }}
             >
-              <h1 className="text-white mb-4" style={{
-                fontFamily: 'Rubik, Arial, sans-serif',
-                fontSize: isMobile ? '3rem' : '5rem',
-                fontWeight: '800',
-                fontStyle: 'italic',
-                letterSpacing: '-0.05em',
-                textShadow: `
-                  -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000,
-                  -3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000, 3px 3px 0 #000,
-                  ${isMobile ? '8px 8px 0 #000, 12px 12px 0 #000' : '12px 12px 0 #000, 16px 16px 0 #000, 20px 20px 0 #000'}
-                `,
-                margin: '0',
-                lineHeight: '0.9'
-              }}>
+              <h1 
+                style={{
+                  fontFamily: 'Rubik, Arial, sans-serif',
+                  fontSize: `${headerSize}px`,
+                  fontWeight: '800',
+                  fontStyle: 'italic',
+                  letterSpacing: '-0.05em',
+                  textShadow: backgroundColor === '#000000' 
+                    ? '4px 4px 0 rgba(255,255,255,0.2)' 
+                    : '4px 4px 0 rgba(0,0,0,0.2)',
+                  margin: '0',
+                  lineHeight: '0.9',
+                  color: textColor
+                }}
+              >
                 GYMTONIC
               </h1>
-              
             </motion.div>
           </header>
 
-          {/* Platform Features Grid */}
-          <div className="flex-1 px-4 pb-8">
-            <div className="max-w-6xl mx-auto">
-              <div className={`grid gap-6 h-full ${isMobile ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-4'}`}>
+          {/* Features Grid - Flex-1 to fill available space */}
+          <div className="flex-1 flex items-center justify-center overflow-hidden">
+            <div className="w-full max-w-6xl">
+              <div className={`grid ${isMobile ? 'grid-cols-2 gap-3' : 'grid-cols-4 gap-6'} w-full`}>
                 {platformFeatures.map((feature, index) => (
                   <motion.div
                     key={index}
-                    className="group cursor-pointer h-full"
-                    initial={{ opacity: 0, y: 50, scale: 0.9 }}
-                    animate={animationsComplete ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 50, scale: 0.9 }}
-                    transition={{ duration: 0.8, delay: feature.delay, ease: "easeOut" }}
+                    className="cursor-pointer"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={animationsComplete ? { opacity: 1, scale: 1 } : {}}
+                    transition={{ duration: 0.6, delay: feature.delay }}
                     onClick={() => handleOptionClick(feature.title, feature.route, feature.requiresLocation)}
-                    whileHover={{ scale: 1.02, y: -5 }}
-                    whileTap={{ scale: 0.98 }}
+                    whileHover={!isMobile ? { scale: 1.05 } : {}}
+                    whileTap={{ scale: 0.95 }}
                   >
-                    <div className={`
-                      h-full p-6 rounded-2xl border-4 border-black shadow-2xl
-                      bg-white hover:bg-gray-50 transition-all duration-300
-                      transform hover:shadow-3xl relative overflow-hidden
-                      ${isMobile ? 'min-h-[200px]' : 'min-h-[300px]'}
-                    `}>
-                      
-                      {/* Animated background gradient */}
+                    <div 
+                      className={`
+                        p-4 rounded-xl border-2 shadow-lg
+                        transition-all duration-300 relative overflow-hidden
+                        flex flex-col items-center justify-center text-center
+                        ${backgroundColor === '#000000' 
+                          ? 'bg-white/90 hover:bg-white border-white/20' 
+                          : 'bg-black/90 hover:bg-black border-black/20'
+                        }
+                      `}
+                      style={{ 
+                        height: `${cardHeight}px`,
+                        color: backgroundColor === '#000000' ? '#000000' : '#ffffff'
+                      }}
+                    >
+                      {/* Icon */}
                       <div className={`
-                        absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-500
+                        ${iconSize} rounded-full mb-2
                         bg-gradient-to-br ${feature.color}
-                      `} />
-                      
-                      {/* Content */}
-                      <div className="relative z-10 h-full flex flex-col items-center justify-center text-center">
-                        
-                        {/* Icon */}
-                        <div className={`
-                          w-16 h-16 md:w-20 md:h-20 rounded-full mb-4
-                          bg-gradient-to-br ${feature.color}
-                          flex items-center justify-center
-                          shadow-lg group-hover:shadow-xl transition-all duration-300
-                          group-hover:scale-110
-                        `}>
-                          <feature.icon className="w-8 h-8 md:w-10 md:h-10 text-white" />
-                        </div>
-
-                        {/* Title */}
-                        <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-3 group-hover:text-gray-700 transition-colors">
-                          {feature.title}
-                        </h3>
-
-                        {/* Description */}
-                        <p className="text-gray-600 leading-relaxed group-hover:text-gray-500 transition-colors">
-                          {feature.description}
-                        </p>
-
-                        {/* Hover arrow */}
-                        <div className="mt-4 opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300">
-                          <ArrowRight className="w-6 h-6 text-gray-700 animate-bounce" />
-                        </div>
+                        flex items-center justify-center
+                        shadow-md
+                      `}>
+                        <feature.icon className={`${isMobile ? 'w-6 h-6' : 'w-8 h-8'} text-white`} />
                       </div>
 
-                      {/* Decorative corner */}
-                      <div className={`
-                        absolute top-0 right-0 w-20 h-20 
-                        bg-gradient-to-bl ${feature.color} opacity-5
-                        transform rotate-45 translate-x-10 -translate-y-10
-                        group-hover:opacity-15 transition-opacity duration-300
-                      `} />
+                      {/* Title */}
+                      <h3 className={`font-bold ${isMobile ? 'text-sm' : 'text-lg'} mb-1`}>
+                        {feature.title}
+                      </h3>
+
+                      {/* Description - Hidden on very small screens */}
+                      {(!isMobile || viewportHeight > 600) && (
+                        <p className={`${isMobile ? 'text-xs' : 'text-sm'} opacity-80`}>
+                          {feature.description}
+                        </p>
+                      )}
                     </div>
                   </motion.div>
                 ))}
@@ -224,61 +195,17 @@ const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY }) =
             </div>
           </div>
 
-          {/* Why Choose Gymtonic Section */}
-          <motion.div 
-            className="bg-black/20 backdrop-blur-sm py-8 px-4 mt-auto"
-            initial={{ opacity: 0, y: 30 }}
-            animate={animationsComplete ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-            transition={{ duration: 0.8, delay: 1.0 }}
-          >
-            <div className="max-w-4xl mx-auto text-center">
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-6">
-                Why Choose Gymtonic?
-              </h2>
-              
-              <div className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'md:grid-cols-3'}`}>
-                <div className="text-white/90">
-                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-green-500 flex items-center justify-center">
-                    <Star className="w-6 h-6" />
-                  </div>
-                  <h3 className="font-semibold mb-2">All-in-One Platform</h3>
-                  <p className="text-sm">Everything you need for your fitness journey in one place</p>
-                </div>
-                
-                <div className="text-white/90">
-                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-blue-500 flex items-center justify-center">
-                    <Target className="w-6 h-6" />
-                  </div>
-                  <h3 className="font-semibold mb-2">Personalized Experience</h3>
-                  <p className="text-sm">Tailored recommendations based on your goals and preferences</p>
-                </div>
-                
-                <div className="text-white/90">
-                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-purple-500 flex items-center justify-center">
-                    <MessageCircle className="w-6 h-6" />
-                  </div>
-                  <h3 className="font-semibold mb-2">Community Driven</h3>
-                  <p className="text-sm">Connect with thousands of fitness enthusiasts worldwide</p>
-                </div>
-              </div>
-
-              {/* CTA Button */}
-              <motion.div 
-                className="mt-8"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <button
-                  onClick={() => navigateToSection(1)}
-                  className="bg-white text-gray-900 px-8 py-4 rounded-full font-bold text-lg
-                           shadow-2xl hover:shadow-3xl transition-all duration-300
-                           border-4 border-black hover:bg-gray-100"
-                >
-                  Start Your Fitness Journey
-                </button>
-              </motion.div>
-            </div>
-          </motion.div>
+          {/* Bottom CTA - Only show on larger screens or when there's space */}
+          {(!isMobile || viewportHeight > 700) && (
+            <motion.div 
+              className={`text-center ${isMobile ? 'mt-4' : 'mt-8'}`}
+              initial={{ opacity: 0, y: 20 }}
+              animate={animationsComplete ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.8, delay: 1.0 }}
+            >
+              {/* Button removed for better visibility */}
+            </motion.div>
+          )}
         </div>
       </div>
 
@@ -287,12 +214,16 @@ const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY }) =
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.2 }}
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
         >
-          <div className="bg-white rounded-2xl p-8 text-center shadow-2xl border-4 border-black">
-            <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-900 font-semibold">Redirecting to {selectedOption}...</p>
+          <div className={`
+            rounded-xl p-6 text-center shadow-2xl border-2
+            ${backgroundColor === '#000000' ? 'bg-white border-white/20' : 'bg-black border-black/20'}
+          `}>
+            <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+            <p className={`font-semibold ${backgroundColor === '#000000' ? 'text-black' : 'text-white'}`}>
+              Loading {selectedOption}...
+            </p>
           </div>
         </motion.div>
       )}

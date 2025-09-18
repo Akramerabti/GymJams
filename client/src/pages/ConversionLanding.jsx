@@ -17,10 +17,9 @@ const ConversionLanding = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   
-  // ACTUAL random background that changes on refresh - use Date.now() to force randomization
   const [backgroundColor] = useState(() => {
-    const seed = Date.now() + Math.random();
-    return seed % 2 > 1 ? '#ffffff' : '#000000';
+    // Use Math.random() for true 50/50 chance
+    return Math.random() < 0.5 ? '#ffffff' : '#000000';
   });
   
   const textColor = backgroundColor === '#ffffff' ? '#000000' : '#ffffff';
@@ -36,11 +35,8 @@ const ConversionLanding = () => {
   const [activeSection, setActiveSection] = useState(0);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isScrolling, setIsScrolling] = useState(false);
-  // For ConversionLanding, there's no navbar, so set to 0
-  const [navbarHeight, setNavbarHeight] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const [snapTimeout, setSnapTimeout] = useState(null);
-  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
   
   const sectionRefs = useRef([]);
   const containerRef = useRef(null);
@@ -49,38 +45,17 @@ const ConversionLanding = () => {
   const animationFrameId = useRef(null);
   const scrollTimeout = useRef(null);
   
-  // Detect mobile, navbar height, and viewport height
+  // Detect mobile
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
     
-    const updateViewportHeight = () => {
-      const newHeight = window.innerHeight;
-      console.log('Viewport height updated:', newHeight);
-      setViewportHeight(newHeight);
-    };
-    
-    // For ConversionLanding, explicitly check if navbar exists (it shouldn't)
-    const getNavbarHeight = () => {
-      const navbar = document.querySelector('nav, [data-navbar], .fixed.top-0, header');
-      // ConversionLanding should NOT have a navbar, so force to 0
-      setNavbarHeight(0);
-      console.log('ConversionLanding: Navbar height set to 0 (no navbar expected)');
-    };
-    
     checkMobile();
-    getNavbarHeight();
-    updateViewportHeight();
-    
     window.addEventListener('resize', checkMobile);
-    window.addEventListener('resize', getNavbarHeight);
-    window.addEventListener('resize', updateViewportHeight);
     
     return () => {
       window.removeEventListener('resize', checkMobile);
-      window.removeEventListener('resize', getNavbarHeight);
-      window.removeEventListener('resize', updateViewportHeight);
     };
   }, []);
 
@@ -146,7 +121,8 @@ const ConversionLanding = () => {
       
       const snapDelay = isMobile ? 150 : 100;
       const newSnapTimeout = setTimeout(() => {
-        // Inline the snap logic to avoid circular dependency
+        // Get the current viewport height using CSS
+        const viewportHeight = window.innerHeight;
         const currentScroll = window.scrollY;
         const currentSectionFloat = currentScroll / viewportHeight;
         const nearestSection = Math.round(currentSectionFloat);
@@ -168,13 +144,11 @@ const ConversionLanding = () => {
     
     lastScrollY.current = currentScrollY;
     lastScrollTime.current = currentTime;
-  }, [isMobile, snapTimeout, viewportHeight]);
+  }, [isMobile, snapTimeout]);
 
-  // FIXED: Move navigateToSection above where it's used
   const navigateToSection = useCallback((sectionIndex, isSnap = false) => {
     console.log('navigateToSection called with:', sectionIndex, 'isSnap:', isSnap);
     console.log('Available sections:', sectionRefs.current.length);
-    console.log('Viewport height:', viewportHeight);
     
     // Clamp section index to valid range
     const clampedIndex = Math.max(0, Math.min(sectionIndex, 4));
@@ -193,11 +167,12 @@ const ConversionLanding = () => {
       setSnapTimeout(null);
     }
 
-    // Calculate the target scroll position
-    // Since each section takes full viewport height, multiply by index
-    const targetPosition = clampedIndex * viewportHeight;
+    // Use the section's offsetTop for accurate positioning
+    const targetPosition = targetSection.offsetTop;
     
     console.log('Scrolling to position:', targetPosition, 'for section:', clampedIndex);
+    console.log('Section offsetTop:', targetSection.offsetTop);
+    console.log('Document height:', document.documentElement.scrollHeight);
     
     window.scrollTo({
       top: targetPosition,
@@ -212,9 +187,7 @@ const ConversionLanding = () => {
       console.log('After scroll - Target:', targetPosition, 'Actual:', actualPosition, 'Difference:', Math.abs(targetPosition - actualPosition));
     }, 500);
     
-  }, [snapTimeout, viewportHeight]);
-
-  // Remove the unused snapToNearestSection function since it's inlined now
+  }, [snapTimeout]);
 
   useEffect(() => {
     const optimizedScrollHandler = () => {
@@ -300,16 +273,13 @@ const ConversionLanding = () => {
 
   const scrollProgress = Math.min(
     100,
-    (scrollY / (document.documentElement.scrollHeight - viewportHeight)) * 100
+    (scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100
   );
 
   // Responsive pagination dots configuration
   const getDotSize = () => isMobile ? 'w-2.5 h-2.5' : 'w-3 h-3';
   const getDotSpacing = () => isMobile ? 'space-y-3' : 'space-y-4';
   const getPaginationPosition = () => isMobile ? 'right-3 top-1/2' : 'right-6 top-1/2';
-
-  // Calculate the actual available height (full viewport since no navbar)
-  const availableHeight = viewportHeight;
 
   return (
     <>
@@ -326,11 +296,62 @@ const ConversionLanding = () => {
           overflow-x: hidden;
         }
 
-        /* Mobile viewport fix */
+        /* Use dvh for main sections - dynamic viewport height that adapts to mobile browsers */
+        .conversion-section {
+          height: 100dvh !important;
+          min-height: 100svh !important; /* Fallback for minimum stable height */
+          max-height: 100lvh !important; /* Maximum height for background containers */
+          width: 100vw;
+          max-width: 100vw;
+          overflow: visible; /* Changed from hidden to allow proper document flow */
+          position: relative;
+          padding: clamp(1rem, 4vw, 2rem);
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          background-color: ${backgroundColor};
+          color: ${textColor};
+        }
+
+        /* Ensure document has proper scrollable height */
+        .conversion-container {
+          height: auto !important;
+          min-height: 500dvh !important; /* 5 sections × 100dvh */
+        }
+
+        .conversion-section * {
+          max-width: 100%;
+          box-sizing: border-box;
+        }
+
+        /* Legacy browser fallback using vh */
+        @supports not (height: 100dvh) {
+          .conversion-section {
+            height: 100vh !important;
+            min-height: 100vh !important;
+            max-height: 100vh !important;
+          }
+          
+          .conversion-container {
+            min-height: 500vh !important;
+          }
+        }
+
+        /* iOS Safari specific fixes */
         @supports (-webkit-touch-callout: none) {
           .conversion-section {
-            height: ${availableHeight}px !important;
-            min-height: ${availableHeight}px !important;
+            height: 100dvh !important;
+            min-height: 100svh !important;
+          }
+        }
+
+        /* Force mobile browsers to use the correct height */
+        @media (max-width: 768px) {
+          .conversion-section {
+            padding: 1rem;
+            height: 100dvh !important;
+            min-height: 100svh !important;
           }
         }
 
@@ -395,37 +416,6 @@ const ConversionLanding = () => {
             padding: 0.25rem 0.5rem;
           }
         }
-
-        .conversion-section {
-          height: ${availableHeight}px !important;
-          min-height: ${availableHeight}px !important;
-          max-height: ${availableHeight}px !important;
-          width: 100vw;
-          max-width: 100vw;
-          overflow: hidden;
-          position: relative;
-          padding: clamp(1rem, 4vw, 2rem);
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center;
-          background-color: ${backgroundColor};
-          color: ${textColor};
-        }
-
-        .conversion-section * {
-          max-width: 100%;
-          box-sizing: border-box;
-        }
-
-        /* Force mobile browsers to use the correct height */
-        @media (max-width: 768px) {
-          .conversion-section {
-            padding: 1rem;
-            height: ${availableHeight}px !important;
-            min-height: ${availableHeight}px !important;
-          }
-        }
       `}</style>
 
       {/* Debug panel - remove in production */}
@@ -442,13 +432,14 @@ const ConversionLanding = () => {
       }}>
         <div>Active: {activeSection}</div>
         <div>ScrollY: {scrollY}</div>
-        <div>ViewportH: {viewportHeight}</div>
+        <div>DocHeight: {document.documentElement.scrollHeight}</div>
+        <div>ViewportH: {window.innerHeight}</div>
         <div>Sections: {sectionRefs.current.length}</div>
       </div>
 
       <div
         ref={containerRef}
-        className="conversion-fluid w-full relative"
+        className="conversion-container w-full relative"
         style={{
           margin: 0,
           padding: 0,
@@ -464,7 +455,7 @@ const ConversionLanding = () => {
             className="fixed inset-0 z-50 flex items-center justify-center"
             style={{ 
               backgroundColor,
-              height: `${availableHeight}px`,
+              height: '100dvh',
               width: '100vw'
             }}
           >
