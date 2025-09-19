@@ -1144,19 +1144,21 @@ export const updateUserLocationRealtime = async (req, res) => {
       lastUpdated: profile.location.lastUpdated
     } : null;
 
-    // Update location with proper structure
     const newLocation = {
-      lat: parseFloat(lat),
-      lng: parseFloat(lng),
-      address: profile.location?.address || '',
-      city: profile.location?.city || '',
-      state: profile.location?.state || '',
-      country: profile.location?.country || 'US',
-      zipCode: profile.location?.zipCode || '',
-      accuracy: accuracy || 'medium',
-      source: source || 'gps',
-      lastUpdated: new Date(timestamp || Date.now())
-    };
+  lat: parseFloat(lat),
+  lng: parseFloat(lng),
+  address: profile.location?.address || '',
+  city: profile.location?.city || '',
+  state: profile.location?.state || '',
+  country: profile.location?.country || 'US',
+  zipCode: profile.location?.zipCode || '',
+  // Map 'gps-native' to 'gps' for schema compatibility
+  source: source === 'gps-native' ? 'gps' : (source || 'gps'),
+  // Convert numeric accuracy to enum string
+  accuracy: mapAccuracyToEnum(accuracy) || 'medium',
+  lastUpdated: new Date(timestamp || Date.now())
+};
+
 
     profile.location = newLocation;
 
@@ -1200,6 +1202,20 @@ export const updateUserLocationRealtime = async (req, res) => {
     });
   }
 };
+
+function mapAccuracyToEnum(accuracy) {
+  if (typeof accuracy === 'string' && ['high', 'medium', 'low', 'approximate'].includes(accuracy)) {
+    return accuracy;
+  }
+  if (typeof accuracy === 'number') {
+    if (accuracy <= 10) return 'high';
+    if (accuracy <= 50) return 'medium'; 
+    if (accuracy <= 100) return 'low';
+    return 'approximate';
+  }
+  return 'medium';
+}
+
 // Get clustered data for specific zoom level (similar to Snapchat's heat map)
 export const getMapClusters = async (req, res) => {
   try {

@@ -667,16 +667,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
       })
     };
     
-    // Send via socket for real-time delivery if connected
-    if (socket && connected) {
-      try {
-
-        socket.emit('sendMessage', socketMessageData);
-      } catch (socketError) {
-        console.error('❌ Error sending message via socket:', socketError);
-      }
-    }
-
+   
     // Prepare API message data
     const apiFileData = uploadedFiles.map(file => {
 

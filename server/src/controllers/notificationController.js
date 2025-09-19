@@ -224,29 +224,30 @@ export const sendToUser = async (userId, notification, options = {}) => {
     const response = await admin.messaging().sendEachForMulticast(message);
     
     // Handle failed tokens
-    if (response.failureCount > 0) {
-      const failedTokens = [];
-      response.responses.forEach((resp, idx) => {
-        if (!resp.success) {
-          console.error(`Failed to send to token ${fcmTokens[idx]}: ${resp.error}`);
-          
-          // Check if token is invalid
-          if (resp.error.code === 'messaging/invalid-registration-token' ||
-              resp.error.code === 'messaging/registration-token-not-registered') {
-            failedTokens.push(fcmTokens[idx]);
-          }
-        }
-      });
+if (response.failureCount > 0) {
+  const failedTokens = [];
+  response.responses.forEach((resp, idx) => {
+    if (!resp.success) {
+      console.error(`Failed to send to token ${fcmTokens[idx]}: ${resp.error}`);
       
-      // Remove invalid tokens
-      if (failedTokens.length > 0) {
-        await NotificationToken.updateMany(
-          { fcmToken: { $in: failedTokens } },
-          { isActive: false }
-        );
-        console.log(`Deactivated ${failedTokens.length} invalid tokens`);
+      // Check if token is invalid (includes "Requested entity was not found")
+      if (resp.error.code === 'messaging/invalid-registration-token' ||
+          resp.error.code === 'messaging/registration-token-not-registered' ||
+          resp.error.message?.includes('Requested entity was not found')) {
+        failedTokens.push(fcmTokens[idx]);
       }
     }
+  });
+  
+  // Remove invalid tokens
+  if (failedTokens.length > 0) {
+    await NotificationToken.updateMany(
+      { fcmToken: { $in: failedTokens } },
+      { isActive: false }
+    );
+    console.log(`Deactivated ${failedTokens.length} invalid tokens`);
+  }
+}
 
     console.log(`Data-only notification sent to user ${userId}: ${response.successCount}/${fcmTokens.length} successful`);
     return {
