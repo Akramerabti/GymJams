@@ -122,6 +122,12 @@ const Navbar = () => {
           border: 1px solid rgba(255, 255, 255, 0.2);
           border-bottom: none;
           position: relative;
+          position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding-top: constant(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top);
         }
 
         .navbar-container::after {
@@ -440,7 +446,7 @@ const Navbar = () => {
         }
       `}</style>
       
-     <div className="fixed top-0 left-0 right-0 z-[9999] safe-area-navbar">
+     <div className="fixed top-0 left-0 right-0 z-[9999]">
         <div className="navbar-container">
           <div className="max-w-[95vw] mx-auto px-4">
             <div className="flex justify-between items-end h-24 ">
