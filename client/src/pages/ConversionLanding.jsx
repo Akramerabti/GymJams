@@ -432,36 +432,6 @@ const ConversionLanding = () => {
         }
       `}</style>
 
-      {/* Debug panel - remove in production */}
-      <div style={{
-        position: 'fixed',
-        top: '10px',
-        left: '10px',
-        background: 'rgba(0,0,0,0.8)',
-        color: 'white',
-        padding: '10px',
-        fontSize: '12px',
-        zIndex: 9999,
-        borderRadius: '4px',
-        maxWidth: '300px'
-      }}>
-        <div>Active: {activeSection}</div>
-        <div>ScrollY: {scrollY}</div>
-        <div>DocHeight: {document.documentElement.scrollHeight}</div>
-        <div>ViewportH: {window.innerHeight}</div>
-        <div>Sections: {sections.length}</div>
-        <div>Section Heights: {sectionRefs.current.map((ref, i) => 
-          ref ? `${i}:${ref.offsetHeight}px` : `${i}:null`
-        ).join(', ')}</div>
-        <div>Section Tops: {sectionRefs.current.map((ref, i) => 
-          ref ? `${i}:${ref.offsetTop}px` : `${i}:null`
-        ).join(', ')}</div>
-        <div>Container Height: {containerRef.current?.offsetHeight || 'null'}px</div>
-        <div>Body Height: {document.body.offsetHeight}px</div>
-        <div>HTML Height: {document.documentElement.offsetHeight}px</div>
-        <div>Render Time: {Date.now()}</div>
-      </div>
-
       <div ref={containerRef} className="conversion-container">
         {/* Main sections - like Home.jsx */}
         {sections.map((section, index) => {
