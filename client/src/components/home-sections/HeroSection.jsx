@@ -158,7 +158,7 @@ useEffect(() => {
 
   return (
   // The main container for the entire HeroSection
-    <div className="relative w-full h-[100dvh] overflow-hidden">
+   <div className="relative w-full h-full overflow-hidden">
       {!isComponentReady && (
         <div className="absolute inset-0 z-50 bg-black flex items-center justify-center">
           <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>

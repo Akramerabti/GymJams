@@ -30,16 +30,38 @@ const Home = () => {
   ];
   
   useEffect(() => {
-  const getNavbarHeight = () => {
-    const rootStyles = getComputedStyle(document.documentElement);
-    const height = parseInt(rootStyles.getPropertyValue('--navbar-height')) || 0;
-    setNavbarHeight(height);
-  };
-  
-  getNavbarHeight();
-  window.addEventListener('resize', getNavbarHeight);
-  return () => window.removeEventListener('resize', getNavbarHeight);
-}, []);
+    const getNavbarHeight = () => {
+      // Directly measure the actual navbar element
+      const navbar = document.querySelector('div[class*="shadow-lg"][class*="fixed"][class*="top-0"]');
+      
+      if (navbar) {
+        const height = navbar.getBoundingClientRect().height;
+        console.log('📏 Measured navbar height:', height);
+        setNavbarHeight(height);
+      } else {
+        console.warn('⚠️ Navbar not found, retrying...');
+        // Retry after a short delay if navbar isn't rendered yet
+        setTimeout(getNavbarHeight, 50);
+      }
+    };
+
+    // Initial measurement
+    getNavbarHeight();
+    
+    // Re-measure on resize to capture responsive changes
+    const handleResize = () => {
+      requestAnimationFrame(getNavbarHeight);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    
+    // Also re-measure when fonts load (can affect height)
+    document.fonts.ready.then(getNavbarHeight);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
   
   // Intersection observer for active section
   useEffect(() => {
@@ -70,7 +92,9 @@ const Home = () => {
     const section = sectionRefs.current[index];
     if (!section) return;
     
-    const sectionTop = section.offsetTop - navbarHeight;
+    // Use offsetTop directly without subtracting navbar height
+    // The browser will handle the positioning correctly
+    const sectionTop = section.offsetTop;
     window.scrollTo({
       top: sectionTop,
       behavior: 'smooth'
@@ -99,12 +123,14 @@ const Home = () => {
           width: 100%;
           overflow-x: hidden;
           position: relative;
+          /* Add top padding to account for fixed navbar */
+          padding-top: var(--navbar-height);
         }
         
         .home-section {
           width: 100%;
-          min-height: 100vh;
-          min-height: 100dvh;
+          height: 100vh;           /* Use full viewport height */
+          height: 100dvh;          /* Use dynamic viewport height where supported */
           position: relative;
           display: flex;
           align-items: center;
@@ -112,24 +138,17 @@ const Home = () => {
           overflow: hidden;
         }
         
-        /* Responsive section height accounting for navbar */
+        /* Ensure dynamic viewport height is used where supported */
         @supports (height: 100dvh) {
           .home-section {
-            min-height: calc(100dvh - var(--navbar-height));
+            height: 100dvh;
           }
         }
         
         @supports not (height: 100dvh) {
           .home-section {
-            min-height: calc(100vh - var(--navbar-height));
+            height: 100vh;
           }
-        }
-        
-        /* First section needs padding for navbar */
-        .home-section:first-child {
-          padding-top: var(--navbar-height);
-          min-height: 100vh;
-          min-height: 100dvh;
         }
         
         /* Navigation dots */

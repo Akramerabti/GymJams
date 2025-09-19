@@ -8,7 +8,6 @@ const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY, bac
   const [selectedOption, setSelectedOption] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
   const [animationsComplete, setAnimationsComplete] = useState(false);
-  const [showContent, setShowContent] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
 
   useEffect(() => {
@@ -19,11 +18,10 @@ const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY, bac
     checkMobile();
     window.addEventListener('resize', checkMobile);
 
-    const initTimer = setTimeout(() => setShowContent(true), 100);
-    const animTimer = setTimeout(() => setAnimationsComplete(true), 600);
+    // Single timer - no separate showContent state to avoid timing conflicts
+    const animTimer = setTimeout(() => setAnimationsComplete(true), 50); // Much faster
 
     return () => {
-      clearTimeout(initTimer);
       clearTimeout(animTimer);
       window.removeEventListener('resize', checkMobile);
     };
@@ -62,7 +60,7 @@ const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY, bac
       description: 'Premium gear & supplements',
       color: 'from-blue-500 to-purple-600',
       route: '/shop',
-      delay: 0.2
+      delay: 0.1
     },
     {
       icon: Trophy,
@@ -70,7 +68,7 @@ const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY, bac
       description: 'Expert training programs',
       color: 'from-purple-500 to-pink-600',
       route: '/coaching',
-      delay: 0.4,
+      delay: 0.2,
       requiresLocation: true
     },
     {
@@ -79,7 +77,7 @@ const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY, bac
       description: 'Find workout partners',
       color: 'from-green-500 to-blue-600',
       route: '/gymbros',
-      delay: 0.6,
+      delay: 0.3,
       requiresLocation: true
     },
     {
@@ -88,7 +86,7 @@ const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY, bac
       description: 'Gamify your fitness',
       color: 'from-orange-500 to-red-600',
       route: '/games',
-      delay: 0.8
+      delay: 0.4
     }
   ];
 
@@ -99,7 +97,8 @@ const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY, bac
 
   return (
     <div className="absolute inset-0 flex flex-col" style={{ backgroundColor, color: textColor }}>
-      <div className={`w-full h-full transition-all duration-700 ${showContent ? 'opacity-100' : 'opacity-0'} flex flex-col`}>
+      {/* Show immediately, no opacity transition on wrapper */}
+      <div className="w-full h-full flex flex-col">
         
         {/* Background gradient overlay */}
         <div 
@@ -115,7 +114,7 @@ const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY, bac
             <motion.div
               initial={{ opacity: 0, y: -30 }}
               animate={animationsComplete ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.8 }}
+              transition={{ duration: 0.6 }}
             >
               <h1 
                 style={{
@@ -147,7 +146,7 @@ const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY, bac
                     className="cursor-pointer"
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={animationsComplete ? { opacity: 1, scale: 1 } : {}}
-                    transition={{ duration: 0.6, delay: feature.delay }}
+                    transition={{ duration: 0.5, delay: feature.delay }}
                     onClick={() => handleOptionClick(feature.title, feature.route, feature.requiresLocation)}
                     whileHover={!isMobile ? { scale: 1.05 } : {}}
                     whileTap={{ scale: 0.95 }}
@@ -201,7 +200,7 @@ const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY, bac
               className={`text-center ${isMobile ? 'mt-4' : 'mt-8'}`}
               initial={{ opacity: 0, y: 20 }}
               animate={animationsComplete ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.8, delay: 1.0 }}
+              transition={{ duration: 0.6, delay: 0.6 }}
             >
               {/* Button removed for better visibility */}
             </motion.div>

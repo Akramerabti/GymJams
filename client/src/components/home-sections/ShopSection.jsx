@@ -1,15 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ShoppingBag, Star, TrendingUp, Package, ArrowRight, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import productService from '../../services/product.service';
 import { getFirstProductImageUrl } from '../../utils/imageUtils';
 
-const ShopSection = ({ isActive, onNavigate, darkMode }) => {
+const ShopSection = ({ isActive, onNavigate, darkMode, backgroundColor, textColor, navbarHeight = 0 }) => {
   const { t } = useTranslation();
   const [products, setProducts] = useState({ clothes: [], accessories: [] });
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('clothes');
-const [shouldAnimate, setShouldAnimate] = useState(false);
+  const [hasAnimated, setHasAnimated] = useState(false); // Track if animation has played
+  const hasBeenActive = useRef(false); // Track if section has ever been active
+
+  // Determine if this is ConversionLanding (no navbar) or Home (with navbar)
+  const isConversionLanding = navbarHeight === 0;
+  
+  // Calculate appropriate padding based on context
+  const getPaddingClass = () => {
+    if (isConversionLanding) {
+      // ConversionLanding: tight padding to fit in 100dvh
+      return 'py-4 md:py-8';
+    } else {
+      // Home: NO padding - use flexbox centering since section is already sized correctly
+      return '';
+    }
+  };
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -52,18 +67,19 @@ const [shouldAnimate, setShouldAnimate] = useState(false);
       }
     };
 
-    if (isActive) {
-    fetchProducts();
-    // Add a small delay to allow scroll animation to complete
-    const timer = setTimeout(() => {
-      setShouldAnimate(true);
-    }, 500); // Adjust this delay as needed
-    
-    return () => clearTimeout(timer);
-  } else {
-    setShouldAnimate(false);
-  }
-}, [isActive]);
+    // Only fetch products once, when component first mounts or becomes active
+    if (isActive && !hasBeenActive.current) {
+      hasBeenActive.current = true;
+      fetchProducts();
+      
+      // Trigger animation only once
+      const timer = setTimeout(() => {
+        setHasAnimated(true);
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isActive]);
 
   const categories = [
     { id: 'clothes', label: t('shopsection.gymClothes'), icon: Package },
@@ -150,7 +166,7 @@ const [shouldAnimate, setShouldAnimate] = useState(false);
           )}
         </div>
 
-        <div className="p-4">
+        <div className="p-3">
           <h3 className={`font-semibold text-sm mb-2 line-clamp-2 ${
             darkMode ? 'text-white' : 'text-gray-900'
           }`}>
@@ -172,17 +188,17 @@ const [shouldAnimate, setShouldAnimate] = useState(false);
             <div className="flex items-center gap-2">
               {isDiscounted ? (
                 <>
-                  <span className="text-lg font-bold text-green-500">
+                  <span className="text-sm font-bold text-green-500">
                     ${product.discountedPrice?.toFixed(2) || product.price?.toFixed(2)}
                   </span>
-                  <span className={`text-sm line-through ${
+                  <span className={`text-xs line-through ${
                     darkMode ? 'text-gray-500' : 'text-gray-400'
                   }`}>
                     ${product.price?.toFixed(2)}
                   </span>
                 </>
               ) : (
-                <span className={`text-lg font-bold ${
+                <span className={`text-sm font-bold ${
                   darkMode ? 'text-white' : 'text-gray-900'
                 }`}>
                   ${product.price?.toFixed(2) || '0.00'}
@@ -196,9 +212,9 @@ const [shouldAnimate, setShouldAnimate] = useState(false);
                 // Add to cart logic
               }}
               disabled={product.stockQuantity === 0}
-              className="p-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-1.5 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <ShoppingBag className="w-4 h-4" />
+              <ShoppingBag className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -207,7 +223,12 @@ const [shouldAnimate, setShouldAnimate] = useState(false);
   };
 
   return (
-    <div >
+    <div style={{ 
+      backgroundColor: backgroundColor || (darkMode ? '#1f2937' : '#ffffff'),
+      color: textColor || (darkMode ? '#ffffff' : '#000000'),
+      height: '100%',
+      overflow: 'hidden'
+    }}>
       {/* Background */}
       <div className="absolute inset-0">
         <div className={`absolute inset-0 ${
@@ -221,35 +242,38 @@ const [shouldAnimate, setShouldAnimate] = useState(false);
         <div className="absolute bottom-10 left-10 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1.5s' }}></div>
       </div>
 
-      {/* Content */}
-      <div className={`relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-40 transition-all duration-1000 ${
-  shouldAnimate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-}`}>
+      {/* Content - Context-aware padding and sizing */}
+      <div className={`relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col ${
+        isConversionLanding ? `justify-center ${getPaddingClass()}` : 'py-8 justify-center'
+      } transition-all duration-1000 ${
+        hasAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+      }`}>
+        
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 backdrop-blur-sm border border-blue-500/20 mb-4">
+        <div className={`text-center ${isConversionLanding ? 'mb-4' : 'mb-6'}`}>
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 backdrop-blur-sm border border-blue-500/20 mb-3">
             <Sparkles className="w-4 h-4 text-blue-500" />
             <span className={`text-sm font-semibold ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>
               {t('shopsection.premiumStore')}
             </span>
           </div>
           
-          <h2 className={`text-4xl sm:text-5xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent ${shouldAnimate ? 'animate-fade-in' : ''}`}>
+          <h2 className={`${isConversionLanding ? 'text-2xl sm:text-3xl' : 'text-3xl sm:text-4xl'} font-bold mb-3 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent ${hasAnimated ? 'animate-fade-in' : ''}`}>
             {t('shopsection.premiumShop')}
           </h2>
           
-          <p className={`text-md ${darkMode ? 'text-gray-300' : 'text-gray-700'} max-w-2xl mx-auto ${shouldAnimate ? 'animate-fade-in animation-delay-200' : ''}`}>
+          <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'} max-w-2xl mx-auto ${hasAnimated ? 'animate-fade-in animation-delay-200' : ''}`}>
             {t('shopsection.discover')}
           </p>
         </div>
 
         {/* Category tabs */}
-        <div className="flex justify-center gap-4 mb-8">
+        <div className={`flex justify-center gap-4 ${isConversionLanding ? 'mb-4' : 'mb-6'}`}>
           {categories.map((category) => (
             <button
               key={category.id}
               onClick={() => setActiveCategory(category.id)}
-              className={`flex items-center gap-2 px-6 py-3 rounded-full transition-all duration-300 ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-300 ${
                 activeCategory === category.id
                   ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg scale-105'
                   : darkMode 
@@ -257,31 +281,33 @@ const [shouldAnimate, setShouldAnimate] = useState(false);
                     : 'bg-white text-gray-700 hover:bg-gray-100'
               }`}
             >
-              <category.icon className="w-5 h-5" />
-              <span className="font-semibold">{category.label}</span>
+              <category.icon className="w-4 h-4" />
+              <span className="font-semibold text-sm">{category.label}</span>
             </button>
           ))}
         </div>
 
         {/* Products grid */}
         {loading ? (
-          <div className="flex items-center justify-center h-64">
+          <div className={`flex items-center justify-center ${isConversionLanding ? 'h-32' : 'h-40'}`}>
             <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-            {products[activeCategory].map(renderProduct)}
+          <div className={`flex-1 flex items-center justify-center min-h-0`}>
+            <div className={`w-full grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 max-h-full overflow-hidden`}>
+              {products[activeCategory].slice(0, isConversionLanding ? 8 : 6).map(renderProduct)}
+            </div>
           </div>
         )}
 
         {/* View all button */}
-        <div className="text-center mt-8">
+        <div className={`text-center ${isConversionLanding ? 'mt-4' : 'mt-6'}`}>
           <button
             onClick={() => onNavigate(`/shop?category=${activeCategory}`)}
-            className="inline-flex items-center gap-2 px-8 py-3 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold hover:from-blue-600 hover:to-purple-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+            className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold hover:from-blue-600 hover:to-purple-600 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
           >
             <span>{t('shopsection.viewAll')}</span>
-            <ArrowRight className="w-5 h-5" />
+            <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       </div>

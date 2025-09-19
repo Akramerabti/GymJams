@@ -3,16 +3,66 @@ import { ArrowRight, Users, MessageCircle, Target, Play, X, UserPlus, Dumbbell, 
 import { getCloudinaryVideoUrl, getCloudinaryVideoPoster, getCloudinaryThumbnail } from '../../utils/cloudinary';
 import { useTranslation } from 'react-i18next';
 
-const GymBrosSection = ({ onNavigate, isActive }) => {
+const GymBrosSection = ({ onNavigate, isActive, backgroundColor, textColor, navbarHeight = 0 }) => {
   const { t } = useTranslation();
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [touchStartY, setTouchStartY] = useState(null);
   const [touchStartTime, setTouchStartTime] = useState(null);
   const [isTouchScrolling, setIsTouchScrolling] = useState(false);
+  const [hasAnimated, setHasAnimated] = useState(false); // Track if animation has played
   
   const videoRef = useRef(null);
   const mobileVideoRef = useRef(null);
+  const hasBeenActive = useRef(false); // Track if section has ever been active
+
+  // Determine if this is ConversionLanding (no navbar) or Home (with navbar)
+  const isConversionLanding = navbarHeight === 0;
+  
+  // Calculate appropriate spacing based on context
+  const getContainerPadding = () => {
+    if (isConversionLanding) {
+      return 'pt-[clamp(2rem,4vh,3rem)] p-[clamp(1rem,3vw,2rem)]';
+    } else {
+      return 'pt-[clamp(4rem,8vh,6rem)] p-[clamp(3rem,6vw,3rem)] sm:p-[clamp(3rem,5vw,3rem)] md:p-[clamp(2rem,4vw,3rem)]';
+    }
+  };
+
+  const getInnerPadding = () => {
+    if (isConversionLanding) {
+      return 'clamp(1rem,3vw,2rem)';
+    } else {
+      return 'clamp(1.5rem,4vw,3rem)';
+    }
+  };
+
+  const getSpacing = () => {
+    if (isConversionLanding) {
+      return {
+        marginBottom: 'clamp(0.75rem,2vw,1.5rem)',
+        gap: 'clamp(0.5rem,1.5vw,1rem)'
+      };
+    } else {
+      return {
+        marginBottom: 'clamp(1rem,3vw,2rem)',
+        gap: 'clamp(0.5rem,2vw,1.25rem)'
+      };
+    }
+  };
+
+  // Handle animation trigger - only once when first becomes active
+  useEffect(() => {
+    if (isActive && !hasBeenActive.current) {
+      hasBeenActive.current = true;
+      
+      // Trigger animation only once
+      const timer = setTimeout(() => {
+        setHasAnimated(true);
+      }, 300);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isActive]);
 
   // Handle ESC key to close video modal
   useEffect(() => {
@@ -24,7 +74,6 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
 
     if (videoModalOpen) {
       document.addEventListener('keydown', handleKeyPress);
-      // Prevent body scroll when modal is open
       document.body.style.overflow = 'hidden';
     }
 
@@ -34,7 +83,6 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
     };
   }, [videoModalOpen]);
 
-  // Handle video click/tap to open modal
   const handleVideoClick = (video) => {
     setSelectedVideo(video);
     setVideoModalOpen(true);
@@ -44,7 +92,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
     setVideoModalOpen(false);
     setSelectedVideo(null);
   };
-  // Handle play video (for both desktop and mobile)
+
   const handlePlayVideo = () => {
     const video = {
       src: getCloudinaryVideoUrl('gymtonic', { 
@@ -57,7 +105,6 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
     handleVideoClick(video);
   };
 
-  // Touch handling for mobile to distinguish between tap and scroll
   const handleTouchStart = (e) => {
     setTouchStartY(e.touches[0].clientY);
     setTouchStartTime(Date.now());
@@ -91,11 +138,14 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
     setIsTouchScrolling(false);
   };
 
+  const spacing = getSpacing();
+
   return (
-    <div className={`absolute inset-0 flex items-start justify-center pt-[clamp(4rem,8vh,6rem)] p-[clamp(3rem,6vw,3rem)] sm:p-[clamp(3rem,5vw,3rem)] md:p-[clamp(2rem,4vw,3rem)] overflow-hidden pointer-events-auto`}>
+    <div className={`absolute inset-0 flex ${isConversionLanding ? 'items-start' : 'items-center'} justify-center ${getContainerPadding()} overflow-hidden pointer-events-auto`}
+         style={{ backgroundColor: backgroundColor || '#000000', color: textColor || '#ffffff' }}>
       <div 
-        className={`w-full max-w-[clamp(320px,95vw,1800px)] max-h-[100vh] py-10 mx-auto transition-all duration-800 ${
-          isActive 
+        className={`w-full max-w-[clamp(320px,95vw,1800px)] max-h-[100vh] ${isConversionLanding ? 'py-4' : 'py-10'} mx-auto transition-all duration-800 ${
+          hasAnimated 
             ? 'opacity-100 translate-y-0 scale-100' 
             : 'opacity-0 translate-y-12 scale-95'
         }`}
@@ -112,7 +162,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
             <div 
               className="w-full"
               style={{
-                padding: 'clamp(1.5rem,4vw,3rem)'
+                padding: getInnerPadding()
               }}
             >
               {/* Badge */}
@@ -123,7 +173,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                   padding: 'clamp(0.5rem,1.5vw,1rem) clamp(0.75rem,2vw,1.25rem)',
                   borderRadius: 'clamp(1rem,2vw,1.5rem)',
                   fontSize: 'clamp(0.75rem,1.5vw,1rem)',
-                  marginBottom: 'clamp(1rem,3vw,2rem)'
+                  marginBottom: spacing.marginBottom
                 }}
               >
                 <Users style={{ width: 'clamp(0.75rem,1.5vw,1rem)', height: 'clamp(0.75rem,1.5vw,1rem)' }} />
@@ -133,8 +183,8 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
               <h2 
                 className="font-bold text-white bg-gradient-to-r from-cyan-200 via-purple-200 to-pink-200 bg-clip-text text-transparent leading-[0.9]"
                 style={{
-                  fontSize: 'clamp(1.75rem,6vw,4rem)',
-                  marginBottom: 'clamp(1rem,3vw,2rem)',
+                  fontSize: isConversionLanding ? 'clamp(1.5rem,5vw,3rem)' : 'clamp(1.75rem,6vw,4rem)',
+                  marginBottom: spacing.marginBottom,
                   letterSpacing: 'clamp(-0.02em,0.1vw,0.02em)'
                 }}
               >
@@ -145,7 +195,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                 className="text-gray-100/90 max-w-2xl leading-relaxed"
                 style={{
                   fontSize: 'clamp(0.5rem,2.5vw,1.5rem)',
-                  marginBottom: 'clamp(1rem,4vw,2.5rem)',
+                  marginBottom: isConversionLanding ? 'clamp(1rem,3vw,2rem)' : 'clamp(1rem,4vw,2.5rem)',
                   lineHeight: 'clamp(1.4,1.6,1.7)'
                 }}
               >
@@ -156,7 +206,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
               <div 
                 className="lg:hidden"
                 style={{
-                  marginBottom: 'clamp(1.5rem,4vw,2.5rem)'
+                  marginBottom: isConversionLanding ? 'clamp(1rem,3vw,2rem)' : 'clamp(1.5rem,4vw,2.5rem)'
                 }}
               >
                 <div 
@@ -165,7 +215,6 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                     borderRadius: 'clamp(0.75rem,2vw,1.5rem)'
                   }}
                 >
-                  {/* Mobile Video */}
                   <video
                     ref={mobileVideoRef}
                     className="absolute inset-0 w-full h-full object-cover cursor-pointer"
@@ -186,7 +235,6 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                     })} type="video/mp4" />
                   </video>
                   
-                  {/* Play Button Overlay */}
                   <div 
                     className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-900/40 via-cyan-900/30 to-purple-900/40 cursor-pointer transition-all duration-300 hover:from-gray-800/30 hover:via-cyan-800/20 hover:to-purple-800/30"
                     onClick={(e) => {
@@ -198,15 +246,15 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                     <div 
                       className="bg-gradient-to-r from-cyan-400/30 to-purple-400/30 backdrop-blur-sm rounded-full group-hover:scale-110 transition-transform duration-300 border border-cyan-300/50"
                       style={{
-                        padding: 'clamp(1rem,3vw,2rem)'
+                        padding: isConversionLanding ? 'clamp(0.75rem,2vw,1.25rem)' : 'clamp(1rem,3vw,2rem)'
                       }}
                     >
                       <Play 
                         className="text-cyan-200 ml-1" 
                         fill="currentColor" 
                         style={{
-                          width: 'clamp(2rem,5vw,3rem)',
-                          height: 'clamp(2rem,5vw,3rem)'
+                          width: isConversionLanding ? 'clamp(1.5rem,4vw,2rem)' : 'clamp(2rem,5vw,3rem)',
+                          height: isConversionLanding ? 'clamp(1.5rem,4vw,2rem)' : 'clamp(2rem,5vw,3rem)'
                         }}
                       />
                     </div>
@@ -214,19 +262,19 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                 </div>
               </div>
 
-              {/* Features */}
+              {/* Features Grid */}
               <div 
                 className="grid grid-cols-1 sm:grid-cols-2"
                 style={{
-                  gap: 'clamp(0.45rem,2vw,1.25rem)',
-                  marginBottom: 'clamp(1rem,4vw,2.5rem)'
+                  gap: spacing.gap,
+                  marginBottom: isConversionLanding ? 'clamp(1rem,3vw,2rem)' : 'clamp(1rem,4vw,2.5rem)'
                 }}
               >
                 <div 
                   className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-300/30 flex items-center hover:from-cyan-400/30 hover:to-blue-400/30 transition-all duration-300"
                   style={{
-                      borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
-                    padding: 'clamp(0.25rem,2vw,1.25rem)',
+                    borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
+                    padding: isConversionLanding ? 'clamp(0.5rem,1.5vw,1rem)' : 'clamp(0.25rem,2vw,1.25rem)',
                     gap: 'clamp(0.5rem,1.5vw,1rem)'
                   }}
                 >
@@ -260,8 +308,8 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                 <div 
                   className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-300/30 flex items-center hover:from-purple-400/30 hover:to-pink-400/30 transition-all duration-300"
                   style={{
-                      borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
-                    padding: 'clamp(0.25rem,2vw,1.25rem)',
+                    borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
+                    padding: isConversionLanding ? 'clamp(0.5rem,1.5vw,1rem)' : 'clamp(0.25rem,2vw,1.25rem)',
                     gap: 'clamp(0.5rem,1.5vw,1rem)'
                   }}
                 >
@@ -296,7 +344,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                   className="bg-gradient-to-r from-pink-500/20 to-rose-500/20 border border-pink-300/30 flex items-center hover:from-pink-400/30 hover:to-rose-400/30 transition-all duration-300"
                   style={{
                     borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
-                    padding: 'clamp(0.25rem,2vw,1.25rem)',
+                    padding: isConversionLanding ? 'clamp(0.5rem,1.5vw,1rem)' : 'clamp(0.25rem,2vw,1.25rem)',
                     gap: 'clamp(0.5rem,1.5vw,1rem)'
                   }}
                 >
@@ -331,7 +379,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                   className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-300/30 flex items-center hover:from-blue-400/30 hover:to-cyan-400/30 transition-all duration-300"
                   style={{
                        borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
-                    padding: 'clamp(0.25rem,2vw,1.25rem)',
+                    padding: isConversionLanding ? 'clamp(0.5rem,1.5vw,1rem)' : 'clamp(0.25rem,2vw,1.25rem)',
                     gap: 'clamp(0.5rem,1.5vw,1rem)'
                   }}
                 >
@@ -367,10 +415,12 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                 onClick={() => onNavigate('/gymbros')}
                 className="group relative overflow-hidden bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 text-white font-bold rounded-full flex items-center mx-auto lg:mx-0 hover:from-cyan-400 hover:via-purple-400 hover:to-pink-400 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-cyan-500/25 border border-cyan-300/30"
                 style={{
-                  padding: 'clamp(0.75rem,2vw,1.25rem) clamp(1.5rem,4vw,3rem)',
+                  padding: isConversionLanding 
+                    ? 'clamp(0.5rem,1.5vw,1rem) clamp(1rem,3vw,2rem)' 
+                    : 'clamp(0.75rem,2vw,1.25rem) clamp(1.5rem,4vw,3rem)',
                   gap: 'clamp(0.5rem,1.5vw,1rem)',
                   fontSize: 'clamp(0.875rem,2vw,1.125rem)',
-                  minHeight: 'clamp(3rem,6vw,4rem)'
+                  minHeight: isConversionLanding ? 'clamp(2.5rem,5vw,3rem)' : 'clamp(3rem,6vw,4rem)'
                 }}
               >
                 <Users 
@@ -396,7 +446,7 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
             <div 
               className={`hidden lg:block w-full pointer-events-auto`}
               style={{
-                padding: 'clamp(1.5rem,4vw,3rem)'
+                padding: getInnerPadding()
               }}
             >
               <div 
@@ -405,7 +455,6 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                   borderRadius: 'clamp(0.75rem,2vw,1.5rem)'
                 }}
               >
-                {/* Desktop Video */}
                 <video
                   ref={videoRef}
                   className="absolute inset-0 w-full h-full object-cover cursor-pointer"
@@ -428,7 +477,6 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                   })} type="video/mp4" />
                 </video>
                 
-                {/* Play Button Overlay */}
                 <div 
                   className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-900/40 via-cyan-900/30 to-purple-900/40 cursor-pointer transition-all duration-300 hover:from-gray-800/30 hover:via-cyan-800/20 hover:to-purple-800/30"
                   onClick={(e) => {
@@ -440,15 +488,15 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                   <div 
                     className="bg-gradient-to-r from-cyan-400/30 to-purple-400/30 backdrop-blur-sm rounded-full group-hover:scale-110 transition-transform duration-300 border border-cyan-300/50"
                     style={{
-                      padding: 'clamp(1rem,3vw,2rem)'
+                      padding: isConversionLanding ? 'clamp(0.75rem,2vw,1.25rem)' : 'clamp(1rem,3vw,2rem)'
                     }}
                   >
                     <Play 
                       className="text-cyan-200 ml-1" 
                       fill="currentColor" 
                       style={{
-                        width: 'clamp(2rem,5vw,3rem)',
-                        height: 'clamp(2rem,5vw,3rem)'
+                        width: isConversionLanding ? 'clamp(1.5rem,4vw,2rem)' : 'clamp(2rem,5vw,3rem)',
+                        height: isConversionLanding ? 'clamp(1.5rem,4vw,2rem)' : 'clamp(2rem,5vw,3rem)'
                       }}
                     />
                   </div>
@@ -457,24 +505,22 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
             </div>
           </div>
         </div>
-      </div>      {/* Video Modal */}
+      </div>
+
+      {/* Video Modal */}
       {videoModalOpen && selectedVideo && (
         <div 
           className="fixed inset-0 z-[99999] flex items-center justify-center p-4 backdrop-blur-md bg-black/80"
           onClick={(e) => {
-            // Only close if clicking the backdrop, not the modal content
             if (e.target === e.currentTarget) {
               closeVideoModal();
             }
           }}
           onTouchStart={(e) => {
-            // Prevent touch events from bubbling to elements behind modal
             e.stopPropagation();
           }}
           onTouchEnd={(e) => {
-            // Prevent touch events from bubbling to elements behind modal
             e.stopPropagation();
-            // Try to close on touch end if touching backdrop directly
             if (e.target === e.currentTarget) {
               closeVideoModal();
             }
@@ -483,7 +529,6 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
           <div 
             className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden relative border border-gray-200 dark:border-gray-700"
             style={{
-              // Responsive sizing: larger on small screens, 50% on large screens
               width: 'clamp(320px, 90vw, 50vw)',
               height: 'clamp(240px, 60vh, 50vh)',
               maxWidth: '800px',
@@ -522,7 +567,6 @@ const GymBrosSection = ({ onNavigate, isActive }) => {
                   autoPlay
                   playsInline
                   onLoadedData={(e) => {
-                    // Unmute the video when it loads
                     e.target.muted = false;
                     e.target.volume = 0.7;
                   }}

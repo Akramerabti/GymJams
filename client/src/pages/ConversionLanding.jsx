@@ -24,14 +24,10 @@ const ConversionLanding = () => {
   
   const textColor = backgroundColor === '#ffffff' ? '#000000' : '#ffffff';
   
-  // Check if conversion has been loaded this session
-  const hasLoadedThisSession = sessionStorage.getItem(CONVERSION_LOADED_KEY) === 'true';
-  
   const [visibleSections, setVisibleSections] = useState(new Set([0]));
   const [scrollY, setScrollY] = useState(0);
   const [scrollDirection, setScrollDirection] = useState('down');
   const [scrollVelocity, setScrollVelocity] = useState(0);
-  const [isLoaded, setIsLoaded] = useState(hasLoadedThisSession);
   const [activeSection, setActiveSection] = useState(0);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isScrolling, setIsScrolling] = useState(false);
@@ -44,6 +40,35 @@ const ConversionLanding = () => {
   const lastScrollTime = useRef(Date.now());
   const animationFrameId = useRef(null);
   const scrollTimeout = useRef(null);
+  
+  // Define sections like in Home.jsx
+  const sections = [
+    { 
+      component: ConversionHeroSection, 
+      label: t('home.sections.home') || 'Home',
+      props: { backgroundColor, textColor }
+    },
+    { 
+      component: ShopSection, 
+      label: t('home.sections.shop') || 'Shop',
+      props: { backgroundColor, textColor, navbarHeight: 0 } // Explicit navbarHeight for context
+    },
+    { 
+      component: CoachingSection, 
+      label: t('home.sections.coaching') || 'Coaching',
+      props: { backgroundColor, textColor }
+    },
+    { 
+      component: GymBrosSection, 
+      label: t('home.sections.community') || 'Community',
+      props: { backgroundColor, textColor }
+    },
+    { 
+      component: GamesSection, 
+      label: t('home.sections.games') || 'Games',
+      props: { backgroundColor, textColor, isLastSection: true }
+    }
+  ];
   
   // Detect mobile
   useEffect(() => {
@@ -59,42 +84,38 @@ const ConversionLanding = () => {
     };
   }, []);
 
-  // Enhanced intersection observer with better mobile support
+  // Intersection observer - simplified like Home.jsx
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          const sectionIndex = parseInt(entry.target.dataset.sectionIndex);
+    const options = {
+      root: null,
+      rootMargin: '0px 0px -50% 0px', // No navbar offset needed
+      threshold: 0
+    };
+    
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const sectionIndex = parseInt(entry.target.dataset.sectionIndex);
+        
+        if (entry.isIntersecting) {
+          console.log('Setting active section via observer:', sectionIndex);
+          setActiveSection(sectionIndex);
+          setVisibleSections(prev => new Set(prev).add(sectionIndex));
+        } else {
           setVisibleSections(prev => {
             const newSet = new Set(prev);
-            if (entry.isIntersecting) {
-              newSet.add(sectionIndex);
-              const threshold = isMobile ? 0.3 : 0.5;
-              if (entry.intersectionRatio > threshold) {
-                console.log('Setting active section via observer:', sectionIndex);
-                setActiveSection(sectionIndex);
-              }
-            } else {
-              if (entry.intersectionRatio < 0.05) {
-                newSet.delete(sectionIndex);
-              }
-            }
+            newSet.delete(sectionIndex);
             return newSet;
           });
-        });
-      },
-      {
-        threshold: isMobile ? [0, 0.05, 0.3, 0.7, 1] : [0, 0.1, 0.5, 0.8, 1],
-        rootMargin: isMobile ? '-10% 0px -10% 0px' : '-5% 0px -5% 0px'
-      }
-    );
-
-    sectionRefs.current.forEach((ref) => {
-      if (ref) observer.observe(ref);
+        }
+      });
+    }, options);
+    
+    sectionRefs.current.forEach(section => {
+      if (section) observer.observe(section);
     });
-
+    
     return () => observer.disconnect();
-  }, [isMobile]);
+  }, []);
 
   const handleScroll = useCallback(() => {
     const currentScrollY = window.scrollY;
@@ -121,7 +142,7 @@ const ConversionLanding = () => {
       
       const snapDelay = isMobile ? 150 : 100;
       const newSnapTimeout = setTimeout(() => {
-        // Get the current viewport height using CSS
+        // Simple snapping logic
         const viewportHeight = window.innerHeight;
         const currentScroll = window.scrollY;
         const currentSectionFloat = currentScroll / viewportHeight;
@@ -129,13 +150,7 @@ const ConversionLanding = () => {
         const distanceFromNearest = Math.abs(currentSectionFloat - nearestSection);
         
         if (distanceFromNearest > 0.1) {
-          const targetPosition = nearestSection * viewportHeight;
-          console.log('Auto-snapping to section:', nearestSection, 'position:', targetPosition);
-          window.scrollTo({
-            top: targetPosition,
-            behavior: 'smooth'
-          });
-          setActiveSection(nearestSection);
+          navigateToSection(nearestSection);
         }
       }, snapDelay);
       
@@ -146,19 +161,11 @@ const ConversionLanding = () => {
     lastScrollTime.current = currentTime;
   }, [isMobile, snapTimeout]);
 
-  const navigateToSection = useCallback((sectionIndex, isSnap = false) => {
-    console.log('navigateToSection called with:', sectionIndex, 'isSnap:', isSnap);
-    console.log('Available sections:', sectionRefs.current.length);
-    
-    // Clamp section index to valid range
-    const clampedIndex = Math.max(0, Math.min(sectionIndex, 4));
-    if (clampedIndex !== sectionIndex) {
-      console.warn('Section index clamped from', sectionIndex, 'to', clampedIndex);
-    }
-    
-    const targetSection = sectionRefs.current[clampedIndex];
-    if (!targetSection) {
-      console.error('Target section not found:', clampedIndex, 'Available refs:', sectionRefs.current.map((ref, i) => ({ index: i, exists: !!ref })));
+  // Navigate to section - like Home.jsx but no navbar offset
+  const navigateToSection = useCallback((index) => {
+    const section = sectionRefs.current[index];
+    if (!section) {
+      console.error('Target section not found:', index);
       return;
     }
 
@@ -167,26 +174,17 @@ const ConversionLanding = () => {
       setSnapTimeout(null);
     }
 
-    // Use the section's offsetTop for accurate positioning
-    const targetPosition = targetSection.offsetTop;
+    const sectionTop = section.offsetTop; // No navbar offset needed
     
-    console.log('Scrolling to position:', targetPosition, 'for section:', clampedIndex);
-    console.log('Section offsetTop:', targetSection.offsetTop);
+    console.log('Scrolling to section:', index, 'position:', sectionTop);
     console.log('Document height:', document.documentElement.scrollHeight);
     
     window.scrollTo({
-      top: targetPosition,
+      top: sectionTop,
       behavior: 'smooth'
     });
     
-    setActiveSection(clampedIndex);
-    
-    // Add a timeout to verify scroll actually happened
-    setTimeout(() => {
-      const actualPosition = window.scrollY;
-      console.log('After scroll - Target:', targetPosition, 'Actual:', actualPosition, 'Difference:', Math.abs(targetPosition - actualPosition));
-    }, 500);
-    
+    setActiveSection(index);
   }, [snapTimeout]);
 
   useEffect(() => {
@@ -231,30 +229,12 @@ const ConversionLanding = () => {
 
     window.scrollTo(0, 0);
 
-    if (hasLoadedThisSession) {
-      const heroElement = sectionRefs.current[0];
-      if (heroElement) {
-        heroElement.classList.add('animate-fadeInUp');
+    return () => {
+      if ('scrollRestoration' in window.history) {
+        window.history.scrollRestoration = 'auto';
       }
-    } else {
-      sessionStorage.setItem(CONVERSION_LOADED_KEY, 'true');
-      
-      const timer = setTimeout(() => {
-        setIsLoaded(true);
-        const heroElement = sectionRefs.current[0];
-        if (heroElement) {
-          heroElement.classList.add('animate-fadeInUp');
-        }
-      }, 300);
-      
-      return () => {
-        clearTimeout(timer);
-        if ('scrollRestoration' in window.history) {
-          window.history.scrollRestoration = 'auto';
-        }
-      };
-    }
-  }, [hasLoadedThisSession]);
+    };
+  }, []);
 
   const handleNavigate = (route) => {
     sessionStorage.setItem('conversion-back-nav', 'true');
@@ -290,59 +270,47 @@ const ConversionLanding = () => {
           box-sizing: border-box;
         }
 
+        /* Force html/body to allow full document height */
         html, body {
-          height: 100%;
+          height: auto !important;
+          min-height: 100vh;
           width: 100%;
           overflow-x: hidden;
+          overflow-y: auto !important;
         }
 
-        /* Use dvh for main sections - dynamic viewport height that adapts to mobile browsers */
-        .conversion-section {
-          height: 100dvh !important;
-          min-height: 100svh !important; /* Fallback for minimum stable height */
-          max-height: 100lvh !important; /* Maximum height for background containers */
-          width: 100vw;
-          max-width: 100vw;
-          overflow: visible; /* Changed from hidden to allow proper document flow */
+        /* Main container - like Home.jsx */
+        .conversion-container {
+          width: 100%;
+          overflow-x: hidden;
           position: relative;
-          padding: clamp(1rem, 4vw, 2rem);
+        }
+
+        /* Section styling - like Home.jsx */
+        .conversion-section {
+          width: 100%;
+          min-height: 100vh;
+          min-height: 100dvh;
+          position: relative;
           display: flex;
-          flex-direction: column;
-          justify-content: center;
           align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          padding: clamp(1rem, 4vw, 2rem);
           background-color: ${backgroundColor};
           color: ${textColor};
         }
 
-        /* Ensure document has proper scrollable height */
-        .conversion-container {
-          height: auto !important;
-          min-height: 500dvh !important; /* 5 sections × 100dvh */
+        /* Responsive section height */
+        @supports (height: 100dvh) {
+          .conversion-section {
+            min-height: 100dvh;
+          }
         }
 
-        .conversion-section * {
-          max-width: 100%;
-          box-sizing: border-box;
-        }
-
-        /* Legacy browser fallback using vh */
         @supports not (height: 100dvh) {
           .conversion-section {
-            height: 100vh !important;
-            min-height: 100vh !important;
-            max-height: 100vh !important;
-          }
-          
-          .conversion-container {
-            min-height: 500vh !important;
-          }
-        }
-
-        /* iOS Safari specific fixes */
-        @supports (-webkit-touch-callout: none) {
-          .conversion-section {
-            height: 100dvh !important;
-            min-height: 100svh !important;
+            min-height: 100vh;
           }
         }
 
@@ -350,14 +318,19 @@ const ConversionLanding = () => {
         @media (max-width: 768px) {
           .conversion-section {
             padding: 1rem;
-            height: 100dvh !important;
-            min-height: 100svh !important;
           }
         }
 
+        /* Section content wrapper */
+        .section-content {
+          width: 100%;
+          height: 100%;
+          animation: fadeIn 0.8s ease-out;
+        }
+
         @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
         }
         
         @keyframes fadeInUp {
@@ -386,157 +359,134 @@ const ConversionLanding = () => {
         .section-active { 
           z-index: 10; 
         }
-        
-        .pagination-dot {
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .pagination-dot:hover {
-          transform: scale(1.2);
-        }
-        
-        .pagination-dot.active {
-          transform: scale(1.3);
-          box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
-        }
-        
-        .pagination-tooltip {
-          transform: translateX(-100%) translateY(-50%);
-          transition: all 0.2s ease-out;
-          backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+
+        /* Navigation dots - like Home.jsx */
+        .nav-dots {
+          position: fixed;
+          right: 2rem;
+          top: 50%;
+          transform: translateY(-50%);
+          z-index: 100;
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
         }
         
         @media (max-width: 768px) {
-          .pagination-tooltip {
-            transform: translateX(-100%) translateY(-50%) scale(0.9);
-            font-size: 0.75rem;
-            padding: 0.25rem 0.5rem;
+          .nav-dots {
+            right: 1rem;
+            gap: 0.75rem;
           }
+        }
+        
+        .nav-dot {
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          border: none;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          background: rgba(255, 255, 255, 0.3);
+          backdrop-filter: blur(10px);
+          padding: 0;
+          position: relative;
+        }
+        
+        .nav-dot:hover {
+          transform: scale(1.2);
+          background: rgba(255, 255, 255, 0.5);
+        }
+        
+        .nav-dot.active {
+          background: #3b82f6;
+          transform: scale(1.3);
+        }
+        
+        .nav-dot-tooltip {
+          position: absolute;
+          right: 20px;
+          top: 50%;
+          transform: translateY(-50%);
+          background: rgba(0, 0, 0, 0.8);
+          color: white;
+          padding: 0.25rem 0.75rem;
+          border-radius: 0.25rem;
+          font-size: 0.875rem;
+          white-space: nowrap;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.2s ease;
+        }
+        
+        .nav-dot:hover .nav-dot-tooltip {
+          opacity: 1;
+        }
+
+        /* Dark mode adjustments */
+        .dark .nav-dot {
+          background: rgba(0, 0, 0, 0.5);
+        }
+        
+        .dark .nav-dot:hover {
+          background: rgba(0, 0, 0, 0.7);
         }
       `}</style>
 
+      {/* Debug panel - remove in production */}
+      <div style={{
+        position: 'fixed',
+        top: '10px',
+        left: '10px',
+        background: 'rgba(0,0,0,0.8)',
+        color: 'white',
+        padding: '10px',
+        fontSize: '12px',
+        zIndex: 9999,
+        borderRadius: '4px',
+        maxWidth: '300px'
+      }}>
+        <div>Active: {activeSection}</div>
+        <div>ScrollY: {scrollY}</div>
+        <div>DocHeight: {document.documentElement.scrollHeight}</div>
+        <div>ViewportH: {window.innerHeight}</div>
+        <div>Sections: {sections.length}</div>
+        <div>Section Heights: {sectionRefs.current.map((ref, i) => 
+          ref ? `${i}:${ref.offsetHeight}px` : `${i}:null`
+        ).join(', ')}</div>
+        <div>Section Tops: {sectionRefs.current.map((ref, i) => 
+          ref ? `${i}:${ref.offsetTop}px` : `${i}:null`
+        ).join(', ')}</div>
+        <div>Container Height: {containerRef.current?.offsetHeight || 'null'}px</div>
+        <div>Body Height: {document.body.offsetHeight}px</div>
+        <div>HTML Height: {document.documentElement.offsetHeight}px</div>
+        <div>Render Time: {Date.now()}</div>
+      </div>
 
-      <div
-        ref={containerRef}
-        className="conversion-container w-full relative"
-        style={{
-          margin: 0,
-          padding: 0,
-          backgroundColor,
-          color: textColor,
-          width: '100vw',
-          maxWidth: '100vw',
-          overflowX: 'hidden'
-        }}
-      >
-        {!isLoaded && !hasLoadedThisSession && (
-          <div 
-            className="fixed inset-0 z-50 flex items-center justify-center"
-            style={{ 
-              backgroundColor,
-              height: '100dvh',
-              width: '100vw'
-            }}
-          >
-            <div className="text-center">
-              <div 
-                className="w-12 h-12 border-4 rounded-full animate-spin mb-4 mx-auto"
-                style={{ 
-                  borderColor: `${textColor}20`,
-                  borderTopColor: textColor
-                }}
-              ></div>
-              <p 
-                className="text-lg font-medium animate-pulse"
-                style={{ color: textColor }}
-              >
-                {t('home.loading')}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Hero Section */}
-        <section 
-          ref={el => sectionRefs.current[0] = el}
-          data-section-index={0}
-          className={`conversion-section ${isSectionVisible(0) ? 'animate-fadeIn' : 'section-hidden'} ${isActiveSection(0) ? 'section-active' : ''}`}
-        >
-          <ConversionHeroSection 
-            onNavigate={handleNavigate} 
-            isActive={isSectionVisible(0)}
-            goToSection={navigateToSection}
-            scrollY={scrollY}
-            backgroundColor={backgroundColor}
-            textColor={textColor}
-          />
-        </section>
-
-        {/* Shop Section */}
-        <section 
-          ref={el => sectionRefs.current[1] = el}
-          data-section-index={1}
-          className={`conversion-section ${isSectionVisible(1) ? 'animate-fadeIn' : 'section-hidden'} ${isActiveSection(1) ? 'section-active' : ''}`}
-        >
-          <ShopSection 
-            onNavigate={handleNavigate} 
-            isActive={isSectionVisible(1)}
-            scrollY={scrollY}
-            backgroundColor={backgroundColor}
-            textColor={textColor}
-          />
-        </section>
-
-        {/* Coaching Section */}
-        <section 
-          ref={el => sectionRefs.current[2] = el}
-          data-section-index={2}
-          className={`conversion-section ${isSectionVisible(2) ? 'animate-fadeIn' : 'section-hidden'} ${isActiveSection(2) ? 'section-active' : ''}`}
-        >
-          <CoachingSection 
-            onNavigate={handleNavigate} 
-            isActive={isSectionVisible(2)}
-            scrollY={scrollY}
-            scrollDirection={scrollDirection}
-            backgroundColor={backgroundColor}
-            textColor={textColor}
-          />
-        </section>
-
-        {/* GymBros Section */}
-        <section 
-          ref={el => sectionRefs.current[3] = el}
-          data-section-index={3}
-          className={`conversion-section ${isSectionVisible(3) ? 'animate-fadeIn' : 'section-hidden'} ${isActiveSection(3) ? 'section-active' : ''}`}
-        >
-          <GymBrosSection 
-            onNavigate={handleNavigate} 
-            isActive={isSectionVisible(3)}
-            scrollY={scrollY}
-            scrollVelocity={scrollVelocity}
-            backgroundColor={backgroundColor}
-            textColor={textColor}
-          />
-        </section>
-
-        {/* Games Section */}
-        <section 
-          ref={el => sectionRefs.current[4] = el}
-          data-section-index={4}
-          className={`conversion-section ${isSectionVisible(4) ? 'animate-fadeIn' : 'section-hidden'} ${isActiveSection(4) ? 'section-active' : ''}`}
-        >
-          <GamesSection 
-            onNavigate={handleNavigate} 
-            isActive={isSectionVisible(4)}
-            scrollY={scrollY}
-            isLastSection={true}
-            backgroundColor={backgroundColor}
-            textColor={textColor}
-          />
-        </section>
+      <div ref={containerRef} className="conversion-container">
+        {/* Main sections - like Home.jsx */}
+        {sections.map((section, index) => {
+          const SectionComponent = section.component;
+          return (
+            <section
+              key={index}
+              ref={el => sectionRefs.current[index] = el}
+              data-section-index={index}
+              className={`conversion-section ${darkMode ? 'dark' : ''}`}
+            >
+              <div className="section-content">
+                <SectionComponent
+                  onNavigate={handleNavigate}
+                  isActive={activeSection === index}
+                  goToSection={navigateToSection}
+                  scrollY={scrollY}
+                  scrollDirection={scrollDirection}
+                  scrollVelocity={scrollVelocity}
+                  {...section.props}
+                />
+              </div>
+            </section>
+          );
+        })}
 
         {/* Progress Bar */}
         <div className="fixed top-0 left-0 w-full h-1 bg-black/10 backdrop-blur-sm z-50">
@@ -546,42 +496,22 @@ const ConversionLanding = () => {
           />
         </div>
 
-        {/* Pagination Dots */}
-        <div className={`fixed ${getPaginationPosition()} transform -translate-y-1/2 z-40 ${getDotSpacing()}`}>
-          {[
-            { index: 0, label: t('home.sections.home') || 'Home' },
-            { index: 1, label: t('home.sections.shop') || 'Shop' },
-            { index: 2, label: t('home.sections.coaching') || 'Coaching' },
-            { index: 3, label: t('home.sections.community') || 'Community' },
-            { index: 4, label: t('home.sections.games') || 'Games' }
-          ].map(({ index, label }) => (
-            <div key={index} className="relative group flex items-center">
-              <button
-                onClick={() => {
-                  console.log('Dot clicked for section:', index);
-                  navigateToSection(index);
-                }}
-                className={`pagination-dot block ${getDotSize()} rounded-full relative
-                  ${isActiveSection(index)
-                    ? 'bg-blue-500 active'
-                    : (backgroundColor === '#000000' ? 'bg-gray-300/50 hover:bg-gray-100/70' : 'bg-gray-600/50 hover:bg-gray-800/70')
-                  }`}
-                aria-label={`Go to ${label} section`}
-              >
-                {isActiveSection(index) && (
-                  <span className="absolute inset-0 rounded-full bg-blue-400/30 animate-ping" />
-                )}
-              </button>
-              
-              <div className={`pagination-tooltip absolute right-6 top-1/2 px-2 py-1 rounded-md text-xs font-medium opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap shadow-lg
-                ${backgroundColor === '#000000' ? 'bg-gray-800/90 text-white' : 'bg-white/90 text-gray-800'}`}>
-                {label}
-                <div className={`absolute left-full top-1/2 -translate-y-1/2 border-4 border-transparent
-                  ${backgroundColor === '#000000' ? 'border-l-gray-800/90' : 'border-l-white/90'}`} />
-              </div>
-            </div>
+        {/* Navigation dots - like Home.jsx */}
+        <nav className="nav-dots" aria-label="Section navigation">
+          {sections.map((section, index) => (
+            <button
+              key={index}
+              onClick={() => {
+                console.log('Dot clicked for section:', index);
+                navigateToSection(index);
+              }}
+              className={`nav-dot ${activeSection === index ? 'active' : ''}`}
+              aria-label={`Go to ${section.label}`}
+            >
+              <span className="nav-dot-tooltip">{section.label}</span>
+            </button>
           ))}
-        </div>
+        </nav>
       </div>
     </>
   );

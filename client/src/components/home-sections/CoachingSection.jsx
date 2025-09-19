@@ -5,19 +5,62 @@ import { formatImageUrl } from '../../utils/imageUtils';
 import { getCloudinaryVideoUrl, getCloudinaryVideoPoster, getCloudinaryThumbnail } from '../../utils/cloudinary';
 import { useTranslation } from 'react-i18next';
 
-const CoachingSection = ({ onNavigate, isActive }) => {
+const CoachingSection = ({ onNavigate, isActive, backgroundColor, textColor, navbarHeight = 0 }) => {
   const [coaches, setCoaches] = useState([]);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [touchStartY, setTouchStartY] = useState(null);
   const [touchStartTime, setTouchStartTime] = useState(null);
   const [isTouchScrolling, setIsTouchScrolling] = useState(false);
+  const [hasAnimated, setHasAnimated] = useState(false); // Track if animation has played
   
   const videoRef = useRef(null);
   const mobileVideoRef = useRef(null);
+  const hasBeenActive = useRef(false); // Track if section has ever been active
   const { t } = useTranslation();
 
-  // Fetch coaches on component mount
+   console.log('🔧 GymBrosSection Debug:', {
+    navbarHeight,
+    isConversionLanding: navbarHeight === 0,
+    shouldUseItemsCenter: navbarHeight !== 0
+  });
+  // Determine if this is ConversionLanding (no navbar) or Home (with navbar)
+  const isConversionLanding = navbarHeight === 0;
+
+  // Calculate appropriate spacing based on context
+  const getContainerPadding = () => {
+    if (isConversionLanding) {
+      return 'pt-[clamp(2rem,4vh,3rem)] p-[clamp(1rem,3vw,2rem)]';
+    } else {
+      return 'pt-[clamp(4rem,8vh,6rem)] p-[clamp(3rem,6vw,3rem)] sm:p-[clamp(3rem,5vw,3rem)] md:p-[clamp(2rem,4vw,3rem)]';
+    }
+  };
+
+  const getInnerPadding = () => {
+    if (isConversionLanding) {
+      return 'clamp(1rem,3vw,2rem)';
+    } else {
+      return 'clamp(1.5rem,4vw,3rem)';
+    }
+  };
+
+  const getSpacing = () => {
+    if (isConversionLanding) {
+      return {
+        marginBottom: 'clamp(0.75rem,2vw,1.5rem)',
+        gap: 'clamp(0.5rem,1.5vw,1rem)',
+        sectionMargin: 'clamp(1rem,3vw,2rem)'
+      };
+    } else {
+      return {
+        marginBottom: 'clamp(1rem,3vw,2rem)',
+        gap: 'clamp(0.5rem,2vw,1.25rem)',
+        sectionMargin: 'clamp(1.5rem,4vw,2.5rem)'
+      };
+    }
+  };
+
+  // Fetch coaches on component mount and handle animation trigger
   useEffect(() => {
     const fetchCoachData = async () => {
       try {
@@ -28,8 +71,17 @@ const CoachingSection = ({ onNavigate, isActive }) => {
       }
     };
 
-    if (isActive) {
+    // Only fetch coaches and trigger animation once when first becomes active
+    if (isActive && !hasBeenActive.current) {
+      hasBeenActive.current = true;
       fetchCoachData();
+      
+      // Trigger animation only once
+      const timer = setTimeout(() => {
+        setHasAnimated(true);
+      }, 300);
+      
+      return () => clearTimeout(timer);
     }
   }, [isActive]);
 
@@ -43,7 +95,6 @@ const CoachingSection = ({ onNavigate, isActive }) => {
 
     if (videoModalOpen) {
       document.addEventListener('keydown', handleKeyPress);
-      // Prevent body scroll when modal is open
       document.body.style.overflow = 'hidden';
     }
 
@@ -111,8 +162,12 @@ const CoachingSection = ({ onNavigate, isActive }) => {
     setIsTouchScrolling(false);
   };
 
+  const spacing = getSpacing();
+
   return (
-    <div className={`absolute inset-0 flex items-start justify-center pt-[clamp(4rem,8vh,6rem)] p-[clamp(3rem,6vw,3rem)] sm:p-[clamp(3rem,5vw,3rem)] md:p-[clamp(2rem,4vw,3rem)] overflow-hidden ${videoModalOpen ? 'pointer-events-auto' : 'pointer-events-auto'}`}>
+    <div className={`absolute inset-0 flex ${isConversionLanding ? 'items-start' : 'items-center'} justify-center ${getContainerPadding()} overflow-hidden pointer-events-auto`}
+         style={{ backgroundColor: backgroundColor || '#000000', color: textColor || '#ffffff' }}>
+      
       {/* Floating Coach Bubbles */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {coaches.map((coach, index) => (
@@ -142,11 +197,14 @@ const CoachingSection = ({ onNavigate, isActive }) => {
       </div>
 
       <div 
-        className={`w-full max-w-[clamp(320px,95vw,1800px)] max-h-[100vh] py-10 mx-auto transition-all duration-800 ${
-          isActive 
+        className={`w-full max-w-[clamp(320px,95vw,1800px)] max-h-[100vh] mx-auto transition-all duration-800 ${
+          hasAnimated 
             ? 'opacity-100 translate-y-0 scale-100' 
             : 'opacity-0 translate-y-12 scale-95'
         }`}
+        style={{
+          padding: isConversionLanding ? 'clamp(1rem,3vw,2rem)' : 'clamp(2rem,4vw,3rem)'
+        }}
       >
         <div 
           className="bg-gradient-to-br from-gray-900/60 via-purple-900/50 to-blue-900/50 backdrop-blur-md overflow-hidden border border-purple-400/40 shadow-2xl pointer-events-auto"
@@ -160,7 +218,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
             <div 
               className="w-full"
               style={{
-                padding: 'clamp(1rem,3vw,3rem)' // Reduced from 1.5rem,4vw,3rem
+                padding: getInnerPadding()
               }}
             >
               {/* Badge */}
@@ -171,7 +229,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                   padding: 'clamp(0.5rem,1.5vw,1rem) clamp(0.75rem,2vw,1.25rem)',
                   borderRadius: 'clamp(1rem,2vw,1.5rem)',
                   fontSize: 'clamp(0.75rem,1.5vw,1rem)',
-                  marginBottom: 'clamp(1rem,3vw,2rem)'
+                  marginBottom: spacing.marginBottom
                 }}
               >
                 <UserCheck style={{ width: 'clamp(0.75rem,1.5vw,1rem)', height: 'clamp(0.75rem,1.5vw,1rem)' }} />
@@ -181,8 +239,8 @@ const CoachingSection = ({ onNavigate, isActive }) => {
               <h2 
                 className="font-bold text-white bg-gradient-to-r from-purple-200 via-blue-200 to-orange-200 bg-clip-text text-transparent leading-[0.9]"
                 style={{
-                  fontSize: 'clamp(1.5rem,5vw,4rem)', // Reduced from 6vw
-                  marginBottom: 'clamp(0.75rem,2vw,2rem)', // Reduced from 1rem,3vw,2rem
+                  fontSize: isConversionLanding ? 'clamp(1.5rem,5vw,3rem)' : 'clamp(1.75rem,6vw,4rem)',
+                  marginBottom: spacing.marginBottom,
                   letterSpacing: 'clamp(-0.02em,0.1vw,0.02em)'
                 }}
               >
@@ -192,8 +250,8 @@ const CoachingSection = ({ onNavigate, isActive }) => {
               <p 
                 className="text-gray-100/90 max-w-2xl leading-relaxed"
                 style={{
-                  fontSize: 'clamp(0.5rem,2.5vw,1.5rem)', // Updated to match GymBros
-                  marginBottom: 'clamp(1rem,4vw,2.5rem)', // Updated to match GymBros
+                  fontSize: 'clamp(0.5rem,2.5vw,1.5rem)',
+                  marginBottom: isConversionLanding ? 'clamp(1rem,3vw,2rem)' : 'clamp(1rem,4vw,2.5rem)',
                   lineHeight: 'clamp(1.4,1.6,1.7)'
                 }}
               >
@@ -204,16 +262,15 @@ const CoachingSection = ({ onNavigate, isActive }) => {
               <div 
                 className="lg:hidden pointer-events-auto"
                 style={{
-                  marginBottom: 'clamp(1.5rem,4vw,2.5rem)'
+                  marginBottom: isConversionLanding ? 'clamp(1rem,3vw,2rem)' : 'clamp(1.5rem,4vw,2.5rem)'
                 }}
               >
                 <div 
                   className="relative aspect-video overflow-hidden bg-gradient-to-br from-gray-800/60 to-purple-800/60 border border-purple-400/30 shadow-2xl backdrop-blur-sm"
                   style={{
-                    borderRadius: 'clamp(0.75rem,2vw,1.25rem)'
+                    borderRadius: 'clamp(0.75rem,2vw,1.5rem)'
                   }}
                 >
-                  {/* Mobile Video */}
                   <video
                     ref={mobileVideoRef}
                     className="absolute inset-0 w-full h-full object-cover cursor-pointer"
@@ -224,35 +281,9 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                       width: 800, 
                       height: 450 
                     })}
-                    onTouchStart={(e) => {
-                      if (videoModalOpen) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        return;
-                      }
-                      handleTouchStart(e);
-                    }}
-                    onTouchMove={(e) => {
-                      if (videoModalOpen) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        return;
-                      }
-                      handleTouchMove(e);
-                    }}
-                    onTouchEnd={(e) => {
-                      if (videoModalOpen) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        return;
-                      }
-                      handleTouchEndVideo(e);
-                    }}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handlePlayVideo();
-                    }}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEndVideo}
                   >
                     <source src={getCloudinaryVideoUrl('coaching_preview', { 
                       quality: 'auto:good',
@@ -260,27 +291,9 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     })} type="video/mp4" />
                   </video>
                   
-                  {/* Play Button Overlay */}
                   <div 
                     className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-900/40 via-purple-900/30 to-blue-900/40 cursor-pointer transition-all duration-300 hover:from-gray-800/30 hover:via-purple-800/20 hover:to-blue-800/30"
                     onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handlePlayVideo();
-                    }}
-                    onTouchStart={(e) => {
-                      if (videoModalOpen) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        return;
-                      }
-                    }}
-                    onTouchEnd={(e) => {
-                      if (videoModalOpen) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        return;
-                      }
                       e.preventDefault();
                       e.stopPropagation();
                       handlePlayVideo();
@@ -289,15 +302,15 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     <div 
                       className="bg-gradient-to-r from-purple-400/30 to-blue-400/30 backdrop-blur-sm rounded-full group-hover:scale-110 transition-transform duration-300 border border-purple-300/50"
                       style={{
-                        padding: 'clamp(0.75rem,2vw,1.25rem)'
+                        padding: isConversionLanding ? 'clamp(0.75rem,2vw,1.25rem)' : 'clamp(1rem,3vw,2rem)'
                       }}
                     >
                       <Play 
                         className="text-purple-200 ml-1" 
                         fill="currentColor" 
                         style={{
-                          width: 'clamp(1.5rem,4vw,2rem)',
-                          height: 'clamp(1.5rem,4vw,2rem)'
+                          width: isConversionLanding ? 'clamp(1.5rem,4vw,2rem)' : 'clamp(2rem,5vw,3rem)',
+                          height: isConversionLanding ? 'clamp(1.5rem,4vw,2rem)' : 'clamp(2rem,5vw,3rem)'
                         }}
                       />
                     </div>
@@ -305,19 +318,19 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                 </div>
               </div>
 
-              {/* Features */}
+              {/* Features Grid */}
               <div 
                 className="grid grid-cols-1 sm:grid-cols-2"
                 style={{
-                  gap: 'clamp(0.45rem,2vw,1.25rem)', // Updated to match GymBros
-                  marginBottom: 'clamp(1rem,4vw,2.5rem)' // Updated to match GymBros
+                  gap: spacing.gap,
+                  marginBottom: isConversionLanding ? 'clamp(1rem,3vw,2rem)' : 'clamp(1rem,4vw,2.5rem)'
                 }}
               >
                 <div 
                   className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-300/30 flex items-center hover:from-purple-400/30 hover:to-blue-400/30 transition-all duration-300"
                   style={{
                     borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
-                    padding: 'clamp(0.25rem,2vw,1.25rem)', // Updated to match GymBros
+                    padding: isConversionLanding ? 'clamp(0.5rem,1.5vw,1rem)' : 'clamp(0.25rem,2vw,1.25rem)',
                     gap: 'clamp(0.5rem,1.5vw,1rem)'
                   }}
                 >
@@ -332,7 +345,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     <div 
                       className="text-purple-200 font-semibold"
                       style={{
-                        fontSize: 'clamp(0.475rem,2vw,1.125rem)' // Updated to match GymBros
+                        fontSize: 'clamp(0.475rem,2vw,1.125rem)'
                       }}
                     >
                       {t('coachingsection.customPlans')}
@@ -352,7 +365,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                   className="bg-gradient-to-r from-blue-500/20 to-orange-500/20 border border-blue-300/30 flex items-center hover:from-blue-400/30 hover:to-orange-400/30 transition-all duration-300"
                   style={{
                     borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
-                    padding: 'clamp(0.25rem,2vw,1.25rem)', // Updated to match GymBros
+                    padding: isConversionLanding ? 'clamp(0.5rem,1.5vw,1rem)' : 'clamp(0.25rem,2vw,1.25rem)',
                     gap: 'clamp(0.5rem,1.5vw,1rem)'
                   }}
                 >
@@ -367,7 +380,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     <div 
                       className="text-blue-200 font-semibold"
                       style={{
-                        fontSize: 'clamp(0.475rem,2vw,1.125rem)' // Updated to match GymBros
+                        fontSize: 'clamp(0.475rem,2vw,1.125rem)'
                       }}
                     >
                       {t('coachingsection.support247')}
@@ -387,7 +400,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                   className="bg-gradient-to-r from-orange-500/20 to-purple-500/20 border border-orange-300/30 flex items-center hover:from-orange-400/30 hover:to-purple-400/30 transition-all duration-300"
                   style={{
                     borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
-                    padding: 'clamp(0.25rem,2vw,1.25rem)', // Updated to match GymBros
+                    padding: isConversionLanding ? 'clamp(0.5rem,1.5vw,1rem)' : 'clamp(0.25rem,2vw,1.25rem)',
                     gap: 'clamp(0.5rem,1.5vw,1rem)'
                   }}
                 >
@@ -402,7 +415,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     <div 
                       className="text-orange-200 font-semibold"
                       style={{
-                        fontSize: 'clamp(0.475rem,2vw,1.125rem)' // Updated to match GymBros
+                        fontSize: 'clamp(0.475rem,2vw,1.125rem)'
                       }}
                     >
                       {t('coachingsection.goalTracking')}
@@ -422,7 +435,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                   className="bg-gradient-to-r from-gray-500/20 to-purple-500/20 border border-gray-300/30 flex items-center hover:from-gray-400/30 hover:to-purple-400/30 transition-all duration-300"
                   style={{
                     borderRadius: 'clamp(0.5rem,1.5vw,1rem)',
-                    padding: 'clamp(0.25rem,2vw,1.25rem)', // Updated to match GymBros
+                    padding: isConversionLanding ? 'clamp(0.5rem,1.5vw,1rem)' : 'clamp(0.25rem,2vw,1.25rem)',
                     gap: 'clamp(0.5rem,1.5vw,1rem)'
                   }}
                 >
@@ -437,7 +450,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                     <div 
                       className="text-gray-200 font-semibold"
                       style={{
-                        fontSize: 'clamp(0.475rem,2vw,1.125rem)' // Updated to match GymBros
+                        fontSize: 'clamp(0.475rem,2vw,1.125rem)'
                       }}
                     >
                       {t('coachingsection.certified')}
@@ -458,10 +471,12 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                 onClick={() => onNavigate('/coaching')}
                 className="group relative overflow-hidden bg-gradient-to-r from-purple-500 via-blue-500 to-orange-500 text-white font-bold rounded-full flex items-center mx-auto lg:mx-0 hover:from-purple-400 hover:via-blue-400 hover:to-orange-400 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-purple-500/25 border border-purple-300/30"
                 style={{
-                  padding: 'clamp(0.75rem,2vw,1.25rem) clamp(1.5rem,4vw,3rem)',
+                  padding: isConversionLanding 
+                    ? 'clamp(0.5rem,1.5vw,1rem) clamp(1rem,3vw,2rem)' 
+                    : 'clamp(0.75rem,2vw,1.25rem) clamp(1.5rem,4vw,3rem)',
                   gap: 'clamp(0.5rem,1.5vw,1rem)',
                   fontSize: 'clamp(0.875rem,2vw,1.125rem)',
-                  minHeight: 'clamp(3rem,6vw,4rem)'
+                  minHeight: isConversionLanding ? 'clamp(2.5rem,5vw,3rem)' : 'clamp(3rem,6vw,4rem)'
                 }}
               >
                 <Users 
@@ -487,7 +502,7 @@ const CoachingSection = ({ onNavigate, isActive }) => {
             <div 
               className={`hidden lg:block w-full pointer-events-auto`}
               style={{
-                padding: 'clamp(1.5rem,4vw,3rem)'
+                padding: getInnerPadding()
               }}
             >
               <div 
@@ -496,7 +511,6 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                   borderRadius: 'clamp(0.75rem,2vw,1.5rem)'
                 }}
               >
-                {/* Desktop Video */}
                 <video
                   ref={videoRef}
                   className="absolute inset-0 w-full h-full object-cover cursor-pointer"
@@ -519,7 +533,6 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                   })} type="video/mp4" />
                 </video>
                 
-                {/* Play Button Overlay */}
                 <div 
                   className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-900/40 via-purple-900/30 to-blue-900/40 cursor-pointer transition-all duration-300 hover:from-gray-800/30 hover:via-purple-800/20 hover:to-blue-800/30"
                   onClick={(e) => {
@@ -531,15 +544,15 @@ const CoachingSection = ({ onNavigate, isActive }) => {
                   <div 
                     className="bg-gradient-to-r from-purple-400/30 to-blue-400/30 backdrop-blur-sm rounded-full group-hover:scale-110 transition-transform duration-300 border border-purple-300/50"
                     style={{
-                      padding: 'clamp(1rem,3vw,2rem)'
+                      padding: isConversionLanding ? 'clamp(0.75rem,2vw,1.25rem)' : 'clamp(1rem,3vw,2rem)'
                     }}
                   >
                     <Play 
                       className="text-purple-200 ml-1" 
                       fill="currentColor" 
                       style={{
-                        width: 'clamp(2rem,5vw,3rem)',
-                        height: 'clamp(2rem,5vw,3rem)'
+                        width: isConversionLanding ? 'clamp(1.5rem,4vw,2rem)' : 'clamp(2rem,5vw,3rem)',
+                        height: isConversionLanding ? 'clamp(1.5rem,4vw,2rem)' : 'clamp(2rem,5vw,3rem)'
                       }}
                     />
                   </div>
@@ -555,11 +568,8 @@ const CoachingSection = ({ onNavigate, isActive }) => {
         <div 
           className="fixed inset-0 z-[99999] flex items-center justify-center p-4 backdrop-blur-md bg-black/80"
           onClick={(e) => {
-
             if (e.target === e.currentTarget) {
               closeVideoModal();
-            } else {
-
             }
           }}
           onTouchStart={(e) => {
@@ -567,22 +577,20 @@ const CoachingSection = ({ onNavigate, isActive }) => {
           }}
           onTouchEnd={(e) => {
             e.stopPropagation();
-
             if (e.target === e.currentTarget) {
               closeVideoModal();
             }
           }}
         >
-          <div             className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden relative border border-gray-200 dark:border-gray-700"
+          <div 
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden relative border border-gray-200 dark:border-gray-700"
             style={{
-         
               width: 'clamp(320px, 90vw, 50vw)',
               height: 'clamp(240px, 60vh, 50vh)',
               maxWidth: '800px',
               maxHeight: '600px'
             }}
             onClick={(e) => {
-
               e.stopPropagation();
             }}
           >
