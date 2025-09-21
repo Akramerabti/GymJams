@@ -292,6 +292,7 @@ useEffect(() => {
           pointer-events: none;
         }
 
+
         .floating-orb-1 {
           animation: float1 8s ease-in-out infinite;
         }
@@ -302,6 +303,28 @@ useEffect(() => {
 
         .floating-orb-3 {
           animation: float3 10s ease-in-out infinite;
+        }
+
+        .floating-orb-4 {
+          animation: float4 14s ease-in-out infinite;
+        }
+
+        .floating-orb-5 {
+          animation: float5 11s ease-in-out infinite;
+        }
+
+        @keyframes float4 {
+          0%, 100% { transform: translate(0px, 0px) scale(1); }
+          20% { transform: translate(-30px, 20px) scale(1.1); }
+          50% { transform: translate(20px, -30px) scale(0.95); }
+          80% { transform: translate(10px, 10px) scale(1.05); }
+        }
+
+        @keyframes float5 {
+          0%, 100% { transform: translate(0px, 0px) scale(1); }
+          25% { transform: translate(25px, -20px) scale(1.08); }
+          60% { transform: translate(-15px, 25px) scale(0.92); }
+          85% { transform: translate(-10px, -10px) scale(1.04); }
         }
 
         @keyframes float1 {
@@ -495,6 +518,19 @@ useEffect(() => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.5, duration: 2 }}
+          />
+          {/* Extra bubbles for richer effect */}
+          <motion.div 
+            className="floating-orb-4 absolute bottom-144 right-10 w-16 h-16 bg-gradient-to-r from-blue-500/80 to-cyan-500/70 rounded-full blur-xs"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 2, duration: 2 }}
+          />
+          <motion.div 
+            className="floating-orb-5 absolute top-103 right-1/3 w-14 h-14 bg-gradient-to-r from-purple-500/70 to-indigo-500/70 rounded-full blur-xs"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 2.5, duration: 2 }}
           />
         </div>
 
