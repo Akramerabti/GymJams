@@ -370,6 +370,8 @@ const ConversionLanding = () => {
           display: flex;
           flex-direction: column;
           gap: 1rem;
+          background: transparent !important;
+          box-shadow: none !important;
         }
         
         @media (max-width: 768px) {
@@ -386,8 +388,8 @@ const ConversionLanding = () => {
           border: none;
           cursor: pointer;
           transition: all 0.3s ease;
-          background: rgba(255, 255, 255, 0.3);
-          backdrop-filter: blur(10px);
+          background: #d1d5db !important; /* gray-300 */
+          /* Remove blur to prevent white halo */
           padding: 0;
           position: relative;
         }
@@ -398,7 +400,7 @@ const ConversionLanding = () => {
         }
         
         .nav-dot.active {
-          background: #3b82f6;
+          background: #000 !important;
           transform: scale(1.3);
         }
         

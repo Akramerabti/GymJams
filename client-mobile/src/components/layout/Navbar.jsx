@@ -126,7 +126,6 @@ const Navbar = () => {
   top: 0;
   left: 0;
   right: 0;
-  padding-top: constant(safe-area-inset-top);
   padding-top: env(safe-area-inset-top);
         }
 
@@ -197,12 +196,6 @@ const Navbar = () => {
           border-left: none;
           border-bottom: none;
           border-bottom-right-radius: 40px;
-        }
-
-        .safe-area-navbar {
-          padding-top: env(safe-area-inset-top, 8px);
-          padding-left: env(safe-area-inset-left, 0px);
-          padding-right: env(safe-area-inset-right, 0px);
         }
 
         /* Fixed Circular Navigation Styles - Mobile First with Equal 180° Spacing */

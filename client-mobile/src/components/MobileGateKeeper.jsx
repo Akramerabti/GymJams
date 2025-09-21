@@ -341,6 +341,7 @@ const handleLogin = async (data = formData, retryCount = 0) => {
           </motion.p>
           <motion.div
             className="flex justify-center gap-2"
+            style={{ background: 'transparent' }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.2 }}

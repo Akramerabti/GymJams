@@ -161,6 +161,8 @@ const Home = () => {
           display: flex;
           flex-direction: column;
           gap: 1rem;
+          background: transparent !important;
+          box-shadow: none !important;
         }
         
         @media (max-width: 768px) {
@@ -177,8 +179,8 @@ const Home = () => {
           border: none;
           cursor: pointer;
           transition: all 0.3s ease;
-          background: rgba(255, 255, 255, 0.3);
-          backdrop-filter: blur(10px);
+          background: #d1d5db !important; /* gray-300 */
+          /* Remove blur to prevent white halo */
           padding: 0;
           position: relative;
         }
@@ -189,7 +191,7 @@ const Home = () => {
         }
         
         .nav-dot.active {
-          background: #3b82f6;
+          background: #3b82f6 !important;
           transform: scale(1.3);
         }
         
@@ -289,7 +291,11 @@ const Home = () => {
         })}
         
         {/* Navigation dots */}
-        <nav className="nav-dots" aria-label="Section navigation">
+        <nav
+          className="nav-dots"
+          aria-label="Section navigation"
+          style={{ background: 'transparent', boxShadow: 'none' }}
+        >
           {sections.map((section, index) => (
             <button
               key={index}
