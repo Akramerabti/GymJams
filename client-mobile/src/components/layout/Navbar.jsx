@@ -432,17 +432,13 @@ const Navbar = () => {
           .cn-wrapper.nav-menu.opened-nav li:nth-child(5) { 
             transform: translate(80px, 0px);
           }
-
-          .pt-safe {
-  padding-top: max(env(safe-area-inset-top, 0px), 20px);
-}
         }
       `}</style>
       
      <div className="fixed top-0 left-0 right-0 z-[9999]">
         <div className="navbar-container">
           <div className="max-w-[95vw] mx-auto px-4">
-            <div className="flex justify-between items-end h-24 ">
+            <div className="flex justify-between items-end ">
               {/* Left Side - Back Arrow (only show on non-home pages) */}
               {!isHomePage && (
                 <Link

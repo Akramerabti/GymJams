@@ -468,7 +468,7 @@ useEffect(() => {
 
       {/* Main Dashboard */}
       <motion.div
-        className="min-h-dvh w-full bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 relative"
+        className="min-h-dvh w-full bg-gradient-to-br from-blue-950 via-indigo-950 to-purple-950 relative"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
@@ -479,19 +479,19 @@ useEffect(() => {
         {/* Animated Background Orbs */}
         <div className="animated-orbs">
           <motion.div 
-            className="floating-orb-1 absolute top-20 left-16 w-20 h-20 bg-gradient-to-r from-purple-500/25 to-indigo-500/25 rounded-full blur-md"
+            className="floating-orb-1 absolute top-20 left-16 w-20 h-20 bg-gradient-to-r from-purple-500/70 to-indigo-500/70 rounded-full blur"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5, duration: 2 }}
           />
           <motion.div 
-            className="floating-orb-2 absolute top-60 right-20 w-24 h-24 bg-gradient-to-r from-blue-500/30 to-cyan-500/25 rounded-full blur-md"
+            className="floating-orb-2 absolute top-60 right-20 w-24 h-24 bg-gradient-to-r from-blue-500/80 to-cyan-500/70 rounded-full blur"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1, duration: 2 }}
           />
           <motion.div 
-            className="floating-orb-3 absolute bottom-32 left-1/4 w-18 h-18 bg-gradient-to-r from-emerald-500/25 to-teal-500/25 rounded-full blur-sm"
+            className="floating-orb-3 absolute bottom-32 left-1/4 w-18 h-18 bg-gradient-to-r from-emerald-500/70 to-teal-500/70 rounded-full blur-xs"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.5, duration: 2 }}
