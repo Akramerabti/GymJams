@@ -6,7 +6,7 @@ import TextArea from "@/components/ui/TextArea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/Switch";
-import { Eye, Heart, Badge, ShoppingCart, Upload, Image as ImageIcon, Smartphone, Monitor, X, Save, ArrowLeft, Loader2, Plus, Trash, Palette } from 'lucide-react';
+import { Eye, Heart, Badge, ShoppingCart, Upload, Image, Smartphone, Monitor, X, Save, ArrowLeft, Loader2, Plus, Trash, Palette, GripVertical } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -154,9 +154,33 @@ const MobileForm = ({
   handleColorsChange,
   assignColorToImage,
   handleSubmit,
-  setShowDetailedPreview
+  setShowDetailedPreview,
+  reorderImages
 }) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(null);
+  const [draggedIndex, setDraggedIndex] = useState(null);
+
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e, dropIndex) => {
+    e.preventDefault();
+    if (draggedIndex !== null && draggedIndex !== dropIndex) {
+      reorderImages(draggedIndex, dropIndex);
+    }
+    setDraggedIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -326,19 +350,31 @@ const MobileForm = ({
           <p className="text-xs text-red-500">{errors.images}</p>
         )}
 
-        {/* Image Preview Grid with Color Assignment */}
+        {/* Image Preview Grid with Color Assignment and Reordering */}
         {product.imagePreviews.length > 0 && (
           <div className="space-y-3">
-            <p className="text-sm text-gray-600">Tap an image to assign it to a color</p>
+            <p className="text-sm text-gray-600">Drag to reorder • Tap to assign color</p>
             <div className="grid grid-cols-4 gap-2">
               {product.imagePreviews.map((preview, index) => (
-                <div key={index} className="relative group">
+                <div 
+                  key={index} 
+                  className="relative group"
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, index)}
+                  onDragEnd={handleDragEnd}
+                >
+                  <div className="absolute top-0 left-0 z-10 bg-black/50 text-white rounded-tl-lg rounded-br-lg px-1 text-xs opacity-0 group-hover:opacity-100 cursor-move">
+                    <GripVertical className="h-3 w-3" />
+                  </div>
                   <img
                     src={preview.url || preview}
                     alt={`Preview ${index + 1}`}
                     className={cn(
                       "w-full h-16 object-cover rounded-lg cursor-pointer",
-                      selectedImageIndex === index ? "ring-2 ring-blue-500" : ""
+                      selectedImageIndex === index ? "ring-2 ring-blue-500" : "",
+                      draggedIndex === index ? "opacity-50" : ""
                     )}
                     onClick={() => setSelectedImageIndex(index)}
                   />
@@ -531,15 +567,39 @@ const DesktopForm = ({
   handleColorsChange,
   assignColorToImage,
   handleSubmit,
-  setShowDetailedPreview
+  setShowDetailedPreview,
+  reorderImages
 }) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(null);
+  const [draggedIndex, setDraggedIndex] = useState(null);
+
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e, dropIndex) => {
+    e.preventDefault();
+    if (draggedIndex !== null && draggedIndex !== dropIndex) {
+      reorderImages(draggedIndex, dropIndex);
+    }
+    setDraggedIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+  };
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
       {/* Form Column */}
       <div className="md:col-span-3 space-y-6">
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="name">Product Name</Label>
             <Input
@@ -740,15 +800,26 @@ const DesktopForm = ({
               <p className="text-xs text-red-500">{errors.images}</p>
             )}
 
-            {/* Image Preview Grid with Color Assignment */}
+            {/* Image Preview Grid with Color Assignment and Reordering */}
             {product.imagePreviews.length > 0 && (
               <div className="space-y-3">
                 <p className="text-sm text-gray-600">
-                  Click on an image to assign it to a specific color variant
+                  Drag to reorder images • Click to assign color
                 </p>
                 <div className="grid grid-cols-4 gap-4">
                   {product.imagePreviews.map((preview, index) => (
-                    <div key={index} className="relative group">
+                    <div 
+                      key={index} 
+                      className="relative group"
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, index)}
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, index)}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <div className="absolute top-0 left-0 z-10 bg-black/50 text-white rounded-tl-lg rounded-br-lg px-1 py-0.5 opacity-0 group-hover:opacity-100 cursor-move">
+                        <GripVertical className="h-3 w-3" />
+                      </div>
                       <img
                         src={preview.url || preview}
                         alt={`Preview ${index + 1}`}
@@ -756,7 +827,8 @@ const DesktopForm = ({
                           "w-full h-24 object-cover rounded-lg cursor-pointer transition-all",
                           selectedImageIndex === index 
                             ? "ring-2 ring-blue-500" 
-                            : "hover:ring-2 hover:ring-gray-300"
+                            : "hover:ring-2 hover:ring-gray-300",
+                          draggedIndex === index ? "opacity-50" : ""
                         )}
                         onClick={() => setSelectedImageIndex(index)}
                       />
@@ -911,7 +983,7 @@ const DesktopForm = ({
 
           {/* Submit and Preview Buttons */}
           <div className="flex gap-4">
-            <Button type="submit" className="flex-1 gap-2" disabled={isSubmitting}>
+            <Button type="button" onClick={handleSubmit} className="flex-1 gap-2" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -951,7 +1023,7 @@ const DesktopForm = ({
                               />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
-                                <ImageIcon className="h-16 w-16 text-gray-400" />
+                                <Image className="h-16 w-16 text-gray-400" />
                               </div>
                             )}
                           </div>
@@ -1069,7 +1141,7 @@ const DesktopForm = ({
               </DialogContent>
             </Dialog>
           </div>
-        </form>
+        </div>
       </div>
 
       {/* Quick Preview Card */}
@@ -1088,7 +1160,7 @@ const DesktopForm = ({
                 />
               ) : (
                 <div className="w-full h-48 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <ImageIcon className="h-12 w-12 text-gray-400" />
+                  <Image className="h-12 w-12 text-gray-400" />
                 </div>
               )}
               <div className="space-y-2">
@@ -1296,15 +1368,24 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
     const files = Array.from(e.target.files);
     if (!files.length) return;
     
-    const totalImages = product.images.length + product.imagePreviews.length + files.length;
-  
-    if (totalImages > 8) {
+    // Fixed: Only count the preview length, not double-counting
+    const currentTotalImages = product.imagePreviews.length;
+    const remainingSlots = 8 - currentTotalImages;
+    
+    if (remainingSlots <= 0) {
       setErrors({ ...errors, images: 'Maximum 8 images allowed' });
       toast.error('Maximum 8 images allowed');
       return;
     }
+    
+    // Only take as many files as we have slots remaining
+    const filesToAdd = files.slice(0, remainingSlots);
+    
+    if (filesToAdd.length < files.length) {
+      toast.warning(`Only ${filesToAdd.length} of ${files.length} images added. Maximum 8 images allowed.`);
+    }
   
-    const newPreviews = files.map(file => ({
+    const newPreviews = filesToAdd.map(file => ({
       url: URL.createObjectURL(file),
       color: null,
       file: file
@@ -1312,12 +1393,15 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
   
     setProduct(prev => ({
       ...prev,
-      images: [...prev.images, ...files],
+      images: [...prev.images, ...filesToAdd],
       imagePreviews: [...prev.imagePreviews, ...newPreviews],
     }));
     
     setTouched({ ...touched, images: true });
-    validateField('images', [...product.images, ...files]);
+    // Clear any previous image errors
+    if (errors.images && (currentTotalImages + filesToAdd.length) >= 2) {
+      setErrors(prev => ({ ...prev, images: '' }));
+    }
   };
 
   const removeImage = (index) => {
@@ -1362,6 +1446,38 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
       ...prev,
       imagePreviews: newPreviews
     }));
+  };
+
+  // New function to reorder images
+  const reorderImages = (fromIndex, toIndex) => {
+    const newPreviews = [...product.imagePreviews];
+    const [movedPreview] = newPreviews.splice(fromIndex, 1);
+    newPreviews.splice(toIndex, 0, movedPreview);
+    
+    // Also reorder the actual image files if moving new uploads
+    if (fromIndex >= existingImageCount || toIndex >= existingImageCount) {
+      const newImages = [...product.images];
+      // Calculate adjusted indices for new images only
+      const adjustedFromIndex = Math.max(0, fromIndex - existingImageCount);
+      const adjustedToIndex = Math.max(0, toIndex - existingImageCount);
+      
+      if (fromIndex >= existingImageCount && toIndex >= existingImageCount) {
+        // Both positions are in new images
+        const [movedImage] = newImages.splice(adjustedFromIndex, 1);
+        newImages.splice(adjustedToIndex, 0, movedImage);
+      }
+      
+      setProduct(prev => ({
+        ...prev,
+        images: newImages,
+        imagePreviews: newPreviews,
+      }));
+    } else {
+      setProduct(prev => ({
+        ...prev,
+        imagePreviews: newPreviews,
+      }));
+    }
   };
 
   const validateField = (name, value) => {
@@ -1421,13 +1537,16 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
       newErrors.gender = 'Gender selection is required for clothing';
     }
     if (!product.stockQuantity || isNaN(product.stockQuantity) || product.stockQuantity < 0) newErrors.stockQuantity = 'Stock must be a valid number 0 or greater';
-    const totalImageCount = product.images.length + product.imagePreviews.length;
+    const totalImageCount = product.imagePreviews.length;
     if (totalImageCount < 2) newErrors.images = 'Minimum 2 images required';
     return newErrors;
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
+    
     setTouched({ 
       name: true, 
       description: true, 
@@ -1523,6 +1642,7 @@ const ProductForm = ({ categories, onAddProduct, initialData = null, isEditing =
     assignColorToImage,
     handleSubmit,
     setShowDetailedPreview,
+    reorderImages,
   };
 
   return (

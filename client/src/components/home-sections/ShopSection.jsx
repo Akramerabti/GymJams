@@ -100,13 +100,13 @@ const ShopSection = ({ isActive, onNavigate, darkMode, backgroundColor, textColo
         onClick={() => onNavigate(`/product/${product._id || product.id}`)}
         className={`group cursor-pointer rounded-xl overflow-hidden transition-all duration-300 hover:scale-105 ${
           darkMode ? 'bg-gray-800' : 'bg-white'
-        } shadow-lg hover:shadow-xl`}
+        } shadow-lg hover:shadow-xl flex flex-col min-w-0`}
       >
         <div className="relative aspect-square overflow-hidden bg-gray-100">
           <img
             src={imageUrl}
             alt={product.name}
-            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+            className="w-full h-full max-w-full max-h-full object-cover group-hover:scale-110 transition-transform duration-500"
             onError={(e) => { e.target.src = '/Picture2.png'; }}
           />
           
@@ -131,11 +131,6 @@ const ShopSection = ({ isActive, onNavigate, darkMode, backgroundColor, textColo
           
           {/* Badges */}
           <div className="absolute top-2 left-2 flex flex-col gap-2">
-            {product.featured && (
-              <span className="px-2 py-1 rounded-full bg-yellow-500 text-white text-xs font-bold">
-                FEATURED
-              </span>
-            )}
             {isDiscounted && (
               <span className="px-2 py-1 rounded-full bg-red-500 text-white text-xs font-bold">
                 -{product.discount.percentage}%
@@ -146,14 +141,23 @@ const ShopSection = ({ isActive, onNavigate, darkMode, backgroundColor, textColo
                 {product.stockQuantity} left
               </span>
             )}
-            {/* Gender indicator for clothes */}
+            {/* Gender indicator for clothes, golden if featured */}
             {product.category?.toLowerCase() === 'clothes' && product.gender && (
-              <span className={`px-2 py-1 rounded-full text-white text-xs font-bold ${
-                product.gender === 'Men' ? 'bg-blue-500' : 
-                product.gender === 'Women' ? 'bg-pink-500' : 'bg-purple-500'
-              }`}>
-                {product.gender}
-              </span>
+              <div className="flex justify-center w-full">
+                <span
+                  className={`px-2 py-1 rounded-full text-white text-xs font-bold bg-gradient-to-r ${
+                    product.featured
+                      ? 'from-yellow-400 to-yellow-600 text-yellow-900'
+                      : product.gender === 'Men'
+                        ? 'from-blue-500 to-blue-400'
+                        : product.gender === 'Women'
+                          ? 'from-pink-500 to-pink-400'
+                          : 'from-purple-500 to-indigo-400'
+                  }`}
+                >
+                  {product.gender}
+                </span>
+              </div>
             )}
           </div>
 
@@ -294,9 +298,9 @@ const ShopSection = ({ isActive, onNavigate, darkMode, backgroundColor, textColo
           </div>
         ) : (
           <div className={`flex-1 flex items-center justify-center min-h-0`}>
-            <div className={`w-full grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 max-h-full overflow-hidden`}>
-              {products[activeCategory].slice(0, isConversionLanding ? 8 : 6).map(renderProduct)}
-            </div>
+<div className={`grid grid-cols-2 grid-rows-1 lg:grid-cols-4 lg:grid-rows-1 gap-3 md:gap-4`}>
+  {products[activeCategory].slice(0, 4).map(renderProduct)}
+</div>
           </div>
         )}
 

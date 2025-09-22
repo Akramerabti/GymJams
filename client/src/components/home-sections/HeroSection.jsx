@@ -1222,7 +1222,7 @@ useEffect(() => {
             </span>
           )}
           {product.preOrder && (
-            <span className="px-1 py-0.5 text-xs rounded-full bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-500 text-amber-900 font-bold border border-amber-900 shadow text-center" style={{ fontSize: '9px' }}>
+            <span className="px-1 py-0.5 text-xs rounded-full bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-700 text-amber-900 font-bold shadow text-center" style={{ fontSize: '9px' }}>
               {t('herosection.preOrder')}
             </span>
           )}
