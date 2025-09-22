@@ -58,6 +58,7 @@ import Blog from './pages/Blog';
 import BlogPost from './components/blog/BlogPost';
 import CompleteOAuthProfile from './components/auth/CompleteOAuthProfile';
 import MobileGatekeeper from './components/MobileGateKeeper';
+import Privacy from './pages/CustomerService/privacy';
 
 // Common Components
 import CoachProfileCompletionModal from './components/common/CoachProfileCompletionModal';
@@ -510,6 +511,7 @@ function AppContent() {
           <Route path="/oauth-callback" element={<OAuthCallback />} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/blog/:slug" element={<BlogPost />} />
+          <Route path="/privacy" element={<Privacy />} />
 
           {/* Protected Routes */}
           <Route path="/profile" element={

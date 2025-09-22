@@ -143,7 +143,7 @@ export const sendSubscriptionReceipt = async (subscriptionData, email, isGuest =
 
           <div style="margin-top: 30px; padding: 20px; background-color: #f7fafc; border-radius: 8px; font-size: 14px; color: #718096;">
             <p style="margin: 0 0 10px 0;"><strong>Need Help?</strong></p>
-            <p style="margin: 0;">Contact our support team at support@gymtonic.ca</p>
+            <p style="margin: 0;">Contact our support team at contact@gymtonic.ca</p>
             <p style="margin: 10px 0 0 0; font-size: 12px;">© 2024 GymTonic. All rights reserved.</p>
           </div>
         </div>
@@ -300,7 +300,7 @@ const generateOrderPDF = async (order) => {
 
       doc.fontSize(9)
          .fillColor('#4b5563')
-         .text('If you have any questions, please contact our customer support at support@gymtonic.ca', 50, footerY + 35, { align: 'center', width: doc.page.width - 100 });
+         .text('If you have any questions, please contact our customer support at contact@gymtonic.ca', 50, footerY + 35, { align: 'center', width: doc.page.width - 100 });
 
       // Add reward points summary if applicable
       if (order.user && !order.pointsUsed) {
@@ -482,7 +482,7 @@ export const sendOrderConfirmationEmail = async (order, email) => {
           
           <div style="background-color: #f0f9ff; padding: 20px; text-align: center; border-top: 1px solid #bfdbfe;">
             <p style="margin: 0 0 10px 0; color: #2563eb; font-size: 14px; font-weight: bold;">Questions about your order?</p>
-            <p style="margin: 0; color: #718096; font-size: 14px;">Contact us at <a href="mailto:support@gymtonic.ca" style="color: #3b82f6;">support@gymtonic.ca</a></p>
+            <p style="margin: 0; color: #718096; font-size: 14px;">Contact us at <a href="mailto:contact@gymtonic.ca" style="color: #3b82f6;">contact@gymtonic.ca</a></p>
           </div>
           
           <div style="padding: 20px; text-align: center; font-size: 12px; color: #a0aec0;">
@@ -575,7 +575,7 @@ export const sendOrderUpdateEmail = async (order, email, updateType) => {
           
           <div style="background-color: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0;">
             <p style="margin: 0 0 10px 0; color: #718096; font-size: 14px;">Questions about your order?</p>
-            <p style="margin: 0; color: #718096; font-size: 14px;">Contact us at <a href="mailto:support@gymtonic.ca" style="color: #3182ce;">support@gymtonic.ca</a></p>
+            <p style="margin: 0; color: #718096; font-size: 14px;">Contact us at <a href="mailto:contact@gymtonic.ca" style="color: #3182ce;">contact@gymtonic.ca</a></p>
           </div>
           
           <div style="padding: 20px; text-align: center; font-size: 12px; color: #a0aec0;">
@@ -671,7 +671,7 @@ export const sendSubscriptionCancellationEmail = async (subscriptionData, email,
 
           <div style="margin-top: 30px; padding: 20px; background-color: #f7fafc; border-radius: 8px; font-size: 14px; color: #718096;">
             <p style="margin: 0 0 10px 0;"><strong>We're sorry to see you go!</strong></p>
-            <p style="margin: 0;">If you have any feedback about your experience or need assistance, please contact our support team at support@gymtonic.ca</p>
+            <p style="margin: 0;">If you have any feedback about your experience or need assistance, please contact our support team at contact@gymtonic.ca</p>
             <p style="margin: 10px 0 0 0; font-size: 12px;">© 2024 GymTonic. All rights reserved.</p>
           </div>
         </div>
@@ -769,7 +769,7 @@ export const sendSubscriptionEndEmail = async (subscriptionData, email, reason =
 
           <div style="margin-top: 30px; padding: 20px; background-color: #f7fafc; border-radius: 8px; font-size: 14px; color: #718096;">
             <p style="margin: 0 0 10px 0;"><strong>Thank you for being part of GymTonic!</strong></p>
-            <p style="margin: 0;">We hope you achieved your fitness goals with us. If you have any questions or need assistance, please contact our support team at support@gymtonic.ca</p>
+            <p style="margin: 0;">We hope you achieved your fitness goals with us. If you have any questions or need assistance, please contact our support team at contact@gymtonic.ca</p>
             <p style="margin: 10px 0 0 0; font-size: 12px;">© 2024 GymTonic. All rights reserved.</p>
           </div>
         </div>

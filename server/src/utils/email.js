@@ -104,7 +104,7 @@ export const sendEmail = async (options) => {
       logger.info('[EMAIL] Using Resend for simple email');
       
       const emailPayload = {
-        from: 'GymTonic Support <support@gymtonic.ca>',
+        from: 'GymTonic Support <contact@gymtonic.ca>',
         to: options.email,
         subject: options.subject,
         text: options.message,
@@ -142,7 +142,7 @@ export const sendEmail = async (options) => {
           logger.info('[EMAIL] Attempting fallback email service');
           if (resend && process.env.RESEND_API_KEY) {
             const emailPayload = {
-              from: 'GymTonic Support <support@gymtonic.ca>',
+              from: 'GymTonic Support <contact@gymtonic.ca>',
               to: options.email,
               subject: options.subject,
               text: options.message,

@@ -45,7 +45,7 @@ export const FAQSection = ({
       },
       {
         question: 'How can I contact customer support?',
-        answer: 'You can reach our customer support team through our Contact page, by email at support@gymtonic.ca, or by phone at (555) 123-4567 during business hours.'
+        answer: 'You can reach our customer support team through our Contact page, by email at contact@gymtonic.ca, or by phone at (555) 123-4567 during business hours.'
       },
       {
         question: 'Do you have a physical store?',

@@ -352,7 +352,7 @@ const Contact = () => {
           <div className="bg-white p-6 rounded-lg shadow-sm flex flex-col items-center text-center">
             <Mail className="w-8 h-8 text-blue-500 mb-3" />
             <h3 className="font-semibold mb-2">Email Us</h3>
-            <p className="text-gray-600">support@gymtonic.ca</p>
+            <p className="text-gray-600">contact@gymtonic.ca</p>
           </div>
           <div className="bg-white p-6 rounded-lg shadow-sm flex flex-col items-center text-center">
             <Phone className="w-8 h-8 text-blue-500 mb-3" />

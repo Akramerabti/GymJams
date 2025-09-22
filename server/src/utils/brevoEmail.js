@@ -14,7 +14,7 @@ export const sendEmailWithBrevo = async (options) => {
   try {
 
     const sender = {
-      email: 'support@gymtonic.ca',
+      email: 'contact@gymtonic.ca',
       name: 'GymTonic Support'
     };
     

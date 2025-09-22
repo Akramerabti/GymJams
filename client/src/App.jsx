@@ -57,6 +57,7 @@ import BlogPost from './components/blog/BlogPost';
 import CompleteOAuthProfile from './components/auth/CompleteOAuthProfile';
 import PasswordSetup from './components/common/PasswordSetup';
 import DiscountSignUpContainer from './components/discount/DiscountSignUpContainer';
+import Privacy from './pages/CustomerService/privacy';
 
 // Common Components
 import LocationBanner from './components/common/LocationBanner';
@@ -444,6 +445,7 @@ function App() {
                   <Route path="/oauth-callback" element={<OAuthCallback />} />
                   <Route path="/blog" element={<Blog />} />
                   <Route path="/blog/:slug" element={<BlogPost />} />
+                  <Route path="/privacy" element={<Privacy />} />
                   
                   {/* Protected Routes */}
                   <Route path="/profile" element={
