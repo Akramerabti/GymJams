@@ -51,13 +51,13 @@ const ApplicationForm = ({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-br from-blue-600 to-purple-700 dark:from-gray-800 dark:to-gray-900 p-8 rounded-xl shadow-xl border border-blue-400/20 dark:border-gray-600/20"
+        className="bg-gradient-to-br pt-20 from-blue-600 to-purple-700 dark:from-gray-800 dark:to-gray-900 p-8 rounded-xl shadow-xl border border-blue-400/20 dark:border-gray-600/20"
       >
         <div className="flex flex-col items-center text-center space-y-6">
           <div className="p-4 bg-white/20 dark:bg-gray-700/50 rounded-full">
             <LogIn className="h-12 w-12 text-white dark:text-gray-200" />
           </div>
-          <h3 className="text-2xl font-bold text-white dark:text-gray-100">Join Our Team</h3>
+          <h3 className="text-2xl font-bold text-white dark:text-gray-100">Careers</h3>
           <p className="text-white/90 dark:text-gray-300 max-w-md">
             You need to be logged in to apply for a position. 
             Access your account to submit your application.
@@ -85,11 +85,11 @@ const ApplicationForm = ({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 mt-20">
       <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold mb-2">Join Our Team</h1>
+        <h1 className="text-3xl font-bold mb-2">Careers</h1>
         <p className="text-gray-600">
-          We're looking for talented individuals to join the GymJams family. Fill out the form below to apply!
+          At GymTonic, we're always open to looking for talented individuals to thrive. Fill out the form below to get started.
         </p>
       </div>
       
@@ -104,7 +104,7 @@ const ApplicationForm = ({
       
       <Card>
         <CardHeader>
-          <CardTitle>Application Form</CardTitle>
+          <CardTitle>Careers</CardTitle>
           <CardDescription>
             Please fill out the form below to apply. Fields marked with * are required.
             <span className="block mt-1 text-blue-600">Your account information has been filled in and cannot be changed. This ensures your application is linked to your verified account.</span>
@@ -531,7 +531,7 @@ const ApplicationFormPage = () => {
             <Gamepad2 className="h-10 w-10 text-blue-600" />
           </div>
           
-          <h1 className="text-3xl font-bold mb-4 text-gray-900">Join Our Team</h1>
+          <h1 className="text-3xl font-bold mb-4 text-gray-900">Careers</h1>
           <p className="text-gray-600 mb-6">
             Log in to submit your application and explore opportunities at GymJams!
           </p>
@@ -557,12 +557,12 @@ const ApplicationFormPage = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 mt-20 py-8">
       <div className="max-w-3xl mx-auto">
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold mb-2">Join Our Team</h1>
+          <h1 className="text-3xl font-bold mb-2">Careers</h1>
           <p className="text-gray-600">
-            We're looking for talented individuals to join the GymJams family. Fill out the form below to apply!
+            At GymTonic, we're always open to looking for talented individuals to thrive. Fill out the form below to get started.
           </p>
         </div>
         

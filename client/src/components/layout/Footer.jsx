@@ -79,7 +79,7 @@ const Footer = () => {
         {/* Bottom Bar */}
         <div className="border-t border-gray-700 mt-8 pt-8 text-center">
           <p className="text-gray-300">
-            © {currentYear} GymShop. {t('footer.rights')}
+            © {currentYear} GymTonic. {t('footer.rights')}
           </p>
         </div>
       </div>
