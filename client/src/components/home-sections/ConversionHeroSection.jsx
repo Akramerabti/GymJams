@@ -179,7 +179,7 @@ const ModernConversionLanding = ({ onNavigate, backgroundColor = '#000000', text
                 animate={isLoaded ? { opacity: 1, y: 0 } : {}}
                 transition={{ duration: 0.8, delay: 0.2 }}
               >
-                Get fit, get compensated, stay motivated, and connect with a community that shares your passion for fitness.
+                Get fit, get compensated, stay motivated
               </motion.p>
               
               <motion.div
