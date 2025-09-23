@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardContent, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
+import Progress from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -58,20 +58,20 @@ const TUTORIAL_STEPS = [
     description: 'Access your personalized workout routines, mark them complete, and view detailed exercise instructions.',
     position: 'top'
   },
- {
-  id: 'coach-chat',
-  target: '.coach-chat',
-  title: 'Coach Communication',
-  description: 'Stay connected with your personal trainer through real-time messaging and get expert guidance.',
-  position: 'top' // Changed from 'left' to 'top' for better visibility
-},
-{
-  id: 'progress-tracking',
-  target: '.progress-tracking',
-  title: 'Progress Tracking',
-  description: 'Log your measurements, weights, and performance metrics to visualize your transformation over time.',
-  position: 'top' // Ensure it shows above the element
-}
+  {
+    id: 'coach-chat',
+    target: '.coach-chat',
+    title: 'Coach Communication',
+    description: 'Stay connected with your personal trainer through real-time messaging and get expert guidance.',
+    position: 'left'
+  },
+  {
+    id: 'progress-tracking',
+    target: '.progress-tracking',
+    title: 'Progress Tracking',
+    description: 'Log your measurements, weights, and performance metrics to visualize your transformation over time.',
+    position: 'top'
+  }
 ];
 
 // Mock data (exact same structure as original)
@@ -187,178 +187,206 @@ const SECTION_ICONS = {
   medical: <Stethoscope className="w-5 h-5" />,
 };
 
+// Tutorial Overlay Component with scroll locking
 const TutorialOverlay = ({ step, onNext, onClose, totalSteps }) => {
   const [targetElement, setTargetElement] = useState(null);
   const [overlayStyle, setOverlayStyle] = useState({});
 
-  // Simple positioning function that works with responsive design
-  const positionElement = () => {
-    if (!step?.target) return;
-
-    const element = document.querySelector(step.target);
-    if (!element) return;
-
-    // Scroll element into view first
-    element.scrollIntoView({ 
-      behavior: 'smooth', 
-      block: 'center',
-      inline: 'center'
-    });
-
-    // Wait for scroll to complete
-    setTimeout(() => {
-      // Get element position after scroll
-      const rect = element.getBoundingClientRect();
-      
-      setTargetElement(element);
-      setOverlayStyle({
-        top: rect.top,
-        left: rect.left,
-        width: rect.width,
-        height: rect.height
-      });
-
-      // Lock scroll
-      document.body.style.overflow = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${window.scrollY}px`;
-      document.body.style.width = '100%';
-    }, 300);
-  };
-
   useEffect(() => {
-    positionElement();
+    // Disable scrolling when tutorial is active
+    const originalOverflow = document.body.style.overflow;
+    const originalPosition = document.body.style.position;
+    const originalTop = document.body.style.top;
+    const originalWidth = document.body.style.width;
+    const scrollY = window.scrollY;
 
-    // Handle resize
-    const handleResize = () => {
-      if (targetElement) {
-        const rect = targetElement.getBoundingClientRect();
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+
+    if (step?.target) {
+      const element = document.querySelector(step.target);
+      if (element) {
+        setTargetElement(element);
+        
+        // Get element position relative to the fixed body
+        const rect = element.getBoundingClientRect();
+        
         setOverlayStyle({
-          top: rect.top,
+          top: rect.top + scrollY,
           left: rect.left,
           width: rect.width,
           height: rect.height
         });
       }
-    };
+    }
 
-    window.addEventListener('resize', handleResize);
-
+    // Cleanup function to restore scrolling
     return () => {
-      window.removeEventListener('resize', handleResize);
+      document.body.style.overflow = originalOverflow;
+      document.body.style.position = originalPosition;
+      document.body.style.top = originalTop;
+      document.body.style.width = originalWidth;
       
-      // Restore scroll
-      const scrollY = parseInt(document.body.style.top || '0') * -1;
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
+      // Restore scroll position
       if (scrollY) {
         window.scrollTo(0, scrollY);
       }
     };
-  }, [step, targetElement]);
+  }, [step]);
 
   if (!step || !targetElement) return null;
+
+  const getTooltipPosition = () => {
+    const tooltipOffset = 20;
+    const baseStyle = {
+      position: 'absolute',
+      zIndex: 1001,
+      maxWidth: '320px',
+      width: 'calc(100vw - 2rem)'
+    };
+
+    switch (step.position) {
+      case 'top':
+        return {
+          ...baseStyle,
+          bottom: `calc(100vh - ${overlayStyle.top}px + ${tooltipOffset}px)`,
+          left: Math.max(16, overlayStyle.left + overlayStyle.width / 2),
+          transform: 'translateX(-50%)'
+        };
+      case 'bottom':
+        return {
+          ...baseStyle,
+          top: overlayStyle.top + overlayStyle.height + tooltipOffset,
+          left: Math.max(16, overlayStyle.left + overlayStyle.width / 2),
+          transform: 'translateX(-50%)'
+        };
+      case 'left':
+        return {
+          ...baseStyle,
+          top: overlayStyle.top + overlayStyle.height / 2,
+          right: `calc(100vw - ${overlayStyle.left}px + ${tooltipOffset}px)`,
+          transform: 'translateY(-50%)'
+        };
+      case 'right':
+        return {
+          ...baseStyle,
+          top: overlayStyle.top + overlayStyle.height / 2,
+          left: overlayStyle.left + overlayStyle.width + tooltipOffset,
+          transform: 'translateY(-50%)'
+        };
+      default:
+        return {
+          ...baseStyle,
+          top: overlayStyle.top + overlayStyle.height + tooltipOffset,
+          left: Math.max(16, overlayStyle.left + overlayStyle.width / 2),
+          transform: 'translateX(-50%)'
+        };
+    }
+  };
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[1000]"
+      className="fixed inset-0 z-[1000] pointer-events-none"
     >
-      {/* Dark overlay with cut-out */}
+      {/* Dark overlay */}
       <div 
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         style={{
-          clipPath: overlayStyle.width ? 
-            `polygon(0% 0%, 0% 100%, ${overlayStyle.left}px 100%, ${overlayStyle.left}px ${overlayStyle.top}px, ${overlayStyle.left + overlayStyle.width}px ${overlayStyle.top}px, ${overlayStyle.left + overlayStyle.width}px ${overlayStyle.top + overlayStyle.height}px, ${overlayStyle.left}px ${overlayStyle.top + overlayStyle.height}px, ${overlayStyle.left}px 100%, 100% 100%, 100% 0%)` 
-            : 'none'
+          clipPath: `polygon(0% 0%, 0% 100%, ${overlayStyle.left}px 100%, ${overlayStyle.left}px ${overlayStyle.top}px, ${overlayStyle.left + overlayStyle.width}px ${overlayStyle.top}px, ${overlayStyle.left + overlayStyle.width}px ${overlayStyle.top + overlayStyle.height}px, ${overlayStyle.left}px ${overlayStyle.top + overlayStyle.height}px, ${overlayStyle.left}px 100%, 100% 100%, 100% 0%)`
         }}
       />
       
-      {/* Highlight border */}
-      {overlayStyle.width && (
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className="absolute border-4 border-blue-400 rounded-lg shadow-lg shadow-blue-400/50"
-          style={{
-            top: overlayStyle.top - 8,
-            left: overlayStyle.left - 8,
-            width: overlayStyle.width + 16,
-            height: overlayStyle.height + 16,
-          }}
-        />
-      )}
+      {/* Highlight circle */}
+      <motion.div
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        className="absolute border-4 border-blue-400 rounded-lg shadow-lg shadow-blue-400/50"
+        style={{
+          top: overlayStyle.top - 8,
+          left: overlayStyle.left - 8,
+          width: overlayStyle.width + 16,
+          height: overlayStyle.height + 16,
+          background: 'transparent'
+        }}
+      />
+
+      {/* Pulsing effect */}
+      <motion.div
+        animate={{ scale: [1, 1.1, 1] }}
+        transition={{ duration: 2, repeat: Infinity }}
+        className="absolute border-2 border-blue-300/50 rounded-lg"
+        style={{
+          top: overlayStyle.top - 12,
+          left: overlayStyle.left - 12,
+          width: overlayStyle.width + 24,
+          height: overlayStyle.height + 24,
+          background: 'transparent'
+        }}
+      />
       
-      {/* Fully contained tooltip */}
-      <div className="fixed inset-0 flex items-center justify-center pointer-events-none p-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-[90vw] sm:max-w-[400px] md:max-w-[500px] pointer-events-auto max-h-[90vh] overflow-hidden"
-          style={{
-            maxWidth: 'calc(100vw - 32px)', // Ensure 16px margin on each side
-            maxHeight: 'calc(100vh - 32px)' // Ensure 16px margin on top and bottom
-          }}
-        >
-          <Card className="bg-white dark:bg-gray-800 shadow-2xl border-2 border-blue-400 h-fit max-h-full overflow-hidden w-full">
-            <CardHeader className="pb-3 px-3 sm:px-4 pt-3 sm:pt-4">
-              <div className="flex items-start justify-between gap-2">
-                <CardTitle className="text-sm sm:text-base md:text-lg font-bold text-gray-900 dark:text-white leading-tight">
-                  {step.title}
-                </CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onClose}
-                  className="h-7 w-7 sm:h-8 sm:w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700 flex-shrink-0"
-                >
-                  <X className="h-3 w-3 sm:h-4 sm:w-4" />
-                </Button>
+      {/* Tooltip */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="pointer-events-auto"
+        style={getTooltipPosition()}
+      >
+        <Card className="bg-white dark:bg-gray-800 shadow-2xl border-2 border-blue-400">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-bold text-gray-900 dark:text-white">
+                {step.title}
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+              <span>Step {TUTORIAL_STEPS.findIndex(s => s.id === step.id) + 1} of {totalSteps}</span>
+              <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-1">
+                <div 
+                  className="bg-blue-500 h-1 rounded-full transition-all duration-300"
+                  style={{ width: `${((TUTORIAL_STEPS.findIndex(s => s.id === step.id) + 1) / totalSteps) * 100}%` }}
+                />
               </div>
-              <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                <span className="whitespace-nowrap">
-                  Step {totalSteps ? Math.max(1, totalSteps - 7 + 1) : 1} of {totalSteps || 8}
-                </span>
-                <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-1">
-                  <div 
-                    className="bg-blue-500 h-1 rounded-full transition-all duration-300"
-                    style={{ width: `${((totalSteps ? Math.max(1, totalSteps - 7 + 1) : 1) / (totalSteps || 8)) * 100}%` }}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0 px-3 sm:px-4 pb-3 sm:pb-4 overflow-y-auto max-h-60 sm:max-h-80">
-              <p className="text-xs sm:text-sm md:text-base text-gray-700 dark:text-gray-300 mb-3 sm:mb-4 leading-relaxed">
-                {step.description}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  onClick={onNext}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm py-2 px-3"
-                >
-                  {totalSteps && totalSteps > 1 ? 'Next' : 'Finish Tour'}
-                  <ChevronRight className="ml-1 sm:ml-2 h-3 w-3 sm:h-4 sm:w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={onClose}
-                  className="border-gray-300 dark:border-gray-600 text-xs sm:text-sm px-2 sm:px-3 py-2"
-                >
-                  Skip
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-gray-700 dark:text-gray-300 mb-4 leading-relaxed">
+              {step.description}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                onClick={onNext}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {TUTORIAL_STEPS.findIndex(s => s.id === step.id) === totalSteps - 1 ? 'Finish Tour' : 'Next'}
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                onClick={onClose}
+                className="border-gray-300 dark:border-gray-600"
+              >
+                Skip Tour
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
     </motion.div>
   );
 };
-
 
 // Mock Questionnaire Component (EXACT same structure as original)
 const MockQuestionnaire = ({ onComplete }) => {
