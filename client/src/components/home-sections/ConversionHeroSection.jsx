@@ -117,7 +117,7 @@ const ConversionLanding = ({ onNavigate, backgroundColor = '#000000', textColor 
       id: 'coaching',
       title: 'Premium Coaching',
       description: 'Experience personalized workout plans, progress tracking, and expert guidance',
-      route: '/mock-coaching',
+      route: '/mock-questionnaire',
       icon: Target
     },
     {

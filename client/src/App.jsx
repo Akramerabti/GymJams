@@ -58,7 +58,9 @@ import CompleteOAuthProfile from './components/auth/CompleteOAuthProfile';
 import PasswordSetup from './components/common/PasswordSetup';
 import DiscountSignUpContainer from './components/discount/DiscountSignUpContainer';
 import Privacy from './pages/CustomerService/privacy';
-import MockCoachingDemo from './pages/MockCoaching';
+import MockCoachAssignment from './pages/Mocks/MockAssignment';
+import MockQuestionnaire from './pages/Mocks/MockQuestionnaire';
+import MockUserDashboard from './pages/Mocks/MockUserDashboard';
 
 // Common Components
 import LocationBanner from './components/common/LocationBanner';
@@ -447,7 +449,9 @@ function App() {
                   <Route path="/blog" element={<Blog />} />
                   <Route path="/blog/:slug" element={<BlogPost />} />
                   <Route path="/privacy" element={<Privacy />} />
-                  <Route path="/mock-coaching" element={<MockCoachingDemo />} />
+                  <Route path="/mock-assignment" element={<MockCoachAssignment />} />
+                  <Route path="/mock-questionnaire" element={<MockQuestionnaire />} />
+                  <Route path="/mock-dashboard" element={<MockUserDashboard />} />
                   
                   {/* Protected Routes */}
                   <Route path="/profile" element={

@@ -59,7 +59,9 @@ import BlogPost from './components/blog/BlogPost';
 import CompleteOAuthProfile from './components/auth/CompleteOAuthProfile';
 import MobileGatekeeper from './components/MobileGateKeeper';
 import Privacy from './pages/CustomerService/privacy';
-import MockCoachingDemo from './pages/MockCoaching';
+import MockCoachAssignment from './pages/Mocks/MockAssignment';
+import MockQuestionnaire from './pages/Mocks/MockQuestionnaire';
+import MockUserDashboard from './pages/Mocks/MockUserDashboard';
 
 // Common Components
 import CoachProfileCompletionModal from './components/common/CoachProfileCompletionModal';
@@ -513,8 +515,10 @@ function AppContent() {
           <Route path="/blog" element={<Blog />} />
           <Route path="/blog/:slug" element={<BlogPost />} />
           <Route path="/privacy" element={<Privacy />} />
-          <Route path="/mock-coaching" element={<MockCoachingDemo/>} />
-
+                  <Route path="/mock-assignment" element={<MockCoachAssignment />} />
+                  <Route path="/mock-questionnaire" element={<MockQuestionnaire />} />
+                  <Route path="/mock-dashboard" element={<MockUserDashboard />} />
+                  
           {/* Protected Routes */}
           <Route path="/profile" element={
             <ProtectedRoute>
