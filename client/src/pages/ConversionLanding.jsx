@@ -150,10 +150,13 @@ const ConversionLanding = () => {
         }
         
         // Convert visibility ratio to opacity (fade effect)
-        // Full opacity when fully visible, reduced when partially visible
+        // Start fading when there's 20% of section visible
         let opacity = 1;
-        if (visibilityRatio < 0.8) {
-          opacity = Math.max(0.3, visibilityRatio * 1.25); // Minimum 0.3 opacity
+        if (visibilityRatio < 0.2) {
+          opacity = 0.3; // Minimum opacity when less than 20% visible
+        } else if (visibilityRatio < 1.0) {
+          // Fade from 0.3 to 1.0 as visibility goes from 20% to 100%
+          opacity = 0.3 + (visibilityRatio - 0.2) * (0.7 / 0.8);
         }
         
         newOpacities[index] = opacity;
