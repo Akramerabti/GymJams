@@ -32,7 +32,7 @@ const ConversionLanding = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isScrolling, setIsScrolling] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [snapTimeout, setSnapTimeout] = useState(null);
+  const [sectionOpacities, setSectionOpacities] = useState({});
   
   const sectionRefs = useRef([]);
   const containerRef = useRef(null);
@@ -129,9 +129,38 @@ const ConversionLanding = () => {
     setScrollVelocity(velocity);
     setIsScrolling(true);
     
-    if (snapTimeout) {
-      clearTimeout(snapTimeout);
-    }
+    // Calculate section opacities based on viewport visibility
+    const viewportHeight = window.innerHeight;
+    const newOpacities = {};
+    
+    sectionRefs.current.forEach((section, index) => {
+      if (section) {
+        const rect = section.getBoundingClientRect();
+        const sectionTop = rect.top;
+        const sectionBottom = rect.bottom;
+        
+        // Calculate how much of the section is visible
+        let visibilityRatio = 0;
+        
+        if (sectionTop <= viewportHeight && sectionBottom >= 0) {
+          const visibleTop = Math.max(0, -sectionTop);
+          const visibleBottom = Math.min(viewportHeight, sectionBottom);
+          const visibleHeight = visibleBottom - visibleTop;
+          visibilityRatio = visibleHeight / viewportHeight;
+        }
+        
+        // Convert visibility ratio to opacity (fade effect)
+        // Full opacity when fully visible, reduced when partially visible
+        let opacity = 1;
+        if (visibilityRatio < 0.8) {
+          opacity = Math.max(0.3, visibilityRatio * 1.25); // Minimum 0.3 opacity
+        }
+        
+        newOpacities[index] = opacity;
+      }
+    });
+    
+    setSectionOpacities(newOpacities);
     
     if (scrollTimeout.current) {
       clearTimeout(scrollTimeout.current);
@@ -139,27 +168,11 @@ const ConversionLanding = () => {
     
     scrollTimeout.current = setTimeout(() => {
       setIsScrolling(false);
-      
-      const snapDelay = isMobile ? 150 : 100;
-      const newSnapTimeout = setTimeout(() => {
-        // Simple snapping logic
-        const viewportHeight = window.innerHeight;
-        const currentScroll = window.scrollY;
-        const currentSectionFloat = currentScroll / viewportHeight;
-        const nearestSection = Math.round(currentSectionFloat);
-        const distanceFromNearest = Math.abs(currentSectionFloat - nearestSection);
-        
-        if (distanceFromNearest > 0.1) {
-          navigateToSection(nearestSection);
-        }
-      }, snapDelay);
-      
-      setSnapTimeout(newSnapTimeout);
     }, isMobile ? 150 : 100);
     
     lastScrollY.current = currentScrollY;
     lastScrollTime.current = currentTime;
-  }, [isMobile, snapTimeout]);
+  }, [isMobile]);
 
   // Navigate to section - like Home.jsx but no navbar offset
   const navigateToSection = useCallback((index) => {
@@ -167,11 +180,6 @@ const ConversionLanding = () => {
     if (!section) {
       console.error('Target section not found:', index);
       return;
-    }
-
-    if (snapTimeout) {
-      clearTimeout(snapTimeout);
-      setSnapTimeout(null);
     }
 
     const sectionTop = section.offsetTop; // No navbar offset needed
@@ -185,7 +193,7 @@ const ConversionLanding = () => {
     });
     
     setActiveSection(index);
-  }, [snapTimeout]);
+  }, []);
 
   useEffect(() => {
     const optimizedScrollHandler = () => {
@@ -204,11 +212,8 @@ const ConversionLanding = () => {
       if (scrollTimeout.current) {
         clearTimeout(scrollTimeout.current);
       }
-      if (snapTimeout) {
-        clearTimeout(snapTimeout);
-      }
     };
-  }, [handleScroll, snapTimeout]);
+  }, [handleScroll]);
 
   useEffect(() => {
     const handleMouseMove = (e) => {
@@ -406,7 +411,8 @@ const ConversionLanding = () => {
         }
         
         .nav-dot.active {
-          background: #000 !important;
+          background: #FFD700 !important; /* gold */
+          box-shadow: 0 0 8px 2px #FFD70055;
           transform: scale(1.3);
         }
         
@@ -457,12 +463,14 @@ const ConversionLanding = () => {
         {/* Main sections */}
         {sections.map((section, index) => {
           const SectionComponent = section.component;
+          const sectionOpacity = sectionOpacities[index] ?? 1;
           return (
             <section
               key={index}
               ref={el => sectionRefs.current[index] = el}
               data-section-index={index}
               className={`conversion-section ${darkMode ? 'dark' : ''}`}
+              style={{ opacity: sectionOpacity, transition: 'opacity 0.3s ease-out' }}
             >
               <div className="section-content">
                 <SectionComponent

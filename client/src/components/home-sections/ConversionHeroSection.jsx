@@ -181,24 +181,19 @@ const ModernConversionLanding = ({ onNavigate, backgroundColor = '#000000', text
               >
                 Get fit, get compensated, stay motivated, and connect with a community that shares your passion for fitness.
               </motion.p>
-
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={isLoaded ? { opacity: 1, scale: 1 } : {}}
-                transition={{ duration: 0.6, delay: 0.4 }}
-                className="text-sm md:text-base text-slate-400 mb-2 md:mb-3"
-              >
-                Try before you commit • No signup required
-              </motion.div>
               
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={isLoaded ? { opacity: 1, y: 0 } : {}}
                 transition={{ duration: 0.6, delay: 0.6 }}
-                className="text-xs md:text-sm text-slate-500 mb-8 md:mb-12"
+                className="mb-8 md:mb-12"
               >
-                <span className="underline cursor-pointer hover:text-slate-300 transition-colors">
-                  or login
+                <span
+                  className="underline cursor-pointer hover:text-slate-300 transition-colors text-base md:text-lg font-semibold"
+                  style={{ display: 'inline-block', padding: '0.25em 0.5em' }}
+                  onClick={() => onNavigate && onNavigate('/login')}
+                >
+                  Login
                 </span>
               </motion.div>
             </motion.div>
@@ -266,16 +261,22 @@ const ModernConversionLanding = ({ onNavigate, backgroundColor = '#000000', text
                         height: 'clamp(6rem, 18vw, 14rem)'
                       }}
                     >
-                      <img 
-                        src={feature.imageUrl}
-                        alt={feature.title}
-                        className="mock-icon w-full h-full object-cover rounded-full"
-                        style={{
-                          filter: 'brightness(0.9) contrast(1.1)'
-                        }}
-                      />
+                      {feature.imageUrl ? (
+                        <img 
+                          src={feature.imageUrl}
+                          alt={feature.title}
+                          className="mock-icon w-full h-full object-cover rounded-full"
+                          style={{
+                            filter: 'brightness(0.9) contrast(1.1)'
+                          }}
+                        />
+                      ) : (
+                        <feature.icon 
+                          className="mock-icon w-2/3 h-2/3 text-white/80"
+                          style={{ width: '66%', height: '66%' }}
+                        />
+                      )}
                     </div>
-                    
                     {/* Pulse animation */}
                     <div className="absolute inset-0 rounded-full border-2 border-white/20 animate-pulse" />
                   </div>
@@ -304,8 +305,9 @@ const ModernConversionLanding = ({ onNavigate, backgroundColor = '#000000', text
         </section>
 
         {/* App Store Download Section */}
+        {/* App Store Download Section */}
         <motion.section 
-          className="flex-shrink-0 px-4 md:px-8 pb-6 md:pb-8"
+          className="flex-shrink-0 px-4 md:px-8 pb-4 md:pb-6"
           initial={{ opacity: 0, y: 30 }}
           animate={isLoaded ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.8, delay: 1.2 }}
@@ -358,6 +360,77 @@ const ModernConversionLanding = ({ onNavigate, backgroundColor = '#000000', text
                 </div>
               </button>
             </div>
+          </div>
+        </motion.section>
+
+        {/* Scroll Down Indicator */}
+        <motion.section 
+          className="flex-shrink-0 px-4 md:px-8 pb-4 md:pb-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={isLoaded ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.8, delay: 1.6 }}
+        >
+          <div className="text-center">
+            <motion.div
+              className="inline-flex flex-col items-center cursor-pointer scroll-indicator"
+              animate={{ 
+                y: [0, 8, 0],
+              }}
+              transition={{ 
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+            >
+              <p className="text-xs text-slate-500 mb-2 font-medium">
+                Swipe down for more
+              </p>
+              <div className="flex flex-col items-center gap-1">
+                <motion.div
+                  className="w-5 h-5 md:w-6 md:h-6 border-2 border-slate-400 rounded-full flex items-center justify-center"
+                  animate={{ 
+                    borderColor: ['rgba(148, 163, 184, 0.4)', 'rgba(148, 163, 184, 0.8)', 'rgba(148, 163, 184, 0.4)'],
+                  }}
+                  transition={{ 
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                >
+                  <motion.div
+                    className="w-1 h-2 bg-slate-400 rounded-full"
+                    animate={{ 
+                      y: [0, 4, 0],
+                      opacity: [0.4, 1, 0.4]
+                    }}
+                    transition={{ 
+                      duration: 2,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
+                  />
+                </motion.div>
+                <motion.svg 
+                  className="w-4 h-4 md:w-5 md:h-5 text-slate-400"
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2"
+                  animate={{ 
+                    opacity: [0.3, 0.8, 0.3],
+                    y: [0, 3, 0]
+                  }}
+                  transition={{ 
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: 0.2
+                  }}
+                >
+                  <polyline points="6,9 12,15 18,9"></polyline>
+                </motion.svg>
+              </div>
+            </motion.div>
           </div>
         </motion.section>
       </div>
