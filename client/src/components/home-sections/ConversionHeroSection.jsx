@@ -3,7 +3,7 @@ import { motion, useScroll, useTransform } from 'framer-motion';
 import { Play, Users, Target, Download } from 'lucide-react';
 import * as THREE from 'three';
 
-const ModernConversionLanding = ({ onNavigate, backgroundColor = '#000000', textColor = '#ffffff' }) => {
+const ConversionLanding = ({ onNavigate, backgroundColor = '#000000', textColor = '#ffffff' }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [selectedMock, setSelectedMock] = useState(null);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -134,7 +134,7 @@ const ModernConversionLanding = ({ onNavigate, backgroundColor = '#000000', text
       className="relative w-full overflow-hidden"
       style={{ 
         height: '100dvh',
-        minHeight: '100vh', // fallback
+        minHeight: '100dvh', // fallback
         backgroundColor: '#000000',
         color: '#ffffff'
       }}
@@ -150,7 +150,7 @@ const ModernConversionLanding = ({ onNavigate, backgroundColor = '#000000', text
         
         {/* Hero Section */}
         <motion.section 
-          className="flex-shrink-0 px-4 md:px-8 pt-8 md:pt-12"
+          className="flex-shrink-0 px-4 md:px-12 pt-20 md:pt-12"
           style={{ y: heroY, opacity: heroOpacity }}
         >
           <div className="text-center max-w-4xl mx-auto">
@@ -179,7 +179,7 @@ const ModernConversionLanding = ({ onNavigate, backgroundColor = '#000000', text
                 animate={isLoaded ? { opacity: 1, y: 0 } : {}}
                 transition={{ duration: 0.8, delay: 0.2 }}
               >
-                Get fit, get compensated, stay motivated
+                Get fit, get compensated, stay motivated, all in one app.
               </motion.p>
               
               <motion.div
@@ -621,4 +621,4 @@ const ModernConversionLanding = ({ onNavigate, backgroundColor = '#000000', text
   );
 };
 
-export default ModernConversionLanding;
+export default ConversionLanding;
