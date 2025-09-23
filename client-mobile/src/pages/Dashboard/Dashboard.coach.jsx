@@ -842,18 +842,18 @@ const DashboardCoach = () => {
 
       {/* Client Details Modal */}
       <AnimatePresence>
-        {selectedClient && (
-          <ClientDetailsModal
-            client={selectedClient}
-            onClose={() => setSelectedClient(null)}
-            onSave={(updatedData) => handleClientUpdate(selectedClient.id, updatedData)}
-            onExportData={() => handleExportClientData(selectedClient)}
-            onCompleteGoal={handleCompleteClientGoal} // Add this prop
-            onRejectGoal={handleRejectGoalCompletion} // Add this prop
-          
-          />
-        )}
-      </AnimatePresence>
+  {selectedClient && (
+    <ClientDetailsModal
+      key={selectedClient.id} // Add this key prop
+      client={selectedClient}
+      onClose={() => setSelectedClient(null)}
+      onSave={(updatedData) => handleClientUpdate(selectedClient.id, updatedData)}
+      onExportData={() => handleExportClientData(selectedClient)}
+      onCompleteGoal={handleCompleteClientGoal}
+      onRejectGoal={handleRejectGoalCompletion}
+    />
+  )}
+</AnimatePresence>
 
       {/* Chat Modal */}
       <AnimatePresence>
