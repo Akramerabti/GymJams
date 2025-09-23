@@ -1393,9 +1393,19 @@ html {
   background: transparent;  /* Optional: just make it transparent */
 }
 
-/* Hide scrollbar for Firefox */
 .custom-scrollbar {
-  scrollbar-width: none;  /* Remove scrollbar space */
+  /* Completely remove scrollbar */
+  ::-webkit-scrollbar {
+    width: 0px;
+    background: transparent;
+    display: none; /* This ensures it's completely gone */
+  }
+  
+  /* Firefox */
+  scrollbar-width: none;
+  
+  /* IE and Edge */
+  -ms-overflow-style: none;
 }
 
 .home-container {

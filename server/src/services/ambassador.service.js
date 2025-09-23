@@ -6,14 +6,14 @@ import logger from '../utils/logger.js';
 import cron from 'node-cron';
 
 /**
- * Process weekly payouts for ambassadors/affiliates
+ * Process weekly payouts for ambassadors/affiliates/taskforce
  * This runs weekly and pays out any pending commission amounts
  */
 export const processWeeklyAmbassadorPayouts = async () => {
   try {
-    // Find all ambassadors or coaches with affiliate earnings pending
+    // Find all ambassadors, coaches, or taskforce members with affiliate earnings pending
     const ambassadors = await User.find({
-      role: { $in: ['affiliate', 'coach'] },
+      role: { $in: ['affiliate', 'coach', 'taskforce'] }, // Added 'taskforce'
       'earnings.pendingAmount': { $gt: 0 },
       payoutSetupComplete: true,
       stripeAccountId: { $exists: true }
@@ -74,6 +74,169 @@ export const processWeeklyAmbassadorPayouts = async () => {
 };
 
 /**
+ * Get all eligible ambassadors (coaches, affiliates, and taskforce members)
+ */
+export const getAmbassadors = async () => {
+  try {
+    const ambassadors = await User.find({
+      role: { $in: ['affiliate', 'coach', 'taskforce'] }, // Added 'taskforce'
+      isActive: true
+    }).select('firstName lastName email role payoutSetupComplete stripeAccountId earnings');
+
+    return {
+      success: true,
+      data: ambassadors
+    };
+  } catch (error) {
+    logger.error('Error fetching ambassadors:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get all ambassador codes with populated ambassador data
+ */
+export const getAllAmbassadorCodes = async () => {
+  try {
+    const codes = await AmbassadorCode.find({})
+      .populate({
+        path: 'ambassador',
+        select: 'firstName lastName email role payoutSetupComplete'
+      })
+      .sort({ createdAt: -1 });
+
+    return {
+      success: true,
+      data: codes
+    };
+  } catch (error) {
+    logger.error('Error fetching ambassador codes:', error);
+    throw error;
+  }
+};
+
+/**
+ * Create a new ambassador code
+ */
+export const createAmbassadorCode = async (codeData) => {
+  try {
+    // Verify the ambassador exists and has an eligible role
+    const ambassador = await User.findById(codeData.ambassadorId);
+    if (!ambassador) {
+      throw new Error('Ambassador not found');
+    }
+
+    if (!['affiliate', 'coach', 'taskforce'].includes(ambassador.role)) {
+      throw new Error('User is not eligible to be an ambassador');
+    }
+
+    const ambassadorCode = new AmbassadorCode({
+      ...codeData,
+      ambassador: codeData.ambassadorId
+    });
+
+    await ambassadorCode.save();
+    
+    // Populate the ambassador data for response
+    await ambassadorCode.populate('ambassador', 'firstName lastName email role payoutSetupComplete');
+
+    return {
+      success: true,
+      data: ambassadorCode
+    };
+  } catch (error) {
+    logger.error('Error creating ambassador code:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update an existing ambassador code
+ */
+export const updateAmbassadorCode = async (codeId, updateData) => {
+  try {
+    // If updating the ambassador, verify they exist and have eligible role
+    if (updateData.ambassadorId) {
+      const ambassador = await User.findById(updateData.ambassadorId);
+      if (!ambassador) {
+        throw new Error('Ambassador not found');
+      }
+
+      if (!['affiliate', 'coach', 'taskforce'].includes(ambassador.role)) {
+        throw new Error('User is not eligible to be an ambassador');
+      }
+
+      updateData.ambassador = updateData.ambassadorId;
+      delete updateData.ambassadorId;
+    }
+
+    const ambassadorCode = await AmbassadorCode.findByIdAndUpdate(
+      codeId,
+      updateData,
+      { new: true }
+    ).populate('ambassador', 'firstName lastName email role payoutSetupComplete');
+
+    if (!ambassadorCode) {
+      throw new Error('Ambassador code not found');
+    }
+
+    return {
+      success: true,
+      data: ambassadorCode
+    };
+  } catch (error) {
+    logger.error('Error updating ambassador code:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete an ambassador code
+ */
+export const deleteAmbassadorCode = async (codeId) => {
+  try {
+    const ambassadorCode = await AmbassadorCode.findByIdAndDelete(codeId);
+    
+    if (!ambassadorCode) {
+      throw new Error('Ambassador code not found');
+    }
+
+    return {
+      success: true,
+      message: 'Ambassador code deleted successfully'
+    };
+  } catch (error) {
+    logger.error('Error deleting ambassador code:', error);
+    throw error;
+  }
+};
+
+/**
+ * Toggle ambassador code active status
+ */
+export const toggleAmbassadorCodeStatus = async (codeId, isActive) => {
+  try {
+    const ambassadorCode = await AmbassadorCode.findByIdAndUpdate(
+      codeId,
+      { isActive },
+      { new: true }
+    ).populate('ambassador', 'firstName lastName email role payoutSetupComplete');
+
+    if (!ambassadorCode) {
+      throw new Error('Ambassador code not found');
+    }
+
+    return {
+      success: true,
+      data: ambassadorCode
+    };
+  } catch (error) {
+    logger.error('Error toggling ambassador code status:', error);
+    throw error;
+  }
+};
+
+/**
  * Initialize cron job for weekly ambassador payouts
  */
 export const initializeAmbassadorPayouts = () => {
@@ -87,3 +250,17 @@ export const initializeAmbassadorPayouts = () => {
     }
   });
 };
+
+// Export all functions as default service object
+const ambassadorService = {
+  processWeeklyAmbassadorPayouts,
+  getAmbassadors,
+  getAllAmbassadorCodes,
+  createAmbassadorCode,
+  updateAmbassadorCode,
+  deleteAmbassadorCode,
+  toggleAmbassadorCodeStatus,
+  initializeAmbassadorPayouts
+};
+
+export default ambassadorService;

@@ -1,233 +1,551 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { ShoppingBag, Trophy, Users, Gamepad2, ArrowRight, Star, Target, MessageCircle } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, useScroll, useTransform } from 'framer-motion';
+import { Play, Users, Target, Download } from 'lucide-react';
+import * as THREE from 'three';
 
-const ConversionHeroSection = ({ onNavigate, isActive, goToSection, scrollY, backgroundColor, textColor }) => {
-  const { t } = useTranslation();
-  const [selectedOption, setSelectedOption] = useState(null);
-  const [isMobile, setIsMobile] = useState(false);
-  const [animationsComplete, setAnimationsComplete] = useState(false);
-  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
+const ModernConversionLanding = ({ onNavigate, backgroundColor = '#000000', textColor = '#ffffff' }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [selectedMock, setSelectedMock] = useState(null);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const threeContainerRef = useRef(null);
+  const sceneRef = useRef(null);
+  const { scrollY } = useScroll();
+
+  // Parallax effect for hero
+  const heroY = useTransform(scrollY, [0, 300], [0, -50]);
+  const heroOpacity = useTransform(scrollY, [0, 200], [1, 0.8]);
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+    // Set up viewport height with dvh support
+    const updateViewport = () => {
+      const dvh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--dvh', `${dvh}px`);
       setViewportHeight(window.innerHeight);
     };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
 
-    // Single timer - no separate showContent state to avoid timing conflicts
-    const animTimer = setTimeout(() => setAnimationsComplete(true), 50); // Much faster
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+
+    // Initialize Three.js scene
+    initThreeJS();
+
+    // Trigger initial load animation
+    setTimeout(() => setIsLoaded(true), 100);
 
     return () => {
-      clearTimeout(animTimer);
-      window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('resize', updateViewport);
+      cleanupThreeJS();
     };
   }, []);
 
-  const handleOptionClick = async (option, route, requiresLocation = false) => {
-    setSelectedOption(option);
+  const initThreeJS = () => {
+    if (!threeContainerRef.current) return;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     
-    if (requiresLocation && 'geolocation' in navigator) {
-      try {
-        await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 300000
-          });
-        });
-      } catch (error) {
-        console.log('Location permission denied');
-      }
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000000, 0);
+    threeContainerRef.current.appendChild(renderer.domElement);
+
+    // Create floating particles - more particles
+    const particleCount = window.innerWidth < 768 ? 150 : 300;
+    const particles = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+
+    for (let i = 0; i < particleCount * 3; i++) {
+      positions[i] = (Math.random() - 0.5) * 15;
     }
+
+    particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    const particleMaterial = new THREE.PointsMaterial({
+      color: 0xC0C0C0,
+      size: 0.02,
+      transparent: true,
+      opacity: 0.6
+    });
+
+    const particleSystem = new THREE.Points(particles, particleMaterial);
+    scene.add(particleSystem);
+
+    camera.position.z = 5;
+
+    // Animation loop
+    const animate = () => {
+      requestAnimationFrame(animate);
+      
+      particleSystem.rotation.x += 0.001;
+      particleSystem.rotation.y += 0.001;
+      
+      renderer.render(scene, camera);
+    };
+
+    animate();
+    sceneRef.current = { scene, camera, renderer, particleSystem };
+
+    // Handle resize
+    const handleResize = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    };
     
-    setTimeout(() => {
-      onNavigate(route);
-    }, 300);
+    window.addEventListener('resize', handleResize);
   };
 
-  const backgroundGradient = backgroundColor === '#000000' 
-    ? 'linear-gradient(135deg, rgba(255,140,0,0.8) 0%, rgba(220,38,38,0.8) 50%, rgba(139,92,246,0.8) 100%)'
-    : 'linear-gradient(135deg, rgba(255,140,0,0.2) 0%, rgba(220,38,38,0.2) 50%, rgba(139,92,246,0.2) 100%)';
+  const cleanupThreeJS = () => {
+    if (sceneRef.current) {
+      const { renderer } = sceneRef.current;
+      if (threeContainerRef.current && renderer.domElement) {
+        threeContainerRef.current.removeChild(renderer.domElement);
+      }
+      renderer.dispose();
+    }
+  };
 
-  const platformFeatures = [
+  const handleMockSelection = (mockType, route) => {
+    setSelectedMock(mockType);
+    setTimeout(() => {
+      onNavigate(route);
+    }, 800);
+  };
+
+  const mockFeatures = [
     {
-      icon: ShoppingBag,
-      title: 'Shop',
-      description: 'Premium gear & supplements',
-      color: 'from-blue-500 to-purple-600',
-      route: '/shop',
-      delay: 0.1
+      id: 'coaching',
+      title: 'Premium Coaching',
+      description: 'Experience personalized workout plans, progress tracking, and expert guidance',
+      route: '/mock-coaching',
+      icon: Target
     },
     {
-      icon: Trophy,
-      title: 'Coaching',
-      description: 'Expert training programs',
-      color: 'from-purple-500 to-pink-600',
-      route: '/coaching',
-      delay: 0.2,
-      requiresLocation: true
-    },
-    {
-      icon: Users,
-      title: 'GymBros',
-      description: 'Find workout partners',
-      color: 'from-green-500 to-blue-600',
-      route: '/gymbros',
-      delay: 0.3,
-      requiresLocation: true
-    },
-    {
-      icon: Gamepad2,
-      title: 'Games',
-      description: 'Gamify your fitness',
-      color: 'from-orange-500 to-red-600',
-      route: '/games',
-      delay: 0.4
+      id: 'social',
+      title: 'GymBros Network',
+      description: 'Connect with workout partners, share achievements, and build your fitness community',
+      route: '/mock-social',
+      icon: Users
     }
   ];
 
-  // Calculate responsive sizes based on viewport
-  const cardHeight = isMobile ? Math.min(120, viewportHeight * 0.15) : 200;
-  const headerSize = isMobile ? Math.min(48, viewportHeight * 0.08) : 80;
-  const iconSize = isMobile ? 'w-12 h-12' : 'w-16 h-16';
-
   return (
-    <div className="absolute inset-0 flex flex-col" style={{ backgroundColor, color: textColor }}>
-      {/* Show immediately, no opacity transition on wrapper */}
-      <div className="w-full h-full flex flex-col">
-        
-        {/* Background gradient overlay */}
-        <div 
-          className="absolute inset-0"
-          style={{ background: backgroundGradient }}
-        />
+    <div 
+      className="relative w-full overflow-hidden"
+      style={{ 
+        height: '100dvh',
+        minHeight: '100vh', // fallback
+        backgroundColor: '#000000',
+        color: '#ffffff'
+      }}
+    >
+      {/* Three.js Background */}
+      <div 
+        ref={threeContainerRef}
+        className="absolute inset-0 z-0"
+      />
 
-        {/* Content wrapper - fills height with proper padding */}
-        <div className="relative z-10 h-full flex flex-col p-4 md:p-8">
-          
-          {/* Header - Responsive sizing */}
-          <header className={`text-center ${isMobile ? 'mb-4' : 'mb-8'}`}>
+      {/* Main Content Container */}
+      <div className="relative z-10 h-full flex flex-col">
+        
+        {/* Hero Section */}
+        <motion.section 
+          className="flex-shrink-0 px-4 md:px-8 pt-8 md:pt-12"
+          style={{ y: heroY, opacity: heroOpacity }}
+        >
+          <div className="text-center max-w-4xl mx-auto">
             <motion.div
-              initial={{ opacity: 0, y: -30 }}
-              animate={animationsComplete ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.6 }}
+              initial={{ opacity: 0, y: 30 }}
+              animate={isLoaded ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.8, ease: "easeOut" }}
             >
               <h1 
+                className="text-4xl md:text-6xl lg:text-7xl font-black mb-4 md:mb-6 bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent"
                 style={{
                   fontFamily: 'Rubik, Arial, sans-serif',
-                  fontSize: `${headerSize}px`,
                   fontWeight: '800',
                   fontStyle: 'italic',
                   letterSpacing: '-0.05em',
-                  textShadow: backgroundColor === '#000000' 
-                    ? '4px 4px 0 rgba(255,255,255,0.2)' 
-                    : '4px 4px 0 rgba(0,0,0,0.2)',
-                  margin: '0',
-                  lineHeight: '0.9',
-                  color: textColor
+                  textShadow: '4px 4px 0 rgba(255,255,255,0.2)',
+                  lineHeight: '0.9'
                 }}
               >
                 GYMTONIC
               </h1>
-            </motion.div>
-          </header>
+              
+              <motion.p 
+                className="text-lg md:text-xl text-slate-300 mb-6 md:mb-8 max-w-2xl mx-auto leading-relaxed"
+                initial={{ opacity: 0, y: 20 }}
+                animate={isLoaded ? { opacity: 1, y: 0 } : {}}
+                transition={{ duration: 0.8, delay: 0.2 }}
+              >
+                Get fit, get compensated, stay motivated, and connect with a community that shares your passion for fitness.
+              </motion.p>
 
-          {/* Features Grid - Flex-1 to fill available space */}
-          <div className="flex-1 flex items-center justify-center overflow-hidden">
-            <div className="w-full max-w-6xl">
-              <div className={`grid ${isMobile ? 'grid-cols-2 gap-3' : 'grid-cols-4 gap-6'} w-full`}>
-                {platformFeatures.map((feature, index) => (
-                  <motion.div
-                    key={index}
-                    className="cursor-pointer"
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={animationsComplete ? { opacity: 1, scale: 1 } : {}}
-                    transition={{ duration: 0.5, delay: feature.delay }}
-                    onClick={() => handleOptionClick(feature.title, feature.route, feature.requiresLocation)}
-                    whileHover={!isMobile ? { scale: 1.05 } : {}}
-                    whileTap={{ scale: 0.95 }}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={isLoaded ? { opacity: 1, scale: 1 } : {}}
+                transition={{ duration: 0.6, delay: 0.4 }}
+                className="text-sm md:text-base text-slate-400 mb-2 md:mb-3"
+              >
+                Try before you commit • No signup required
+              </motion.div>
+              
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={isLoaded ? { opacity: 1, y: 0 } : {}}
+                transition={{ duration: 0.6, delay: 0.6 }}
+                className="text-xs md:text-sm text-slate-500 mb-8 md:mb-12"
+              >
+                <span className="underline cursor-pointer hover:text-slate-300 transition-colors">
+                  or login
+                </span>
+              </motion.div>
+            </motion.div>
+          </div>
+        </motion.section>
+
+        {/* Mock Features Split-Screen */}
+        <section className="flex-1 px-4 md:px-8 pb-4 md:pb-8 flex items-center">
+          <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6 lg:gap-8 max-w-5xl mx-auto h-full max-h-[60vh] md:max-h-[50vh]">
+            {mockFeatures.map((feature, index) => (
+              <motion.div
+                key={feature.id}
+                className="group cursor-pointer h-full"
+                initial={{ opacity: 0, x: index === 0 ? -50 : 50 }}
+                animate={isLoaded ? { opacity: 1, x: 0 } : {}}
+                transition={{ duration: 0.8, delay: 0.6 + index * 0.2, ease: "easeOut" }}
+                onClick={() => handleMockSelection(feature.id, feature.route)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <div 
+                  className={`
+                    mock-container h-full rounded-2xl md:rounded-3xl 
+                    bg-transparent
+                    border-2 border-slate-300/50
+                    shadow-2xl hover:shadow-white/10
+                    transition-all duration-500
+                    flex flex-col items-center justify-center text-center
+                    hover:border-white/70
+                    backdrop-blur-sm
+                    overflow-hidden
+                    mobile-container-animation
+                  `}
+                  style={{
+                    background: 'rgba(0,0,0,0.1)',
+                    padding: 'clamp(0.5rem, 2.5vw, 1.5rem)'
+                  }}
+                >
+                  {/* Title above bubble - ultra responsive */}
+                  <h3 
+                    className="mock-title font-bold text-white leading-tight"
+                    style={{
+                      fontSize: 'clamp(0.875rem, 4vw, 2rem)',
+                      marginBottom: 'clamp(0.25rem, 1.5vw, 1rem)'
+                    }}
                   >
+                    {feature.title}
+                  </h3>
+
+                  {/* Round bubble with image - much bigger relative to container */}
+                  <div className="relative flex-shrink-0" style={{ marginBottom: 'clamp(0.25rem, 1.5vw, 1rem)' }}>
                     <div 
                       className={`
-                        p-4 rounded-xl border-2 shadow-lg
-                        transition-all duration-300 relative overflow-hidden
-                        flex flex-col items-center justify-center text-center
-                        ${backgroundColor === '#000000' 
-                          ? 'bg-white/90 hover:bg-white border-white/20' 
-                          : 'bg-black/90 hover:bg-black border-black/20'
-                        }
+                        mock-bubble rounded-full 
+                        bg-gradient-to-br from-white/20 to-white/5
+                        border border-white/30
+                        flex items-center justify-center
+                        shadow-xl
+                        group-hover:scale-110 transition-transform duration-300
+                        overflow-hidden
+                        mobile-glow-animation
                       `}
-                      style={{ 
-                        height: `${cardHeight}px`,
-                        color: backgroundColor === '#000000' ? '#000000' : '#ffffff'
+                      style={{
+                        width: 'clamp(6rem, 18vw, 14rem)',
+                        height: 'clamp(6rem, 18vw, 14rem)'
                       }}
                     >
-                      {/* Icon */}
-                      <div className={`
-                        ${iconSize} rounded-full mb-2
-                        bg-gradient-to-br ${feature.color}
-                        flex items-center justify-center
-                        shadow-md
-                      `}>
-                        <feature.icon className={`${isMobile ? 'w-6 h-6' : 'w-8 h-8'} text-white`} />
-                      </div>
-
-                      {/* Title */}
-                      <h3 className={`font-bold ${isMobile ? 'text-sm' : 'text-lg'} mb-1`}>
-                        {feature.title}
-                      </h3>
-
-                      {/* Description - Hidden on very small screens */}
-                      {(!isMobile || viewportHeight > 600) && (
-                        <p className={`${isMobile ? 'text-xs' : 'text-sm'} opacity-80`}>
-                          {feature.description}
-                        </p>
-                      )}
+                      <img 
+                        src={feature.imageUrl}
+                        alt={feature.title}
+                        className="mock-icon w-full h-full object-cover rounded-full"
+                        style={{
+                          filter: 'brightness(0.9) contrast(1.1)'
+                        }}
+                      />
                     </div>
-                  </motion.div>
-                ))}
-              </div>
+                    
+                    {/* Pulse animation */}
+                    <div className="absolute inset-0 rounded-full border-2 border-white/20 animate-pulse" />
+                  </div>
+
+                  {/* Description - ultra responsive */}
+                  <p 
+                    className="mock-description text-slate-200 max-w-[95%] line-clamp-3 flex-grow flex items-center"
+                    style={{
+                      fontSize: 'clamp(0.625rem, 2.5vw, 1rem)',
+                      lineHeight: 'clamp(1, 1.4, 1.6)',
+                      marginBottom: 'clamp(0.25rem, 1vw, 0.75rem)'
+                    }}
+                  >
+                    {feature.description}
+                  </p>
+
+                  {/* CTA indicator */}
+                  <div className="mock-cta flex items-center gap-2 text-white/80 group-hover:text-white transition-colors mt-auto">
+                    <Play style={{ width: 'clamp(0.75rem, 2vw, 1rem)', height: 'clamp(0.75rem, 2vw, 1rem)' }} />
+                    <span style={{ fontSize: 'clamp(0.625rem, 2vw, 0.875rem)' }} className="font-medium">Try Now</span>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+
+        {/* App Store Download Section */}
+        <motion.section 
+          className="flex-shrink-0 px-4 md:px-8 pb-6 md:pb-8"
+          initial={{ opacity: 0, y: 30 }}
+          animate={isLoaded ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.8, delay: 1.2 }}
+        >
+          <div className="text-center">
+            <p className="text-xs md:text-sm text-slate-400 mb-4 md:mb-6">
+              Download the full app
+            </p>
+            <div className="flex items-center justify-center gap-4 md:gap-6">
+              {/* Google Play Badge */}
+              <button 
+                className="flex items-center bg-black border border-slate-600 rounded-lg px-3 py-2 md:px-4 md:py-3 
+                         hover:bg-slate-900 transition-all duration-300 shadow-lg hover:shadow-xl"
+                style={{ minWidth: '140px', height: '48px' }}
+              >
+                <div className="flex items-center gap-2">
+                  {/* Google Play Icon */}
+                  <div className="w-6 h-6 md:w-7 md:h-7 flex-shrink-0">
+                    <svg viewBox="0 0 24 24" className="w-full h-full">
+                      <path fill="#34A853" d="M3.609 1.814L13.792 12L3.609 22.186A1.8 1.8 0 013 20.814V3.186c0-.667.24-1.24.609-1.372z"/>
+                      <path fill="#FBBC04" d="M13.792 12l6.838-6.838c.577-.577 1.37-.577 1.947 0L3.609 1.814 13.792 12z"/>
+                      <path fill="#EA4335" d="M3.609 22.186l16.968-3.348c.577-.577.577-1.37 0-1.947L13.792 12l-10.183 10.186z"/>
+                      <path fill="#1A73E8" d="M13.792 12L22.577 3.215c-.577-.577-1.37-.577-1.947 0L13.792 12z"/>
+                    </svg>
+                  </div>
+                  <div className="text-left">
+                    <div className="text-xs text-slate-300 leading-none">GET IT ON</div>
+                    <div className="text-sm md:text-base font-semibold text-white leading-tight">Google Play</div>
+                  </div>
+                </div>
+              </button>
+
+              {/* App Store Badge */}
+              <button 
+                className="flex items-center bg-black border border-slate-600 rounded-lg px-3 py-2 md:px-4 md:py-3 
+                         hover:bg-slate-900 transition-all duration-300 shadow-lg hover:shadow-xl"
+                style={{ minWidth: '140px', height: '48px' }}
+              >
+                <div className="flex items-center gap-2">
+                  {/* Apple Icon */}
+                  <div className="w-6 h-6 md:w-7 md:h-7 flex-shrink-0">
+                    <svg viewBox="0 0 24 24" className="w-full h-full" fill="white">
+                      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                    </svg>
+                  </div>
+                  <div className="text-left">
+                    <div className="text-xs text-slate-300 leading-none">Download on the</div>
+                    <div className="text-sm md:text-base font-semibold text-white leading-tight">App Store</div>
+                  </div>
+                </div>
+              </button>
             </div>
           </div>
-
-          {/* Bottom CTA - Only show on larger screens or when there's space */}
-          {(!isMobile || viewportHeight > 700) && (
-            <motion.div 
-              className={`text-center ${isMobile ? 'mt-4' : 'mt-8'}`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={animationsComplete ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.6, delay: 0.6 }}
-            >
-              {/* Button removed for better visibility */}
-            </motion.div>
-          )}
-        </div>
+        </motion.section>
       </div>
 
-      {/* Loading overlay */}
-      {selectedOption && (
+      {/* Loading Overlay for Mock Selection */}
+      {selectedMock && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
+          className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center"
         >
-          <div className={`
-            rounded-xl p-6 text-center shadow-2xl border-2
-            ${backgroundColor === '#000000' ? 'bg-white border-white/20' : 'bg-black border-black/20'}
-          `}>
-            <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className={`font-semibold ${backgroundColor === '#000000' ? 'text-black' : 'text-white'}`}>
-              Loading {selectedOption}...
+          <div className="text-center">
+            <div className="w-12 h-12 md:w-16 md:h-16 border-4 border-slate-400 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-lg md:text-xl font-semibold text-white mb-2">
+              Loading {selectedMock === 'coaching' ? 'Premium Coaching' : 'GymBros Network'}
+            </p>
+            <p className="text-sm text-slate-400">
+              Preparing your preview experience...
             </p>
           </div>
         </motion.div>
       )}
+
+      {/* CSS for dvh support and ultra-responsive scaling */}
+      <style jsx>{`
+        :root {
+          --dvh: 1vh;
+        }
+        
+        @supports (height: 100dvh) {
+          .dvh-full {
+            height: 100dvh;
+          }
+        }
+
+        /* Line clamp utility for text overflow */
+        .line-clamp-3 {
+          display: -webkit-box;
+          -webkit-line-clamp: 3;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+
+        /* Mobile glow animation - subtle recurring glow effect */
+        @keyframes mobileGlow {
+          0% {
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+          }
+          50% {
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.3), 0 0 40px rgba(255, 255, 255, 0.1);
+          }
+          100% {
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+          }
+        }
+
+        /* Mobile container hover simulation - scale, border, and shadow changes */
+        @keyframes mobileContainerHover {
+          0% {
+            transform: scale(1);
+            border-color: rgba(203, 213, 225, 0.5);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+          }
+          50% {
+            transform: scale(1.02);
+            border-color: rgba(255, 255, 255, 0.7);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1);
+          }
+          100% {
+            transform: scale(1);
+            border-color: rgba(203, 213, 225, 0.5);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+          }
+        }
+
+        /* Apply animations only on mobile devices */
+        @media (max-width: 768px) {
+          .mobile-glow-animation {
+            animation: mobileGlow 3s ease-in-out infinite;
+            animation-delay: var(--glow-delay, 0s);
+          }
+          
+          .mobile-container-animation {
+            animation: mobileContainerHover 4s ease-in-out infinite;
+            animation-delay: var(--container-delay, 0s);
+          }
+          
+          /* Stagger animations for different containers */
+          .mock-container:nth-child(1) {
+            --glow-delay: 0s;
+            --container-delay: 0.5s;
+          }
+          
+          .mock-container:nth-child(2) {
+            --glow-delay: 1.5s;
+            --container-delay: 2.5s;
+          }
+        }
+
+        /* Keep desktop hover effects */
+        @media (min-width: 769px) {
+          .mock-bubble:hover {
+            box-shadow: 0 0 25px rgba(255, 255, 255, 0.2), 0 0 35px rgba(255, 255, 255, 0.1);
+          }
+          
+          .mock-container:hover {
+            transform: scale(1.02);
+            border-color: rgba(255, 255, 255, 0.7);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1);
+          }
+        }
+
+        /* Ultra-responsive container scaling */
+        @media (max-height: 500px) {
+          .mock-container {
+            padding: 0.25rem !important;
+          }
+          .mock-title {
+            font-size: 0.75rem !important;
+            margin-bottom: 0.125rem !important;
+          }
+          .mock-bubble {
+            width: 4rem !important;
+            height: 4rem !important;
+          }
+          .mock-icon {
+            width: 4rem !important;
+            height: 4rem !important;
+          }
+          .mock-description {
+            font-size: 0.5rem !important;
+            line-height: 1.1 !important;
+            margin-bottom: 0.125rem !important;
+          }
+          .mock-cta {
+            font-size: 0.5rem !important;
+          }
+          .mock-cta svg {
+            width: 0.5rem !important;
+            height: 0.5rem !important;
+          }
+        }
+
+        @media (max-height: 600px) {
+          .mock-container {
+            padding: 0.375rem !important;
+          }
+          .mock-title {
+            font-size: 0.875rem !important;
+            margin-bottom: 0.25rem !important;
+          }
+          .mock-bubble {
+            width: 4.5rem !important;
+            height: 4.5rem !important;
+          }
+          .mock-icon {
+            width: 4.5rem !important;
+            height: 4.5rem !important;
+          }
+          .mock-description {
+            font-size: 0.625rem !important;
+            line-height: 1.2 !important;
+          }
+        }
+
+        /* Width-based scaling for mobile */
+        @media (max-width: 480px) {
+          .mock-container {
+            padding: 0.5rem !important;
+          }
+        }
+
+        /* Combined small screen handling */
+        @media (max-width: 480px) and (max-height: 700px) {
+          .mock-container {
+            padding: 0.25rem !important;
+          }
+          .mock-title {
+            font-size: 0.75rem !important;
+          }
+          .mock-description {
+            font-size: 0.5rem !important;
+            -webkit-line-clamp: 2 !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };
 
-export default ConversionHeroSection;
+export default ModernConversionLanding;

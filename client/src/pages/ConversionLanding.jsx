@@ -279,55 +279,62 @@ const ConversionLanding = () => {
           overflow-y: auto !important;
         }
 
-        /* Main container - like Home.jsx */
+        /* Main container */
         .conversion-container {
           width: 100%;
           overflow-x: hidden;
           position: relative;
         }
 
-        /* Section styling - like Home.jsx */
+        /* Section styling - FIXED: Exact viewport height, no extra padding */
         .conversion-section {
           width: 100%;
-          min-height: 100vh;
-          min-height: 100dvh;
+          height: 100vh; /* Changed from min-height to height */
+          height: 100dvh; /* Use dvh when supported */
           position: relative;
           display: flex;
           align-items: center;
           justify-content: center;
           overflow: hidden;
-          padding: clamp(1rem, 4vw, 2rem);
           background-color: ${backgroundColor};
           color: ${textColor};
+          /* Removed padding from here - will be handled by inner content */
         }
 
-        /* Responsive section height */
-        @supports (height: 100dvh) {
-          .conversion-section {
-            min-height: 100dvh;
-          }
-        }
-
+        /* Fallback for browsers that don't support dvh */
         @supports not (height: 100dvh) {
           .conversion-section {
-            min-height: 100vh;
+            height: 100vh;
           }
         }
 
-        /* Force mobile browsers to use the correct height */
-        @media (max-width: 768px) {
-          .conversion-section {
-            padding: 1rem;
-          }
-        }
-
-        /* Section content wrapper */
+        /* Section content wrapper with proper padding */
         .section-content {
           width: 100%;
           height: 100%;
-          animation: fadeIn 0.8s ease-out;
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          /* Add padding here instead of on the section */
+          padding: clamp(1rem, 4vw, 2rem);
+          box-sizing: border-box;
         }
 
+        /* Mobile specific adjustments */
+        @media (max-width: 768px) {
+          .section-content {
+            padding: 1rem;
+          }
+          
+          /* Ensure mobile browsers respect the height */
+          .conversion-section {
+            height: 100vh;
+            height: 100dvh;
+          }
+        }
+
+        /* Animation classes */
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
@@ -360,7 +367,7 @@ const ConversionLanding = () => {
           z-index: 10; 
         }
 
-        /* Navigation dots - like Home.jsx */
+        /* Navigation dots */
         .nav-dots {
           position: fixed;
           right: 2rem;
@@ -389,7 +396,6 @@ const ConversionLanding = () => {
           cursor: pointer;
           transition: all 0.3s ease;
           background: #d1d5db !important; /* gray-300 */
-          /* Remove blur to prevent white halo */
           padding: 0;
           position: relative;
         }
@@ -432,10 +438,23 @@ const ConversionLanding = () => {
         .dark .nav-dot:hover {
           background: rgba(0, 0, 0, 0.7);
         }
+
+        /* CSS Custom Properties for dvh support */
+        :root {
+          --vh: 1vh;
+          --dvh: 1vh;
+        }
+
+        /* Set custom property on page load/resize */
+        @supports (height: 100dvh) {
+          :root {
+            --dvh: 1dvh;
+          }
+        }
       `}</style>
 
       <div ref={containerRef} className="conversion-container">
-        {/* Main sections - like Home.jsx */}
+        {/* Main sections */}
         {sections.map((section, index) => {
           const SectionComponent = section.component;
           return (
@@ -468,7 +487,7 @@ const ConversionLanding = () => {
           />
         </div>
 
-        {/* Navigation dots - like Home.jsx */}
+        {/* Navigation dots */}
         <nav className="nav-dots" aria-label="Section navigation">
           {sections.map((section, index) => (
             <button

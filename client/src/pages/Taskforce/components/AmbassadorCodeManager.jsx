@@ -17,7 +17,8 @@ import {
   AlertTriangle,
   ExternalLink,
   Crown,
-  Dumbbell
+  Dumbbell,
+  Shield
 } from 'lucide-react';
 import { toast } from 'sonner';
 import ambassadorService from '../../../services/ambassador.service';
@@ -42,15 +43,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  SelectLabel
-} from "@/components/ui/select";
 
 const AmbassadorCodeManager = () => {
   const [ambassadorCodes, setAmbassadorCodes] = useState([]);
@@ -96,6 +88,7 @@ const AmbassadorCodeManager = () => {
   // Filter ambassadors by role with debugging
   const coaches = ambassadors.filter(a => a.role === 'coach');
   const affiliates = ambassadors.filter(a => a.role === 'affiliate');
+  const taskforce = ambassadors.filter(a => a.role === 'taskforce');
 
   // Debug logging
   console.log('🔍 DROPDOWN DEBUG:', {
@@ -119,15 +112,32 @@ const AmbassadorCodeManager = () => {
       name: `${a.firstName} ${a.lastName}`,
       email: a.email,
       role: a.role
+    })),
+    taskforceFiltered: taskforce.length,
+    taskforceData: taskforce.map(t => ({
+      id: t._id,
+      name: `${t.firstName} ${t.lastName}`,
+      email: t.email,
+      role: t.role
     }))
   });
 
   const getRoleIcon = (role) => {
-    return role === 'coach' ? <Dumbbell className="h-4 w-4" /> : <Crown className="h-4 w-4" />;
+    switch(role) {
+      case 'coach': return <Dumbbell className="h-4 w-4" />;
+      case 'affiliate': return <Crown className="h-4 w-4" />;
+      case 'taskforce': return <Shield className="h-4 w-4" />;
+      default: return <Users className="h-4 w-4" />;
+    }
   };
 
   const getRoleBadgeColor = (role) => {
-    return role === 'coach' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800';
+    switch(role) {
+      case 'coach': return 'bg-blue-100 text-blue-800';
+      case 'affiliate': return 'bg-purple-100 text-purple-800';
+      case 'taskforce': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
   };
 
   const handleSubmit = async () => {
@@ -215,7 +225,7 @@ const AmbassadorCodeManager = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8">
+      <div className="min-h-[50dvh] flex items-center justify-center p-4">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         <span className="ml-2">Loading ambassador codes...</span>
       </div>
@@ -223,7 +233,7 @@ const AmbassadorCodeManager = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-[100dvh] p-4 space-y-6">
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
@@ -277,7 +287,7 @@ const AmbassadorCodeManager = () => {
                   {ambassadors.length}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  {coaches.length} coaches, {affiliates.length} affiliates
+                  {coaches.length} coaches, {affiliates.length} affiliates, {taskforce.length} taskforce
                 </p>
               </div>
               <TrendingUp className="h-8 w-8 text-orange-600" />
@@ -296,17 +306,17 @@ const AmbassadorCodeManager = () => {
               Create Ambassador Code
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingCode ? 'Edit' : 'Create'} Ambassador Code</DialogTitle>
               <DialogDescription>
-                {editingCode ? 'Update the ambassador code details.' : 'Create a new code for a coach or affiliate to share with their audience.'}
+                {editingCode ? 'Update the ambassador code details.' : 'Create a new code for a coach, affiliate, or taskforce member to share with their audience.'}
               </DialogDescription>
             </DialogHeader>
-            <div>
+            <div className="p-4">
               <div className="grid gap-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="ambassadorId">Coach/Affiliate *</Label>
+                  <Label htmlFor="ambassadorId">Coach/Affiliate/Taskforce *</Label>
                   <select
                     id="ambassadorId"
                     value={formData.ambassadorId}
@@ -318,7 +328,7 @@ const AmbassadorCodeManager = () => {
                     required
                   >
                     <option value="">
-                      {ambassadors.length > 0 ? "Select a coach or affiliate" : "No ambassadors available"}
+                      {ambassadors.length > 0 ? "Select an ambassador" : "No ambassadors available"}
                     </option>
                     
                     {coaches.length > 0 && (
@@ -343,9 +353,19 @@ const AmbassadorCodeManager = () => {
                         ))}
                       </optgroup>
                     )}
+
+                    {taskforce.length > 0 && (
+                      <optgroup label="🛡️ Taskforce">
+                        {taskforce.map(member => (
+                          <option key={member._id} value={member._id}>
+                            {member.firstName} {member.lastName} ({member.email})
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                   <p className="text-xs text-gray-500">
-                    Select a coach or affiliate to create a code for
+                    Select a coach, affiliate, or taskforce member to create a code for
                   </p>
                 </div>
 
@@ -436,13 +456,13 @@ const AmbassadorCodeManager = () => {
       </div>
 
       {/* Ambassador Codes List */}
-      <div className="space-y-4">
+      <div className="space-y-4 pb-8">
         {ambassadorCodes.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center text-gray-500">
               <Tag className="h-12 w-12 mx-auto text-gray-300 mb-4" />
               <h3 className="text-lg font-medium mb-2">No Ambassador Codes</h3>
-              <p>Create your first ambassador code for coaches or affiliates to get started.</p>
+              <p>Create your first ambassador code for coaches, affiliates, or taskforce members to get started.</p>
             </CardContent>
           </Card>
         ) : (
@@ -451,7 +471,7 @@ const AmbassadorCodeManager = () => {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
                       <span className="font-mono text-xl font-bold">{code.code}</span>
                       <Badge variant={code.isActive ? "default" : "secondary"}>
                         {code.isActive ? "Active" : "Inactive"}
@@ -482,7 +502,7 @@ const AmbassadorCodeManager = () => {
                       <strong>Ambassador:</strong> {code.ambassador?.firstName} {code.ambassador?.lastName} ({code.ambassador?.email})
                     </div>
 
-                    <div className="flex items-center gap-6 text-sm text-gray-600">
+                    <div className="flex items-center gap-6 text-sm text-gray-600 flex-wrap">
                       <span className="flex items-center gap-1">
                         <Users className="h-4 w-4" />
                         {code.totalUses || 0} uses
@@ -506,7 +526,7 @@ const AmbassadorCodeManager = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Button
                       variant="outline"
                       size="sm"

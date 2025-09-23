@@ -6,9 +6,10 @@ import logger from '../utils/logger.js';
 
 export const getAmbassadors = async (req, res) => {
   try {
-    // Query for ambassadors with complete setup
-    const withPayoutQuery = {
-      role: { $in: ['affiliate', 'coach'] },
+    // FIXED: Only return ambassadors with complete payout setup for code creation
+    // This prevents commission earning without payout capability
+    const ambassadorQuery = {
+      role: { $in: ['affiliate', 'coach', 'taskforce'] },
       $and: [
         { payoutSetupComplete: true },
         { stripeAccountId: { $exists: true, $ne: null } },
@@ -16,17 +17,14 @@ export const getAmbassadors = async (req, res) => {
       ]
     };
 
-    const ambassadors = await User.find(withPayoutQuery)
+    const ambassadors = await User.find(ambassadorQuery)
       .select('firstName lastName email stripeAccountId payoutSetupComplete role')
       .sort({ role: 1, firstName: 1 });
 
-    // FIXED: Better query for those without complete setup - exclude those who already have complete setup
-    const ambassadorIdsWithSetup = ambassadors.map(a => a._id);
-    
+    // Count those without complete setup for meta information
     const withoutPayoutQuery = {
-      role: { $in: ['affiliate', 'coach'] },
+      role: { $in: ['affiliate', 'coach', 'taskforce'] },
       isEmailVerified: true,
-      _id: { $nin: ambassadorIdsWithSetup }, 
       $or: [
         { payoutSetupComplete: { $ne: true } },
         { stripeAccountId: { $exists: false } },
@@ -38,13 +36,14 @@ export const getAmbassadors = async (req, res) => {
 
     const responseData = {
       success: true,
-      data: ambassadors,
+      data: ambassadors, // Only return ambassadors with complete payout setup
       meta: {
         totalAmbassadors: ambassadors.length,
         ambassadorsWithoutPayout,
         roleGroups: {
           coaches: ambassadors.filter(a => a.role === 'coach'),
-          affiliates: ambassadors.filter(a => a.role === 'affiliate')
+          affiliates: ambassadors.filter(a => a.role === 'affiliate'),
+          taskforce: ambassadors.filter(a => a.role === 'taskforce')
         },
         timestamp: new Date().toISOString()
       }
@@ -113,27 +112,28 @@ export const createAmbassadorCode = async (req, res) => {
       });
     }
 
-    // FIXED: Allow both affiliate and coach roles
-    if (!['affiliate', 'coach'].includes(ambassador.role)) {
+    // FIXED: Allow affiliate, coach, AND taskforce roles - all require payout setup
+    if (!['affiliate', 'coach', 'taskforce'].includes(ambassador.role)) {
       return res.status(400).json({
         success: false,
-        message: 'User must be an approved ambassador (affiliate or coach)'
+        message: 'User must be an approved ambassador (affiliate, coach, or taskforce member)'
       });
     }
 
-    // Check if payout setup is complete
+    // CRITICAL: All ambassador types must have payout setup before creating codes
+    // This prevents earning commissions without ability to receive payouts
     if (!ambassador.payoutSetupComplete) {
       return res.status(400).json({
         success: false,
-        message: 'Ambassador must complete payout setup before codes can be created. Please ask the ambassador to set up their payout information in their profile.'
+        message: `${ambassador.role.charAt(0).toUpperCase() + ambassador.role.slice(1)} must complete payout setup before codes can be created. Please ask them to set up their payout information in their profile.`
       });
     }
 
-    // Additional validation - check if Stripe account exists
+    // Additional validation - check if Stripe account exists for all roles
     if (!ambassador.stripeAccountId) {
       return res.status(400).json({
         success: false,
-        message: 'Ambassador does not have a valid Stripe account. Please ask them to complete their payout setup.'
+        message: `${ambassador.role.charAt(0).toUpperCase() + ambassador.role.slice(1)} does not have a valid Stripe account. Please ask them to complete their payout setup.`
       });
     }
 
@@ -170,6 +170,29 @@ export const updateAmbassadorCode = async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
+
+    // If updating ambassador, validate the new ambassador
+    if (updates.ambassadorId) {
+      const ambassador = await User.findById(updates.ambassadorId);
+      if (!ambassador) {
+        return res.status(400).json({
+          success: false,
+          message: 'Ambassador not found'
+        });
+      }
+
+      // FIXED: Allow affiliate, coach, AND taskforce roles
+      if (!['affiliate', 'coach', 'taskforce'].includes(ambassador.role)) {
+        return res.status(400).json({
+          success: false,
+          message: 'User must be an approved ambassador (affiliate, coach, or taskforce member)'
+        });
+      }
+
+      // Update the ambassador reference
+      updates.ambassador = updates.ambassadorId;
+      delete updates.ambassadorId;
+    }
 
     if (updates.code) {
       updates.code = updates.code.toUpperCase();
@@ -269,7 +292,7 @@ export const toggleAmbassadorCodeStatus = async (req, res) => {
       id,
       { isActive },
       { new: true }
-    ).populate('ambassador', 'firstName lastName email');
+    ).populate('ambassador', 'firstName lastName email role'); // Added role
 
     if (!ambassadorCode) {
       return res.status(404).json({
@@ -298,14 +321,14 @@ export const toggleAmbassadorCodeStatus = async (req, res) => {
 export const processCommission = async (ambassadorCodeId, orderOrSubscription, type, monthNumber = null) => {
   try {
     const ambassadorCode = await AmbassadorCode.findById(ambassadorCodeId)
-      .populate('ambassador', 'payoutSetupComplete stripeAccountId email firstName lastName');
+      .populate('ambassador', 'payoutSetupComplete stripeAccountId email firstName lastName role'); // Added role
     
     if (!ambassadorCode) {
       throw new Error('Ambassador code not found');
     }
 
     if (!ambassadorCode.ambassador.payoutSetupComplete || !ambassadorCode.ambassador.stripeAccountId) {
-      logger.error(`[COMMISSION ERROR] Ambassador ${ambassadorCode.ambassador.email} does not have payout setup complete. Skipping commission.`);
+      logger.error(`[COMMISSION ERROR] Ambassador ${ambassadorCode.ambassador.email} (${ambassadorCode.ambassador.role}) does not have payout setup complete. Skipping commission.`);
       throw new Error('Ambassador payout setup not complete - cannot process commission');
     }
 
@@ -405,7 +428,7 @@ export const processCommission = async (ambassadorCodeId, orderOrSubscription, t
       }
     );
 
-    logger.info(`[COMMISSION] Created ${type} commission: $${(commissionAmount/100).toFixed(2)} for ${ambassadorCode.code} - Ambassador has verified payout setup, added to pending amount`);
+    logger.info(`[COMMISSION] Created ${type} commission: $${(commissionAmount/100).toFixed(2)} for ${ambassadorCode.code} - ${ambassadorCode.ambassador.role} ambassador has verified payout setup, added to pending amount`);
     
     return commission;
   } catch (error) {
@@ -423,7 +446,7 @@ export const clawbackAmbassadorCommissions = async (subscriptionId, ambassadorCo
       subscriptionId: subscriptionId,
       ambassadorCode: ambassadorCodeId,
       type: 'coaching_monthly'
-    }).populate('ambassador', 'firstName lastName email');
+    }).populate('ambassador', 'firstName lastName email role'); // Added role
 
     if (commissions.length === 0) {
       logger.info(`[CLAWBACK] No commissions found for subscription ${subscriptionId}`);
@@ -478,7 +501,7 @@ export const clawbackAmbassadorCommissions = async (subscriptionId, ambassadorCo
           { session }
         );
 
-        logger.info(`[CLAWBACK] Removed $${(totalClawbackAmount / 100).toFixed(2)} from ambassador ${ambassador.firstName} ${ambassador.lastName} (${ambassador.email})`);
+        logger.info(`[CLAWBACK] Removed $${(totalClawbackAmount / 100).toFixed(2)} from ${ambassador.role} ambassador ${ambassador.firstName} ${ambassador.lastName} (${ambassador.email})`);
       }
 
       await session.commitTransaction();
@@ -488,7 +511,7 @@ export const clawbackAmbassadorCommissions = async (subscriptionId, ambassadorCo
       return {
         totalClawbackAmount,
         commissionsProcessed: commissions.length,
-        ambassador: `${ambassador?.firstName} ${ambassador?.lastName}`
+        ambassador: `${ambassador?.firstName} ${ambassador?.lastName} (${ambassador?.role})`
       };
 
     } catch (error) {
@@ -532,7 +555,7 @@ export const handleCoachingRenewalCommission = async (subscription, monthNumber)
 
     // Verify the ambassador code is still active and ambassador has payout setup
     const ambassadorCode = await AmbassadorCode.findById(subscription.ambassadorCode)
-      .populate('ambassador', 'payoutSetupComplete stripeAccountId firstName lastName email');
+      .populate('ambassador', 'payoutSetupComplete stripeAccountId firstName lastName email role'); // Added role
 
     if (!ambassadorCode || !ambassadorCode.isActive) {
       logger.warn(`Ambassador code no longer active for subscription ${subscription._id}`);
@@ -540,14 +563,14 @@ export const handleCoachingRenewalCommission = async (subscription, monthNumber)
     }
 
     if (!ambassadorCode.ambassador?.payoutSetupComplete || !ambassadorCode.ambassador?.stripeAccountId) {
-      logger.error(`Ambassador ${ambassadorCode.ambassador?.email} does not have complete payout setup for renewal commission`);
+      logger.error(`${ambassadorCode.ambassador?.role} ambassador ${ambassadorCode.ambassador?.email} does not have complete payout setup for renewal commission`);
       return;
     }
 
     // Create commission for this month
     await processCommission(ambassadorCode._id, subscription, 'coaching_monthly', monthNumber);
     
-    logger.info(`Successfully processed ambassador renewal commission for subscription ${subscription._id}, month ${monthNumber}`);
+    logger.info(`Successfully processed ambassador renewal commission for subscription ${subscription._id}, month ${monthNumber} - ${ambassadorCode.ambassador.role} ambassador`);
     
   } catch (error) {
     logger.error('Error handling coaching renewal commission:', error);

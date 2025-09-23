@@ -8,7 +8,7 @@ import { Button } from '../components/ui/button';
 import { 
   User, Package, LogOut, Loader2, Coins, AlertCircle, CheckCircle, 
   Clock, Star, Instagram, Twitter, Youtube, Crown, Settings, 
-  Trash2, MapPin, Navigation, RotateCcw
+  Trash2, MapPin, Navigation, RotateCcw, Shield
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../services/api';
@@ -17,7 +17,7 @@ import locationService from '../services/location.service';
 import ImageCropModal from '../components/layout/ImageCropModal';
 import LocationRequestModal from '../components/common/LocationRequestModal';
 import subscriptionService from '../services/subscription.service';
-import StripeOnboardingForm from '../pages/StripeOnboardingForm'; // Import the StripeOnboardingForm
+import StripeOnboardingForm from '../pages/StripeOnboardingForm';
 
 const Profile = () => {
   const { user, updateProfile, logout, validatePhone } = useAuth();
@@ -30,8 +30,8 @@ const Profile = () => {
   const [showStripeOnboarding, setShowStripeOnboarding] = useState(false);
   const [verificationSessionId, setVerificationSessionId] = useState(null);
   const [cropModalProps, setCropModalProps] = useState(null);
-  const [showLocationModal, setShowLocationModal] = useState(false); // Add state for crop modal
-  const [isRefreshingLocation, setIsRefreshingLocation] = useState(false); // Add state for location refresh
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [isRefreshingLocation, setIsRefreshingLocation] = useState(false);
 
   const [profileData, setProfileData] = useState({
     firstName: '',
@@ -54,7 +54,20 @@ const Profile = () => {
 
   const isCoach = user?.user?.role === 'coach' || user?.role === 'coach';
   const isAffiliate = user?.user?.role === 'affiliate' || user?.role === 'affiliate';
-  const canReceivePayouts = isCoach || isAffiliate;
+  const isTaskforce = user?.user?.role === 'taskforce' || user?.role === 'taskforce';
+  
+  // FIXED: All three roles can receive payouts and need payout setup
+  const canReceivePayouts = isCoach || isAffiliate || isTaskforce;
+
+  // Get role display name and icon
+  const getRoleDisplay = () => {
+    if (isCoach) return { name: 'Coach', icon: <User className="w-8 h-8 text-blue-500 mb-2" /> };
+    if (isAffiliate) return { name: 'Affiliate', icon: <Crown className="w-8 h-8 text-purple-500 mb-2" /> };
+    if (isTaskforce) return { name: 'Taskforce', icon: <Shield className="w-8 h-8 text-green-500 mb-2" /> };
+    return { name: 'Member', icon: <User className="w-8 h-8 text-blue-500 mb-2" /> };
+  };
+
+  const { name: roleName, icon: roleIcon } = getRoleDisplay();
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -94,7 +107,6 @@ const Profile = () => {
         fetchPoints();
 
         if (isCoach && userData.location?.isVisible) {
-
           setTimeout(checkAndUpdateLocation, 1000); 
         }
       } catch (error) {
@@ -141,6 +153,7 @@ const Profile = () => {
       setLoading(false);
     }
   };
+  
   const getStatusColor = (status) => {
     const colors = {
       active: 'bg-green-50 text-green-700',
@@ -215,7 +228,6 @@ const Profile = () => {
   };
 
   const isCoachProfileComplete = () => {
-    
     const hasBasicInfo = profileData.firstName && profileData.lastName;
     const hasBio = profileData.bio && profileData.bio.trim().length >= 50;
     const hasProfileImage = profileData.profileImage && 
@@ -230,12 +242,10 @@ const Profile = () => {
   };
 
   const handleActivateLocation = () => {
-
     setShowLocationModal(true);
   };
 
   const handleRefreshLocation = async () => {
-    
     setIsRefreshingLocation(true);
     
     try {
@@ -251,14 +261,13 @@ const Profile = () => {
           {
             enableHighAccuracy: true,
             timeout: 15000,
-            maximumAge: 0 // Force fresh location
+            maximumAge: 0
           }
         );
       });
 
       const { latitude, longitude } = position.coords;
       
-      // Use the improved locationService for reverse geocoding
       const cityName = await locationService.reverseGeocode(latitude, longitude);
 
       const locationData = {
@@ -280,7 +289,6 @@ const Profile = () => {
       }
 
     } catch (error) {
-  
       if (error.code === 1) {
         toast.error('Location access denied. Please enable location permissions.');
       } else if (error.code === 2) {
@@ -296,9 +304,7 @@ const Profile = () => {
   };
 
   const handleLocationSet = async (locationData) => {
-    
     try {
-      // Update location via API for authenticated users
       const token = localStorage.getItem('token');
       if (token) {
         const updateResponse = await api.put('/user/location', locationData);      
@@ -316,11 +322,6 @@ const Profile = () => {
       }
     } catch (error) {
       console.error('❌ Error updating user location:', error);
-      console.error('Error details:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message
-      });
       toast.error('Failed to save location');
     } finally {
       setShowLocationModal(false);
@@ -333,8 +334,6 @@ const Profile = () => {
     }
 
     if (!profileData.location?.lat || !profileData.location?.lng) {
-
-      
       try {
         if (!navigator.geolocation) {
           return;
@@ -354,7 +353,6 @@ const Profile = () => {
 
         const { latitude, longitude } = position.coords;
         
-        // Use the improved locationService for reverse geocoding
         const cityName = await locationService.reverseGeocode(latitude, longitude);
 
         const locationData = {
@@ -365,7 +363,6 @@ const Profile = () => {
           source: 'login-update'
         };
         
-        // Update via API
         const updateResponse = await api.put('/user/location', locationData);
         
         if (updateResponse.data) {
@@ -376,49 +373,40 @@ const Profile = () => {
         }
 
       } catch (error) {
-
+        // Silent fail for background location update
       }
-    } else {
-
     }
   };
 
   const handlePayoutSetup = async (onboardingData) => {
     try {
-      setRedirecting(true); // Start loading
+      setRedirecting(true);
 
-      // Call the createStripeAccount function with the onboarding data
       const { accountId, verificationUrl } = await subscriptionService.createStripeAccount(onboardingData);
 
-      // Update the user's Stripe account ID in the profile data
       setProfileData((prev) => ({
         ...prev,
         stripeAccountId: accountId,
       }));
 
-      // Redirect the coach to complete identity verification
       window.location.href = verificationUrl;
     } catch (error) {
       console.error('Error setting up payout:', error);
     } finally {
-      setRedirecting(false); // Stop loading
+      setRedirecting(false);
     }
   };
 
   const handleCompletePayoutSetup = async () => {
     try {
-      setRedirecting(true); // Start loading
+      setRedirecting(true);
   
-      // Call the initiateVerification function with the account ID
       const { url } = await subscriptionService.initiateVerification(
         profileData.stripeAccountId,
-        `${window.location.origin}/profile`, // Use the new route
-        `${window.location.origin}/profile`  // Use the new route
+        `${window.location.origin}/profile`,
+        `${window.location.origin}/profile`
       );
-      
-      //('Verification URL:', url);
 
-      // Store the verification session ID
       setVerificationSessionId(verificationSessionId);
   
       window.location.href = url;
@@ -426,41 +414,36 @@ const Profile = () => {
       console.error('Error completing setup:', error);
       toast.error('Failed to initiate verification. Please try again.');
     } finally {
-      setRedirecting(false); // Stop loading
+      setRedirecting(false);
     }
   };
   
-
   const handleViewPayoutDashboard = async () => {
     try {
-      setRedirecting(true); // Start loading
+      setRedirecting(true);
   
-      // Call the Stripe API to generate a dashboard link
       const { url } = await subscriptionService.createStripeDashboardLink(
         profileData.stripeAccountId
       );
   
-      // Open the Stripe dashboard in a new tab
-      window.open(url, '_blank'); // Opens the URL in a new tab
+      window.open(url, '_blank');
     } catch (error) {
       console.error('Error accessing dashboard:', error);
       toast.error('Failed to access dashboard. Please try again.');
     } finally {
-      setRedirecting(false); // Stop loading
+      setRedirecting(false);
     }
   };
 
   return (
-    <div className="min-h-screen mt-10 bg-gray-50 relative">
+    <div className="min-h-[100dvh] mt-10 bg-gray-50 relative p-4">
       <div className="container mx-auto px-4 py-8">
         <form onSubmit={handleSubmit} className="space-y-6">
           {isCoach ? (
             <div className="relative bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-800 h-48">
-              {/* Animated background elements */}
               <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/20 via-purple-500/30 to-indigo-600/20"></div>
               <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-transparent via-white/5 to-black/20"></div>
               
-              {/* Subtle pattern overlay */}
               <div className="absolute inset-0 opacity-10">
                 <div className="absolute top-4 left-4 w-20 h-20 bg-white/20 rounded-full blur-xl"></div>
                 <div className="absolute top-12 right-8 w-16 h-16 bg-purple-300/30 rounded-full blur-lg"></div>
@@ -476,7 +459,6 @@ const Profile = () => {
                 />
               </div>
               
-              {/* Location Activation Button */}
               {isCoach && (
                 <div className="absolute -bottom-28 left-1/2 transform -translate-x-1/2">
                   <div className="flex items-center space-x-2">
@@ -507,7 +489,6 @@ const Profile = () => {
                       )}
                     </Button>
                     
-                    {/* Location Refresh Button - only show when location is complete */}
                     {(profileData.location?.lat && profileData.location?.lng && profileData.location?.city) && (
                       <Button
                         onClick={handleRefreshLocation}
@@ -531,7 +512,8 @@ const Profile = () => {
                 <div className="flex justify-between items-center">
                   <h1 className={`text-2xl font-bold flex items-center`}>
                     <User className="w-8 h-8 mr-2" />
-                    Profile                  </h1>
+                    Profile
+                  </h1>
                 </div>
               </div>
             </div>
@@ -541,8 +523,8 @@ const Profile = () => {
             <div className={`grid grid-cols-2 gap-4 mb-8 ${isCoach ? 'mt-32' : ''}`}>
               <Card className='bg-gradient-to-br from-blue-50 to-white p-4'>
                 <CardContent className="flex flex-col items-center p-4">
-                  <User className="w-8 h-8 text-blue-500 mb-2" />
-                  <p className="text-sm font-semibold text-black">{isCoach ? 'Coach' : 'Member'}</p>
+                  {roleIcon}
+                  <p className="text-sm font-semibold text-black">{roleName}</p>
                   <p className="text-lg font-semibold text-black">{`${profileData.firstName} ${profileData.lastName}`}</p>
                 </CardContent>
               </Card>
@@ -622,11 +604,11 @@ const Profile = () => {
                     />
                   </div>
 
-                  {/* Payout Setup Section - Now visible for both coaches and affiliates */}
+                  {/* Payout Setup Section - Now visible for coaches, affiliates, AND taskforce */}
                   {canReceivePayouts && (
                     <div className="mt-6 mb-6">
                       <label className={`block text-sm font-medium mb-1`}>
-                        {isCoach ? 'Coach Payout Setup' : 'Affiliate Payout Setup'}
+                        {isCoach ? 'Coach Payout Setup' : isAffiliate ? 'Affiliate Payout Setup' : 'Taskforce Payout Setup'}
                       </label>
                       {!profileData.stripeAccountId ? (
                         <div className='bg-yellow-50 p-4 rounded-lg border border-yellow-200'>
@@ -639,7 +621,18 @@ const Profile = () => {
                                 Payout Setup Required
                               </h3>
                               <div className={`mt-2 text-sm text-yellow-500`}>
-                                <p>To receive {isCoach ? 'payments from your clients' : 'affiliate commissions'}, you need to set up your payout information.</p>
+                                <p>
+                                  To receive {
+                                    isCoach ? 'payments from your clients' : 
+                                    isAffiliate ? 'affiliate commissions' : 
+                                    'taskforce rewards and commissions'
+                                  }, you need to set up your payout information.
+                                </p>
+                                {isTaskforce && (
+                                  <p className="mt-1 text-xs">
+                                    <strong>Note:</strong> Payout setup is required before you can create ambassador codes.
+                                  </p>
+                                )}
                               </div>
                               <div className="mt-4">
                                 <Button
@@ -719,15 +712,24 @@ const Profile = () => {
                                 Payout Setup Complete
                               </h3>
                               <div className={`mt-2 text-sm text-green-500`}>
-                                <p>Your payout information has been set up successfully. You can now receive payments from your clients.</p>
+                                <p>
+                                  Your payout information has been set up successfully. You can now receive {
+                                    isCoach ? 'payments from your clients' : 
+                                    isAffiliate ? 'affiliate commissions' : 
+                                    'taskforce rewards and commissions'
+                                  }.
+                                </p>
+                                {isTaskforce && (
+                                  <p className="mt-1 text-xs">
+                                    You can now create ambassador codes and earn commissions.
+                                  </p>
+                                )}
                               </div>
                               <div className="mt-4">
                                 <Button
                                   onClick={handleViewPayoutDashboard}
                                   variant="outline"
-                                  className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm ${
-                                    'text-green-700 bg-green-100 hover:bg-green-200'
-                                  }`}
+                                  className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-green-700 bg-green-100 hover:bg-green-200`}
                                   disabled={redirecting}
                                 >
                                   {redirecting ? (
@@ -746,7 +748,8 @@ const Profile = () => {
 
                   {/* Coach-Specific Fields */}
                   {isCoach && (
-                    <>                      {/* Bio */}
+                    <>
+                      {/* Bio */}
                       <div>
                         <label className={`block text-sm font-medium mb-1`}>Bio</label>
                         <div className="relative">
@@ -773,14 +776,16 @@ const Profile = () => {
                             {profileData.bio.length}/100 characters
                           </div>
                         </div>
-                      </div>                      {/* Rating - Read-only for coaches */}
+                      </div>
+                      
+                      {/* Rating - Read-only for coaches */}
                       <div>
                         <label className="block text-sm font-medium mb-1">Rating</label>
                         <div className="flex items-center space-x-2">
                           <Input
                             type="number"
                             value={profileData.rating}
-                            disabled={true} // Always disabled for coaches - ratings are system-managed
+                            disabled={true}
                             className="bg-gray-100 cursor-not-allowed"
                             step="0.1"
                             min="0"
@@ -936,7 +941,8 @@ const Profile = () => {
               </CardContent>
             </Card>
 
-            {!isCoach && (
+            {/* Membership Status - Only for regular users */}
+            {!canReceivePayouts && (
               <Card className='shadow-lg mb-8'>
                 <CardHeader>
                   <CardTitle className={`flex items-center`}>
@@ -998,7 +1004,7 @@ const Profile = () => {
               </Card>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 pb-8">
               <Button
                 variant="outline"
                 className={`flex items-center justify-center space-x-2 py-6`}
@@ -1027,6 +1033,7 @@ const Profile = () => {
             </div>
           </div>
         </form>
+        
         {showStripeOnboarding && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className='bg-white p-6 rounded-lg w-full max-w-2xl'>
@@ -1037,8 +1044,8 @@ const Profile = () => {
                   lastName: profileData.lastName,
                   phone: profileData.phone,
                 }}
-                onSubmit={handlePayoutSetup} // Pass the handlePayoutSetup function
-                onClose={() => setShowStripeOnboarding(false)} // Close the modal
+                onSubmit={handlePayoutSetup}
+                onClose={() => setShowStripeOnboarding(false)}
               />
             </div>
           </div>
@@ -1050,7 +1057,7 @@ const Profile = () => {
             image={cropModalProps.image}
             onCropComplete={cropModalProps.onCropComplete}
             onClose={handleCloseCropModal}
-            aspectRatio={1} // Square crop for profile images
+            aspectRatio={1}
           />
         )}
 
