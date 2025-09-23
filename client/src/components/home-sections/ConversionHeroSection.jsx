@@ -313,7 +313,7 @@ const ModernConversionLanding = ({ onNavigate, backgroundColor = '#000000', text
           transition={{ duration: 0.8, delay: 1.2 }}
         >
           <div className="text-center">
-            <p className="text-xs md:text-sm text-slate-400 mb-4 md:mb-6">
+            <p className="text-xs md:text-xs text-slate-400 mb-4 md:mb-6">
               Download the full app
             </p>
             <div className="flex items-center justify-center gap-4 md:gap-6">
@@ -365,7 +365,7 @@ const ModernConversionLanding = ({ onNavigate, backgroundColor = '#000000', text
 
         {/* Scroll Down Indicator */}
         <motion.section 
-          className="flex-shrink-0 px-4 md:px-8 pb-4 md:pb-6"
+          className="flex-shrink-0 px-4 md:px-10 pb-10 md:pb-8"
           initial={{ opacity: 0, y: 20 }}
           animate={isLoaded ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.8, delay: 1.6 }}
