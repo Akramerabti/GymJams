@@ -59,6 +59,7 @@ import BlogPost from './components/blog/BlogPost';
 import CompleteOAuthProfile from './components/auth/CompleteOAuthProfile';
 import MobileGatekeeper from './components/MobileGateKeeper';
 import Privacy from './pages/CustomerService/privacy';
+import MockCoachingDemo from './pages/MockCoaching';
 
 // Common Components
 import CoachProfileCompletionModal from './components/common/CoachProfileCompletionModal';
@@ -512,6 +513,7 @@ function AppContent() {
           <Route path="/blog" element={<Blog />} />
           <Route path="/blog/:slug" element={<BlogPost />} />
           <Route path="/privacy" element={<Privacy />} />
+          <Route path="/mock-coaching" element={<MockCoachingDemo/>} />
 
           {/* Protected Routes */}
           <Route path="/profile" element={

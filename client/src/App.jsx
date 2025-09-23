@@ -58,6 +58,7 @@ import CompleteOAuthProfile from './components/auth/CompleteOAuthProfile';
 import PasswordSetup from './components/common/PasswordSetup';
 import DiscountSignUpContainer from './components/discount/DiscountSignUpContainer';
 import Privacy from './pages/CustomerService/privacy';
+import MockCoachingDemo from './pages/MockCoaching';
 
 // Common Components
 import LocationBanner from './components/common/LocationBanner';
@@ -446,6 +447,7 @@ function App() {
                   <Route path="/blog" element={<Blog />} />
                   <Route path="/blog/:slug" element={<BlogPost />} />
                   <Route path="/privacy" element={<Privacy />} />
+                  <Route path="/mock-coaching" element={<MockCoachingDemo />} />
                   
                   {/* Protected Routes */}
                   <Route path="/profile" element={
