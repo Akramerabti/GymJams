@@ -19,10 +19,10 @@ const ConversionLanding = () => {
   
   const [backgroundColor] = useState(() => {
     // Use Math.random() for true 50/50 chance
-    return Math.random() < 0.5 ? '#ffffff' : '#000000';
+    return Math.random() < 0.5 ? '#000000' : '#000000';
   });
   
-  const textColor = backgroundColor === '#ffffff' ? '#000000' : '#ffffff';
+  const textColor = backgroundColor === '#000000' ? '#000000' : '#000000';
   
   const [visibleSections, setVisibleSections] = useState(new Set([0]));
   const [scrollY, setScrollY] = useState(0);
