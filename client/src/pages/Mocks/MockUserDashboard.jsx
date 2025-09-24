@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef} from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Award, Crown, Zap, Calendar, BarChart2, Dumbbell, Activity, Clock, Badge, User, CheckCircle, MessageSquare, Target, X, Send, Star, TrendingUp, TrendingDown, Minus, Plus, ChevronUp, ChevronDown, Edit, Save, Scale, Heart, Edit3, Download, ArrowRight, FileEdit } from 'lucide-react';
+import { Bell, Award, Crown, Zap, Calendar, BarChart2, Dumbbell, Activity, Clock, Badge, User, CheckCircle, MessageSquare, Target, X, Send, Star, TrendingUp, TrendingDown, Minus, Plus, ChevronUp, ChevronDown, Edit, Save, Scale, Heart, Edit3, Download, ArrowRight, FileEdit, HelpCircle, ChevronLeft, ChevronRight, SkipForward } from 'lucide-react';
 
 // Mock data - Updated to Premium subscription
 const mockUser = {
@@ -221,6 +222,74 @@ const SUBSCRIPTION_TIERS = {
   }
 };
 
+// Tutorial Steps Configuration
+const TUTORIAL_STEPS = [
+  {
+    id: 1,
+    target: 'welcome-header',
+    title: 'Welcome to Your Dashboard',
+    content: 'This is your personalized fitness dashboard. Here you can see your subscription details and connect with your coach.',
+    position: 'bottom',
+    tab: 'overview'
+  },
+  {
+    id: 2,
+    target: 'stats-grid',
+    title: 'Your Fitness Stats',
+    content: 'Track your key metrics at a glance. These cards show your workouts completed, current streak, monthly progress, and goals achieved.',
+    position: 'bottom',
+    tab: 'overview'
+  },
+  {
+    id: 3,
+    target: 'navigation-tabs',
+    title: 'Navigation Tabs',
+    content: 'Switch between different sections of your dashboard using these tabs. Each tab provides specific information and tools.',
+    position: 'bottom',
+    tab: 'overview'
+  },
+  {
+    id: 4,
+    target: 'goals-section',
+    title: 'Your Fitness Goals',
+    content: 'Set and track your fitness goals here. Monitor progress and request completion when you achieve them.',
+    position: 'top',
+    tab: 'overview'
+  },
+  {
+    id: 5,
+    target: 'workouts-section',
+    title: 'Workout Schedule',
+    content: 'View your recent and upcoming workouts. Mark them complete when finished to track your progress.',
+    position: 'top',
+    tab: 'overview'
+  },
+  {
+    id: 6,
+    target: 'progress-metrics',
+    title: 'Health Metrics',
+    content: 'Track detailed health metrics over time including weight, body fat, strength, and cardio fitness. Add new entries to see your progress trends.',
+    position: 'top',
+    tab: 'progress'
+  },
+  {
+    id: 7,
+    target: 'profile-section',
+    title: 'Your Profile',
+    content: 'Manage your subscription, fitness profile, and export your data. Keep your information up to date for personalized coaching.',
+    position: 'top',
+    tab: 'profile'
+  },
+  {
+    id: 8,
+    target: 'chat-button',
+    title: 'Message Your Coach',
+    content: 'Click here to chat with your assigned coach. Get personalized advice and support whenever you need it.',
+    position: 'top',
+    tab: 'overview'
+  }
+];
+
 // Helper components
 const StatCard = ({ title, value, previousValue, icon, trend, onClick }) => (
   <motion.div
@@ -267,6 +336,172 @@ const formatDate = (dateString) => {
 
 const formatTime = (date) => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+// Tutorial Overlay Component
+const TutorialOverlay = ({ 
+  step, 
+  onNext, 
+  onPrevious, 
+  onSkip, 
+  totalSteps,
+  targetRef 
+}) => {
+  const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
+  const [arrowPosition, setArrowPosition] = useState('bottom');
+  const tooltipRef = useRef(null);
+
+  useEffect(() => {
+    const updatePosition = () => {
+      if (targetRef?.current && tooltipRef.current) {
+        const targetRect = targetRef.current.getBoundingClientRect();
+        const tooltipRect = tooltipRef.current.getBoundingClientRect();
+        const padding = 20;
+        
+        let top = 0;
+        let left = 0;
+        let arrow = step.position || 'bottom';
+
+        // Calculate horizontal position
+        left = targetRect.left + (targetRect.width / 2) - (tooltipRect.width / 2);
+        
+        // Keep tooltip within viewport horizontally
+        if (left < padding) {
+          left = padding;
+        } else if (left + tooltipRect.width > window.innerWidth - padding) {
+          left = window.innerWidth - tooltipRect.width - padding;
+        }
+
+        // Calculate vertical position based on preference
+        if (arrow === 'top') {
+          top = targetRect.bottom + 10;
+          // If tooltip would go below viewport, position above
+          if (top + tooltipRect.height > window.innerHeight - padding) {
+            top = targetRect.top - tooltipRect.height - 10;
+            arrow = 'bottom';
+          }
+        } else {
+          top = targetRect.top - tooltipRect.height - 10;
+          // If tooltip would go above viewport, position below
+          if (top < padding) {
+            top = targetRect.bottom + 10;
+            arrow = 'top';
+          }
+        }
+
+        setTooltipPosition({ top, left });
+        setArrowPosition(arrow);
+      }
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition);
+
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition);
+    };
+  }, [targetRef, step]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] pointer-events-none"
+    >
+      {/* Dark overlay with cutout */}
+      <div className="absolute inset-0 bg-black/60 pointer-events-auto" onClick={onSkip} />
+      
+      {/* Highlight box */}
+      {targetRef?.current && (
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="absolute border-4 border-blue-500 rounded-lg pointer-events-none"
+          style={{
+            top: targetRef.current.getBoundingClientRect().top - 4,
+            left: targetRef.current.getBoundingClientRect().left - 4,
+            width: targetRef.current.getBoundingClientRect().width + 8,
+            height: targetRef.current.getBoundingClientRect().height + 8,
+          }}
+        />
+      )}
+
+      {/* Tooltip */}
+      <motion.div
+        ref={tooltipRef}
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="absolute bg-white rounded-lg shadow-2xl p-6 w-80 pointer-events-auto"
+        style={{
+          top: tooltipPosition.top,
+          left: tooltipPosition.left,
+        }}
+      >
+        {/* Arrow */}
+        <div
+          className={`absolute w-0 h-0 ${
+            arrowPosition === 'top'
+              ? '-top-2 left-1/2 -translate-x-1/2 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-white'
+              : '-bottom-2 left-1/2 -translate-x-1/2 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-white'
+          }`}
+        />
+
+        {/* Content */}
+        <div className="mb-4">
+          <h3 className="text-lg font-bold text-gray-900 mb-2">{step.title}</h3>
+          <p className="text-gray-600">{step.content}</p>
+        </div>
+
+        {/* Progress */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex space-x-1">
+            {Array.from({ length: totalSteps }).map((_, i) => (
+              <div
+                key={i}
+                className={`h-2 w-2 rounded-full ${
+                  i < step.id ? 'bg-blue-600' : 'bg-gray-300'
+                }`}
+              />
+            ))}
+          </div>
+          <span className="text-sm text-gray-500">
+            {step.id} of {totalSteps}
+          </span>
+        </div>
+
+        {/* Actions */}
+        <div className="flex justify-between">
+          <button
+            onClick={onSkip}
+            className="text-gray-500 hover:text-gray-700 flex items-center"
+          >
+            <SkipForward className="w-4 h-4 mr-1" />
+            Skip Tour
+          </button>
+          <div className="flex space-x-2">
+            {step.id > 1 && (
+              <button
+                onClick={onPrevious}
+                className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              onClick={onNext}
+              className="px-4 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+            >
+              {step.id === totalSteps ? 'Finish' : 'Next'}
+              {step.id < totalSteps && <ChevronRight className="w-4 h-4 ml-1" />}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
 };
 
 // Progress Ring Component
@@ -485,6 +720,7 @@ const WelcomeHeader = ({
   
   return (
     <motion.div
+      id="welcome-header"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className={`p-8 rounded-2xl bg-gradient-to-r ${currentTier.color} text-white shadow-lg`}
@@ -653,7 +889,7 @@ const ProgressSection = ({
           </div>
         </div>
         
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
+        <div id="progress-metrics" className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Health Metrics</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <MetricCard 
@@ -749,7 +985,7 @@ const ProfileSection = ({
   onUpgradeClick 
 }) => {
   return (
-    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
+    <div id="profile-section" className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
       <div className="space-y-6">
         <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Subscription Details</h2>
@@ -873,7 +1109,7 @@ const ProfileSection = ({
           <p className="text-gray-600 dark:text-gray-300 mb-4">
             Download your fitness data including workouts, progress metrics, and goals.
           </p>
-          <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center">
+          <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center">
             <Download className="w-4 h-4 mr-2" />
             Export Data
           </button>
@@ -883,438 +1119,329 @@ const ProfileSection = ({
   );
 };
 
-const GoalsSection = () => (
-  <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
-    <div className="flex justify-between items-center mb-6">
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-        <Target className="w-6 h-6 mr-2 text-purple-600" />
-        Your Goals
-      </h2>
-      <button
-        className="text-purple-600 hover:text-purple-700 font-medium"
-      >
-        View All →
-      </button>
-    </div>
-    
-    <div className="space-y-4">
-      {mockGoals.filter(g => g.status === 'active').slice(0, 2).map(goal => (
-        <div key={goal.id} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center">
-              {goal.icon}
-              <h3 className="font-semibold ml-2 dark:text-white">{goal.title}</h3>
-            </div>
-            <span className="text-sm text-gray-600 dark:text-gray-300">{goal.due}</span>
-          </div>
-          <p className="text-gray-600 dark:text-gray-300 mb-3">{goal.target}</p>
-          <div className="space-y-1">
-            <div className="flex justify-between text-sm">
-              <span>Progress</span>
-              <span>{goal.progress}%</span>
-            </div>
-            <Progress value={goal.progress} />
-          </div>
-          <button
-            className="mt-3 w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg transition-colors duration-200"
-          >
-            Request Completion
-          </button>
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-const WorkoutSection = () => (
-  <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
-    <div className="flex justify-between items-center mb-6">
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-        <Dumbbell className="w-6 h-6 mr-2 text-blue-600" />
-        Recent Workouts
-      </h2>
-      <button
-        className="text-blue-600 hover:text-blue-700 font-medium"
-      >
-        View All →
-      </button>
-    </div>
-    
-    <div className="space-y-4">
-      {mockSubscription.workouts.slice(0, 3).map(workout => (
-        <div key={workout.id} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-          <div className="flex justify-between items-start mb-2">
-            <h3 className="font-semibold dark:text-white">{workout.title}</h3>
-            {workout.completed ? (
-              <span className="bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-300 px-2 py-1 rounded-full text-sm">
-                Completed
-              </span>
-            ) : (
-              <span className="bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300 px-2 py-1 rounded-full text-sm">
-                Scheduled
-              </span>
-            )}
-          </div>
-          <p className="text-gray-600 dark:text-gray-300 text-sm mb-3">
-            {formatDate(workout.date)} • {workout.duration} minutes
-          </p>
-          {!workout.completed && (
-            <button
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition-colors duration-200"
-            >
-              Mark Complete
-            </button>
-          )}
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-const MockUserDashboard = () => {
+// Main Dashboard Component
+const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
-  const [showChat, setShowChat] = useState(false);
-  const [showRating, setShowRating] = useState(false);
-  const [rating, setRating] = useState(0);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [newMessage, setNewMessage] = useState('');
-  const [chatMessages, setChatMessages] = useState(mockChatMessages);
+  const [messages, setMessages] = useState(mockChatMessages);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [currentTutorialStep, setCurrentTutorialStep] = useState(0);
+  
+  // Refs for tutorial targets
+  const welcomeHeaderRef = useRef(null);
+  const statsGridRef = useRef(null);
+  const navigationTabsRef = useRef(null);
+  const goalsSectionRef = useRef(null);
+  const workoutsSectionRef = useRef(null);
+  const progressMetricsRef = useRef(null);
+  const profileSectionRef = useRef(null);
+  const chatButtonRef = useRef(null);
 
-  const currentTier = SUBSCRIPTION_TIERS[mockSubscription?.subscription || 'premium'];
-  const upcomingWorkout = mockSubscription.workouts.find(w => !w.completed && new Date(w.date) >= new Date());
-  const historicalStats = {
-    workoutsCompleted: mockSubscription.stats.workoutsCompleted - 2,
-    currentStreak: mockSubscription.stats.currentStreak - 1,
-    monthlyProgress: mockSubscription.stats.monthlyProgress - 5,
-    goalsAchieved: mockSubscription.stats.goalsAchieved
+  const currentTier = SUBSCRIPTION_TIERS[mockSubscription.subscription];
+
+  // Start tutorial
+  const startTutorial = () => {
+    setShowTutorial(true);
+    setCurrentTutorialStep(0);
   };
 
-  const healthMetrics = {
-    weight: mockSubscription.progress.weightProgress || [],
-    bodyFat: mockSubscription.progress.bodyFatProgress || [],
-    strength: mockSubscription.progress.strengthProgress || [],
-    cardio: mockSubscription.progress.cardioProgress || [],
+  // End tutorial
+  const endTutorial = () => {
+    setShowTutorial(false);
+    setCurrentTutorialStep(0);
   };
 
-  const handleSendMessage = () => {
+  // Next tutorial step
+  const nextTutorialStep = () => {
+    if (currentTutorialStep < TUTORIAL_STEPS.length - 1) {
+      const nextStep = currentTutorialStep + 1;
+      setCurrentTutorialStep(nextStep);
+      
+      // Switch tabs if needed for the next step
+      const nextStepConfig = TUTORIAL_STEPS[nextStep];
+      if (nextStepConfig.tab && nextStepConfig.tab !== activeTab) {
+        setActiveTab(nextStepConfig.tab);
+      }
+    } else {
+      endTutorial();
+    }
+  };
+
+  // Previous tutorial step
+  const previousTutorialStep = () => {
+    if (currentTutorialStep > 0) {
+      const prevStep = currentTutorialStep - 1;
+      setCurrentTutorialStep(prevStep);
+      
+      // Switch tabs if needed for the previous step
+      const prevStepConfig = TUTORIAL_STEPS[prevStep];
+      if (prevStepConfig.tab && prevStepConfig.tab !== activeTab) {
+        setActiveTab(prevStepConfig.tab);
+      }
+    }
+  };
+
+  // Get current target ref based on tutorial step
+  const getCurrentTargetRef = () => {
+    const currentStep = TUTORIAL_STEPS[currentTutorialStep];
+    if (!currentStep) return null;
+
+    switch (currentStep.target) {
+      case 'welcome-header': return welcomeHeaderRef;
+      case 'stats-grid': return statsGridRef;
+      case 'navigation-tabs': return navigationTabsRef;
+      case 'goals-section': return goalsSectionRef;
+      case 'workouts-section': return workoutsSectionRef;
+      case 'progress-metrics': return progressMetricsRef;
+      case 'profile-section': return profileSectionRef;
+      case 'chat-button': return chatButtonRef;
+      default: return null;
+    }
+  };
+
+  // Auto-start tutorial on component mount (for demo purposes)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      startTutorial();
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleSendMessage = (e) => {
+    e.preventDefault();
     if (!newMessage.trim()) return;
 
-    const message = {
-      id: chatMessages.length + 1,
+    const newMsg = {
+      id: messages.length + 1,
       senderId: 'user1',
-      senderName: mockUser.firstName + ' ' + mockUser.lastName,
+      senderName: 'Guest User',
       message: newMessage,
       timestamp: new Date(),
       isCoach: false
     };
 
-    setChatMessages([...chatMessages, message]);
+    setMessages([...messages, newMsg]);
     setNewMessage('');
-
-    setTimeout(() => {
-      const coachResponse = {
-        id: chatMessages.length + 2,
-        senderId: '1',
-        senderName: mockAssignedCoach.firstName + ' ' + mockAssignedCoach.lastName,
-        message: "Thanks for your message! I'll review this and get back to you with personalized advice.",
-        timestamp: new Date(),
-        isCoach: true
-      };
-      setChatMessages(prev => [...prev, coachResponse]);
-    }, 2000);
   };
 
-  const handleRateCoach = (stars) => {
-    setRating(stars);
-    setTimeout(() => {
-      alert(`Thank you for rating your coach ${stars} stars!`);
-      setShowRating(false);
-    }, 500);
+  const handleWorkoutComplete = (workoutId) => {
+    // In a real app, this would update the backend
+    console.log(`Workout ${workoutId} marked as complete`);
   };
 
-  const StatisticsGrid = () => (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-      <StatCard
-        title="Workouts Completed"
-        value={mockSubscription.stats.workoutsCompleted}
-        previousValue={historicalStats.workoutsCompleted}
-        icon={<Dumbbell className="w-6 h-6 text-white" />}
-        trend="up"
-        onClick={() => setActiveTab('workouts')}
-      />
-      <StatCard
-        title="Current Streak"
-        value={`${mockSubscription.stats.currentStreak} days`}
-        previousValue={`${historicalStats.currentStreak} days`}
-        icon={<Activity className="w-6 h-6 text-white" />}
-        trend="up"
-        onClick={() => setActiveTab('progress')}
-      />
-      <StatCard
-        title="Monthly Progress"
-        value={`${mockSubscription.stats.monthlyProgress}%`}
-        previousValue={`${historicalStats.monthlyProgress}%`}
-        icon={<BarChart2 className="w-6 h-6 text-white" />}
-        trend="up"
-        onClick={() => setActiveTab('progress')}
-      />
-      <StatCard
-        title="Goals Achieved"
-        value={mockSubscription.stats.goalsAchieved}
-        previousValue={historicalStats.goalsAchieved}
-        icon={<Target className="w-6 h-6 text-white" />}
-        trend="neutral"
-        onClick={() => setActiveTab('goals')}
-      />
-    </div>
-  );
+  const handleGoalComplete = (goalId) => {
+    // In a real app, this would update the backend
+    console.log(`Goal ${goalId} marked as complete`);
+  };
 
-  const Chat = () => (
-    <AnimatePresence>
-      {showChat && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => setShowChat(false)}
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md h-[600px] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <div className="flex items-center">
-                <img
-                  src={mockAssignedCoach.profileImage}
-                  alt="Coach"
-                  className="w-10 h-10 rounded-full mr-3"
-                />
-                <div>
-                  <h3 className="font-semibold dark:text-white">
-                    {mockAssignedCoach.firstName} {mockAssignedCoach.lastName}
-                  </h3>
-                  <p className="text-sm text-green-600">Online</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowChat(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {chatMessages.map(message => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.isCoach ? 'justify-start' : 'justify-end'}`}
-                >
-                  <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-2 ${
-                      message.isCoach
-                        ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-                        : 'bg-blue-600 text-white'
-                    }`}
-                  >
-                    <p className="text-sm">{message.message}</p>
-                    <p className={`text-xs mt-1 ${
-                      message.isCoach ? 'text-gray-500' : 'text-blue-100'
-                    }`}>
-                      {formatTime(message.timestamp)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type your message..."
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-full bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                />
-                <button
-                  onClick={handleSendMessage}
-                  className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors duration-200"
-                >
-                  <Send className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
+  const handleUpgradeClick = () => {
+    alert(`Upgrade to ${currentTier.upgrade} plan clicked!`);
+  };
 
-  const RatingModal = () => (
-    <AnimatePresence>
-      {showRating && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => setShowRating(false)}
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 w-full max-w-sm"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-xl font-bold text-center mb-4 dark:text-white">
-              Rate Your Coach
-            </h3>
-            <p className="text-gray-600 dark:text-gray-300 text-center mb-6">
-              How would you rate {mockAssignedCoach.firstName}'s coaching?
-            </p>
-            
-            <div className="flex justify-center gap-2 mb-6">
-              {[1, 2, 3, 4, 5].map(star => (
-                <button
-                  key={star}
-                  onClick={() => handleRateCoach(star)}
-                  className={`p-2 rounded-full transition-colors duration-200 ${
-                    star <= rating 
-                      ? 'text-yellow-400 hover:text-yellow-500' 
-                      : 'text-gray-300 hover:text-yellow-400'
-                  }`}
-                >
-                  <Star className="w-8 h-8 fill-current" />
-                </button>
-              ))}
-            </div>
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowRating(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleRateCoach(rating || 5)}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200"
-              >
-                Submit
-              </button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
+  const handleRateCoach = () => {
+    alert('Rate coach functionality would open here!');
+  };
 
+  const handleEditQuestionnaire = () => {
+    alert('Edit questionnaire functionality would open here!');
+  };
+
+  const handleManageSubscription = () => {
+    alert('Manage subscription functionality would open here!');
+  };
+
+  const handleUpdateStats = () => {
+    alert('Update stats functionality would open here!');
+  };
+
+  const handleAddMetricEntry = () => {
+    alert('Add metric entry functionality would open here!');
+  };
+
+  // Stats cards data
+  const statsCards = [
+    {
+      title: 'Workouts Completed',
+      value: mockSubscription.stats.workoutsCompleted,
+      icon: <Dumbbell className="w-6 h-6 text-white" />,
+      trend: 'up'
+    },
+    {
+      title: 'Current Streak',
+      value: `${mockSubscription.stats.currentStreak} days`,
+      icon: <Activity className="w-6 h-6 text-white" />,
+      trend: 'up'
+    },
+    {
+      title: 'Monthly Progress',
+      value: `${mockSubscription.stats.monthlyProgress}%`,
+      icon: <TrendingUp className="w-6 h-6 text-white" />,
+      trend: 'up'
+    },
+    {
+      title: 'Goals Achieved',
+      value: mockSubscription.stats.goalsAchieved,
+      icon: <Target className="w-6 h-6 text-white" />,
+      trend: 'neutral'
+    }
+  ];
+
+  const navigate = useNavigate();
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-blue-50 dark:from-gray-950 dark:to-indigo-950 py-8 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
-      <div className="max-w-7xl mx-auto space-y-8 p-4">
-        <WelcomeHeader
-          user={mockUser}
-          subscription={mockSubscription}
-          assignedCoach={mockAssignedCoach}
-          onChatOpen={() => setShowChat(true)}
-          onUpgradeClick={() => alert('Upgrade functionality would be here')}
-          onRateCoach={() => setShowRating(true)}
-        />
-
-        {upcomingWorkout && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 flex justify-between items-center shadow-lg"
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4" style={{ position: 'relative' }}>
+      {/* Leave Mock Button on the right */}
+      <button
+        style={{
+          position: 'absolute',
+          top: 80,
+          right: 30,
+          padding: '8px 16px',
+          fontSize: '0.9rem',
+          background: 'rgba(30, 41, 59, 0.6)', // dark slate, 60% opacity
+          color: '#fff',
+          border: 'none',
+          borderRadius: '6px',
+          cursor: 'pointer',
+          zIndex: 10,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+        }}
+        onClick={() => navigate('/')}
+      >
+        Leave
+      </button>
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Tutorial Help Button */}
+        <div className="flex justify-end">
+          <button
+            onClick={startTutorial}
+            className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
           >
-            <div className="flex items-center">
-              <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400 mr-3" />
-              <div>
-                <p className="font-medium text-blue-800 dark:text-blue-300">
-                  Upcoming workout: {upcomingWorkout.title}
-                </p>
-                <p className="text-sm text-blue-600 dark:text-blue-400">
-                  {formatDate(upcomingWorkout.date)} at {upcomingWorkout.time}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setActiveTab('workouts')}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors duration-200"
-            >
-              View Details
-            </button>
-          </motion.div>
-        )}
+            <HelpCircle className="w-5 h-5" />
+            <span>Show Tutorial</span>
+          </button>
+        </div>
 
-        <div className="bg-white dark:bg-gray-800 sticky top-0 z-10 border-b border-gray-200 dark:border-gray-700 shadow-sm px-4 py-2 rounded-t-lg transition-colors duration-300">
-          <div className="grid grid-cols-5 bg-gray-100/80 dark:bg-gray-700/50 backdrop-blur-sm rounded-lg p-1">
-            {[
-              { id: 'overview', label: 'Overview', icon: BarChart2 },
-              { id: 'workouts', label: 'Workouts', icon: Dumbbell },
-              { id: 'sessions', label: 'Sessions', icon: Calendar },
-              { id: 'progress', label: 'Progress', icon: Activity },
-              { id: 'profile', label: 'Profile', icon: User }
-            ].map(tab => (
+        {/* Welcome Header */}
+        <div ref={welcomeHeaderRef}>
+          <WelcomeHeader
+            user={mockUser}
+            subscription={mockSubscription}
+            assignedCoach={mockAssignedCoach}
+            onChatOpen={() => setIsChatOpen(true)}
+            onUpgradeClick={handleUpgradeClick}
+            onRateCoach={handleRateCoach}
+          />
+        </div>
+
+        {/* Stats Grid */}
+        <div ref={statsGridRef} id="stats-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {statsCards.map((stat, index) => (
+            <StatCard
+              key={index}
+              title={stat.title}
+              value={stat.value}
+              icon={stat.icon}
+              trend={stat.trend}
+              onClick={handleUpdateStats}
+            />
+          ))}
+        </div>
+
+        {/* Navigation Tabs */}
+        <div ref={navigationTabsRef} id="navigation-tabs" className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
+          <div className="flex border-b border-gray-200 dark:border-gray-700">
+            {['overview', 'progress', 'profile'].map((tab) => (
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center justify-center gap-2 py-2 px-4 rounded-lg transition-all duration-300 ${
-                  activeTab === tab.id
-                    ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
+                  activeTab === tab
+                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
                 }`}
               >
-                <tab.icon className="w-4 h-4" />
-                <span className="hidden sm:inline">{tab.label}</span>
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
               </button>
             ))}
           </div>
-        </div>
 
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
-          >
+          {/* Tab Content */}
+          <div className="p-6">
             {activeTab === 'overview' && (
               <div className="space-y-6">
-                <StatisticsGrid />
-                <div className="grid lg:grid-cols-2 gap-6">
-                  <GoalsSection />
-                  <WorkoutSection />
-                </div>
-                
-                <div className={`bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 ${currentTier.gradientBg}`}>
-                  <div className={`w-full h-2 bg-gradient-to-r ${currentTier.color} rounded-t-lg -mt-6 -mx-6 mb-6`} />
-                  <div className="flex items-center mb-4">
-                    {currentTier.icon}
-                    <h2 className="ml-2 text-xl font-bold dark:text-white">
-                      Your {currentTier.name} Plan Features
-                    </h2>
-                  </div>
-                  <ul className="space-y-2">
-                    {currentTier.features.map((feature, index) => (
-                      <li key={index} className="flex items-center">
-                        <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-                        <span className="dark:text-gray-300">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {currentTier.upgrade && (
-                    <button className="w-full mt-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 rounded-lg font-semibold transition-colors duration-300">
-                      Upgrade to {SUBSCRIPTION_TIERS[currentTier.upgrade].name}
+                {/* Goals Section */}
+                <div ref={goalsSectionRef} id="goals-section" className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Your Goals</h2>
+                    <button className="text-blue-600 hover:text-blue-700 transition-colors">
+                      View All
                     </button>
-                  )}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {mockGoals.map((goal) => (
+                      <div key={goal.id} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-2">
+                            {goal.icon}
+                            <span className="font-medium text-gray-900 dark:text-white">{goal.title}</span>
+                          </div>
+                          {goal.completed && (
+                            <CheckCircle className="w-5 h-5 text-green-500" />
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">{goal.target}</p>
+                        <Progress value={goal.progress} className="mb-2" />
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>Progress: {goal.progress}%</span>
+                          <span>Due: {goal.due}</span>
+                        </div>
+                        {!goal.completed && (
+                          <button
+                            onClick={() => handleGoalComplete(goal.id)}
+                            className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition-colors"
+                          >
+                            Mark Complete
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Workouts Section */}
+                <div ref={workoutsSectionRef} id="workouts-section" className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Recent Workouts</h2>
+                  <div className="space-y-4">
+                    {mockSubscription.workouts.map((workout) => (
+                      <div key={workout.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div className="flex items-center space-x-4">
+                          <div className={`p-2 rounded-full ${workout.completed ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                            {workout.type === 'strength' ? <Dumbbell className="w-5 h-5" /> : <Activity className="w-5 h-5" />}
+                          </div>
+                          <div>
+                            <h3 className="font-medium text-gray-900 dark:text-white">{workout.title}</h3>
+                            <p className="text-sm text-gray-500">
+                              {formatDate(workout.date)} • {workout.duration}min
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {workout.completed ? (
+                            <span className="text-green-600 font-medium">Completed</span>
+                          ) : (
+                            <button
+                              onClick={() => handleWorkoutComplete(workout.id)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                            >
+                              Mark Complete
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -1322,9 +1449,9 @@ const MockUserDashboard = () => {
             {activeTab === 'progress' && (
               <ProgressSection
                 stats={mockSubscription.stats}
-                healthMetrics={healthMetrics}
-                onUpdateStats={() => alert('Update stats functionality would be here')}
-                onAddMetricEntry={() => alert('Add metric entry functionality would be here')}
+                healthMetrics={mockSubscription.progress}
+                onUpdateStats={handleUpdateStats}
+                onAddMetricEntry={handleAddMetricEntry}
               />
             )}
 
@@ -1333,40 +1460,97 @@ const MockUserDashboard = () => {
                 subscription={mockSubscription}
                 questionnaire={mockQuestionnaire}
                 currentTier={currentTier}
-                onEditQuestionnaire={() => alert('Edit questionnaire functionality would be here')}
-                onManageSubscription={() => alert('Manage subscription functionality would be here')}
-                onUpgradeClick={() => alert('Upgrade functionality would be here')}
+                onEditQuestionnaire={handleEditQuestionnaire}
+                onManageSubscription={handleManageSubscription}
+                onUpgradeClick={handleUpgradeClick}
               />
             )}
+          </div>
+        </div>
 
-            {(activeTab === 'workouts' || activeTab === 'sessions') && (
-              <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 text-center">
-                <h2 className="text-2xl font-bold mb-4 dark:text-white">
-                  {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Section
-                </h2>
-                <p className="text-gray-600 dark:text-gray-300">
-                  This section would contain your {activeTab} information and functionality.
-                </p>
+        {/* Floating Chat Button */}
+        <div ref={chatButtonRef} id="chat-button" className="fixed bottom-6 right-6">
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-full shadow-lg transition-all duration-300 hover:scale-110"
+          >
+            <MessageSquare className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Chat Modal */}
+        {isChatOpen && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
+              <div className="flex items-center justify-between p-4 border-b">
+                <h3 className="text-lg font-semibold">Chat with Coach</h3>
+                <button
+                  onClick={() => setIsChatOpen(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            )}
-          </motion.div>
+              
+              <div className="flex-1 p-4 overflow-y-auto space-y-4">
+                {messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex ${msg.isCoach ? 'justify-start' : 'justify-end'}`}
+                  >
+                    <div
+                      className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                        msg.isCoach
+                          ? 'bg-gray-100 text-gray-900'
+                          : 'bg-blue-600 text-white'
+                      }`}
+                    >
+                      <p className="text-sm">{msg.message}</p>
+                      <p className="text-xs opacity-70 mt-1">
+                        {formatTime(msg.timestamp)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <form onSubmit={handleSendMessage} className="p-4 border-t">
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Type your message..."
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="submit"
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Tutorial Overlay */}
+        <AnimatePresence>
+          {showTutorial && currentTutorialStep < TUTORIAL_STEPS.length && (
+            <TutorialOverlay
+              step={TUTORIAL_STEPS[currentTutorialStep]}
+              onNext={nextTutorialStep}
+              onPrevious={previousTutorialStep}
+              onSkip={endTutorial}
+              totalSteps={TUTORIAL_STEPS.length}
+              targetRef={getCurrentTargetRef()}
+            />
+          )}
         </AnimatePresence>
       </div>
-
-      <motion.button
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        whileHover={{ scale: 1.1 }}
-        onClick={() => setShowChat(true)}
-        className="fixed bottom-4 right-4 w-14 h-14 bg-blue-600 hover:bg-blue-700 rounded-full shadow-lg flex items-center justify-center z-40 transition-colors duration-200"
-      >
-        <MessageSquare className="w-6 h-6 text-white" />
-      </motion.button>
-
-      <Chat />
-      <RatingModal />
     </div>
   );
 };
 
-export default MockUserDashboard;
+export default Dashboard;

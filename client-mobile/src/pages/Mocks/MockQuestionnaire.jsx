@@ -225,7 +225,27 @@ const MockQuestionnaire = () => {
   };
 
   return (
-    <div className="questionnaire-fullscreen questionnaire-container w-screen h-screen overflow-hidden bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 dark">
+    <div className="questionnaire-fullscreen questionnaire-container w-screen h-screen overflow-hidden bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 dark" style={{ position: 'relative' }}>
+      {/* Leave Button */}
+      <button
+        style={{
+          position: 'absolute',
+          top: 80,
+          right: 30,
+          padding: '8px 16px',
+          fontSize: '0.9rem',
+          background: 'rgba(30, 41, 59, 0.6)', // dark slate, 60% opacity
+          color: '#fff',
+          border: 'none',
+          borderRadius: '6px',
+          cursor: 'pointer',
+          zIndex: 10,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+        }}
+        onClick={() => window.location.href = '/'}
+      >
+        Leave
+      </button>
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-pink-600/20 to-rose-700/20 rounded-full blur-3xl animate-pulse"></div>
@@ -266,17 +286,17 @@ const MockQuestionnaire = () => {
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.6 }}
-              className="mb-1 sm:mb-2 lg:mb-3 flex-shrink-0"
+              className="mb-1 sm:mb-2 lg:mb-2 flex-shrink-0"
             >
               <div className="flex justify-between items-center mb-1">
-                <span className="text-xs sm:text-sm font-medium text-white/90 dark:text-gray-200/90 drop-shadow">
+                <span className="text-xs sm:text-xs lg:text-xs font-medium text-white/90 dark:text-gray-200/90 drop-shadow">
                   Step {currentStep + 1} of {sections.length}
                 </span>
-                <span className="text-xs sm:text-sm font-bold text-white dark:text-gray-100 drop-shadow">
+                <span className="text-xs sm:text-xs lg:text-xs font-bold text-white dark:text-gray-100 drop-shadow">
                   {Math.round(((currentStep + 1) / sections.length) * 100)}% Complete
                 </span>
               </div>
-              <div className="h-1 sm:h-1.5 bg-black/20 dark:bg-gray-800/50 rounded-full overflow-hidden shadow-inner backdrop-blur-sm">
+              <div className="h-1 sm:h-1 lg:h-1 bg-black/20 dark:bg-gray-800/50 rounded-full overflow-hidden shadow-inner backdrop-blur-sm">
                 <motion.div 
                   initial={{ width: 0 }}
                   animate={{ width: `${((currentStep + 1) / sections.length) * 100}%` }}
@@ -291,14 +311,14 @@ const MockQuestionnaire = () => {
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.8 }}
-              className="hidden md:flex justify-between mb-1 sm:mb-2 px-1 sm:px-2 flex-shrink-0"
+              className="hidden md:flex justify-between mb-1 sm:mb-2 lg:mb-1 px-1 sm:px-2 flex-shrink-0"
             >
               {sections.map((section, index) => (
                 <motion.button
                   key={index}
-                  whileHover={{ scale: 1.1, y: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                  className={`flex flex-col items-center space-y-0.5 sm:space-y-1 transition-all duration-300 ${
+                  whileHover={{ scale: 1.08, y: -1 }}
+                  whileTap={{ scale: 0.96 }}
+                  className={`flex flex-col items-center space-y-0.5 sm:space-y-0.5 lg:space-y-0.5 transition-all duration-300 ${
                     index === currentStep
                       ? 'text-indigo-600 dark:text-indigo-400'
                       : index < currentStep
@@ -309,7 +329,7 @@ const MockQuestionnaire = () => {
                   disabled={index > currentStep}
                 >
                   <div
-                    className={`w-6 sm:w-8 lg:w-10 h-6 sm:h-8 lg:h-10 rounded-full flex items-center justify-center border-2 shadow-lg transition-all duration-300 ${
+                    className={`w-5 sm:w-6 lg:w-7 h-5 sm:h-6 lg:h-7 rounded-full flex items-center justify-center border-2 shadow-lg transition-all duration-300 ${
                       index === currentStep
                         ? 'border-indigo-500 bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-indigo-300 dark:shadow-indigo-900'
                         : index < currentStep
@@ -322,15 +342,15 @@ const MockQuestionnaire = () => {
                         initial={{ scale: 0, rotate: -180 }}
                         animate={{ scale: 1, rotate: 0 }}
                       >
-                        <Check className="w-2 sm:w-3 lg:w-4 h-2 sm:h-3 lg:h-4" />
+                        <Check className="w-2 sm:w-2 lg:w-2 h-2 sm:h-2 lg:h-2" />
                       </motion.div>
                     ) : (
-                      <div className="text-xs sm:text-sm lg:text-base">
+                      <div className="text-xs sm:text-xs lg:text-xs">
                         {section.icon}
                       </div>
                     )}
                   </div>
-                  <span className="text-xs font-medium text-center max-w-10 sm:max-w-12 leading-tight">
+                  <span className="text-xs font-medium text-center max-w-8 sm:max-w-10 lg:max-w-10 leading-tight">
                     {section.title}
                   </span>
                 </motion.button>
