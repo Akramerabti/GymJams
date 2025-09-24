@@ -534,6 +534,19 @@ const MockCoachAssignment = () => {
     }
   }, [assignmentStatus, loading]);
 
+  
+    useEffect(() => {
+      // Hide footer and scrollbars for full-screen experience
+      document.body.classList.add('hide-footer', 'overflow-hidden');
+      document.documentElement.classList.add('hide-footer', 'overflow-hidden');
+      
+      return () => {
+        // Restore footer and scrollbars when component unmounts
+        document.body.classList.remove('hide-footer', 'overflow-hidden');
+        document.documentElement.classList.remove('hide-footer', 'overflow-hidden');
+      };
+    }, []);
+
   const sortCoaches = (coachesToSort, sortCriteria) => {
     if (!coachesToSort || coachesToSort.length === 0) return [];
     

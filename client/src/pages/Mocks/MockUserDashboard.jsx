@@ -472,16 +472,8 @@ const TutorialOverlay = ({
           </span>
         </div>
 
-        {/* Actions */}
-        <div className="flex justify-between">
-          <button
-            onClick={onSkip}
-            className="text-gray-500 hover:text-gray-700 flex items-center"
-          >
-            <SkipForward className="w-4 h-4 mr-1" />
-            Skip Tour
-          </button>
-          <div className="flex space-x-2">
+       <div className="flex justify-between">
+                <div className="flex">
             {step.id > 1 && (
               <button
                 onClick={onPrevious}
@@ -490,14 +482,22 @@ const TutorialOverlay = ({
                 <ChevronLeft className="w-4 h-4" />
               </button>
             )}
-            <button
+          </div>
+          <button
               onClick={onNext}
               className="px-4 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
             >
               {step.id === totalSteps ? 'Finish' : 'Next'}
               {step.id < totalSteps && <ChevronRight className="w-4 h-4 ml-1" />}
             </button>
-          </div>
+
+          <button
+            onClick={onSkip}
+            className="text-gray-500 hover:text-gray-700 flex items-center"
+          >
+            <SkipForward className="w-4 h-4 mr-1" />
+            Skip Tour
+          </button>
         </div>
       </motion.div>
     </motion.div>

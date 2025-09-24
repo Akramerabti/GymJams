@@ -61,6 +61,7 @@ import Privacy from './pages/CustomerService/privacy';
 import MockCoachAssignment from './pages/Mocks/MockAssignment';
 import MockQuestionnaire from './pages/Mocks/MockQuestionnaire';
 import MockUserDashboard from './pages/Mocks/MockUserDashboard';
+import MockGymBros from './pages/Mocks/MockGymBros';
 
 // Common Components
 import LocationBanner from './components/common/LocationBanner';
@@ -452,6 +453,8 @@ function App() {
                   <Route path="/mock-assignment" element={<MockCoachAssignment />} />
                   <Route path="/mock-questionnaire" element={<MockQuestionnaire />} />
                   <Route path="/mock-dashboard" element={<MockUserDashboard />} />
+                  <Route path="/mock-gymbros" element={<MockGymBros />} />
+
                   
                   {/* Protected Routes */}
                   <Route path="/profile" element={

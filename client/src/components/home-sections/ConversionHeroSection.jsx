@@ -124,7 +124,7 @@ const ConversionLanding = ({ onNavigate, backgroundColor = '#000000', textColor 
       id: 'social',
       title: 'GymBros Network',
       description: 'Connect with workout partners, share achievements, and build your fitness community',
-      route: '/mock-social',
+      route: '/mock-gymbros',
       icon: Users
     }
   ];

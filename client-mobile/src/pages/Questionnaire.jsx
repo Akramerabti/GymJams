@@ -445,17 +445,18 @@ const handleSubmit = async () => {
                 className="inline-flex items-center bg-gray-800/90 backdrop-blur-xl rounded-full px-2 sm:px-3 lg:px-4 py-1 sm:py-1.5 lg:py-2 border-2 border-gray-700/50 shadow-2xl mb-1 sm:mb-2"
               >
                 <div className="p-0.5 sm:p-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full mr-1 sm:mr-2">
-                  <div className="text-white text-xs sm:text-sm lg:text-base">
+                  <div className="text-white text-xs sm:text-sm lg:text-sm">
                     {SUBSCRIPTION_TIERS[subscriptionTier].icon}
                   </div>
                 </div>
-                <span className="font-bold text-xs sm:text-sm lg:text-base text-gray-200">{SUBSCRIPTION_TIERS[subscriptionTier].name} Plan</span>
+                <span className="font-bold text-xs sm:text-sm lg:text-sm text-gray-200">{SUBSCRIPTION_TIERS[subscriptionTier].name} Plan</span>
               </motion.div>
                 <motion.h1 
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.2 }}
-                className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold bg-gradient-to-r from-white via-cyan-100 to-white bg-clip-text text-transparent mb-0.5 sm:mb-1 drop-shadow-lg leading-tight"
+                style={{ fontSize: 'clamp(1rem, 2vw, 1.25rem)' }}
+                className="text-sm sm:text-md md:text-base lg:text-xl font-bold bg-gradient-to-r from-white via-cyan-100 to-white bg-clip-text text-transparent mb-0.5 sm:mb-1 drop-shadow-lg leading-tight"
               >
                 {isEditing ? 'Update Your Fitness Profile' : 'Complete Your Fitness Profile'}
               </motion.h1>
@@ -561,20 +562,20 @@ const handleSubmit = async () => {
                   <Card className="bg-gray-800/80 backdrop-blur-xl shadow-2xl border-0 overflow-hidden flex-1 flex flex-col">
                     <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 h-1"></div>
                     <CardContent className="questionnaire-card-content pt-2 sm:pt-3 lg:pt-4 pb-2 sm:pb-3 lg:pb-4 flex-1 flex flex-col overflow-hidden">
-                      <motion.div 
+                     <motion.div 
                         initial={{ y: 10, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         className="flex items-center mb-2 sm:mb-3 lg:mb-4 flex-shrink-0"
                       >
                         <div className="p-1.5 sm:p-2 lg:p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg sm:rounded-xl lg:rounded-2xl mr-2 sm:mr-3 lg:mr-4 shadow-lg">
-                          <div className="text-white text-sm sm:text-base lg:text-lg">
+                          <div className="text-white text-xs sm:text-sm lg:text-base">
                             {sections[currentStep].icon}
                           </div>
                         </div>                        <div>
-                          <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white mb-0.5 sm:mb-1">
+                          <h2 className="text-sm sm:text-base lg:text-lg font-bold text-white mb-0.5 sm:mb-1">
                             {sections[currentStep].title}
                           </h2>
-                          <p className="text-xs sm:text-sm lg:text-base text-gray-300">
+                          <p className="text-xs sm:text-xs lg:text-sm text-gray-300">
                             {sections[currentStep].description}
                           </p>
                         </div>
