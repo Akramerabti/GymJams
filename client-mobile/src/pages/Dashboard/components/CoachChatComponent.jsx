@@ -36,7 +36,7 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
   
   // Get user info
   const userId = user?.id || user?.user?.id;
-  const clientId = selectedClient?.userId || selectedClient?.user;
+  const clientId = selectedClient?.userId || selectedClient?.user || selectedClient?.id || selectedClient?._id;
   const subscriberId = selectedClient?.id || selectedClient?._id;
 
   useEffect(() => {
@@ -798,33 +798,6 @@ const CoachChatComponent = ({ onClose, selectedClient }) => {
     
     return groups;
   }, [messages]);
-
-  // Initialize lastReadMessageId when messages load
-  useEffect(() => {
-    if (messages.length > 0 && userId) {
-      // Get all messages sent by the user (current user)
-      const userMessages = messages.filter(msg => 
-        msg.sender === userId && !msg.pending
-      );
-      
-      if (userMessages.length === 0) return;
-      
-      // Sort in chronological order
-      userMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-      
-      // Find the last message that is read
-      let lastReadMsg = null;
-      
-      for (let i = userMessages.length - 1; i >= 0; i--) {
-        if (userMessages[i].read) {
-          lastReadMsg = userMessages[i];
-          break;
-        }
-      }
-      
-      setLastReadMessageId(lastReadMsg?._id || null);
-    }
-  }, [messages, userId]);
   
   // Update lastReadMessageId when receiving messagesRead event
   useEffect(() => {

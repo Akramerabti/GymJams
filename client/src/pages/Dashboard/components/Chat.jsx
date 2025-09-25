@@ -31,7 +31,7 @@ const Chat = ({ subscription, onClose }) => {
   const lastMessageReceived = useRef(null);
   
   // Get user info
-  const userId = user?.id || user?.user?.id;
+  const userId = user?.id || user?.user?.id || subscription?._id;
   const coachId = subscription?.assignedCoach;
   
   // Auto-scroll to bottom when messages change
