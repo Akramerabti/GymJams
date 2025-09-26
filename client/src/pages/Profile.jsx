@@ -436,8 +436,8 @@ const Profile = () => {
   };
 
   return (
-    <div className="min-h-[100dvh] mt-10 bg-gray-50 relative p-4">
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-[100dvh] mt-10 bg-gray-50 relative">
+      <div className="container mx-auto py-8">
         <form onSubmit={handleSubmit} className="space-y-6">
           {isCoach ? (
             <div className="relative bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-800 h-48">
