@@ -192,7 +192,7 @@ const ImageCropModal = ({ image, onCropComplete, onClose, aspectRatio = 1 }) => 
         right: 0,
         bottom: 0,
         width: '100vw',
-        height: '100vh'
+        height: '100dvh'
       }}
     >
       {/* Header */}
