@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
 import { usePoints } from '../hooks/usePoints';
@@ -8,7 +8,7 @@ import { Button } from '../components/ui/button';
 import { 
   User, Package, LogOut, Loader2, Coins, AlertCircle, CheckCircle, 
   Clock, Star, Instagram, Twitter, Youtube, Crown, Settings, 
-  Trash2, MapPin, Navigation, RotateCcw, Shield
+  Trash2, MapPin, Navigation, RotateCcw, Shield, Edit, Save, X
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../services/api';
@@ -23,7 +23,6 @@ const Profile = () => {
   const { user, updateProfile, logout, validatePhone } = useAuth();
   const navigate = useNavigate();
   const { balance, fetchPoints } = usePoints();
-  const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [subscriptionDetails, setSubscriptionDetails] = useState(null);
   const [redirecting, setRedirecting] = useState(false);
@@ -32,6 +31,11 @@ const Profile = () => {
   const [cropModalProps, setCropModalProps] = useState(null);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [isRefreshingLocation, setIsRefreshingLocation] = useState(false);
+
+  // State for tracking which fields are being edited
+  const [editingField, setEditingField] = useState(null);
+  const [tempValues, setTempValues] = useState({});
+  const inputRefs = useRef({});
 
   const [profileData, setProfileData] = useState({
     firstName: '',
@@ -125,6 +129,131 @@ const Profile = () => {
     }
   }, [user, fetchPoints, navigate, canReceivePayouts]);
 
+  // Handle click outside to save
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (editingField && inputRefs.current[editingField]) {
+        if (!inputRefs.current[editingField].contains(event.target)) {
+          handleSaveField(editingField);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [editingField, tempValues]);
+
+  const handleEditField = (fieldName, value) => {
+    setEditingField(fieldName);
+    setTempValues(prev => ({
+      ...prev,
+      [fieldName]: value
+    }));
+    
+    // Focus the input field after a short delay
+    setTimeout(() => {
+      if (inputRefs.current[fieldName]) {
+        inputRefs.current[fieldName].focus();
+      }
+    }, 100);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingField(null);
+    setTempValues({});
+  };
+
+  const handleSaveField = async (fieldName) => {
+    if (!tempValues[fieldName] && tempValues[fieldName] !== '') return;
+    
+    const newValue = tempValues[fieldName];
+    const currentValue = getFieldValue(profileData, fieldName);
+    
+    // Don't save if value hasn't changed
+    if (newValue === currentValue) {
+      setEditingField(null);
+      setTempValues({});
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Special handling for phone validation
+      if (fieldName === 'phone') {
+        const isPhoneValid = await validatePhone({
+          phone: newValue,
+        });
+
+        if (!isPhoneValid) {
+          throw new Error('Phone number already in use');
+        }
+      }
+
+      // Special handling for nested fields like socialLinks
+      let updatedData;
+      if (fieldName.includes('.')) {
+        const [parent, child] = fieldName.split('.');
+        updatedData = {
+          ...profileData,
+          [parent]: {
+            ...profileData[parent],
+            [child]: newValue
+          }
+        };
+      } else {
+        updatedData = {
+          ...profileData,
+          [fieldName]: newValue
+        };
+      }
+
+      const updatedUser = await updateProfile(updatedData);
+      setProfileData(updatedUser);
+      
+      setEditingField(null);
+      setTempValues({});
+      
+      toast.success(`${getFieldDisplayName(fieldName)} updated successfully`);
+      
+    } catch (error) {
+      console.error(`Failed to update ${fieldName}:`, error);
+      toast.error(error.message || `Failed to update ${getFieldDisplayName(fieldName)}. Please try again.`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getFieldValue = (data, fieldName) => {
+    if (fieldName.includes('.')) {
+      const [parent, child] = fieldName.split('.');
+      return data[parent]?.[child] || '';
+    }
+    return data[fieldName] || '';
+  };
+
+  const getFieldDisplayName = (fieldName) => {
+    const names = {
+      firstName: 'First name',
+      lastName: 'Last name',
+      phone: 'Phone number',
+      bio: 'Bio',
+      'socialLinks.instagram': 'Instagram URL',
+      'socialLinks.twitter': 'Twitter URL',
+      'socialLinks.youtube': 'YouTube URL'
+    };
+    return names[fieldName] || fieldName;
+  };
+
+  const handleKeyPress = (e, fieldName) => {
+    if (e.key === 'Enter') {
+      handleSaveField(fieldName);
+    } else if (e.key === 'Escape') {
+      handleCancelEdit();
+    }
+  };
+
   const handleDeleteAccount = async () => {
     const confirmed = window.confirm(
       'Are you sure you want to delete your account? This action cannot be undone. All your data, including subscriptions and coaching information, will be permanently removed.'
@@ -165,48 +294,6 @@ const Profile = () => {
 
   const formatSubscriptionType = (type) => {
     return type ? type.charAt(0).toUpperCase() + type.slice(1) : '';
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const isPhoneValid = await validatePhone({
-        phone: profileData.phone,
-      });
-
-      if (!isPhoneValid) {
-        throw new Error('Phone number already in use');
-      }
-
-      const updatedUser = await updateProfile(profileData);
-      setProfileData({
-        firstName: updatedUser.firstName,
-        lastName: updatedUser.lastName,
-        email: updatedUser.email,
-        phone: updatedUser.phone,
-        profileImage: updatedUser.profileImage,
-        bio: updatedUser.bio,
-        rating: updatedUser.rating,
-        socialLinks: updatedUser.socialLinks
-      });
-
-      setEditing(false);
-
-      if (user?.role === 'coach' && !isCoachProfileComplete()) {
-        toast.warning('Your profile is incomplete. Complete your bio, photo, specialties, and location to start receiving coaching requests.');
-      }
-    } catch (error) {
-      console.error('Failed to update profile:', error);
-      toast.error(error.message || 'Failed to update profile. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
   };
 
   const handleImageUploadSuccess = (imageUrl) => {
@@ -435,10 +522,165 @@ const Profile = () => {
     }
   };
 
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  // Render input field with edit icon inside the input
+  const renderEditableField = (fieldName, label, type = 'text', options = {}) => {
+    const isEditing = editingField === fieldName;
+    const currentValue = getFieldValue(profileData, fieldName);
+    const displayValue = isEditing ? (tempValues[fieldName] !== undefined ? tempValues[fieldName] : currentValue) : currentValue;
+
+    return (
+      <div className="relative">
+        <label className={`block text-sm font-medium mb-1`}>{label}</label>
+        <div className="relative">
+          <Input
+            ref={el => inputRefs.current[fieldName] = el}
+            type={type}
+            value={displayValue}
+            onChange={(e) => {
+              if (isEditing) {
+                setTempValues(prev => ({
+                  ...prev,
+                  [fieldName]: e.target.value
+                }));
+              }
+            }}
+            onKeyDown={(e) => handleKeyPress(e, fieldName)}
+            disabled={!isEditing}
+            className={`pr-10 ${isEditing ? 'border-blue-300' : ''}`}
+            {...options}
+          />
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+            {!isEditing ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => handleEditField(fieldName, currentValue)}
+                className="h-7 w-7 p-0 hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                title={`Edit ${label}`}
+              >
+                <Edit className="h-3.5 w-3.5" />
+              </Button>
+            ) : (
+              <div className="flex space-x-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleSaveField(fieldName)}
+                  disabled={loading}
+                  className="h-7 w-7 p-0 hover:bg-green-50 text-green-600"
+                  title="Save"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCancelEdit}
+                  className="h-7 w-7 p-0 hover:bg-red-50 text-red-600"
+                  title="Cancel"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+        {options.maxLength && (
+          <div className={`text-xs mt-1 text-right ${
+            displayValue.length > options.maxLength - 10 
+              ? 'text-red-500' 
+              : 'text-gray-500'
+          }`}>
+            {displayValue.length}/{options.maxLength} characters
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Render social link field with edit icon inside the input
+  const renderSocialField = (platform, icon, fieldName) => {
+    const isEditing = editingField === fieldName;
+    const currentValue = getFieldValue(profileData, fieldName);
+    const displayValue = isEditing ? (tempValues[fieldName] !== undefined ? tempValues[fieldName] : currentValue) : currentValue;
+
+    return (
+      <div className="relative">
+        <div className="flex items-center space-x-2">
+          {icon}
+          <div className="relative flex-1">
+            <Input
+              ref={el => inputRefs.current[fieldName] = el}
+              placeholder={`${platform} URL`}
+              value={displayValue}
+              onChange={(e) => {
+                if (isEditing) {
+                  setTempValues(prev => ({
+                    ...prev,
+                    [fieldName]: e.target.value
+                  }));
+                }
+              }}
+              onKeyDown={(e) => handleKeyPress(e, fieldName)}
+              disabled={!isEditing}
+              className={`pr-10 ${isEditing ? 'border-blue-300' : ''}`}
+            />
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+              {!isEditing ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleEditField(fieldName, currentValue)}
+                  className="h-7 w-7 p-0 hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                  title={`Edit ${platform} URL`}
+                >
+                  <Edit className="h-3.5 w-3.5" />
+                </Button>
+              ) : (
+                <div className="flex space-x-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleSaveField(fieldName)}
+                    disabled={loading}
+                    className="h-7 w-7 p-0 hover:bg-green-50 text-green-600"
+                    title="Save"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCancelEdit}
+                    className="h-7 w-7 p-0 hover:bg-red-50 text-red-600"
+                    title="Cancel"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-[100dvh] mt-10 bg-gray-50 relative">
       <div className="container mx-auto py-8">
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-6">
           {isCoach ? (
             <div className="relative bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-800 h-48">
               <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/20 via-purple-500/30 to-indigo-600/20"></div>
@@ -542,42 +784,14 @@ const Profile = () => {
               <CardHeader className='border-b border-gray-100'>
                 <div className="flex justify-between items-center">
                   <CardTitle className=''>Personal Information</CardTitle>
-                  {!editing ? (
-                    <Button
-                      onClick={() => setEditing(true)}
-                      className="bg-blue-600 hover:bg-blue-700"
-                    >
-                      Edit Profile
-                    </Button>
-                  ) : null}
                 </div>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="space-y-6">
                   {/* First Name and Last Name */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className={`block text-sm font-medium mb-1`}>First Name</label>
-                      <Input
-                        value={profileData.firstName}
-                        onChange={(e) => setProfileData(prev => ({
-                          ...prev,
-                          firstName: e.target.value
-                        }))}
-                        disabled={!editing}
-                      />
-                    </div>
-                    <div>
-                      <label className={`block text-sm font-medium mb-1`}>Last Name</label>
-                      <Input
-                        value={profileData.lastName}
-                        onChange={(e) => setProfileData(prev => ({
-                          ...prev,
-                          lastName: e.target.value
-                        }))}
-                        disabled={!editing}
-                      />
-                    </div>
+                    {renderEditableField('firstName', 'First Name')}
+                    {renderEditableField('lastName', 'Last Name')}
                   </div>
 
                   {/* Email */}
@@ -587,22 +801,13 @@ const Profile = () => {
                       type="email"
                       value={profileData.email}
                       disabled={true}
+                      className="pr-10"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
                   </div>
 
                   {/* Phone */}
-                  <div>
-                    <label className={`block text-sm font-medium mb-1`}>Phone</label>
-                    <Input
-                      type="tel"
-                      value={profileData.phone}
-                      onChange={(e) => setProfileData(prev => ({
-                        ...prev,
-                        phone: e.target.value
-                      }))}
-                      disabled={!editing}
-                    />
-                  </div>
+                  {renderEditableField('phone', 'Phone', 'tel')}
 
                   {/* Payout Setup Section - Now visible for coaches, affiliates, AND taskforce */}
                   {canReceivePayouts && (
@@ -750,33 +955,10 @@ const Profile = () => {
                   {isCoach && (
                     <>
                       {/* Bio */}
-                      <div>
-                        <label className={`block text-sm font-medium mb-1`}>Bio</label>
-                        <div className="relative">
-                          <Input
-                            value={profileData.bio}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              if (value.length <= 100) {
-                                setProfileData(prev => ({
-                                  ...prev,
-                                  bio: value
-                                }));
-                              }
-                            }}
-                            disabled={!editing}
-                            maxLength={100}
-                            placeholder="Tell us about yourself..."
-                          />
-                          <div className={`text-xs mt-1 text-right ${
-                            profileData.bio.length > 90 
-                              ? 'text-red-500' 
-                              : 'text-gray-500'
-                          }`}>
-                            {profileData.bio.length}/100 characters
-                          </div>
-                        </div>
-                      </div>
+                      {renderEditableField('bio', 'Bio', 'text', { 
+                        maxLength: 100,
+                        placeholder: "Tell us about yourself..." 
+                      })}
                       
                       {/* Rating - Read-only for coaches */}
                       <div>
@@ -786,7 +968,7 @@ const Profile = () => {
                             type="number"
                             value={profileData.rating}
                             disabled={true}
-                            className="bg-gray-100 cursor-not-allowed"
+                            className="bg-gray-100 cursor-not-allowed pr-10"
                             step="0.1"
                             min="0"
                             max="5"
@@ -805,270 +987,143 @@ const Profile = () => {
                       <div>
                         <label className={`block text-sm font-medium mb-1`}>Social Links</label>
                         <div className="space-y-4">
-                          <div className="flex items-center space-x-2">
-                            <Instagram className="w-5 h-5 text-pink-600" />
-                            <Input
-                              placeholder="Instagram URL"
-                              value={profileData.socialLinks.instagram}
-                              onChange={(e) => setProfileData(prev => ({
-                                ...prev,
-                                socialLinks: {
-                                  ...prev.socialLinks,
-                                  instagram: e.target.value
-                                }
-                              }))}
-                              disabled={!editing}
-                            />
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Twitter className="w-5 h-5 text-blue-500" />
-                            <Input
-                              placeholder="Twitter URL"
-                              value={profileData.socialLinks.twitter}
-                              onChange={(e) => setProfileData(prev => ({
-                                ...prev,
-                                socialLinks: {
-                                  ...prev.socialLinks,
-                                  twitter: e.target.value
-                                }
-                              }))}
-                              disabled={!editing}
-                            />
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Youtube className="w-5 h-5 text-red-600" />
-                            <Input
-                              placeholder="YouTube URL"
-                              value={profileData.socialLinks.youtube}
-                              onChange={(e) => setProfileData(prev => ({
-                                ...prev,
-                                socialLinks: {
-                                  ...prev.socialLinks,
-                                  youtube: e.target.value
-                                }
-                              }))}
-                              disabled={!editing}
-                            />
-                          </div>
+                          {renderSocialField('Instagram', <Instagram className="w-5 h-5 text-pink-600" />, 'socialLinks.instagram')}
+                          {renderSocialField('Twitter', <Twitter className="w-5 h-5 text-blue-500" />, 'socialLinks.twitter')}
+                          {renderSocialField('YouTube', <Youtube className="w-5 h-5 text-red-600" />, 'socialLinks.youtube')}
                         </div>
                       </div>
 
-                      {/* Specialties */}
-                      <div>
-                        <label className={`block text-sm font-medium mb-3`}>Specialties</label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {[
-                            'Weight Training',
-                            'Cardio',
-                            'CrossFit',
-                            'Yoga',
-                            'Nutrition',
-                            'Powerlifting',
-                            'Bodybuilding',
-                            'HIIT',
-                            'Sports Performance',
-                            'Weight Loss'
-                          ].map((specialty) => (
-                            <div
-                              key={specialty}
-                              className={`
-                                flex items-center space-x-3 p-4 rounded-lg transition-all
-                                ${profileData.specialties.includes(specialty)
-                                  ? 'bg-blue-50 border border-blue-200 shadow-sm'
-                                  : 'bg-white border border-gray-200 hover:border-blue-300 hover:shadow-md'
-                                }
-                                ${editing ? 'cursor-pointer' : 'cursor-not-allowed'}
-                              `}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={profileData.specialties.includes(specialty)}
-                                onChange={(e) => {
-                                  if (editing) {
-                                    setProfileData(prev => ({
-                                      ...prev,
-                                      specialties: e.target.checked
-                                        ? [...prev.specialties, specialty]
-                                        : prev.specialties.filter(s => s !== specialty)
-                                    }));
-                                  }
-                                }}
-                                disabled={!editing}
-                                className={`
-                                  w-5 h-5 rounded border-2 transition-all
-                                  ${profileData.specialties.includes(specialty)
-                                    ? 'border-blue-500 bg-blue-500'
-                                    : 'border-gray-300 bg-white'
-                                  }
-                                  ${editing ? 'cursor-pointer' : 'cursor-not-allowed'}
-                                `}
-                              />
-                              <span
-                                className={`
-                                  text-sm font-medium
-                                  ${profileData.specialties.includes(specialty)
-                                    ? 'text-blue-700'
-                                    : 'text-gray-700'
-                                  }
-                                `}
-                              >
-                                {specialty}
-                              </span>
+                      {/* Profile Completion Status */}
+                      <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium text-blue-900">Profile Completion</h4>
+                            <p className="text-sm text-blue-700">
+                              {isCoachProfileComplete() ? '🎉 Your profile is complete!' : 'Complete your profile to attract more clients'}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-blue-900">
+                              {Math.round(
+                                ([
+                                  profileData.firstName && profileData.lastName,
+                                  profileData.bio && profileData.bio.trim().length >= 50,
+                                  profileData.profileImage && !profileData.profileImage.includes('fallback'),
+                                  profileData.specialties && profileData.specialties.length > 0,
+                                  !profileData.location?.isVisible || (profileData.location?.lat && profileData.location?.lng && profileData.location?.city)
+                                ].filter(Boolean).length / 5) * 100
+                              )}%
                             </div>
-                          ))}
+                            <div className="text-xs text-blue-700">Complete</div>
+                          </div>
                         </div>
+                        {!isCoachProfileComplete() && (
+                          <div className="mt-3 text-xs text-blue-600">
+                            <p>To complete your profile, make sure you have:</p>
+                            <ul className="list-disc list-inside mt-1">
+                              {!profileData.firstName && !profileData.lastName && <li>First and last name</li>}
+                              {(!profileData.bio || profileData.bio.trim().length < 50) && <li>Bio (at least 50 characters)</li>}
+                              {(!profileData.profileImage || profileData.profileImage.includes('fallback')) && <li>Profile image</li>}
+                              {(!profileData.specialties || profileData.specialties.length === 0) && <li>At least one specialty</li>}
+                              {profileData.location?.isVisible && (!profileData.location?.lat || !profileData.location?.lng || !profileData.location?.city) && <li>Location set</li>}
+                            </ul>
+                          </div>
+                        )}
                       </div>
                     </>
                   )}
                 </div>
-
-                {/* Save Button (Visible Only in Edit Mode) */}
-                {editing && (
-                  <div className="mt-6">
-                    <Button
-                      type="submit"
-                      className="bg-blue-600 hover:bg-blue-700"
-                      disabled={loading}
-                    >
-                      {loading ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      ) : (
-                        'Save Changes'
-                      )}
-                    </Button>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
-            {/* Membership Status - Only for regular users */}
-            {!canReceivePayouts && (
+            {/* Subscription Details */}
+            {subscriptionDetails && (
               <Card className='shadow-lg mb-8'>
-                <CardHeader>
-                  <CardTitle className={`flex items-center`}>
-                    <Crown className="w-6 h-6 mr-2 text-yellow-500" />
-                    Membership Status
+                <CardHeader className='border-b border-gray-100'>
+                  <CardTitle className='flex items-center'>
+                    <Package className="w-5 h-5 mr-2" />
+                    Subscription Details
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  {subscriptionDetails ? (
-                    <div className="space-y-4">
-                      <div className={`p-4 rounded-lg ${getStatusColor(subscriptionDetails.status)}`}>
-                        <div className="flex justify-between items-center mb-2">
-                          <h3 className={`text-lg font-semibold`}>
-                            {formatSubscriptionType(subscriptionDetails.subscription)} Plan
-                          </h3>
-                          <span className={`px-3 py-1 rounded-full bg-opacity-25 capitalize`}>
-                            {subscriptionDetails.status}
-                          </span>
-                        </div>
-                        <div className="space-y-2 text-sm">
-                          <p>Start Date: {new Date(subscriptionDetails.startDate).toLocaleDateString()}</p>
-                          {subscriptionDetails.endDate && (
-                            <p>End Date: {new Date(subscriptionDetails.endDate).toLocaleDateString()}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      <Button
-                        variant="outline"
-                        className={`w-full justify-start`}
-                        onClick={() => navigate('/subscription-management')}
-                      >
-                        <Settings className="w-5 h-5 mr-2" />
-                        Manage Membership
-                      </Button>
+                <CardContent className="p-6">
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">Plan</span>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(subscriptionDetails.status)}`}>
+                        {formatSubscriptionType(subscriptionDetails.type)}
+                      </span>
                     </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className='bg-blue-50 p-4 rounded-lg'>
-                        <div className='text-gray-600 mb-4'>
-                          Unlock exclusive features with our coaching plans:
-                          <ul className="list-disc list-inside mt-2 space-y-1">
-                            <li>Personalized workout plans</li>
-                            <li>Nutrition guidance</li>
-                            <li>Expert coaching support</li>
-                            <li>Premium features access</li>
-                          </ul>
-                        </div>
-                        <Button
-                          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
-                          onClick={() => navigate('/coaching')}
-                        >
-                          Explore Coaching Plans
-                        </Button>
-                      </div>
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">Status</span>
+                      <span className="text-gray-600">{subscriptionDetails.status}</span>
                     </div>
-                  )}
+                    {subscriptionDetails.expiresAt && (
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">Expires</span>
+                        <span className="text-gray-600">
+                          {new Date(subscriptionDetails.expiresAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )}
 
-            <div className="grid grid-cols-2 gap-4 pb-8">
-              <Button
-                variant="outline"
-                className={`flex items-center justify-center space-x-2 py-6`}
-                onClick={() => navigate('/orders')}
-              >
-                <Package className="w-5 h-5" />
-                <span>My Orders</span>
-              </Button>
-              <Button
-                variant="destructive"
-                className="flex items-center justify-center space-x-2 py-6"
-                onClick={handleLogout}
-              >
-                <LogOut className="w-5 h-5" />
-                <span>Logout</span>
-              </Button>
-              <Button
-                variant="destructive"
-                className="flex items-center justify-center space-x-2 py-6 col-span-2"
-                onClick={handleDeleteAccount}
-                disabled={loading}
-              >
-                <Trash2 className="w-5 h-5" />
-                <span>Delete Account</span>
-              </Button>
-            </div>
+            {/* Account Actions */}
+            <Card className='shadow-lg'>
+              <CardHeader className='border-b border-gray-100'>
+                <CardTitle className='flex items-center'>
+                  <Settings className="w-5 h-5 mr-2" />
+                  Account Actions
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  <Button
+                    onClick={handleLogout}
+                    variant="outline"
+                    className="w-full justify-start"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Logout
+                  </Button>
+                  
+                  <Button
+                    onClick={handleDeleteAccount}
+                    variant="outline"
+                    className="w-full justify-start text-red-600 border-red-200 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Account
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </form>
-        
-        {showStripeOnboarding && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className='bg-white p-6 rounded-lg w-full max-w-2xl'>
-              <StripeOnboardingForm
-                initialData={{
-                  email: profileData.email,
-                  firstName: profileData.firstName,
-                  lastName: profileData.lastName,
-                  phone: profileData.phone,
-                }}
-                onSubmit={handlePayoutSetup}
-                onClose={() => setShowStripeOnboarding(false)}
-              />
-            </div>
-          </div>
-        )}
+        </div>
+      </div>
 
-        {/* Crop Modal */}
-        {cropModalProps && (
-          <ImageCropModal
-            image={cropModalProps.image}
-            onCropComplete={cropModalProps.onCropComplete}
-            onClose={handleCloseCropModal}
-            aspectRatio={1}
-          />
-        )}
+      {showStripeOnboarding && (
+        <StripeOnboardingForm
+          onClose={() => setShowStripeOnboarding(false)}
+          onSuccess={handlePayoutSetup}
+        />
+      )}
 
-        {/* Location Request Modal */}
+      {cropModalProps && (
+        <ImageCropModal
+          {...cropModalProps}
+          onClose={handleCloseCropModal}
+        />
+      )}
+
+      {showLocationModal && (
         <LocationRequestModal
-          isOpen={showLocationModal}
           onClose={() => setShowLocationModal(false)}
           onLocationSet={handleLocationSet}
-          title="Activate Coach Location"
         />
-      </div>
+      )}
     </div>
   );
 };
