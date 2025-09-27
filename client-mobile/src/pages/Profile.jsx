@@ -1,30 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
 import { usePoints } from '../hooks/usePoints';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
-import { Switch } from '../components/ui/switch';
 import { 
   User, Package, LogOut, Loader2, Coins, AlertCircle, CheckCircle, 
   Clock, Star, Instagram, Twitter, Youtube, Crown, Settings, 
-  Trash2, MapPin, Navigation, RotateCcw, Edit2, ChevronRight,Bell, BellOff, Volume2, VolumeX
+  Trash2, MapPin, Navigation, RotateCcw, Shield, Edit, Save, X
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../services/api';
 import ProfileImageUpload from '../components/layout/ProfileImageUpload';
+import locationService from '../services/location.service';
 import ImageCropModal from '../components/layout/ImageCropModal';
 import LocationRequestModal from '../components/common/LocationRequestModal';
 import subscriptionService from '../services/subscription.service';
 import StripeOnboardingForm from '../pages/StripeOnboardingForm';
-import locationService from '../services/location.service';
 
 const Profile = () => {
   const { user, updateProfile, logout, validatePhone } = useAuth();
   const navigate = useNavigate();
   const { balance, fetchPoints } = usePoints();
-  const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [subscriptionDetails, setSubscriptionDetails] = useState(null);
   const [redirecting, setRedirecting] = useState(false);
@@ -33,10 +31,11 @@ const Profile = () => {
   const [cropModalProps, setCropModalProps] = useState(null);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [isRefreshingLocation, setIsRefreshingLocation] = useState(false);
-  const [notificationPreferences, setNotificationPreferences] = useState(null);
-  const [loadingNotifications, setLoadingNotifications] = useState(false);
-  const [notificationCardExpanded, setNotificationCardExpanded] = useState(false);
 
+  // State for tracking which fields are being edited
+  const [editingField, setEditingField] = useState(null);
+  const [tempValues, setTempValues] = useState({});
+  const inputRefs = useRef({});
 
   const [profileData, setProfileData] = useState({
     firstName: '',
@@ -57,11 +56,23 @@ const Profile = () => {
     location: null
   });
 
-  // Add near the top after role checks
   const isCoach = user?.user?.role === 'coach' || user?.role === 'coach';
   const isAffiliate = user?.user?.role === 'affiliate' || user?.role === 'affiliate';
-  const canReceivePayouts = isCoach || isAffiliate;
+  const isTaskforce = user?.user?.role === 'taskforce' || user?.role === 'taskforce';
   
+  // FIXED: All three roles can receive payouts and need payout setup
+  const canReceivePayouts = isCoach || isAffiliate || isTaskforce;
+
+  // Get role display name and icon
+  const getRoleDisplay = () => {
+    if (isCoach) return { name: 'Coach', icon: <User className="w-8 h-8 text-blue-500 mb-2" /> };
+    if (isAffiliate) return { name: 'Affiliate', icon: <Crown className="w-8 h-8 text-purple-500 mb-2" /> };
+    if (isTaskforce) return { name: 'Taskforce', icon: <Shield className="w-8 h-8 text-green-500 mb-2" /> };
+    return { name: 'Member', icon: <User className="w-8 h-8 text-blue-500 mb-2" /> };
+  };
+
+  const { name: roleName, icon: roleIcon } = getRoleDisplay();
+
   useEffect(() => {
     const fetchUserData = async () => {
       try {
@@ -70,7 +81,7 @@ const Profile = () => {
           api.get('/subscription/current'),
           canReceivePayouts ? api.get('/stripe/check-payout-setup') : Promise.resolve({ data: { payoutSetupComplete: false } })
         ]);
-
+  
         const userData = profileResponse.data;
   
         setProfileData({
@@ -107,6 +118,7 @@ const Profile = () => {
           localStorage.removeItem('token');
           navigate('/login');
         } else {
+          console.error('❌ Profile.jsx: Error fetching user data:', error);
           toast.error('Failed to load profile data');
         }
       }
@@ -117,109 +129,130 @@ const Profile = () => {
     }
   }, [user, fetchPoints, navigate, canReceivePayouts]);
 
-
+  // Handle click outside to save
   useEffect(() => {
-  const fetchNotificationPreferences = async () => {
+    const handleClickOutside = (event) => {
+      if (editingField && inputRefs.current[editingField]) {
+        if (!inputRefs.current[editingField].contains(event.target)) {
+          handleSaveField(editingField);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [editingField, tempValues]);
+
+  const handleEditField = (fieldName, value) => {
+    setEditingField(fieldName);
+    setTempValues(prev => ({
+      ...prev,
+      [fieldName]: value
+    }));
+    
+    // Focus the input field after a short delay
+    setTimeout(() => {
+      if (inputRefs.current[fieldName]) {
+        inputRefs.current[fieldName].focus();
+      }
+    }, 100);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingField(null);
+    setTempValues({});
+  };
+
+  const handleSaveField = async (fieldName) => {
+    if (!tempValues[fieldName] && tempValues[fieldName] !== '') return;
+    
+    const newValue = tempValues[fieldName];
+    const currentValue = getFieldValue(profileData, fieldName);
+    
+    // Don't save if value hasn't changed
+    if (newValue === currentValue) {
+      setEditingField(null);
+      setTempValues({});
+      return;
+    }
+
+    setLoading(true);
     try {
-      const response = await api.get('/notifications/preferences');
-      setNotificationPreferences(response.data.preferences || getDefaultPreferences());
+      // Special handling for phone validation
+      if (fieldName === 'phone') {
+        const isPhoneValid = await validatePhone({
+          phone: newValue,
+        });
+
+        if (!isPhoneValid) {
+          throw new Error('Phone number already in use');
+        }
+      }
+
+      // Special handling for nested fields like socialLinks
+      let updatedData;
+      if (fieldName.includes('.')) {
+        const [parent, child] = fieldName.split('.');
+        updatedData = {
+          ...profileData,
+          [parent]: {
+            ...profileData[parent],
+            [child]: newValue
+          }
+        };
+      } else {
+        updatedData = {
+          ...profileData,
+          [fieldName]: newValue
+        };
+      }
+
+      const updatedUser = await updateProfile(updatedData);
+      setProfileData(updatedUser);
+      
+      setEditingField(null);
+      setTempValues({});
+      
+      toast.success(`${getFieldDisplayName(fieldName)} updated successfully`);
+      
     } catch (error) {
-      console.error('Failed to fetch notification preferences:', error);
-      // Set default preferences if fetch fails
-      setNotificationPreferences(getDefaultPreferences());
+      console.error(`Failed to update ${fieldName}:`, error);
+      toast.error(error.message || `Failed to update ${getFieldDisplayName(fieldName)}. Please try again.`);
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (user) {
-    fetchNotificationPreferences();
-  }
-}, [user]);
-
-const getDefaultPreferences = () => ({
-  pushNotifications: true,
-  emailNotifications: true,
-  gymBros: {
-    matches: true,
-    messages: true,
-    workoutInvites: true,
-    profileViews: true,
-    boosts: true
-  },
-  coaching: {
-    newClients: true,
-    clientMessages: true,
-    sessionReminders: true,
-    paymentUpdates: true,
-    coachApplications: true
-  },
-  games: {
-    dailyRewards: true,
-    streakReminders: true,
-    leaderboardUpdates: false,
-    newGames: true
-  },
-  shop: {
-    orderUpdates: true,
-    shippingNotifications: true,
-    salesAndPromotions: false,
-    stockAlerts: false,
-    cartReminders: false
-  },
-  general: {
-    systemUpdates: true,
-    maintenanceNotices: true,
-    securityAlerts: true,
-    accountUpdates: true,
-    appUpdates: false
-  },
-  quietHours: {
-    enabled: false,
-    startTime: "22:00",
-    endTime: "08:00",
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-  }
-});
-
-const updateNotificationPreference = async (category, subType, value) => {
-  setLoadingNotifications(true);
-  try {
-    const updatedPrefs = { ...notificationPreferences };
-    
-    if (subType) {
-      updatedPrefs[category] = {
-        ...updatedPrefs[category],
-        [subType]: value
-      };
-    } else {
-      updatedPrefs[category] = value;
+  const getFieldValue = (data, fieldName) => {
+    if (fieldName.includes('.')) {
+      const [parent, child] = fieldName.split('.');
+      return data[parent]?.[child] || '';
     }
+    return data[fieldName] || '';
+  };
 
-    setNotificationPreferences(updatedPrefs);
-    
-    const response = await api.put('/notifications/preferences', updatedPrefs);
-    if (response.status === 200) {
-      toast.success('Notification preferences updated');
-    }
-  } catch (error) {
-    console.error('Failed to update notification preferences:', error);
-    toast.error('Failed to update preferences');
-    
-    // Revert the change on error
-    const revertedPrefs = { ...notificationPreferences };
-    if (subType) {
-      revertedPrefs[category] = {
-        ...revertedPrefs[category],
-        [subType]: !value
-      };
-    } else {
-      revertedPrefs[category] = !value;
-    }
-    setNotificationPreferences(revertedPrefs);
-  } finally {
-    setLoadingNotifications(false);
-  }
-};
+  const getFieldDisplayName = (fieldName) => {
+    const names = {
+      firstName: 'First name',
+      lastName: 'Last name',
+      phone: 'Phone number',
+      bio: 'Bio',
+      'socialLinks.instagram': 'Instagram URL',
+      'socialLinks.twitter': 'Twitter URL',
+      'socialLinks.youtube': 'YouTube URL'
+    };
+    return names[fieldName] || fieldName;
+  };
 
+  const handleKeyPress = (e, fieldName) => {
+    if (e.key === 'Enter') {
+      handleSaveField(fieldName);
+    } else if (e.key === 'Escape') {
+      handleCancelEdit();
+    }
+  };
 
   const handleDeleteAccount = async () => {
     const confirmed = window.confirm(
@@ -240,13 +273,7 @@ const updateNotificationPreference = async (category, subType, value) => {
       if (response.status === 200) {
         toast.success('Account deleted successfully');
         await logout();
-  
-        window.dispatchEvent(new Event('user-logout'));
-        
-        const isMobile = window.innerWidth <= 768;
-        if (!isMobile) {
-          navigate('/login');
-        }
+        navigate('/login');
       }
     } catch (error) {
       console.error('Error deleting account:', error);
@@ -255,7 +282,7 @@ const updateNotificationPreference = async (category, subType, value) => {
       setLoading(false);
     }
   };
-
+  
   const getStatusColor = (status) => {
     const colors = {
       active: 'bg-green-50 text-green-700',
@@ -267,56 +294,6 @@ const updateNotificationPreference = async (category, subType, value) => {
 
   const formatSubscriptionType = (type) => {
     return type ? type.charAt(0).toUpperCase() + type.slice(1) : '';
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const isPhoneValid = await validatePhone({
-        phone: profileData.phone,
-      });
-
-      if (!isPhoneValid) {
-        throw new Error('Phone number already in use');
-      }
-
-      const updatedUser = await updateProfile(profileData);
-      setProfileData({
-        firstName: updatedUser.firstName,
-        lastName: updatedUser.lastName,
-        email: updatedUser.email,
-        phone: updatedUser.phone,
-        profileImage: updatedUser.profileImage,
-        bio: updatedUser.bio,
-        rating: updatedUser.rating,
-        socialLinks: updatedUser.socialLinks
-      });
-
-      setEditing(false);
-
-      if (user?.role === 'coach' && !isCoachProfileComplete()) {
-        toast.warning('Your profile is incomplete. Complete your bio, photo, specialties, and location to start receiving coaching requests.');
-      }
-    } catch (error) {
-      console.error('Failed to update profile:', error);
-      toast.error(error.message || 'Failed to update profile. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    await logout();
-    
-    // Dispatch custom logout event for mobile gatekeeper
-    window.dispatchEvent(new Event('user-logout'));
-    
-    // For mobile, the gatekeeper will handle the redirect
-    const isMobile = window.innerWidth <= 768;
-    if (!isMobile) {
-      navigate('/login');
-    }
   };
 
   const handleImageUploadSuccess = (imageUrl) => {
@@ -336,23 +313,6 @@ const updateNotificationPreference = async (category, subType, value) => {
     }
     setCropModalProps(null);
   };
-
-  const NotificationToggle = ({ label, description, checked, onChange, disabled = false }) => (
-  <div className="flex items-center justify-between py-3">
-    <div className="flex-1">
-      <p className="text-sm font-medium text-gray-900">{label}</p>
-      {description && (
-        <p className="text-xs text-gray-500 mt-1">{description}</p>
-      )}
-    </div>
-    <Switch
-      checked={checked}
-      onCheckedChange={onChange}
-      disabled={disabled || loadingNotifications}
-      className="ml-4"
-    />
-  </div>
-);
 
   const isCoachProfileComplete = () => {
     const hasBasicInfo = profileData.firstName && profileData.lastName;
@@ -376,12 +336,34 @@ const updateNotificationPreference = async (category, subType, value) => {
     setIsRefreshingLocation(true);
     
     try {
-      // Use the mobile location service which handles Capacitor integration
-      const locationData = await locationService.getLocationByGPS({
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0
+      if (!navigator.geolocation) {
+        toast.error('Geolocation is not supported by your browser');
+        return;
+      }
+
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          reject,
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+          }
+        );
       });
+
+      const { latitude, longitude } = position.coords;
+      
+      const cityName = await locationService.reverseGeocode(latitude, longitude);
+
+      const locationData = {
+        lat: latitude,
+        lng: longitude,
+        city: cityName,
+        address: '',
+        source: 'manual-refresh'
+      };
 
       const updateResponse = await api.put('/user/location', locationData);
       
@@ -390,22 +372,19 @@ const updateNotificationPreference = async (category, subType, value) => {
           ...prev,
           location: updateResponse.data.location || locationData
         }));
-        toast.success(`Location updated to ${updateResponse.data.location?.city || locationData.city}!`);
+        toast.success(`Location updated to ${updateResponse.data.location?.city || cityName}!`);
       }
 
     } catch (error) {
-      console.error('❌ Error refreshing location:', error);
-      
-      let errorMessage = 'Failed to refresh location. Please try again.';
-      if (error.message.includes('denied')) {
-        errorMessage = 'Location access denied. Please enable location permissions.';
-      } else if (error.message.includes('unavailable')) {
-        errorMessage = 'Location unavailable. Please try again.';
-      } else if (error.message.includes('timed out')) {
-        errorMessage = 'Location request timed out. Please try again.';
+      if (error.code === 1) {
+        toast.error('Location access denied. Please enable location permissions.');
+      } else if (error.code === 2) {
+        toast.error('Location unavailable. Please try again.');
+      } else if (error.code === 3) {
+        toast.error('Location request timed out. Please try again.');
+      } else {
+        toast.error('Failed to refresh location. Please try again.');
       }
-      
-      toast.error(errorMessage);
     } finally {
       setIsRefreshingLocation(false);
     }
@@ -443,12 +422,33 @@ const updateNotificationPreference = async (category, subType, value) => {
 
     if (!profileData.location?.lat || !profileData.location?.lng) {
       try {
-        // Use the mobile location service for automatic updates
-        const locationData = await locationService.getLocationByGPS({
-          enableHighAccuracy: true, 
-          timeout: 10000,
-          maximumAge: 60000 
+        if (!navigator.geolocation) {
+          return;
+        }
+
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            resolve,
+            reject,
+            {
+              enableHighAccuracy: true, 
+              timeout: 10000,
+              maximumAge: 60000 
+            }
+          );
         });
+
+        const { latitude, longitude } = position.coords;
+        
+        const cityName = await locationService.reverseGeocode(latitude, longitude);
+
+        const locationData = {
+          lat: latitude,
+          lng: longitude,
+          city: cityName,
+          address: '',
+          source: 'login-update'
+        };
         
         const updateResponse = await api.put('/user/location', locationData);
         
@@ -460,8 +460,7 @@ const updateNotificationPreference = async (category, subType, value) => {
         }
 
       } catch (error) {
-        // Silent fail for automatic location updates
-        console.warn('Automatic location update failed:', error);
+        // Silent fail for background location update
       }
     }
   };
@@ -469,14 +468,17 @@ const updateNotificationPreference = async (category, subType, value) => {
   const handlePayoutSetup = async (onboardingData) => {
     try {
       setRedirecting(true);
+
       const { accountId, verificationUrl } = await subscriptionService.createStripeAccount(onboardingData);
+
       setProfileData((prev) => ({
         ...prev,
         stripeAccountId: accountId,
       }));
+
       window.location.href = verificationUrl;
     } catch (error) {
-      toast.error('Failed to setup payout account. Please try again.');
+      console.error('Error setting up payout:', error);
     } finally {
       setRedirecting(false);
     }
@@ -485,38 +487,200 @@ const updateNotificationPreference = async (category, subType, value) => {
   const handleCompletePayoutSetup = async () => {
     try {
       setRedirecting(true);
+  
       const { url } = await subscriptionService.initiateVerification(
         profileData.stripeAccountId,
         `${window.location.origin}/profile`,
         `${window.location.origin}/profile`
       );
+
       setVerificationSessionId(verificationSessionId);
+  
       window.location.href = url;
     } catch (error) {
+      console.error('Error completing setup:', error);
       toast.error('Failed to initiate verification. Please try again.');
     } finally {
       setRedirecting(false);
     }
   };
-
+  
   const handleViewPayoutDashboard = async () => {
     try {
       setRedirecting(true);
+  
       const { url } = await subscriptionService.createStripeDashboardLink(
         profileData.stripeAccountId
       );
+  
       window.open(url, '_blank');
     } catch (error) {
+      console.error('Error accessing dashboard:', error);
       toast.error('Failed to access dashboard. Please try again.');
     } finally {
       setRedirecting(false);
     }
   };
 
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  // Render input field with edit icon inside the input
+  const renderEditableField = (fieldName, label, type = 'text', options = {}) => {
+    const isEditing = editingField === fieldName;
+    const currentValue = getFieldValue(profileData, fieldName);
+    const displayValue = isEditing ? (tempValues[fieldName] !== undefined ? tempValues[fieldName] : currentValue) : currentValue;
+
+    return (
+      <div className="relative">
+        <label className={`block text-sm font-medium mb-1`}>{label}</label>
+        <div className="relative">
+          <Input
+            ref={el => inputRefs.current[fieldName] = el}
+            type={type}
+            value={displayValue}
+            onChange={(e) => {
+              if (isEditing) {
+                setTempValues(prev => ({
+                  ...prev,
+                  [fieldName]: e.target.value
+                }));
+              }
+            }}
+            onKeyDown={(e) => handleKeyPress(e, fieldName)}
+            disabled={!isEditing}
+            className={`pr-10 ${isEditing ? 'border-blue-300' : ''}`}
+            {...options}
+          />
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+            {!isEditing ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => handleEditField(fieldName, currentValue)}
+                className="h-7 w-7 p-0 hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                title={`Edit ${label}`}
+              >
+                <Edit className="h-3.5 w-3.5" />
+              </Button>
+            ) : (
+              <div className="flex space-x-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleSaveField(fieldName)}
+                  disabled={loading}
+                  className="h-7 w-7 p-0 hover:bg-green-50 text-green-600"
+                  title="Save"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCancelEdit}
+                  className="h-7 w-7 p-0 hover:bg-red-50 text-red-600"
+                  title="Cancel"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+        {options.maxLength && (
+          <div className={`text-xs mt-1 text-right ${
+            displayValue.length > options.maxLength - 10 
+              ? 'text-red-500' 
+              : 'text-gray-500'
+          }`}>
+            {displayValue.length}/{options.maxLength} characters
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Render social link field with edit icon inside the input
+  const renderSocialField = (platform, icon, fieldName) => {
+    const isEditing = editingField === fieldName;
+    const currentValue = getFieldValue(profileData, fieldName);
+    const displayValue = isEditing ? (tempValues[fieldName] !== undefined ? tempValues[fieldName] : currentValue) : currentValue;
+
+    return (
+      <div className="relative">
+        <div className="flex items-center space-x-2">
+          {icon}
+          <div className="relative flex-1">
+            <Input
+              ref={el => inputRefs.current[fieldName] = el}
+              placeholder={`${platform} URL`}
+              value={displayValue}
+              onChange={(e) => {
+                if (isEditing) {
+                  setTempValues(prev => ({
+                    ...prev,
+                    [fieldName]: e.target.value
+                  }));
+                }
+              }}
+              onKeyDown={(e) => handleKeyPress(e, fieldName)}
+              disabled={!isEditing}
+              className={`pr-10 ${isEditing ? 'border-blue-300' : ''}`}
+            />
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+              {!isEditing ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleEditField(fieldName, currentValue)}
+                  className="h-7 w-7 p-0 hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                  title={`Edit ${platform} URL`}
+                >
+                  <Edit className="h-3.5 w-3.5" />
+                </Button>
+              ) : (
+                <div className="flex space-x-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleSaveField(fieldName)}
+                    disabled={loading}
+                    className="h-7 w-7 p-0 hover:bg-green-50 text-green-600"
+                    title="Save"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCancelEdit}
+                    className="h-7 w-7 p-0 hover:bg-red-50 text-red-600"
+                    title="Cancel"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20 md:pb-8 mt-20">
       <div className="container mx-auto py-4 md:py-8 max-w-7xl">
-        <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+        <div className="space-y-4 md:space-y-6">
           
           {/* Mobile Header for Coach */}
           {isCoach ? (
@@ -544,15 +708,6 @@ const updateNotificationPreference = async (category, subType, value) => {
                   <User className="w-6 h-6 md:w-8 md:h-8 mr-2" />
                   Profile
                 </h1>
-                {!editing && (
-                  <Button
-                    onClick={() => setEditing(true)}
-                    size="sm"
-                    className="bg-blue-600 hover:bg-blue-700 md:hidden"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                )}
               </div>
             </div>
           )}
@@ -560,12 +715,12 @@ const updateNotificationPreference = async (category, subType, value) => {
           {/* Main Content */}
           <div className="max-w-4xl mx-auto">
             
-            {/* Stats Cards - Mobile Optimized with proper spacing for coach */}
+            {/* Stats Cards */}
             <div className={`grid grid-cols-2 gap-3 md:gap-4 mb-6 md:mb-8 ${isCoach ? 'mt-20 md:mt-28' : ''}`}>
               <Card className='bg-gradient-to-br from-blue-50 to-white'>
                 <CardContent className="flex flex-col items-center p-3 md:p-4">
-                  <User className="w-6 h-6 md:w-8 md:h-8 text-blue-500 mb-1 md:mb-2" />
-                  <p className="text-xs md:text-sm font-semibold text-gray-600">{isCoach ? 'Coach' : 'Member'}</p>
+                  {roleIcon}
+                  <p className="text-xs md:text-sm font-semibold text-gray-600">{roleName}</p>
                   <p className="text-sm md:text-lg font-semibold text-black text-center">
                     {`${profileData.firstName} ${profileData.lastName}`}
                   </p>
@@ -581,7 +736,7 @@ const updateNotificationPreference = async (category, subType, value) => {
               </Card>
             </div>
 
-            {/* Location Button for Coach - Mobile Optimized */}
+            {/* Location Button for Coach */}
             {isCoach && (
               <div className="mb-4 md:mb-6 flex justify-center">
                 <div className="flex items-center space-x-2">
@@ -633,175 +788,171 @@ const updateNotificationPreference = async (category, subType, value) => {
               <CardHeader className='border-b border-gray-100 p-4 md:p-6'>
                 <div className="flex justify-between items-center">
                   <CardTitle className='text-lg md:text-xl'>Personal Information</CardTitle>
-                  {!editing ? (
-                <Button
-                  onClick={() => setEditing(true)}
-                  className="bg-blue-600 hover:bg-blue-700"
-                  size={window.innerWidth <= 768 ? "sm" : "default"}
-                >
-                  <Edit2 className="w-4 h-4 md:hidden" />
-                  <span className="hidden md:inline">Edit Profile</span>
-                </Button>
-                  ) : null}
                 </div>
               </CardHeader>
               <CardContent className="p-4 md:p-6">
                 <div className="space-y-4 md:space-y-6">
                   
-                  {/* Name Fields - Stack on mobile */}
+                  {/* Name Fields - Using new editable fields */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">First Name</label>
-                      <Input
-                        value={profileData.firstName}
-                        onChange={(e) => setProfileData(prev => ({
-                          ...prev,
-                          firstName: e.target.value
-                        }))}
-                        disabled={!editing}
-                        className="text-sm md:text-base"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Last Name</label>
-                      <Input
-                        value={profileData.lastName}
-                        onChange={(e) => setProfileData(prev => ({
-                          ...prev,
-                          lastName: e.target.value
-                        }))}
-                        disabled={!editing}
-                        className="text-sm md:text-base"
-                      />
-                    </div>
+                    {renderEditableField('firstName', 'First Name')}
+                    {renderEditableField('lastName', 'Last Name')}
                   </div>
 
-                  {/* Email */}
+                  {/* Email - Read only */}
                   <div>
                     <label className="block text-sm font-medium mb-1">Email</label>
                     <Input
                       type="email"
                       value={profileData.email}
                       disabled={true}
-                      className="text-sm md:text-base"
+                      className="text-sm md:text-base pr-10"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
                   </div>
 
-                  {/* Phone */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Phone</label>
-                    <Input
-                      type="tel"
-                      value={profileData.phone}
-                      onChange={(e) => setProfileData(prev => ({
-                        ...prev,
-                        phone: e.target.value
-                      }))}
-                      disabled={!editing}
-                      className="text-sm md:text-base"
-                    />
-                  </div>
+                  {/* Phone - Editable */}
+                  {renderEditableField('phone', 'Phone', 'tel')}
 
-                  {/* Payout Setup - Move outside of Coach-specific section */}
+                  {/* Payout Setup */}
                   {canReceivePayouts && (
                     <div className="mt-4 md:mt-6">
                       <label className="block text-sm font-medium mb-2">
                         Payout Setup
                         <span className="ml-2 text-xs text-gray-500">
-                          ({isCoach ? 'Coach' : 'Affiliate'} Account)
+                          ({roleName} Account)
                         </span>
                       </label>
+                      
                       {!profileData.stripeAccountId ? (
-                        <div className='bg-yellow-50 p-3 md:p-4 rounded-lg border border-yellow-200'>
+                        <div className='bg-yellow-50 p-4 rounded-lg border border-yellow-200'>
                           <div className="flex items-start">
-                            <AlertCircle className="h-4 w-4 md:h-5 md:w-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-                            <div className="ml-2 md:ml-3">
-                              <h3 className="text-sm font-medium text-yellow-500">
+                            <div className="flex-shrink-0">
+                              <AlertCircle className="h-5 w-5 text-yellow-400" />
+                            </div>
+                            <div className="ml-3">
+                              <h3 className={`text-sm font-medium text-yellow-500`}>
                                 Payout Setup Required
                               </h3>
-                              <p className="mt-1 text-xs md:text-sm text-yellow-500">
-                                To receive your {isCoach ? 'coaching' : 'affiliate'} payments, you need to set up your payout information.
-                              </p>
-                              <Button
-                                type="button"
-                                onClick={() => setShowStripeOnboarding(true)}
-                                className="mt-3 text-xs md:text-sm px-3 py-1.5 md:px-4 md:py-2"
-                                size="sm"
-                                disabled={redirecting}
-                              >
-                                {redirecting ? (
-                                  <Loader2 className="w-3 h-3 md:w-4 md:h-4 animate-spin" />
-                                ) : (
-                                  'Set Up Payouts'
+                              <div className={`mt-2 text-sm text-yellow-500`}>
+                                <p>
+                                  To receive {
+                                    isCoach ? 'payments from your clients' : 
+                                    isAffiliate ? 'affiliate commissions' : 
+                                    'taskforce rewards and commissions'
+                                  }, you need to set up your payout information.
+                                </p>
+                                {isTaskforce && (
+                                  <p className="mt-1 text-xs">
+                                    <strong>Note:</strong> Payout setup is required before you can create ambassador codes.
+                                  </p>
                                 )}
-                              </Button>
+                              </div>
+                              <div className="mt-4">
+                                <Button
+                                  type="button"
+                                  onClick={() => setShowStripeOnboarding(true)}
+                                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                                  disabled={redirecting}
+                                >
+                                  {redirecting ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                  ) : (
+                                    'Set Up Payouts'
+                                  )}
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         </div>
                       ) : profileData.pendingVerification && profileData.pendingVerification.length > 0 ? (
-                        <div className='bg-purple-50 p-3 md:p-4 rounded-lg border border-purple-200'>
+                        <div className='bg-purple-50 p-4 rounded-lg border border-purple-200'>
                           <div className="flex items-start">
-                            <Clock className="h-4 w-4 md:h-5 md:w-5 text-purple-400 flex-shrink-0 mt-0.5" />
-                            <div className="ml-2 md:ml-3">
-                              <h3 className="text-sm font-medium text-purple-500">
+                            <div className="flex-shrink-0">
+                              <Clock className="h-5 w-5 text-purple-400" />
+                            </div>
+                            <div className="ml-3">
+                              <h3 className={`text-sm font-medium text-purple-500`}>
                                 Pending Verification
                               </h3>
-                              <p className="mt-1 text-xs md:text-smtext-purple-500 text-gray-600">
-                                Your account is under review.
-                              </p>
+                              <div className={`mt-2 text-sm text-purple-500`}>
+                                <p>Your account is under review. The following documents are pending verification:</p>
+                                <ul className="list-disc list-inside mt-2">
+                                  {profileData.pendingVerification.map((requirement, index) => (
+                                    <li key={index}>{requirement}</li>
+                                  ))}
+                                </ul>
+                              </div>
                             </div>
                           </div>
                         </div>
                       ) : !profileData.payoutSetupComplete ? (
-                        <div className='bg-blue-50 p-3 md:p-4 rounded-lg border border-blue-200'>
+                        <div className='bg-blue-50 p-4 rounded-lg border border-blue-200'>
                           <div className="flex items-start">
-                            <Clock className="h-4 w-4 md:h-5 md:w-5 text-blue-400 flex-shrink-0 mt-0.5" />
-                            <div className="ml-2 md:ml-3">
-                              <h3 className="text-sm font-medium text-blue-500">
+                            <div className="flex-shrink-0">
+                              <Clock className="h-5 w-5 text-blue-400" />
+                            </div>
+                            <div className="ml-3">
+                              <h3 className={`text-sm font-medium text-blue-500`}>
                                 Payout Setup In Progress
                               </h3>
-                              <p className="mt-1 text-xs md:text-sm text-gray-600 text-blue-500">
-                                Your payout setup is in progress. Please complete the onboarding process.
-                              </p>
-                              <Button
-                                onClick={handleCompletePayoutSetup}
-                                className="mt-3 text-xs md:text-sm px-3 py-1.5 md:px-4 md:py-2"
-                                size="sm"
-                                disabled={redirecting}
-                              >
-                                {redirecting ? (
-                                  <Loader2 className="w-3 h-3 md:w-4 md:h-4 animate-spin" />
-                                ) : (
-                                  'Complete Setup'
-                                )}
-                              </Button>
+                              <div className={`mt-2 text-sm text-blue-500`}>
+                                <p>Your payout setup is in progress. Please complete the onboarding process.</p>
+                              </div>
+                              <div className="mt-4">
+                                <Button
+                                  onClick={handleCompletePayoutSetup}
+                                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                                  disabled={redirecting}
+                                >
+                                  {redirecting ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                  ) : (
+                                    'Complete Setup'
+                                  )}
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         </div>
                       ) : (
-                        <div className='bg-green-50 p-3 md:p-4 rounded-lg border border-green-200'>
+                        <div className='bg-green-50 p-4 rounded-lg border border-green-200'>
                           <div className="flex items-start">
-                            <CheckCircle className="h-4 w-4 md:h-5 md:w-5 text-green-400 flex-shrink-0 mt-0.5" />
-                            <div className="ml-2 md:ml-3">
-                              <h3 className="text-sm font-medium text-green-500">
+                            <div className="flex-shrink-0">
+                              <CheckCircle className="h-5 w-5 text-green-400" />
+                            </div>
+                            <div className="ml-3">
+                              <h3 className={`text-sm font-medium text-green-500`}>
                                 Payout Setup Complete
                               </h3>
-                              <p className="mt-1 text-xs md:text-sm text-green-500">
-                                Your payout information has been set up successfully.
-                              </p>
-                              <Button
-                                onClick={handleViewPayoutDashboard}
-                                variant="outline"
-                                className="mt-3 text-xs md:text-sm px-3 py-1.5 md:px-4 md:py-2 text-green-700 bg-green-100 hover:bg-green-200"
-                                size="sm"
-                                disabled={redirecting}
-                              >
-                                {redirecting ? (
-                                  <Loader2 className="w-3 h-3 md:w-4 md:h-4 animate-spin" />
-                                ) : (
-                                  'View Dashboard'
+                              <div className={`mt-2 text-sm text-green-500`}>
+                                <p>
+                                  Your payout information has been set up successfully. You can now receive {
+                                    isCoach ? 'payments from your clients' : 
+                                    isAffiliate ? 'affiliate commissions' : 
+                                    'taskforce rewards and commissions'
+                                  }.
+                                </p>
+                                {isTaskforce && (
+                                  <p className="mt-1 text-xs">
+                                    You can now create ambassador codes and earn commissions.
+                                  </p>
                                 )}
-                              </Button>
+                              </div>
+                              <div className="mt-4">
+                                <Button
+                                  onClick={handleViewPayoutDashboard}
+                                  variant="outline"
+                                  className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-green-700 bg-green-100 hover:bg-green-200`}
+                                  disabled={redirecting}
+                                >
+                                  {redirecting ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                  ) : (
+                                    'View Payout Dashboard'
+                                  )}
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -813,36 +964,12 @@ const updateNotificationPreference = async (category, subType, value) => {
                   {isCoach && (
                     <>
                       {/* Bio */}
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Bio</label>
-                        <div className="relative">
-                          <textarea
-                            value={profileData.bio}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              if (value.length <= 100) {
-                                setProfileData(prev => ({
-                                  ...prev,
-                                  bio: value
-                                }));
-                              }
-                            }}
-                            disabled={!editing}
-                            maxLength={100}
-                            placeholder="Tell us about yourself..."
-                            className="w-full px-3 py-2 text-sm md:text-base border border-gray-300 rounded-md resize-none h-20 md:h-24"
-                          />
-                          <div className={`text-xs mt-1 text-right ${
-                            profileData.bio.length > 90 
-                              ? 'text-red-500' 
-                              : 'text-gray-500'
-                          }`}>
-                            {profileData.bio.length}/100 characters
-                          </div>
-                        </div>
-                      </div>
+                      {renderEditableField('bio', 'Bio', 'text', { 
+                        maxLength: 100,
+                        placeholder: "Tell us about yourself..." 
+                      })}
 
-                      {/* Rating */}
+                      {/* Rating - Read-only */}
                       <div>
                         <label className="block text-sm font-medium mb-1">Rating</label>
                         <div className="flex items-center space-x-2">
@@ -850,7 +977,7 @@ const updateNotificationPreference = async (category, subType, value) => {
                             type="number"
                             value={profileData.rating}
                             disabled={true}
-                            className="bg-gray-100 cursor-not-allowed text-sm md:text-base"
+                            className="bg-gray-100 cursor-not-allowed text-sm md:text-base pr-10"
                             step="0.1"
                             min="0"
                             max="5"
@@ -862,655 +989,136 @@ const updateNotificationPreference = async (category, subType, value) => {
                         </div>
                       </div>
 
-                      {/* Social Links - Mobile Optimized */}
+                      {/* Social Links - Using new editable fields */}
                       <div>
                         <label className="block text-sm font-medium mb-2">Social Links</label>
                         <div className="space-y-3">
-                          <div className="flex items-center space-x-2">
-                            <Instagram className="w-4 h-4 md:w-5 md:h-5 text-pink-600 flex-shrink-0" />
-                            <Input
-                              placeholder="Instagram URL"
-                              value={profileData.socialLinks.instagram}
-                              onChange={(e) => setProfileData(prev => ({
-                                ...prev,
-                                socialLinks: {
-                                  ...prev.socialLinks,
-                                  instagram: e.target.value
-                                }
-                              }))}
-                              disabled={!editing}
-                              className="text-sm md:text-base"
-                            />
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Twitter className="w-4 h-4 md:w-5 md:h-5 text-blue-500 flex-shrink-0" />
-                            <Input
-                              placeholder="Twitter URL"
-                              value={profileData.socialLinks.twitter}
-                              onChange={(e) => setProfileData(prev => ({
-                                ...prev,
-                                socialLinks: {
-                                  ...prev.socialLinks,
-                                  twitter: e.target.value
-                                }
-                              }))}
-                              disabled={!editing}
-                              className="text-sm md:text-base"
-                            />
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Youtube className="w-4 h-4 md:w-5 md:h-5 text-red-600 flex-shrink-0" />
-                            <Input
-                              placeholder="YouTube URL"
-                              value={profileData.socialLinks.youtube}
-                              onChange={(e) => setProfileData(prev => ({
-                                ...prev,
-                                socialLinks: {
-                                  ...prev.socialLinks,
-                                  youtube: e.target.value
-                                }
-                              }))}
-                              disabled={!editing}
-                              className="text-sm md:text-base"
-                            />
-                          </div>
+                          {renderSocialField('Instagram', <Instagram className="w-4 h-4 md:w-5 md:h-5 text-pink-600 flex-shrink-0" />, 'socialLinks.instagram')}
+                          {renderSocialField('Twitter', <Twitter className="w-4 h-4 md:w-5 md:h-5 text-blue-500 flex-shrink-0" />, 'socialLinks.twitter')}
+                          {renderSocialField('YouTube', <Youtube className="w-4 h-4 md:w-5 md:h-5 text-red-600 flex-shrink-0" />, 'socialLinks.youtube')}
                         </div>
                       </div>
 
-                      {/* Specialties - Mobile Grid */}
-                      <div>
-                        <label className="block text-sm font-medium mb-3">Specialties</label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {[
-                            'Weight Training',
-                            'Cardio',
-                            'CrossFit',
-                            'Yoga',
-                            'Nutrition',
-                            'Powerlifting',
-                            'Bodybuilding',
-                            'HIIT',
-                            'Sports Performance',
-                            'Weight Loss'
-                          ].map((specialty) => (
-                            <label
-                              key={specialty}
-                              className={`
-                                flex items-center space-x-2 p-3 rounded-lg transition-all cursor-pointer
-                                ${profileData.specialties.includes(specialty)
-                                  ? 'bg-blue-50 border border-blue-200 shadow-sm'
-                                  : 'bg-white border border-gray-200 hover:border-blue-300 hover:shadow-md'
-                                }
-                                ${!editing ? 'opacity-60 cursor-not-allowed' : ''}
-                              `}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={profileData.specialties.includes(specialty)}
-                                onChange={(e) => {
-                                  if (editing) {
-                                    setProfileData(prev => ({
-                                      ...prev,
-                                      specialties: e.target.checked
-                                        ? [...prev.specialties, specialty]
-                                        : prev.specialties.filter(s => s !== specialty)
-                                    }));
-                                  }
-                                }}
-                                disabled={!editing}
-                                className="w-4 h-4 text-blue-600 rounded"
-                              />
-                              <span
-                                className={`
-                                  text-xs md:text-sm font-medium
-                                  ${profileData.specialties.includes(specialty)
-                                    ? 'text-blue-700'
-                                    : 'text-gray-700'
-                                  }
-                                `}
-                              >
-                                {specialty}
-                              </span>
-                            </label>
-                          ))}
+                      {/* Profile Completion Status */}
+                      <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium text-blue-900 text-sm md:text-base">Profile Completion</h4>
+                            <p className="text-xs md:text-sm text-blue-700">
+                              {isCoachProfileComplete() ? '🎉 Your profile is complete!' : 'Complete your profile to attract more clients'}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xl md:text-2xl font-bold text-blue-900">
+                              {Math.round(
+                                ([
+                                  profileData.firstName && profileData.lastName,
+                                  profileData.bio && profileData.bio.trim().length >= 50,
+                                  profileData.profileImage && !profileData.profileImage.includes('fallback'),
+                                  profileData.specialties && profileData.specialties.length > 0,
+                                  !profileData.location?.isVisible || (profileData.location?.lat && profileData.location?.lng && profileData.location?.city)
+                                ].filter(Boolean).length / 5) * 100
+                              )}%
+                            </div>
+                            <div className="text-xs text-blue-700">Complete</div>
+                          </div>
                         </div>
                       </div>
                     </>
                   )}
                 </div>
-
-                {/* Save/Cancel Buttons - Mobile Optimized */}
-                {editing && (
-                  <div className="mt-6 flex space-x-3">
-                    <Button
-                      type="submit"
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-sm md:text-base"
-                      disabled={loading}
-                    >
-                      {loading ? (
-                        <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin mx-auto" />
-                      ) : (
-                        'Save Changes'
-                      )}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="flex-1 text-sm md:text-base"
-                      onClick={() => setEditing(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
-
-{/* Notification Preferences Card - Enhanced Collapsible */}
-<Card className='shadow-sm md:shadow-lg mb-4 md:mb-8'>
-  <CardHeader 
-    className='border-b border-gray-100 p-4 md:p-6 cursor-pointe'
-    onClick={() => setNotificationCardExpanded(!notificationCardExpanded)}
-  >
-    <div className="flex items-center justify-between">
-      <CardTitle className='text-lg md:text-xl flex items-center'>
-        <Bell className="w-5 h-5 md:w-6 md:h-6 mr-2" />
-        Notifications
-      </CardTitle>
-      <div className="flex items-center space-x-2">
-        {notificationPreferences && (
-          <div className="text-xs md:text-sm text-gray-500">
-            {notificationPreferences.pushNotifications ? 'Enabled' : 'Disabled'}
-          </div>
-        )}
-        <ChevronRight 
-          className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-            notificationCardExpanded ? 'rotate-90' : ''
-          }`} 
-        />
-      </div>
-    </div>
-    {!notificationCardExpanded && notificationPreferences && (
-      <div className="mt-2 text-xs md:text-sm text-gray-600">
-        Click to manage your notification settings
-      </div>
-    )}
-  </CardHeader>
-  
-  {/* Collapsible Content */}
-  <div className={`overflow-hidden transition-all duration-300 ease-in-out ${
-    notificationCardExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
-  }`}>
-    <CardContent className="p-4 md:p-6">
-      {notificationPreferences ? (
-        <div className="space-y-6">
-          
-          {/* Master Controls */}
-          <div className="pb-4 border-b border-gray-100">
-            <h3 className="text-base font-semibold mb-4 text-gray-900">Master Controls</h3>
-            <div className="space-y-1">
-              <NotificationToggle
-                label="Push Notifications"
-                description="Receive notifications on your device"
-                checked={notificationPreferences.pushNotifications}
-                onChange={(value) => updateNotificationPreference('pushNotifications', null, value)}
-              />
-              <NotificationToggle
-                label="Email Notifications"
-                description="Receive notifications via email"
-                checked={notificationPreferences.emailNotifications}
-                onChange={(value) => updateNotificationPreference('emailNotifications', null, value)}
-              />
-            </div>
-          </div>
-
-          {/* GymBros Notifications */}
-          <div className="pb-4 border-b border-gray-100">
-            <h3 className="text-base font-semibold mb-4 text-gray-900 flex items-center">
-              <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
-              GymBros
-            </h3>
-            <div className="space-y-1">
-              <NotificationToggle
-                label="New Matches"
-                description="When you match with a new gym buddy"
-                checked={notificationPreferences.gymBros?.matches}
-                onChange={(value) => updateNotificationPreference('gymBros', 'matches', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-              <NotificationToggle
-                label="Messages"
-                description="When someone sends you a message"
-                checked={notificationPreferences.gymBros?.messages}
-                onChange={(value) => updateNotificationPreference('gymBros', 'messages', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-              <NotificationToggle
-                label="Workout Invites"
-                description="When someone invites you to workout"
-                checked={notificationPreferences.gymBros?.workoutInvites}
-                onChange={(value) => updateNotificationPreference('gymBros', 'workoutInvites', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-              <NotificationToggle
-                label="Profile Views"
-                description="When someone views your profile"
-                checked={notificationPreferences.gymBros?.profileViews}
-                onChange={(value) => updateNotificationPreference('gymBros', 'profileViews', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-              <NotificationToggle
-                label="Boosts"
-                description="When your boosts are activated or expire"
-                checked={notificationPreferences.gymBros?.boosts}
-                onChange={(value) => updateNotificationPreference('gymBros', 'boosts', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-            </div>
-          </div>
-
-          {/* Coaching Notifications - Different based on role */}
-          <div className="pb-4 border-b border-gray-100">
-            <h3 className="text-base font-semibold mb-4 text-gray-900 flex items-center">
-              <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-              Coaching
-              {isCoach && (
-                <span className="ml-2 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
-                  Coach
-                </span>
-              )}
-            </h3>
-            <div className="space-y-1">
-              {isCoach ? (
-                // Coach notifications
-                <>
-                  <NotificationToggle
-                    label="New Clients"
-                    description="When someone subscribes to your coaching"
-                    checked={notificationPreferences.coaching?.newClients}
-                    onChange={(value) => updateNotificationPreference('coaching', 'newClients', value)}
-                    disabled={!notificationPreferences.pushNotifications}
-                  />
-                  <NotificationToggle
-                    label="Client Messages"
-                    description="When clients send you messages"
-                    checked={notificationPreferences.coaching?.clientMessages}
-                    onChange={(value) => updateNotificationPreference('coaching', 'clientMessages', value)}
-                    disabled={!notificationPreferences.pushNotifications}
-                  />
-                  <NotificationToggle
-                    label="Session Reminders"
-                    description="Reminders about upcoming sessions"
-                    checked={notificationPreferences.coaching?.sessionReminders}
-                    onChange={(value) => updateNotificationPreference('coaching', 'sessionReminders', value)}
-                    disabled={!notificationPreferences.pushNotifications}
-                  />
-                  <NotificationToggle
-                    label="Payment Updates"
-                    description="When you receive payments or payouts"
-                    checked={notificationPreferences.coaching?.paymentUpdates}
-                    onChange={(value) => updateNotificationPreference('coaching', 'paymentUpdates', value)}
-                    disabled={!notificationPreferences.pushNotifications}
-                  />
-                  <NotificationToggle
-                    label="Goal Completion Requests"
-                    description="When clients request goal completion approval"
-                    checked={notificationPreferences.coaching?.goalCompletionRequests}
-                    onChange={(value) => updateNotificationPreference('coaching', 'goalCompletionRequests', value)}
-                    disabled={!notificationPreferences.pushNotifications}
-                  />
-                </>
-              ) : (
-                // Client/User notifications
-                <>
-                  <NotificationToggle
-                    label="Session Reminders"
-                    description="Reminders about your upcoming coaching sessions"
-                    checked={notificationPreferences.coaching?.sessionReminders}
-                    onChange={(value) => updateNotificationPreference('coaching', 'sessionReminders', value)}
-                    disabled={!notificationPreferences.pushNotifications}
-                  />
-                  <NotificationToggle
-                    label="Coach Messages"
-                    description="When your coach sends you messages"
-                    checked={notificationPreferences.coaching?.coachMessages}
-                    onChange={(value) => updateNotificationPreference('coaching', 'coachMessages', value)}
-                    disabled={!notificationPreferences.pushNotifications}
-                  />
-                  <NotificationToggle
-                    label="New Goals"
-                    description="When your coach assigns you new goals"
-                    checked={notificationPreferences.coaching?.newGoals}
-                    onChange={(value) => updateNotificationPreference('coaching', 'newGoals', value)}
-                    disabled={!notificationPreferences.pushNotifications}
-                  />
-                  <NotificationToggle
-                    label="Accepted Goals"
-                    description="When your coach accepts your goal completions"
-                    checked={notificationPreferences.coaching?.acceptedGoals}
-                    onChange={(value) => updateNotificationPreference('coaching', 'acceptedGoals', value)}
-                    disabled={!notificationPreferences.pushNotifications}
-                  />
-                </>
-              )}
-            </div>
-          </div>
-
-
-          {/* Games Notifications */}
-          <div className="pb-4 border-b border-gray-100">
-            <h3 className="text-base font-semibold mb-4 text-gray-900 flex items-center">
-              <div className="w-2 h-2 bg-purple-500 rounded-full mr-2"></div>
-              Games
-            </h3>
-            <div className="space-y-1">
-              <NotificationToggle
-                label="Daily Rewards"
-                description="When daily rewards are available"
-                checked={notificationPreferences.games?.dailyRewards}
-                onChange={(value) => updateNotificationPreference('games', 'dailyRewards', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-              <NotificationToggle
-                label="Streak Reminders"
-                description="Reminders to maintain your learning streak"
-                checked={notificationPreferences.games?.streakReminders}
-                onChange={(value) => updateNotificationPreference('games', 'streakReminders', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-              <NotificationToggle
-                label="Leaderboard Updates"
-                description="When your leaderboard position changes"
-                checked={notificationPreferences.games?.leaderboardUpdates}
-                onChange={(value) => updateNotificationPreference('games', 'leaderboardUpdates', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-              <NotificationToggle
-                label="New Games"
-                description="When new games are available"
-                checked={notificationPreferences.games?.newGames}
-                onChange={(value) => updateNotificationPreference('games', 'newGames', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-            </div>
-          </div>
-
-          {/* Shop Notifications */}
-          <div className="pb-4 border-b border-gray-100">
-            <h3 className="text-base font-semibold mb-4 text-gray-900 flex items-center">
-              <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
-              Shop
-            </h3>
-            <div className="space-y-1">
-              <NotificationToggle
-                label="Order Updates"
-                description="Updates about your orders"
-                checked={notificationPreferences.shop?.orderUpdates}
-                onChange={(value) => updateNotificationPreference('shop', 'orderUpdates', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-              <NotificationToggle
-                label="Shipping Notifications"
-                description="When your orders are shipped"
-                checked={notificationPreferences.shop?.shippingNotifications}
-                onChange={(value) => updateNotificationPreference('shop', 'shippingNotifications', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-              <NotificationToggle
-                label="Sales & Promotions"
-                description="Special offers and discounts"
-                checked={notificationPreferences.shop?.salesAndPromotions}
-                onChange={(value) => updateNotificationPreference('shop', 'salesAndPromotions', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-              <NotificationToggle
-                label="Stock Alerts"
-                description="When items you want are back in stock"
-                checked={notificationPreferences.shop?.stockAlerts}
-                onChange={(value) => updateNotificationPreference('shop', 'stockAlerts', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-              <NotificationToggle
-                label="Cart Reminders"
-                description="Reminders about items left in your cart"
-                checked={notificationPreferences.shop?.cartReminders}
-                onChange={(value) => updateNotificationPreference('shop', 'cartReminders', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-            </div>
-          </div>
-
-          {/* General Notifications */}
-          <div className="pb-4 border-b border-gray-100">
-            <h3 className="text-base font-semibold mb-4 text-gray-900 flex items-center">
-              <div className="w-2 h-2 bg-gray-500 rounded-full mr-2"></div>
-              General
-            </h3>
-            <div className="space-y-1">
-              <NotificationToggle
-                label="System Updates"
-                description="Important app updates and announcements"
-                checked={notificationPreferences.general?.systemUpdates}
-                onChange={(value) => updateNotificationPreference('general', 'systemUpdates', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-              <NotificationToggle
-                label="Maintenance Notices"
-                description="Scheduled maintenance notifications"
-                checked={notificationPreferences.general?.maintenanceNotices}
-                onChange={(value) => updateNotificationPreference('general', 'maintenanceNotices', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-              <NotificationToggle
-                label="Security Alerts"
-                description="Important security-related notifications"
-                checked={notificationPreferences.general?.securityAlerts}
-                onChange={(value) => updateNotificationPreference('general', 'securityAlerts', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-              <NotificationToggle
-                label="Account Updates"
-                description="Changes to your account settings"
-                checked={notificationPreferences.general?.accountUpdates}
-                onChange={(value) => updateNotificationPreference('general', 'accountUpdates', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-            </div>
-          </div>
-
-          {/* Quiet Hours */}
-          <div>
-            <h3 className="text-base font-semibold mb-4 text-gray-900 flex items-center">
-              <Clock className="w-4 h-4 mr-2" />
-              Quiet Hours
-            </h3>
-            <div className="space-y-4">
-              <NotificationToggle
-                label="Enable Quiet Hours"
-                description="Don't receive notifications during specified times"
-                checked={notificationPreferences.quietHours?.enabled}
-                onChange={(value) => updateNotificationPreference('quietHours', 'enabled', value)}
-                disabled={!notificationPreferences.pushNotifications}
-              />
-              
-              {notificationPreferences.quietHours?.enabled && (
-                <div className="bg-gray-50 p-4 rounded-lg space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Start Time</label>
-                      <Input
-                        type="time"
-                        value={notificationPreferences.quietHours?.startTime || "22:00"}
-                        onChange={(e) => updateNotificationPreference('quietHours', 'startTime', e.target.value)}
-                        className="text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-2">End Time</label>
-                      <Input
-                        type="time"
-                        value={notificationPreferences.quietHours?.endTime || "08:00"}
-                        onChange={(e) => updateNotificationPreference('quietHours', 'endTime', e.target.value)}
-                        className="text-sm"
-                      />
-                    </div>
-                  </div>
-                  <div className="text-xs text-gray-600 bg-blue-50 p-3 rounded">
-                    <Clock className="w-4 h-4 inline mr-1" />
-                    Quiet hours are based on your device's timezone ({notificationPreferences.quietHours?.timezone || 'UTC'})
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-        </div>
-      ) : (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="w-6 h-6 animate-spin mr-2" />
-          <span className="text-gray-600">Loading notification preferences...</span>
-        </div>
-      )}
-    </CardContent>
-  </div>
-</Card>
-
-            {/* Membership Status - Mobile Optimized */}
-            {!isCoach && (
+            {/* Subscription Details */}
+            {subscriptionDetails && (
               <Card className='shadow-sm md:shadow-lg mb-4 md:mb-8'>
-                <CardHeader className="p-4 md:p-6">
-                  <CardTitle className="flex items-center text-lg md:text-xl">
-                    <Crown className="w-5 h-5 md:w-6 md:h-6 mr-2 text-yellow-500" />
-                    Membership Status
+                <CardHeader className='border-b border-gray-100 p-4 md:p-6'>
+                  <CardTitle className='flex items-center text-lg md:text-xl'>
+                    <Package className="w-4 h-4 md:w-5 md:h-5 mr-2" />
+                    Subscription Details
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 md:p-6">
-                  {subscriptionDetails ? (
-                    <div className="space-y-4">
-                      <div className={`p-3 md:p-4 rounded-lg ${getStatusColor(subscriptionDetails.status)}`}>
-                        <div className="flex justify-between items-center mb-2">
-                          <h3 className="text-base md:text-lg font-semibold">
-                            {formatSubscriptionType(subscriptionDetails.subscription)} Plan
-                          </h3>
-                          <span className="px-2 py-1 text-xs md:text-sm rounded-full bg-opacity-25 capitalize">
-                            {subscriptionDetails.status}
-                          </span>
-                        </div>
-                        <div className="space-y-1 text-xs md:text-sm">
-                          <p>Start: {new Date(subscriptionDetails.startDate).toLocaleDateString()}</p>
-                          {subscriptionDetails.endDate && (
-                            <p>End: {new Date(subscriptionDetails.endDate).toLocaleDateString()}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start text-sm md:text-base"
-                        onClick={() => navigate('/subscription-management')}
-                      >
-                        <Settings className="w-4 h-4 md:w-5 md:h-5 mr-2" />
-                        Manage Membership
-                      </Button>
+                  <div className="space-y-3 md:space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium text-sm md:text-base">Plan</span>
+                      <span className={`px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium ${getStatusColor(subscriptionDetails.status)}`}>
+                        {formatSubscriptionType(subscriptionDetails.type)}
+                      </span>
                     </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className='bg-blue-50 p-3 md:p-4 rounded-lg'>
-                        <div className='text-gray-600 mb-3 text-sm md:text-base'>
-                          Unlock exclusive features:
-                          <ul className="list-disc list-inside mt-2 space-y-1 text-xs md:text-sm">
-                            <li>Personalized workout plans</li>
-                            <li>Nutrition guidance</li>
-                            <li>Expert coaching support</li>
-                            <li>Premium features access</li>
-                          </ul>
-                        </div>
-                        <Button
-                          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-sm md:text-base"
-                          onClick={() => navigate('/coaching')}
-                        >
-                          Explore Coaching Plans
-                        </Button>
-                      </div>
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium text-sm md:text-base">Status</span>
+                      <span className="text-gray-600 text-sm md:text-base">{subscriptionDetails.status}</span>
                     </div>
-                  )}
+                    {subscriptionDetails.expiresAt && (
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium text-sm md:text-base">Expires</span>
+                        <span className="text-gray-600 text-sm md:text-base">
+                          {new Date(subscriptionDetails.expiresAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )}
 
-            {/* Action Buttons - Mobile Optimized */}
-            <div className="space-y-3">
-              <Button
-                variant="outline"
-                className="w-full flex items-center justify-center space-x-2 py-5 md:py-6 text-sm md:text-base"
-                onClick={() => navigate('/orders')}
-              >
-                <Package className="w-4 h-4 md:w-5 md:h-5" />
-                <span>My Orders</span>
-                <ChevronRight className="w-4 h-4 md:w-5 md:h-5 ml-auto" />
-              </Button>
-              
-              <Button
-                variant="destructive"
-                className="w-full flex items-center justify-center space-x-2 py-5 md:py-6 text-sm md:text-base"
-                onClick={handleLogout}
-              >
-                <LogOut className="w-4 h-4 md:w-5 md:h-5" />
-                <span>Logout</span>
-              </Button>
-              
-              <Button
-                variant="destructive"
-                className="w-full flex items-center justify-center space-x-2 py-5 md:py-6 bg-red-600 hover:bg-red-700 text-sm md:text-base"
-                onClick={handleDeleteAccount}
-                disabled={loading}
-              >
-                <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
-                <span>Delete Account</span>
-              </Button>
-            </div>
+            {/* Account Actions */}
+            <Card className='shadow-sm md:shadow-lg'>
+              <CardHeader className='border-b border-gray-100 p-4 md:p-6'>
+                <CardTitle className='flex items-center text-lg md:text-xl'>
+                  <Settings className="w-4 h-4 md:w-5 md:h-5 mr-2" />
+                  Account Actions
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 md:p-6">
+                <div className="space-y-3">
+                  <Button
+                    onClick={handleLogout}
+                    variant="outline"
+                    className="w-full justify-start text-sm md:text-base"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Logout
+                  </Button>
+                  
+                  <Button
+                    onClick={handleDeleteAccount}
+                    variant="outline"
+                    className="w-full justify-start text-red-600 border-red-200 hover:bg-red-50 text-sm md:text-base"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Account
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </form>
+        </div>
+      </div>
 
-        {/* Stripe Onboarding Modal - Mobile Optimized */}
-        {showStripeOnboarding && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className='bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto'>
-              <div className="p-4 md:p-6">
-                <StripeOnboardingForm
-                  initialData={{
-                    email: profileData.email,
-                    firstName: profileData.firstName,
-                    lastName: profileData.lastName,
-                    phone: profileData.phone,
-                  }}
-                  onSubmit={handlePayoutSetup}
-                  onClose={() => setShowStripeOnboarding(false)}
-                />
-              </div>
-            </div>
-          </div>
-        )}
+      {/* Modals */}
+      {showStripeOnboarding && (
+        <StripeOnboardingForm
+          onClose={() => setShowStripeOnboarding(false)}
+          onSuccess={handlePayoutSetup}
+        />
+      )}
 
-        {/* Crop Modal */}
-        {cropModalProps && (
-          <ImageCropModal
-            image={cropModalProps.image}
-            onCropComplete={cropModalProps.onCropComplete}
-            onClose={handleCloseCropModal}
-            aspectRatio={1}
-          />
-        )}
+      {cropModalProps && (
+        <ImageCropModal
+          {...cropModalProps}
+          onClose={handleCloseCropModal}
+        />
+      )}
 
-        {/* Location Request Modal */}
+      {showLocationModal && (
         <LocationRequestModal
-          isOpen={showLocationModal}
           onClose={() => setShowLocationModal(false)}
           onLocationSet={handleLocationSet}
-          title="Activate Coach Location"
         />
-      </div>
+      )}
     </div>
   );
 };
